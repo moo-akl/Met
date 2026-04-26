@@ -1,10 +1,19 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
+import { Avatar } from "@/components/Avatar";
 import { PulseBeacon } from "@/components/PulseBeacon";
+import { RequestsSheet } from "@/components/RequestsSheet";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -13,6 +22,12 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { encounters, profile } = useApp();
   const isVisible = profile?.isVisible ?? true;
+  const [requestsOpen, setRequestsOpen] = useState(false);
+
+  const incoming = useMemo(
+    () => encounters.filter((e) => e.status === "request_received"),
+    [encounters],
+  );
 
   const stats = useMemo(() => {
     const today = Date.now() - 24 * 60 * 60 * 1000;
@@ -41,6 +56,50 @@ export default function HomeScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
+        {incoming.length > 0 ? (
+          <Pressable
+            onPress={() => setRequestsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`${incoming.length} ${incoming.length === 1 ? "person wants" : "people want"} to reveal their socials. Tap to review.`}
+            style={({ pressed }) => [
+              styles.banner,
+              {
+                backgroundColor: "#DCFCE7",
+                borderColor: colors.primary,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <View style={styles.bannerAvatars}>
+              {incoming.slice(0, 3).map((e, i) => (
+                <View
+                  key={e.id}
+                  style={[
+                    styles.avatarStack,
+                    {
+                      marginLeft: i === 0 ? 0 : -10,
+                      borderColor: "#DCFCE7",
+                      zIndex: 10 - i,
+                    },
+                  ]}
+                >
+                  <Avatar uri={e.photoUri} size={32} />
+                </View>
+              ))}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.bannerTitle, { color: "#14532D" }]}>
+                {incoming.length}{" "}
+                {incoming.length === 1 ? "person wants" : "people want"} to reveal
+              </Text>
+              <Text style={[styles.bannerSub, { color: "#166534" }]}>
+                Tap to review &amp; accept
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.primary} />
+          </Pressable>
+        ) : null}
+
         <View style={styles.heroSection}>
           <View style={styles.beaconWrap}>
             <PulseBeacon size={180} active={isVisible} />
@@ -96,6 +155,10 @@ export default function HomeScreen() {
           />
         </View>
       </ScrollView>
+      <RequestsSheet
+        visible={requestsOpen}
+        onClose={() => setRequestsOpen(false)}
+      />
     </View>
   );
 }
@@ -131,6 +194,34 @@ function StatCard({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  banner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 20,
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  bannerAvatars: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatarStack: {
+    borderRadius: 20,
+    borderWidth: 2,
+  },
+  bannerTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 14,
+  },
+  bannerSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
+  },
   heroSection: {
     alignItems: "center",
     paddingHorizontal: 24,
