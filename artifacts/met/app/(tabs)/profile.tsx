@@ -3,7 +3,6 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -17,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppHeader } from "@/components/AppHeader";
 import { MyQrSheet } from "@/components/MyQrSheet";
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { SettingsSheet } from "@/components/SettingsSheet";
 import { SocialLinkRow } from "@/components/SocialLinkRow";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -34,10 +34,11 @@ const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: st
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { profile, setProfile, resetAll } = useApp();
+  const { profile, setProfile } = useApp();
 
   const [editing, setEditing] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [name, setName] = useState(profile?.name ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [photoUri, setPhotoUri] = useState<string | null>(profile?.photoUri ?? null);
@@ -80,20 +81,7 @@ export default function ProfileScreen() {
   };
 
   const handleSettings = () => {
-    if (Platform.OS === "web") {
-      if (confirm("Reset profile and rebuild encounters?")) {
-        resetAll();
-      }
-      return;
-    }
-    Alert.alert("Settings", undefined, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Reset profile",
-        style: "destructive",
-        onPress: () => resetAll(),
-      },
-    ]);
+    setSettingsOpen(true);
   };
 
   const webBot = Platform.OS === "web" ? 34 : 0;
@@ -117,6 +105,10 @@ export default function ProfileScreen() {
           profile={profile}
         />
       ) : null}
+      <SettingsSheet
+        visible={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
       <KeyboardAwareScrollView
         contentContainerStyle={{
           paddingTop: 24,

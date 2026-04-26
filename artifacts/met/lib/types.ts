@@ -35,4 +35,5 @@ export type Encounter = {
   lastDistanceM: number;
   lastLocation: string;
   status: EncounterStatus;
+  blocked?: boolean;
 };

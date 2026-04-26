@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ActionSheet } from "@/components/ActionSheet";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SocialChip } from "@/components/SocialChip";
 import { useApp } from "@/contexts/AppContext";
@@ -33,11 +34,13 @@ export default function EncounterDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { encounters, updateEncounterStatus } = useApp();
+  const { allEncounters, updateEncounterStatus, removeEncounter, setBlocked } = useApp();
+
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const encounter = useMemo(
-    () => encounters.find((e) => e.id === id),
-    [encounters, id],
+    () => allEncounters.find((e) => e.id === id),
+    [allEncounters, id],
   );
 
   useEffect(() => {
@@ -71,6 +74,15 @@ export default function EncounterDetail() {
   const handleAccept = () => updateEncounterStatus(encounter.id, "connected");
   const handleDecline = () => {
     updateEncounterStatus(encounter.id, "encounter");
+    router.back();
+  };
+
+  const handleRemove = async () => {
+    await removeEncounter(encounter.id);
+    router.back();
+  };
+  const handleBlock = async () => {
+    await setBlocked(encounter.id, true);
     router.back();
   };
 
@@ -116,6 +128,7 @@ export default function EncounterDetail() {
 
           <Pressable
             hitSlop={12}
+            onPress={() => setMenuOpen(true)}
             style={[
               styles.iconBtn,
               {
@@ -250,6 +263,26 @@ export default function EncounterDetail() {
           )}
         </View>
       </ScrollView>
+
+      <ActionSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title={encounter.realName}
+        actions={[
+          {
+            label: isConnected ? "Remove connection" : "Remove encounter",
+            icon: "trash-2",
+            destructive: true,
+            onPress: handleRemove,
+          },
+          {
+            label: "Block",
+            icon: "slash",
+            destructive: true,
+            onPress: handleBlock,
+          },
+        ]}
+      />
     </View>
   );
 }
