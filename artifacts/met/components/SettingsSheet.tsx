@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -26,7 +27,14 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
-  const { blockedEncounters, setBlocked, resetAll } = useApp();
+  const { profile, setProfile, blockedEncounters, setBlocked, resetAll } =
+    useApp();
+  const isVisible = profile?.isVisible ?? true;
+
+  const toggleVisible = async (next: boolean) => {
+    if (!profile) return;
+    await setProfile({ ...profile, isVisible: next });
+  };
 
   const [view, setView] = useState<SheetView>("menu");
   const [confirmReset, setConfirmReset] = useState(false);
@@ -75,6 +83,48 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
           {view === "menu" ? (
             <View style={{ gap: 10 }}>
+              <View
+                style={[
+                  styles.row,
+                  {
+                    backgroundColor: colors.muted,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.rowIcon,
+                    { backgroundColor: colors.background },
+                  ]}
+                >
+                  <Feather
+                    name="radio"
+                    size={18}
+                    color={isVisible ? colors.primary : colors.mutedForeground}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowLabel, { color: colors.foreground }]}>
+                    Visible on Radar
+                  </Text>
+                  <Text
+                    style={[styles.rowSub, { color: colors.mutedForeground }]}
+                  >
+                    {isVisible
+                      ? "Your beacon is broadcasting nearby"
+                      : "You're hidden from other Met users"}
+                  </Text>
+                </View>
+                <Switch
+                  value={isVisible}
+                  onValueChange={toggleVisible}
+                  trackColor={{ false: "#D1D5DB", true: colors.primary }}
+                  thumbColor="#FFFFFF"
+                  ios_backgroundColor="#D1D5DB"
+                />
+              </View>
+
               <Pressable
                 onPress={() => setView("blocked")}
                 style={({ pressed }) => [

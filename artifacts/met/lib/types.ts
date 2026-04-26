@@ -15,6 +15,7 @@ export type Profile = {
   photoUri: string;
   socials: SocialLinks;
   verified: boolean;
+  isVisible: boolean;
 };
 
 export type EncounterStatus =

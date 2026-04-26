@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -84,6 +85,13 @@ export default function EncounterDetail() {
   const handleBlock = async () => {
     await setBlocked(encounter.id, true);
     router.back();
+  };
+
+  const openMap = () => {
+    if (!encounter.lastLocation) return;
+    const q = encodeURIComponent(encounter.lastLocation);
+    const url = `https://www.google.com/maps/search/?api=1&query=${q}`;
+    Linking.openURL(url).catch(() => {});
   };
 
   const socialEntries = (
@@ -174,6 +182,38 @@ export default function EncounterDetail() {
               {encounter.bio || "—"}
             </Text>
           </View>
+
+          {encounter.lastLocation ? (
+            <View style={styles.section}>
+              <Text
+                style={[styles.sectionLabel, { color: colors.mutedForeground }]}
+              >
+                Meeting Spot
+              </Text>
+              <Pressable
+                onPress={openMap}
+                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+              >
+                <LinearGradient
+                  colors={[colors.primary, "#2BA535"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.mapCard}
+                >
+                  <View style={styles.mapIconWrap}>
+                    <Feather name="map-pin" size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.mapLocation} numberOfLines={1}>
+                      {encounter.lastLocation}
+                    </Text>
+                    <Text style={styles.mapCta}>Tap to view on Maps</Text>
+                  </View>
+                  <Feather name="external-link" size={18} color="#FFFFFF" />
+                </LinearGradient>
+              </Pressable>
+            </View>
+          ) : null}
 
           {isConnected ? (
             <View style={styles.section}>
@@ -377,5 +417,32 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 13,
     textAlign: "center",
+  },
+  mapCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+  },
+  mapIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mapLocation: {
+    color: "#FFFFFF",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+  },
+  mapCta: {
+    color: "rgba(255,255,255,0.85)",
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
   },
 });
