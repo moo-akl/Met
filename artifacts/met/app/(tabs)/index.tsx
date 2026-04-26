@@ -17,13 +17,15 @@ import { RequestsSheet } from "@/components/RequestsSheet";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
+import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { encounters } = useApp();
+  const { encounters, preferences } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
+  const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
 
   const incoming = useMemo(
     () => encounters.filter((e) => e.status === "request_received"),
@@ -54,9 +56,9 @@ export default function HomeScreen() {
     return { newPeople, repeats };
   }, [encounters]);
 
-  const within50m = useMemo(
-    () => encounters.filter((e) => e.lastDistanceM <= 50).length,
-    [encounters],
+  const withinRange = useMemo(
+    () => encounters.filter((e) => e.lastDistanceM <= rangeM).length,
+    [encounters, rangeM],
   );
 
   const webBot = Platform.OS === "web" ? 34 : 0;
@@ -132,7 +134,7 @@ export default function HomeScreen() {
           {isVisible ? (
             <>
               <Text style={[styles.headline, { color: colors.foreground }]}>
-                {within50m} {within50m === 1 ? "person" : "people"} within 50m
+                {withinRange} {withinRange === 1 ? "person" : "people"} within {rangeM}m
               </Text>
               <Text style={[styles.sub, { color: colors.mutedForeground }]}>
                 Met is quietly listening. Anyone you cross paths with shows up under Recent.
