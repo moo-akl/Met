@@ -20,6 +20,7 @@ import { SettingsSheet } from "@/components/SettingsSheet";
 import { SocialLinkRow } from "@/components/SocialLinkRow";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useVisibility } from "@/hooks/useVisibility";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
 
 const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: string }> = [
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { profile, setProfile } = useApp();
+  const { isVisible, toggle: toggleVisibility } = useVisibility();
 
   const [editing, setEditing] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -93,6 +95,7 @@ export default function ProfileScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
         title="My Profile"
+        visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[
           { icon: "grid", onPress: () => setQrOpen(true) },
           { icon: "settings", onPress: handleSettings },

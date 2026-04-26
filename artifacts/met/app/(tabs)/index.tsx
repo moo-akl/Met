@@ -16,12 +16,13 @@ import { PulseBeacon } from "@/components/PulseBeacon";
 import { RequestsSheet } from "@/components/RequestsSheet";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useVisibility } from "@/hooks/useVisibility";
 
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { encounters, profile } = useApp();
-  const isVisible = profile?.isVisible ?? true;
+  const { encounters } = useApp();
+  const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
 
   const incoming = useMemo(
@@ -40,6 +41,19 @@ export default function HomeScreen() {
     };
   }, [encounters]);
 
+  // Lightweight weekly recap so the home screen reinforces the "people, not
+  // followers" thesis. `newPeople` are first-seen this week; `repeats` are
+  // anyone you've crossed paths with more than once whose latest sighting is
+  // also within the week.
+  const weekly = useMemo(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const newPeople = encounters.filter((e) => e.firstSeenAt >= weekAgo).length;
+    const repeats = encounters.filter(
+      (e) => e.encounterCount > 1 && e.lastSeenAt >= weekAgo,
+    ).length;
+    return { newPeople, repeats };
+  }, [encounters]);
+
   const within50m = useMemo(
     () => encounters.filter((e) => e.lastDistanceM <= 50).length,
     [encounters],
@@ -49,7 +63,10 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader title="Home" />
+      <AppHeader
+        title="Home"
+        visibility={{ isVisible, onToggle: toggleVisibility }}
+      />
       <ScrollView
         contentContainerStyle={{
           paddingBottom: insets.bottom + webBot + 120,
@@ -153,6 +170,46 @@ export default function HomeScreen() {
             label="Pending"
             colors={colors}
           />
+        </View>
+
+        <View
+          style={[
+            styles.weeklyCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.weeklyHeader}>
+            <Feather name="calendar" size={16} color={colors.primary} />
+            <Text style={[styles.weeklyTitle, { color: colors.foreground }]}>
+              This week
+            </Text>
+          </View>
+          <View style={styles.weeklyRow}>
+            <View style={styles.weeklyCell}>
+              <Text style={[styles.weeklyValue, { color: colors.foreground }]}>
+                {weekly.newPeople}
+              </Text>
+              <Text style={[styles.weeklyLabel, { color: colors.mutedForeground }]}>
+                new {weekly.newPeople === 1 ? "person" : "people"}
+              </Text>
+            </View>
+            <View
+              style={[styles.weeklyDivider, { backgroundColor: colors.border }]}
+            />
+            <View style={styles.weeklyCell}>
+              <Text style={[styles.weeklyValue, { color: colors.foreground }]}>
+                {weekly.repeats}
+              </Text>
+              <Text style={[styles.weeklyLabel, { color: colors.mutedForeground }]}>
+                crossed paths again
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.weeklyHint, { color: colors.mutedForeground }]}>
+            {weekly.newPeople === 0 && weekly.repeats === 0
+              ? "Quiet week. Step outside — Met is listening."
+              : "Remember the human, not the follower count."}
+          </Text>
         </View>
       </ScrollView>
       <RequestsSheet
@@ -276,5 +333,49 @@ const styles = StyleSheet.create({
   statLabel: {
     fontFamily: "Inter_400Regular",
     fontSize: 12,
+  },
+  weeklyCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 14,
+  },
+  weeklyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  weeklyTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 14,
+    letterSpacing: 0.2,
+  },
+  weeklyRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  weeklyCell: {
+    flex: 1,
+    alignItems: "flex-start",
+    gap: 2,
+  },
+  weeklyDivider: {
+    width: StyleSheet.hairlineWidth,
+    marginHorizontal: 12,
+  },
+  weeklyValue: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 24,
+  },
+  weeklyLabel: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+  },
+  weeklyHint: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    fontStyle: "italic",
   },
 });

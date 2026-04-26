@@ -5,6 +5,13 @@ import type { Encounter, Profile } from "./types";
 const PROFILE_KEY = "met:profile:v1";
 const ENCOUNTERS_KEY = "met:encounters:v1";
 const PERMISSIONS_KEY = "met:permissions:v1";
+const CONNECTIONS_SORT_KEY = "met:connectionsSort:v1";
+
+// 24h TTL for pending reveal requests in either direction. After this they
+// silently revert to "encounter" so the requests sheet doesn't pile up forever.
+export const REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
+
+export type ConnectionsSort = "recent" | "frequent" | "name";
 
 export async function loadProfile(): Promise<Profile | null> {
   const raw = await AsyncStorage.getItem(PROFILE_KEY);
@@ -43,4 +50,14 @@ export async function savePermissionsCompleted(done: boolean): Promise<void> {
   } else {
     await AsyncStorage.removeItem(PERMISSIONS_KEY);
   }
+}
+
+export async function loadConnectionsSort(): Promise<ConnectionsSort> {
+  const raw = await AsyncStorage.getItem(CONNECTIONS_SORT_KEY);
+  if (raw === "recent" || raw === "frequent" || raw === "name") return raw;
+  return "recent";
+}
+
+export async function saveConnectionsSort(s: ConnectionsSort): Promise<void> {
+  await AsyncStorage.setItem(CONNECTIONS_SORT_KEY, s);
 }

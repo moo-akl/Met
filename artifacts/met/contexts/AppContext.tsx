@@ -9,6 +9,7 @@ import React, {
 
 import { buildSeedEncounters } from "@/lib/seed";
 import {
+  REQUEST_TTL_MS,
   clearEncounters,
   clearProfile,
   loadEncounters,
@@ -31,11 +32,41 @@ type AppContextValue = {
   updateEncounterStatus: (id: string, status: EncounterStatus) => Promise<void>;
   removeEncounter: (id: string) => Promise<void>;
   setBlocked: (id: string, blocked: boolean) => Promise<void>;
+  setNote: (id: string, note: string) => Promise<void>;
+  setTags: (id: string, tags: string[]) => Promise<void>;
   resetAll: () => Promise<void>;
   setPermissionsCompleted: (done: boolean) => Promise<void>;
   upsertEncounterFromQr: (data: { id: string; name: string }) => Promise<string>;
   sendOpeningMessage: (id: string, text: string) => Promise<void>;
 };
+
+// Sweep stale pending reveal requests back to "encounter". Outgoing requests
+// use `requestSentAt`; incoming use `lastSeenAt` (we don't track when the
+// other side hit "send" so the encounter timestamp is the closest proxy).
+function expireStaleRequests(encs: Encounter[]): {
+  next: Encounter[];
+  changed: boolean;
+} {
+  const now = Date.now();
+  let changed = false;
+  const next = encs.map((e) => {
+    if (e.status === "request_sent") {
+      const sentAt = e.requestSentAt ?? e.lastSeenAt;
+      if (now - sentAt > REQUEST_TTL_MS) {
+        changed = true;
+        const { requestSentAt: _r, ...rest } = e;
+        return { ...rest, status: "encounter" as const };
+      }
+    } else if (e.status === "request_received") {
+      if (now - e.lastSeenAt > REQUEST_TTL_MS) {
+        changed = true;
+        return { ...e, status: "encounter" as const };
+      }
+    }
+    return e;
+  });
+  return { next, changed };
+}
 
 const REPLY_SAMPLES = [
   "Hey! Great to hear from you 👋",
@@ -74,7 +105,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setProfileState(p);
       }
       if (e && e.length > 0) {
-        setAllEncounters(e);
+        const swept = expireStaleRequests(e);
+        setAllEncounters(swept.next);
+        if (swept.changed) {
+          // Persist the swept state so subsequent loads don't re-do the work.
+          saveEncounters(swept.next).catch(() => {});
+        }
       } else {
         const seeded = buildSeedEncounters();
         setAllEncounters(seeded);
@@ -97,7 +133,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (id: string, status: EncounterStatus) => {
       let next: Encounter[] = [];
       setAllEncounters((prev) => {
-        next = prev.map((enc) => (enc.id === id ? { ...enc, status } : enc));
+        next = prev.map((enc) => {
+          if (enc.id !== id) return enc;
+          // Stamp `requestSentAt` when the user actively fires a reveal so the
+          // 24h sweep can later expire it. Clear it on any other transition.
+          if (status === "request_sent") {
+            return { ...enc, status, requestSentAt: Date.now() };
+          }
+          if (enc.requestSentAt !== undefined) {
+            const { requestSentAt: _r, ...rest } = enc;
+            return { ...rest, status };
+          }
+          return { ...enc, status };
+        });
         return next;
       });
       await saveEncounters(next);
@@ -118,6 +166,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let next: Encounter[] = [];
     setAllEncounters((prev) => {
       next = prev.map((enc) => (enc.id === id ? { ...enc, blocked } : enc));
+      return next;
+    });
+    await saveEncounters(next);
+  }, []);
+
+  const setNote = useCallback(async (id: string, note: string) => {
+    const trimmed = note.trim();
+    let next: Encounter[] = [];
+    setAllEncounters((prev) => {
+      next = prev.map((enc) => {
+        if (enc.id !== id) return enc;
+        if (!trimmed) {
+          const { note: _n, ...rest } = enc;
+          return rest;
+        }
+        return { ...enc, note: trimmed };
+      });
+      return next;
+    });
+    await saveEncounters(next);
+  }, []);
+
+  const setTags = useCallback(async (id: string, tags: string[]) => {
+    // Normalize to lowercase, trim, dedupe, drop empties.
+    const cleaned = Array.from(
+      new Set(
+        tags
+          .map((t) => t.trim().toLowerCase())
+          .filter((t) => t.length > 0 && t.length <= 24),
+      ),
+    );
+    let next: Encounter[] = [];
+    setAllEncounters((prev) => {
+      next = prev.map((enc) => {
+        if (enc.id !== id) return enc;
+        if (cleaned.length === 0) {
+          const { tags: _t, ...rest } = enc;
+          return rest;
+        }
+        return { ...enc, tags: cleaned };
+      });
       return next;
     });
     await saveEncounters(next);
@@ -197,18 +286,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const existing = prev.find((e) => e.id === data.id);
         if (existing) {
           resolvedId = existing.id;
-          next = prev.map((e) =>
-            e.id === existing.id
-              ? {
-                  ...e,
-                  blocked: false,
-                  status:
-                    e.status === "connected" ? "connected" : "request_sent",
-                  lastSeenAt: now,
-                  encounterCount: e.encounterCount + 1,
-                }
-              : e,
-          );
+          next = prev.map((e): Encounter => {
+            if (e.id !== existing.id) return e;
+            const nextStatus: EncounterStatus =
+              e.status === "connected" ? "connected" : "request_sent";
+            // Mirror updateEncounterStatus: stamp requestSentAt fresh on every
+            // re-issued request so the 24h sweep doesn't read a stale timestamp.
+            // Clear it on any other transition.
+            const base = {
+              ...e,
+              blocked: false,
+              status: nextStatus,
+              lastSeenAt: now,
+              encounterCount: e.encounterCount + 1,
+            };
+            if (nextStatus === "request_sent") {
+              return { ...base, requestSentAt: now };
+            }
+            if (base.requestSentAt !== undefined) {
+              const { requestSentAt: _r, ...rest } = base;
+              return rest;
+            }
+            return base;
+          });
           return next;
         }
         const fabricated: Encounter = {
@@ -223,6 +323,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           lastDistanceM: 0,
           lastLocation: "Scanned in person",
           status: "request_sent",
+          requestSentAt: now,
         };
         next = [fabricated, ...prev];
         return next;
@@ -254,6 +355,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateEncounterStatus,
       removeEncounter,
       setBlocked,
+      setNote,
+      setTags,
       resetAll,
       setPermissionsCompleted,
       upsertEncounterFromQr,
@@ -270,6 +373,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateEncounterStatus,
       removeEncounter,
       setBlocked,
+      setNote,
+      setTags,
       resetAll,
       setPermissionsCompleted,
       upsertEncounterFromQr,
