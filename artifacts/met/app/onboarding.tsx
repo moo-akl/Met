@@ -39,7 +39,7 @@ const SLIDES: Slide[] = [
   },
   {
     icon: "shield",
-    iconColor: "#4FBE52",
+    iconColor: "#3DCC44",
     iconBg: "#DCFCE7",
     title: "Stay Private & Secure",
     body: "We never share your exact location. Only your encounter ID is exchanged locally.",
@@ -106,6 +106,7 @@ export default function OnboardingScreen() {
       photoUri,
       socials,
       verified: true,
+      isVisible: true,
     });
     router.replace("/(tabs)");
   };
