@@ -1,6 +1,7 @@
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
@@ -10,12 +11,15 @@ import { RequestsSheet } from "@/components/RequestsSheet";
 import { ScanFab } from "@/components/ScanFab";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
+import { FREE_VISIBLE_ENCOUNTERS, startOfTodayMs } from "@/lib/usage";
 
 export default function RecentScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { encounters } = useApp();
+  const { isPlusSubscriber, isSubscriptionReady } = useSubscription();
   const [requestsOpen, setRequestsOpen] = useState(false);
 
   const sorted = useMemo(
@@ -28,6 +32,28 @@ export default function RecentScreen() {
     [encounters],
   );
 
+  // Free users only see the most recent N encounters per *day* — the bucket
+  // resets at midnight. Until RevenueCat resolves we show everything (we'd
+  // rather over-show briefly than blink the list down for a paid user).
+  const { visible, hiddenCount } = useMemo(() => {
+    if (!isSubscriptionReady || isPlusSubscriber) {
+      return { visible: sorted, hiddenCount: 0 };
+    }
+    const dayStart = startOfTodayMs();
+    const today: typeof sorted = [];
+    const earlier: typeof sorted = [];
+    for (const e of sorted) {
+      if (e.lastSeenAt >= dayStart) today.push(e);
+      else earlier.push(e);
+    }
+    const todayVisible = today.slice(0, FREE_VISIBLE_ENCOUNTERS);
+    const todayHidden = Math.max(0, today.length - todayVisible.length);
+    return {
+      visible: [...todayVisible, ...earlier],
+      hiddenCount: todayHidden,
+    };
+  }, [sorted, isSubscriptionReady, isPlusSubscriber]);
+
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   const handleBell = () => {
@@ -37,6 +63,8 @@ export default function RecentScreen() {
   const handleScan = () => {
     router.push("/scan");
   };
+
+  const handleUpgrade = () => router.push("/paywall");
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -52,7 +80,7 @@ export default function RecentScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {sorted.length === 0 ? (
+        {visible.length === 0 ? (
           <EmptyState
             icon="users"
             title="No encounters yet"
@@ -60,10 +88,10 @@ export default function RecentScreen() {
           />
         ) : (
           <View style={styles.list}>
-            {sorted.map((e, idx) => (
+            {visible.map((e, idx) => (
               <View key={e.id}>
                 <EncounterRow encounter={e} />
-                {idx < sorted.length - 1 ? (
+                {idx < visible.length - 1 ? (
                   <View
                     style={[
                       styles.separator,
@@ -75,6 +103,41 @@ export default function RecentScreen() {
             ))}
           </View>
         )}
+
+        {hiddenCount > 0 ? (
+          <Pressable
+            onPress={handleUpgrade}
+            style={({ pressed }) => [
+              styles.limitCard,
+              {
+                backgroundColor: colors.muted,
+                borderColor: colors.primary,
+                opacity: pressed ? 0.9 : 1,
+              },
+            ]}
+          >
+            <View style={styles.limitIcon}>
+              <Feather name="lock" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.limitTitle, { color: colors.foreground }]}>
+                You&rsquo;ve reached today&rsquo;s limit
+              </Text>
+              <Text
+                style={[styles.limitSub, { color: colors.mutedForeground }]}
+              >
+                {hiddenCount} more{" "}
+                {hiddenCount === 1 ? "encounter" : "encounters"} hidden. Met
+                Plus shows them all.
+              </Text>
+            </View>
+            <View
+              style={[styles.limitCta, { backgroundColor: colors.primary }]}
+            >
+              <Text style={styles.limitCtaText}>Upgrade</Text>
+            </View>
+          </Pressable>
+        ) : null}
       </ScrollView>
       <ScanFab onPress={handleScan} />
       <RequestsSheet
@@ -89,4 +152,41 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { paddingHorizontal: 4 },
   separator: { height: 1, marginLeft: 70 },
+  limitCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 18,
+  },
+  limitIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#3DCC44",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  limitTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 14,
+  },
+  limitSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  limitCta: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  limitCtaText: {
+    color: "#FFFFFF",
+    fontFamily: "Inter_700Bold",
+    fontSize: 12,
+  },
 });

@@ -1,63 +1,112 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const KEY = "met:reveals:v1";
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+// Per-day quotas, keyed by local-day so the bucket resets at midnight.
+//
+// Free tier: 2 reveals per day (used to be 3 per week).
+// Plus tier: 1 opening message per day.
+// Pro tier:  2 opening messages per day.
+//
+// We also expose a soft cap on the visible encounter feed for free users.
 
-export const FREE_REVEALS_PER_WEEK = 3;
+export const FREE_REVEALS_PER_DAY = 2;
+export const PLUS_OPENING_MESSAGES_PER_DAY = 1;
+export const PRO_OPENING_MESSAGES_PER_DAY = 2;
+export const FREE_VISIBLE_ENCOUNTERS = 10;
 
-type WeeklyUsage = {
-  weekStart: number;
+const REVEALS_KEY = "met:reveals:v2";
+const OPENINGS_KEY = "met:openings:v1";
+
+type DailyUsage = {
+  dayKey: string;
   count: number;
 };
 
-async function read(): Promise<WeeklyUsage> {
-  const raw = await AsyncStorage.getItem(KEY);
-  if (!raw) return { weekStart: Date.now(), count: 0 };
+function dayKeyOf(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+function todayKey(): string {
+  return dayKeyOf(Date.now());
+}
+
+// Start of the local day (midnight) in ms. Used to slice encounter feeds
+// against the free 10/day cap so the bucket resets at midnight automatically.
+export function startOfTodayMs(now: number = Date.now()): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+async function readBucket(key: string): Promise<DailyUsage> {
+  const raw = await AsyncStorage.getItem(key);
+  const today = todayKey();
+  if (!raw) return { dayKey: today, count: 0 };
   try {
-    const parsed = JSON.parse(raw) as WeeklyUsage;
-    if (Date.now() - parsed.weekStart > WEEK_MS) {
-      return { weekStart: Date.now(), count: 0 };
-    }
+    const parsed = JSON.parse(raw) as DailyUsage;
+    if (parsed.dayKey !== today) return { dayKey: today, count: 0 };
     return parsed;
   } catch {
-    return { weekStart: Date.now(), count: 0 };
+    return { dayKey: today, count: 0 };
   }
 }
 
-export async function getRevealsThisWeek(): Promise<number> {
-  return (await read()).count;
-}
+// Single-flight mutex per bucket so two concurrent taps can't both pass a
+// `remaining > 0` check and then both increment past the cap.
+const writeChains: Record<string, Promise<unknown>> = {};
 
-export async function getRevealsRemaining(): Promise<number> {
-  return Math.max(0, FREE_REVEALS_PER_WEEK - (await read()).count);
-}
-
-// Single-flight mutex so two concurrent taps can't both pass a `remaining > 0`
-// check and then both increment past the cap.
-let writeChain: Promise<unknown> = Promise.resolve();
-
-/**
- * Atomically check the free-tier quota and consume one reveal if available.
- * Returns the resulting count if consumed, or `null` if the cap was already hit.
- */
-export function tryConsumeFreeReveal(): Promise<number | null> {
-  const next = writeChain.then(async () => {
-    const cur = await read();
-    if (cur.count >= FREE_REVEALS_PER_WEEK) return null;
-    const updated = { weekStart: cur.weekStart, count: cur.count + 1 };
-    await AsyncStorage.setItem(KEY, JSON.stringify(updated));
+function tryConsume(
+  key: string,
+  cap: number,
+): Promise<number | null> {
+  const prev = writeChains[key] ?? Promise.resolve();
+  const next = prev.then(async () => {
+    const cur = await readBucket(key);
+    if (cur.count >= cap) return null;
+    const updated: DailyUsage = { dayKey: cur.dayKey, count: cur.count + 1 };
+    await AsyncStorage.setItem(key, JSON.stringify(updated));
     return updated.count;
   });
-  // Don't let a single failure poison the chain.
-  writeChain = next.catch(() => undefined);
+  writeChains[key] = next.catch(() => undefined);
   return next;
 }
 
-export async function incrementRevealsThisWeek(): Promise<number> {
-  const result = await tryConsumeFreeReveal();
-  return result ?? FREE_REVEALS_PER_WEEK;
+// ---------- Reveals ----------
+
+export async function getRevealsToday(): Promise<number> {
+  return (await readBucket(REVEALS_KEY)).count;
 }
 
-export async function resetRevealsThisWeek(): Promise<void> {
-  await AsyncStorage.removeItem(KEY);
+export async function getRevealsRemaining(): Promise<number> {
+  return Math.max(0, FREE_REVEALS_PER_DAY - (await readBucket(REVEALS_KEY)).count);
+}
+
+export function tryConsumeFreeReveal(): Promise<number | null> {
+  return tryConsume(REVEALS_KEY, FREE_REVEALS_PER_DAY);
+}
+
+export async function resetRevealsToday(): Promise<void> {
+  await AsyncStorage.removeItem(REVEALS_KEY);
+}
+
+// ---------- Opening messages ----------
+
+export async function getOpeningMessagesToday(): Promise<number> {
+  return (await readBucket(OPENINGS_KEY)).count;
+}
+
+export async function getOpeningMessagesRemaining(
+  perDayCap: number,
+): Promise<number> {
+  return Math.max(0, perDayCap - (await readBucket(OPENINGS_KEY)).count);
+}
+
+export function tryConsumeOpeningMessage(
+  perDayCap: number,
+): Promise<number | null> {
+  return tryConsume(OPENINGS_KEY, perDayCap);
+}
+
+export async function resetOpeningMessagesToday(): Promise<void> {
+  await AsyncStorage.removeItem(OPENINGS_KEY);
 }
