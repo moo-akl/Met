@@ -45,8 +45,13 @@ export function RequestsSheet({ visible, onClose }: Props) {
     onClose();
   };
 
-  const accept = (id: string) => {
-    updateEncounterStatus(id, "connected");
+  const accept = async (id: string) => {
+    // Await the status flip so the connection screen sees "connected" and
+    // doesn't bounce back to /encounter/[id]. Then close + navigate in one
+    // deterministic pass — no setTimeout race.
+    await updateEncounterStatus(id, "connected");
+    onClose();
+    router.push(`/connection/${id}`);
   };
 
   const decline = (id: string) => {
