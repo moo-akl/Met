@@ -16,10 +16,11 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { PulseBeacon } from "@/components/PulseBeacon";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
+
+const logo = require("@/assets/images/icon.png");
 
 const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: string }> = [
   { key: "instagram", label: "Instagram", placeholder: "your.handle" },
@@ -82,7 +83,11 @@ export default function OnboardingScreen() {
           ]}
         >
           <View style={styles.welcomeBeacon}>
-            <PulseBeacon size={180} />
+            <Image
+              source={logo}
+              style={styles.welcomeLogo}
+              contentFit="contain"
+            />
           </View>
           <View style={styles.welcomeCopy}>
             <Text style={[styles.brand, { color: colors.primary }]}>MET</Text>
@@ -333,6 +338,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
+  },
+  welcomeLogo: {
+    width: 180,
+    height: 180,
+    borderRadius: 36,
   },
   welcomeCopy: {
     alignItems: "center",
