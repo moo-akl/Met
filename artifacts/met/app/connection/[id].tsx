@@ -68,6 +68,8 @@ export default function ConnectionScreen() {
     allEncounters,
     removeEncounter,
     setBlocked,
+    setNote,
+    setTags,
     sendOpeningMessage,
   } = useApp();
   const { tier, isPlusSubscriber, isProSubscriber, isSubscriptionReady } =
@@ -305,6 +307,18 @@ export default function ConnectionScreen() {
               </View>
             </View>
           ) : null}
+
+          <NoteEditor
+            colors={colors}
+            value={encounter.note ?? ""}
+            onSave={(next) => setNote(encounter.id, next)}
+          />
+
+          <TagsEditor
+            colors={colors}
+            tags={encounter.tags ?? []}
+            onChange={(next) => setTags(encounter.id, next)}
+          />
         </View>
 
         {/* Conversation — secondary section. */}
@@ -518,6 +532,225 @@ export default function ConnectionScreen() {
           },
         ]}
       />
+    </View>
+  );
+}
+
+const TAG_SUGGESTIONS = ["coffee", "work", "gym", "friends", "event", "neighbor"];
+
+function NoteEditor({
+  colors,
+  value,
+  onSave,
+}: {
+  colors: ReturnType<typeof useColors>;
+  value: string;
+  onSave: (next: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  // Re-sync if the underlying note changes (e.g. from another surface).
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    if (draft.trim() !== value.trim()) onSave(draft);
+  };
+
+  return (
+    <View style={styles.editorBlock}>
+      <View style={styles.editorHeader}>
+        <Text
+          style={[styles.sectionLabel, { color: colors.mutedForeground }]}
+        >
+          Private note
+        </Text>
+        {!editing ? (
+          <Pressable
+            onPress={() => setEditing(true)}
+            hitSlop={8}
+            accessibilityLabel={value ? "Edit note" : "Add note"}
+          >
+            <Feather
+              name={value ? "edit-2" : "plus"}
+              size={14}
+              color={colors.primary}
+            />
+          </Pressable>
+        ) : null}
+      </View>
+      {editing ? (
+        <>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="Where you met, what you talked about, anything to remember…"
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            maxLength={280}
+            autoFocus
+            style={[
+              styles.noteInput,
+              {
+                backgroundColor: colors.muted,
+                borderColor: colors.border,
+                color: colors.foreground,
+              },
+            ]}
+          />
+          <View style={styles.editorActions}>
+            <Pressable
+              onPress={() => {
+                setEditing(false);
+                setDraft(value);
+              }}
+              style={({ pressed }) => [
+                styles.editorBtn,
+                { backgroundColor: colors.muted, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Text style={[styles.editorBtnText, { color: colors.foreground }]}>
+                Cancel
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={commit}
+              style={({ pressed }) => [
+                styles.editorBtn,
+                { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Text style={[styles.editorBtnText, { color: "#FFFFFF" }]}>
+                Save
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      ) : value ? (
+        <Text style={[styles.noteText, { color: colors.foreground }]}>
+          {value}
+        </Text>
+      ) : (
+        <Pressable onPress={() => setEditing(true)}>
+          <Text style={[styles.notePlaceholder, { color: colors.mutedForeground }]}>
+            Add a private note about how you met…
+          </Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function TagsEditor({
+  colors,
+  tags,
+  onChange,
+}: {
+  colors: ReturnType<typeof useColors>;
+  tags: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  const addTag = (raw: string) => {
+    const t = raw.trim().toLowerCase();
+    if (!t) return;
+    if (tags.includes(t)) {
+      setDraft("");
+      return;
+    }
+    onChange([...tags, t]);
+    setDraft("");
+  };
+
+  const removeTag = (t: string) => {
+    onChange(tags.filter((x) => x !== t));
+  };
+
+  const suggestions = TAG_SUGGESTIONS.filter((s) => !tags.includes(s));
+
+  return (
+    <View style={styles.editorBlock}>
+      <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+        Tags
+      </Text>
+      {tags.length > 0 ? (
+        <View style={styles.chipsRow}>
+          {tags.map((t) => (
+            <Pressable
+              key={t}
+              onPress={() => removeTag(t)}
+              accessibilityLabel={`Remove tag ${t}`}
+              style={({ pressed }) => [
+                styles.tagChip,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Text style={styles.tagChipText}>#{t}</Text>
+              <Feather name="x" size={12} color="#FFFFFF" />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      <View
+        style={[
+          styles.tagInputRow,
+          { backgroundColor: colors.muted, borderColor: colors.border },
+        ]}
+      >
+        <Feather name="hash" size={14} color={colors.mutedForeground} />
+        <TextInput
+          value={draft}
+          onChangeText={setDraft}
+          placeholder="Add a tag"
+          placeholderTextColor={colors.mutedForeground}
+          autoCorrect={false}
+          autoCapitalize="none"
+          maxLength={24}
+          onSubmitEditing={() => addTag(draft)}
+          returnKeyType="done"
+          style={[styles.tagInput, { color: colors.foreground }]}
+        />
+        {draft.trim().length > 0 ? (
+          <Pressable
+            onPress={() => addTag(draft)}
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+          >
+            <Feather name="plus-circle" size={18} color={colors.primary} />
+          </Pressable>
+        ) : null}
+      </View>
+      {suggestions.length > 0 ? (
+        <View style={styles.chipsRow}>
+          {suggestions.map((s) => (
+            <Pressable
+              key={s}
+              onPress={() => addTag(s)}
+              style={({ pressed }) => [
+                styles.suggestChip,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.muted,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.suggestChipText, { color: colors.foreground }]}
+              >
+                + {s}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -806,5 +1039,87 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     marginTop: 2,
+  },
+  editorBlock: {
+    gap: 8,
+    marginTop: 4,
+  },
+  editorHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  noteText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  notePlaceholder: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    fontStyle: "italic",
+  },
+  noteInput: {
+    minHeight: 70,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlignVertical: "top",
+  },
+  editorActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  editorBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  editorBtnText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+  },
+  tagChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  tagChipText: {
+    color: "#FFFFFF",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+  },
+  tagInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+  },
+  tagInput: {
+    flex: 1,
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    paddingVertical: 0,
+  },
+  suggestChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  suggestChipText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
   },
 });

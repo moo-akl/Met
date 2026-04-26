@@ -44,4 +44,9 @@ export type Encounter = {
   status: EncounterStatus;
   blocked?: boolean;
   openingMessage?: OpeningMessage;
+  // "Remember the human" extras — all optional and additive so existing
+  // local storage stays compatible.
+  note?: string; // user's personal note about this person
+  tags?: string[]; // user-curated lowercase tags ("coffee", "gym"…)
+  requestSentAt?: number; // when the user sent a reveal request — drives 24h expiry
 };
