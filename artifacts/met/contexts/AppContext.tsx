@@ -22,8 +22,12 @@ type AppContextValue = {
   ready: boolean;
   profile: Profile | null;
   encounters: Encounter[];
+  blockedEncounters: Encounter[];
+  allEncounters: Encounter[];
   setProfile: (p: Profile) => Promise<void>;
   updateEncounterStatus: (id: string, status: EncounterStatus) => Promise<void>;
+  removeEncounter: (id: string) => Promise<void>;
+  setBlocked: (id: string, blocked: boolean) => Promise<void>;
   resetAll: () => Promise<void>;
 };
 
@@ -32,7 +36,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [profile, setProfileState] = useState<Profile | null>(null);
-  const [encounters, setEncounters] = useState<Encounter[]>([]);
+  const [allEncounters, setAllEncounters] = useState<Encounter[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -41,10 +45,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
       setProfileState(p);
       if (e && e.length > 0) {
-        setEncounters(e);
+        setAllEncounters(e);
       } else {
         const seeded = buildSeedEncounters();
-        setEncounters(seeded);
+        setAllEncounters(seeded);
         await saveEncounters(seeded);
       }
       setReady(true);
@@ -62,7 +66,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateEncounterStatus = useCallback(
     async (id: string, status: EncounterStatus) => {
       let next: Encounter[] = [];
-      setEncounters((prev) => {
+      setAllEncounters((prev) => {
         next = prev.map((enc) => (enc.id === id ? { ...enc, status } : enc));
         return next;
       });
@@ -71,25 +75,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const removeEncounter = useCallback(async (id: string) => {
+    let next: Encounter[] = [];
+    setAllEncounters((prev) => {
+      next = prev.filter((enc) => enc.id !== id);
+      return next;
+    });
+    await saveEncounters(next);
+  }, []);
+
+  const setBlocked = useCallback(async (id: string, blocked: boolean) => {
+    let next: Encounter[] = [];
+    setAllEncounters((prev) => {
+      next = prev.map((enc) => (enc.id === id ? { ...enc, blocked } : enc));
+      return next;
+    });
+    await saveEncounters(next);
+  }, []);
+
   const resetAll = useCallback(async () => {
     await clearProfile();
     await clearEncounters();
     const seeded = buildSeedEncounters();
     setProfileState(null);
-    setEncounters(seeded);
+    setAllEncounters(seeded);
     await saveEncounters(seeded);
   }, []);
+
+  const encounters = useMemo(
+    () => allEncounters.filter((e) => !e.blocked),
+    [allEncounters],
+  );
+  const blockedEncounters = useMemo(
+    () => allEncounters.filter((e) => e.blocked),
+    [allEncounters],
+  );
 
   const value = useMemo(
     () => ({
       ready,
       profile,
       encounters,
+      blockedEncounters,
+      allEncounters,
       setProfile,
       updateEncounterStatus,
+      removeEncounter,
+      setBlocked,
       resetAll,
     }),
-    [ready, profile, encounters, setProfile, updateEncounterStatus, resetAll],
+    [
+      ready,
+      profile,
+      encounters,
+      blockedEncounters,
+      allEncounters,
+      setProfile,
+      updateEncounterStatus,
+      removeEncounter,
+      setBlocked,
+      resetAll,
+    ],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
