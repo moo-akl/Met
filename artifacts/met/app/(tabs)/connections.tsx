@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -12,11 +12,19 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useVisibility } from "@/hooks/useVisibility";
+import {
+  loadConnectionsSort,
+  saveConnectionsSort,
+  type ConnectionsSort,
+} from "@/lib/storage";
+import type { Encounter } from "@/lib/types";
 
 function timeAgo(ts: number) {
   const diff = Math.max(1, Math.floor((Date.now() - ts) / 1000));
@@ -27,44 +35,137 @@ function timeAgo(ts: number) {
   return `${Math.floor(diff / 604800)}w`;
 }
 
+function lastActivityOf(c: Encounter): number {
+  return (
+    c.openingMessage?.reply?.receivedAt ??
+    c.openingMessage?.sentAt ??
+    c.lastSeenAt
+  );
+}
+
+const SORT_LABEL: Record<ConnectionsSort, string> = {
+  recent: "Most recent",
+  frequent: "Most met",
+  name: "Name (A–Z)",
+};
+
 export default function ConnectionsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { encounters } = useApp();
+  const { isVisible, toggle: toggleVisibility } = useVisibility();
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<ConnectionsSort>("recent");
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
 
-  // All connected encounters, sorted by last activity (most recent message,
-  // or last seen if no messages yet).
+  // Persisted sort. Loaded once at mount; never blocks first render.
+  useEffect(() => {
+    let cancelled = false;
+    loadConnectionsSort().then((s) => {
+      if (!cancelled && s) setSort(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const updateSort = (next: ConnectionsSort) => {
+    setSort(next);
+    saveConnectionsSort(next).catch(() => {});
+  };
+
   const connections = useMemo(
-    () =>
-      encounters
-        .filter((e) => e.status === "connected")
-        .sort((a, b) => {
-          const at =
-            a.openingMessage?.reply?.receivedAt ??
-            a.openingMessage?.sentAt ??
-            a.lastSeenAt;
-          const bt =
-            b.openingMessage?.reply?.receivedAt ??
-            b.openingMessage?.sentAt ??
-            b.lastSeenAt;
-          return bt - at;
-        }),
+    () => encounters.filter((e) => e.status === "connected"),
     [encounters],
   );
 
+  // All distinct tags currently in use across connections, lowercased.
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of connections) {
+      for (const t of c.tags ?? []) set.add(t);
+    }
+    return Array.from(set).sort();
+  }, [connections]);
+
+  // If the active tag disappears (last connection with it removed), clear it.
+  useEffect(() => {
+    if (activeTag && !availableTags.includes(activeTag)) {
+      setActiveTag(null);
+    }
+  }, [activeTag, availableTags]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return connections;
-    return connections.filter((c) => c.realName.toLowerCase().includes(q));
-  }, [connections, query]);
+    let list = connections;
+    if (activeTag) {
+      list = list.filter((c) => (c.tags ?? []).includes(activeTag));
+    }
+    if (q) {
+      list = list.filter(
+        (c) =>
+          c.realName.toLowerCase().includes(q) ||
+          (c.tags ?? []).some((t) => t.includes(q)) ||
+          (c.note ?? "").toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [connections, query, activeTag]);
+
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+    if (sort === "recent") {
+      list.sort((a, b) => lastActivityOf(b) - lastActivityOf(a));
+    } else if (sort === "frequent") {
+      list.sort((a, b) => {
+        if (b.encounterCount !== a.encounterCount) {
+          return b.encounterCount - a.encounterCount;
+        }
+        return lastActivityOf(b) - lastActivityOf(a);
+      });
+    } else {
+      list.sort((a, b) =>
+        a.realName.localeCompare(b.realName, undefined, { sensitivity: "base" }),
+      );
+    }
+    return list;
+  }, [filtered, sort]);
+
+  // Group-by-date is only meaningful for the recent sort. Other sorts render
+  // a flat list because date headers would be misleading.
+  const groups = useMemo(() => {
+    if (sort !== "recent") {
+      return [{ key: "all", label: null, items: sorted }];
+    }
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const today: Encounter[] = [];
+    const week: Encounter[] = [];
+    const earlier: Encounter[] = [];
+    for (const c of sorted) {
+      const t = lastActivityOf(c);
+      if (now - t < dayMs) today.push(c);
+      else if (now - t < 7 * dayMs) week.push(c);
+      else earlier.push(c);
+    }
+    return [
+      { key: "today", label: "Today", items: today },
+      { key: "week", label: "This week", items: week },
+      { key: "earlier", label: "Earlier", items: earlier },
+    ].filter((g) => g.items.length > 0);
+  }, [sorted, sort]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader title="Connections" />
+      <AppHeader
+        title="Connections"
+        visibility={{ isVisible, onToggle: toggleVisibility }}
+        actions={[{ icon: "sliders", onPress: () => setSortMenuOpen(true) }]}
+      />
 
       {connections.length > 0 ? (
         <View style={styles.searchWrap}>
@@ -81,7 +182,7 @@ export default function ConnectionsScreen() {
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search connections"
+              placeholder="Search by name, tag, or note"
               placeholderTextColor={colors.mutedForeground}
               style={[styles.searchInput, { color: colors.foreground }]}
               autoCorrect={false}
@@ -94,7 +195,47 @@ export default function ConnectionsScreen() {
               </Pressable>
             ) : null}
           </View>
+          <Pressable
+            onPress={() => setSortMenuOpen(true)}
+            style={({ pressed }) => [
+              styles.sortChip,
+              {
+                backgroundColor: colors.muted,
+                borderColor: colors.border,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Feather name="bar-chart-2" size={13} color={colors.foreground} />
+            <Text style={[styles.sortChipText, { color: colors.foreground }]}>
+              {SORT_LABEL[sort]}
+            </Text>
+          </Pressable>
         </View>
+      ) : null}
+
+      {availableTags.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tagsRow}
+        >
+          <TagPill
+            label="All"
+            active={activeTag === null}
+            onPress={() => setActiveTag(null)}
+            colors={colors}
+          />
+          {availableTags.map((tag) => (
+            <TagPill
+              key={tag}
+              label={`#${tag}`}
+              active={activeTag === tag}
+              onPress={() => setActiveTag(activeTag === tag ? null : tag)}
+              colors={colors}
+            />
+          ))}
+        </ScrollView>
       ) : null}
 
       <ScrollView
@@ -112,127 +253,218 @@ export default function ConnectionsScreen() {
             title="No connections yet"
             description="Once someone reveals back, they'll show up here."
           />
-        ) : filtered.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <EmptyState
             icon="search"
             title="No matches"
-            description={`No connection named "${query.trim()}".`}
+            description={
+              activeTag
+                ? `No connection tagged #${activeTag}${query.trim() ? ` matching "${query.trim()}"` : ""}.`
+                : `No connection matches "${query.trim()}".`
+            }
           />
         ) : (
           <View style={styles.list}>
-            {filtered.map((c, idx) => {
-              const om = c.openingMessage;
-              // Preview reflects the messaging-as-flavor stance: a real reply
-              // wins, then the user's own outgoing message, otherwise we show
-              // a neutral context line (location or "Met N times") instead of
-              // pushing the user to message.
-              let preview: string;
-              let previewColor = colors.mutedForeground;
-              let timestamp = c.lastSeenAt;
-              let unread = false;
-
-              if (om?.reply) {
-                preview = om.reply.text;
-                previewColor = colors.foreground;
-                timestamp = om.reply.receivedAt;
-                unread = Date.now() - om.reply.receivedAt < 60_000;
-              } else if (om) {
-                preview = `You: ${om.text}`;
-                timestamp = om.sentAt;
-              } else if (c.lastLocation) {
-                preview = c.lastLocation;
-              } else {
-                preview = `Met ${c.encounterCount} ${c.encounterCount === 1 ? "time" : "times"}`;
-              }
-
-              return (
-                <View key={c.id}>
-                  <Pressable
-                    onPress={() => router.push(`/connection/${c.id}`)}
-                    style={({ pressed }) => [
-                      styles.row,
-                      { opacity: pressed ? 0.7 : 1 },
+            {groups.map((group) => (
+              <View key={group.key} style={{ gap: 0 }}>
+                {group.label ? (
+                  <Text
+                    style={[
+                      styles.groupHeader,
+                      { color: colors.mutedForeground },
                     ]}
                   >
-                    <Avatar uri={c.photoUri} size={54} ring={unread} />
-                    <View style={styles.body}>
-                      <View style={styles.topLine}>
-                        <Text
-                          style={[styles.name, { color: colors.foreground }]}
-                          numberOfLines={1}
-                        >
-                          {c.realName}
-                        </Text>
-                        <Text
+                    {group.label}
+                  </Text>
+                ) : null}
+                {group.items.map((c, idx) => {
+                  const om = c.openingMessage;
+                  let preview: string;
+                  let previewColor = colors.mutedForeground;
+                  let timestamp = c.lastSeenAt;
+                  let unread = false;
+
+                  if (om?.reply) {
+                    preview = om.reply.text;
+                    previewColor = colors.foreground;
+                    timestamp = om.reply.receivedAt;
+                    unread = Date.now() - om.reply.receivedAt < 60_000;
+                  } else if (om) {
+                    preview = `You: ${om.text}`;
+                    timestamp = om.sentAt;
+                  } else if (c.note) {
+                    preview = `📝 ${c.note}`;
+                  } else if (c.lastLocation) {
+                    preview = c.lastLocation;
+                  } else {
+                    preview = `Met ${c.encounterCount} ${c.encounterCount === 1 ? "time" : "times"}`;
+                  }
+
+                  return (
+                    <View key={c.id}>
+                      <Pressable
+                        onPress={() => router.push(`/connection/${c.id}`)}
+                        style={({ pressed }) => [
+                          styles.row,
+                          { opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <Avatar uri={c.photoUri} size={54} ring={unread} />
+                        <View style={styles.body}>
+                          <View style={styles.topLine}>
+                            <Text
+                              style={[styles.name, { color: colors.foreground }]}
+                              numberOfLines={1}
+                            >
+                              {c.realName}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.timestamp,
+                                {
+                                  color: unread
+                                    ? colors.primary
+                                    : colors.mutedForeground,
+                                },
+                              ]}
+                            >
+                              {timeAgo(timestamp)}
+                            </Text>
+                          </View>
+                          <View style={styles.previewLine}>
+                            <Text
+                              style={[
+                                styles.preview,
+                                {
+                                  color: previewColor,
+                                  fontFamily: unread
+                                    ? "Inter_600SemiBold"
+                                    : "Inter_400Regular",
+                                },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {preview}
+                            </Text>
+                            {unread ? (
+                              <View
+                                style={[
+                                  styles.unreadDot,
+                                  { backgroundColor: colors.primary },
+                                ]}
+                              />
+                            ) : null}
+                          </View>
+                          {(c.tags?.length ?? 0) > 0 ? (
+                            <View style={styles.rowTags}>
+                              {(c.tags ?? []).slice(0, 3).map((t) => (
+                                <Text
+                                  key={t}
+                                  style={[
+                                    styles.rowTag,
+                                    {
+                                      color: colors.primary,
+                                      backgroundColor: "#DCFCE7",
+                                    },
+                                  ]}
+                                >
+                                  #{t}
+                                </Text>
+                              ))}
+                            </View>
+                          ) : null}
+                        </View>
+                        <Feather
+                          name="chevron-right"
+                          size={20}
+                          color={colors.mutedForeground}
+                        />
+                      </Pressable>
+                      {idx < group.items.length - 1 ? (
+                        <View
                           style={[
-                            styles.timestamp,
-                            {
-                              color: unread
-                                ? colors.primary
-                                : colors.mutedForeground,
-                            },
+                            styles.separator,
+                            { backgroundColor: colors.border },
                           ]}
-                        >
-                          {timeAgo(timestamp)}
-                        </Text>
-                      </View>
-                      <View style={styles.previewLine}>
-                        <Text
-                          style={[
-                            styles.preview,
-                            {
-                              color: previewColor,
-                              fontFamily: unread
-                                ? "Inter_600SemiBold"
-                                : "Inter_400Regular",
-                            },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {preview}
-                        </Text>
-                        {unread ? (
-                          <View
-                            style={[
-                              styles.unreadDot,
-                              { backgroundColor: colors.primary },
-                            ]}
-                          />
-                        ) : null}
-                      </View>
+                        />
+                      ) : null}
                     </View>
-                    <Feather
-                      name="chevron-right"
-                      size={20}
-                      color={colors.mutedForeground}
-                    />
-                  </Pressable>
-                  {idx < filtered.length - 1 ? (
-                    <View
-                      style={[
-                        styles.separator,
-                        { backgroundColor: colors.border },
-                      ]}
-                    />
-                  ) : null}
-                </View>
-              );
-            })}
+                  );
+                })}
+              </View>
+            ))}
           </View>
         )}
       </ScrollView>
+
+      <ActionSheet
+        visible={sortMenuOpen}
+        onClose={() => setSortMenuOpen(false)}
+        title="Sort connections"
+        actions={(
+          ["recent", "frequent", "name"] as ConnectionsSort[]
+        ).map((opt) => ({
+          label: SORT_LABEL[opt] + (sort === opt ? "  ✓" : ""),
+          icon:
+            opt === "recent"
+              ? "clock"
+              : opt === "frequent"
+                ? "repeat"
+                : "type",
+          onPress: () => updateSort(opt),
+        }))}
+      />
     </View>
+  );
+}
+
+function TagPill({
+  label,
+  active,
+  onPress,
+  colors,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.tagPill,
+        {
+          backgroundColor: active ? colors.primary : colors.muted,
+          borderColor: active ? colors.primary : colors.border,
+          opacity: pressed ? 0.8 : 1,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.tagPillText,
+          { color: active ? "#FFFFFF" : colors.foreground },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     paddingHorizontal: 16,
     paddingTop: 4,
     paddingBottom: 4,
   },
   searchBar: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -246,6 +478,45 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 14,
     paddingVertical: 0,
+  },
+  sortChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  sortChipText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+  },
+  tagsRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  tagPill: {
+    paddingHorizontal: 12,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tagPillText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+  },
+  groupHeader: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    paddingHorizontal: 4,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
   list: { paddingHorizontal: 4 },
   row: {
@@ -271,5 +542,19 @@ const styles = StyleSheet.create({
   },
   preview: { fontSize: 13, flex: 1 },
   unreadDot: { width: 9, height: 9, borderRadius: 5 },
+  rowTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 2,
+  },
+  rowTag: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: "hidden",
+  },
   separator: { height: 1, marginLeft: 70 },
 });

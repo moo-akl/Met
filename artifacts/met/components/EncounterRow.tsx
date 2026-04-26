@@ -78,6 +78,15 @@ export function EncounterRow({ encounter }: Props) {
             <Text style={[styles.status, { color: statusBadge.color }]}>
               {statusBadge.label}
             </Text>
+          ) : encounter.status === "encounter" && encounter.encounterCount > 1 ? (
+            <View
+              style={[styles.repeatPill, { backgroundColor: "#DCFCE7" }]}
+            >
+              <Feather name="repeat" size={10} color={colors.primary} />
+              <Text style={[styles.repeatText, { color: colors.primary }]}>
+                Crossed paths again · {encounter.encounterCount}x
+              </Text>
+            </View>
           ) : null}
         </View>
       </Pressable>
@@ -149,5 +158,19 @@ const styles = StyleSheet.create({
   menuBtn: {
     paddingHorizontal: 6,
     paddingVertical: 4,
+  },
+  repeatPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  repeatText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
   },
 });

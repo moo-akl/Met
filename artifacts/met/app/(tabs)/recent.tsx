@@ -11,6 +11,7 @@ import { RequestsSheet } from "@/components/RequestsSheet";
 import { ScanFab } from "@/components/ScanFab";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useVisibility } from "@/hooks/useVisibility";
 import { useSubscription } from "@/lib/revenuecat";
 import { FREE_VISIBLE_ENCOUNTERS, startOfTodayMs } from "@/lib/usage";
 
@@ -20,6 +21,7 @@ export default function RecentScreen() {
   const router = useRouter();
   const { encounters } = useApp();
   const { isPlusSubscriber, isSubscriptionReady } = useSubscription();
+  const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
 
   // Connected encounters live in the dedicated Connections tab, so the Recent
@@ -75,6 +77,7 @@ export default function RecentScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
         title="Recent Encounters"
+        visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[{ icon: "bell", onPress: handleBell, badge: pendingRequests }]}
       />
       <ScrollView

@@ -13,12 +13,18 @@ type Action = {
   badge?: number;
 };
 
+type Visibility = {
+  isVisible: boolean;
+  onToggle: () => void;
+};
+
 type Props = {
   title: string;
   actions?: Action[];
+  visibility?: Visibility;
 };
 
-export function AppHeader({ title, actions }: Props) {
+export function AppHeader({ title, actions, visibility }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webTop = Platform.OS === "web" ? 67 : 0;
@@ -33,6 +39,35 @@ export function AppHeader({ title, actions }: Props) {
           {title}
         </Text>
         <View style={styles.actions}>
+          {visibility ? (
+            <Pressable
+              onPress={visibility.onToggle}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: visibility.isVisible }}
+              accessibilityLabel={
+                visibility.isVisible
+                  ? "Beacon visible. Tap to go invisible."
+                  : "Beacon hidden. Tap to become visible."
+              }
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.visPill,
+                visibility.isVisible
+                  ? styles.visPillOn
+                  : styles.visPillOff,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Feather
+                name={visibility.isVisible ? "radio" : "slash"}
+                size={13}
+                color="#FFFFFF"
+              />
+              <Text style={styles.visPillText}>
+                {visibility.isVisible ? "Visible" : "Hidden"}
+              </Text>
+            </Pressable>
+          ) : null}
           {actions?.map((a, i) => (
             <Pressable
               key={i}
@@ -88,7 +123,7 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 18,
+    gap: 14,
   },
   actionBtn: {
     width: 28,
@@ -113,5 +148,27 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 10,
     fontFamily: "Inter_700Bold",
+  },
+  visPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+  },
+  visPillOn: {
+    backgroundColor: "rgba(255,255,255,0.22)",
+    borderColor: "rgba(255,255,255,0.4)",
+  },
+  visPillOff: {
+    backgroundColor: "transparent",
+    borderColor: "rgba(255,255,255,0.55)",
+  },
+  visPillText: {
+    color: "#FFFFFF",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
   },
 });
