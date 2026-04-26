@@ -1,5 +1,6 @@
+import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
-import { Alert, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
@@ -12,6 +13,7 @@ import { useColors } from "@/hooks/useColors";
 export default function RecentScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { encounters } = useApp();
 
   const sorted = useMemo(
@@ -38,10 +40,7 @@ export default function RecentScreen() {
   };
 
   const handleScan = () => {
-    Alert.alert(
-      "Scan QR code",
-      "Open the camera to scan another Met user's QR and add them as an instant encounter.",
-    );
+    router.push("/scan");
   };
 
   return (

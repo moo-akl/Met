@@ -12,8 +12,10 @@ import {
   clearEncounters,
   clearProfile,
   loadEncounters,
+  loadPermissionsCompleted,
   loadProfile,
   saveEncounters,
+  savePermissionsCompleted,
   saveProfile,
 } from "@/lib/storage";
 import type { Encounter, EncounterStatus, Profile } from "@/lib/types";
@@ -24,11 +26,14 @@ type AppContextValue = {
   encounters: Encounter[];
   blockedEncounters: Encounter[];
   allEncounters: Encounter[];
+  permissionsCompleted: boolean;
   setProfile: (p: Profile) => Promise<void>;
   updateEncounterStatus: (id: string, status: EncounterStatus) => Promise<void>;
   removeEncounter: (id: string) => Promise<void>;
   setBlocked: (id: string, blocked: boolean) => Promise<void>;
   resetAll: () => Promise<void>;
+  setPermissionsCompleted: (done: boolean) => Promise<void>;
+  upsertEncounterFromQr: (data: { id: string; name: string }) => Promise<string>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -37,11 +42,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [profile, setProfileState] = useState<Profile | null>(null);
   const [allEncounters, setAllEncounters] = useState<Encounter[]>([]);
+  const [permissionsCompleted, setPermissionsCompletedState] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [p, e] = await Promise.all([loadProfile(), loadEncounters()]);
+      const [p, e, perms] = await Promise.all([
+        loadProfile(),
+        loadEncounters(),
+        loadPermissionsCompleted(),
+      ]);
       if (!mounted) return;
       if (p) {
         setProfileState({ ...p, isVisible: p.isVisible ?? true });
@@ -55,6 +65,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAllEncounters(seeded);
         await saveEncounters(seeded);
       }
+      setPermissionsCompletedState(perms);
       setReady(true);
     })();
     return () => {
@@ -100,11 +111,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resetAll = useCallback(async () => {
     await clearProfile();
     await clearEncounters();
+    await savePermissionsCompleted(false);
     const seeded = buildSeedEncounters();
     setProfileState(null);
     setAllEncounters(seeded);
+    setPermissionsCompletedState(false);
     await saveEncounters(seeded);
   }, []);
+
+  const setPermissionsCompleted = useCallback(async (done: boolean) => {
+    setPermissionsCompletedState(done);
+    await savePermissionsCompleted(done);
+  }, []);
+
+  const upsertEncounterFromQr = useCallback(
+    async (data: { id: string; name: string }) => {
+      const now = Date.now();
+      let resolvedId = data.id;
+      let next: Encounter[] = [];
+      setAllEncounters((prev) => {
+        const existing = prev.find((e) => e.id === data.id);
+        if (existing) {
+          resolvedId = existing.id;
+          next = prev.map((e) =>
+            e.id === existing.id
+              ? {
+                  ...e,
+                  blocked: false,
+                  status:
+                    e.status === "connected" ? "connected" : "request_sent",
+                  lastSeenAt: now,
+                  encounterCount: e.encounterCount + 1,
+                }
+              : e,
+          );
+          return next;
+        }
+        const fabricated: Encounter = {
+          id: data.id,
+          realName: data.name || "Met user",
+          photoUri: `https://i.pravatar.cc/600?u=${encodeURIComponent(data.id)}`,
+          bio: "Met via QR code",
+          socials: {},
+          encounterCount: 1,
+          firstSeenAt: now,
+          lastSeenAt: now,
+          lastDistanceM: 0,
+          lastLocation: "Scanned in person",
+          status: "request_sent",
+        };
+        next = [fabricated, ...prev];
+        return next;
+      });
+      await saveEncounters(next);
+      return resolvedId;
+    },
+    [],
+  );
 
   const encounters = useMemo(
     () => allEncounters.filter((e) => !e.blocked),
@@ -122,11 +185,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       encounters,
       blockedEncounters,
       allEncounters,
+      permissionsCompleted,
       setProfile,
       updateEncounterStatus,
       removeEncounter,
       setBlocked,
       resetAll,
+      setPermissionsCompleted,
+      upsertEncounterFromQr,
     }),
     [
       ready,
@@ -134,11 +200,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       encounters,
       blockedEncounters,
       allEncounters,
+      permissionsCompleted,
       setProfile,
       updateEncounterStatus,
       removeEncounter,
       setBlocked,
       resetAll,
+      setPermissionsCompleted,
+      upsertEncounterFromQr,
     ],
   );
 

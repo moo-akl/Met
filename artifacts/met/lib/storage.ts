@@ -4,6 +4,7 @@ import type { Encounter, Profile } from "./types";
 
 const PROFILE_KEY = "met:profile:v1";
 const ENCOUNTERS_KEY = "met:encounters:v1";
+const PERMISSIONS_KEY = "met:permissions:v1";
 
 export async function loadProfile(): Promise<Profile | null> {
   const raw = await AsyncStorage.getItem(PROFILE_KEY);
@@ -29,4 +30,17 @@ export async function saveEncounters(e: Encounter[]): Promise<void> {
 
 export async function clearEncounters(): Promise<void> {
   await AsyncStorage.removeItem(ENCOUNTERS_KEY);
+}
+
+export async function loadPermissionsCompleted(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(PERMISSIONS_KEY);
+  return raw === "1";
+}
+
+export async function savePermissionsCompleted(done: boolean): Promise<void> {
+  if (done) {
+    await AsyncStorage.setItem(PERMISSIONS_KEY, "1");
+  } else {
+    await AsyncStorage.removeItem(PERMISSIONS_KEY);
+  }
 }

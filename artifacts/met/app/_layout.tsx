@@ -21,19 +21,28 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function ProfileGate() {
-  const { ready, profile } = useApp();
+  const { ready, profile, permissionsCompleted } = useApp();
   const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
     if (!ready) return;
-    const inOnboarding = segments[0] === "onboarding";
-    if (!profile && !inOnboarding) {
-      router.replace("/onboarding");
-    } else if (profile && inOnboarding) {
+    const root = segments[0];
+    const inOnboarding = root === "onboarding";
+    const inPermissions = root === "permissions";
+
+    if (!profile) {
+      if (!inOnboarding) router.replace("/onboarding");
+      return;
+    }
+    if (!permissionsCompleted) {
+      if (!inPermissions) router.replace("/permissions");
+      return;
+    }
+    if (inOnboarding || inPermissions) {
       router.replace("/(tabs)");
     }
-  }, [ready, profile, segments, router]);
+  }, [ready, profile, permissionsCompleted, segments, router]);
 
   return null;
 }
@@ -43,9 +52,14 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="onboarding" />
+      <Stack.Screen name="permissions" />
       <Stack.Screen
         name="encounter/[id]"
         options={{ presentation: "card", animation: "slide_from_right" }}
+      />
+      <Stack.Screen
+        name="scan"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
     </Stack>
   );
