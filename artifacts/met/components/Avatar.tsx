@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { StyleSheet, View } from "react-native";
 
@@ -9,15 +8,14 @@ import { useColors } from "@/hooks/useColors";
 type Props = {
   uri?: string | null;
   size?: number;
-  revealed?: boolean;
   ring?: boolean;
 };
 
-export function Avatar({ uri, size = 56, revealed = true, ring }: Props) {
+export function Avatar({ uri, size = 56, ring }: Props) {
   const colors = useColors();
   const radius = size / 2;
 
-  const inner = revealed && uri ? (
+  const inner = uri ? (
     <Image
       source={{ uri }}
       style={{ width: size, height: size, borderRadius: radius }}
@@ -25,18 +23,20 @@ export function Avatar({ uri, size = 56, revealed = true, ring }: Props) {
       transition={200}
     />
   ) : (
-    <LinearGradient
-      colors={["#2A2A38", "#16161E"]}
+    <View
       style={{
         width: size,
         height: size,
         borderRadius: radius,
+        backgroundColor: colors.muted,
         alignItems: "center",
         justifyContent: "center",
+        borderWidth: 1,
+        borderColor: colors.border,
       }}
     >
       <Feather name="user" size={size * 0.45} color={colors.mutedForeground} />
-    </LinearGradient>
+    </View>
   );
 
   if (!ring) return <View>{inner}</View>;
@@ -55,4 +55,4 @@ export function Avatar({ uri, size = 56, revealed = true, ring }: Props) {
   );
 }
 
-const _unused = StyleSheet.create({});
+const _u = StyleSheet.create({});

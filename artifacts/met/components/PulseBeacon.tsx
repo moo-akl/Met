@@ -64,8 +64,8 @@ export function PulseBeacon({ size = 140, active = true }: Props) {
             borderRadius: size * 0.11,
             backgroundColor: colors.primary,
             shadowColor: colors.primary,
-            shadowOpacity: Platform.OS === "web" ? 0.6 : 0.9,
-            shadowRadius: 14,
+            shadowOpacity: Platform.OS === "web" ? 0.4 : 0.6,
+            shadowRadius: 12,
             shadowOffset: { width: 0, height: 0 },
           },
         ]}
@@ -81,9 +81,9 @@ const styles = StyleSheet.create({
   },
   ring: {
     position: "absolute",
-    borderWidth: 1.5,
+    borderWidth: 2,
   },
   core: {
-    elevation: 8,
+    elevation: 6,
   },
 });

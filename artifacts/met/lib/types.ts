@@ -1,5 +1,6 @@
 export type SocialPlatform =
   | "instagram"
+  | "facebook"
   | "x"
   | "tiktok"
   | "snapchat"
@@ -29,6 +30,7 @@ export type Encounter = {
   bio: string;
   socials: SocialLinks;
   encounterCount: number;
+  firstSeenAt: number;
   lastSeenAt: number;
   lastDistanceM: number;
   lastLocation: string;
