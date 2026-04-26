@@ -15,6 +15,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
+import { MyQrSheet } from "@/components/MyQrSheet";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SocialLinkRow } from "@/components/SocialLinkRow";
 import { useApp } from "@/contexts/AppContext";
@@ -36,6 +37,7 @@ export default function ProfileScreen() {
   const { profile, setProfile, resetAll } = useApp();
 
   const [editing, setEditing] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [name, setName] = useState(profile?.name ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [photoUri, setPhotoUri] = useState<string | null>(profile?.photoUri ?? null);
@@ -103,8 +105,18 @@ export default function ProfileScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
         title="My Profile"
-        actions={[{ icon: "settings", onPress: handleSettings }]}
+        actions={[
+          { icon: "grid", onPress: () => setQrOpen(true) },
+          { icon: "settings", onPress: handleSettings },
+        ]}
       />
+      {profile ? (
+        <MyQrSheet
+          visible={qrOpen}
+          onClose={() => setQrOpen(false)}
+          profile={profile}
+        />
+      ) : null}
       <KeyboardAwareScrollView
         contentContainerStyle={{
           paddingTop: 24,
