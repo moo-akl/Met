@@ -4,11 +4,13 @@ A quiet, anonymous-by-default proximity social network. Your phone is a beacon �
 
 ## Stack
 
-- Expo SDK 54 + expo-router (4 tabs: Home, Recent, Profile)
+- Expo SDK 54 + expo-router (3 tabs: Home, Recent, Profile)
 - AsyncStorage for all persistence (frontend-only prototype)
 - expo-image-picker for the verified photo
 - expo-linear-gradient + react-native-reanimated for beacon pulse + Meeting Spot card
 - react-native-qrcode-svg for the My QR sheet
+- expo-camera for QR scanning (`/scan`)
+- expo-location for the foreground location permission prompt
 - @expo/vector-icons (Feather + FontAwesome5 + MaterialCommunityIcons) — never emojis
 - Inter font family
 
@@ -20,10 +22,12 @@ A quiet, anonymous-by-default proximity social network. Your phone is a beacon �
 
 ## Structure
 
-- `app/_layout.tsx` — root with `AppProvider` + `ProfileGate` redirect to onboarding
+- `app/_layout.tsx` — root with `AppProvider` + `ProfileGate` (onboarding → permissions → tabs)
 - `app/onboarding.tsx` — 3-slide intro carousel (target/shield/user) → photo → name+bio → socials
+- `app/permissions.tsx` — Location / Bluetooth / Camera / Notifications consent screen with disclosure copy. Real requests fire on native via expo-location & expo-camera; Bluetooth + Notifications are UX-only on web.
+- `app/scan.tsx` — Full-screen camera modal with QR overlay; on detect parses the JSON payload `{v,type,id,name}`, calls `upsertEncounterFromQr`, navigates to `/encounter/[id]`. Includes "Simulate a scan" demo button.
 - `app/(tabs)/index.tsx` — Home: animated pulse beacon, "X people within 50m", stat cards
-- `app/(tabs)/recent.tsx` — Recent encounters list with ScanFab
+- `app/(tabs)/recent.tsx` — Recent encounters list with ScanFab → `/scan`
 - `app/(tabs)/profile.tsx` — Editable own profile, MyQrSheet (grid icon), SettingsSheet (gear icon)
 - `app/encounter/[id].tsx` — Full-bleed photo, "Met X times", "First met on", Meeting Spot card, lock card with SEND REVEAL REQUEST
 - `contexts/AppContext.tsx` — profile + encounters state, AsyncStorage-backed
@@ -40,6 +44,8 @@ A quiet, anonymous-by-default proximity social network. Your phone is a beacon �
 - On send-reveal, status → `request_sent`, then auto-accepts to `connected` after 3s.
 - Block flips `blocked: true`; encounter is filtered from main lists, surfaces under Settings → Blocked people for unblock.
 - Visible on Radar toggles `profile.isVisible`. When off: beacon goes gray/static, Home shows "You're invisible to others."
+- QR scan: if the scanned id matches an existing encounter, it bumps its lastSeenAt + count and flips to `request_sent`. If unknown, a new encounter is fabricated with a deterministic pravatar avatar and `request_sent` status. Either way you land on the encounter detail and the 3-second auto-accept kicks in.
+- Permissions screen is one-time (saved to AsyncStorage `met:permissions:v1`). Reset profile clears it so the flow can be re-tested.
 
 ## Real-app engine (reference, not implemented in this prototype)
 
