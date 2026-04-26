@@ -36,8 +36,19 @@ A quiet, anonymous-by-default proximity social network. Your phone is a beacon �
 - `components/PulseBeacon.tsx` — radar pulse (gray + static when `active=false`)
 - `components/EncounterRow.tsx` — list row with three-dot ActionSheet (Remove / Block)
 - `components/MyQrSheet.tsx` — bottom sheet with avatar/name/bio/QR (JSON payload `{v,type,id,name}`)
-- `components/SettingsSheet.tsx` — Visible on Radar toggle, Blocked people list, Reset profile
+- `components/SettingsSheet.tsx` — "Upgrade to Met Plus" CTA (top), Visible on Radar toggle, Blocked people list, Reset profile
 - `components/ActionSheet.tsx` — cross-platform bottom sheet for destructive actions
+- `components/RequestsSheet.tsx` — Reveal Requests bottom sheet (Recent bell + Home green CTA banner)
+- `app/paywall.tsx` — Met Plus paywall (Monthly / Yearly cards derived from RevenueCat offerings — never hardcoded), test-mode confirmation modal in sandbox, restore button
+- `lib/revenuecat.tsx` — RevenueCat client. `initializeRevenueCat()` (idempotent), `<SubscriptionProvider>` + `useSubscription()` hook backed by react-query. Tri-state `subscriptionStatus` + `isSubscriptionReady` so we never gate paid users during cold start. `isRevenueCatTestMode()` selects the test API key (web/dev/Expo Go) vs platform keys.
+- `lib/usage.ts` — Free-tier weekly counter (3 reveals/week, resets after 7 days). `tryConsumeFreeReveal()` is single-flight to avoid quota race.
+
+## Subscriptions (RevenueCat)
+
+- Project `proj66b3842d`, entitlement `plus`, offering `default` with `$rc_monthly` ($4.99) + `$rc_annual` ($39.99). Seeded by `scripts/src/seedRevenueCat.ts` (idempotent).
+- Free tier: 3 reveal requests / week + standard history. After cap, SEND REVEAL REQUEST routes to `/paywall` instead of sending.
+- Plus: unlimited reveals, full history, read receipts, frequent paths, privacy mode (UX-only in this prototype — only the reveal cap is actually enforced client-side).
+- Public API keys are in env vars (`EXPO_PUBLIC_REVENUECAT_*_API_KEY`); IDs are in `REVENUECAT_*` env vars. Never hardcode prices — derive from `offerings.current.availablePackages`.
 
 ## Demo behavior
 

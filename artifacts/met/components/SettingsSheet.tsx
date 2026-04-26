@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Modal,
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
 
 type Props = {
   visible: boolean;
@@ -29,6 +31,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const webBot = Platform.OS === "web" ? 34 : 0;
   const { profile, setProfile, blockedEncounters, setBlocked, resetAll } =
     useApp();
+  const { isSubscribed } = useSubscription();
+  const router = useRouter();
   const isVisible = profile?.isVisible ?? true;
 
   const toggleVisible = async (next: boolean) => {
@@ -83,6 +87,35 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
           {view === "menu" ? (
             <View style={{ gap: 10 }}>
+              <Pressable
+                onPress={() => {
+                  close();
+                  setTimeout(() => router.push("/paywall"), 50);
+                }}
+                style={({ pressed }) => [
+                  styles.plusRow,
+                  {
+                    borderColor: colors.primary,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <View style={styles.plusIcon}>
+                  <Feather name="zap" size={18} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.plusTitle}>
+                    {isSubscribed ? "Met Plus active" : "Upgrade to Met Plus"}
+                  </Text>
+                  <Text style={styles.plusSub}>
+                    {isSubscribed
+                      ? "Manage your subscription"
+                      : "Unlimited reveals, full history, privacy mode"}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#FFFFFF" />
+              </Pressable>
+
               <View
                 style={[
                   styles.row,
@@ -433,4 +466,33 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   unblockText: { color: "#FFFFFF", fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  plusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: "#3DCC44",
+  },
+  plusIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.25)",
+  },
+  plusTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+    color: "#FFFFFF",
+  },
+  plusSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: "rgba(255,255,255,0.92)",
+    marginTop: 2,
+  },
 });
