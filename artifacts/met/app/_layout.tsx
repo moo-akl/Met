@@ -71,6 +71,10 @@ function RootLayoutNav() {
         options={{ presentation: "card", animation: "slide_from_right" }}
       />
       <Stack.Screen
+        name="connection/[id]"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
+      <Stack.Screen
         name="scan"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />

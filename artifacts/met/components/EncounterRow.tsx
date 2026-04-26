@@ -47,7 +47,13 @@ export function EncounterRow({ encounter }: Props) {
   return (
     <View style={styles.row}>
       <Pressable
-        onPress={() => router.push(`/encounter/${encounter.id}`)}
+        onPress={() =>
+          router.push(
+            encounter.status === "connected"
+              ? `/connection/${encounter.id}`
+              : `/encounter/${encounter.id}`,
+          )
+        }
         style={({ pressed }) => [
           styles.tapArea,
           { opacity: pressed ? 0.7 : 1 },

@@ -10,27 +10,19 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { SocialChip } from "@/components/SocialChip";
-import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useSubscription } from "@/lib/revenuecat";
-import type { SocialPlatform } from "@/lib/types";
 import {
   FREE_REVEALS_PER_DAY,
-  PLUS_OPENING_MESSAGES_PER_DAY,
-  PRO_OPENING_MESSAGES_PER_DAY,
-  getOpeningMessagesRemaining,
   getRevealsRemaining,
   tryConsumeFreeReveal,
-  tryConsumeOpeningMessage,
 } from "@/lib/usage";
 
 function formatDate(ts: number) {
@@ -42,55 +34,34 @@ function formatDate(ts: number) {
   });
 }
 
-function formatTime(ts: number) {
-  return new Date(ts).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 export default function EncounterDetail() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string | string[] }>();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const {
     allEncounters,
     updateEncounterStatus,
     removeEncounter,
     setBlocked,
-    sendOpeningMessage,
   } = useApp();
-  const {
-    tier,
-    isSubscribed,
-    isPlusSubscriber,
-    isProSubscriber,
-    isSubscriptionReady,
-  } = useSubscription();
+  const { isSubscribed, isSubscriptionReady } = useSubscription();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [revealsRemaining, setRevealsRemaining] = useState<number | null>(null);
-  const [openingsRemaining, setOpeningsRemaining] = useState<number | null>(null);
-
-  const openingPerDay = isProSubscriber
-    ? PRO_OPENING_MESSAGES_PER_DAY
-    : PLUS_OPENING_MESSAGES_PER_DAY;
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      getRevealsRemaining(),
-      getOpeningMessagesRemaining(openingPerDay),
-    ]).then(([r, o]) => {
+    getRevealsRemaining().then((r) => {
       if (cancelled) return;
       setRevealsRemaining(r);
-      setOpeningsRemaining(o);
     });
     return () => {
       cancelled = true;
     };
-  }, [openingPerDay]);
+  }, []);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -107,8 +78,14 @@ export default function EncounterDetail() {
     return;
   }, [encounter?.status, encounter?.id, updateEncounterStatus]);
 
-  const [draft, setDraft] = useState("");
-  const [sendingMsg, setSendingMsg] = useState(false);
+  // Once a connection exists, the conversation lives in its own screen — bounce
+  // there. Covers the auto-3s transition, accept-from-here, and any case where
+  // the user lands on this route for an already-connected encounter.
+  useEffect(() => {
+    if (encounter?.status === "connected") {
+      router.replace(`/connection/${encounter.id}`);
+    }
+  }, [encounter?.status, encounter?.id, router]);
 
   if (!encounter) {
     return (
@@ -120,14 +97,19 @@ export default function EncounterDetail() {
     );
   }
 
-  const isConnected = encounter.status === "connected";
+  // Connected encounters are owned by the dedicated conversation screen — the
+  // redirect above handles routing; render nothing here so we don't flash the
+  // pre-connection lock UI mid-redirect.
+  if (encounter.status === "connected") {
+    return <View style={[styles.container, { backgroundColor: colors.card }]} />;
+  }
+
   const isRequestSent = encounter.status === "request_sent";
   const isRequestReceived = encounter.status === "request_received";
 
   const webTop = Platform.OS === "web" ? 67 : 0;
   const webBot = Platform.OS === "web" ? 34 : 0;
 
-  const [sending, setSending] = useState(false);
   const handleSend = async () => {
     if (sending) return;
     if (!isSubscriptionReady) return;
@@ -167,38 +149,6 @@ export default function EncounterDetail() {
     const url = `https://www.google.com/maps/search/?api=1&query=${q}`;
     Linking.openURL(url).catch(() => {});
   };
-
-  const handleSendOpeningMessage = async () => {
-    if (sendingMsg) return;
-    if (!isSubscriptionReady) return;
-    if (!isPlusSubscriber) {
-      router.push("/paywall");
-      return;
-    }
-    const text = draft.trim();
-    if (!text) return;
-    setSendingMsg(true);
-    try {
-      const consumed = await tryConsumeOpeningMessage(openingPerDay);
-      if (consumed === null) {
-        // Quota hit between render and tap.
-        setOpeningsRemaining(0);
-        return;
-      }
-      await sendOpeningMessage(encounter.id, text);
-      setDraft("");
-      setOpeningsRemaining(await getOpeningMessagesRemaining(openingPerDay));
-    } finally {
-      setSendingMsg(false);
-    }
-  };
-
-  const socialEntries = (
-    Object.entries(encounter.socials) as [SocialPlatform, string][]
-  ).filter(([, v]) => v && v.trim());
-
-  const hasPendingMessage =
-    !!encounter.openingMessage && !encounter.openingMessage.reply;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.card }]}>
@@ -317,163 +267,15 @@ export default function EncounterDetail() {
             </View>
           ) : null}
 
-          {isConnected ? (
-            <>
-              <View style={styles.section}>
-                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-                  Social Links
-                </Text>
-                {socialEntries.length === 0 ? (
-                  <Text style={[styles.bioText, { color: colors.mutedForeground }]}>
-                    No social handles shared.
-                  </Text>
-                ) : (
-                  <View style={styles.chipsRow}>
-                    {socialEntries.map(([platform, handle]) => (
-                      <SocialChip
-                        key={platform}
-                        platform={platform}
-                        handle={handle}
-                      />
-                    ))}
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.section}>
-                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-                  Opening Message
-                </Text>
-                <OpeningMessageThread
-                  colors={colors}
-                  encounterName={encounter.realName}
-                  message={encounter.openingMessage}
-                />
-
-                {!isPlusSubscriber ? (
-                  <Pressable
-                    onPress={() => router.push("/paywall")}
-                    style={({ pressed }) => [
-                      styles.upgradeMsgCard,
-                      {
-                        backgroundColor: colors.muted,
-                        borderColor: colors.border,
-                        opacity: pressed ? 0.85 : 1,
-                      },
-                    ]}
-                  >
-                    <Feather name="lock" size={18} color={colors.primary} />
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[styles.upgradeMsgTitle, { color: colors.foreground }]}
-                      >
-                        Send opening messages
-                      </Text>
-                      <Text
-                        style={[styles.upgradeMsgSub, { color: colors.mutedForeground }]}
-                      >
-                        Unlock with Met Plus or Pro
-                      </Text>
-                    </View>
-                    <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-                  </Pressable>
-                ) : openingsRemaining !== null && openingsRemaining <= 0 && !encounter.openingMessage ? (
-                  <View
-                    style={[
-                      styles.composerHelp,
-                      {
-                        backgroundColor: colors.muted,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                  >
-                    <Feather name="clock" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.composerHelpText, { color: colors.mutedForeground }]}>
-                      You&rsquo;ve used your {openingPerDay} opening{" "}
-                      {openingPerDay === 1 ? "message" : "messages"} for today.
-                      {isProSubscriber ? " Resets at midnight." : " Upgrade to Met Pro for more."}
-                    </Text>
-                  </View>
-                ) : hasPendingMessage ? (
-                  <View
-                    style={[
-                      styles.composerHelp,
-                      {
-                        backgroundColor: colors.muted,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                  >
-                    <Feather name="clock" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.composerHelpText, { color: colors.mutedForeground }]}>
-                      Wait for {encounter.realName} to reply before sending another message.
-                    </Text>
-                  </View>
-                ) : (
-                  <View
-                    style={[
-                      styles.composer,
-                      { backgroundColor: colors.muted, borderColor: colors.border },
-                    ]}
-                  >
-                    <TextInput
-                      value={draft}
-                      onChangeText={setDraft}
-                      placeholder={
-                        encounter.openingMessage?.reply
-                          ? "Send another message…"
-                          : `Say hi to ${encounter.realName}…`
-                      }
-                      placeholderTextColor={colors.mutedForeground}
-                      style={[styles.composerInput, { color: colors.foreground }]}
-                      multiline
-                      maxLength={240}
-                      editable={!sendingMsg}
-                    />
-                    <Pressable
-                      onPress={handleSendOpeningMessage}
-                      disabled={!draft.trim() || sendingMsg}
-                      style={({ pressed }) => [
-                        styles.composerSend,
-                        {
-                          backgroundColor: colors.primary,
-                          opacity: !draft.trim() || sendingMsg
-                            ? 0.5
-                            : pressed
-                              ? 0.85
-                              : 1,
-                        },
-                      ]}
-                    >
-                      <Feather name="send" size={18} color="#FFFFFF" />
-                    </Pressable>
-                  </View>
-                )}
-
-                {isPlusSubscriber && openingsRemaining !== null ? (
-                  <Text
-                    style={[
-                      styles.composerCounter,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
-                    {openingsRemaining} of {openingPerDay} opening{" "}
-                    {openingPerDay === 1 ? "message" : "messages"} left today
-                    {tier === "plus" ? " · Pro gets 2/day" : ""}
-                  </Text>
-                ) : null}
-              </View>
-            </>
-          ) : (
-            <View
-              style={[
-                styles.lockCard,
-                {
-                  backgroundColor: colors.muted,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
+          <View
+            style={[
+              styles.lockCard,
+              {
+                backgroundColor: colors.muted,
+                borderColor: colors.border,
+              },
+            ]}
+          >
               {isRequestReceived ? (
                 <>
                   <Feather name="bell" size={28} color={colors.primary} />
@@ -541,8 +343,7 @@ export default function EncounterDetail() {
                   ) : null}
                 </>
               )}
-            </View>
-          )}
+          </View>
         </View>
       </ScrollView>
 
@@ -552,7 +353,7 @@ export default function EncounterDetail() {
         title={encounter.realName}
         actions={[
           {
-            label: isConnected ? "Remove connection" : "Remove encounter",
+            label: "Remove encounter",
             icon: "trash-2",
             destructive: true,
             onPress: handleRemove,
@@ -565,75 +366,6 @@ export default function EncounterDetail() {
           },
         ]}
       />
-    </View>
-  );
-}
-
-function OpeningMessageThread({
-  colors,
-  encounterName,
-  message,
-}: {
-  colors: ReturnType<typeof useColors>;
-  encounterName: string;
-  message: import("@/lib/types").OpeningMessage | undefined;
-}) {
-  if (!message) {
-    return (
-      <Text style={[styles.threadEmpty, { color: colors.mutedForeground }]}>
-        Break the ice — your first message kicks off the conversation.
-      </Text>
-    );
-  }
-  return (
-    <View style={{ gap: 8 }}>
-      <View style={[styles.bubbleSelfRow]}>
-        <View
-          style={[
-            styles.bubble,
-            styles.bubbleSelf,
-            { backgroundColor: colors.primary },
-          ]}
-        >
-          <Text style={styles.bubbleSelfText}>{message.text}</Text>
-        </View>
-        <Text style={[styles.bubbleMeta, { color: colors.mutedForeground }]}>
-          You · {formatTime(message.sentAt)}
-        </Text>
-      </View>
-      {message.reply ? (
-        <View style={[styles.bubbleOtherRow]}>
-          <View
-            style={[
-              styles.bubble,
-              styles.bubbleOther,
-              { backgroundColor: colors.muted, borderColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.bubbleOtherText, { color: colors.foreground }]}>
-              {message.reply.text}
-            </Text>
-          </View>
-          <Text style={[styles.bubbleMeta, { color: colors.mutedForeground }]}>
-            {encounterName} · {formatTime(message.reply.receivedAt)}
-          </Text>
-        </View>
-      ) : (
-        <View style={[styles.bubbleOtherRow]}>
-          <View
-            style={[
-              styles.bubble,
-              styles.bubbleOther,
-              { backgroundColor: colors.muted, borderColor: colors.border },
-            ]}
-          >
-            <TierBadge tier="free" />
-            <Text style={[styles.typingText, { color: colors.mutedForeground }]}>
-              {encounterName} is typing…
-            </Text>
-          </View>
-        </View>
-      )}
     </View>
   );
 }
@@ -704,12 +436,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  chipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 4,
-  },
   lockCard: {
     borderRadius: 16,
     borderWidth: 1,
@@ -755,101 +481,5 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     marginTop: 2,
-  },
-  composer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  composerInput: {
-    flex: 1,
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    minHeight: 36,
-    maxHeight: 96,
-  },
-  composerSend: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  composerHelp: {
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-  },
-  composerHelpText: {
-    flex: 1,
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  composerCounter: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    marginTop: 2,
-  },
-  upgradeMsgCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
-  },
-  upgradeMsgTitle: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
-  upgradeMsgSub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    marginTop: 2,
-  },
-  threadEmpty: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  bubbleSelfRow: { alignItems: "flex-end", gap: 4 },
-  bubbleOtherRow: { alignItems: "flex-start", gap: 4 },
-  bubble: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    maxWidth: "85%",
-  },
-  bubbleSelf: { borderBottomRightRadius: 4 },
-  bubbleOther: { borderBottomLeftRadius: 4, borderWidth: 1 },
-  bubbleSelfText: {
-    color: "#FFFFFF",
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    lineHeight: 19,
-  },
-  bubbleOtherText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    lineHeight: 19,
-  },
-  bubbleMeta: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-  },
-  typingText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    fontStyle: "italic",
   },
 });
