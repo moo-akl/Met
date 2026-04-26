@@ -1,4 +1,6 @@
 import { Feather } from "@expo/vector-icons";
+import Constants from "expo-constants";
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -13,25 +15,58 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ActionSheet } from "@/components/ActionSheet";
 import { Avatar } from "@/components/Avatar";
 import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useSubscription } from "@/lib/revenuecat";
+import {
+  DISCOVERY_RANGE_LABEL,
+  type AutoCleanupDays,
+  type DiscoveryRange,
+} from "@/lib/storage";
 
 type Props = {
   visible: boolean;
   onClose: () => void;
 };
 
-type SheetView = "menu" | "blocked";
+type SheetView = "menu" | "blocked" | "notifications" | "about";
+
+const CLEANUP_LABEL: Record<AutoCleanupDays, string> = {
+  0: "Off — keep all encounters",
+  30: "After 30 days",
+  60: "After 60 days",
+  90: "After 90 days",
+};
+
+function formatVerifiedDate(ts: number): string {
+  try {
+    return new Date(ts).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return "recently";
+  }
+}
 
 export function SettingsSheet({ visible, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
-  const { profile, setProfile, blockedEncounters, setBlocked, resetAll } =
-    useApp();
+  const {
+    profile,
+    setProfile,
+    blockedEncounters,
+    setBlocked,
+    resetAll,
+    preferences,
+    updatePreferences,
+    markPhotoVerified,
+  } = useApp();
   const { tier } = useSubscription();
   const router = useRouter();
   const isVisible = profile?.isVisible ?? true;
@@ -43,12 +78,40 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
   const [view, setView] = useState<SheetView>("menu");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmReverify, setConfirmReverify] = useState(false);
+  const [signOutInfo, setSignOutInfo] = useState(false);
+  const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
+  const [cleanupMenuOpen, setCleanupMenuOpen] = useState(false);
 
   const close = () => {
     setView("menu");
     setConfirmReset(false);
+    setConfirmReverify(false);
+    setSignOutInfo(false);
+    setRangeMenuOpen(false);
+    setCleanupMenuOpen(false);
     onClose();
   };
+
+  const appVersion =
+    (Constants.expoConfig?.version as string | undefined) ?? "1.0.0";
+
+  const openLink = (url: string) => {
+    Linking.openURL(url).catch(() => {});
+  };
+
+  const headerTitle = (() => {
+    switch (view) {
+      case "menu":
+        return "Settings";
+      case "blocked":
+        return "Blocked people";
+      case "notifications":
+        return "Notifications";
+      case "about":
+        return "About Met";
+    }
+  })();
 
   return (
     <Modal
@@ -71,7 +134,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
           <View style={styles.handle} />
 
           <View style={styles.headerRow}>
-            {view === "blocked" ? (
+            {view !== "menu" ? (
               <Pressable onPress={() => setView("menu")} hitSlop={12}>
                 <Feather name="chevron-left" size={24} color={colors.foreground} />
               </Pressable>
@@ -79,7 +142,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
               <View style={{ width: 24 }} />
             )}
             <Text style={[styles.title, { color: colors.foreground }]}>
-              {view === "menu" ? "Settings" : "Blocked people"}
+              {headerTitle}
             </Text>
             <Pressable onPress={close} hitSlop={12}>
               <Feather name="x" size={24} color={colors.foreground} />
@@ -87,7 +150,11 @@ export function SettingsSheet({ visible, onClose }: Props) {
           </View>
 
           {view === "menu" ? (
-            <View style={{ gap: 10 }}>
+            <ScrollView
+              style={{ maxHeight: 540 }}
+              contentContainerStyle={{ gap: 10 }}
+              showsVerticalScrollIndicator={false}
+            >
               <Pressable
                 onPress={() => {
                   close();
@@ -131,6 +198,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 <Feather name="chevron-right" size={20} color="#FFFFFF" />
               </Pressable>
 
+              <SectionLabel label="Discovery" colors={colors} />
+
               <View
                 style={[
                   styles.row,
@@ -173,45 +242,273 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 />
               </View>
 
-              <Pressable
-                onPress={() => setView("blocked")}
-                style={({ pressed }) => [
-                  styles.row,
-                  {
-                    backgroundColor: colors.muted,
-                    borderColor: colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
+              <NavRow
+                icon="target"
+                label="Discovery range"
+                sub={DISCOVERY_RANGE_LABEL[preferences.discoveryRange]}
+                onPress={() => setRangeMenuOpen(true)}
+                colors={colors}
+              />
+
+              <SectionLabel label="Memory" colors={colors} />
+
+              <NavRow
+                icon="bell"
+                label="Notifications"
+                sub={
+                  preferences.notifyDailyRecap || preferences.notifyRecurringMeets
+                    ? "Daily recap & re-encounter nudges"
+                    : "All push notifications off"
+                }
+                onPress={() => setView("notifications")}
+                colors={colors}
+              />
+
+              <NavRow
+                icon="archive"
+                label="Auto-cleanup"
+                sub={
+                  preferences.autoCleanupDays === 0
+                    ? "Off — keep all encounters"
+                    : `Hide unconnected after ${preferences.autoCleanupDays} days`
+                }
+                onPress={() => setCleanupMenuOpen(true)}
+                colors={colors}
+              />
+
+              <SectionLabel label="Account" colors={colors} />
+
+              {confirmReverify ? (
                 <View
                   style={[
-                    styles.rowIcon,
-                    { backgroundColor: colors.background },
+                    styles.confirmCard,
+                    {
+                      backgroundColor: colors.muted,
+                      borderColor: colors.primary,
+                    },
                   ]}
                 >
-                  <Feather name="slash" size={18} color={colors.foreground} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-                    Blocked people
+                  <Text
+                    style={[styles.confirmTitle, { color: colors.foreground }]}
+                  >
+                    Re-verify your photo?
                   </Text>
                   <Text
-                    style={[styles.rowSub, { color: colors.mutedForeground }]}
+                    style={[styles.confirmSub, { color: colors.mutedForeground }]}
                   >
-                    {blockedEncounters.length === 0
-                      ? "No one blocked"
-                      : `${blockedEncounters.length} ${
-                          blockedEncounters.length === 1 ? "person" : "people"
-                        } blocked`}
+                    Met will re-run the face check on your profile photo so
+                    others can trust it&rsquo;s really you.
                   </Text>
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <Pressable
+                      onPress={() => setConfirmReverify(false)}
+                      style={({ pressed }) => [
+                        styles.confirmBtn,
+                        {
+                          backgroundColor: colors.card,
+                          borderColor: colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.confirmBtnText,
+                          { color: colors.foreground },
+                        ]}
+                      >
+                        Cancel
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={async () => {
+                        await markPhotoVerified();
+                        setConfirmReverify(false);
+                      }}
+                      style={({ pressed }) => [
+                        styles.confirmBtn,
+                        {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                          opacity: pressed ? 0.85 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.confirmBtnText, { color: "#FFFFFF" }]}
+                      >
+                        Re-verify
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
-                <Feather
-                  name="chevron-right"
-                  size={20}
-                  color={colors.mutedForeground}
-                />
-              </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => setConfirmReverify(true)}
+                  style={({ pressed }) => [
+                    styles.row,
+                    {
+                      backgroundColor: colors.muted,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.rowIcon,
+                      { backgroundColor: colors.background },
+                    ]}
+                  >
+                    <Feather
+                      name="check-circle"
+                      size={18}
+                      color={
+                        profile?.verified ? colors.primary : colors.mutedForeground
+                      }
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Text
+                        style={[styles.rowLabel, { color: colors.foreground }]}
+                      >
+                        Verified photo
+                      </Text>
+                      {profile?.verified ? (
+                        <View
+                          style={[
+                            styles.verifiedDot,
+                            { backgroundColor: colors.primary },
+                          ]}
+                        >
+                          <Feather name="check" size={8} color="#FFFFFF" />
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text
+                      style={[styles.rowSub, { color: colors.mutedForeground }]}
+                    >
+                      {profile?.photoVerifiedAt
+                        ? `Last verified ${formatVerifiedDate(profile.photoVerifiedAt)}`
+                        : profile?.verified
+                          ? "Verified — tap to re-run face check"
+                          : "Tap to run face check on your photo"}
+                    </Text>
+                  </View>
+                  <Text style={[styles.rowAction, { color: colors.primary }]}>
+                    {profile?.verified ? "Re-verify" : "Verify"}
+                  </Text>
+                </Pressable>
+              )}
+
+              <NavRow
+                icon="slash"
+                label="Blocked people"
+                sub={
+                  blockedEncounters.length === 0
+                    ? "No one blocked"
+                    : `${blockedEncounters.length} ${
+                        blockedEncounters.length === 1 ? "person" : "people"
+                      } blocked`
+                }
+                onPress={() => setView("blocked")}
+                colors={colors}
+              />
+
+              <NavRow
+                icon="info"
+                label="About Met"
+                sub={`Version ${appVersion}`}
+                onPress={() => setView("about")}
+                colors={colors}
+              />
+
+              {signOutInfo ? (
+                <View
+                  style={[
+                    styles.confirmCard,
+                    {
+                      backgroundColor: colors.muted,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.confirmTitle, { color: colors.foreground }]}
+                  >
+                    Sign out is coming soon
+                  </Text>
+                  <Text
+                    style={[styles.confirmSub, { color: colors.mutedForeground }]}
+                  >
+                    Met currently runs on this device with no account. When
+                    real accounts ship, you&rsquo;ll be able to sign out and
+                    back in here.
+                  </Text>
+                  <Pressable
+                    onPress={() => setSignOutInfo(false)}
+                    style={({ pressed }) => [
+                      styles.confirmBtn,
+                      {
+                        backgroundColor: colors.primary,
+                        borderColor: colors.primary,
+                        opacity: pressed ? 0.85 : 1,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.confirmBtnText, { color: "#FFFFFF" }]}>
+                      OK
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => setSignOutInfo(true)}
+                  style={({ pressed }) => [
+                    styles.row,
+                    {
+                      backgroundColor: colors.muted,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.rowIcon,
+                      { backgroundColor: colors.background },
+                    ]}
+                  >
+                    <Feather
+                      name="log-out"
+                      size={18}
+                      color={colors.mutedForeground}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.rowLabel, { color: colors.foreground }]}>
+                      Sign out
+                    </Text>
+                    <Text
+                      style={[styles.rowSub, { color: colors.mutedForeground }]}
+                    >
+                      Coming with full accounts
+                    </Text>
+                  </View>
+                  <Feather
+                    name="chevron-right"
+                    size={20}
+                    color={colors.mutedForeground}
+                  />
+                </Pressable>
+              )}
 
               {confirmReset ? (
                 <View
@@ -231,8 +528,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   <Text
                     style={[styles.confirmSub, { color: colors.mutedForeground }]}
                   >
-                    Your profile and encounter history will be cleared and
-                    sample encounters reseeded.
+                    Your profile, encounter history, and preferences will be
+                    cleared and sample encounters reseeded.
                   </Text>
                   <View style={{ flexDirection: "row", gap: 10 }}>
                     <Pressable
@@ -324,8 +621,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   </View>
                 </Pressable>
               )}
-            </View>
-          ) : (
+            </ScrollView>
+          ) : view === "blocked" ? (
             <ScrollView
               style={{ maxHeight: 360 }}
               contentContainerStyle={{ gap: 8 }}
@@ -380,10 +677,291 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 ))
               )}
             </ScrollView>
+          ) : view === "notifications" ? (
+            <View style={{ gap: 10 }}>
+              <ToggleRow
+                icon="calendar"
+                label="Daily recap"
+                sub="Morning summary like “Yesterday you crossed paths with 4 people; 1 was your second time.”"
+                value={preferences.notifyDailyRecap}
+                onValueChange={(v) =>
+                  updatePreferences({ notifyDailyRecap: v })
+                }
+                colors={colors}
+              />
+              <ToggleRow
+                icon="repeat"
+                label="Re-encounter nudges"
+                sub="Notify me when I cross paths with someone for the 3rd time or more."
+                value={preferences.notifyRecurringMeets}
+                onValueChange={(v) =>
+                  updatePreferences({ notifyRecurringMeets: v })
+                }
+                colors={colors}
+              />
+              <Text
+                style={[styles.notesHint, { color: colors.mutedForeground }]}
+              >
+                Met never sends marketing pushes — only the toggles above.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={{ maxHeight: 420 }}
+              contentContainerStyle={{ gap: 10 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <View
+                style={[
+                  styles.aboutCard,
+                  {
+                    backgroundColor: colors.muted,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <View style={styles.aboutHeader}>
+                  <View
+                    style={[
+                      styles.aboutLogo,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Feather name="users" size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[styles.aboutTitle, { color: colors.foreground }]}
+                    >
+                      Met
+                    </Text>
+                    <Text
+                      style={[
+                        styles.aboutVersion,
+                        { color: colors.mutedForeground },
+                      ]}
+                    >
+                      Version {appVersion}
+                    </Text>
+                  </View>
+                </View>
+                <Text
+                  style={[styles.aboutTagline, { color: colors.mutedForeground }]}
+                >
+                  Remember the human, not the follower count.
+                </Text>
+              </View>
+
+              <AboutLink
+                icon="shield"
+                label="Privacy policy"
+                onPress={() => openLink("https://met.app/privacy")}
+                colors={colors}
+              />
+              <AboutLink
+                icon="file-text"
+                label="Terms of service"
+                onPress={() => openLink("https://met.app/terms")}
+                colors={colors}
+              />
+              <AboutLink
+                icon="mail"
+                label="Contact support"
+                onPress={() => openLink("mailto:hello@met.app")}
+                colors={colors}
+              />
+              <AboutLink
+                icon="star"
+                label="Rate Met"
+                onPress={() =>
+                  openLink(
+                    Platform.OS === "ios"
+                      ? "https://apps.apple.com/app/id000000000"
+                      : "https://play.google.com/store/apps/details?id=app.met",
+                  )
+                }
+                colors={colors}
+              />
+            </ScrollView>
           )}
         </Pressable>
       </Pressable>
+
+      <ActionSheet
+        visible={rangeMenuOpen}
+        onClose={() => setRangeMenuOpen(false)}
+        title="Discovery range"
+        message="Who should appear under Recent and your nearby count?"
+        actions={(["room", "nearby", "venue"] as DiscoveryRange[]).map(
+          (opt) => ({
+            label:
+              DISCOVERY_RANGE_LABEL[opt] +
+              (preferences.discoveryRange === opt ? "  ✓" : ""),
+            icon:
+              opt === "room" ? "home" : opt === "nearby" ? "map-pin" : "globe",
+            onPress: () => updatePreferences({ discoveryRange: opt }),
+          }),
+        )}
+      />
+
+      <ActionSheet
+        visible={cleanupMenuOpen}
+        onClose={() => setCleanupMenuOpen(false)}
+        title="Auto-cleanup"
+        message="Hide unconnected encounters older than this. Connections and pending requests are never cleaned up."
+        actions={([0, 30, 60, 90] as AutoCleanupDays[]).map((opt) => ({
+          label:
+            CLEANUP_LABEL[opt] +
+            (preferences.autoCleanupDays === opt ? "  ✓" : ""),
+          icon: opt === 0 ? "archive" : "clock",
+          onPress: () => updatePreferences({ autoCleanupDays: opt }),
+        }))}
+      />
     </Modal>
+  );
+}
+
+function SectionLabel({
+  label,
+  colors,
+}: {
+  label: string;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+      {label}
+    </Text>
+  );
+}
+
+function NavRow({
+  icon,
+  label,
+  sub,
+  onPress,
+  colors,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  label: string;
+  sub: string;
+  onPress: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        {
+          backgroundColor: colors.muted,
+          borderColor: colors.border,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <View style={[styles.rowIcon, { backgroundColor: colors.background }]}>
+        <Feather name={icon} size={18} color={colors.foreground} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
+          {label}
+        </Text>
+        <Text
+          style={[styles.rowSub, { color: colors.mutedForeground }]}
+          numberOfLines={2}
+        >
+          {sub}
+        </Text>
+      </View>
+      <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+    </Pressable>
+  );
+}
+
+function ToggleRow({
+  icon,
+  label,
+  sub,
+  value,
+  onValueChange,
+  colors,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  label: string;
+  sub: string;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <View
+      style={[
+        styles.row,
+        { backgroundColor: colors.muted, borderColor: colors.border },
+      ]}
+    >
+      <View style={[styles.rowIcon, { backgroundColor: colors.background }]}>
+        <Feather
+          name={icon}
+          size={18}
+          color={value ? colors.primary : colors.mutedForeground}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
+          {label}
+        </Text>
+        <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
+          {sub}
+        </Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: "#D1D5DB", true: colors.primary }}
+        thumbColor="#FFFFFF"
+        ios_backgroundColor="#D1D5DB"
+      />
+    </View>
+  );
+}
+
+function AboutLink({
+  icon,
+  label,
+  onPress,
+  colors,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  label: string;
+  onPress: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        {
+          backgroundColor: colors.muted,
+          borderColor: colors.border,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <View style={[styles.rowIcon, { backgroundColor: colors.background }]}>
+        <Feather name={icon} size={18} color={colors.foreground} />
+      </View>
+      <Text style={[styles.rowLabel, { color: colors.foreground, flex: 1 }]}>
+        {label}
+      </Text>
+      <Feather
+        name="external-link"
+        size={16}
+        color={colors.mutedForeground}
+      />
+    </Pressable>
   );
 }
 
@@ -414,6 +992,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   title: { fontFamily: "Inter_700Bold", fontSize: 17 },
+  sectionLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    paddingHorizontal: 4,
+    paddingTop: 6,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -435,6 +1021,18 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     marginTop: 2,
+    lineHeight: 17,
+  },
+  rowAction: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 12,
+  },
+  verifiedDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
   },
   confirmCard: {
     borderRadius: 14,
@@ -509,5 +1107,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255,255,255,0.92)",
     marginTop: 2,
+  },
+  notesHint: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    fontStyle: "italic",
+    paddingHorizontal: 4,
+  },
+  aboutCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    gap: 10,
+  },
+  aboutHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  aboutLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aboutTitle: { fontFamily: "Inter_700Bold", fontSize: 17 },
+  aboutVersion: { fontFamily: "Inter_500Medium", fontSize: 12, marginTop: 2 },
+  aboutTagline: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    fontStyle: "italic",
+    lineHeight: 18,
   },
 });

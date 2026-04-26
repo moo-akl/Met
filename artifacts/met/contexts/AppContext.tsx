@@ -4,20 +4,26 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import { buildSeedEncounters } from "@/lib/seed";
 import {
+  DEFAULT_PREFERENCES,
   REQUEST_TTL_MS,
   clearEncounters,
+  clearPreferences,
   clearProfile,
   loadEncounters,
   loadPermissionsCompleted,
+  loadPreferences,
   loadProfile,
   saveEncounters,
   savePermissionsCompleted,
+  savePreferences,
   saveProfile,
+  type Preferences,
 } from "@/lib/storage";
 import type { Encounter, EncounterStatus, Profile } from "@/lib/types";
 
@@ -28,6 +34,7 @@ type AppContextValue = {
   blockedEncounters: Encounter[];
   allEncounters: Encounter[];
   permissionsCompleted: boolean;
+  preferences: Preferences;
   setProfile: (p: Profile) => Promise<void>;
   updateEncounterStatus: (id: string, status: EncounterStatus) => Promise<void>;
   removeEncounter: (id: string) => Promise<void>;
@@ -38,6 +45,8 @@ type AppContextValue = {
   setPermissionsCompleted: (done: boolean) => Promise<void>;
   upsertEncounterFromQr: (data: { id: string; name: string }) => Promise<string>;
   sendOpeningMessage: (id: string, text: string) => Promise<void>;
+  updatePreferences: (patch: Partial<Preferences>) => Promise<void>;
+  markPhotoVerified: () => Promise<void>;
 };
 
 // Sweep stale pending reveal requests back to "encounter". Outgoing requests
@@ -89,14 +98,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfileState] = useState<Profile | null>(null);
   const [allEncounters, setAllEncounters] = useState<Encounter[]>([]);
   const [permissionsCompleted, setPermissionsCompletedState] = useState(false);
+  const [preferences, setPreferencesState] = useState<Preferences>(
+    DEFAULT_PREFERENCES,
+  );
+
+  // Refs mirror the latest committed state so async write callbacks
+  // (`updatePreferences`, `markPhotoVerified`) never race on a stale closure
+  // when called back-to-back before the next render commits.
+  const preferencesRef = useRef<Preferences>(DEFAULT_PREFERENCES);
+  preferencesRef.current = preferences;
+  const profileRef = useRef<Profile | null>(null);
+  profileRef.current = profile;
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [p, e, perms] = await Promise.all([
+      const [p, e, perms, prefs] = await Promise.all([
         loadProfile(),
         loadEncounters(),
         loadPermissionsCompleted(),
+        loadPreferences(),
       ]);
       if (!mounted) return;
       if (p) {
@@ -117,6 +138,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await saveEncounters(seeded);
       }
       setPermissionsCompletedState(perms);
+      setPreferencesState(prefs);
       setReady(true);
     })();
     return () => {
@@ -215,12 +237,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resetAll = useCallback(async () => {
     await clearProfile();
     await clearEncounters();
+    await clearPreferences();
     await savePermissionsCompleted(false);
     const seeded = buildSeedEncounters();
     setProfileState(null);
     setAllEncounters(seeded);
     setPermissionsCompletedState(false);
+    setPreferencesState(DEFAULT_PREFERENCES);
     await saveEncounters(seeded);
+  }, []);
+
+  const updatePreferences = useCallback(
+    async (patch: Partial<Preferences>) => {
+      const next: Preferences = { ...preferencesRef.current, ...patch };
+      preferencesRef.current = next;
+      setPreferencesState(next);
+      await savePreferences(next);
+    },
+    [],
+  );
+
+  const markPhotoVerified = useCallback(async () => {
+    const current = profileRef.current;
+    if (!current) return;
+    const next: Profile = {
+      ...current,
+      verified: true,
+      photoVerifiedAt: Date.now(),
+    };
+    profileRef.current = next;
+    setProfileState(next);
+    await saveProfile(next);
   }, []);
 
   const setPermissionsCompleted = useCallback(async (done: boolean) => {
@@ -351,6 +398,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       blockedEncounters,
       allEncounters,
       permissionsCompleted,
+      preferences,
       setProfile,
       updateEncounterStatus,
       removeEncounter,
@@ -361,6 +409,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPermissionsCompleted,
       upsertEncounterFromQr,
       sendOpeningMessage,
+      updatePreferences,
+      markPhotoVerified,
     }),
     [
       ready,
@@ -369,6 +419,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       blockedEncounters,
       allEncounters,
       permissionsCompleted,
+      preferences,
       setProfile,
       updateEncounterStatus,
       removeEncounter,
@@ -379,6 +430,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPermissionsCompleted,
       upsertEncounterFromQr,
       sendOpeningMessage,
+      updatePreferences,
+      markPhotoVerified,
     ],
   );
 
