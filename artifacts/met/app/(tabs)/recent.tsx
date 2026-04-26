@@ -22,8 +22,13 @@ export default function RecentScreen() {
   const { isPlusSubscriber, isSubscriptionReady } = useSubscription();
   const [requestsOpen, setRequestsOpen] = useState(false);
 
+  // Connected encounters live in the dedicated Connections tab, so the Recent
+  // feed is now the "discover / pending" surface only.
   const sorted = useMemo(
-    () => [...encounters].sort((a, b) => b.lastSeenAt - a.lastSeenAt),
+    () =>
+      encounters
+        .filter((e) => e.status !== "connected")
+        .sort((a, b) => b.lastSeenAt - a.lastSeenAt),
     [encounters],
   );
 

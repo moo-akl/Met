@@ -4,7 +4,7 @@ A quiet, anonymous-by-default proximity social network. Your phone is a beacon �
 
 ## Stack
 
-- Expo SDK 54 + expo-router (3 tabs: Home, Recent, Profile)
+- Expo SDK 54 + expo-router (4 tabs: Home, Recent, Connections, Profile)
 - AsyncStorage for all persistence (frontend-only prototype)
 - expo-image-picker for the verified photo
 - expo-linear-gradient + react-native-reanimated for beacon pulse + Meeting Spot card
@@ -40,6 +40,9 @@ A quiet, anonymous-by-default proximity social network. Your phone is a beacon �
 - `components/TierBadge.tsx` — green check for Plus, gold star + green check for Pro, used in MyQrSheet, SettingsSheet, etc.
 - `components/ActionSheet.tsx` — cross-platform bottom sheet for destructive actions
 - `components/RequestsSheet.tsx` — Reveal Requests bottom sheet (Recent bell + Home green CTA banner)
+- `app/(tabs)/connections.tsx` — Connections tab: chat-list of all `status === "connected"` encounters sorted by last activity, showing avatar, name, last-message preview, timestamp, and an unread dot for replies in the last 60s. Empty state when no connections.
+- `app/connection/[id].tsx` — Dedicated conversation screen: header with avatar/name + collapsible "details" panel (bio, encounter count, meeting spot, social chips), chat thread with bubbles, and a sticky composer at the bottom. Composer shows the upgrade card for Free, the per-day quota counter for Plus/Pro, and a "wait for reply" hint while a message is pending. After connection, all message UX lives here — the encounter detail screen redirects via `router.replace` so a connected encounter is never shown twice.
+- `app/encounter/[id].tsx` — Encounter detail (pre-connection only). Handles SEND REVEAL REQUEST, the "request_sent" waiting state, and ACCEPT/Not now for received requests. Auto-redirects to `/connection/[id]` once status flips to connected.
 - `app/paywall.tsx` — 3-tier paywall: Plus/Pro tier toggle in the hero, Monthly/Yearly cards derived from RevenueCat offerings (never hardcoded) with auto Save% badge, full feature comparison table (Free / Plus / Pro columns), test-mode confirmation modal in sandbox, restore button. Default tier preselection is reactive: Plus subscribers see Pro pre-selected as the upgrade path until they manually toggle.
 - `lib/revenuecat.tsx` — RevenueCat client. `initializeRevenueCat()` (idempotent). `<SubscriptionProvider>` + `useSubscription()` hook backed by react-query exposes `tier` ("free" | "plus" | "pro"), `isPlusSubscriber` (true for plus OR pro — Pro is a superset), `isProSubscriber`, plus `plusOffering` and `proOffering`. Tri-state `subscriptionStatus` + `isSubscriptionReady` so we never gate paid users during cold start. `isRevenueCatTestMode()` selects the test API key (web/dev/Expo Go) vs platform keys. `withRetry()` wraps RC calls for the 429 rate-limit edge.
 - `lib/usage.ts` — Per-day quota buckets keyed by local-day so they reset at midnight. Constants: `FREE_REVEALS_PER_DAY=2`, `PLUS_OPENING_MESSAGES_PER_DAY=1`, `PRO_OPENING_MESSAGES_PER_DAY=2`, `FREE_VISIBLE_ENCOUNTERS=10`. `tryConsumeFreeReveal()` and `tryConsumeOpeningMessage(cap)` are single-flight (per-key promise chain) to avoid quota races. Also exports `startOfTodayMs()` for slicing the encounter feed against the daily cap.
