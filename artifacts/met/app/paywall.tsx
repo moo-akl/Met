@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
-import type { PurchasesPackage } from "react-native-purchases";
+import type { PurchasesOffering, PurchasesPackage } from "react-native-purchases";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
@@ -21,31 +21,96 @@ import {
   useSubscription,
 } from "@/lib/revenuecat";
 
-const FEATURES: { icon: React.ComponentProps<typeof Feather>["name"]; title: string; sub: string }[] = [
+type PaidTier = "plus" | "pro";
+type Billing = "monthly" | "yearly";
+
+type ColorPalette = ReturnType<typeof useColors>;
+
+type FeatureMatrix = {
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  free: string | true | false;
+  plus: string | true | false;
+  pro: string | true | false;
+};
+
+const FEATURES: FeatureMatrix[] = [
+  {
+    icon: "users",
+    label: "Daily encounters",
+    free: "10",
+    plus: "Unlimited",
+    pro: "Unlimited",
+  },
   {
     icon: "send",
-    title: "Unlimited reveal requests",
-    sub: "Free is capped at 3 per week.",
+    label: "Reveal requests",
+    free: "2 / day",
+    plus: "Unlimited",
+    pro: "Unlimited",
+  },
+  {
+    icon: "message-circle",
+    label: "Opening messages",
+    free: false,
+    plus: "1 / day",
+    pro: "2 / day",
   },
   {
     icon: "clock",
-    title: "Full encounter history",
-    sub: "See everyone you've crossed paths with — not just the last 24h.",
+    label: "Full encounter history",
+    free: false,
+    plus: true,
+    pro: true,
   },
   {
     icon: "eye",
-    title: "Read receipts on requests",
-    sub: "Know when someone has seen your reveal request.",
+    label: "Read receipts",
+    free: false,
+    plus: true,
+    pro: true,
   },
   {
     icon: "repeat",
-    title: "Frequent paths",
-    sub: "Surface people you've crossed multiple times.",
+    label: "Frequent paths",
+    free: false,
+    plus: true,
+    pro: true,
   },
   {
     icon: "lock",
-    title: "Privacy mode",
-    sub: "Hide your name from non-connections until they reveal first.",
+    label: "Privacy mode",
+    free: false,
+    plus: true,
+    pro: true,
+  },
+  {
+    icon: "check-circle",
+    label: "Verified badge",
+    free: false,
+    plus: true,
+    pro: true,
+  },
+  {
+    icon: "trending-up",
+    label: "Boost — rank higher in others' encounters",
+    free: false,
+    plus: false,
+    pro: true,
+  },
+  {
+    icon: "user-check",
+    label: "See who viewed your profile",
+    free: false,
+    plus: false,
+    pro: true,
+  },
+  {
+    icon: "star",
+    label: "Premium gold badge",
+    free: false,
+    plus: false,
+    pro: true,
   },
 ];
 
@@ -54,9 +119,12 @@ export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
-    currentOffering,
+    plusOffering,
+    proOffering,
     isLoading,
-    isSubscribed,
+    tier,
+    isProSubscriber,
+    isPlusSubscriber,
     purchase,
     isPurchasing,
     restore,
@@ -64,43 +132,88 @@ export default function PaywallScreen() {
     purchaseError,
   } = useSubscription();
 
-  const monthly = findMonthlyPackage(currentOffering);
-  const yearly = findYearlyPackage(currentOffering);
+  // Default selection: Pro pre-selected if the user is already on Plus (the
+  // upgrade path), otherwise Plus. Stays reactive to late RevenueCat
+  // resolution but stops once the user has manually picked a tier.
+  const [selectedTier, setSelectedTier] = useState<PaidTier>(
+    isPlusSubscriber && !isProSubscriber ? "pro" : "plus",
+  );
+  const tierManuallySet = useRef(false);
+  useEffect(() => {
+    if (tierManuallySet.current) return;
+    if (isPlusSubscriber && !isProSubscriber) setSelectedTier("pro");
+  }, [isPlusSubscriber, isProSubscriber]);
 
-  const [selected, setSelected] = useState<"monthly" | "yearly">("yearly");
-  const selectedPackage: PurchasesPackage | null =
-    selected === "monthly" ? monthly : yearly;
+  const pickTier = (t: PaidTier) => {
+    tierManuallySet.current = true;
+    setSelectedTier(t);
+  };
 
-  const monthlyPrice = monthly?.product.priceString ?? "—";
-  const yearlyPrice = yearly?.product.priceString ?? "—";
+  const [billing, setBilling] = useState<Billing>("yearly");
 
-  const monthlyPerMonth = monthly?.product.priceString
-    ? `${monthly.product.priceString} / month`
-    : "Monthly billing";
-  const yearlyPerMonth = yearly?.product
-    ? (() => {
-        const total = yearly.product.price;
-        const perMonth = total / 12;
-        const cur = yearly.product.currencyCode || "USD";
-        try {
-          return `${new Intl.NumberFormat(undefined, {
-            style: "currency",
-            currency: cur,
-          }).format(perMonth)} / month`;
-        } catch {
-          return `${perMonth.toFixed(2)} / month`;
-        }
-      })()
-    : "Annual billing";
+  const offeringFor = (t: PaidTier): PurchasesOffering | null =>
+    t === "pro" ? proOffering : plusOffering;
 
-  const yearlySavings = (() => {
-    if (!monthly?.product.price || !yearly?.product.price) return null;
-    const yearlyAsMonthly = monthly.product.price * 12;
+  const packageFor = (
+    t: PaidTier,
+    b: Billing,
+  ): PurchasesPackage | null => {
+    const off = offeringFor(t);
+    return b === "yearly" ? findYearlyPackage(off) : findMonthlyPackage(off);
+  };
+
+  const selectedPackage = packageFor(selectedTier, billing);
+
+  const priceLabelFor = (
+    t: PaidTier,
+    b: Billing,
+  ): { price: string; perMonth: string } => {
+    const pkg = packageFor(t, b);
+    if (!pkg)
+      return { price: "—", perMonth: b === "yearly" ? "Annual" : "Monthly" };
+    const total = pkg.product.price;
+    const cur = pkg.product.currencyCode || "USD";
+    if (b === "yearly") {
+      const perMonthAmt = total / 12;
+      let perMonth: string;
+      try {
+        perMonth = `${new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency: cur,
+        }).format(perMonthAmt)} / mo`;
+      } catch {
+        perMonth = `${perMonthAmt.toFixed(2)} / mo`;
+      }
+      return { price: pkg.product.priceString, perMonth };
+    }
+    return { price: pkg.product.priceString, perMonth: "Billed monthly" };
+  };
+
+  const yearlySavingsFor = (t: PaidTier): string | null => {
+    const m = packageFor(t, "monthly");
+    const y = packageFor(t, "yearly");
+    if (!m?.product.price || !y?.product.price) return null;
+    const yearlyAsMonthly = m.product.price * 12;
     const saved = Math.round(
-      ((yearlyAsMonthly - yearly.product.price) / yearlyAsMonthly) * 100,
+      ((yearlyAsMonthly - y.product.price) / yearlyAsMonthly) * 100,
     );
     return saved > 0 ? `Save ${saved}%` : null;
-  })();
+  };
+
+  const ctaLabel = useMemo(() => {
+    if (isProSubscriber) return "You're on Met Pro";
+    if (isPlusSubscriber && selectedTier === "plus") return "You're on Met Plus";
+    if (!selectedPackage) return "Plan unavailable";
+    const { price } = priceLabelFor(selectedTier, billing);
+    const tierName = selectedTier === "pro" ? "Met Pro" : "Met Plus";
+    return `Start ${tierName} — ${price} / ${billing === "yearly" ? "year" : "month"}`;
+  }, [isProSubscriber, isPlusSubscriber, selectedTier, billing, selectedPackage]);
+
+  const ctaDisabled =
+    isProSubscriber ||
+    (isPlusSubscriber && selectedTier === "plus") ||
+    !selectedPackage ||
+    isPurchasing;
 
   const testMode = isRevenueCatTestMode();
   const [confirmTest, setConfirmTest] = useState(false);
@@ -111,17 +224,13 @@ export default function PaywallScreen() {
       await purchase(selectedPackage);
       setTimeout(() => router.back(), 300);
     } catch (err) {
-      // surfaced via purchaseError
       console.warn("Purchase failed", err);
     }
   };
 
   const startPurchase = () => {
-    if (!selectedPackage) return;
+    if (ctaDisabled) return;
     if (testMode) {
-      // In test mode the confirmation modal makes the sandbox UX explicit.
-      // In production we go straight to the store sheet (Apple/Google handle
-      // the real confirmation UI).
       setConfirmTest(true);
       return;
     }
@@ -135,18 +244,28 @@ export default function PaywallScreen() {
 
   const close = () => router.back();
 
+  const heroBg: [string, string] =
+    selectedTier === "pro" ? ["#1B7A23", "#0F4D17"] : ["#3DCC44", "#2BA331"];
+  const heroPillIcon: React.ComponentProps<typeof Feather>["name"] =
+    selectedTier === "pro" ? "star" : "zap";
+  const heroPillLabel = selectedTier === "pro" ? "Met Pro" : "Met Plus";
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={["#3DCC44", "#2BA331"]}
+        colors={heroBg}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.hero, { paddingTop: insets.top + 16 }]}
       >
         <View style={styles.heroTopRow}>
           <View style={styles.brandPill}>
-            <Feather name="zap" size={14} color="#3DCC44" />
-            <Text style={styles.brandPillText}>Met Plus</Text>
+            <Feather
+              name={heroPillIcon}
+              size={14}
+              color={selectedTier === "pro" ? "#1B7A23" : "#3DCC44"}
+            />
+            <Text style={styles.brandPillText}>{heroPillLabel}</Text>
           </View>
           <Pressable onPress={close} hitSlop={12}>
             <Feather name="x" size={26} color="#FFFFFF" />
@@ -154,46 +273,156 @@ export default function PaywallScreen() {
         </View>
 
         <Text style={styles.heroTitle}>
-          Connect with everyone{"\n"}you cross paths with.
+          {selectedTier === "pro"
+            ? "Stand out, message more,\nsee who's checking you out."
+            : "Connect with everyone\nyou cross paths with."}
         </Text>
         <Text style={styles.heroSub}>
-          Unlock unlimited reveals, full history, and privacy controls.
+          {selectedTier === "pro"
+            ? "Everything in Plus, plus Boost, profile views, and the gold badge."
+            : "Unlimited reveals, full history, and your verified badge."}
         </Text>
       </LinearGradient>
 
       <ScrollView
         contentContainerStyle={{
-          padding: 20,
-          paddingBottom: insets.bottom + 220,
+          padding: 16,
+          paddingBottom: insets.bottom + 240,
           gap: 14,
         }}
         showsVerticalScrollIndicator={false}
       >
-        {FEATURES.map((f) => (
-          <View
-            key={f.title}
-            style={[
-              styles.featureRow,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <View
-              style={[styles.featureIcon, { backgroundColor: "#DCFCE7" }]}
-            >
-              <Feather name={f.icon} size={18} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.featureTitle, { color: colors.foreground }]}>
-                {f.title}
-              </Text>
-              <Text
-                style={[styles.featureSub, { color: colors.mutedForeground }]}
+        {/* Tier toggle */}
+        <View style={[styles.tierToggle, { backgroundColor: colors.muted }]}>
+          {(["plus", "pro"] as PaidTier[]).map((t) => {
+            const isActive = selectedTier === t;
+            const label = t === "pro" ? "Met Pro" : "Met Plus";
+            return (
+              <Pressable
+                key={t}
+                onPress={() => pickTier(t)}
+                style={[
+                  styles.tierToggleBtn,
+                  {
+                    backgroundColor: isActive
+                      ? t === "pro"
+                        ? "#1B7A23"
+                        : colors.primary
+                      : "transparent",
+                  },
+                ]}
               >
-                {f.sub}
-              </Text>
-            </View>
+                <Feather
+                  name={t === "pro" ? "star" : "zap"}
+                  size={14}
+                  color={isActive ? "#FFFFFF" : colors.foreground}
+                />
+                <Text
+                  style={[
+                    styles.tierToggleText,
+                    { color: isActive ? "#FFFFFF" : colors.foreground },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Billing cards */}
+        <View style={styles.planRow}>
+          {(["monthly", "yearly"] as Billing[]).map((b) => {
+            const { price, perMonth } = priceLabelFor(selectedTier, b);
+            const pkg = packageFor(selectedTier, b);
+            const savings = b === "yearly" ? yearlySavingsFor(selectedTier) : null;
+            return (
+              <PlanCard
+                key={b}
+                label={b === "yearly" ? "Yearly" : "Monthly"}
+                price={price}
+                sub={perMonth}
+                badge={savings}
+                selected={billing === b}
+                disabled={!pkg}
+                onPress={() => setBilling(b)}
+                accentColor={
+                  selectedTier === "pro" ? "#1B7A23" : colors.primary
+                }
+                colors={colors}
+              />
+            );
+          })}
+        </View>
+
+        {/* Feature comparison table */}
+        <View
+          style={[
+            styles.tableCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderCell, styles.colFeature, { color: colors.mutedForeground }]}>
+              What you get
+            </Text>
+            <Text
+              style={[
+                styles.tableHeaderCell,
+                styles.colTier,
+                { color: colors.mutedForeground },
+              ]}
+            >
+              Free
+            </Text>
+            <Text
+              style={[
+                styles.tableHeaderCell,
+                styles.colTier,
+                { color: colors.primary },
+              ]}
+            >
+              Plus
+            </Text>
+            <Text
+              style={[
+                styles.tableHeaderCell,
+                styles.colTier,
+                { color: "#1B7A23" },
+              ]}
+            >
+              Pro
+            </Text>
           </View>
-        ))}
+          {FEATURES.map((f, idx) => (
+            <View
+              key={f.label}
+              style={[
+                styles.tableRow,
+                idx !== FEATURES.length - 1
+                  ? { borderBottomWidth: 1, borderBottomColor: colors.border }
+                  : null,
+              ]}
+            >
+              <View style={[styles.colFeature, styles.featureCell]}>
+                <Feather
+                  name={f.icon}
+                  size={14}
+                  color={colors.mutedForeground}
+                />
+                <Text
+                  style={[styles.featureLabel, { color: colors.foreground }]}
+                  numberOfLines={2}
+                >
+                  {f.label}
+                </Text>
+              </View>
+              <Cell value={f.free} colors={colors} />
+              <Cell value={f.plus} colors={colors} accent={colors.primary} />
+              <Cell value={f.pro} colors={colors} accent="#1B7A23" />
+            </View>
+          ))}
+        </View>
 
         <Text style={[styles.legal, { color: colors.mutedForeground }]}>
           {testMode
@@ -212,20 +441,18 @@ export default function PaywallScreen() {
           },
         ]}
       >
-        {isSubscribed ? (
+        {tier === "pro" ? (
           <View style={styles.subscribedBox}>
-            <Feather name="check-circle" size={20} color={colors.primary} />
-            <Text
-              style={[styles.subscribedText, { color: colors.foreground }]}
-            >
-              You&rsquo;re on Met Plus. Thanks for supporting Met!
+            <Feather name="star" size={20} color="#F5B700" />
+            <Text style={[styles.subscribedText, { color: colors.foreground }]}>
+              You&rsquo;re on Met Pro. Thanks for going all in!
             </Text>
             <Pressable
               onPress={close}
               style={({ pressed }) => [
                 styles.cta,
                 {
-                  backgroundColor: colors.primary,
+                  backgroundColor: "#1B7A23",
                   opacity: pressed ? 0.85 : 1,
                   marginTop: 6,
                 },
@@ -238,35 +465,12 @@ export default function PaywallScreen() {
           <Text style={[styles.legal, { color: colors.mutedForeground }]}>
             Loading plans…
           </Text>
-        ) : !monthly && !yearly ? (
+        ) : !plusOffering && !proOffering ? (
           <Text style={[styles.legal, { color: colors.destructive }]}>
             Plans aren&rsquo;t available right now. Pull to refresh.
           </Text>
         ) : (
           <>
-            <View style={styles.planRow}>
-              <PlanCard
-                label="Monthly"
-                price={monthlyPrice}
-                sub={monthlyPerMonth}
-                badge={null}
-                selected={selected === "monthly"}
-                disabled={!monthly}
-                onPress={() => setSelected("monthly")}
-                colors={colors}
-              />
-              <PlanCard
-                label="Yearly"
-                price={yearlyPrice}
-                sub={yearlyPerMonth}
-                badge={yearlySavings}
-                selected={selected === "yearly"}
-                disabled={!yearly}
-                onPress={() => setSelected("yearly")}
-                colors={colors}
-              />
-            </View>
-
             {purchaseError ? (
               <Text style={[styles.errorText, { color: colors.destructive }]}>
                 {(purchaseError as Error).message ||
@@ -276,25 +480,18 @@ export default function PaywallScreen() {
 
             <Pressable
               onPress={startPurchase}
-              disabled={!selectedPackage || isPurchasing}
+              disabled={ctaDisabled}
               style={({ pressed }) => [
                 styles.cta,
                 {
-                  backgroundColor: colors.primary,
-                  opacity: !selectedPackage || isPurchasing
-                    ? 0.6
-                    : pressed
-                      ? 0.85
-                      : 1,
+                  backgroundColor:
+                    selectedTier === "pro" ? "#1B7A23" : colors.primary,
+                  opacity: ctaDisabled ? 0.6 : pressed ? 0.85 : 1,
                 },
               ]}
             >
               <Text style={styles.ctaText}>
-                {isPurchasing
-                  ? "Processing…"
-                  : selected === "yearly"
-                    ? `Start Plus — ${yearlyPrice} / year`
-                    : `Start Plus — ${monthlyPrice} / month`}
+                {isPurchasing ? "Processing…" : ctaLabel}
               </Text>
             </Pressable>
 
@@ -334,7 +531,8 @@ export default function PaywallScreen() {
             </Text>
             <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
               You&rsquo;re running in test mode — no real charge. Confirm the
-              {selected === "yearly" ? " yearly" : " monthly"} plan to unlock Plus?
+              {billing === "yearly" ? " yearly" : " monthly"}{" "}
+              {selectedTier === "pro" ? "Met Pro" : "Met Plus"} plan?
             </Text>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
               <Pressable
@@ -359,8 +557,10 @@ export default function PaywallScreen() {
                 style={({ pressed }) => [
                   styles.modalBtn,
                   {
-                    backgroundColor: colors.primary,
-                    borderColor: colors.primary,
+                    backgroundColor:
+                      selectedTier === "pro" ? "#1B7A23" : colors.primary,
+                    borderColor:
+                      selectedTier === "pro" ? "#1B7A23" : colors.primary,
                     opacity: pressed ? 0.85 : 1,
                   },
                 ]}
@@ -386,6 +586,7 @@ function PlanCard({
   disabled,
   onPress,
   colors,
+  accentColor,
 }: {
   label: string;
   price: string;
@@ -394,7 +595,8 @@ function PlanCard({
   selected: boolean;
   disabled: boolean;
   onPress: () => void;
-  colors: ReturnType<typeof useColors>;
+  colors: ColorPalette;
+  accentColor: string;
 }) {
   return (
     <Pressable
@@ -403,8 +605,8 @@ function PlanCard({
       style={({ pressed }) => [
         styles.planCard,
         {
-          backgroundColor: selected ? "#DCFCE7" : colors.muted,
-          borderColor: selected ? colors.primary : colors.border,
+          backgroundColor: selected ? "rgba(61, 204, 68, 0.10)" : colors.muted,
+          borderColor: selected ? accentColor : colors.border,
           borderWidth: selected ? 2 : 1,
           opacity: disabled ? 0.4 : pressed ? 0.85 : 1,
         },
@@ -415,18 +617,55 @@ function PlanCard({
           {label}
         </Text>
         {badge ? (
-          <View
-            style={[styles.badge, { backgroundColor: colors.primary }]}
-          >
+          <View style={[styles.badge, { backgroundColor: accentColor }]}>
             <Text style={styles.badgeText}>{badge}</Text>
           </View>
         ) : null}
       </View>
-      <Text style={[styles.planPrice, { color: colors.foreground }]}>{price}</Text>
+      <Text style={[styles.planPrice, { color: colors.foreground }]}>
+        {price}
+      </Text>
       <Text style={[styles.planSub, { color: colors.mutedForeground }]}>
         {sub}
       </Text>
     </Pressable>
+  );
+}
+
+function Cell({
+  value,
+  colors,
+  accent,
+}: {
+  value: string | true | false;
+  colors: ColorPalette;
+  accent?: string;
+}) {
+  if (value === true) {
+    return (
+      <View style={styles.colTier}>
+        <Feather name="check" size={16} color={accent ?? colors.primary} />
+      </View>
+    );
+  }
+  if (value === false) {
+    return (
+      <View style={styles.colTier}>
+        <Feather name="x" size={16} color={colors.mutedForeground} />
+      </View>
+    );
+  }
+  return (
+    <Text
+      style={[
+        styles.cellText,
+        styles.colTier,
+        { color: accent ?? colors.foreground },
+      ]}
+      numberOfLines={1}
+    >
+      {value}
+    </Text>
   );
 }
 
@@ -460,43 +699,40 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontFamily: "Inter_700Bold",
-    fontSize: 26,
+    fontSize: 24,
     color: "#FFFFFF",
-    lineHeight: 32,
+    lineHeight: 30,
   },
   heroSub: {
     fontFamily: "Inter_400Regular",
-    fontSize: 14,
+    fontSize: 13,
     color: "rgba(255,255,255,0.9)",
-    lineHeight: 20,
+    lineHeight: 19,
   },
-  featureRow: {
+  tierToggle: {
+    flexDirection: "row",
+    padding: 4,
+    borderRadius: 14,
+    gap: 4,
+  },
+  tierToggleBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  featureIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
     justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
-  featureTitle: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
-  featureSub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    marginTop: 2,
-    lineHeight: 17,
+  tierToggleText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
   },
   legal: {
     fontFamily: "Inter_400Regular",
     fontSize: 11,
     textAlign: "center",
-    marginTop: 8,
+    marginTop: 4,
     lineHeight: 16,
   },
   errorText: {
@@ -596,4 +832,46 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  tableCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  tableHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "rgba(0,0,0,0.02)",
+  },
+  tableHeaderCell: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  tableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 40,
+  },
+  colFeature: { flex: 2.4 },
+  colTier: { flex: 1, alignItems: "center", textAlign: "center" },
+  featureCell: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  featureLabel: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 16,
+  },
+  cellText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+  },
 });

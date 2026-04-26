@@ -16,7 +16,15 @@ const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
 const REVENUECAT_ANDROID_API_KEY =
   process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
-export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "plus";
+export const REVENUECAT_PLUS_ENTITLEMENT = "plus";
+export const REVENUECAT_PRO_ENTITLEMENT = "pro";
+// Back-compat: existing imports still reference the old name.
+export const REVENUECAT_ENTITLEMENT_IDENTIFIER = REVENUECAT_PLUS_ENTITLEMENT;
+
+export const PLUS_OFFERING_IDENTIFIER = "default";
+export const PRO_OFFERING_IDENTIFIER = "pro";
+
+export type Tier = "free" | "plus" | "pro";
 
 export function isRevenueCatTestMode() {
   return (
@@ -53,6 +61,13 @@ export function initializeRevenueCat() {
   Purchases.configure({ apiKey });
   initialized = true;
   console.log("Configured RevenueCat");
+}
+
+function deriveTier(info: CustomerInfo | undefined): Tier {
+  if (!info) return "free";
+  if (info.entitlements.active?.[REVENUECAT_PRO_ENTITLEMENT]) return "pro";
+  if (info.entitlements.active?.[REVENUECAT_PLUS_ENTITLEMENT]) return "plus";
+  return "free";
 }
 
 function useSubscriptionContext() {
@@ -93,26 +108,44 @@ function useSubscriptionContext() {
     },
   });
 
-  // Tri-state: until customerInfo resolves, status is "unknown".
-  // Only treat as subscribed/free once customerInfoQuery has data.
+  // Tri-state readiness so we never send a paid user to the paywall during
+  // cold-start latency. `tier` is "free" by default, but `isSubscriptionReady`
+  // tells callers whether that "free" is a real verdict yet.
   const subscriptionStatus: "unknown" | "active" | "inactive" =
     customerInfoQuery.data === undefined
       ? "unknown"
       : customerInfoQuery.data.entitlements.active?.[
-            REVENUECAT_ENTITLEMENT_IDENTIFIER
+            REVENUECAT_PLUS_ENTITLEMENT
+          ] !== undefined ||
+          customerInfoQuery.data.entitlements.active?.[
+            REVENUECAT_PRO_ENTITLEMENT
           ] !== undefined
         ? "active"
         : "inactive";
 
-  const isSubscribed = subscriptionStatus === "active";
+  const tier: Tier = deriveTier(customerInfoQuery.data);
+  const isSubscribed = subscriptionStatus === "active"; // includes Pro
+  const isProSubscriber = tier === "pro";
+  const isPlusSubscriber = tier === "plus" || tier === "pro";
   const isSubscriptionReady = subscriptionStatus !== "unknown";
+
+  const offerings = offeringsQuery.data;
+  const plusOffering: PurchasesOffering | null =
+    offerings?.all?.[PLUS_OFFERING_IDENTIFIER] ?? offerings?.current ?? null;
+  const proOffering: PurchasesOffering | null =
+    offerings?.all?.[PRO_OFFERING_IDENTIFIER] ?? null;
 
   return {
     customerInfo: customerInfoQuery.data,
-    offerings: offeringsQuery.data,
+    offerings,
     currentOffering: offeringsQuery.data?.current ?? null,
+    plusOffering,
+    proOffering,
     subscriptionStatus,
+    tier,
     isSubscribed,
+    isProSubscriber,
+    isPlusSubscriber,
     isSubscriptionReady,
     isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
     error: customerInfoQuery.error ?? offeringsQuery.error,
@@ -128,9 +161,7 @@ function useSubscriptionContext() {
   };
 }
 
-type SubscriptionContextValue = ReturnType<typeof useSubscriptionContext> & {
-  // re-exports for convenience
-};
+type SubscriptionContextValue = ReturnType<typeof useSubscriptionContext>;
 const Context = createContext<SubscriptionContextValue | null>(null);
 
 export function SubscriptionProvider({

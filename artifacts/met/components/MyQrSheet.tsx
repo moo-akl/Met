@@ -12,7 +12,9 @@ import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
+import { TierBadge } from "@/components/TierBadge";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
 import type { Profile } from "@/lib/types";
 
 type Props = {
@@ -25,6 +27,7 @@ export function MyQrSheet({ visible, onClose, profile }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
+  const { tier } = useSubscription();
 
   const payload = JSON.stringify({
     v: 1,
@@ -68,9 +71,12 @@ export function MyQrSheet({ visible, onClose, profile }: Props) {
 
           <View style={styles.identity}>
             <Avatar uri={profile.photoUri} size={72} ring />
-            <Text style={[styles.name, { color: colors.foreground }]}>
-              {profile.name}
-            </Text>
+            <View style={styles.nameRow}>
+              <Text style={[styles.name, { color: colors.foreground }]}>
+                {profile.name}
+              </Text>
+              <TierBadge tier={tier} size="md" />
+            </View>
             {profile.bio ? (
               <Text style={[styles.bio, { color: colors.mutedForeground }]}>
                 {profile.bio}
@@ -137,6 +143,11 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   identity: {
+    alignItems: "center",
+    gap: 8,
+  },
+  nameRow: {
+    flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },

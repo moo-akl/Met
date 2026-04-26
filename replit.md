@@ -36,18 +36,22 @@ A quiet, anonymous-by-default proximity social network. Your phone is a beacon �
 - `components/PulseBeacon.tsx` — radar pulse (gray + static when `active=false`)
 - `components/EncounterRow.tsx` — list row with three-dot ActionSheet (Remove / Block)
 - `components/MyQrSheet.tsx` — bottom sheet with avatar/name/bio/QR (JSON payload `{v,type,id,name}`)
-- `components/SettingsSheet.tsx` — "Upgrade to Met Plus" CTA (top), Visible on Radar toggle, Blocked people list, Reset profile
+- `components/SettingsSheet.tsx` — Tier-aware upgrade row (Free / Plus / Pro states with TierBadge), Visible on Radar toggle, Blocked people list, Reset profile
+- `components/TierBadge.tsx` — green check for Plus, gold star + green check for Pro, used in MyQrSheet, SettingsSheet, etc.
 - `components/ActionSheet.tsx` — cross-platform bottom sheet for destructive actions
 - `components/RequestsSheet.tsx` — Reveal Requests bottom sheet (Recent bell + Home green CTA banner)
-- `app/paywall.tsx` — Met Plus paywall (Monthly / Yearly cards derived from RevenueCat offerings — never hardcoded), test-mode confirmation modal in sandbox, restore button
-- `lib/revenuecat.tsx` — RevenueCat client. `initializeRevenueCat()` (idempotent), `<SubscriptionProvider>` + `useSubscription()` hook backed by react-query. Tri-state `subscriptionStatus` + `isSubscriptionReady` so we never gate paid users during cold start. `isRevenueCatTestMode()` selects the test API key (web/dev/Expo Go) vs platform keys.
-- `lib/usage.ts` — Free-tier weekly counter (3 reveals/week, resets after 7 days). `tryConsumeFreeReveal()` is single-flight to avoid quota race.
+- `app/paywall.tsx` — 3-tier paywall: Plus/Pro tier toggle in the hero, Monthly/Yearly cards derived from RevenueCat offerings (never hardcoded) with auto Save% badge, full feature comparison table (Free / Plus / Pro columns), test-mode confirmation modal in sandbox, restore button. Default tier preselection is reactive: Plus subscribers see Pro pre-selected as the upgrade path until they manually toggle.
+- `lib/revenuecat.tsx` — RevenueCat client. `initializeRevenueCat()` (idempotent). `<SubscriptionProvider>` + `useSubscription()` hook backed by react-query exposes `tier` ("free" | "plus" | "pro"), `isPlusSubscriber` (true for plus OR pro — Pro is a superset), `isProSubscriber`, plus `plusOffering` and `proOffering`. Tri-state `subscriptionStatus` + `isSubscriptionReady` so we never gate paid users during cold start. `isRevenueCatTestMode()` selects the test API key (web/dev/Expo Go) vs platform keys. `withRetry()` wraps RC calls for the 429 rate-limit edge.
+- `lib/usage.ts` — Per-day quota buckets keyed by local-day so they reset at midnight. Constants: `FREE_REVEALS_PER_DAY=2`, `PLUS_OPENING_MESSAGES_PER_DAY=1`, `PRO_OPENING_MESSAGES_PER_DAY=2`, `FREE_VISIBLE_ENCOUNTERS=10`. `tryConsumeFreeReveal()` and `tryConsumeOpeningMessage(cap)` are single-flight (per-key promise chain) to avoid quota races. Also exports `startOfTodayMs()` for slicing the encounter feed against the daily cap.
 
 ## Subscriptions (RevenueCat)
 
-- Project `proj66b3842d`, entitlement `plus`, offering `default` with `$rc_monthly` ($4.99) + `$rc_annual` ($39.99). Seeded by `scripts/src/seedRevenueCat.ts` (idempotent).
-- Free tier: 3 reveal requests / week + standard history. After cap, SEND REVEAL REQUEST routes to `/paywall` instead of sending.
-- Plus: unlimited reveals, full history, read receipts, frequent paths, privacy mode (UX-only in this prototype — only the reveal cap is actually enforced client-side).
+- Project `proj66b3842d`. Two entitlements + offerings, both seeded by `scripts/src/seedRevenueCat.ts` (idempotent, with retry on 429):
+  - `plus` entitlement, offering `default`: `$rc_monthly` ($4.99) + `$rc_annual` ($39.99).
+  - `pro` entitlement, offering `pro`: `$rc_monthly` ($8.99) + `$rc_annual` ($69.99). **Pro products are attached to BOTH the `pro` and `plus` entitlements** (Pro is a strict superset of Plus), so any `isPlusSubscriber` check passes for Pro users.
+- Free tier: 10 visible encounters per day (resets at midnight) + 2 reveal requests per day + standard history. Past 10 today are hidden behind an upgrade card; past the reveal cap, SEND REVEAL REQUEST routes to `/paywall`.
+- Plus: unlimited encounters/reveals, full history, read receipts, frequent paths, privacy mode, verified badge, **1 opening message per day** (gated client-side; auto-reply simulated after 4s in this prototype).
+- Pro: everything in Plus + **2 opening messages per day** (replaces 1), Boost (rank higher in others' encounters), See who viewed your profile, premium gold badge. UX-only in this prototype except for the reveal cap, opening-message cap, and 10/day encounter cap which are enforced client-side.
 - Public API keys are in env vars (`EXPO_PUBLIC_REVENUECAT_*_API_KEY`); IDs are in `REVENUECAT_*` env vars. Never hardcode prices — derive from `offerings.current.availablePackages`.
 
 ## Demo behavior

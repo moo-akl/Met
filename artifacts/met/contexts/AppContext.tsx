@@ -34,7 +34,22 @@ type AppContextValue = {
   resetAll: () => Promise<void>;
   setPermissionsCompleted: (done: boolean) => Promise<void>;
   upsertEncounterFromQr: (data: { id: string; name: string }) => Promise<string>;
+  sendOpeningMessage: (id: string, text: string) => Promise<void>;
 };
+
+const REPLY_SAMPLES = [
+  "Hey! Great to hear from you 👋",
+  "Yes, I remember you! How's it going?",
+  "Glad you reached out — let's keep in touch.",
+  "Hi there! Funny seeing you here.",
+  "Thanks for the message! What are you up to?",
+];
+
+function pickReply(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return REPLY_SAMPLES[h % REPLY_SAMPLES.length];
+}
 
 const AppContext = createContext<AppContextValue | null>(null);
 
@@ -124,6 +139,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await savePermissionsCompleted(done);
   }, []);
 
+  const sendOpeningMessage = useCallback(
+    async (id: string, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      const sentAt = Date.now();
+      let next: Encounter[] = [];
+      setAllEncounters((prev) => {
+        next = prev.map((enc) =>
+          enc.id === id
+            ? {
+                ...enc,
+                openingMessage: { text: trimmed, sentAt },
+              }
+            : enc,
+        );
+        return next;
+      });
+      await saveEncounters(next);
+
+      // Simulate the recipient replying after a short delay so the prototype
+      // shows the full thread without needing real backend wiring.
+      setTimeout(() => {
+        let withReply: Encounter[] = [];
+        setAllEncounters((prev) => {
+          withReply = prev.map((enc) => {
+            if (enc.id !== id) return enc;
+            const om = enc.openingMessage;
+            // Don't overwrite if the user already sent a follow-up that
+            // somehow replaced this message, or if a reply already exists.
+            if (!om || om.sentAt !== sentAt || om.reply) return enc;
+            return {
+              ...enc,
+              openingMessage: {
+                ...om,
+                reply: {
+                  text: pickReply(`${enc.realName}|${trimmed}`),
+                  receivedAt: Date.now(),
+                },
+              },
+            };
+          });
+          return withReply;
+        });
+        saveEncounters(withReply).catch(() => {});
+      }, 4000);
+    },
+    [],
+  );
+
   const upsertEncounterFromQr = useCallback(
     async (data: { id: string; name: string }) => {
       const now = Date.now();
@@ -193,6 +257,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       resetAll,
       setPermissionsCompleted,
       upsertEncounterFromQr,
+      sendOpeningMessage,
     }),
     [
       ready,
@@ -208,6 +273,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       resetAll,
       setPermissionsCompleted,
       upsertEncounterFromQr,
+      sendOpeningMessage,
     ],
   );
 
