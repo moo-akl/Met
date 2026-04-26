@@ -6,7 +6,6 @@ import React, { useState } from "react";
 import {
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -20,15 +19,50 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
 
-const logo = require("@/assets/images/icon.png");
+type IconName = React.ComponentProps<typeof Feather>["name"];
+
+type Slide = {
+  icon: IconName;
+  iconColor: string;
+  iconBg: string;
+  title: string;
+  body: string;
+};
+
+const SLIDES: Slide[] = [
+  {
+    icon: "target",
+    iconColor: "#3B82F6",
+    iconBg: "#DBEAFE",
+    title: "Discover Nearby People",
+    body: "Met uses your location to find others nearby. No more missed connections.",
+  },
+  {
+    icon: "shield",
+    iconColor: "#4FBE52",
+    iconBg: "#DCFCE7",
+    title: "Stay Private & Secure",
+    body: "We never share your exact location. Only your encounter ID is exchanged locally.",
+  },
+  {
+    icon: "user",
+    iconColor: "#F59E0B",
+    iconBg: "#FEF3C7",
+    title: "Create Your Identity",
+    body: "Let's set up your profile so people know who they've met.",
+  },
+];
 
 const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: string }> = [
   { key: "instagram", label: "Instagram", placeholder: "your.handle" },
+  { key: "facebook", label: "Facebook", placeholder: "your.name" },
   { key: "x", label: "X", placeholder: "your_handle" },
   { key: "tiktok", label: "TikTok", placeholder: "your.handle" },
   { key: "snapchat", label: "Snapchat", placeholder: "your.handle" },
   { key: "linkedin", label: "LinkedIn", placeholder: "your-name" },
 ];
+
+type Phase = "intro" | "photo" | "info" | "socials";
 
 export default function OnboardingScreen() {
   const colors = useColors();
@@ -36,12 +70,19 @@ export default function OnboardingScreen() {
   const { setProfile } = useApp();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
+  const [phase, setPhase] = useState<Phase>("intro");
+  const [slide, setSlide] = useState(0);
+
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [socials, setSocials] = useState<SocialLinks>({});
   const [saving, setSaving] = useState(false);
+
+  const webTop = Platform.OS === "web" ? 67 : 0;
+  const webBot = Platform.OS === "web" ? 34 : 0;
+  const topPad = (Platform.OS === "web" ? webTop : insets.top) + 24;
+  const bottomPad = insets.bottom + webBot + 24;
 
   const pickPhoto = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -69,306 +110,363 @@ export default function OnboardingScreen() {
     router.replace("/(tabs)");
   };
 
-  const webTopPad = Platform.OS === "web" ? 67 : 0;
-  const webBotPad = Platform.OS === "web" ? 34 : 0;
-  const topPad = (Platform.OS === "web" ? webTopPad : insets.top) + 24;
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {step === 0 ? (
+  if (phase === "intro") {
+    const current = SLIDES[slide];
+    const isLast = slide === SLIDES.length - 1;
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View
           style={[
-            styles.welcome,
-            { paddingTop: topPad, paddingBottom: insets.bottom + webBotPad + 24 },
+            styles.introWrap,
+            { paddingTop: topPad + 24, paddingBottom: bottomPad },
           ]}
         >
-          <View style={styles.welcomeBeacon}>
-            <Image
-              source={logo}
-              style={styles.welcomeLogo}
-              contentFit="contain"
-            />
-          </View>
-          <View style={styles.welcomeCopy}>
-            <Text style={[styles.brand, { color: colors.primary }]}>MET</Text>
-            <Text style={[styles.heroTitle, { color: colors.foreground }]}>
-              Your phone is a beacon.
-            </Text>
-            <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>
-              Met quietly remembers everyone you cross paths with. When you both
-              choose, you connect.
-            </Text>
-          </View>
-          <View style={{ width: "100%", paddingHorizontal: 24 }}>
-            <PrimaryButton label="Set up your beacon" onPress={() => setStep(1)} />
-          </View>
-        </View>
-      ) : (
-        <KeyboardAwareScrollView
-          contentContainerStyle={[
-            styles.formScroll,
-            {
-              paddingTop: topPad,
-              paddingBottom: insets.bottom + webBotPad + 32,
-            },
-          ]}
-          bottomOffset={20}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.stepHeader}>
-            <Pressable
-              onPress={() => setStep((s) => (Math.max(0, s - 1) as 0 | 1 | 2 | 3))}
-              hitSlop={12}
+          <View style={styles.introIconArea}>
+            <View
+              style={[
+                styles.introIconWrap,
+                { backgroundColor: current.iconBg },
+              ]}
             >
-              <Feather name="chevron-left" size={24} color={colors.foreground} />
+              <Feather
+                name={current.icon}
+                size={56}
+                color={current.iconColor}
+              />
+            </View>
+          </View>
+
+          <View style={styles.introTextArea}>
+            <Text style={[styles.introTitle, { color: colors.foreground }]}>
+              {current.title}
+            </Text>
+            <Text style={[styles.introBody, { color: colors.mutedForeground }]}>
+              {current.body}
+            </Text>
+          </View>
+
+          <View style={styles.introFooter}>
+            <Pressable
+              onPress={() => setPhase("photo")}
+              hitSlop={12}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            >
+              <Text style={[styles.skipText, { color: colors.primary }]}>
+                {isLast ? " " : "Skip"}
+              </Text>
             </Pressable>
-            <View style={styles.stepDots}>
-              {[1, 2, 3].map((i) => (
+
+            <View style={styles.dots}>
+              {SLIDES.map((_, i) => (
                 <View
                   key={i}
                   style={[
                     styles.dot,
                     {
                       backgroundColor:
-                        step >= i ? colors.primary : colors.secondary,
-                      width: step === i ? 22 : 8,
+                        i === slide ? colors.primary : "#CBD5D1",
+                      width: i === slide ? 22 : 8,
                     },
                   ]}
                 />
               ))}
             </View>
-            <View style={{ width: 24 }} />
+
+            {isLast ? (
+              <Pressable
+                onPress={() => setPhase("photo")}
+                hitSlop={12}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+              >
+                <Text style={[styles.getStarted, { color: colors.primary }]}>
+                  Get Started
+                </Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => setSlide(slide + 1)}
+                hitSlop={12}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+              >
+                <Feather
+                  name="arrow-right"
+                  size={24}
+                  color={colors.foreground}
+                />
+              </Pressable>
+            )}
           </View>
+        </View>
+      </View>
+    );
+  }
 
-          {step === 1 ? (
-            <View style={styles.step}>
-              <Text style={[styles.stepTitle, { color: colors.foreground }]}>
-                One real photo.
-              </Text>
-              <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
-                Just one — clear, recent, and you. This is what someone sees the
-                moment you both reveal.
-              </Text>
-
-              <Pressable onPress={pickPhoto} style={styles.photoTarget}>
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={[
+          styles.formScroll,
+          { paddingTop: topPad, paddingBottom: bottomPad + 8 },
+        ]}
+        bottomOffset={20}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.stepHeader}>
+          <Pressable
+            onPress={() => {
+              if (phase === "photo") setPhase("intro");
+              else if (phase === "info") setPhase("photo");
+              else setPhase("info");
+            }}
+            hitSlop={12}
+          >
+            <Feather name="chevron-left" size={24} color={colors.foreground} />
+          </Pressable>
+          <View style={styles.stepDots}>
+            {(["photo", "info", "socials"] as Phase[]).map((p, i) => {
+              const order = ["photo", "info", "socials"];
+              const currentIndex = order.indexOf(phase);
+              const active = i <= currentIndex;
+              return (
                 <View
+                  key={p}
                   style={[
-                    styles.photoFrame,
+                    styles.dot,
                     {
-                      backgroundColor: colors.card,
-                      borderColor: photoUri ? colors.primary : colors.border,
+                      backgroundColor: active ? colors.primary : "#CBD5D1",
+                      width: i === currentIndex ? 22 : 8,
                     },
                   ]}
-                >
-                  {photoUri ? (
-                    <Image
-                      source={{ uri: photoUri }}
-                      style={styles.photoImg}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={styles.photoPlaceholder}>
-                      <Feather
-                        name="camera"
-                        size={32}
-                        color={colors.mutedForeground}
-                      />
-                      <Text
-                        style={[
-                          styles.photoHint,
-                          { color: colors.mutedForeground },
-                        ]}
-                      >
-                        Tap to choose
-                      </Text>
-                    </View>
-                  )}
-                </View>
+                />
+              );
+            })}
+          </View>
+          <View style={{ width: 24 }} />
+        </View>
+
+        {phase === "photo" ? (
+          <View style={styles.step}>
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>
+              One real photo.
+            </Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              Clear, recent, and you. This is what people see when you both
+              connect.
+            </Text>
+
+            <Pressable onPress={pickPhoto} style={styles.photoTarget}>
+              <View
+                style={[
+                  styles.photoFrame,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: photoUri ? colors.primary : colors.border,
+                  },
+                ]}
+              >
                 {photoUri ? (
-                  <View
-                    style={[
-                      styles.verifyChip,
-                      { backgroundColor: colors.primary },
-                    ]}
-                  >
-                    <Feather name="check" size={12} color={colors.primaryForeground} />
+                  <Image
+                    source={{ uri: photoUri }}
+                    style={styles.photoImg}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={styles.photoPlaceholder}>
+                    <Feather
+                      name="camera"
+                      size={32}
+                      color={colors.mutedForeground}
+                    />
                     <Text
                       style={[
-                        styles.verifyText,
-                        { color: colors.primaryForeground },
+                        styles.photoHint,
+                        { color: colors.mutedForeground },
                       ]}
                     >
-                      Verified
+                      Tap to choose
                     </Text>
                   </View>
-                ) : null}
-              </Pressable>
+                )}
+              </View>
+            </Pressable>
 
-              <PrimaryButton
-                label="Continue"
-                onPress={() => setStep(2)}
-                disabled={!photoUri}
+            <PrimaryButton
+              label="Continue"
+              onPress={() => setPhase("info")}
+              disabled={!photoUri}
+            />
+          </View>
+        ) : null}
+
+        {phase === "info" ? (
+          <View style={styles.step}>
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>
+              A name and a sentence.
+            </Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              Keep your bio short. The shorter, the more honest it feels.
+            </Text>
+
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                Name
+              </Text>
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="Your first name"
+                placeholderTextColor={colors.mutedForeground}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
               />
             </View>
-          ) : null}
 
-          {step === 2 ? (
-            <View style={styles.step}>
-              <Text style={[styles.stepTitle, { color: colors.foreground }]}>
-                A name and a sentence.
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                Bio
               </Text>
-              <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
-                Keep your bio short. The shorter, the more honest it feels.
-              </Text>
-
-              <View style={styles.field}>
-                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
-                  Name
-                </Text>
-                <TextInput
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Your first name"
-                  placeholderTextColor={colors.mutedForeground}
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.field}>
-                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
-                  Bio
-                </Text>
-                <TextInput
-                  value={bio}
-                  onChangeText={setBio}
-                  placeholder="Architect. Always chasing better light."
-                  placeholderTextColor={colors.mutedForeground}
-                  multiline
-                  maxLength={120}
-                  style={[
-                    styles.input,
-                    styles.inputMulti,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                />
-                <Text style={[styles.counter, { color: colors.mutedForeground }]}>
-                  {bio.length}/120
-                </Text>
-              </View>
-
-              <PrimaryButton
-                label="Continue"
-                onPress={() => setStep(3)}
-                disabled={!name.trim()}
+              <TextInput
+                value={bio}
+                onChangeText={setBio}
+                placeholder="Architect. Always chasing better light."
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                maxLength={120}
+                style={[
+                  styles.input,
+                  styles.inputMulti,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
               />
-            </View>
-          ) : null}
-
-          {step === 3 ? (
-            <View style={styles.step}>
-              <Text style={[styles.stepTitle, { color: colors.foreground }]}>
-                Your social handles.
+              <Text style={[styles.counter, { color: colors.mutedForeground }]}>
+                {bio.length}/120
               </Text>
-              <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
-                Add at least one. Connections see only what you put here.
-              </Text>
-
-              <View style={{ gap: 12 }}>
-                {SOCIAL_FIELDS.map((f) => (
-                  <View key={f.key} style={styles.field}>
-                    <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
-                      {f.label}
-                    </Text>
-                    <TextInput
-                      value={socials[f.key] ?? ""}
-                      onChangeText={(v) =>
-                        setSocials((prev) => ({ ...prev, [f.key]: v }))
-                      }
-                      placeholder={f.placeholder}
-                      autoCapitalize="none"
-                      placeholderTextColor={colors.mutedForeground}
-                      style={[
-                        styles.input,
-                        {
-                          backgroundColor: colors.card,
-                          borderColor: colors.border,
-                          color: colors.foreground,
-                        },
-                      ]}
-                    />
-                  </View>
-                ))}
-              </View>
-
-              <PrimaryButton
-                label="Activate beacon"
-                onPress={handleFinish}
-                loading={saving}
-                disabled={!Object.values(socials).some((v) => v && v.trim())}
-              />
             </View>
-          ) : null}
-        </KeyboardAwareScrollView>
-      )}
+
+            <PrimaryButton
+              label="Continue"
+              onPress={() => setPhase("socials")}
+              disabled={!name.trim()}
+            />
+          </View>
+        ) : null}
+
+        {phase === "socials" ? (
+          <View style={styles.step}>
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>
+              Your social handles.
+            </Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              Add at least one. Connections see only what you put here.
+            </Text>
+
+            <View style={{ gap: 12 }}>
+              {SOCIAL_FIELDS.map((f) => (
+                <View key={f.key} style={styles.field}>
+                  <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>
+                    {f.label}
+                  </Text>
+                  <TextInput
+                    value={socials[f.key] ?? ""}
+                    onChangeText={(v) =>
+                      setSocials((prev) => ({ ...prev, [f.key]: v }))
+                    }
+                    placeholder={f.placeholder}
+                    autoCapitalize="none"
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                        color: colors.foreground,
+                      },
+                    ]}
+                  />
+                </View>
+              ))}
+            </View>
+
+            <PrimaryButton
+              label="Activate beacon"
+              onPress={handleFinish}
+              loading={saving}
+              disabled={!Object.values(socials).some((v) => v && v.trim())}
+            />
+          </View>
+        ) : null}
+      </KeyboardAwareScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  welcome: {
+  introWrap: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
     justifyContent: "space-between",
-    alignItems: "center",
   },
-  welcomeBeacon: {
-    flex: 1,
+  introIconArea: {
+    alignItems: "center",
+    paddingTop: 40,
+  },
+  introIconWrap: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     alignItems: "center",
     justifyContent: "center",
-    width: "100%",
   },
-  welcomeLogo: {
-    width: 180,
-    height: 180,
-    borderRadius: 36,
-  },
-  welcomeCopy: {
+  introTextArea: {
     alignItems: "center",
     paddingHorizontal: 8,
-    marginBottom: 36,
+    gap: 14,
   },
-  brand: {
+  introTitle: {
     fontFamily: "Inter_700Bold",
-    fontSize: 13,
-    letterSpacing: 6,
-    marginBottom: 18,
-  },
-  heroTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 32,
+    fontSize: 28,
     textAlign: "center",
-    lineHeight: 38,
-    marginBottom: 12,
   },
-  heroSub: {
+  introBody: {
     fontFamily: "Inter_400Regular",
     fontSize: 15,
     textAlign: "center",
     lineHeight: 22,
     maxWidth: 320,
   },
+  introFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 20,
+    minHeight: 40,
+  },
+  skipText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 15,
+    minWidth: 60,
+  },
+  getStarted: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 16,
+  },
+  dots: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+  },
+  dot: { height: 8, borderRadius: 4 },
   formScroll: {
     paddingHorizontal: 24,
     gap: 28,
@@ -383,7 +481,6 @@ const styles = StyleSheet.create({
     gap: 6,
     alignItems: "center",
   },
-  dot: { height: 8, borderRadius: 4 },
   step: { gap: 18 },
   stepTitle: {
     fontFamily: "Inter_700Bold",
@@ -416,15 +513,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 14,
   },
-  verifyChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  verifyText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
   field: { gap: 6 },
   fieldLabel: {
     fontFamily: "Inter_500Medium",
@@ -432,6 +520,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: "uppercase",
   },
+  subLabel: { fontFamily: "Inter_400Regular", fontSize: 12 },
   input: {
     height: 52,
     paddingHorizontal: 16,

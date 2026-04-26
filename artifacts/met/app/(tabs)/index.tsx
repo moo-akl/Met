@@ -3,43 +3,44 @@ import React, { useMemo } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { EmptyState } from "@/components/EmptyState";
-import { EncounterRow } from "@/components/EncounterRow";
+import { AppHeader } from "@/components/AppHeader";
 import { PulseBeacon } from "@/components/PulseBeacon";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 
-export default function EncountersScreen() {
+export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { encounters } = useApp();
 
-  const visible = useMemo(
-    () =>
-      encounters
-        .filter((e) => e.status !== "connected")
-        .sort((a, b) => b.lastSeenAt - a.lastSeenAt),
-    [encounters],
-  );
+  const stats = useMemo(() => {
+    const today = Date.now() - 24 * 60 * 60 * 1000;
+    return {
+      today: encounters.filter((e) => e.lastSeenAt >= today).length,
+      connections: encounters.filter((e) => e.status === "connected").length,
+      pending: encounters.filter(
+        (e) => e.status === "request_sent" || e.status === "request_received",
+      ).length,
+    };
+  }, [encounters]);
 
   const within50m = useMemo(
     () => encounters.filter((e) => e.lastDistanceM <= 50).length,
     [encounters],
   );
 
-  const webTop = Platform.OS === "web" ? 67 : 0;
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppHeader title="Home" />
       <ScrollView
         contentContainerStyle={{
-          paddingTop: insets.top + webTop + 8,
           paddingBottom: insets.bottom + webBot + 120,
         }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
+        <View style={styles.heroSection}>
           <View style={styles.beaconWrap}>
             <PulseBeacon size={180} />
           </View>
@@ -47,47 +48,74 @@ export default function EncountersScreen() {
             BEACON ACTIVE
           </Text>
           <Text style={[styles.headline, { color: colors.foreground }]}>
-            {within50m} {within50m === 1 ? "person" : "people"} within 50m today
+            {within50m} {within50m === 1 ? "person" : "people"} within 50m
           </Text>
           <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-            Met is quietly listening. Tap anyone to send a reveal request.
+            Met is quietly listening. Anyone you cross paths with shows up under Recent.
           </Text>
         </View>
 
-        <View style={styles.list}>
-          <View style={styles.sectionHeader}>
-            <Feather name="radio" size={14} color={colors.mutedForeground} />
-            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
-              RECENT ENCOUNTERS
-            </Text>
-          </View>
-
-          {visible.length === 0 ? (
-            <EmptyState
-              icon="radio"
-              title="No encounters yet"
-              description="Keep your beacon on. The next person you cross paths with will appear here."
-            />
-          ) : (
-            <View style={{ gap: 10 }}>
-              {visible.map((e) => (
-                <EncounterRow key={e.id} encounter={e} />
-              ))}
-            </View>
-          )}
+        <View style={styles.statsRow}>
+          <StatCard
+            icon="users"
+            value={stats.today}
+            label="Today"
+            colors={colors}
+          />
+          <StatCard
+            icon="link-2"
+            value={stats.connections}
+            label="Connections"
+            colors={colors}
+          />
+          <StatCard
+            icon="bell"
+            value={stats.pending}
+            label="Pending"
+            colors={colors}
+          />
         </View>
       </ScrollView>
     </View>
   );
 }
 
+function StatCard({
+  icon,
+  value,
+  label,
+  colors,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  value: number;
+  label: string;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <View
+      style={[
+        styles.stat,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+    >
+      <Feather name={icon} size={18} color={colors.primary} />
+      <Text style={[styles.statValue, { color: colors.foreground }]}>
+        {value}
+      </Text>
+      <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
+  heroSection: {
     alignItems: "center",
     paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 28,
+    paddingTop: 24,
+    paddingBottom: 24,
     gap: 4,
   },
   beaconWrap: {
@@ -116,17 +144,26 @@ const styles = StyleSheet.create({
     marginTop: 6,
     maxWidth: 320,
   },
-  list: { paddingHorizontal: 20, gap: 14 },
-  sectionHeader: {
+  statsRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 6,
-    marginLeft: 2,
+    paddingHorizontal: 20,
+    gap: 12,
   },
-  sectionTitle: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 11,
-    letterSpacing: 1.4,
+  stat: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 6,
+    alignItems: "flex-start",
+  },
+  statValue: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 26,
+    marginTop: 2,
+  },
+  statLabel: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
   },
 });

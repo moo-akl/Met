@@ -16,12 +16,19 @@ export function EmptyState({ icon, title, description }: Props) {
   const colors = useColors();
   return (
     <View style={styles.wrap}>
-      <View style={[styles.iconWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.iconWrap,
+          { backgroundColor: colors.secondary, borderColor: colors.border },
+        ]}
+      >
         <Feather name={icon} size={28} color={colors.mutedForeground} />
       </View>
       <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
       {description ? (
-        <Text style={[styles.desc, { color: colors.mutedForeground }]}>{description}</Text>
+        <Text style={[styles.desc, { color: colors.mutedForeground }]}>
+          {description}
+        </Text>
       ) : null}
     </View>
   );
