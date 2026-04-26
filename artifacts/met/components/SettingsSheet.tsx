@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
+import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useSubscription } from "@/lib/revenuecat";
@@ -31,7 +32,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const webBot = Platform.OS === "web" ? 34 : 0;
   const { profile, setProfile, blockedEncounters, setBlocked, resetAll } =
     useApp();
-  const { isSubscribed } = useSubscription();
+  const { tier } = useSubscription();
   const router = useRouter();
   const isVisible = profile?.isVisible ?? true;
 
@@ -96,21 +97,35 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   styles.plusRow,
                   {
                     borderColor: colors.primary,
+                    backgroundColor: tier === "pro" ? "#1B7A23" : "#3DCC44",
                     opacity: pressed ? 0.85 : 1,
                   },
                 ]}
               >
                 <View style={styles.plusIcon}>
-                  <Feather name="zap" size={18} color="#FFFFFF" />
+                  <Feather
+                    name={tier === "pro" ? "star" : "zap"}
+                    size={18}
+                    color="#FFFFFF"
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.plusTitle}>
-                    {isSubscribed ? "Met Plus active" : "Upgrade to Met Plus"}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={styles.plusTitle}>
+                      {tier === "pro"
+                        ? "Met Pro active"
+                        : tier === "plus"
+                          ? "Met Plus active"
+                          : "Upgrade your plan"}
+                    </Text>
+                    {tier !== "free" ? <TierBadge tier={tier} /> : null}
+                  </View>
                   <Text style={styles.plusSub}>
-                    {isSubscribed
-                      ? "Manage your subscription"
-                      : "Unlimited reveals, full history, privacy mode"}
+                    {tier === "pro"
+                      ? "Boost, view profile views, premium badge"
+                      : tier === "plus"
+                        ? "Tap to compare with Met Pro"
+                        : "Unlock more reveals, opening messages, badges"}
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#FFFFFF" />

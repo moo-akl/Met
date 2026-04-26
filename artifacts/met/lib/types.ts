@@ -24,6 +24,12 @@ export type EncounterStatus =
   | "request_received"
   | "connected";
 
+export type OpeningMessage = {
+  text: string;
+  sentAt: number;
+  reply?: { text: string; receivedAt: number };
+};
+
 export type Encounter = {
   id: string;
   realName: string;
@@ -37,4 +43,5 @@ export type Encounter = {
   lastLocation: string;
   status: EncounterStatus;
   blocked?: boolean;
+  openingMessage?: OpeningMessage;
 };
