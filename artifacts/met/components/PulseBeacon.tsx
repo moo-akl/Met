@@ -43,18 +43,25 @@ export function PulseBeacon({ size = 140, active = true }: Props) {
     transform: [{ scale: 0.4 + p3.value * 1.2 }],
   }));
 
+  const ringColor = active ? colors.primary : "#9CA3AF";
   const ringBase = {
     width: size,
     height: size,
     borderRadius: size / 2,
-    borderColor: colors.primary,
+    borderColor: ringColor,
   };
 
   return (
     <View style={[styles.wrap, { width: size, height: size }]}>
-      <Animated.View style={[styles.ring, ringBase, s1]} />
-      <Animated.View style={[styles.ring, ringBase, s2]} />
-      <Animated.View style={[styles.ring, ringBase, s3]} />
+      {active ? (
+        <>
+          <Animated.View style={[styles.ring, ringBase, s1]} />
+          <Animated.View style={[styles.ring, ringBase, s2]} />
+          <Animated.View style={[styles.ring, ringBase, s3]} />
+        </>
+      ) : (
+        <View style={[styles.ring, ringBase, { opacity: 0.35 }]} />
+      )}
       <View
         style={[
           styles.core,
@@ -62,9 +69,9 @@ export function PulseBeacon({ size = 140, active = true }: Props) {
             width: size * 0.22,
             height: size * 0.22,
             borderRadius: size * 0.11,
-            backgroundColor: colors.primary,
-            shadowColor: colors.primary,
-            shadowOpacity: Platform.OS === "web" ? 0.4 : 0.6,
+            backgroundColor: ringColor,
+            shadowColor: ringColor,
+            shadowOpacity: active ? (Platform.OS === "web" ? 0.4 : 0.6) : 0,
             shadowRadius: 12,
             shadowOffset: { width: 0, height: 0 },
           },

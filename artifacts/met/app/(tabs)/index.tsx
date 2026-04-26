@@ -11,7 +11,8 @@ import { useColors } from "@/hooks/useColors";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { encounters } = useApp();
+  const { encounters, profile } = useApp();
+  const isVisible = profile?.isVisible ?? true;
 
   const stats = useMemo(() => {
     const today = Date.now() - 24 * 60 * 60 * 1000;
@@ -42,17 +43,36 @@ export default function HomeScreen() {
       >
         <View style={styles.heroSection}>
           <View style={styles.beaconWrap}>
-            <PulseBeacon size={180} />
+            <PulseBeacon size={180} active={isVisible} />
           </View>
-          <Text style={[styles.beaconLabel, { color: colors.primary }]}>
-            BEACON ACTIVE
+          <Text
+            style={[
+              styles.beaconLabel,
+              { color: isVisible ? colors.primary : colors.mutedForeground },
+            ]}
+          >
+            {isVisible ? "BEACON ACTIVE" : "BEACON OFF"}
           </Text>
-          <Text style={[styles.headline, { color: colors.foreground }]}>
-            {within50m} {within50m === 1 ? "person" : "people"} within 50m
-          </Text>
-          <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-            Met is quietly listening. Anyone you cross paths with shows up under Recent.
-          </Text>
+          {isVisible ? (
+            <>
+              <Text style={[styles.headline, { color: colors.foreground }]}>
+                {within50m} {within50m === 1 ? "person" : "people"} within 50m
+              </Text>
+              <Text style={[styles.sub, { color: colors.mutedForeground }]}>
+                Met is quietly listening. Anyone you cross paths with shows up under Recent.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.headline, { color: colors.foreground }]}>
+                You&rsquo;re invisible to others
+              </Text>
+              <Text style={[styles.sub, { color: colors.mutedForeground }]}>
+                Turn &ldquo;Visible on Radar&rdquo; back on in Settings to start
+                discovering people again.
+              </Text>
+            </>
+          )}
         </View>
 
         <View style={styles.statsRow}>

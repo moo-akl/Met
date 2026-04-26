@@ -43,7 +43,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const [p, e] = await Promise.all([loadProfile(), loadEncounters()]);
       if (!mounted) return;
-      setProfileState(p);
+      if (p) {
+        setProfileState({ ...p, isVisible: p.isVisible ?? true });
+      } else {
+        setProfileState(p);
+      }
       if (e && e.length > 0) {
         setAllEncounters(e);
       } else {
