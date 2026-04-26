@@ -1,7 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
@@ -26,6 +34,8 @@ export default function ConnectionsScreen() {
   const { encounters } = useApp();
   const webBot = Platform.OS === "web" ? 34 : 0;
 
+  const [query, setQuery] = useState("");
+
   // All connected encounters, sorted by last activity (most recent message,
   // or last seen if no messages yet).
   const connections = useMemo(
@@ -46,9 +56,47 @@ export default function ConnectionsScreen() {
     [encounters],
   );
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return connections;
+    return connections.filter((c) => c.realName.toLowerCase().includes(q));
+  }, [connections, query]);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader title="Connections" />
+
+      {connections.length > 0 ? (
+        <View style={styles.searchWrap}>
+          <View
+            style={[
+              styles.searchBar,
+              {
+                backgroundColor: colors.muted,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <Feather name="search" size={16} color={colors.mutedForeground} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search connections"
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.searchInput, { color: colors.foreground }]}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+            />
+            {query.length > 0 ? (
+              <Pressable onPress={() => setQuery("")} hitSlop={10}>
+                <Feather name="x" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
       <ScrollView
         contentContainerStyle={{
           paddingTop: 8,
@@ -56,18 +104,29 @@ export default function ConnectionsScreen() {
           paddingHorizontal: 16,
         }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {connections.length === 0 ? (
           <EmptyState
             icon="message-circle"
             title="No connections yet"
-            description="Once someone reveals back, your conversation will land here."
+            description="Once someone reveals back, they'll show up here."
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon="search"
+            title="No matches"
+            description={`No connection named "${query.trim()}".`}
           />
         ) : (
           <View style={styles.list}>
-            {connections.map((c, idx) => {
+            {filtered.map((c, idx) => {
               const om = c.openingMessage;
-              let preview = "Tap to say hi";
+              // Preview reflects the messaging-as-flavor stance: a real reply
+              // wins, then the user's own outgoing message, otherwise we show
+              // a neutral context line (location or "Met N times") instead of
+              // pushing the user to message.
+              let preview: string;
               let previewColor = colors.mutedForeground;
               let timestamp = c.lastSeenAt;
               let unread = false;
@@ -76,13 +135,14 @@ export default function ConnectionsScreen() {
                 preview = om.reply.text;
                 previewColor = colors.foreground;
                 timestamp = om.reply.receivedAt;
-                // Simple unread heuristic: a reply that arrived in the last
-                // 60s is treated as unread (prototype — no read receipts yet).
                 unread = Date.now() - om.reply.receivedAt < 60_000;
               } else if (om) {
                 preview = `You: ${om.text}`;
-                previewColor = colors.mutedForeground;
                 timestamp = om.sentAt;
+              } else if (c.lastLocation) {
+                preview = c.lastLocation;
+              } else {
+                preview = `Met ${c.encounterCount} ${c.encounterCount === 1 ? "time" : "times"}`;
               }
 
               return (
@@ -147,7 +207,7 @@ export default function ConnectionsScreen() {
                       color={colors.mutedForeground}
                     />
                   </Pressable>
-                  {idx < connections.length - 1 ? (
+                  {idx < filtered.length - 1 ? (
                     <View
                       style={[
                         styles.separator,
@@ -167,6 +227,26 @@ export default function ConnectionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  searchWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    paddingVertical: 0,
+  },
   list: { paddingHorizontal: 4 },
   row: {
     flexDirection: "row",

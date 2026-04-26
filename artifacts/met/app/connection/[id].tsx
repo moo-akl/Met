@@ -74,7 +74,6 @@ export default function ConnectionScreen() {
     useSubscription();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
   const [openingsRemaining, setOpeningsRemaining] = useState<number | null>(
@@ -198,10 +197,7 @@ export default function ConnectionScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
-        <Pressable
-          onPress={() => setDetailsOpen((v) => !v)}
-          style={styles.headerCenter}
-        >
+        <View style={styles.headerCenter}>
           <Avatar uri={encounter.photoUri} size={36} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text
@@ -214,10 +210,11 @@ export default function ConnectionScreen() {
               style={[styles.headerSub, { color: colors.mutedForeground }]}
               numberOfLines={1}
             >
-              {detailsOpen ? "Hide details" : "Tap for details"}
+              Met {encounter.encounterCount}{" "}
+              {encounter.encounterCount === 1 ? "time" : "times"}
             </Text>
           </View>
-        </Pressable>
+        </View>
         <Pressable
           onPress={() => setMenuOpen(true)}
           hitSlop={12}
@@ -233,63 +230,70 @@ export default function ConnectionScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Collapsible details panel */}
-        {detailsOpen ? (
-          <View
-            style={[
-              styles.detailsPanel,
-              {
-                backgroundColor: colors.card,
-                borderBottomColor: colors.border,
-              },
-            ]}
-          >
-            <View style={styles.detailsHeroRow}>
-              <Image
-                source={{ uri: encounter.photoUri }}
-                style={styles.detailsAvatar}
-                contentFit="cover"
-              />
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text
-                  style={[styles.detailsName, { color: colors.foreground }]}
-                >
-                  {encounter.realName}
+        {/* Profile / info — always front and center. The chat below is a
+            secondary "introduce yourself / remind them where we met" surface. */}
+        <View
+          style={[
+            styles.detailsPanel,
+            {
+              backgroundColor: colors.card,
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
+          <View style={styles.detailsHeroRow}>
+            <Image
+              source={{ uri: encounter.photoUri }}
+              style={styles.detailsAvatar}
+              contentFit="cover"
+            />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.detailsName, { color: colors.foreground }]}>
+                {encounter.realName}
+              </Text>
+              <View style={styles.detailsMetaRow}>
+                <Feather name="repeat" size={14} color={colors.primary} />
+                <Text style={[styles.detailsMeta, { color: colors.primary }]}>
+                  Met {encounter.encounterCount}{" "}
+                  {encounter.encounterCount === 1 ? "time" : "times"}
                 </Text>
-                <View style={styles.detailsMetaRow}>
-                  <Feather name="repeat" size={14} color={colors.primary} />
-                  <Text style={[styles.detailsMeta, { color: colors.primary }]}>
-                    Met {encounter.encounterCount}{" "}
-                    {encounter.encounterCount === 1 ? "time" : "times"}
-                  </Text>
-                </View>
               </View>
             </View>
-            {encounter.bio ? (
-              <Text style={[styles.bio, { color: colors.foreground }]}>
-                {encounter.bio}
-              </Text>
-            ) : null}
-            {encounter.lastLocation ? (
-              <Pressable
-                onPress={openMap}
-                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+          </View>
+          {encounter.bio ? (
+            <Text style={[styles.bio, { color: colors.foreground }]}>
+              {encounter.bio}
+            </Text>
+          ) : null}
+          {encounter.lastLocation ? (
+            <Pressable
+              onPress={openMap}
+              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+            >
+              <LinearGradient
+                colors={[colors.primary, "#2BA535"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.mapCard}
               >
-                <LinearGradient
-                  colors={[colors.primary, "#2BA535"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.mapCard}
-                >
-                  <Feather name="map-pin" size={18} color="#FFFFFF" />
-                  <Text style={styles.mapText} numberOfLines={1}>
-                    {encounter.lastLocation}
-                  </Text>
-                  <Feather name="external-link" size={16} color="#FFFFFF" />
-                </LinearGradient>
-              </Pressable>
-            ) : null}
-            {socialEntries.length > 0 ? (
+                <Feather name="map-pin" size={18} color="#FFFFFF" />
+                <Text style={styles.mapText} numberOfLines={1}>
+                  {encounter.lastLocation}
+                </Text>
+                <Feather name="external-link" size={16} color="#FFFFFF" />
+              </LinearGradient>
+            </Pressable>
+          ) : null}
+          {socialEntries.length > 0 ? (
+            <View style={styles.socialsBlock}>
+              <Text
+                style={[
+                  styles.sectionLabel,
+                  { color: colors.mutedForeground },
+                ]}
+              >
+                Socials
+              </Text>
               <View style={styles.chipsRow}>
                 {socialEntries.map(([platform, handle]) => (
                   <SocialChip
@@ -299,15 +303,23 @@ export default function ConnectionScreen() {
                   />
                 ))}
               </View>
-            ) : null}
-          </View>
-        ) : null}
+            </View>
+          ) : null}
+        </View>
 
-        {/* Conversation */}
+        {/* Conversation — secondary section. */}
         <View style={styles.thread}>
-          <Text
-            style={[styles.dateLabel, { color: colors.mutedForeground }]}
-          >
+          <View style={styles.threadHeader}>
+            <Text
+              style={[styles.sectionLabel, { color: colors.mutedForeground }]}
+            >
+              Conversation
+            </Text>
+            <View
+              style={[styles.threadDivider, { backgroundColor: colors.border }]}
+            />
+          </View>
+          <Text style={[styles.dateLabel, { color: colors.mutedForeground }]}>
             {formatDateLabel(lastActivity)}
           </Text>
 
@@ -636,10 +648,30 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
+  socialsBlock: {
+    gap: 8,
+    marginTop: 2,
+  },
+  sectionLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
   thread: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 18,
     gap: 12,
+  },
+  threadHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 4,
+  },
+  threadDivider: {
+    flex: 1,
+    height: 1,
   },
   dateLabel: {
     fontFamily: "Inter_500Medium",
