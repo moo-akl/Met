@@ -1,11 +1,12 @@
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
-import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { EncounterRow } from "@/components/EncounterRow";
+import { RequestsSheet } from "@/components/RequestsSheet";
 import { ScanFab } from "@/components/ScanFab";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -15,6 +16,7 @@ export default function RecentScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { encounters } = useApp();
+  const [requestsOpen, setRequestsOpen] = useState(false);
 
   const sorted = useMemo(
     () => [...encounters].sort((a, b) => b.lastSeenAt - a.lastSeenAt),
@@ -29,14 +31,7 @@ export default function RecentScreen() {
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   const handleBell = () => {
-    if (pendingRequests > 0) {
-      Alert.alert(
-        "Reveal requests",
-        `You have ${pendingRequests} pending reveal ${pendingRequests === 1 ? "request" : "requests"}. Tap a person to view.`,
-      );
-    } else {
-      Alert.alert("All caught up", "No new requests right now.");
-    }
+    setRequestsOpen(true);
   };
 
   const handleScan = () => {
@@ -82,6 +77,10 @@ export default function RecentScreen() {
         )}
       </ScrollView>
       <ScanFab onPress={handleScan} />
+      <RequestsSheet
+        visible={requestsOpen}
+        onClose={() => setRequestsOpen(false)}
+      />
     </View>
   );
 }
