@@ -45,7 +45,7 @@ const FEATURES: FeatureMatrix[] = [
   {
     icon: "send",
     label: "Reveal requests",
-    free: "2 / day",
+    free: "4 / day",
     plus: "Unlimited",
     pro: "Unlimited",
   },
