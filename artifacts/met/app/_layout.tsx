@@ -15,10 +15,23 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/contexts/AppContext";
+import {
+  initializeRevenueCat,
+  SubscriptionProvider,
+} from "@/lib/revenuecat";
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+try {
+  initializeRevenueCat();
+} catch (err) {
+  console.warn(
+    "RevenueCat unavailable:",
+    err instanceof Error ? err.message : err,
+  );
+}
 
 function ProfileGate() {
   const { ready, profile, permissionsCompleted } = useApp();
@@ -61,6 +74,10 @@ function RootLayoutNav() {
         name="scan"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
+      <Stack.Screen
+        name="paywall"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
     </Stack>
   );
 }
@@ -87,10 +104,12 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView>
             <KeyboardProvider>
-              <AppProvider>
-                <ProfileGate />
-                <RootLayoutNav />
-              </AppProvider>
+              <SubscriptionProvider>
+                <AppProvider>
+                  <ProfileGate />
+                  <RootLayoutNav />
+                </AppProvider>
+              </SubscriptionProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
