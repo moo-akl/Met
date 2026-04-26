@@ -1,6 +1,6 @@
 # Met
 
-A quiet, anonymous-by-default proximity social network. Your phone is a beacon — people you cross paths with within ~50m become "encounters." Mutual reveal turns an encounter into a "connection" that unlocks social handles. Photo + name + bio are always visible; only socials are gated.
+A quiet, anonymous-by-default proximity social network. Your phone is a beacon — people you cross paths with (within a configurable Discovery range, default 50m) become "encounters." Mutual reveal turns an encounter into a "connection" that unlocks social handles. Photo + name + bio are always visible; only socials are gated.
 
 ## Stack
 
@@ -28,7 +28,7 @@ A quiet, anonymous-by-default proximity social network. Your phone is a beacon �
 - `app/scan.tsx` — Full-screen camera modal with QR overlay; on detect parses the JSON payload `{v,type,id,name}`, calls `upsertEncounterFromQr`, navigates to `/encounter/[id]`. Includes "Simulate a scan" demo button.
 - `app/(tabs)/index.tsx` — Home: animated pulse beacon, "X people within 50m", stat cards, plus a **"This week"** recap card showing `newPeople` (firstSeen ≤7d) and `repeats` (encounterCount > 1 AND lastSeen ≤7d) with a "remember the human, not the follower count" tagline.
 - `app/(tabs)/recent.tsx` — Recent encounters list with ScanFab → `/scan`
-- `app/(tabs)/profile.tsx` — Editable own profile, MyQrSheet (grid icon), SettingsSheet (gear icon)
+- `app/(tabs)/profile.tsx` — Editable own profile, MyQrSheet (grid icon), SettingsSheet (gear icon). Profile model now also stores `photoVerifiedAt` so the verified-photo row can show "Last verified <date>".
 - `hooks/useVisibility.ts` — Single source of truth for `profile.isVisible`. Used by `AppHeader`'s pill on every tab so visibility can be flipped without opening Settings.
 - `app/encounter/[id].tsx` — Full-bleed photo, "Met X times", "First met on", Meeting Spot card, lock card with SEND REVEAL REQUEST
 - `contexts/AppContext.tsx` — profile + encounters state, AsyncStorage-backed. Exposes `setNote`/`setTags` for connection annotations and runs an `expireStaleRequests()` sweep on hydration that walks any `request_sent`/`request_received` older than `REQUEST_TTL_MS` (24h) back to `encounter`. Both `updateEncounterStatus` and `upsertEncounterFromQr` stamp `requestSentAt = Date.now()` on entering `request_sent` and clear it on every other transition so the sweep never reads a stale timestamp.
@@ -37,7 +37,11 @@ A quiet, anonymous-by-default proximity social network. Your phone is a beacon �
 - `components/PulseBeacon.tsx` — radar pulse (gray + static when `active=false`)
 - `components/EncounterRow.tsx` — list row with three-dot ActionSheet (Remove / Block). Plain `encounter`-status rows that have been seen more than once render a green "Crossed paths again · Nx" pill so familiar faces are visually reinforced.
 - `components/MyQrSheet.tsx` — bottom sheet with avatar/name/bio/QR (JSON payload `{v,type,id,name}`)
-- `components/SettingsSheet.tsx` — Tier-aware upgrade row (Free / Plus / Pro states with TierBadge), Visible on Radar toggle, Blocked people list, Reset profile
+- `components/SettingsSheet.tsx` — Sectioned settings sheet with sub-views (`menu` | `blocked` | `notifications` | `about`):
+  - **DISCOVERY** — Tier-aware upgrade row (Free/Plus/Pro with TierBadge), Visible on Radar toggle, **Discovery range** (ActionSheet: Same room 10m / Nearby 50m / Same venue 200m). The chosen range drives both the Home "X people within Nm" hero and the Recent feed filter.
+  - **MEMORY** — **Notifications** sub-view (Daily recap + Re-encounter nudges toggles), **Auto-cleanup** (ActionSheet: Off / 30 / 60 / 90 days; hides `encounter`-status rows older than the cutoff on Recent — connections and pending requests are never cleaned up).
+  - **ACCOUNT** — **Verified photo** (inline confirm card → `markPhotoVerified` stamps `photoVerifiedAt`), Blocked people, **About Met** sub-view (logo + version from `Constants.expoConfig?.version` + Privacy/Terms/Contact/Rate links via `expo-linking`), **Sign out** (inline placeholder card; real sign-out arrives with accounts), Reset profile.
+  - All confirm/info dialogs use **inline cards** rather than `Alert.alert` so they render correctly on web.
 - `components/TierBadge.tsx` — green check for Plus, gold star + green check for Pro, used in MyQrSheet, SettingsSheet, etc.
 - `components/ActionSheet.tsx` — cross-platform bottom sheet for destructive actions
 - `components/RequestsSheet.tsx` — Reveal Requests bottom sheet (Recent bell + Home green CTA banner)

@@ -6,12 +6,45 @@ const PROFILE_KEY = "met:profile:v1";
 const ENCOUNTERS_KEY = "met:encounters:v1";
 const PERMISSIONS_KEY = "met:permissions:v1";
 const CONNECTIONS_SORT_KEY = "met:connectionsSort:v1";
+const PREFERENCES_KEY = "met:prefs:v1";
 
 // 24h TTL for pending reveal requests in either direction. After this they
 // silently revert to "encounter" so the requests sheet doesn't pile up forever.
 export const REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type ConnectionsSort = "recent" | "frequent" | "name";
+
+// User-tunable discovery + housekeeping preferences. All optional so older
+// installs stay compatible; defaults are applied on hydrate.
+export type DiscoveryRange = "room" | "nearby" | "venue";
+// 0 = off (keep everything). Otherwise the cutoff in days.
+export type AutoCleanupDays = 0 | 30 | 60 | 90;
+
+export type Preferences = {
+  discoveryRange: DiscoveryRange;
+  notifyDailyRecap: boolean;
+  notifyRecurringMeets: boolean;
+  autoCleanupDays: AutoCleanupDays;
+};
+
+export const DEFAULT_PREFERENCES: Preferences = {
+  discoveryRange: "nearby",
+  notifyDailyRecap: true,
+  notifyRecurringMeets: true,
+  autoCleanupDays: 0,
+};
+
+export const DISCOVERY_RANGE_METERS: Record<DiscoveryRange, number> = {
+  room: 10,
+  nearby: 50,
+  venue: 200,
+};
+
+export const DISCOVERY_RANGE_LABEL: Record<DiscoveryRange, string> = {
+  room: "Same room (10m)",
+  nearby: "Nearby (50m)",
+  venue: "Same venue (200m)",
+};
 
 export async function loadProfile(): Promise<Profile | null> {
   const raw = await AsyncStorage.getItem(PROFILE_KEY);
@@ -60,4 +93,50 @@ export async function loadConnectionsSort(): Promise<ConnectionsSort> {
 
 export async function saveConnectionsSort(s: ConnectionsSort): Promise<void> {
   await AsyncStorage.setItem(CONNECTIONS_SORT_KEY, s);
+}
+
+export async function loadPreferences(): Promise<Preferences> {
+  try {
+    const raw = await AsyncStorage.getItem(PREFERENCES_KEY);
+    if (!raw) return { ...DEFAULT_PREFERENCES };
+    const parsed = JSON.parse(raw) as Partial<Preferences>;
+    // Re-validate every field so a corrupted blob (or an older app version
+    // that wrote an unknown enum value) can't yield undefined label/meter
+    // lookups downstream.
+    const range: DiscoveryRange =
+      parsed.discoveryRange === "room" ||
+      parsed.discoveryRange === "nearby" ||
+      parsed.discoveryRange === "venue"
+        ? parsed.discoveryRange
+        : DEFAULT_PREFERENCES.discoveryRange;
+    const cleanup: AutoCleanupDays =
+      parsed.autoCleanupDays === 0 ||
+      parsed.autoCleanupDays === 30 ||
+      parsed.autoCleanupDays === 60 ||
+      parsed.autoCleanupDays === 90
+        ? parsed.autoCleanupDays
+        : DEFAULT_PREFERENCES.autoCleanupDays;
+    return {
+      discoveryRange: range,
+      notifyDailyRecap:
+        typeof parsed.notifyDailyRecap === "boolean"
+          ? parsed.notifyDailyRecap
+          : DEFAULT_PREFERENCES.notifyDailyRecap,
+      notifyRecurringMeets:
+        typeof parsed.notifyRecurringMeets === "boolean"
+          ? parsed.notifyRecurringMeets
+          : DEFAULT_PREFERENCES.notifyRecurringMeets,
+      autoCleanupDays: cleanup,
+    };
+  } catch {
+    return { ...DEFAULT_PREFERENCES };
+  }
+}
+
+export async function savePreferences(p: Preferences): Promise<void> {
+  await AsyncStorage.setItem(PREFERENCES_KEY, JSON.stringify(p));
+}
+
+export async function clearPreferences(): Promise<void> {
+  await AsyncStorage.removeItem(PREFERENCES_KEY);
 }

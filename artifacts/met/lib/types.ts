@@ -16,6 +16,9 @@ export type Profile = {
   socials: SocialLinks;
   verified: boolean;
   isVisible: boolean;
+  // Last time the user re-ran face verification (ML Kit equivalent on the
+  // Flutter side). `undefined` = never verified.
+  photoVerifiedAt?: number;
 };
 
 export type EncounterStatus =

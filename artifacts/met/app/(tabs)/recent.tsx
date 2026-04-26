@@ -13,26 +13,41 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useSubscription } from "@/lib/revenuecat";
+import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { FREE_VISIBLE_ENCOUNTERS, startOfTodayMs } from "@/lib/usage";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function RecentScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { encounters } = useApp();
+  const { encounters, preferences } = useApp();
   const { isPlusSubscriber, isSubscriptionReady } = useSubscription();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
 
   // Connected encounters live in the dedicated Connections tab, so the Recent
-  // feed is now the "discover / pending" surface only.
-  const sorted = useMemo(
-    () =>
-      encounters
-        .filter((e) => e.status !== "connected")
-        .sort((a, b) => b.lastSeenAt - a.lastSeenAt),
-    [encounters],
-  );
+  // feed is now the "discover / pending" surface only. Plain `encounter`-status
+  // rows additionally honour discovery range + auto-cleanup; pending requests
+  // (sent/received) are always shown so the user never loses a live action.
+  const sorted = useMemo(() => {
+    const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
+    const cutoff =
+      preferences.autoCleanupDays > 0
+        ? Date.now() - preferences.autoCleanupDays * DAY_MS
+        : 0;
+    return encounters
+      .filter((e) => {
+        if (e.status === "connected") return false;
+        if (e.status === "encounter") {
+          if (e.lastDistanceM > rangeM) return false;
+          if (cutoff > 0 && e.lastSeenAt < cutoff) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+  }, [encounters, preferences.discoveryRange, preferences.autoCleanupDays]);
 
   const pendingRequests = useMemo(
     () => encounters.filter((e) => e.status === "request_received").length,
