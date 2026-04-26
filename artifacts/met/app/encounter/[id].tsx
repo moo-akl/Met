@@ -19,7 +19,13 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { SocialChip } from "@/components/SocialChip";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
 import type { SocialPlatform } from "@/lib/types";
+import {
+  FREE_REVEALS_PER_WEEK,
+  getRevealsRemaining,
+  tryConsumeFreeReveal,
+} from "@/lib/usage";
 
 function formatDate(ts: number) {
   const d = new Date(ts);
@@ -36,8 +42,20 @@ export default function EncounterDetail() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { allEncounters, updateEncounterStatus, removeEncounter, setBlocked } = useApp();
+  const { isSubscribed, isSubscriptionReady } = useSubscription();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [revealsRemaining, setRevealsRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRevealsRemaining().then((n) => {
+      if (!cancelled) setRevealsRemaining(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -71,7 +89,27 @@ export default function EncounterDetail() {
   const webTop = Platform.OS === "web" ? 67 : 0;
   const webBot = Platform.OS === "web" ? 34 : 0;
 
-  const handleSend = () => updateEncounterStatus(encounter.id, "request_sent");
+  const [sending, setSending] = useState(false);
+  const handleSend = async () => {
+    if (sending) return;
+    // Wait for RevenueCat to resolve before making any free-tier decision —
+    // never send a paid user to the paywall during cold-start latency.
+    if (!isSubscriptionReady) return;
+    setSending(true);
+    try {
+      if (!isSubscribed) {
+        const consumed = await tryConsumeFreeReveal();
+        if (consumed === null) {
+          router.push("/paywall");
+          return;
+        }
+        setRevealsRemaining(await getRevealsRemaining());
+      }
+      await updateEncounterStatus(encounter.id, "request_sent");
+    } finally {
+      setSending(false);
+    }
+  };
   const handleAccept = () => updateEncounterStatus(encounter.id, "connected");
   const handleDecline = () => {
     updateEncounterStatus(encounter.id, "encounter");
@@ -295,8 +333,22 @@ export default function EncounterDetail() {
                     <PrimaryButton
                       label="SEND REVEAL REQUEST"
                       onPress={handleSend}
+                      disabled={!isSubscriptionReady || sending}
+                      loading={sending}
                     />
                   </View>
+                  {isSubscriptionReady && !isSubscribed && revealsRemaining !== null ? (
+                    <Text
+                      style={[
+                        styles.lockSub,
+                        { color: colors.mutedForeground, marginTop: 8 },
+                      ]}
+                    >
+                      {revealsRemaining > 0
+                        ? `${revealsRemaining} of ${FREE_REVEALS_PER_WEEK} free reveals left this week`
+                        : `Free limit reached — Met Plus unlocks unlimited reveals`}
+                    </Text>
+                  ) : null}
                 </>
               )}
             </View>
