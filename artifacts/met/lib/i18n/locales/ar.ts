@@ -77,7 +77,7 @@ export const ar: LocaleTree = {
     peopleWithinSuffix: "{{label}} ضمن {{m}} م",
     quietZone: "منطقة هادئة",
     fewSouls: "بضع نفوس قريبة",
-    livelyHere: "المكان نابض بالحياة",
+    livelyHere: "نشِط",
     todayCard: "اليوم",
     connectionsCard: "المعارف",
     pendingCard: "قيد الانتظار",

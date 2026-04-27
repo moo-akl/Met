@@ -77,7 +77,7 @@ export const vi: LocaleTree = {
     peopleWithinSuffix: "{{label}} trong phạm vi {{m}}m",
     quietZone: "Khu vực yên tĩnh",
     fewSouls: "Có vài tâm hồn quanh đây",
-    livelyHere: "Ở đây nhộn nhịp",
+    livelyHere: "Đang hoạt động",
     todayCard: "Hôm nay",
     connectionsCard: "Kết nối",
     pendingCard: "Đang chờ",

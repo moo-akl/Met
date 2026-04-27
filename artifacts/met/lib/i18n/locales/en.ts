@@ -78,7 +78,7 @@ export const en = {
     peopleWithinSuffix: "{{label}} within {{m}}m",
     quietZone: "Quiet zone",
     fewSouls: "A few souls nearby",
-    livelyHere: "Lively here",
+    livelyHere: "Active",
     todayCard: "Today",
     connectionsCard: "Connections",
     pendingCard: "Pending",

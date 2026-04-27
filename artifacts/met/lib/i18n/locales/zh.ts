@@ -74,7 +74,7 @@ export const zh: LocaleTree = {
     peopleWithinSuffix: "{{label}}在 {{m}} 米内",
     quietZone: "安静区域",
     fewSouls: "附近有几位",
-    livelyHere: "这里很热闹",
+    livelyHere: "活跃",
     todayCard: "今天",
     connectionsCard: "联系人",
     pendingCard: "待处理",

@@ -77,7 +77,7 @@ export const ru: LocaleTree = {
     peopleWithinSuffix: "{{label}} в радиусе {{m}}м",
     quietZone: "Тихая зона",
     fewSouls: "Несколько душ рядом",
-    livelyHere: "Здесь оживлённо",
+    livelyHere: "Активно",
     todayCard: "Сегодня",
     connectionsCard: "Знакомые",
     pendingCard: "Ожидают",
