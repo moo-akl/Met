@@ -677,7 +677,11 @@ export const fr: LocaleTree = {
     deviceDefault: "Langue de l'appareil",
     title: "Langue",
     subtitle:
-      "Met basculera tout de suite. L'arabe inverse aussi la mise en page de droite à gauche.",
+      "Met va redémarrer pour appliquer la nouvelle langue. L'arabe inverse aussi la mise en page de droite à gauche.",
+    confirmTitle: "Redémarrer Met ?",
+    confirmBody:
+      "Met va se fermer et se rouvrir pour que tout se charge en {{language}}.",
+    confirmRestart: "Redémarrer",
     restartNoticeTitle: "Redémarrez Met pour finaliser le changement",
     restartNoticeBody:
       "Le sens de la mise en page change quand vous passez entre l'arabe et d'autres langues. Fermez et rouvrez Met pour que tout s'affiche correctement.",
