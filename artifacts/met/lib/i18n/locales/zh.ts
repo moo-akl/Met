@@ -616,7 +616,10 @@ export const zh: LocaleTree = {
     pickerSub: "Met 会立即切换。",
     deviceDefault: "设备语言",
     title: "语言",
-    subtitle: "Met 会立即切换。阿拉伯语还会将布局翻转为从右到左。",
+    subtitle: "Met 将重启以应用新语言。阿拉伯语还会将布局翻转为从右到左。",
+    confirmTitle: "重启 Met?",
+    confirmBody: "Met 将关闭并重新打开,以便以{{language}}加载所有内容。",
+    confirmRestart: "重启",
     restartNoticeTitle: "请重启 Met 以完成切换",
     restartNoticeBody:
       "在阿拉伯语和其他语言之间切换时,布局方向会改变。请关闭并重新打开 Met,以便一切正确显示。",

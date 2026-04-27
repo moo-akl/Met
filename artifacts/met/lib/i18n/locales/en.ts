@@ -666,7 +666,11 @@ export const en = {
     deviceDefault: "Device language",
     title: "Language",
     subtitle:
-      "Met will switch right away. Arabic also flips the layout to right-to-left.",
+      "Met will restart to apply your new language. Arabic also flips the layout to right-to-left.",
+    confirmTitle: "Restart Met?",
+    confirmBody:
+      "Met will close and reopen so everything loads in {{language}}.",
+    confirmRestart: "Restart",
     restartNoticeTitle: "Restart Met to finish switching",
     restartNoticeBody:
       "The layout direction changes when you switch between Arabic and other languages. Close and reopen Met for everything to render correctly.",

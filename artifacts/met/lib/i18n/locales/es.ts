@@ -662,7 +662,11 @@ export const es: LocaleTree = {
     deviceDefault: "Idioma del dispositivo",
     title: "Idioma",
     subtitle:
-      "Met cambiará al instante. El árabe también voltea el diseño a derecha-a-izquierda.",
+      "Met se reiniciará para aplicar el nuevo idioma. El árabe también voltea el diseño a derecha-a-izquierda.",
+    confirmTitle: "¿Reiniciar Met?",
+    confirmBody:
+      "Met se cerrará y volverá a abrir para que todo se cargue en {{language}}.",
+    confirmRestart: "Reiniciar",
     restartNoticeTitle: "Reinicia Met para terminar de cambiar",
     restartNoticeBody:
       "La dirección del diseño cambia al alternar entre árabe y otros idiomas. Cierra y vuelve a abrir Met para que todo se vea bien.",
