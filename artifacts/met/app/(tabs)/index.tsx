@@ -423,6 +423,50 @@ export default function HomeScreen() {
               : t("home.weeklyHintActive")}
           </Text>
         </View>
+
+        <Pressable
+          onPress={() => router.push("/referrals")}
+          accessibilityRole="button"
+          accessibilityLabel={t("home.referralCtaTitle")}
+          style={({ pressed }) => [
+            styles.referralCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.primary,
+              opacity: pressed ? 0.85 : 1,
+              transform: [{ scale: pressed ? 0.99 : 1 }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={["rgba(61,204,68,0.18)", "rgba(61,204,68,0)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View
+            style={[
+              styles.referralIconWrap,
+              { backgroundColor: colors.primary },
+            ]}
+          >
+            <Feather name="gift" size={20} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={[styles.referralTitle, { color: colors.foreground }]}>
+              {t("home.referralCtaTitle")}
+            </Text>
+            <Text
+              style={[styles.referralSub, { color: colors.mutedForeground }]}
+            >
+              {t("home.referralCtaSub")}
+            </Text>
+            <Text style={[styles.referralCta, { color: colors.primary }]}>
+              {t("home.referralCtaCta")}{"  "}
+              <Feather name="arrow-right" size={12} color={colors.primary} />
+            </Text>
+          </View>
+        </Pressable>
       </ScrollView>
       <RequestsSheet
         visible={requestsOpen}
@@ -719,5 +763,40 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     fontStyle: "italic",
+  },
+  referralCard: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    overflow: "hidden",
+  },
+  referralIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  referralTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+  },
+  referralSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  referralCta: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 12,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginTop: 2,
   },
 });
