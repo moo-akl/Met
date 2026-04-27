@@ -35,6 +35,15 @@ type Props = {
 
 type SheetView = "menu" | "blocked" | "notifications" | "about";
 
+// External "About Met" links. Leave empty to hide the row entirely so we
+// don't ship a broken link. Fill these in once you have the real URLs:
+//   • TERMS_URL: generate at https://www.flycricket.com (same provider used
+//     for the privacy policy) and paste the hosted URL here.
+//   • RATE_URL_*: paste once the App Store / Play Store listings exist.
+const TERMS_URL = "";
+const RATE_URL_IOS = "";
+const RATE_URL_ANDROID = "";
+
 const CLEANUP_LABEL: Record<AutoCleanupDays, string> = {
   0: "Off — keep all encounters",
   30: "After 30 days",
@@ -694,33 +703,39 @@ export function SettingsSheet({ visible, onClose }: Props) {
               <AboutLink
                 icon="shield"
                 label="Privacy policy"
-                onPress={() => openLink("https://met.app/privacy")}
-                colors={colors}
-              />
-              <AboutLink
-                icon="file-text"
-                label="Terms of service"
-                onPress={() => openLink("https://met.app/terms")}
-                colors={colors}
-              />
-              <AboutLink
-                icon="mail"
-                label="Contact support"
-                onPress={() => openLink("mailto:hello@met.app")}
-                colors={colors}
-              />
-              <AboutLink
-                icon="star"
-                label="Rate Met"
                 onPress={() =>
                   openLink(
-                    Platform.OS === "ios"
-                      ? "https://apps.apple.com/app/id000000000"
-                      : "https://play.google.com/store/apps/details?id=app.met",
+                    "https://doc-hosting.flycricket.io/met-privacy-policy/fdc825e1-4bde-43aa-9e6f-cd4b9860f90d/privacy",
                   )
                 }
                 colors={colors}
               />
+              {TERMS_URL ? (
+                <AboutLink
+                  icon="file-text"
+                  label="Terms of service"
+                  onPress={() => openLink(TERMS_URL)}
+                  colors={colors}
+                />
+              ) : null}
+              <AboutLink
+                icon="mail"
+                label="Contact support"
+                onPress={() => openLink("mailto:metapp.contact@gmail.com")}
+                colors={colors}
+              />
+              {RATE_URL_IOS && RATE_URL_ANDROID ? (
+                <AboutLink
+                  icon="star"
+                  label="Rate Met"
+                  onPress={() =>
+                    openLink(
+                      Platform.OS === "ios" ? RATE_URL_IOS : RATE_URL_ANDROID,
+                    )
+                  }
+                  colors={colors}
+                />
+              ) : null}
             </ScrollView>
           )}
         </Pressable>
