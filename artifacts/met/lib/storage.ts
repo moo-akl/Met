@@ -46,6 +46,20 @@ export const DISCOVERY_RANGE_LABEL: Record<DiscoveryRange, string> = {
   venue: "Same venue (200m)",
 };
 
+// Tier-gated extra photo allowance. Total photos = 1 main + extras.
+// Free users see the lock; tapping Add routes them to /paywall.
+// Tier itself lives in lib/revenuecat.tsx (single source of truth) — kept
+// inline here as a Record literal so storage doesn't depend on revenuecat.
+export const MAX_EXTRA_PHOTOS_BY_TIER: {
+  free: number;
+  plus: number;
+  pro: number;
+} = {
+  free: 0,
+  plus: 2,
+  pro: 5,
+};
+
 export async function loadProfile(): Promise<Profile | null> {
   const raw = await AsyncStorage.getItem(PROFILE_KEY);
   return raw ? (JSON.parse(raw) as Profile) : null;

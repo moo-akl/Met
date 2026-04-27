@@ -19,6 +19,10 @@ export type Profile = {
   // Last time the user re-ran face verification (ML Kit equivalent on the
   // Flutter side). `undefined` = never verified.
   photoVerifiedAt?: number;
+  // Optional secondary photos. Tier-gated (see MAX_EXTRA_PHOTOS_BY_TIER).
+  // Always [] for free; up to 2 for plus, 5 for pro. Each entry has been
+  // through the same face + content-safety check as the main photo.
+  extraPhotos?: string[];
 };
 
 export type EncounterStatus =
