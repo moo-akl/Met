@@ -80,6 +80,9 @@ export const pt: LocaleTree = {
     weeklyHintQuiet: "Semana tranquila. Saia um pouco — Met está ouvindo.",
     weeklyHintActive:
       "Toque em um cartão para ver quem. Lembre da pessoa, não do número de seguidores.",
+    referralCtaTitle: "Convide amigos, ganhe um mês grátis",
+    referralCtaSub: "3 amigos entram no Met → 1 mês de Met Plus grátis.",
+    referralCtaCta: "Convidar amigos",
     metListening:
       "Met ouve em silêncio. Quem cruzar seu caminho aparece em Recentes.",
     invisibleHeadline: "Você está invisível para os outros",
@@ -321,7 +324,9 @@ export const pt: LocaleTree = {
     notifyDailyRecap: "Resumo diário",
     notifyRecurring: "Reencontros",
     language: "Idioma",
-    languageSub: "Met está disponível em {{count}} idiomas",
+    languageSub: "Met está disponível em {{count}    reloadingTitle: "Mudando o idioma…",
+    reloadingBody: "Met vai recarregar em instantes com seu novo idioma.",
+} idiomas",
     appearance: "Aparência",
     referralsRow: "Convidar amigos",
     subscriptionRow: "Assinatura",

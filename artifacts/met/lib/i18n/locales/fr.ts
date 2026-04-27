@@ -80,6 +80,9 @@ export const fr: LocaleTree = {
     weeklyHintQuiet: "Semaine calme. Sors un peu — Met écoute.",
     weeklyHintActive:
       "Touche une carte pour voir qui. Souviens-toi de l'humain, pas du nombre d'abonnés.",
+    referralCtaTitle: "Invitez des amis, gagnez un mois gratuit",
+    referralCtaSub: "3 amis rejoignent Met → 1 mois de Met Plus offert.",
+    referralCtaCta: "Inviter des amis",
     metListening:
       "Met écoute discrètement. Toute personne croisée apparaîtra dans Récents.",
     invisibleHeadline: "Tu es invisible aux autres",
@@ -368,6 +371,8 @@ export const fr: LocaleTree = {
     restartNoticeTitle: "Redémarre Met pour terminer",
     restartNoticeBody:
       "La direction de la mise en page change quand tu passes entre l'arabe et d'autres langues.",
+    reloadingTitle: "Changement de langue…",
+    reloadingBody: "Met va se recharger dans un instant dans votre nouvelle langue.",
   },
   photoVerifier: {
     workingTitle: "Vérification de ta photo",

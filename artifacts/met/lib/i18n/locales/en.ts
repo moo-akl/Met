@@ -89,6 +89,10 @@ export const en = {
     weeklyHintQuiet: "Quiet week. Step outside — Met is listening.",
     weeklyHintActive:
       "Tap a tile to see who. Remember the human, not the follower count.",
+    referralCtaTitle: "Invite friends, get a free month",
+    referralCtaSub:
+      "3 friends join Met → 1 month of Met Plus on the house.",
+    referralCtaCta: "Invite friends",
     metListening:
       "Met is quietly listening. Anyone you cross paths with shows up under Recent.",
     invisibleHeadline: "You're invisible to others",
@@ -666,6 +670,8 @@ export const en = {
     restartNoticeTitle: "Restart Met to finish switching",
     restartNoticeBody:
       "The layout direction changes when you switch between Arabic and other languages. Close and reopen Met for everything to render correctly.",
+    reloadingTitle: "Switching language…",
+    reloadingBody: "Met will reload in a moment with your new language.",
   },
 
   photoVerifier: {
