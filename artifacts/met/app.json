@@ -14,9 +14,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "app.met.founders"
     },
-    "android": {},
+    "android": {
+      "package": "app.met.founders"
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
