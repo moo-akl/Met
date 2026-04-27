@@ -2,8 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
+import * as Updates from "expo-updates";
 import React, { useState } from "react";
 import {
+  DevSettings,
   Modal,
   Platform,
   Pressable,
@@ -153,23 +155,45 @@ export function SettingsSheet({ visible, onClose }: Props) {
     if (rtlChanged) {
       setRtlNotice(true);
     }
-    // Brief "Switching language…" overlay, then reload (web) so every cached
-    // string and native layout direction picks up the new locale cleanly.
+    // Brief "Switching language…" overlay, then perform a real JS reload so
+    // every cached string and the native layout direction picks up the new
+    // locale cleanly. expo-updates is the production-grade path on iOS and
+    // Android; DevSettings.reload is the dev-build / Expo Go fallback; on
+    // web we just bounce window.location.
     setTimeout(() => {
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        try {
-          window.location.reload();
-          return;
-        } catch {}
-      }
-      // Native fallback: drop the overlay and return to the settings menu.
-      // Strings update reactively; on Arabic RTL flips we keep the picker
-      // open so the user sees the restartNotice card.
-      setReloading(false);
-      if (!rtlChanged) {
-        setView("menu");
-      }
+      void reloadApp(rtlChanged);
     }, 1500);
+  };
+
+  const reloadApp = async (rtlChanged: boolean) => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      try {
+        window.location.reload();
+        return;
+      } catch {}
+    } else {
+      // Try expo-updates first (works in production builds and in Expo Go).
+      // reloadAsync returns a Promise that may reject if the Updates module
+      // is unavailable in this build, so we await + catch instead of relying
+      // on a sync try/catch.
+      try {
+        await Updates.reloadAsync();
+        return;
+      } catch {}
+      // Dev-client / Expo Go fallback.
+      try {
+        DevSettings.reload();
+        return;
+      } catch {}
+    }
+    // Last-ditch fallback: drop the overlay and return to the settings menu.
+    // Strings update reactively, so the user still sees the new language; on
+    // Arabic RTL flips we keep the picker open so the user sees the
+    // restartNotice card asking them to relaunch manually.
+    setReloading(false);
+    if (!rtlChanged) {
+      setView("menu");
+    }
   };
 
   const toggleVisible = async (next: boolean) => {
