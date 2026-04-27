@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
 import { Avatar } from "@/components/Avatar";
+import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -78,7 +79,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
   const [view, setView] = useState<SheetView>("menu");
   const [confirmReset, setConfirmReset] = useState(false);
-  const [confirmReverify, setConfirmReverify] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [reverifying, setReverifying] = useState(false);
   const [signOutInfo, setSignOutInfo] = useState(false);
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const [cleanupMenuOpen, setCleanupMenuOpen] = useState(false);
@@ -86,7 +88,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const close = () => {
     setView("menu");
     setConfirmReset(false);
-    setConfirmReverify(false);
+    setConfirmDelete(false);
+    setReverifying(false);
     setSignOutInfo(false);
     setRangeMenuOpen(false);
     setCleanupMenuOpen(false);
@@ -278,82 +281,19 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
               <SectionLabel label="Account" colors={colors} />
 
-              {confirmReverify ? (
-                <View
-                  style={[
-                    styles.confirmCard,
-                    {
-                      backgroundColor: colors.muted,
-                      borderColor: colors.primary,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.confirmTitle, { color: colors.foreground }]}
-                  >
-                    Re-verify your photo?
-                  </Text>
-                  <Text
-                    style={[styles.confirmSub, { color: colors.mutedForeground }]}
-                  >
-                    Met will re-run the face check on your profile photo so
-                    others can trust it&rsquo;s really you.
-                  </Text>
-                  <View style={{ flexDirection: "row", gap: 10 }}>
-                    <Pressable
-                      onPress={() => setConfirmReverify(false)}
-                      style={({ pressed }) => [
-                        styles.confirmBtn,
-                        {
-                          backgroundColor: colors.card,
-                          borderColor: colors.border,
-                          opacity: pressed ? 0.7 : 1,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.confirmBtnText,
-                          { color: colors.foreground },
-                        ]}
-                      >
-                        Cancel
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={async () => {
-                        await markPhotoVerified();
-                        setConfirmReverify(false);
-                      }}
-                      style={({ pressed }) => [
-                        styles.confirmBtn,
-                        {
-                          backgroundColor: colors.primary,
-                          borderColor: colors.primary,
-                          opacity: pressed ? 0.85 : 1,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.confirmBtnText, { color: "#FFFFFF" }]}
-                      >
-                        Re-verify
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={() => setConfirmReverify(true)}
-                  style={({ pressed }) => [
-                    styles.row,
-                    {
-                      backgroundColor: colors.muted,
-                      borderColor: colors.border,
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
-                >
+              <Pressable
+                onPress={() => {
+                  if (profile?.photoUri) setReverifying(true);
+                }}
+                style={({ pressed }) => [
+                  styles.row,
+                  {
+                    backgroundColor: colors.muted,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
                   <View
                     style={[
                       styles.rowIcon,
@@ -403,10 +343,9 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     </Text>
                   </View>
                   <Text style={[styles.rowAction, { color: colors.primary }]}>
-                    {profile?.verified ? "Re-verify" : "Verify"}
-                  </Text>
-                </Pressable>
-              )}
+                  {profile?.verified ? "Re-verify" : "Verify"}
+                </Text>
+              </Pressable>
 
               <NavRow
                 icon="slash"
@@ -621,6 +560,120 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   </View>
                 </Pressable>
               )}
+
+              {confirmDelete ? (
+                <View
+                  style={[
+                    styles.confirmCard,
+                    {
+                      backgroundColor: colors.muted,
+                      borderColor: colors.destructive,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.confirmTitle, { color: colors.destructive }]}
+                  >
+                    Delete account?
+                  </Text>
+                  <Text
+                    style={[styles.confirmSub, { color: colors.mutedForeground }]}
+                  >
+                    This wipes your profile, encounter history, connections,
+                    and preferences from this device. You&rsquo;ll be returned
+                    to the welcome screen and can start fresh. This cannot be
+                    undone.
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <Pressable
+                      onPress={() => setConfirmDelete(false)}
+                      style={({ pressed }) => [
+                        styles.confirmBtn,
+                        {
+                          backgroundColor: colors.card,
+                          borderColor: colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.confirmBtnText,
+                          { color: colors.foreground },
+                        ]}
+                      >
+                        Cancel
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={async () => {
+                        // resetAll wipes profile/encounters/preferences/perm
+                        // flag. ProfileGate redirects to onboarding when
+                        // profile becomes null, so no manual nav needed.
+                        await resetAll();
+                        close();
+                      }}
+                      style={({ pressed }) => [
+                        styles.confirmBtn,
+                        {
+                          backgroundColor: colors.destructive,
+                          borderColor: colors.destructive,
+                          opacity: pressed ? 0.85 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.confirmBtnText, { color: "#FFFFFF" }]}
+                      >
+                        Delete account
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => setConfirmDelete(true)}
+                  style={({ pressed }) => [
+                    styles.row,
+                    {
+                      backgroundColor: "#FEE2E2",
+                      borderColor: colors.destructive,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.rowIcon,
+                      { backgroundColor: "#FFFFFF" },
+                    ]}
+                  >
+                    <Feather
+                      name="trash-2"
+                      size={18}
+                      color={colors.destructive}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.rowLabel,
+                        { color: colors.destructive },
+                      ]}
+                    >
+                      Delete account
+                    </Text>
+                    <Text
+                      style={[
+                        styles.rowSub,
+                        { color: colors.destructive, opacity: 0.85 },
+                      ]}
+                    >
+                      Permanently remove your profile from this device
+                    </Text>
+                  </View>
+                </Pressable>
+              )}
             </ScrollView>
           ) : view === "blocked" ? (
             <ScrollView
@@ -816,6 +869,16 @@ export function SettingsSheet({ visible, onClose }: Props) {
           icon: opt === 0 ? "archive" : "clock",
           onPress: () => updatePreferences({ autoCleanupDays: opt }),
         }))}
+      />
+
+      <PhotoVerifier
+        visible={reverifying}
+        uri={reverifying ? (profile?.photoUri ?? null) : null}
+        onCancel={() => setReverifying(false)}
+        onVerified={async () => {
+          await markPhotoVerified();
+          setReverifying(false);
+        }}
       />
     </Modal>
   );
