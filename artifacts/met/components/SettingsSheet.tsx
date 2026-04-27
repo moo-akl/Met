@@ -116,6 +116,10 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const [reloading, setReloading] = useState(false);
 
   const onPickLanguage = async (code: LangCode) => {
+    // Guard: ignore taps once the reload countdown is in flight, and skip a
+    // no-op switch to the already-active language so we don't briefly flash
+    // the overlay for nothing.
+    if (reloading || code === lang) return;
     const { rtlChanged } = await setLanguage(code);
     // Always give the user a brief "switching language…" overlay then reload
     // the app so every cached string (including any module-level constants
