@@ -78,7 +78,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
   };
 
   const [view, setView] = useState<SheetView>("menu");
-  const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reverifying, setReverifying] = useState(false);
   const [signOutInfo, setSignOutInfo] = useState(false);
@@ -87,7 +86,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
   const close = () => {
     setView("menu");
-    setConfirmReset(false);
     setConfirmDelete(false);
     setReverifying(false);
     setSignOutInfo(false);
@@ -446,118 +444,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     size={20}
                     color={colors.mutedForeground}
                   />
-                </Pressable>
-              )}
-
-              {confirmReset ? (
-                <View
-                  style={[
-                    styles.confirmCard,
-                    {
-                      backgroundColor: colors.muted,
-                      borderColor: colors.destructive,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.confirmTitle, { color: colors.foreground }]}
-                  >
-                    Reset profile?
-                  </Text>
-                  <Text
-                    style={[styles.confirmSub, { color: colors.mutedForeground }]}
-                  >
-                    Your profile, encounter history, and preferences will be
-                    cleared and sample encounters reseeded.
-                  </Text>
-                  <View style={{ flexDirection: "row", gap: 10 }}>
-                    <Pressable
-                      onPress={() => setConfirmReset(false)}
-                      style={({ pressed }) => [
-                        styles.confirmBtn,
-                        {
-                          backgroundColor: colors.card,
-                          borderColor: colors.border,
-                          opacity: pressed ? 0.7 : 1,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.confirmBtnText,
-                          { color: colors.foreground },
-                        ]}
-                      >
-                        Cancel
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={async () => {
-                        await resetAll();
-                        close();
-                      }}
-                      style={({ pressed }) => [
-                        styles.confirmBtn,
-                        {
-                          backgroundColor: colors.destructive,
-                          borderColor: colors.destructive,
-                          opacity: pressed ? 0.85 : 1,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.confirmBtnText,
-                          { color: "#FFFFFF" },
-                        ]}
-                      >
-                        Reset
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={() => setConfirmReset(true)}
-                  style={({ pressed }) => [
-                    styles.row,
-                    {
-                      backgroundColor: colors.muted,
-                      borderColor: colors.border,
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.rowIcon,
-                      { backgroundColor: colors.background },
-                    ]}
-                  >
-                    <Feather
-                      name="refresh-ccw"
-                      size={18}
-                      color={colors.destructive}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.rowLabel,
-                        { color: colors.destructive },
-                      ]}
-                    >
-                      Reset profile
-                    </Text>
-                    <Text
-                      style={[
-                        styles.rowSub,
-                        { color: colors.mutedForeground },
-                      ]}
-                    >
-                      Clear profile + reseed sample encounters
-                    </Text>
-                  </View>
                 </Pressable>
               )}
 

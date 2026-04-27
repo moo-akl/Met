@@ -38,7 +38,7 @@ const FEATURES: FeatureMatrix[] = [
   {
     icon: "users",
     label: "Daily encounters",
-    free: "10",
+    free: "20",
     plus: "Unlimited",
     pro: "Unlimited",
   },

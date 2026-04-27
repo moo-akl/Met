@@ -11,7 +11,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const FREE_REVEALS_PER_DAY = 4;
 export const PLUS_OPENING_MESSAGES_PER_DAY = 1;
 export const PRO_OPENING_MESSAGES_PER_DAY = 2;
-export const FREE_VISIBLE_ENCOUNTERS = 10;
+export const FREE_VISIBLE_ENCOUNTERS = 20;
 
 const REVEALS_KEY = "met:reveals:v2";
 const OPENINGS_KEY = "met:openings:v1";
@@ -31,7 +31,7 @@ function todayKey(): string {
 }
 
 // Start of the local day (midnight) in ms. Used to slice encounter feeds
-// against the free 10/day cap so the bucket resets at midnight automatically.
+// against the free 20/day cap so the bucket resets at midnight automatically.
 export function startOfTodayMs(now: number = Date.now()): number {
   const d = new Date(now);
   d.setHours(0, 0, 0, 0);
