@@ -14,6 +14,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -74,6 +75,7 @@ export default function OnboardingScreen() {
   const [slide, setSlide] = useState(0);
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [socials, setSocials] = useState<SocialLinks>({});
@@ -92,7 +94,7 @@ export default function OnboardingScreen() {
       quality: 0.8,
     });
     if (!res.canceled && res.assets[0]) {
-      setPhotoUri(res.assets[0].uri);
+      setPendingPhotoUri(res.assets[0].uri);
     }
   };
 
@@ -107,6 +109,8 @@ export default function OnboardingScreen() {
       socials,
       verified: true,
       isVisible: true,
+      photoVerifiedAt: Date.now(),
+      extraPhotos: [],
     });
     router.replace("/(tabs)");
   };
@@ -361,6 +365,17 @@ export default function OnboardingScreen() {
             />
           </View>
         ) : null}
+
+        {/* Photo verifier overlay — face + content check on every new pick. */}
+        <PhotoVerifier
+          visible={pendingPhotoUri !== null}
+          uri={pendingPhotoUri}
+          onCancel={() => setPendingPhotoUri(null)}
+          onVerified={(uri) => {
+            setPhotoUri(uri);
+            setPendingPhotoUri(null);
+          }}
+        />
 
         {phase === "socials" ? (
           <View style={styles.step}>

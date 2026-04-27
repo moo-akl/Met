@@ -1,6 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +19,7 @@ import { PulseBeacon } from "@/components/PulseBeacon";
 import { RequestsSheet } from "@/components/RequestsSheet";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useCountUp } from "@/hooks/useCountUp";
 import { useVisibility } from "@/hooks/useVisibility";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 
@@ -60,6 +64,77 @@ export default function HomeScreen() {
     () => encounters.filter((e) => e.lastDistanceM <= rangeM).length,
     [encounters, rangeM],
   );
+
+  // Recent encounters drive the rotating activity ticker beneath the hero.
+  // Cap to the most-recent 5 so the cycle stays digestible.
+  const recent = useMemo(
+    () =>
+      [...encounters]
+        .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
+        .slice(0, 5),
+    [encounters],
+  );
+
+  // Animated count-ups for the hero number + each stat card.
+  const animatedWithin = useCountUp(isVisible ? withinRange : 0, 700);
+  const animatedToday = useCountUp(stats.today, 700);
+  const animatedConn = useCountUp(stats.connections, 700);
+  const animatedPending = useCountUp(stats.pending, 700);
+
+  // "LIVE" pulse dot near BEACON ACTIVE — opacity loop.
+  const livePulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!isVisible) {
+      livePulse.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, {
+          toValue: 0.25,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(livePulse, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isVisible, livePulse]);
+
+  // Activity ticker: rotates through `recent` every 4s with a fade.
+  const [tickerIdx, setTickerIdx] = useState(0);
+  const tickerOpacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (recent.length <= 1) return;
+    const id = setInterval(() => {
+      Animated.timing(tickerOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        setTickerIdx((i) => (i + 1) % recent.length);
+        Animated.timing(tickerOpacity, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, 4000);
+    return () => clearInterval(id);
+  }, [recent.length, tickerOpacity]);
+  // Snap back to a valid index whenever the source list shrinks.
+  useEffect(() => {
+    if (tickerIdx >= recent.length && recent.length > 0) setTickerIdx(0);
+  }, [recent.length, tickerIdx]);
+
+  const vibe = isVisible ? deriveVibe(withinRange) : null;
 
   const webBot = Platform.OS === "web" ? 34 : 0;
 
@@ -120,25 +195,88 @@ export default function HomeScreen() {
         ) : null}
 
         <View style={styles.heroSection}>
+          {/* Soft radial-feeling glow behind the beacon — only when active. */}
+          {isVisible ? (
+            <LinearGradient
+              colors={["rgba(61,204,68,0.18)", "rgba(61,204,68,0)"]}
+              style={styles.heroGlow}
+              pointerEvents="none"
+            />
+          ) : null}
           <View style={styles.beaconWrap}>
             <PulseBeacon size={180} active={isVisible} />
           </View>
-          <Text
-            style={[
-              styles.beaconLabel,
-              { color: isVisible ? colors.primary : colors.mutedForeground },
-            ]}
-          >
-            {isVisible ? "BEACON ACTIVE" : "BEACON OFF"}
-          </Text>
+
+          <View style={styles.beaconLabelRow}>
+            {isVisible ? (
+              <Animated.View
+                style={[
+                  styles.liveDot,
+                  { backgroundColor: "#EF4444", opacity: livePulse },
+                ]}
+              />
+            ) : null}
+            <Text
+              style={[
+                styles.beaconLabel,
+                { color: isVisible ? colors.primary : colors.mutedForeground },
+              ]}
+            >
+              {isVisible ? "BEACON ACTIVE" : "BEACON OFF"}
+            </Text>
+          </View>
+
           {isVisible ? (
             <>
               <Text style={[styles.headline, { color: colors.foreground }]}>
-                {withinRange} {withinRange === 1 ? "person" : "people"} within {rangeM}m
+                <Text style={{ color: colors.primary }}>{animatedWithin}</Text>{" "}
+                {withinRange === 1 ? "person" : "people"} within {rangeM}m
               </Text>
+
+              {vibe ? (
+                <View
+                  style={[
+                    styles.vibePill,
+                    {
+                      backgroundColor: vibe.bg,
+                      borderColor: vibe.border,
+                    },
+                  ]}
+                >
+                  <Feather name={vibe.icon} size={12} color={vibe.fg} />
+                  <Text style={[styles.vibeText, { color: vibe.fg }]}>
+                    {vibe.label}
+                  </Text>
+                </View>
+              ) : null}
+
               <Text style={[styles.sub, { color: colors.mutedForeground }]}>
                 Met is quietly listening. Anyone you cross paths with shows up under Recent.
               </Text>
+
+              {recent.length > 0 ? (
+                <Animated.View
+                  style={[
+                    styles.tickerRow,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      opacity: tickerOpacity,
+                    },
+                  ]}
+                >
+                  <Avatar
+                    uri={recent[Math.min(tickerIdx, recent.length - 1)].photoUri}
+                    size={26}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.tickerText, { color: colors.foreground }]}
+                  >
+                    {tickerLine(recent[Math.min(tickerIdx, recent.length - 1)])}
+                  </Text>
+                </Animated.View>
+              ) : null}
             </>
           ) : (
             <>
@@ -156,19 +294,19 @@ export default function HomeScreen() {
         <View style={styles.statsRow}>
           <StatCard
             icon="users"
-            value={stats.today}
+            value={animatedToday}
             label="Today"
             colors={colors}
           />
           <StatCard
             icon="link-2"
-            value={stats.connections}
+            value={animatedConn}
             label="Connections"
             colors={colors}
           />
           <StatCard
             icon="bell"
-            value={stats.pending}
+            value={animatedPending}
             label="Pending"
             colors={colors}
           />
@@ -220,6 +358,62 @@ export default function HomeScreen() {
       />
     </View>
   );
+}
+
+function deriveVibe(count: number): {
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  fg: string;
+  bg: string;
+  border: string;
+} {
+  if (count === 0) {
+    return {
+      label: "Quiet zone",
+      icon: "moon",
+      fg: "#475569",
+      bg: "#F1F5F9",
+      border: "#CBD5E1",
+    };
+  }
+  if (count <= 3) {
+    return {
+      label: "A few souls nearby",
+      icon: "user",
+      fg: "#1D4ED8",
+      bg: "#DBEAFE",
+      border: "#93C5FD",
+    };
+  }
+  return {
+    label: "Lively here",
+    icon: "zap",
+    fg: "#B45309",
+    bg: "#FEF3C7",
+    border: "#FCD34D",
+  };
+}
+
+function tickerLine(e: {
+  realName: string;
+  lastSeenAt: number;
+  status: string;
+  encounterCount: number;
+}): string {
+  const minsAgo = Math.max(1, Math.round((Date.now() - e.lastSeenAt) / 60000));
+  const when =
+    minsAgo < 60
+      ? `${minsAgo}m ago`
+      : minsAgo < 60 * 24
+        ? `${Math.round(minsAgo / 60)}h ago`
+        : `${Math.round(minsAgo / (60 * 24))}d ago`;
+  if (e.status === "connected") {
+    return `Reconnected with ${e.realName} — ${when}`;
+  }
+  if (e.encounterCount > 1) {
+    return `${e.realName} crossed your path again — ${when}`;
+  }
+  return `Just crossed paths with ${e.realName} — ${when}`;
 }
 
 function StatCard({
@@ -287,6 +481,16 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 24,
     gap: 4,
+    position: "relative",
+  },
+  heroGlow: {
+    position: "absolute",
+    top: 24,
+    left: "50%",
+    width: 320,
+    height: 320,
+    marginLeft: -160,
+    borderRadius: 160,
   },
   beaconWrap: {
     height: 200,
@@ -294,11 +498,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 8,
   },
+  beaconLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   beaconLabel: {
     fontFamily: "Inter_700Bold",
     fontSize: 11,
     letterSpacing: 4,
-    marginBottom: 12,
   },
   headline: {
     fontFamily: "Inter_700Bold",
@@ -306,13 +520,45 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 28,
   },
+  vibePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  vibeText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
   sub: {
     fontFamily: "Inter_400Regular",
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
-    marginTop: 6,
+    marginTop: 8,
     maxWidth: 320,
+  },
+  tickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    maxWidth: 320,
+  },
+  tickerText: {
+    flex: 1,
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
   },
   statsRow: {
     flexDirection: "row",
