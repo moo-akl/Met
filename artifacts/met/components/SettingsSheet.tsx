@@ -192,10 +192,10 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   </View>
                   <Text style={styles.plusSub}>
                     {tier === "pro"
-                      ? "Boost, view profile views, premium badge"
+                      ? "Boost, profile views, 6 photos, premium badge"
                       : tier === "plus"
-                        ? "Tap to compare with Met Pro"
-                        : "Unlock more reveals, opening messages, badges"}
+                        ? "Tap to compare with Met Pro (6 photos, Boost)"
+                        : "More reveals, opening messages, up to 6 photos, badges"}
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#FFFFFF" />
