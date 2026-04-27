@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,15 +17,27 @@ import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { FREE_VISIBLE_ENCOUNTERS, startOfTodayMs } from "@/lib/usage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+
+// Filter values forwarded from Home → "This week" tiles. Anything else is
+// ignored so direct tab navigation always shows the unfiltered feed.
+type WeeklyFilter = "new" | "repeats" | null;
 
 export default function RecentScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const { encounters, preferences } = useApp();
   const { isPlusSubscriber, isSubscriptionReady } = useSubscription();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
+
+  const weeklyFilter: WeeklyFilter =
+    params.filter === "new" || params.filter === "repeats"
+      ? params.filter
+      : null;
+  const clearFilter = () => router.setParams({ filter: undefined });
 
   // Connected encounters live in the dedicated Connections tab, so the Recent
   // feed is now the "discover / pending" surface only. Plain `encounter`-status
@@ -37,6 +49,7 @@ export default function RecentScreen() {
       preferences.autoCleanupDays > 0
         ? Date.now() - preferences.autoCleanupDays * DAY_MS
         : 0;
+    const weekAgo = Date.now() - WEEK_MS;
     return encounters
       .filter((e) => {
         if (e.status === "connected") return false;
@@ -44,10 +57,24 @@ export default function RecentScreen() {
           if (e.lastDistanceM > rangeM) return false;
           if (cutoff > 0 && e.lastSeenAt < cutoff) return false;
         }
+        // Weekly tile filters from Home — Home shows counts of these exact
+        // sets, so the filtered list mirrors the user's expectation.
+        if (weeklyFilter === "new" && e.firstSeenAt < weekAgo) return false;
+        if (
+          weeklyFilter === "repeats" &&
+          (e.encounterCount <= 1 || e.lastSeenAt < weekAgo)
+        ) {
+          return false;
+        }
         return true;
       })
       .sort((a, b) => b.lastSeenAt - a.lastSeenAt);
-  }, [encounters, preferences.discoveryRange, preferences.autoCleanupDays]);
+  }, [
+    encounters,
+    preferences.discoveryRange,
+    preferences.autoCleanupDays,
+    weeklyFilter,
+  ]);
 
   const pendingRequests = useMemo(
     () => encounters.filter((e) => e.status === "request_received").length,
@@ -103,11 +130,47 @@ export default function RecentScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
+        {weeklyFilter ? (
+          <View
+            style={[
+              styles.filterChip,
+              { backgroundColor: colors.muted, borderColor: colors.primary },
+            ]}
+          >
+            <Feather
+              name={weeklyFilter === "new" ? "user-plus" : "repeat"}
+              size={14}
+              color={colors.primary}
+            />
+            <Text style={[styles.filterChipText, { color: colors.foreground }]}>
+              This week ·{" "}
+              {weeklyFilter === "new" ? "New people" : "Crossed paths again"}
+            </Text>
+            <Pressable
+              onPress={clearFilter}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Clear filter"
+            >
+              <Feather name="x" size={16} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+        ) : null}
         {visible.length === 0 ? (
           <EmptyState
             icon="users"
-            title="No encounters yet"
-            description="Keep your beacon on. The next person you cross paths with will appear here."
+            title={
+              weeklyFilter === "new"
+                ? "No new people this week"
+                : weeklyFilter === "repeats"
+                  ? "No repeat encounters this week"
+                  : "No encounters yet"
+            }
+            description={
+              weeklyFilter
+                ? "Try clearing the filter to see your full feed."
+                : "Keep your beacon on. The next person you cross paths with will appear here."
+            }
           />
         ) : (
           <View style={styles.list}>
@@ -175,6 +238,22 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { paddingHorizontal: 4 },
   separator: { height: 1, marginLeft: 70 },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginHorizontal: 4,
+    marginBottom: 12,
+  },
+  filterChipText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+  },
   limitCard: {
     flexDirection: "row",
     alignItems: "center",

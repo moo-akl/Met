@@ -330,30 +330,76 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View style={styles.weeklyRow}>
-            <View style={styles.weeklyCell}>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/recent",
+                  params: { filter: "new" },
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`${weekly.newPeople} new people this week`}
+              style={({ pressed }) => [
+                styles.weeklyCell,
+                {
+                  opacity: pressed ? 0.7 : 1,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                },
+              ]}
+            >
               <Text style={[styles.weeklyValue, { color: colors.foreground }]}>
                 {weekly.newPeople}
               </Text>
               <Text style={[styles.weeklyLabel, { color: colors.mutedForeground }]}>
                 new {weekly.newPeople === 1 ? "person" : "people"}
               </Text>
-            </View>
+              <View style={styles.weeklyChev}>
+                <Feather
+                  name="chevron-right"
+                  size={14}
+                  color={colors.mutedForeground}
+                />
+              </View>
+            </Pressable>
             <View
               style={[styles.weeklyDivider, { backgroundColor: colors.border }]}
             />
-            <View style={styles.weeklyCell}>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/recent",
+                  params: { filter: "repeats" },
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`${weekly.repeats} crossed paths again this week`}
+              style={({ pressed }) => [
+                styles.weeklyCell,
+                {
+                  opacity: pressed ? 0.7 : 1,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                },
+              ]}
+            >
               <Text style={[styles.weeklyValue, { color: colors.foreground }]}>
                 {weekly.repeats}
               </Text>
               <Text style={[styles.weeklyLabel, { color: colors.mutedForeground }]}>
                 crossed paths again
               </Text>
-            </View>
+              <View style={styles.weeklyChev}>
+                <Feather
+                  name="chevron-right"
+                  size={14}
+                  color={colors.mutedForeground}
+                />
+              </View>
+            </Pressable>
           </View>
           <Text style={[styles.weeklyHint, { color: colors.mutedForeground }]}>
             {weekly.newPeople === 0 && weekly.repeats === 0
               ? "Quiet week. Step outside — Met is listening."
-              : "Remember the human, not the follower count."}
+              : "Tap a tile to see who. Remember the human, not the follower count."}
           </Text>
         </View>
       </ScrollView>
@@ -623,6 +669,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "flex-start",
     gap: 2,
+    paddingVertical: 4,
+    paddingRight: 4,
+    position: "relative",
+  },
+  weeklyChev: {
+    position: "absolute",
+    top: 6,
+    right: 0,
+    opacity: 0.6,
   },
   weeklyDivider: {
     width: StyleSheet.hairlineWidth,
