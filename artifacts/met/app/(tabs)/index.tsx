@@ -22,12 +22,14 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useCountUp } from "@/hooks/useCountUp";
 import { useVisibility } from "@/hooks/useVisibility";
+import { useT } from "@/lib/i18n";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useT();
   const { encounters, preferences } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
@@ -143,7 +145,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
-        title="Home"
+        title={t("appHeader.titleHome")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
       />
       <ScrollView
@@ -156,7 +158,12 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => setRequestsOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel={`${incoming.length} ${incoming.length === 1 ? "person wants" : "people want"} to reveal their socials. Tap to review.`}
+            accessibilityLabel={t(
+              incoming.length === 1
+                ? "home.bannerA11y_one"
+                : "home.bannerA11y_other",
+              { count: incoming.length },
+            )}
             style={({ pressed }) => [
               styles.banner,
               {
@@ -185,11 +192,15 @@ export default function HomeScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.bannerTitle, { color: "#14532D" }]}>
-                {incoming.length}{" "}
-                {incoming.length === 1 ? "person wants" : "people want"} to reveal
+                {t(
+                  incoming.length === 1
+                    ? "home.peopleWantReveal_one"
+                    : "home.peopleWantReveal_other",
+                  { count: incoming.length },
+                )}
               </Text>
               <Text style={[styles.bannerSub, { color: "#166534" }]}>
-                Tap to review &amp; accept
+                {t("home.tapToReview")}
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color={colors.primary} />
@@ -224,7 +235,7 @@ export default function HomeScreen() {
                 { color: isVisible ? colors.primary : colors.mutedForeground },
               ]}
             >
-              {isVisible ? "BEACON ACTIVE" : "BEACON OFF"}
+              {isVisible ? t("home.beaconActive") : t("home.beaconOff")}
             </Text>
           </View>
 
@@ -232,7 +243,10 @@ export default function HomeScreen() {
             <>
               <Text style={[styles.headline, { color: colors.foreground }]}>
                 <Text style={{ color: colors.primary }}>{animatedWithin}</Text>{" "}
-                {withinRange === 1 ? "person" : "people"} within {rangeM}m
+                {t("home.peopleWithinSuffix", {
+                  label: t(withinRange === 1 ? "home.person" : "home.people"),
+                  m: rangeM,
+                })}
               </Text>
 
               {vibe ? (
@@ -247,13 +261,13 @@ export default function HomeScreen() {
                 >
                   <Feather name={vibe.icon} size={12} color={vibe.fg} />
                   <Text style={[styles.vibeText, { color: vibe.fg }]}>
-                    {vibe.label}
+                    {t(vibe.labelKey)}
                   </Text>
                 </View>
               ) : null}
 
               <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-                Met is quietly listening. Anyone you cross paths with shows up under Recent.
+                {t("home.metListening")}
               </Text>
 
               {recent.length > 0 ? (
@@ -275,7 +289,7 @@ export default function HomeScreen() {
                     numberOfLines={1}
                     style={[styles.tickerText, { color: colors.foreground }]}
                   >
-                    {tickerLine(recent[Math.min(tickerIdx, recent.length - 1)])}
+                    {tickerLine(recent[Math.min(tickerIdx, recent.length - 1)], t)}
                   </Text>
                 </Animated.View>
               ) : null}
@@ -283,11 +297,10 @@ export default function HomeScreen() {
           ) : (
             <>
               <Text style={[styles.headline, { color: colors.foreground }]}>
-                You&rsquo;re invisible to others
+                {t("home.invisibleHeadline")}
               </Text>
               <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-                Turn &ldquo;Visible on Radar&rdquo; back on in Settings to start
-                discovering people again.
+                {t("home.invisibleSub")}
               </Text>
             </>
           )}
@@ -297,21 +310,21 @@ export default function HomeScreen() {
           <StatCard
             icon="users"
             value={animatedToday}
-            label="Today"
+            label={t("home.todayCard")}
             colors={colors}
             onPress={() => router.push("/(tabs)/recent")}
           />
           <StatCard
             icon="link-2"
             value={animatedConn}
-            label="Connections"
+            label={t("home.connectionsCard")}
             colors={colors}
             onPress={() => router.push("/(tabs)/connections")}
           />
           <StatCard
             icon="bell"
             value={animatedPending}
-            label="Pending"
+            label={t("home.pendingCard")}
             colors={colors}
             onPress={() => setRequestsOpen(true)}
           />
@@ -326,7 +339,7 @@ export default function HomeScreen() {
           <View style={styles.weeklyHeader}>
             <Feather name="calendar" size={16} color={colors.primary} />
             <Text style={[styles.weeklyTitle, { color: colors.foreground }]}>
-              This week
+              {t("home.thisWeek")}
             </Text>
           </View>
           <View style={styles.weeklyRow}>
@@ -338,7 +351,9 @@ export default function HomeScreen() {
                 })
               }
               accessibilityRole="button"
-              accessibilityLabel={`${weekly.newPeople} new people this week`}
+              accessibilityLabel={t("home.newPeopleA11y", {
+                count: weekly.newPeople,
+              })}
               style={({ pressed }) => [
                 styles.weeklyCell,
                 {
@@ -351,7 +366,11 @@ export default function HomeScreen() {
                 {weekly.newPeople}
               </Text>
               <Text style={[styles.weeklyLabel, { color: colors.mutedForeground }]}>
-                new {weekly.newPeople === 1 ? "person" : "people"}
+                {t(
+                  weekly.newPeople === 1
+                    ? "home.newPerson_one"
+                    : "home.newPerson_other",
+                )}
               </Text>
               <View style={styles.weeklyChev}>
                 <Feather
@@ -372,7 +391,9 @@ export default function HomeScreen() {
                 })
               }
               accessibilityRole="button"
-              accessibilityLabel={`${weekly.repeats} crossed paths again this week`}
+              accessibilityLabel={t("home.crossedAgainA11y", {
+                count: weekly.repeats,
+              })}
               style={({ pressed }) => [
                 styles.weeklyCell,
                 {
@@ -385,7 +406,7 @@ export default function HomeScreen() {
                 {weekly.repeats}
               </Text>
               <Text style={[styles.weeklyLabel, { color: colors.mutedForeground }]}>
-                crossed paths again
+                {t("home.crossedAgainLabel")}
               </Text>
               <View style={styles.weeklyChev}>
                 <Feather
@@ -398,8 +419,8 @@ export default function HomeScreen() {
           </View>
           <Text style={[styles.weeklyHint, { color: colors.mutedForeground }]}>
             {weekly.newPeople === 0 && weekly.repeats === 0
-              ? "Quiet week. Step outside — Met is listening."
-              : "Tap a tile to see who. Remember the human, not the follower count."}
+              ? t("home.weeklyHintQuiet")
+              : t("home.weeklyHintActive")}
           </Text>
         </View>
       </ScrollView>
@@ -412,7 +433,7 @@ export default function HomeScreen() {
 }
 
 function deriveVibe(count: number): {
-  label: string;
+  labelKey: string;
   icon: React.ComponentProps<typeof Feather>["name"];
   fg: string;
   bg: string;
@@ -420,7 +441,7 @@ function deriveVibe(count: number): {
 } {
   if (count === 0) {
     return {
-      label: "Quiet zone",
+      labelKey: "home.quietZone",
       icon: "moon",
       fg: "#475569",
       bg: "#F1F5F9",
@@ -429,7 +450,7 @@ function deriveVibe(count: number): {
   }
   if (count <= 3) {
     return {
-      label: "A few souls nearby",
+      labelKey: "home.fewSouls",
       icon: "user",
       fg: "#1D4ED8",
       bg: "#DBEAFE",
@@ -437,7 +458,7 @@ function deriveVibe(count: number): {
     };
   }
   return {
-    label: "Lively here",
+    labelKey: "home.livelyHere",
     icon: "zap",
     fg: "#B45309",
     bg: "#FEF3C7",
@@ -445,26 +466,29 @@ function deriveVibe(count: number): {
   };
 }
 
-function tickerLine(e: {
-  realName: string;
-  lastSeenAt: number;
-  status: string;
-  encounterCount: number;
-}): string {
+function tickerLine(
+  e: {
+    realName: string;
+    lastSeenAt: number;
+    status: string;
+    encounterCount: number;
+  },
+  t: (k: string, opts?: Record<string, unknown>) => string,
+): string {
   const minsAgo = Math.max(1, Math.round((Date.now() - e.lastSeenAt) / 60000));
   const when =
     minsAgo < 60
-      ? `${minsAgo}m ago`
+      ? t("home.minAgo", { count: minsAgo })
       : minsAgo < 60 * 24
-        ? `${Math.round(minsAgo / 60)}h ago`
-        : `${Math.round(minsAgo / (60 * 24))}d ago`;
+        ? t("home.hourAgo", { count: Math.round(minsAgo / 60) })
+        : t("home.dayAgo", { count: Math.round(minsAgo / (60 * 24)) });
   if (e.status === "connected") {
-    return `Reconnected with ${e.realName} — ${when}`;
+    return t("home.tickerReconnected", { name: e.realName, when });
   }
   if (e.encounterCount > 1) {
-    return `${e.realName} crossed your path again — ${when}`;
+    return t("home.tickerCrossedAgain", { name: e.realName, when });
   }
-  return `Just crossed paths with ${e.realName} — ${when}`;
+  return t("home.tickerJustCrossed", { name: e.realName, when });
 }
 
 function StatCard({

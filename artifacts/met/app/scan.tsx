@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 
 type ParsedQr = { id: string; name: string };
 
@@ -40,6 +41,7 @@ export default function ScanScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useT();
   const { upsertEncounterFromQr } = useApp();
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export default function ScanScreen() {
       if (lockRef.current) return;
       const parsed = parseQr(data);
       if (!parsed) {
-        setError("That doesn't look like a Met QR code.");
+        setError(t("scan.notMetQRError"));
         return;
       }
       lockRef.current = true;
@@ -65,16 +67,16 @@ export default function ScanScreen() {
         router.replace(`/encounter/${id}`);
       } catch {
         lockRef.current = false;
-        setError("Couldn't add that encounter. Try again.");
+        setError(t("scan.couldntAddError"));
       }
     },
-    [router, upsertEncounterFromQr],
+    [router, upsertEncounterFromQr, t],
   );
 
   const handleSimulate = async () => {
     const fake: ParsedQr = {
       id: `qr-${Date.now()}`,
-      name: "Sam from the cafe",
+      name: t("scan.defaultPersonName"),
     };
     const id = await upsertEncounterFromQr(fake);
     router.replace(`/encounter/${id}`);
@@ -105,26 +107,25 @@ export default function ScanScreen() {
             <Feather name="camera" size={36} color={colors.primary} />
           </View>
           <Text style={[styles.permTitle, { color: colors.foreground }]}>
-            Camera access needed
+            {t("scan.cameraNeededTitle")}
           </Text>
           <Text style={[styles.permSub, { color: colors.mutedForeground }]}>
-            Met needs your camera so you can scan another person&rsquo;s QR
-            code and add them as an instant encounter.
+            {t("scan.cameraNeededSub")}
           </Text>
           <View style={{ width: "100%", gap: 10, marginTop: 8 }}>
             <PrimaryButton
-              label="Allow camera"
+              label={t("scan.allowCameraBtn")}
               onPress={async () => {
                 await requestPermission();
               }}
             />
             <PrimaryButton
-              label="Use a demo QR instead"
+              label={t("scan.useDemoQRBtn")}
               variant="secondary"
               onPress={handleSimulate}
             />
             <PrimaryButton
-              label="Close"
+              label={t("scan.closeBtn")}
               variant="ghost"
               onPress={() => router.back()}
             />
@@ -157,7 +158,7 @@ export default function ScanScreen() {
           >
             <Feather name="x" size={22} color="#FFFFFF" />
           </Pressable>
-          <Text style={styles.topTitle}>Scan a Met QR</Text>
+          <Text style={styles.topTitle}>{t("scan.titleScreen")}</Text>
           <View style={{ width: 38 }} />
         </View>
 
@@ -177,8 +178,7 @@ export default function ScanScreen() {
             <Text style={styles.errorText}>{error}</Text>
           ) : (
             <Text style={styles.hintText}>
-              Point at another Met user&rsquo;s QR code to instantly add them
-              as an encounter and send a reveal request.
+              {t("scan.hintMain")}
             </Text>
           )}
           <Pressable
@@ -190,7 +190,7 @@ export default function ScanScreen() {
             ]}
           >
             <Feather name="play-circle" size={16} color="#FFFFFF" />
-            <Text style={styles.simText}>Simulate a scan</Text>
+            <Text style={styles.simText}>{t("scan.simulateScan")}</Text>
           </Pressable>
         </View>
       </View>

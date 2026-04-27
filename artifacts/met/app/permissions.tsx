@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 
 type Status = "idle" | "granted" | "denied";
 
@@ -28,12 +29,14 @@ type RowProps = {
   description: string;
   status: Status;
   onPress: () => void;
+  t: (k: string, opts?: Record<string, unknown>) => string;
 };
 
 export default function PermissionsScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useT();
   const { setPermissionsCompleted } = useApp();
 
   const [statuses, setStatuses] = useState<Record<PermKey, Status>>({
@@ -132,11 +135,10 @@ export default function PermissionsScreen() {
             <Feather name="shield" size={42} color={colors.primary} />
           </View>
           <Text style={[styles.title, { color: colors.foreground }]}>
-            Set up your beacon
+            {t("permissions.titleScreen")}
           </Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            Met needs a few permissions so it can quietly find people you
-            cross paths with.
+            {t("permissions.subtitleScreen")}
           </Text>
         </View>
 
@@ -144,42 +146,46 @@ export default function PermissionsScreen() {
           <PermRow
             icon="map-pin"
             iconLib="feather"
-            title="Location"
-            description="Used to detect when another Met user is within 50 meters. Your exact location is never shared."
+            title={t("permissions.locationTitle")}
+            description={t("permissions.locationDesc")}
             status={statuses.location}
             onPress={requestLocation}
             busy={busy === "location"}
             colors={colors}
+            t={t}
           />
           <PermRow
             icon="bluetooth"
             iconLib="mc"
-            title="Bluetooth"
-            description="Your phone broadcasts a tiny beacon over BLE so other Met users nearby can spot you."
+            title={t("permissions.bluetoothTitle")}
+            description={t("permissions.bluetoothDesc")}
             status={statuses.bluetooth}
             onPress={requestBluetooth}
             busy={busy === "bluetooth"}
             colors={colors}
+            t={t}
           />
           <PermRow
             icon="camera"
             iconLib="feather"
-            title="Camera"
-            description="So you can scan another person's QR code to instantly add them as an encounter."
+            title={t("permissions.cameraTitle")}
+            description={t("permissions.cameraDesc")}
             status={statuses.camera}
             onPress={requestCamera}
             busy={busy === "camera"}
             colors={colors}
+            t={t}
           />
           <PermRow
             icon="bell"
             iconLib="feather"
-            title="Notifications"
-            description="We'll let you know when you cross paths with someone new and when reveal requests arrive."
+            title={t("permissions.notificationsTitle")}
+            description={t("permissions.notificationsDesc")}
             status={statuses.notifications}
             onPress={requestNotifications}
             busy={busy === "notifications"}
             colors={colors}
+            t={t}
           />
         </View>
 
@@ -191,15 +197,17 @@ export default function PermissionsScreen() {
         >
           <Feather name="lock" size={16} color={colors.primary} />
           <Text style={[styles.disclosureText, { color: colors.mutedForeground }]}>
-            Your name, photo and exact location are never shared with anyone
-            until you both reveal. You can change any of this later in
-            Settings.
+            {t("permissions.disclosure")}
           </Text>
         </View>
 
         <View style={{ gap: 10 }}>
           <PrimaryButton
-            label={allDecided ? "Continue" : "Continue anyway"}
+            label={
+              allDecided
+                ? t("permissions.continue")
+                : t("permissions.continueAnyway")
+            }
             onPress={handleContinue}
           />
           {!allDecided ? (
@@ -215,7 +223,7 @@ export default function PermissionsScreen() {
               <Text
                 style={[styles.skipText, { color: colors.mutedForeground }]}
               >
-                Skip for now
+                {t("permissions.skipForNow")}
               </Text>
             </Pressable>
           ) : null}
@@ -234,6 +242,7 @@ function PermRow({
   onPress,
   busy,
   colors,
+  t,
 }: RowProps & { busy: boolean; colors: ReturnType<typeof useColors> }) {
   const granted = status === "granted";
   const denied = status === "denied";
@@ -249,12 +258,12 @@ function PermRow({
       ? colors.destructive
       : colors.foreground;
   const statusLabel = granted
-    ? "Granted"
+    ? t("permissions.statusGranted")
     : denied
-      ? "Try again"
+      ? t("permissions.statusTryAgain")
       : busy
         ? "…"
-        : "Allow";
+        : t("permissions.statusAllow");
 
   return (
     <View

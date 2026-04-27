@@ -56,4 +56,8 @@ export type Encounter = {
   note?: string; // user's personal note about this person
   tags?: string[]; // user-curated lowercase tags ("coffee", "gym"…)
   requestSentAt?: number; // when the user sent a reveal request — drives 24h expiry
+  // Optional personal note attached to a reveal request. Persisted on the
+  // encounter so the receiver can read it on their lock card. Cleared when
+  // the request transitions away from `request_sent` / `request_received`.
+  revealMessage?: string;
 };

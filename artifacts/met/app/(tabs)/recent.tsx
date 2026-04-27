@@ -12,6 +12,7 @@ import { ScanFab } from "@/components/ScanFab";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
+import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { FREE_VISIBLE_ENCOUNTERS, startOfTodayMs } from "@/lib/usage";
@@ -27,6 +28,7 @@ export default function RecentScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useT();
   const params = useLocalSearchParams<{ filter?: string }>();
   const { encounters, preferences } = useApp();
   const { isPlusSubscriber, isSubscriptionReady } = useSubscription();
@@ -118,7 +120,7 @@ export default function RecentScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
-        title="Recent Encounters"
+        title={t("appHeader.titleRecent")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[{ icon: "bell", onPress: handleBell, badge: pendingRequests }]}
       />
@@ -143,14 +145,16 @@ export default function RecentScreen() {
               color={colors.primary}
             />
             <Text style={[styles.filterChipText, { color: colors.foreground }]}>
-              This week ·{" "}
-              {weeklyFilter === "new" ? "New people" : "Crossed paths again"}
+              {t("recent.filterPrefix")} ·{" "}
+              {weeklyFilter === "new"
+                ? t("recent.filterNewLabel")
+                : t("recent.filterRepeatsLabel")}
             </Text>
             <Pressable
               onPress={clearFilter}
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="Clear filter"
+              accessibilityLabel={t("recent.clearFilterA11y")}
             >
               <Feather name="x" size={16} color={colors.mutedForeground} />
             </Pressable>
@@ -161,15 +165,15 @@ export default function RecentScreen() {
             icon="users"
             title={
               weeklyFilter === "new"
-                ? "No new people this week"
+                ? t("recent.emptyTitleNew")
                 : weeklyFilter === "repeats"
-                  ? "No repeat encounters this week"
-                  : "No encounters yet"
+                  ? t("recent.emptyTitleRepeats")
+                  : t("recent.emptyTitleAll")
             }
             description={
               weeklyFilter
-                ? "Try clearing the filter to see your full feed."
-                : "Keep your beacon on. The next person you cross paths with will appear here."
+                ? t("recent.emptySubFiltered")
+                : t("recent.emptySubAll")
             }
           />
         ) : (
@@ -207,20 +211,23 @@ export default function RecentScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.limitTitle, { color: colors.foreground }]}>
-                You&rsquo;ve reached today&rsquo;s limit
+                {t("recent.limitTitle")}
               </Text>
               <Text
                 style={[styles.limitSub, { color: colors.mutedForeground }]}
               >
-                {hiddenCount} more{" "}
-                {hiddenCount === 1 ? "encounter" : "encounters"} hidden. Met
-                Plus shows them all.
+                {t(
+                  hiddenCount === 1
+                    ? "recent.limitSub_one"
+                    : "recent.limitSub_other",
+                  { count: hiddenCount },
+                )}
               </Text>
             </View>
             <View
               style={[styles.limitCta, { backgroundColor: colors.primary }]}
             >
-              <Text style={styles.limitCtaText}>Upgrade</Text>
+              <Text style={styles.limitCtaText}>{t("recent.upgradeBtn")}</Text>
             </View>
           </Pressable>
         ) : null}

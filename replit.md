@@ -47,7 +47,8 @@ Prioritize performance and user experience in all development tasks.
 - **Recent Encounters**: List of recent encounters, with a "Crossed paths again" pill for repeat encounters. ScanFab to initiate QR scanning.
 - **Connections**: Searchable list of connected users. Sortable by recent, most met, or name. Supports tag-based filtering. Each row shows avatar, name, timestamp, and a context-aware preview.
 - **Encounter Detail**: Displays full-bleed photo, meeting frequency, first met date, Meeting Spot card, and options to send/accept reveal requests. Auto-redirects to connection detail once connected.
-- **Connection Detail**: Shows connection profile (avatar, name, bio, meeting spot, social chips), editable notes and tags, and a conversation section with a message composer (quota-gated).
+- **Connection Detail**: Shows connection profile (avatar, name, bio, meeting spot, social chips), editable notes and tags, and a read-only conversation thread of any prior messages. The composer was removed — connections are kept as quiet keepsakes rather than chats.
+- **Reveal Request Sheet**: Tapping "SEND REVEAL REQUEST" on an encounter opens a confirmation sheet with advisory copy ("limited chances, use them wisely, be genuine") and an optional personal-note `TextInput`. The note is persisted on the encounter as `revealMessage` and rendered on the receiver's "Wants to share socials" lock card under "Their note".
 - **My QR Sheet**: Displays user's QR code with avatar, name, and bio.
 - **Subscription Tiers**:
     - **Free**: Limited visible encounters (10/day), limited reveal requests (2/day), standard history.

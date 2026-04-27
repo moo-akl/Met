@@ -20,23 +20,17 @@ import { Avatar } from "@/components/Avatar";
 import { SocialChip } from "@/components/SocialChip";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { useSubscription } from "@/lib/revenuecat";
+import { useT } from "@/lib/i18n";
 import type { OpeningMessage, SocialPlatform } from "@/lib/types";
-import {
-  PLUS_OPENING_MESSAGES_PER_DAY,
-  PRO_OPENING_MESSAGES_PER_DAY,
-  getOpeningMessagesRemaining,
-  tryConsumeOpeningMessage,
-} from "@/lib/usage";
 
-function formatTime(ts: number) {
-  return new Date(ts).toLocaleTimeString(undefined, {
+function formatTime(ts: number, lang: string) {
+  return new Date(ts).toLocaleTimeString(lang, {
     hour: "numeric",
     minute: "2-digit",
   });
 }
 
-function formatDateLabel(ts: number) {
+function formatDateLabel(ts: number, lang: string, t: (k: string) => string) {
   const d = new Date(ts);
   const today = new Date();
   const yesterday = new Date();
@@ -45,13 +39,13 @@ function formatDateLabel(ts: number) {
     d.getFullYear() === today.getFullYear() &&
     d.getMonth() === today.getMonth() &&
     d.getDate() === today.getDate();
-  if (sameDay) return "Today";
+  if (sameDay) return t("common.today");
   const isYesterday =
     d.getFullYear() === yesterday.getFullYear() &&
     d.getMonth() === yesterday.getMonth() &&
     d.getDate() === yesterday.getDate();
-  if (isYesterday) return "Yesterday";
-  return d.toLocaleDateString(undefined, {
+  if (isYesterday) return t("common.yesterday");
+  return d.toLocaleDateString(lang, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -62,6 +56,7 @@ export default function ConnectionScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t, lang } = useT();
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const {
@@ -70,32 +65,9 @@ export default function ConnectionScreen() {
     setBlocked,
     setNote,
     setTags,
-    sendOpeningMessage,
   } = useApp();
-  const { tier, isPlusSubscriber, isProSubscriber, isSubscriptionReady } =
-    useSubscription();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [sendingMsg, setSendingMsg] = useState(false);
-  const [openingsRemaining, setOpeningsRemaining] = useState<number | null>(
-    null,
-  );
-
-  const openingPerDay = isProSubscriber
-    ? PRO_OPENING_MESSAGES_PER_DAY
-    : PLUS_OPENING_MESSAGES_PER_DAY;
-
-  useEffect(() => {
-    let cancelled = false;
-    getOpeningMessagesRemaining(openingPerDay).then((o) => {
-      if (cancelled) return;
-      setOpeningsRemaining(o);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [openingPerDay]);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -124,7 +96,7 @@ export default function ConnectionScreen() {
       >
         <Stack.Screen options={{ headerShown: false }} />
         <Text style={{ color: colors.foreground, padding: 24 }}>
-          This conversation is gone.
+          {t("connection.gone")}
         </Text>
       </View>
     );
@@ -147,32 +119,6 @@ export default function ConnectionScreen() {
     ).catch(() => {});
   };
 
-  const hasPendingMessage =
-    !!encounter.openingMessage && !encounter.openingMessage.reply;
-
-  const handleSendMessage = async () => {
-    if (sendingMsg || !isSubscriptionReady) return;
-    if (!isPlusSubscriber) {
-      router.push("/paywall");
-      return;
-    }
-    const text = draft.trim();
-    if (!text) return;
-    setSendingMsg(true);
-    try {
-      const consumed = await tryConsumeOpeningMessage(openingPerDay);
-      if (consumed === null) {
-        setOpeningsRemaining(0);
-        return;
-      }
-      await sendOpeningMessage(encounter.id, text);
-      setDraft("");
-      setOpeningsRemaining(await getOpeningMessagesRemaining(openingPerDay));
-    } finally {
-      setSendingMsg(false);
-    }
-  };
-
   const socialEntries = (
     Object.entries(encounter.socials) as [SocialPlatform, string][]
   ).filter(([, v]) => v && v.trim());
@@ -180,6 +126,13 @@ export default function ConnectionScreen() {
   const om = encounter.openingMessage;
   const lastActivity =
     om?.reply?.receivedAt ?? om?.sentAt ?? encounter.lastSeenAt;
+
+  const metTimesText = t(
+    encounter.encounterCount === 1
+      ? "connection.metTimes_one"
+      : "connection.metTimes_other",
+    { count: encounter.encounterCount },
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -196,7 +149,12 @@ export default function ConnectionScreen() {
           },
         ]}
       >
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={styles.headerBtn}
+          accessibilityLabel={t("common.back")}
+        >
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
         <View style={styles.headerCenter}>
@@ -212,8 +170,7 @@ export default function ConnectionScreen() {
               style={[styles.headerSub, { color: colors.mutedForeground }]}
               numberOfLines={1}
             >
-              Met {encounter.encounterCount}{" "}
-              {encounter.encounterCount === 1 ? "time" : "times"}
+              {metTimesText}
             </Text>
           </View>
         </View>
@@ -228,7 +185,7 @@ export default function ConnectionScreen() {
 
       <ScrollView
         contentContainerStyle={{
-          paddingBottom: insets.bottom + webBot + 140,
+          paddingBottom: insets.bottom + webBot + 32,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -256,8 +213,7 @@ export default function ConnectionScreen() {
               <View style={styles.detailsMetaRow}>
                 <Feather name="repeat" size={14} color={colors.primary} />
                 <Text style={[styles.detailsMeta, { color: colors.primary }]}>
-                  Met {encounter.encounterCount}{" "}
-                  {encounter.encounterCount === 1 ? "time" : "times"}
+                  {metTimesText}
                 </Text>
               </View>
             </View>
@@ -294,7 +250,7 @@ export default function ConnectionScreen() {
                   { color: colors.mutedForeground },
                 ]}
               >
-                Socials
+                {t("connection.socialsLabel")}
               </Text>
               <View style={styles.chipsRow}>
                 {socialEntries.map(([platform, handle]) => (
@@ -321,20 +277,21 @@ export default function ConnectionScreen() {
           />
         </View>
 
-        {/* Conversation — secondary section. */}
+        {/* Conversation — secondary section. Composer was removed; we still
+            render any existing thread so prior exchanges remain visible. */}
         <View style={styles.thread}>
           <View style={styles.threadHeader}>
             <Text
               style={[styles.sectionLabel, { color: colors.mutedForeground }]}
             >
-              Conversation
+              {t("connection.conversation")}
             </Text>
             <View
               style={[styles.threadDivider, { backgroundColor: colors.border }]}
             />
           </View>
           <Text style={[styles.dateLabel, { color: colors.mutedForeground }]}>
-            {formatDateLabel(lastActivity)}
+            {formatDateLabel(lastActivity, lang, t)}
           </Text>
 
           {!om ? (
@@ -346,12 +303,12 @@ export default function ConnectionScreen() {
             >
               <Feather name="message-circle" size={24} color={colors.primary} />
               <Text style={[styles.startTitle, { color: colors.foreground }]}>
-                You&rsquo;re connected with {encounter.realName}
+                {t("connection.connectedWith", { name: encounter.realName })}
               </Text>
               <Text
                 style={[styles.startSub, { color: colors.mutedForeground }]}
               >
-                Break the ice — your first message kicks off the conversation.
+                {t("connection.breakIce")}
               </Text>
             </View>
           ) : (
@@ -359,159 +316,11 @@ export default function ConnectionScreen() {
               colors={colors}
               encounterName={encounter.realName}
               message={om}
+              lang={lang}
             />
           )}
         </View>
       </ScrollView>
-
-      {/* Composer / paywall / quota states */}
-      <View
-        style={[
-          styles.composerWrap,
-          {
-            backgroundColor: colors.card,
-            borderTopColor: colors.border,
-            paddingBottom: insets.bottom + webBot + 10,
-          },
-        ]}
-      >
-        {!isPlusSubscriber ? (
-          <Pressable
-            onPress={() => router.push("/paywall")}
-            style={({ pressed }) => [
-              styles.upgradeMsgCard,
-              {
-                backgroundColor: colors.muted,
-                borderColor: colors.border,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-          >
-            <Feather name="lock" size={18} color={colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={[styles.upgradeMsgTitle, { color: colors.foreground }]}
-              >
-                Send opening messages
-              </Text>
-              <Text
-                style={[
-                  styles.upgradeMsgSub,
-                  { color: colors.mutedForeground },
-                ]}
-              >
-                Unlock with Met Plus or Pro
-              </Text>
-            </View>
-            <Feather
-              name="chevron-right"
-              size={18}
-              color={colors.mutedForeground}
-            />
-          </Pressable>
-        ) : openingsRemaining !== null &&
-          openingsRemaining <= 0 &&
-          !hasPendingMessage ? (
-          <View
-            style={[
-              styles.composerHelp,
-              {
-                backgroundColor: colors.muted,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <Feather name="clock" size={16} color={colors.mutedForeground} />
-            <Text
-              style={[
-                styles.composerHelpText,
-                { color: colors.mutedForeground },
-              ]}
-            >
-              You&rsquo;ve used your {openingPerDay} opening{" "}
-              {openingPerDay === 1 ? "message" : "messages"} for today.
-              {isProSubscriber
-                ? " Resets at midnight."
-                : " Upgrade to Met Pro for more."}
-            </Text>
-          </View>
-        ) : hasPendingMessage ? (
-          <View
-            style={[
-              styles.composerHelp,
-              {
-                backgroundColor: colors.muted,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <Feather name="clock" size={16} color={colors.mutedForeground} />
-            <Text
-              style={[
-                styles.composerHelpText,
-                { color: colors.mutedForeground },
-              ]}
-            >
-              Wait for {encounter.realName} to reply before sending another
-              message.
-            </Text>
-          </View>
-        ) : (
-          <>
-            <View
-              style={[
-                styles.composer,
-                { backgroundColor: colors.muted, borderColor: colors.border },
-              ]}
-            >
-              <TextInput
-                value={draft}
-                onChangeText={setDraft}
-                placeholder={
-                  om?.reply
-                    ? "Send another message…"
-                    : `Say hi to ${encounter.realName}…`
-                }
-                placeholderTextColor={colors.mutedForeground}
-                style={[styles.composerInput, { color: colors.foreground }]}
-                multiline
-                maxLength={240}
-                editable={!sendingMsg}
-              />
-              <Pressable
-                onPress={handleSendMessage}
-                disabled={!draft.trim() || sendingMsg}
-                style={({ pressed }) => [
-                  styles.composerSend,
-                  {
-                    backgroundColor: colors.primary,
-                    opacity:
-                      !draft.trim() || sendingMsg
-                        ? 0.5
-                        : pressed
-                          ? 0.85
-                          : 1,
-                  },
-                ]}
-              >
-                <Feather name="send" size={18} color="#FFFFFF" />
-              </Pressable>
-            </View>
-            {openingsRemaining !== null ? (
-              <Text
-                style={[
-                  styles.composerCounter,
-                  { color: colors.mutedForeground },
-                ]}
-              >
-                {openingsRemaining} of {openingPerDay} opening{" "}
-                {openingPerDay === 1 ? "message" : "messages"} left today
-                {tier === "plus" ? " · Pro gets 2/day" : ""}
-              </Text>
-            ) : null}
-          </>
-        )}
-      </View>
 
       <ActionSheet
         visible={menuOpen}
@@ -519,13 +328,13 @@ export default function ConnectionScreen() {
         title={encounter.realName}
         actions={[
           {
-            label: "Remove connection",
+            label: t("connection.removeConnectionAction"),
             icon: "trash-2",
             destructive: true,
             onPress: handleRemove,
           },
           {
-            label: "Block",
+            label: t("connection.blockAction"),
             icon: "slash",
             destructive: true,
             onPress: handleBlock,
@@ -547,6 +356,7 @@ function NoteEditor({
   value: string;
   onSave: (next: string) => void;
 }) {
+  const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -566,13 +376,15 @@ function NoteEditor({
         <Text
           style={[styles.sectionLabel, { color: colors.mutedForeground }]}
         >
-          Private note
+          {t("connection.privateNote")}
         </Text>
         {!editing ? (
           <Pressable
             onPress={() => setEditing(true)}
             hitSlop={8}
-            accessibilityLabel={value ? "Edit note" : "Add note"}
+            accessibilityLabel={
+              value ? t("connection.editNoteA11y") : t("connection.addNoteA11y")
+            }
           >
             <Feather
               name={value ? "edit-2" : "plus"}
@@ -587,7 +399,7 @@ function NoteEditor({
           <TextInput
             value={draft}
             onChangeText={setDraft}
-            placeholder="Where you met, what you talked about, anything to remember…"
+            placeholder={t("connection.notePlaceholder")}
             placeholderTextColor={colors.mutedForeground}
             multiline
             maxLength={280}
@@ -613,7 +425,7 @@ function NoteEditor({
               ]}
             >
               <Text style={[styles.editorBtnText, { color: colors.foreground }]}>
-                Cancel
+                {t("common.cancel")}
               </Text>
             </Pressable>
             <Pressable
@@ -624,7 +436,7 @@ function NoteEditor({
               ]}
             >
               <Text style={[styles.editorBtnText, { color: "#FFFFFF" }]}>
-                Save
+                {t("common.save")}
               </Text>
             </Pressable>
           </View>
@@ -636,7 +448,7 @@ function NoteEditor({
       ) : (
         <Pressable onPress={() => setEditing(true)}>
           <Text style={[styles.notePlaceholder, { color: colors.mutedForeground }]}>
-            Add a private note about how you met…
+            {t("connection.addNoteEmpty")}
           </Text>
         </Pressable>
       )}
@@ -653,21 +465,22 @@ function TagsEditor({
   tags: string[];
   onChange: (next: string[]) => void;
 }) {
+  const { t } = useT();
   const [draft, setDraft] = useState("");
 
   const addTag = (raw: string) => {
-    const t = raw.trim().toLowerCase();
-    if (!t) return;
-    if (tags.includes(t)) {
+    const tag = raw.trim().toLowerCase();
+    if (!tag) return;
+    if (tags.includes(tag)) {
       setDraft("");
       return;
     }
-    onChange([...tags, t]);
+    onChange([...tags, tag]);
     setDraft("");
   };
 
-  const removeTag = (t: string) => {
-    onChange(tags.filter((x) => x !== t));
+  const removeTag = (tag: string) => {
+    onChange(tags.filter((x) => x !== tag));
   };
 
   const suggestions = TAG_SUGGESTIONS.filter((s) => !tags.includes(s));
@@ -675,15 +488,15 @@ function TagsEditor({
   return (
     <View style={styles.editorBlock}>
       <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-        Tags
+        {t("connection.tagsLabel")}
       </Text>
       {tags.length > 0 ? (
         <View style={styles.chipsRow}>
-          {tags.map((t) => (
+          {tags.map((tag) => (
             <Pressable
-              key={t}
-              onPress={() => removeTag(t)}
-              accessibilityLabel={`Remove tag ${t}`}
+              key={tag}
+              onPress={() => removeTag(tag)}
+              accessibilityLabel={t("connection.removeTagA11y", { tag })}
               style={({ pressed }) => [
                 styles.tagChip,
                 {
@@ -692,7 +505,7 @@ function TagsEditor({
                 },
               ]}
             >
-              <Text style={styles.tagChipText}>#{t}</Text>
+              <Text style={styles.tagChipText}>#{tag}</Text>
               <Feather name="x" size={12} color="#FFFFFF" />
             </Pressable>
           ))}
@@ -708,7 +521,7 @@ function TagsEditor({
         <TextInput
           value={draft}
           onChangeText={setDraft}
-          placeholder="Add a tag"
+          placeholder={t("connection.addTagPlaceholder")}
           placeholderTextColor={colors.mutedForeground}
           autoCorrect={false}
           autoCapitalize="none"
@@ -721,9 +534,9 @@ function TagsEditor({
           <Pressable
             onPress={() => addTag(draft)}
             hitSlop={8}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+            accessibilityLabel={t("common.save")}
           >
-            <Feather name="plus-circle" size={18} color={colors.primary} />
+            <Feather name="check" size={16} color={colors.primary} />
           </Pressable>
         ) : null}
       </View>
@@ -737,15 +550,14 @@ function TagsEditor({
                 styles.suggestChip,
                 {
                   borderColor: colors.border,
-                  backgroundColor: colors.muted,
                   opacity: pressed ? 0.8 : 1,
                 },
               ]}
             >
               <Text
-                style={[styles.suggestChipText, { color: colors.foreground }]}
+                style={[styles.suggestChipText, { color: colors.mutedForeground }]}
               >
-                + {s}
+                #{s}
               </Text>
             </Pressable>
           ))}
@@ -759,59 +571,38 @@ function ChatBubbles({
   colors,
   encounterName,
   message,
+  lang,
 }: {
   colors: ReturnType<typeof useColors>;
   encounterName: string;
   message: OpeningMessage;
+  lang: string;
 }) {
   return (
     <View style={{ gap: 10 }}>
-      <View style={styles.bubbleSelfRow}>
-        <View
-          style={[
-            styles.bubble,
-            styles.bubbleSelf,
-            { backgroundColor: colors.primary },
-          ]}
-        >
-          <Text style={styles.bubbleSelfText}>{message.text}</Text>
-        </View>
-        <Text style={[styles.bubbleMeta, { color: colors.mutedForeground }]}>
-          You · {formatTime(message.sentAt)}
-        </Text>
-      </View>
-      {message.reply ? (
-        <View style={styles.bubbleOtherRow}>
-          <View
-            style={[
-              styles.bubble,
-              styles.bubbleOther,
-              { backgroundColor: colors.muted, borderColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.bubbleOtherText, { color: colors.foreground }]}>
-              {message.reply.text}
-            </Text>
-          </View>
-          <Text style={[styles.bubbleMeta, { color: colors.mutedForeground }]}>
-            {encounterName} · {formatTime(message.reply.receivedAt)}
+      <View style={styles.bubbleRowRight}>
+        <View style={[styles.bubble, styles.bubbleMe, { backgroundColor: colors.primary }]}>
+          <Text style={[styles.bubbleText, { color: "#FFFFFF" }]}>
+            {message.text}
+          </Text>
+          <Text style={[styles.bubbleTime, { color: "rgba(255,255,255,0.75)" }]}>
+            {formatTime(message.sentAt, lang)}
           </Text>
         </View>
-      ) : (
-        <View style={styles.bubbleOtherRow}>
-          <View
-            style={[
-              styles.bubble,
-              styles.bubbleOther,
-              { backgroundColor: colors.muted, borderColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.typingText, { color: colors.mutedForeground }]}>
-              {encounterName} is typing…
+      </View>
+      {message.reply ? (
+        <View style={styles.bubbleRowLeft}>
+          <Avatar uri={undefined} size={26} fallbackText={encounterName} />
+          <View style={[styles.bubble, styles.bubbleThem, { backgroundColor: colors.muted }]}>
+            <Text style={[styles.bubbleText, { color: colors.foreground }]}>
+              {message.reply.text}
+            </Text>
+            <Text style={[styles.bubbleTime, { color: colors.mutedForeground }]}>
+              {formatTime(message.reply.receivedAt, lang)}
             </Text>
           </View>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -822,41 +613,55 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 6,
   },
   headerBtn: {
     width: 38,
     height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 19,
   },
   headerCenter: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: 4,
+    minWidth: 0,
   },
   headerName: { fontFamily: "Inter_700Bold", fontSize: 16 },
-  headerSub: { fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 1 },
+  headerSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 1 },
   detailsPanel: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    gap: 12,
+    paddingHorizontal: 22,
+    paddingVertical: 18,
+    gap: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   detailsHeroRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
   },
-  detailsAvatar: { width: 64, height: 64, borderRadius: 32 },
-  detailsName: { fontFamily: "Inter_700Bold", fontSize: 18 },
-  detailsMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  detailsMeta: { fontFamily: "Inter_500Medium", fontSize: 13 },
+  detailsAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  detailsName: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 22,
+  },
+  detailsMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  detailsMeta: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+  },
   bio: {
     fontFamily: "Inter_400Regular",
     fontSize: 14,
@@ -874,58 +679,54 @@ const styles = StyleSheet.create({
     flex: 1,
     color: "#FFFFFF",
     fontFamily: "Inter_600SemiBold",
-    fontSize: 13,
+    fontSize: 14,
+  },
+  socialsBlock: { gap: 8 },
+  sectionLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  socialsBlock: {
-    gap: 8,
-    marginTop: 2,
-  },
-  sectionLabel: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
   thread: {
-    paddingHorizontal: 16,
-    paddingTop: 18,
+    paddingHorizontal: 22,
+    paddingTop: 16,
     gap: 12,
   },
   threadHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginBottom: 4,
   },
   threadDivider: {
     flex: 1,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
   },
   dateLabel: {
+    alignSelf: "center",
     fontFamily: "Inter_500Medium",
     fontSize: 11,
-    textAlign: "center",
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 0.6,
   },
   startCard: {
-    alignItems: "center",
-    gap: 8,
-    padding: 22,
     borderRadius: 16,
     borderWidth: 1,
-    marginVertical: 4,
+    paddingVertical: 22,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    gap: 6,
   },
   startTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+    marginTop: 4,
     textAlign: "center",
-    marginTop: 2,
   },
   startSub: {
     fontFamily: "Inter_400Regular",
@@ -933,112 +734,38 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 19,
   },
-  bubbleSelfRow: {
-    alignItems: "flex-end",
-    gap: 4,
-  },
-  bubbleOtherRow: {
-    alignItems: "flex-start",
-    gap: 4,
-  },
-  bubble: {
-    maxWidth: "80%",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-  },
-  bubbleSelf: {
-    borderBottomRightRadius: 4,
-  },
-  bubbleOther: {
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-  },
-  bubbleSelfText: {
-    color: "#FFFFFF",
-    fontFamily: "Inter_500Medium",
-    fontSize: 14,
-    lineHeight: 19,
-  },
-  bubbleOtherText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    lineHeight: 19,
-  },
-  bubbleMeta: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-  },
-  typingText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    fontStyle: "italic",
-  },
-  composerWrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    gap: 6,
-  },
-  composer: {
+  bubbleRowRight: {
     flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  bubbleRowLeft: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
     alignItems: "flex-end",
     gap: 8,
-    padding: 6,
-    borderRadius: 22,
-    borderWidth: 1,
   },
-  composerInput: {
-    flex: 1,
-    paddingHorizontal: 10,
+  bubble: {
+    maxWidth: "78%",
+    paddingHorizontal: 14,
     paddingVertical: 10,
+    borderRadius: 16,
+    gap: 4,
+  },
+  bubbleMe: {
+    borderBottomRightRadius: 4,
+  },
+  bubbleThem: {
+    borderBottomLeftRadius: 4,
+  },
+  bubbleText: {
     fontFamily: "Inter_400Regular",
     fontSize: 14,
-    maxHeight: 110,
+    lineHeight: 20,
   },
-  composerSend: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  composerCounter: {
+  bubbleTime: {
     fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    paddingHorizontal: 6,
-  },
-  composerHelp: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  composerHelpText: {
-    flex: 1,
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  upgradeMsgCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  upgradeMsgTitle: { fontFamily: "Inter_700Bold", fontSize: 14 },
-  upgradeMsgSub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 10,
+    alignSelf: "flex-end",
   },
   editorBlock: {
     gap: 8,
