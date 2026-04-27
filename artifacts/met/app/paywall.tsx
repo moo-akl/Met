@@ -43,6 +43,13 @@ const FEATURES: FeatureMatrix[] = [
     pro: "Unlimited",
   },
   {
+    icon: "image",
+    label: "Profile photos",
+    free: "1",
+    plus: "3 (1 main + 2)",
+    pro: "6 (1 main + 5)",
+  },
+  {
     icon: "send",
     label: "Reveal requests",
     free: "4 / day",
