@@ -15,24 +15,31 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 
 type Props = {
   visible: boolean;
   onClose: () => void;
 };
 
-function timeAgo(ts: number) {
+function timeAgo(
+  ts: number,
+  t: (k: string, opts?: Record<string, unknown>) => string,
+) {
   const diff = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60) return t("requestsSheet.timeJustNow");
+  if (diff < 3600)
+    return t("requestsSheet.timeMin", { count: Math.floor(diff / 60) });
+  if (diff < 86400)
+    return t("requestsSheet.timeHour", { count: Math.floor(diff / 3600) });
+  return t("requestsSheet.timeDay", { count: Math.floor(diff / 86400) });
 }
 
 export function RequestsSheet({ visible, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useT();
   const webBot = Platform.OS === "web" ? 34 : 0;
   const { encounters, updateEncounterStatus } = useApp();
 
@@ -82,7 +89,7 @@ export function RequestsSheet({ visible, onClose }: Props) {
             <View style={{ width: 24 }} />
             <View style={styles.titleWrap}>
               <Text style={[styles.title, { color: colors.foreground }]}>
-                Reveal requests
+                {t("requestsSheet.title")}
               </Text>
               {incoming.length > 0 ? (
                 <View
@@ -105,11 +112,10 @@ export function RequestsSheet({ visible, onClose }: Props) {
                 <Feather name="check-circle" size={28} color={colors.primary} />
               </View>
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-                You&rsquo;re all caught up
+                {t("requestsSheet.emptyTitle")}
               </Text>
               <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
-                Nobody is waiting on a reveal right now. New requests will
-                show up here.
+                {t("requestsSheet.emptySub")}
               </Text>
             </View>
           ) : (
@@ -151,7 +157,9 @@ export function RequestsSheet({ visible, onClose }: Props) {
                         ]}
                         numberOfLines={1}
                       >
-                        Wants to share socials &middot; {timeAgo(e.lastSeenAt)}
+                        {t("requestsSheet.wantsToShareWithTime", {
+                          when: timeAgo(e.lastSeenAt, t),
+                        })}
                       </Text>
                       {e.bio ? (
                         <Text
@@ -191,7 +199,7 @@ export function RequestsSheet({ visible, onClose }: Props) {
                           { color: colors.foreground },
                         ]}
                       >
-                        Not now
+                        {t("requestsSheet.notNow")}
                       </Text>
                     </Pressable>
                     <Pressable
@@ -209,7 +217,7 @@ export function RequestsSheet({ visible, onClose }: Props) {
                       <Text
                         style={[styles.actionText, { color: "#FFFFFF" }]}
                       >
-                        Accept reveal
+                        {t("requestsSheet.acceptReveal")}
                       </Text>
                     </Pressable>
                   </View>

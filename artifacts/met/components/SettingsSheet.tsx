@@ -77,7 +77,11 @@ function rangeLabel(t: (k: string) => string, r: DiscoveryRange): string {
   }
 }
 
-function formatVerifiedDate(ts: number, lang: string): string {
+function formatVerifiedDate(
+  ts: number,
+  lang: string,
+  recentlyLabel: string,
+): string {
   try {
     return new Date(ts).toLocaleDateString(lang, {
       month: "short",
@@ -85,7 +89,7 @@ function formatVerifiedDate(ts: number, lang: string): string {
       year: "numeric",
     });
   } catch {
-    return "recently";
+    return recentlyLabel;
   }
 }
 
@@ -314,7 +318,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 label={t("settings.language")}
                 sub={
                   SUPPORTED_LANGUAGES.find((s) => s.code === lang)?.native ??
-                  "English"
+                  t("language.deviceDefault")
                 }
                 onPress={() => setView("language")}
                 colors={colors}
@@ -424,6 +428,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                             date: formatVerifiedDate(
                               profile.photoVerifiedAt,
                               lang,
+                              t("common.recently"),
                             ),
                           })
                         : profile?.verified

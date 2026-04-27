@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar } from "@/components/Avatar";
 import { TierBadge } from "@/components/TierBadge";
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
 import type { Profile } from "@/lib/types";
 
@@ -27,6 +28,7 @@ export function MyQrSheet({ visible, onClose, profile }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
+  const { t } = useT();
   const { tier } = useSubscription();
 
   const payload = JSON.stringify({
@@ -58,7 +60,7 @@ export function MyQrSheet({ visible, onClose, profile }: Props) {
           <View style={styles.headerRow}>
             <View style={{ width: 28 }} />
             <Text style={[styles.title, { color: colors.foreground }]}>
-              My QR Code
+              {t("myQr.titleSheet")}
             </Text>
             <Pressable onPress={onClose} hitSlop={12}>
               <Feather name="x" size={24} color={colors.foreground} />
@@ -66,7 +68,7 @@ export function MyQrSheet({ visible, onClose, profile }: Props) {
           </View>
 
           <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-            Have someone scan this with Met to add you as an instant encounter.
+            {t("myQr.subSheet")}
           </Text>
 
           <View style={styles.identity}>
@@ -99,7 +101,7 @@ export function MyQrSheet({ visible, onClose, profile }: Props) {
           </View>
 
           <Text style={[styles.tip, { color: colors.mutedForeground }]}>
-            Tap and hold the QR to keep it on screen.
+            {t("myQr.tip")}
           </Text>
         </Pressable>
       </Pressable>

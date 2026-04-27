@@ -4,12 +4,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,6 +21,7 @@ import { ActionSheet } from "@/components/ActionSheet";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
 import {
   FREE_REVEALS_PER_DAY,
@@ -25,9 +29,9 @@ import {
   tryConsumeFreeReveal,
 } from "@/lib/usage";
 
-function formatDate(ts: number) {
+function formatDate(ts: number, lang: string) {
   const d = new Date(ts);
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString(lang, {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -38,6 +42,7 @@ export default function EncounterDetail() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t, lang } = useT();
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const {
@@ -51,6 +56,10 @@ export default function EncounterDetail() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [revealsRemaining, setRevealsRemaining] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
+  // Reveal-request confirmation sheet — gives the sender one last chance to
+  // attach a personal note before the request fires. Empty draft = no note.
+  const [revealSheetOpen, setRevealSheetOpen] = useState(false);
+  const [revealDraft, setRevealDraft] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -70,10 +79,10 @@ export default function EncounterDetail() {
 
   useEffect(() => {
     if (encounter?.status === "request_sent") {
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         updateEncounterStatus(encounter.id, "connected");
       }, 3000);
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
     return;
   }, [encounter?.status, encounter?.id, updateEncounterStatus]);
@@ -91,7 +100,7 @@ export default function EncounterDetail() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={{ color: colors.foreground, padding: 24 }}>
-          This encounter is gone.
+          {t("encounter.gone")}
         </Text>
       </View>
     );
@@ -110,7 +119,16 @@ export default function EncounterDetail() {
   const webTop = Platform.OS === "web" ? 67 : 0;
   const webBot = Platform.OS === "web" ? 34 : 0;
 
-  const handleSend = async () => {
+  // Open the confirmation sheet first — actual send happens in `confirmSend`
+  // once the user (optionally) attaches a personal note.
+  const openRevealSheet = () => {
+    if (sending) return;
+    if (!isSubscriptionReady) return;
+    setRevealDraft("");
+    setRevealSheetOpen(true);
+  };
+
+  const confirmSend = async () => {
     if (sending) return;
     if (!isSubscriptionReady) return;
     setSending(true);
@@ -118,16 +136,23 @@ export default function EncounterDetail() {
       if (!isSubscribed) {
         const consumed = await tryConsumeFreeReveal();
         if (consumed === null) {
+          setRevealSheetOpen(false);
           router.push("/paywall");
           return;
         }
         setRevealsRemaining(await getRevealsRemaining());
       }
-      await updateEncounterStatus(encounter.id, "request_sent");
+      const trimmed = revealDraft.trim();
+      await updateEncounterStatus(encounter.id, "request_sent", {
+        revealMessage: trimmed.length > 0 ? trimmed : undefined,
+      });
+      setRevealSheetOpen(false);
+      setRevealDraft("");
     } finally {
       setSending(false);
     }
   };
+
   const handleAccept = () => updateEncounterStatus(encounter.id, "connected");
   const handleDecline = () => {
     updateEncounterStatus(encounter.id, "encounter");
@@ -149,6 +174,13 @@ export default function EncounterDetail() {
     const url = `https://www.google.com/maps/search/?api=1&query=${q}`;
     Linking.openURL(url).catch(() => {});
   };
+
+  const metTimesText = t(
+    encounter.encounterCount === 1
+      ? "encounter.metTimes_one"
+      : "encounter.metTimes_other",
+    { count: encounter.encounterCount },
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.card }]}>
@@ -175,6 +207,7 @@ export default function EncounterDetail() {
           <Pressable
             onPress={() => router.back()}
             hitSlop={12}
+            accessibilityLabel={t("common.back")}
             style={[
               styles.iconBtn,
               {
@@ -189,6 +222,7 @@ export default function EncounterDetail() {
           <Pressable
             hitSlop={12}
             onPress={() => setMenuOpen(true)}
+            accessibilityLabel={t("common.open")}
             style={[
               styles.iconBtn,
               {
@@ -214,24 +248,25 @@ export default function EncounterDetail() {
           <View style={styles.metaRow}>
             <Feather name="repeat" size={16} color={colors.primary} />
             <Text style={[styles.metaPrimary, { color: colors.primary }]}>
-              Met {encounter.encounterCount}{" "}
-              {encounter.encounterCount === 1 ? "time" : "times"}
+              {metTimesText}
             </Text>
           </View>
 
           <View style={styles.metaRow}>
             <Feather name="calendar" size={16} color={colors.mutedForeground} />
             <Text style={[styles.metaMuted, { color: colors.mutedForeground }]}>
-              First met on {formatDate(encounter.firstSeenAt)}
+              {t("encounter.firstMetOn", {
+                date: formatDate(encounter.firstSeenAt, lang),
+              })}
             </Text>
           </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-              Bio
+              {t("encounter.bioLabel")}
             </Text>
             <Text style={[styles.bioText, { color: colors.foreground }]}>
-              {encounter.bio || "—"}
+              {encounter.bio || t("encounter.bioEmpty")}
             </Text>
           </View>
 
@@ -240,7 +275,7 @@ export default function EncounterDetail() {
               <Text
                 style={[styles.sectionLabel, { color: colors.mutedForeground }]}
               >
-                Meeting Spot
+                {t("encounter.meetingSpot")}
               </Text>
               <Pressable
                 onPress={openMap}
@@ -259,7 +294,9 @@ export default function EncounterDetail() {
                     <Text style={styles.mapLocation} numberOfLines={1}>
                       {encounter.lastLocation}
                     </Text>
-                    <Text style={styles.mapCta}>Tap to view on Maps</Text>
+                    <Text style={styles.mapCta}>
+                      {t("encounter.tapToViewOnMaps")}
+                    </Text>
                   </View>
                   <Feather name="external-link" size={18} color="#FFFFFF" />
                 </LinearGradient>
@@ -280,18 +317,46 @@ export default function EncounterDetail() {
                 <>
                   <Feather name="bell" size={28} color={colors.primary} />
                   <Text style={[styles.lockTitle, { color: colors.foreground }]}>
-                    Wants to share socials
+                    {t("encounter.lockReceivedTitle")}
                   </Text>
                   <Text style={[styles.lockSub, { color: colors.mutedForeground }]}>
-                    {encounter.realName} sent you a reveal request.
+                    {t("encounter.lockReceivedSub", { name: encounter.realName })}
                   </Text>
+                  {encounter.revealMessage ? (
+                    <View
+                      style={[
+                        styles.revealNoteCard,
+                        {
+                          backgroundColor: colors.card,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.revealNoteLabel,
+                          { color: colors.mutedForeground },
+                        ]}
+                      >
+                        {t("encounter.revealMessageLabel")}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.revealNoteText,
+                          { color: colors.foreground },
+                        ]}
+                      >
+                        {`\u201C${encounter.revealMessage}\u201D`}
+                      </Text>
+                    </View>
+                  ) : null}
                   <View style={{ width: "100%", gap: 10, marginTop: 6 }}>
                     <PrimaryButton
-                      label="ACCEPT REVEAL"
+                      label={t("encounter.acceptReveal")}
                       onPress={handleAccept}
                     />
                     <PrimaryButton
-                      label="Not now"
+                      label={t("encounter.notNow")}
                       variant="ghost"
                       onPress={handleDecline}
                     />
@@ -301,14 +366,14 @@ export default function EncounterDetail() {
                 <>
                   <Feather name="clock" size={28} color={colors.mutedForeground} />
                   <Text style={[styles.lockTitle, { color: colors.foreground }]}>
-                    Request sent
+                    {t("encounter.requestSentTitle")}
                   </Text>
                   <Text style={[styles.lockSub, { color: colors.mutedForeground }]}>
-                    Waiting for {encounter.realName} to reveal back…
+                    {t("encounter.requestSentSub", { name: encounter.realName })}
                   </Text>
                   <View style={{ width: "100%", marginTop: 6 }}>
                     <PrimaryButton
-                      label="WAITING…"
+                      label={t("encounter.waiting")}
                       onPress={() => {}}
                       loading
                       disabled
@@ -319,12 +384,12 @@ export default function EncounterDetail() {
                 <>
                   <Feather name="lock" size={28} color={colors.mutedForeground} />
                   <Text style={[styles.lockTitle, { color: colors.foreground }]}>
-                    Socials are hidden
+                    {t("encounter.socialsHidden")}
                   </Text>
                   <View style={{ width: "100%", marginTop: 6 }}>
                     <PrimaryButton
-                      label="SEND REVEAL REQUEST"
-                      onPress={handleSend}
+                      label={t("encounter.sendRevealRequestBtn")}
+                      onPress={openRevealSheet}
                       disabled={!isSubscriptionReady || sending}
                       loading={sending}
                     />
@@ -337,8 +402,11 @@ export default function EncounterDetail() {
                       ]}
                     >
                       {revealsRemaining > 0
-                        ? `${revealsRemaining} of ${FREE_REVEALS_PER_DAY} free reveals left today`
-                        : `Free limit reached — Met Plus unlocks unlimited reveals`}
+                        ? t("encounter.revealsLeftFree", {
+                            n: revealsRemaining,
+                            cap: FREE_REVEALS_PER_DAY,
+                          })
+                        : t("encounter.revealsLimitReached")}
                     </Text>
                   ) : null}
                 </>
@@ -353,19 +421,105 @@ export default function EncounterDetail() {
         title={encounter.realName}
         actions={[
           {
-            label: "Remove encounter",
+            label: t("encounter.removeEncounterAction"),
             icon: "trash-2",
             destructive: true,
             onPress: handleRemove,
           },
           {
-            label: "Block",
+            label: t("encounter.blockAction"),
             icon: "slash",
             destructive: true,
             onPress: handleBlock,
           },
         ]}
       />
+
+      {/* Reveal-request confirmation sheet — slides up from the bottom with
+          the advisory copy and an optional personal-note field. Cancelling
+          backs out without consuming a reveal; sending fires the request. */}
+      <Modal
+        visible={revealSheetOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!sending) setRevealSheetOpen(false);
+        }}
+      >
+        <View style={styles.sheetBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              if (!sending) setRevealSheetOpen(false);
+            }}
+            accessibilityLabel={t("encounter.revealSheet.cancel")}
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.sheetWrap}
+            pointerEvents="box-none"
+          >
+            <View
+              style={[
+                styles.sheetCard,
+                {
+                  backgroundColor: colors.card,
+                  paddingBottom: insets.bottom + webBot + 20,
+                },
+              ]}
+            >
+              <View
+                style={[styles.sheetGrabber, { backgroundColor: colors.border }]}
+              />
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>
+                {t("encounter.revealSheet.title")}
+              </Text>
+              <Text
+                style={[styles.sheetAdvisory, { color: colors.mutedForeground }]}
+              >
+                {t("encounter.revealSheet.advisory")}
+              </Text>
+              <TextInput
+                value={revealDraft}
+                onChangeText={setRevealDraft}
+                placeholder={t("encounter.revealSheet.placeholder")}
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                maxLength={240}
+                editable={!sending}
+                style={[
+                  styles.sheetInput,
+                  {
+                    backgroundColor: colors.muted,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+              />
+              <View style={styles.sheetActions}>
+                <View style={{ flex: 1 }}>
+                  <PrimaryButton
+                    label={t("encounter.revealSheet.cancel")}
+                    variant="ghost"
+                    onPress={() => {
+                      if (!sending) setRevealSheetOpen(false);
+                    }}
+                    disabled={sending}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <PrimaryButton
+                    label={t("encounter.revealSheet.send")}
+                    onPress={confirmSend}
+                    loading={sending}
+                    disabled={sending || !isSubscriptionReady}
+                  />
+                </View>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -455,6 +609,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
   },
+  revealNoteCard: {
+    width: "100%",
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 10,
+    gap: 4,
+  },
+  revealNoteLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  revealNoteText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    lineHeight: 20,
+    fontStyle: "italic",
+  },
   mapCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -481,5 +655,53 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     marginTop: 2,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  sheetWrap: {
+    width: "100%",
+  },
+  sheetCard: {
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    gap: 14,
+  },
+  sheetGrabber: {
+    alignSelf: "center",
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 8,
+  },
+  sheetTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 18,
+  },
+  sheetAdvisory: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  sheetInput: {
+    minHeight: 90,
+    maxHeight: 160,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlignVertical: "top",
+  },
+  sheetActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
   },
 });

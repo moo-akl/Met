@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
+import { useT } from "@/lib/i18n";
 import {
   loadConnectionsSort,
   saveConnectionsSort,
@@ -26,13 +27,15 @@ import {
 } from "@/lib/storage";
 import type { Encounter } from "@/lib/types";
 
-function timeAgo(ts: number) {
+function timeAgo(ts: number, t: (k: string, opts?: Record<string, unknown>) => string) {
   const diff = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (diff < 60) return "now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
-  return `${Math.floor(diff / 604800)}w`;
+  if (diff < 60) return t("connections.timeNow");
+  if (diff < 3600) return t("connections.timeMin", { count: Math.floor(diff / 60) });
+  if (diff < 86400)
+    return t("connections.timeHour", { count: Math.floor(diff / 3600) });
+  if (diff < 604800)
+    return t("connections.timeDay", { count: Math.floor(diff / 86400) });
+  return t("connections.timeWeek", { count: Math.floor(diff / 604800) });
 }
 
 function lastActivityOf(c: Encounter): number {
@@ -43,16 +46,17 @@ function lastActivityOf(c: Encounter): number {
   );
 }
 
-const SORT_LABEL: Record<ConnectionsSort, string> = {
-  recent: "Most recent",
-  frequent: "Most met",
-  name: "Name (A–Z)",
+const SORT_KEY: Record<ConnectionsSort, string> = {
+  recent: "connections.sortMostRecent",
+  frequent: "connections.sortMostMet",
+  name: "connections.sortNameAZ",
 };
 
 export default function ConnectionsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useT();
   const { encounters } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const webBot = Platform.OS === "web" ? 34 : 0;
@@ -147,22 +151,22 @@ export default function ConnectionsScreen() {
     const week: Encounter[] = [];
     const earlier: Encounter[] = [];
     for (const c of sorted) {
-      const t = lastActivityOf(c);
-      if (now - t < dayMs) today.push(c);
-      else if (now - t < 7 * dayMs) week.push(c);
+      const ts = lastActivityOf(c);
+      if (now - ts < dayMs) today.push(c);
+      else if (now - ts < 7 * dayMs) week.push(c);
       else earlier.push(c);
     }
     return [
-      { key: "today", label: "Today", items: today },
-      { key: "week", label: "This week", items: week },
-      { key: "earlier", label: "Earlier", items: earlier },
+      { key: "today", label: t("connections.groupToday"), items: today },
+      { key: "week", label: t("connections.groupWeek"), items: week },
+      { key: "earlier", label: t("connections.groupEarlier"), items: earlier },
     ].filter((g) => g.items.length > 0);
-  }, [sorted, sort]);
+  }, [sorted, sort, t]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
-        title="Connections"
+        title={t("appHeader.titleConnections")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[{ icon: "sliders", onPress: () => setSortMenuOpen(true) }]}
       />
@@ -182,7 +186,7 @@ export default function ConnectionsScreen() {
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search by name, tag, or note"
+              placeholder={t("connections.searchPlaceholder")}
               placeholderTextColor={colors.mutedForeground}
               style={[styles.searchInput, { color: colors.foreground }]}
               autoCorrect={false}
@@ -208,7 +212,7 @@ export default function ConnectionsScreen() {
           >
             <Feather name="bar-chart-2" size={13} color={colors.foreground} />
             <Text style={[styles.sortChipText, { color: colors.foreground }]}>
-              {SORT_LABEL[sort]}
+              {t(SORT_KEY[sort])}
             </Text>
           </Pressable>
         </View>
@@ -221,7 +225,7 @@ export default function ConnectionsScreen() {
           contentContainerStyle={styles.tagsRow}
         >
           <TagPill
-            label="All"
+            label={t("connections.tagAll")}
             active={activeTag === null}
             onPress={() => setActiveTag(null)}
             colors={colors}
@@ -250,17 +254,24 @@ export default function ConnectionsScreen() {
         {connections.length === 0 ? (
           <EmptyState
             icon="message-circle"
-            title="No connections yet"
-            description="Once someone reveals back, they'll show up here."
+            title={t("connections.emptyTitle")}
+            description={t("connections.emptySub")}
           />
         ) : sorted.length === 0 ? (
           <EmptyState
             icon="search"
-            title="No matches"
+            title={t("connections.noMatchesTitle")}
             description={
               activeTag
-                ? `No connection tagged #${activeTag}${query.trim() ? ` matching "${query.trim()}"` : ""}.`
-                : `No connection matches "${query.trim()}".`
+                ? t("connections.noMatchesByTag", {
+                    tag: activeTag,
+                    andQuery: query.trim()
+                      ? t("connections.matchingQuerySuffix", {
+                          query: query.trim(),
+                        })
+                      : "",
+                  })
+                : t("connections.noMatchesByQuery", { query: query.trim() })
             }
           />
         ) : (
@@ -290,14 +301,19 @@ export default function ConnectionsScreen() {
                     timestamp = om.reply.receivedAt;
                     unread = Date.now() - om.reply.receivedAt < 60_000;
                   } else if (om) {
-                    preview = `You: ${om.text}`;
+                    preview = t("connections.youColon", { text: om.text });
                     timestamp = om.sentAt;
                   } else if (c.note) {
-                    preview = `📝 ${c.note}`;
+                    preview = t("connections.notePrefix", { note: c.note });
                   } else if (c.lastLocation) {
                     preview = c.lastLocation;
                   } else {
-                    preview = `Met ${c.encounterCount} ${c.encounterCount === 1 ? "time" : "times"}`;
+                    preview = t(
+                      c.encounterCount === 1
+                        ? "connections.metTimes_one"
+                        : "connections.metTimes_other",
+                      { count: c.encounterCount },
+                    );
                   }
 
                   return (
@@ -328,7 +344,7 @@ export default function ConnectionsScreen() {
                                 },
                               ]}
                             >
-                              {timeAgo(timestamp)}
+                              {timeAgo(timestamp, t)}
                             </Text>
                           </View>
                           <View style={styles.previewLine}>
@@ -400,11 +416,11 @@ export default function ConnectionsScreen() {
       <ActionSheet
         visible={sortMenuOpen}
         onClose={() => setSortMenuOpen(false)}
-        title="Sort connections"
+        title={t("connections.sortMenuTitle")}
         actions={(
           ["recent", "frequent", "name"] as ConnectionsSort[]
         ).map((opt) => ({
-          label: SORT_LABEL[opt] + (sort === opt ? "  ✓" : ""),
+          label: t(SORT_KEY[opt]) + (sort === opt ? "  ✓" : ""),
           icon:
             opt === "recent"
               ? "clock"

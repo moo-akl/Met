@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 import {
   PHOTO_VERIFY_FAIL_REASONS,
   type PhotoVerificationStage,
@@ -30,6 +31,7 @@ type Step = "idle" | "face" | "content" | "done" | "error";
 
 export function PhotoVerifier({ visible, uri, onCancel, onVerified }: Props) {
   const colors = useColors();
+  const { t } = useT();
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState<{
     stage: PhotoVerificationStage;
@@ -160,25 +162,27 @@ export function PhotoVerifier({ visible, uri, onCancel, onVerified }: Props) {
 
           <Text style={[styles.title, { color: colors.foreground }]}>
             {step === "error"
-              ? "Couldn't verify this photo"
+              ? t("photoVerifier.errorTitle")
               : step === "done"
-                ? "Photo verified"
-                : "Verifying your photo"}
+                ? t("photoVerifier.doneTitle")
+                : t("photoVerifier.workingTitle")}
           </Text>
           <Text style={[styles.sub, { color: colors.mutedForeground }]}>
             {step === "error"
-              ? error?.reason
-              : "We run a quick face check and content scan so others can trust who they're meeting."}
+              ? error?.stage === "face"
+                ? t("photoVerifier.failNoFace")
+                : t("photoVerifier.failContent")
+              : t("photoVerifier.subText")}
           </Text>
 
           <View style={{ gap: 10, marginTop: 14, alignSelf: "stretch" }}>
             <Stage
-              label="Detecting a clear face"
+              label={t("photoVerifier.stageFace")}
               state={faceState}
               colors={colors}
             />
             <Stage
-              label="Checking content safety"
+              label={t("photoVerifier.stageContent")}
               state={contentState}
               colors={colors}
             />
@@ -208,7 +212,7 @@ export function PhotoVerifier({ visible, uri, onCancel, onVerified }: Props) {
                   <Text
                     style={[styles.btnText, { color: colors.foreground }]}
                   >
-                    Choose another
+                    {t("photoVerifier.chooseAnother")}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -224,7 +228,7 @@ export function PhotoVerifier({ visible, uri, onCancel, onVerified }: Props) {
                   ]}
                 >
                   <Text style={[styles.btnText, { color: "#FFFFFF" }]}>
-                    Try again
+                    {t("photoVerifier.tryAgain")}
                   </Text>
                 </Pressable>
               </>
@@ -232,7 +236,7 @@ export function PhotoVerifier({ visible, uri, onCancel, onVerified }: Props) {
               <View style={styles.doneRow}>
                 <Feather name="check-circle" size={18} color={colors.primary} />
                 <Text style={[styles.doneText, { color: colors.primary }]}>
-                  All clear
+                  {t("photoVerifier.allClear")}
                 </Text>
               </View>
             ) : (
@@ -249,7 +253,7 @@ export function PhotoVerifier({ visible, uri, onCancel, onVerified }: Props) {
                 ]}
               >
                 <Text style={[styles.btnText, { color: colors.foreground }]}>
-                  Cancel
+                  {t("photoVerifier.cancel")}
                 </Text>
               </Pressable>
             )}
