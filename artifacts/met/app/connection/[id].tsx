@@ -21,42 +21,13 @@ import { SocialChip } from "@/components/SocialChip";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
-import type { OpeningMessage, SocialPlatform } from "@/lib/types";
-
-function formatTime(ts: number, lang: string) {
-  return new Date(ts).toLocaleTimeString(lang, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatDateLabel(ts: number, lang: string, t: (k: string) => string) {
-  const d = new Date(ts);
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-  const sameDay =
-    d.getFullYear() === today.getFullYear() &&
-    d.getMonth() === today.getMonth() &&
-    d.getDate() === today.getDate();
-  if (sameDay) return t("common.today");
-  const isYesterday =
-    d.getFullYear() === yesterday.getFullYear() &&
-    d.getMonth() === yesterday.getMonth() &&
-    d.getDate() === yesterday.getDate();
-  if (isYesterday) return t("common.yesterday");
-  return d.toLocaleDateString(lang, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+import type { SocialPlatform } from "@/lib/types";
 
 export default function ConnectionScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { t, lang } = useT();
+  const { t } = useT();
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const {
@@ -122,10 +93,6 @@ export default function ConnectionScreen() {
   const socialEntries = (
     Object.entries(encounter.socials) as [SocialPlatform, string][]
   ).filter(([, v]) => v && v.trim());
-
-  const om = encounter.openingMessage;
-  const lastActivity =
-    om?.reply?.receivedAt ?? om?.sentAt ?? encounter.lastSeenAt;
 
   const metTimesText = t(
     encounter.encounterCount === 1
@@ -277,49 +244,6 @@ export default function ConnectionScreen() {
           />
         </View>
 
-        {/* Conversation — secondary section. Composer was removed; we still
-            render any existing thread so prior exchanges remain visible. */}
-        <View style={styles.thread}>
-          <View style={styles.threadHeader}>
-            <Text
-              style={[styles.sectionLabel, { color: colors.mutedForeground }]}
-            >
-              {t("connection.conversation")}
-            </Text>
-            <View
-              style={[styles.threadDivider, { backgroundColor: colors.border }]}
-            />
-          </View>
-          <Text style={[styles.dateLabel, { color: colors.mutedForeground }]}>
-            {formatDateLabel(lastActivity, lang, t)}
-          </Text>
-
-          {!om ? (
-            <View
-              style={[
-                styles.startCard,
-                { backgroundColor: colors.muted, borderColor: colors.border },
-              ]}
-            >
-              <Feather name="message-circle" size={24} color={colors.primary} />
-              <Text style={[styles.startTitle, { color: colors.foreground }]}>
-                {t("connection.connectedWith", { name: encounter.realName })}
-              </Text>
-              <Text
-                style={[styles.startSub, { color: colors.mutedForeground }]}
-              >
-                {t("connection.breakIce")}
-              </Text>
-            </View>
-          ) : (
-            <ChatBubbles
-              colors={colors}
-              encounterName={encounter.realName}
-              message={om}
-              lang={lang}
-            />
-          )}
-        </View>
       </ScrollView>
 
       <ActionSheet
@@ -567,46 +491,6 @@ function TagsEditor({
   );
 }
 
-function ChatBubbles({
-  colors,
-  encounterName,
-  message,
-  lang,
-}: {
-  colors: ReturnType<typeof useColors>;
-  encounterName: string;
-  message: OpeningMessage;
-  lang: string;
-}) {
-  return (
-    <View style={{ gap: 10 }}>
-      <View style={styles.bubbleRowRight}>
-        <View style={[styles.bubble, styles.bubbleMe, { backgroundColor: colors.primary }]}>
-          <Text style={[styles.bubbleText, { color: "#FFFFFF" }]}>
-            {message.text}
-          </Text>
-          <Text style={[styles.bubbleTime, { color: "rgba(255,255,255,0.75)" }]}>
-            {formatTime(message.sentAt, lang)}
-          </Text>
-        </View>
-      </View>
-      {message.reply ? (
-        <View style={styles.bubbleRowLeft}>
-          <Avatar uri={undefined} size={26} fallbackText={encounterName} />
-          <View style={[styles.bubble, styles.bubbleThem, { backgroundColor: colors.muted }]}>
-            <Text style={[styles.bubbleText, { color: colors.foreground }]}>
-              {message.reply.text}
-            </Text>
-            <Text style={[styles.bubbleTime, { color: colors.mutedForeground }]}>
-              {formatTime(message.reply.receivedAt, lang)}
-            </Text>
-          </View>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
@@ -692,80 +576,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-  },
-  thread: {
-    paddingHorizontal: 22,
-    paddingTop: 16,
-    gap: 12,
-  },
-  threadHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  threadDivider: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-  },
-  dateLabel: {
-    alignSelf: "center",
-    fontFamily: "Inter_500Medium",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  startCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingVertical: 22,
-    paddingHorizontal: 18,
-    alignItems: "center",
-    gap: 6,
-  },
-  startTitle: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 15,
-    marginTop: 4,
-    textAlign: "center",
-  },
-  startSub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 19,
-  },
-  bubbleRowRight: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-  },
-  bubbleRowLeft: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "flex-end",
-    gap: 8,
-  },
-  bubble: {
-    maxWidth: "78%",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    gap: 4,
-  },
-  bubbleMe: {
-    borderBottomRightRadius: 4,
-  },
-  bubbleThem: {
-    borderBottomLeftRadius: 4,
-  },
-  bubbleText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  bubbleTime: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 10,
-    alignSelf: "flex-end",
   },
   editorBlock: {
     gap: 8,

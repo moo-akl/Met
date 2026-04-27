@@ -113,18 +113,31 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const router = useRouter();
   const isVisible = profile?.isVisible ?? true;
   const [rtlNotice, setRtlNotice] = useState(false);
+  const [reloading, setReloading] = useState(false);
 
   const onPickLanguage = async (code: LangCode) => {
     const { rtlChanged } = await setLanguage(code);
+    // Always give the user a brief "switching language…" overlay then reload
+    // the app so every cached string (including any module-level constants
+    // and native layout direction) picks up the new locale cleanly.
+    setReloading(true);
     if (rtlChanged) {
-      // Stay on the language view so the user actually sees the restart notice
-      // we render below the picker; on native, an app reload is required for
-      // RTL/LTR layout to fully take effect.
       setRtlNotice(true);
-    } else {
-      setView("menu");
-      setRtlNotice(false);
     }
+    setTimeout(() => {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        try {
+          window.location.reload();
+          return;
+        } catch {}
+      }
+      // Native fallback: just close the sheet — strings update reactively.
+      // On Arabic RTL flips we still surface the restart notice.
+      setReloading(false);
+      if (!rtlChanged) {
+        setView("menu");
+      }
+    }, 1500);
   };
 
   const toggleVisible = async (next: boolean) => {
@@ -960,6 +973,27 @@ export function SettingsSheet({ visible, onClose }: Props) {
           setReverifying(false);
         }}
       />
+
+      {reloading ? (
+        <View style={styles.reloadOverlay} pointerEvents="auto">
+          <View
+            style={[
+              styles.reloadCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Feather name="globe" size={28} color={colors.primary} />
+            <Text style={[styles.reloadTitle, { color: colors.foreground }]}>
+              {t("language.reloadingTitle")}
+            </Text>
+            <Text
+              style={[styles.reloadBody, { color: colors.mutedForeground }]}
+            >
+              {t("language.reloadingBody")}
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </Modal>
   );
 }
@@ -1113,6 +1147,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
+  },
+  reloadOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  reloadCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    gap: 8,
+  },
+  reloadTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 16,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  reloadBody: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 19,
   },
   sheet: {
     paddingHorizontal: 20,

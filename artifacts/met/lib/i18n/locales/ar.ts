@@ -60,7 +60,10 @@ export const ar: LocaleTree = {
     titleRecent: "اللقاءات الأخيرة",
     titleConnections: "الاتصالات",
     titleProfile: "ملفي الشخصي",
-  },
+      referralCtaTitle: "ادعُ أصدقاءك واحصل على شهر مجاني",
+    referralCtaSub: "‏3 أصدقاء ينضمون إلى Met ← شهر Met Plus مجاني.",
+    referralCtaCta: "دعوة الأصدقاء",
+},
   home: {
     beaconActive: "الإشارة فعّالة",
     beaconOff: "الإشارة متوقفة",
@@ -343,6 +346,8 @@ export const ar: LocaleTree = {
     restartNoticeTitle: "أعد تشغيل Met لإكمال التبديل",
     restartNoticeBody:
       "يتغيّر اتجاه التخطيط عند التبديل بين العربية واللغات الأخرى.",
+    reloadingTitle: "جارٍ تغيير اللغة…",
+    reloadingBody: "ستُعاد تحميل Met بعد لحظات باللغة الجديدة.",
   },
   photoVerifier: {
     workingTitle: "جارٍ توثيق الصورة",
