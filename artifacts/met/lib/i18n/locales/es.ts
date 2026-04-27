@@ -77,7 +77,7 @@ export const es: LocaleTree = {
     peopleWithinSuffix: "{{label}} a {{m}}m",
     quietZone: "Zona tranquila",
     fewSouls: "Algunas almas cerca",
-    livelyHere: "Hay ambiente",
+    livelyHere: "Activo",
     todayCard: "Hoy",
     connectionsCard: "Conexiones",
     pendingCard: "Pendientes",

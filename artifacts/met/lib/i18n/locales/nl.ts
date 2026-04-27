@@ -77,7 +77,7 @@ export const nl: LocaleTree = {
     peopleWithinSuffix: "{{label}} binnen {{m}}m",
     quietZone: "Rustige zone",
     fewSouls: "Een paar zielen in de buurt",
-    livelyHere: "Het is hier levendig",
+    livelyHere: "Actief",
     todayCard: "Vandaag",
     connectionsCard: "Connecties",
     pendingCard: "In behandeling",
