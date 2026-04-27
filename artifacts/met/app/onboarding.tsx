@@ -18,7 +18,11 @@ import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
+import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
+
+import { consumePendingReferral } from "./_layout";
 
 type IconName = React.ComponentProps<typeof Feather>["name"];
 
@@ -26,8 +30,8 @@ type Slide = {
   icon: IconName;
   iconColor: string;
   iconBg: string;
-  title: string;
-  body: string;
+  titleKey: string;
+  bodyKey: string;
 };
 
 const SLIDES: Slide[] = [
@@ -35,22 +39,22 @@ const SLIDES: Slide[] = [
     icon: "target",
     iconColor: "#3B82F6",
     iconBg: "#DBEAFE",
-    title: "Discover Nearby People",
-    body: "Met uses your location to find others nearby. No more missed connections.",
+    titleKey: "onboarding.slide1Title",
+    bodyKey: "onboarding.slide1Body",
   },
   {
     icon: "shield",
     iconColor: "#3DCC44",
     iconBg: "#DCFCE7",
-    title: "Stay Private & Secure",
-    body: "We never share your exact location. Only your encounter ID is exchanged locally.",
+    titleKey: "onboarding.slide2Title",
+    bodyKey: "onboarding.slide2Body",
   },
   {
     icon: "user",
     iconColor: "#F59E0B",
     iconBg: "#FEF3C7",
-    title: "Create Your Identity",
-    body: "Let's set up your profile so people know who they've met.",
+    titleKey: "onboarding.slide3Title",
+    bodyKey: "onboarding.slide3Body",
   },
 ];
 
@@ -63,13 +67,14 @@ const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: st
   { key: "linkedin", label: "LinkedIn", placeholder: "your-name" },
 ];
 
-type Phase = "intro" | "photo" | "info" | "socials";
+type Phase = "intro" | "photo" | "info" | "socials" | "invite";
 
 export default function OnboardingScreen() {
   const colors = useColors();
   const router = useRouter();
   const { setProfile } = useApp();
   const insets = useSafeAreaInsets();
+  const { t } = useT();
 
   const [phase, setPhase] = useState<Phase>("intro");
   const [slide, setSlide] = useState(0);
@@ -80,6 +85,12 @@ export default function OnboardingScreen() {
   const [bio, setBio] = useState("");
   const [socials, setSocials] = useState<SocialLinks>({});
   const [saving, setSaving] = useState(false);
+  // Referral code the user is redeeming. Pre-filled from any deep-link
+  // (`met://r/CODE`) the system captured before onboarding mounted.
+  const [inviteCode, setInviteCode] = useState<string>(
+    () => consumePendingReferral() ?? "",
+  );
+  const [inviteApplied, setInviteApplied] = useState<boolean | null>(null);
 
   const webTop = Platform.OS === "web" ? 67 : 0;
   const webBot = Platform.OS === "web" ? 34 : 0;
@@ -101,6 +112,14 @@ export default function OnboardingScreen() {
   const handleFinish = async () => {
     if (!photoUri || !name.trim()) return;
     setSaving(true);
+    // Generate this user's own referral code on the way in.
+    await ensureMyCode();
+    // Optional: redeem an invite code if the user typed/deep-linked one.
+    const code = inviteCode.trim().toUpperCase();
+    if (code) {
+      const result = await recordReferral(code);
+      setInviteApplied(result === "accepted");
+    }
     await setProfile({
       id: Date.now().toString(),
       name: name.trim(),
@@ -117,6 +136,8 @@ export default function OnboardingScreen() {
 
   if (phase === "intro") {
     const current = SLIDES[slide];
+    const currentTitle = t(current.titleKey);
+    const currentBody = t(current.bodyKey);
     const isLast = slide === SLIDES.length - 1;
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -143,10 +164,10 @@ export default function OnboardingScreen() {
 
           <View style={styles.introTextArea}>
             <Text style={[styles.introTitle, { color: colors.foreground }]}>
-              {current.title}
+              {currentTitle}
             </Text>
             <Text style={[styles.introBody, { color: colors.mutedForeground }]}>
-              {current.body}
+              {currentBody}
             </Text>
           </View>
 
@@ -157,7 +178,7 @@ export default function OnboardingScreen() {
               style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
             >
               <Text style={[styles.skipText, { color: colors.primary }]}>
-                {isLast ? " " : "Skip"}
+                {isLast ? " " : t("common.skip")}
               </Text>
             </Pressable>
 
@@ -184,7 +205,7 @@ export default function OnboardingScreen() {
                 style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
               >
                 <Text style={[styles.getStarted, { color: colors.primary }]}>
-                  Get Started
+                  {t("onboarding.getStarted")}
                 </Text>
               </Pressable>
             ) : (
@@ -221,15 +242,16 @@ export default function OnboardingScreen() {
             onPress={() => {
               if (phase === "photo") setPhase("intro");
               else if (phase === "info") setPhase("photo");
-              else setPhase("info");
+              else if (phase === "socials") setPhase("info");
+              else setPhase("socials");
             }}
             hitSlop={12}
           >
             <Feather name="chevron-left" size={24} color={colors.foreground} />
           </Pressable>
           <View style={styles.stepDots}>
-            {(["photo", "info", "socials"] as Phase[]).map((p, i) => {
-              const order = ["photo", "info", "socials"];
+            {(["photo", "info", "socials", "invite"] as Phase[]).map((p, i) => {
+              const order = ["photo", "info", "socials", "invite"];
               const currentIndex = order.indexOf(phase);
               const active = i <= currentIndex;
               return (
@@ -252,11 +274,10 @@ export default function OnboardingScreen() {
         {phase === "photo" ? (
           <View style={styles.step}>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>
-              One real photo.
+              {t("onboarding.photoTitle")}
             </Text>
             <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
-              Clear, recent, and you. This is what people see when you both
-              connect.
+              {t("onboarding.photoSub")}
             </Text>
 
             <Pressable onPress={pickPhoto} style={styles.photoTarget}>
@@ -288,7 +309,7 @@ export default function OnboardingScreen() {
                         { color: colors.mutedForeground },
                       ]}
                     >
-                      Tap to choose
+                      {t("onboarding.tapToChoose")}
                     </Text>
                   </View>
                 )}
@@ -296,7 +317,7 @@ export default function OnboardingScreen() {
             </Pressable>
 
             <PrimaryButton
-              label="Continue"
+              label={t("common.continue")}
               onPress={() => setPhase("info")}
               disabled={!photoUri}
             />
@@ -306,20 +327,20 @@ export default function OnboardingScreen() {
         {phase === "info" ? (
           <View style={styles.step}>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>
-              A name and a sentence.
+              {t("onboarding.infoTitle")}
             </Text>
             <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
-              Keep your bio short. The shorter, the more honest it feels.
+              {t("onboarding.infoSub")}
             </Text>
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
-                Name
+                {t("onboarding.nameLabel")}
               </Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="Your first name"
+                placeholder={t("onboarding.namePlaceholder")}
                 placeholderTextColor={colors.mutedForeground}
                 style={[
                   styles.input,
@@ -334,12 +355,12 @@ export default function OnboardingScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
-                Bio
+                {t("onboarding.bioLabel")}
               </Text>
               <TextInput
                 value={bio}
                 onChangeText={setBio}
-                placeholder="Architect. Always chasing better light."
+                placeholder={t("onboarding.bioPlaceholder")}
                 placeholderTextColor={colors.mutedForeground}
                 multiline
                 maxLength={120}
@@ -359,7 +380,7 @@ export default function OnboardingScreen() {
             </View>
 
             <PrimaryButton
-              label="Continue"
+              label={t("common.continue")}
               onPress={() => setPhase("socials")}
               disabled={!name.trim()}
             />
@@ -380,10 +401,10 @@ export default function OnboardingScreen() {
         {phase === "socials" ? (
           <View style={styles.step}>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>
-              Your social handles.
+              {t("onboarding.socialsTitle")}
             </Text>
             <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
-              Add at least one. Connections see only what you put here.
+              {t("onboarding.socialsSub")}
             </Text>
 
             <View style={{ gap: 12 }}>
@@ -414,10 +435,62 @@ export default function OnboardingScreen() {
             </View>
 
             <PrimaryButton
-              label="Activate beacon"
+              label={t("common.continue")}
+              onPress={() => setPhase("invite")}
+              disabled={!Object.values(socials).some((v) => v && v.trim())}
+            />
+          </View>
+        ) : null}
+
+        {phase === "invite" ? (
+          <View style={styles.step}>
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>
+              {t("onboarding.inviteTitle")}
+            </Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              {t("onboarding.inviteSub")}
+            </Text>
+
+            <View style={styles.field}>
+              <Text
+                style={[styles.fieldLabel, { color: colors.mutedForeground }]}
+              >
+                {t("onboarding.inviteCodeLabel")}
+              </Text>
+              <TextInput
+                value={inviteCode}
+                onChangeText={(v) => {
+                  setInviteCode(v.toUpperCase().slice(0, 6));
+                  setInviteApplied(null);
+                }}
+                placeholder={t("onboarding.inviteCodePlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={6}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                    letterSpacing: 4,
+                    fontFamily: "Inter_700Bold",
+                    fontSize: 18,
+                  },
+                ]}
+              />
+              {inviteApplied === false ? (
+                <Text style={[styles.counter, { color: colors.destructive }]}>
+                  {t("onboarding.inviteCodeInvalid")}
+                </Text>
+              ) : null}
+            </View>
+
+            <PrimaryButton
+              label={t("onboarding.activateBeacon")}
               onPress={handleFinish}
               loading={saving}
-              disabled={!Object.values(socials).some((v) => v && v.trim())}
             />
           </View>
         ) : null}
