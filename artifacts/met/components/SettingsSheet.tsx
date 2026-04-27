@@ -36,11 +36,10 @@ type Props = {
 type SheetView = "menu" | "blocked" | "notifications" | "about";
 
 // External "About Met" links. Leave empty to hide the row entirely so we
-// don't ship a broken link. Fill these in once you have the real URLs:
-//   • TERMS_URL: generate at https://www.flycricket.com (same provider used
-//     for the privacy policy) and paste the hosted URL here.
-//   • RATE_URL_*: paste once the App Store / Play Store listings exist.
-const TERMS_URL = "";
+// don't ship a broken link. Fill RATE_URL_* in once you have the real
+// App Store / Play Store listings.
+const TERMS_URL =
+  "https://doc-hosting.flycricket.io/met-terms-conditions/de6cbb09-1b5f-4203-aba7-c70fe3fa4932/terms";
 const RATE_URL_IOS = "";
 const RATE_URL_ANDROID = "";
 
