@@ -37,7 +37,11 @@ type AppContextValue = {
   permissionsCompleted: boolean;
   preferences: Preferences;
   setProfile: (p: Profile) => Promise<void>;
-  updateEncounterStatus: (id: string, status: EncounterStatus) => Promise<void>;
+  updateEncounterStatus: (
+    id: string,
+    status: EncounterStatus,
+    opts?: { revealMessage?: string },
+  ) => Promise<void>;
   removeEncounter: (id: string) => Promise<void>;
   setBlocked: (id: string, blocked: boolean) => Promise<void>;
   setNote: (id: string, note: string) => Promise<void>;
@@ -153,21 +157,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateEncounterStatus = useCallback(
-    async (id: string, status: EncounterStatus) => {
+    async (
+      id: string,
+      status: EncounterStatus,
+      opts?: { revealMessage?: string },
+    ) => {
       let next: Encounter[] = [];
+      const trimmedMsg = opts?.revealMessage?.trim();
       setAllEncounters((prev) => {
         next = prev.map((enc) => {
           if (enc.id !== id) return enc;
           // Stamp `requestSentAt` when the user actively fires a reveal so the
           // 24h sweep can later expire it. Clear it on any other transition.
           if (status === "request_sent") {
-            return { ...enc, status, requestSentAt: Date.now() };
+            const base: Encounter = {
+              ...enc,
+              status,
+              requestSentAt: Date.now(),
+            };
+            if (trimmedMsg) {
+              return { ...base, revealMessage: trimmedMsg };
+            }
+            // No message provided — drop any prior one so a re-send without a
+            // note doesn't carry over a stale message.
+            const { revealMessage: _rm, ...rest } = base;
+            return rest;
           }
-          if (enc.requestSentAt !== undefined) {
-            const { requestSentAt: _r, ...rest } = enc;
-            return { ...rest, status };
+          // request_received: preserve the sender's revealMessage so the
+          // receiver's lock card still shows the personal note. Allow the
+          // caller to override via opts.revealMessage.
+          if (status === "request_received") {
+            const base: Encounter = { ...enc, status };
+            if (base.requestSentAt !== undefined) {
+              delete (base as { requestSentAt?: number }).requestSentAt;
+            }
+            if (trimmedMsg) {
+              return { ...base, revealMessage: trimmedMsg };
+            }
+            return base;
           }
-          return { ...enc, status };
+          // Terminal transitions (connected, encounter, blocked, expired):
+          // clear timestamp and revealMessage so leftover note text doesn't
+          // leak across status changes.
+          const stripped: Encounter = { ...enc, status };
+          if (stripped.requestSentAt !== undefined) {
+            delete (stripped as { requestSentAt?: number }).requestSentAt;
+          }
+          if (stripped.revealMessage !== undefined) {
+            delete (stripped as { revealMessage?: string }).revealMessage;
+          }
+          return stripped;
         });
         return next;
       });

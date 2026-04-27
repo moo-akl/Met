@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -9,11 +9,16 @@ type Props = {
   uri?: string | null;
   size?: number;
   ring?: boolean;
+  fallbackText?: string;
 };
 
-export function Avatar({ uri, size = 56, ring }: Props) {
+export function Avatar({ uri, size = 56, ring, fallbackText }: Props) {
   const colors = useColors();
   const radius = size / 2;
+
+  const initial = fallbackText
+    ? fallbackText.trim().charAt(0).toUpperCase()
+    : "";
 
   const inner = uri ? (
     <Image
@@ -35,7 +40,23 @@ export function Avatar({ uri, size = 56, ring }: Props) {
         borderColor: colors.border,
       }}
     >
-      <Feather name="user" size={size * 0.45} color={colors.mutedForeground} />
+      {initial ? (
+        <Text
+          style={{
+            color: colors.mutedForeground,
+            fontFamily: "Inter_700Bold",
+            fontSize: size * 0.4,
+          }}
+        >
+          {initial}
+        </Text>
+      ) : (
+        <Feather
+          name="user"
+          size={size * 0.45}
+          color={colors.mutedForeground}
+        />
+      )}
     </View>
   );
 

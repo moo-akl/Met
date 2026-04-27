@@ -7,17 +7,23 @@ import { ActionSheet } from "@/components/ActionSheet";
 import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 import type { Encounter } from "@/lib/types";
 
-function timeAgo(ts: number) {
+function timeAgo(
+  ts: number,
+  t: (k: string, opts?: Record<string, unknown>) => string,
+) {
   const diff = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (diff < 60) return "a moment ago";
-  if (diff < 120) return "a minute ago";
-  if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
-  if (diff < 7200) return "an hour ago";
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
-  if (diff < 172800) return "yesterday";
-  return `${Math.floor(diff / 86400)} days ago`;
+  if (diff < 60) return t("encounterRow.timeMomentAgo");
+  if (diff < 120) return t("encounterRow.timeMinuteAgo");
+  if (diff < 3600)
+    return t("encounterRow.timeMinutesAgo", { count: Math.floor(diff / 60) });
+  if (diff < 7200) return t("encounterRow.timeHourAgo");
+  if (diff < 86400)
+    return t("encounterRow.timeHoursAgo", { count: Math.floor(diff / 3600) });
+  if (diff < 172800) return t("encounterRow.timeYesterday");
+  return t("encounterRow.timeDaysAgo", { count: Math.floor(diff / 86400) });
 }
 
 type Props = {
@@ -27,6 +33,7 @@ type Props = {
 export function EncounterRow({ encounter }: Props) {
   const colors = useColors();
   const router = useRouter();
+  const { t } = useT();
   const { removeEncounter, setBlocked } = useApp();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -34,11 +41,20 @@ export function EncounterRow({ encounter }: Props) {
   const statusBadge = (() => {
     switch (encounter.status) {
       case "request_sent":
-        return { label: "Reveal request sent", color: colors.mutedForeground };
+        return {
+          label: t("encounterRow.statusRequestSent"),
+          color: colors.mutedForeground,
+        };
       case "request_received":
-        return { label: "Wants to share socials", color: colors.primary };
+        return {
+          label: t("encounterRow.statusRequestReceived"),
+          color: colors.primary,
+        };
       case "connected":
-        return { label: "Connected", color: colors.primary };
+        return {
+          label: t("encounterRow.statusConnected"),
+          color: colors.primary,
+        };
       default:
         return null;
     }
@@ -72,7 +88,7 @@ export function EncounterRow({ encounter }: Props) {
             style={[styles.meta, { color: colors.mutedForeground }]}
             numberOfLines={1}
           >
-            Met {timeAgo(encounter.lastSeenAt)}
+            {t("encounterRow.metAgo", { when: timeAgo(encounter.lastSeenAt, t) })}
           </Text>
           {statusBadge ? (
             <Text style={[styles.status, { color: statusBadge.color }]}>
@@ -84,7 +100,9 @@ export function EncounterRow({ encounter }: Props) {
             >
               <Feather name="repeat" size={10} color={colors.primary} />
               <Text style={[styles.repeatText, { color: colors.primary }]}>
-                Crossed paths again · {encounter.encounterCount}x
+                {t("encounterRow.crossedAgainPill", {
+                  count: encounter.encounterCount,
+                })}
               </Text>
             </View>
           ) : null}
@@ -107,13 +125,13 @@ export function EncounterRow({ encounter }: Props) {
         title={encounter.realName}
         actions={[
           {
-            label: "Remove",
+            label: t("common.remove"),
             icon: "trash-2",
             destructive: true,
             onPress: () => removeEncounter(encounter.id),
           },
           {
-            label: "Block",
+            label: t("encounterRow.block"),
             icon: "slash",
             destructive: true,
             onPress: () => setBlocked(encounter.id, true),

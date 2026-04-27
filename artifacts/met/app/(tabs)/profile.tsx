@@ -24,17 +24,18 @@ import { SocialLinkRow } from "@/components/SocialLinkRow";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
+import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
 import { MAX_EXTRA_PHOTOS_BY_TIER } from "@/lib/storage";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
 
-const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: string }> = [
-  { key: "instagram", label: "Instagram", placeholder: "your.handle" },
-  { key: "facebook", label: "Facebook", placeholder: "your.name" },
-  { key: "x", label: "X", placeholder: "your_handle" },
-  { key: "tiktok", label: "TikTok", placeholder: "your.handle" },
-  { key: "snapchat", label: "Snapchat", placeholder: "your.handle" },
-  { key: "linkedin", label: "LinkedIn", placeholder: "your-name" },
+const SOCIAL_FIELDS: Array<{ key: SocialPlatform; labelKey: string }> = [
+  { key: "instagram", labelKey: "socials.instagram" },
+  { key: "facebook", labelKey: "socials.facebook" },
+  { key: "x", labelKey: "socials.x" },
+  { key: "tiktok", labelKey: "socials.tiktok" },
+  { key: "snapchat", labelKey: "socials.snapchat" },
+  { key: "linkedin", labelKey: "socials.linkedin" },
 ];
 
 type PhotoIntent = "main" | "extra";
@@ -43,6 +44,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useT();
   const { profile, setProfile } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const { tier } = useSubscription();
@@ -173,7 +175,7 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
-        title="My Profile"
+        title={t("appHeader.titleProfile")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[
           { icon: "grid", onPress: () => setQrOpen(true) },
@@ -241,7 +243,7 @@ export default function ProfileScreen() {
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Your name"
+              placeholder={t("profile.namePlaceholder")}
               placeholderTextColor={colors.mutedForeground}
               style={[
                 styles.nameInput,
@@ -262,7 +264,7 @@ export default function ProfileScreen() {
             <TextInput
               value={bio}
               onChangeText={setBio}
-              placeholder="Bio"
+              placeholder={t("profile.bioPlaceholder")}
               placeholderTextColor={colors.mutedForeground}
               multiline
               maxLength={120}
@@ -287,7 +289,7 @@ export default function ProfileScreen() {
             <Text
               style={[styles.sectionLabel, { color: colors.mutedForeground }]}
             >
-              Photos
+              {t("profile.photos")}
             </Text>
             <Text
               style={[styles.photosCount, { color: colors.mutedForeground }]}
@@ -319,7 +321,7 @@ export default function ProfileScreen() {
                   { backgroundColor: colors.primary },
                 ]}
               >
-                <Text style={styles.photoTileBadgeText}>Main</Text>
+                <Text style={styles.photoTileBadgeText}>{t("profile.photoMain")}</Text>
               </View>
             </View>
 
@@ -364,7 +366,7 @@ export default function ProfileScreen() {
                     { color: colors.mutedForeground },
                   ]}
                 >
-                  Plus
+                  {t("profile.photoLockPlus")}
                 </Text>
               </Pressable>
             ) : canAddMore ? (
@@ -387,7 +389,7 @@ export default function ProfileScreen() {
                     { color: colors.foreground },
                   ]}
                 >
-                  Add
+                  {t("profile.photoAdd")}
                 </Text>
               </Pressable>
             ) : null}
@@ -396,14 +398,15 @@ export default function ProfileScreen() {
             <Text
               style={[styles.photosHint, { color: colors.mutedForeground }]}
             >
-              Plus and Pro members can show more sides of who they are.
+              {t("profile.photosHintFree")}
             </Text>
           ) : !canAddMore ? (
             <Text
               style={[styles.photosHint, { color: colors.mutedForeground }]}
             >
-              You&rsquo;re at the {tier === "plus" ? "Plus" : "Pro"} photo
-              limit. Tap a photo to remove or set as main.
+              {tier === "plus"
+                ? t("profile.photosHintLimitPlus")
+                : t("profile.photosHintLimitPro")}
             </Text>
           ) : null}
         </View>
@@ -418,19 +421,19 @@ export default function ProfileScreen() {
         {editing ? (
           <View style={{ gap: 12 }}>
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-              Social handles
+              {t("profile.socialHandles")}
             </Text>
             {SOCIAL_FIELDS.map((f) => (
               <View key={f.key} style={styles.field}>
                 <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>
-                  {f.label}
+                  {t(f.labelKey)}
                 </Text>
                 <TextInput
                   value={socials[f.key] ?? ""}
                   onChangeText={(v) =>
                     setSocials((prev) => ({ ...prev, [f.key]: v }))
                   }
-                  placeholder={f.placeholder}
+                  placeholder={t("socials.placeholder")}
                   autoCapitalize="none"
                   placeholderTextColor={colors.mutedForeground}
                   style={[
@@ -454,7 +457,7 @@ export default function ProfileScreen() {
                   { color: colors.mutedForeground },
                 ]}
               >
-                No social handles added yet.
+                {t("profile.noSocials")}
               </Text>
             ) : (
               activeSocials.map(([platform, handle]) => (
@@ -472,20 +475,20 @@ export default function ProfileScreen() {
           {editing ? (
             <>
               <PrimaryButton
-                label="Save changes"
+                label={t("profile.saveChanges")}
                 onPress={handleSave}
                 loading={saving}
                 disabled={!photoUri || !name.trim()}
               />
               <PrimaryButton
-                label="Cancel"
+                label={t("profile.cancelBtn")}
                 variant="ghost"
                 onPress={() => setEditing(false)}
               />
             </>
           ) : (
             <PrimaryButton
-              label="Edit Profile"
+              label={t("profile.editProfileBtn")}
               variant="secondary"
               onPress={() => setEditing(true)}
             />
@@ -503,17 +506,17 @@ export default function ProfileScreen() {
       <ActionSheet
         visible={photoMenuFor !== null}
         onClose={() => setPhotoMenuFor(null)}
-        title="Photo"
-        message="Choose what to do with this photo."
+        title={t("profile.photoMenuTitle")}
+        message={t("profile.photoMenuMessage")}
         actions={[
           {
-            label: "Set as main photo",
+            label: t("profile.photoSetMain"),
             onPress: () => {
               if (photoMenuFor) handlePromoteExtra(photoMenuFor);
             },
           },
           {
-            label: "Remove",
+            label: t("profile.photoRemove"),
             destructive: true,
             onPress: () => {
               if (photoMenuFor) handleRemoveExtra(photoMenuFor);
