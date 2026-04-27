@@ -74,7 +74,7 @@ export default function ProfileScreen() {
       setName(profile.name);
       setBio(profile.bio);
       setPhotoUri(profile.photoUri);
-      setSocials(profile.socials);
+      setSocials(profile.socials ?? {});
     }
   }, [profile, editing]);
 
@@ -166,8 +166,9 @@ export default function ProfileScreen() {
 
   const webBot = Platform.OS === "web" ? 34 : 0;
 
-  const activeSocials = (Object.entries(socials) as [SocialPlatform, string][])
-    .filter(([, h]) => h && h.trim());
+  const activeSocials = (
+    Object.entries(socials ?? {}) as [SocialPlatform, string][]
+  ).filter(([, h]) => h && h.trim());
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

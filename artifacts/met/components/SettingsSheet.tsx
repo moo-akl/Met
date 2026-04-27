@@ -21,9 +21,15 @@ import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import {
+  type LangCode,
+  setLanguage,
+  SUPPORTED_LANGUAGES,
+  useT,
+} from "@/lib/i18n";
+import { useReferrals } from "@/lib/referrals";
 import { useSubscription } from "@/lib/revenuecat";
 import {
-  DISCOVERY_RANGE_LABEL,
   type AutoCleanupDays,
   type DiscoveryRange,
 } from "@/lib/storage";
@@ -33,7 +39,7 @@ type Props = {
   onClose: () => void;
 };
 
-type SheetView = "menu" | "blocked" | "notifications" | "about";
+type SheetView = "menu" | "blocked" | "notifications" | "about" | "language";
 
 // External "About Met" links. Leave empty to hide the row entirely so we
 // don't ship a broken link. Fill RATE_URL_* in once you have the real
@@ -43,16 +49,37 @@ const TERMS_URL =
 const RATE_URL_IOS = "";
 const RATE_URL_ANDROID = "";
 
-const CLEANUP_LABEL: Record<AutoCleanupDays, string> = {
-  0: "Off — keep all encounters",
-  30: "After 30 days",
-  60: "After 60 days",
-  90: "After 90 days",
-};
+function cleanupLabel(t: (k: string) => string, days: AutoCleanupDays): string {
+  switch (days) {
+    case 0:
+      return t("settings.cleanupOff");
+    case 30:
+      return t("settings.cleanupAfter30");
+    case 60:
+      return t("settings.cleanupAfter60");
+    case 90:
+      return t("settings.cleanupAfter90");
+    default:
+      return String(days);
+  }
+}
 
-function formatVerifiedDate(ts: number): string {
+function rangeLabel(t: (k: string) => string, r: DiscoveryRange): string {
+  switch (r) {
+    case "room":
+      return t("settings.rangeRoom");
+    case "nearby":
+      return t("settings.rangeNearby");
+    case "venue":
+      return t("settings.rangeVenue");
+    default:
+      return String(r);
+  }
+}
+
+function formatVerifiedDate(ts: number, lang: string): string {
   try {
-    return new Date(ts).toLocaleDateString(undefined, {
+    return new Date(ts).toLocaleDateString(lang, {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -66,6 +93,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
+  const { t, lang } = useT();
   const {
     profile,
     setProfile,
@@ -76,9 +104,24 @@ export function SettingsSheet({ visible, onClose }: Props) {
     updatePreferences,
     markPhotoVerified,
   } = useApp();
-  const { tier } = useSubscription();
+  const { tier, promoPlusActive } = useSubscription();
+  const referrals = useReferrals();
   const router = useRouter();
   const isVisible = profile?.isVisible ?? true;
+  const [rtlNotice, setRtlNotice] = useState(false);
+
+  const onPickLanguage = async (code: LangCode) => {
+    const { rtlChanged } = await setLanguage(code);
+    if (rtlChanged) {
+      // Stay on the language view so the user actually sees the restart notice
+      // we render below the picker; on native, an app reload is required for
+      // RTL/LTR layout to fully take effect.
+      setRtlNotice(true);
+    } else {
+      setView("menu");
+      setRtlNotice(false);
+    }
+  };
 
   const toggleVisible = async (next: boolean) => {
     if (!profile) return;
@@ -99,6 +142,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
     setSignOutInfo(false);
     setRangeMenuOpen(false);
     setCleanupMenuOpen(false);
+    setRtlNotice(false);
     onClose();
   };
 
@@ -112,13 +156,15 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const headerTitle = (() => {
     switch (view) {
       case "menu":
-        return "Settings";
+        return t("settings.title");
       case "blocked":
-        return "Blocked people";
+        return t("settings.blockedTitle");
       case "notifications":
-        return "Notifications";
+        return t("settings.notificationsTitle");
       case "about":
-        return "About Met";
+        return t("settings.aboutTitle");
+      case "language":
+        return t("language.title");
     }
   })();
 
@@ -189,25 +235,27 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Text style={styles.plusTitle}>
                       {tier === "pro"
-                        ? "Met Pro active"
+                        ? t("settings.planProActive")
                         : tier === "plus"
-                          ? "Met Plus active"
-                          : "Upgrade your plan"}
+                          ? promoPlusActive
+                            ? t("settings.planPlusViaReferral")
+                            : t("settings.planPlusActive")
+                          : t("settings.planUpgrade")}
                     </Text>
                     {tier !== "free" ? <TierBadge tier={tier} /> : null}
                   </View>
                   <Text style={styles.plusSub}>
                     {tier === "pro"
-                      ? "Boost, profile views, 6 photos, premium badge"
+                      ? t("settings.planProSub")
                       : tier === "plus"
-                        ? "Tap to compare with Met Pro (6 photos, Boost)"
-                        : "More reveals, opening messages, up to 6 photos, badges"}
+                        ? t("settings.planPlusSub")
+                        : t("settings.planUpgradeSub")}
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#FFFFFF" />
               </Pressable>
 
-              <SectionLabel label="Discovery" colors={colors} />
+              <SectionLabel label={t("settings.sectionDiscovery")} colors={colors} />
 
               <View
                 style={[
@@ -232,14 +280,14 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-                    Visible on Radar
+                    {t("settings.visibleOnRadar")}
                   </Text>
                   <Text
                     style={[styles.rowSub, { color: colors.mutedForeground }]}
                   >
                     {isVisible
-                      ? "Your beacon is broadcasting nearby"
-                      : "You're hidden from other Met users"}
+                      ? t("settings.visibleOnRadarOn")
+                      : t("settings.visibleOnRadarOff")}
                   </Text>
                 </View>
                 <Switch
@@ -253,21 +301,32 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
               <NavRow
                 icon="target"
-                label="Discovery range"
-                sub={DISCOVERY_RANGE_LABEL[preferences.discoveryRange]}
+                label={t("settings.discoveryRange")}
+                sub={rangeLabel(t, preferences.discoveryRange)}
                 onPress={() => setRangeMenuOpen(true)}
                 colors={colors}
               />
 
-              <SectionLabel label="Memory" colors={colors} />
+              <SectionLabel label={t("settings.sectionPreferences")} colors={colors} />
+
+              <NavRow
+                icon="globe"
+                label={t("settings.language")}
+                sub={
+                  SUPPORTED_LANGUAGES.find((s) => s.code === lang)?.native ??
+                  "English"
+                }
+                onPress={() => setView("language")}
+                colors={colors}
+              />
 
               <NavRow
                 icon="bell"
-                label="Notifications"
+                label={t("settings.notifications")}
                 sub={
                   preferences.notifyDailyRecap || preferences.notifyRecurringMeets
-                    ? "Daily recap & re-encounter nudges"
-                    : "All push notifications off"
+                    ? t("settings.notificationsOn")
+                    : t("settings.notificationsOff")
                 }
                 onPress={() => setView("notifications")}
                 colors={colors}
@@ -275,17 +334,36 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
               <NavRow
                 icon="archive"
-                label="Auto-cleanup"
+                label={t("settings.autoCleanup")}
                 sub={
                   preferences.autoCleanupDays === 0
-                    ? "Off — keep all encounters"
-                    : `Hide unconnected after ${preferences.autoCleanupDays} days`
+                    ? t("settings.cleanupOff")
+                    : t("settings.cleanupAfterDays", {
+                        days: preferences.autoCleanupDays,
+                      })
                 }
                 onPress={() => setCleanupMenuOpen(true)}
                 colors={colors}
               />
 
-              <SectionLabel label="Account" colors={colors} />
+              <SectionLabel label={t("settings.sectionAccount")} colors={colors} />
+
+              <NavRow
+                icon="gift"
+                label={t("settings.referrals")}
+                sub={
+                  referrals.reward
+                    ? t("settings.referralsRewardEarned")
+                    : t("settings.referralsProgress", {
+                        count: referrals.count,
+                      })
+                }
+                onPress={() => {
+                  close();
+                  setTimeout(() => router.push("/referrals"), 50);
+                }}
+                colors={colors}
+              />
 
               <Pressable
                 onPress={() => {
@@ -325,7 +403,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                       <Text
                         style={[styles.rowLabel, { color: colors.foreground }]}
                       >
-                        Verified photo
+                        {t("settings.verifiedPhoto")}
                       </Text>
                       {profile?.verified ? (
                         <View
@@ -342,26 +420,33 @@ export function SettingsSheet({ visible, onClose }: Props) {
                       style={[styles.rowSub, { color: colors.mutedForeground }]}
                     >
                       {profile?.photoVerifiedAt
-                        ? `Last verified ${formatVerifiedDate(profile.photoVerifiedAt)}`
+                        ? t("settings.verifiedPhotoLast", {
+                            date: formatVerifiedDate(
+                              profile.photoVerifiedAt,
+                              lang,
+                            ),
+                          })
                         : profile?.verified
-                          ? "Verified — tap to re-run face check"
-                          : "Tap to run face check on your photo"}
+                          ? t("settings.verifiedPhotoTapReverify")
+                          : t("settings.verifiedPhotoTapVerify")}
                     </Text>
                   </View>
                   <Text style={[styles.rowAction, { color: colors.primary }]}>
-                  {profile?.verified ? "Re-verify" : "Verify"}
+                  {profile?.verified
+                    ? t("settings.reverify")
+                    : t("settings.verify")}
                 </Text>
               </Pressable>
 
               <NavRow
                 icon="slash"
-                label="Blocked people"
+                label={t("settings.blockedPeople")}
                 sub={
                   blockedEncounters.length === 0
-                    ? "No one blocked"
-                    : `${blockedEncounters.length} ${
-                        blockedEncounters.length === 1 ? "person" : "people"
-                      } blocked`
+                    ? t("settings.noOneBlocked")
+                    : t("settings.peopleBlocked", {
+                        count: blockedEncounters.length,
+                      })
                 }
                 onPress={() => setView("blocked")}
                 colors={colors}
@@ -369,8 +454,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
               <NavRow
                 icon="info"
-                label="About Met"
-                sub={`Version ${appVersion}`}
+                label={t("settings.aboutMet")}
+                sub={t("settings.aboutVersion", { version: appVersion })}
                 onPress={() => setView("about")}
                 colors={colors}
               />
@@ -388,14 +473,12 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   <Text
                     style={[styles.confirmTitle, { color: colors.foreground }]}
                   >
-                    Sign out is coming soon
+                    {t("settings.signOutSoonTitle")}
                   </Text>
                   <Text
                     style={[styles.confirmSub, { color: colors.mutedForeground }]}
                   >
-                    Met currently runs on this device with no account. When
-                    real accounts ship, you&rsquo;ll be able to sign out and
-                    back in here.
+                    {t("settings.signOutSoonBody")}
                   </Text>
                   <Pressable
                     onPress={() => setSignOutInfo(false)}
@@ -409,7 +492,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     ]}
                   >
                     <Text style={[styles.confirmBtnText, { color: "#FFFFFF" }]}>
-                      OK
+                      {t("common.ok")}
                     </Text>
                   </Pressable>
                 </View>
@@ -439,12 +522,12 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-                      Sign out
+                      {t("settings.signOut")}
                     </Text>
                     <Text
                       style={[styles.rowSub, { color: colors.mutedForeground }]}
                     >
-                      Coming with full accounts
+                      {t("settings.signOutSub")}
                     </Text>
                   </View>
                   <Feather
@@ -468,15 +551,12 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   <Text
                     style={[styles.confirmTitle, { color: colors.destructive }]}
                   >
-                    Delete account?
+                    {t("settings.deleteAccountConfirmTitle")}
                   </Text>
                   <Text
                     style={[styles.confirmSub, { color: colors.mutedForeground }]}
                   >
-                    This wipes your profile, encounter history, connections,
-                    and preferences from this device. You&rsquo;ll be returned
-                    to the welcome screen and can start fresh. This cannot be
-                    undone.
+                    {t("settings.deleteAccountConfirmBody")}
                   </Text>
                   <View style={{ flexDirection: "row", gap: 10 }}>
                     <Pressable
@@ -496,7 +576,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                           { color: colors.foreground },
                         ]}
                       >
-                        Cancel
+                        {t("common.cancel")}
                       </Text>
                     </Pressable>
                     <Pressable
@@ -519,7 +599,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                       <Text
                         style={[styles.confirmBtnText, { color: "#FFFFFF" }]}
                       >
-                        Delete account
+                        {t("settings.deleteAccountConfirmAction")}
                       </Text>
                     </Pressable>
                   </View>
@@ -555,7 +635,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                         { color: colors.destructive },
                       ]}
                     >
-                      Delete account
+                      {t("settings.deleteAccount")}
                     </Text>
                     <Text
                       style={[
@@ -563,7 +643,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                         { color: colors.destructive, opacity: 0.85 },
                       ]}
                     >
-                      Permanently remove your profile from this device
+                      {t("settings.deleteAccountSub")}
                     </Text>
                   </View>
                 </Pressable>
@@ -581,13 +661,12 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   <Text
                     style={[styles.emptyTitle, { color: colors.foreground }]}
                   >
-                    No one is blocked
+                    {t("settings.noBlockedTitle")}
                   </Text>
                   <Text
                     style={[styles.emptySub, { color: colors.mutedForeground }]}
                   >
-                    Blocked encounters and connections will show up here so you
-                    can unblock them.
+                    {t("settings.noBlockedBody")}
                   </Text>
                 </View>
               ) : (
@@ -618,7 +697,9 @@ export function SettingsSheet({ visible, onClose }: Props) {
                         },
                       ]}
                     >
-                      <Text style={styles.unblockText}>Unblock</Text>
+                      <Text style={styles.unblockText}>
+                        {t("settings.unblock")}
+                      </Text>
                     </Pressable>
                   </View>
                 ))
@@ -628,8 +709,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
             <View style={{ gap: 10 }}>
               <ToggleRow
                 icon="calendar"
-                label="Daily recap"
-                sub="Morning summary like “Yesterday you crossed paths with 4 people; 1 was your second time.”"
+                label={t("settings.dailyRecap")}
+                sub={t("settings.dailyRecapSub")}
                 value={preferences.notifyDailyRecap}
                 onValueChange={(v) =>
                   updatePreferences({ notifyDailyRecap: v })
@@ -638,8 +719,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
               />
               <ToggleRow
                 icon="repeat"
-                label="Re-encounter nudges"
-                sub="Notify me when I cross paths with someone for the 3rd time or more."
+                label={t("settings.reencounterNudges")}
+                sub={t("settings.reencounterNudgesSub")}
                 value={preferences.notifyRecurringMeets}
                 onValueChange={(v) =>
                   updatePreferences({ notifyRecurringMeets: v })
@@ -649,9 +730,103 @@ export function SettingsSheet({ visible, onClose }: Props) {
               <Text
                 style={[styles.notesHint, { color: colors.mutedForeground }]}
               >
-                Met never sends marketing pushes — only the toggles above.
+                {t("settings.notificationsFooter")}
               </Text>
             </View>
+          ) : view === "language" ? (
+            <ScrollView
+              style={{ maxHeight: 540 }}
+              contentContainerStyle={{ gap: 8 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text
+                style={[styles.notesHint, { color: colors.mutedForeground }]}
+              >
+                {t("language.subtitle")}
+              </Text>
+              {SUPPORTED_LANGUAGES.map((opt) => {
+                const active = opt.code === lang;
+                return (
+                  <Pressable
+                    key={opt.code}
+                    onPress={() => onPickLanguage(opt.code)}
+                    style={({ pressed }) => [
+                      styles.row,
+                      {
+                        backgroundColor: active ? colors.primary : colors.muted,
+                        borderColor: active ? colors.primary : colors.border,
+                        opacity: pressed ? 0.8 : 1,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.rowIcon,
+                        {
+                          backgroundColor: active
+                            ? "rgba(255,255,255,0.25)"
+                            : colors.background,
+                        },
+                      ]}
+                    >
+                      <Feather
+                        name="globe"
+                        size={18}
+                        color={active ? "#FFFFFF" : colors.foreground}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.rowLabel,
+                          { color: active ? "#FFFFFF" : colors.foreground },
+                        ]}
+                      >
+                        {opt.native}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.rowSub,
+                          {
+                            color: active
+                              ? "rgba(255,255,255,0.85)"
+                              : colors.mutedForeground,
+                          },
+                        ]}
+                      >
+                        {opt.label}
+                        {opt.rtl ? "  •  RTL" : ""}
+                      </Text>
+                    </View>
+                    {active ? (
+                      <Feather name="check" size={18} color="#FFFFFF" />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+              {rtlNotice ? (
+                <View
+                  style={[
+                    styles.confirmCard,
+                    {
+                      backgroundColor: colors.muted,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.confirmTitle, { color: colors.foreground }]}
+                  >
+                    {t("language.restartNoticeTitle")}
+                  </Text>
+                  <Text
+                    style={[styles.confirmSub, { color: colors.mutedForeground }]}
+                  >
+                    {t("language.restartNoticeBody")}
+                  </Text>
+                </View>
+              ) : null}
+            </ScrollView>
           ) : (
             <ScrollView
               style={{ maxHeight: 420 }}
@@ -688,20 +863,20 @@ export function SettingsSheet({ visible, onClose }: Props) {
                         { color: colors.mutedForeground },
                       ]}
                     >
-                      Version {appVersion}
+                      {t("settings.aboutVersion", { version: appVersion })}
                     </Text>
                   </View>
                 </View>
                 <Text
                   style={[styles.aboutTagline, { color: colors.mutedForeground }]}
                 >
-                  Remember the human, not the follower count.
+                  {t("settings.aboutTagline")}
                 </Text>
               </View>
 
               <AboutLink
                 icon="shield"
-                label="Privacy policy"
+                label={t("settings.aboutPrivacy")}
                 onPress={() =>
                   openLink(
                     "https://doc-hosting.flycricket.io/met-privacy-policy/fdc825e1-4bde-43aa-9e6f-cd4b9860f90d/privacy",
@@ -712,21 +887,21 @@ export function SettingsSheet({ visible, onClose }: Props) {
               {TERMS_URL ? (
                 <AboutLink
                   icon="file-text"
-                  label="Terms of service"
+                  label={t("settings.aboutTerms")}
                   onPress={() => openLink(TERMS_URL)}
                   colors={colors}
                 />
               ) : null}
               <AboutLink
                 icon="mail"
-                label="Contact support"
+                label={t("settings.aboutContact")}
                 onPress={() => openLink("mailto:metapp.contact@gmail.com")}
                 colors={colors}
               />
               {RATE_URL_IOS && RATE_URL_ANDROID ? (
                 <AboutLink
                   icon="star"
-                  label="Rate Met"
+                  label={t("settings.aboutRate")}
                   onPress={() =>
                     openLink(
                       Platform.OS === "ios" ? RATE_URL_IOS : RATE_URL_ANDROID,
@@ -743,12 +918,12 @@ export function SettingsSheet({ visible, onClose }: Props) {
       <ActionSheet
         visible={rangeMenuOpen}
         onClose={() => setRangeMenuOpen(false)}
-        title="Discovery range"
-        message="Who should appear under Recent and your nearby count?"
+        title={t("settings.discoveryRange")}
+        message={t("settings.discoveryRangeMsg")}
         actions={(["room", "nearby", "venue"] as DiscoveryRange[]).map(
           (opt) => ({
             label:
-              DISCOVERY_RANGE_LABEL[opt] +
+              rangeLabel(t, opt) +
               (preferences.discoveryRange === opt ? "  ✓" : ""),
             icon:
               opt === "room" ? "home" : opt === "nearby" ? "map-pin" : "globe",
@@ -760,11 +935,11 @@ export function SettingsSheet({ visible, onClose }: Props) {
       <ActionSheet
         visible={cleanupMenuOpen}
         onClose={() => setCleanupMenuOpen(false)}
-        title="Auto-cleanup"
-        message="Hide unconnected encounters older than this. Connections and pending requests are never cleaned up."
+        title={t("settings.autoCleanup")}
+        message={t("settings.autoCleanupMsg")}
         actions={([0, 30, 60, 90] as AutoCleanupDays[]).map((opt) => ({
           label:
-            CLEANUP_LABEL[opt] +
+            cleanupLabel(t, opt) +
             (preferences.autoCleanupDays === opt ? "  ✓" : ""),
           icon: opt === 0 ? "archive" : "clock",
           onPress: () => updatePreferences({ autoCleanupDays: opt }),

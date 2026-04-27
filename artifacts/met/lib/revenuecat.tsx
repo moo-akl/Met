@@ -11,6 +11,8 @@ import Purchases, {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
 
+import { useReferrals } from "./referrals";
+
 const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
 const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
 const REVENUECAT_ANDROID_API_KEY =
@@ -72,6 +74,15 @@ function deriveTier(info: CustomerInfo | undefined): Tier {
 
 function useSubscriptionContext() {
   const queryClient = useQueryClient();
+  // Local promotional Plus from the referral program. We OR this with the
+  // RevenueCat entitlement so a real Pro/Plus subscriber is never demoted,
+  // and a referral-rewarded user gets Plus-level access without a backend.
+  const referrals = useReferrals();
+  const promoPlusUntil =
+    referrals.reward && referrals.reward.expiresAt > Date.now()
+      ? referrals.reward.expiresAt
+      : null;
+  const promoPlusActive = promoPlusUntil !== null;
 
   const customerInfoQuery = useQuery<CustomerInfo>({
     queryKey: ["revenuecat", "customer-info"],
@@ -123,11 +134,15 @@ function useSubscriptionContext() {
         ? "active"
         : "inactive";
 
-  const tier: Tier = deriveTier(customerInfoQuery.data);
-  const isSubscribed = subscriptionStatus === "active"; // includes Pro
+  const rcTier: Tier = deriveTier(customerInfoQuery.data);
+  // Promo can only ever upgrade free → plus. Real Pro stays Pro.
+  const tier: Tier =
+    rcTier === "pro" ? "pro" : promoPlusActive ? "plus" : rcTier;
+  const isSubscribed = subscriptionStatus === "active" || promoPlusActive;
   const isProSubscriber = tier === "pro";
   const isPlusSubscriber = tier === "plus" || tier === "pro";
-  const isSubscriptionReady = subscriptionStatus !== "unknown";
+  const isSubscriptionReady =
+    subscriptionStatus !== "unknown" || promoPlusActive;
 
   const offerings = offeringsQuery.data;
   const plusOffering: PurchasesOffering | null =
@@ -147,6 +162,8 @@ function useSubscriptionContext() {
     isProSubscriber,
     isPlusSubscriber,
     isSubscriptionReady,
+    promoPlusUntil,
+    promoPlusActive,
     isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
     error: customerInfoQuery.error ?? offeringsQuery.error,
     purchase: purchaseMutation.mutateAsync,
