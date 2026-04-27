@@ -669,7 +669,11 @@ export const nl: LocaleTree = {
     deviceDefault: "Apparaattaal",
     title: "Taal",
     subtitle:
-      "Met schakelt direct over. Arabisch keert ook de lay-out om naar rechts-naar-links.",
+      "Met start opnieuw op om de nieuwe taal toe te passen. Arabisch keert ook de lay-out om naar rechts-naar-links.",
+    confirmTitle: "Met herstarten?",
+    confirmBody:
+      "Met sluit en opent opnieuw zodat alles in {{language}} wordt geladen.",
+    confirmRestart: "Herstart",
     restartNoticeTitle: "Herstart Met om het wisselen te voltooien",
     restartNoticeBody:
       "De richting van de lay-out verandert wanneer je tussen Arabisch en andere talen wisselt. Sluit en heropen Met zodat alles correct wordt weergegeven.",

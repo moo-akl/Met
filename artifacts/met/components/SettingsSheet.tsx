@@ -114,20 +114,47 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const isVisible = profile?.isVisible ?? true;
   const [rtlNotice, setRtlNotice] = useState(false);
   const [reloading, setReloading] = useState(false);
+  // The language the user has tapped but not yet confirmed. We show a small
+  // restart-confirmation modal first so the language change isn't applied
+  // accidentally — once confirmed we run the existing apply+reload logic.
+  const [pendingLang, setPendingLang] = useState<LangCode | null>(null);
 
-  const onPickLanguage = async (code: LangCode) => {
+  const onPickLanguage = (code: LangCode) => {
     // Guard: ignore taps once the reload countdown is in flight, and skip a
-    // no-op switch to the already-active language so we don't briefly flash
-    // the overlay for nothing.
+    // no-op switch to the already-active language so we don't pop a confirm
+    // modal for nothing.
     if (reloading || code === lang) return;
-    const { rtlChanged } = await setLanguage(code);
-    // Always give the user a brief "switching language…" overlay then reload
-    // the app so every cached string (including any module-level constants
-    // and native layout direction) picks up the new locale cleanly.
+    setPendingLang(code);
+  };
+
+  const cancelPendingLang = () => {
+    setPendingLang(null);
+  };
+
+  const confirmPendingLang = async () => {
+    const code = pendingLang;
+    if (!code || reloading) return;
+    // Flip the single-flight guard *synchronously*, before any await, so a
+    // rapid second tap on Restart can't kick off a second setLanguage call
+    // or schedule a duplicate reload timer.
+    setPendingLang(null);
     setReloading(true);
+    let rtlChanged = false;
+    try {
+      ({ rtlChanged } = await setLanguage(code));
+    } catch {
+      // If persisting the language fails, undo the guard so the user can
+      // retry. We don't surface the error here because setLanguage already
+      // updates the in-memory locale and the picker will reflect the
+      // current state on next render.
+      setReloading(false);
+      return;
+    }
     if (rtlChanged) {
       setRtlNotice(true);
     }
+    // Brief "Switching language…" overlay, then reload (web) so every cached
+    // string and native layout direction picks up the new locale cleanly.
     setTimeout(() => {
       if (Platform.OS === "web" && typeof window !== "undefined") {
         try {
@@ -135,8 +162,9 @@ export function SettingsSheet({ visible, onClose }: Props) {
           return;
         } catch {}
       }
-      // Native fallback: just close the sheet — strings update reactively.
-      // On Arabic RTL flips we still surface the restart notice.
+      // Native fallback: drop the overlay and return to the settings menu.
+      // Strings update reactively; on Arabic RTL flips we keep the picker
+      // open so the user sees the restartNotice card.
       setReloading(false);
       if (!rtlChanged) {
         setView("menu");
@@ -164,6 +192,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
     setRangeMenuOpen(false);
     setCleanupMenuOpen(false);
     setRtlNotice(false);
+    setPendingLang(null);
     onClose();
   };
 
@@ -978,6 +1007,74 @@ export function SettingsSheet({ visible, onClose }: Props) {
         }}
       />
 
+      {pendingLang && !reloading ? (
+        <Pressable
+          style={styles.reloadOverlay}
+          onPress={cancelPendingLang}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.reloadCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Feather name="refresh-cw" size={28} color={colors.primary} />
+            <Text style={[styles.reloadTitle, { color: colors.foreground }]}>
+              {t("language.confirmTitle")}
+            </Text>
+            <Text
+              style={[styles.reloadBody, { color: colors.mutedForeground }]}
+            >
+              {t("language.confirmBody", {
+                language:
+                  SUPPORTED_LANGUAGES.find((s) => s.code === pendingLang)
+                    ?.native ?? pendingLang,
+              })}
+            </Text>
+            <View style={styles.confirmRow}>
+              <Pressable
+                onPress={cancelPendingLang}
+                style={({ pressed }) => [
+                  styles.confirmBtn,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.confirmBtnText,
+                    { color: colors.foreground },
+                  ]}
+                >
+                  {t("common.cancel")}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmPendingLang}
+                style={({ pressed }) => [
+                  styles.confirmBtn,
+                  {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.confirmBtnText, { color: "#FFFFFF" }]}
+                >
+                  {t("language.confirmRestart")}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      ) : null}
+
       {reloading ? (
         <View style={styles.reloadOverlay} pointerEvents="auto">
           <View
@@ -1172,6 +1269,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: "center",
     gap: 8,
+  },
+  confirmRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+    alignSelf: "stretch",
   },
   reloadTitle: {
     fontFamily: "Inter_700Bold",

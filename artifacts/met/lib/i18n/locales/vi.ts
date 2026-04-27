@@ -669,7 +669,11 @@ export const vi: LocaleTree = {
     deviceDefault: "Ngôn ngữ thiết bị",
     title: "Ngôn ngữ",
     subtitle:
-      "Met sẽ chuyển ngay. Tiếng Ả Rập cũng đảo bố cục từ phải sang trái.",
+      "Met sẽ khởi động lại để áp dụng ngôn ngữ mới. Tiếng Ả Rập cũng đảo bố cục từ phải sang trái.",
+    confirmTitle: "Khởi động lại Met?",
+    confirmBody:
+      "Met sẽ đóng và mở lại để mọi thứ tải bằng {{language}}.",
+    confirmRestart: "Khởi động lại",
     restartNoticeTitle: "Khởi động lại Met để hoàn tất chuyển",
     restartNoticeBody:
       "Hướng bố cục thay đổi khi chuyển giữa tiếng Ả Rập và các ngôn ngữ khác. Đóng và mở lại Met để mọi thứ hiển thị đúng.",
