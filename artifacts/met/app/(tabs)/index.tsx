@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -26,6 +27,7 @@ import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { encounters, preferences } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
@@ -297,18 +299,21 @@ export default function HomeScreen() {
             value={animatedToday}
             label="Today"
             colors={colors}
+            onPress={() => router.push("/(tabs)/recent")}
           />
           <StatCard
             icon="link-2"
             value={animatedConn}
             label="Connections"
             colors={colors}
+            onPress={() => router.push("/(tabs)/connections")}
           />
           <StatCard
             icon="bell"
             value={animatedPending}
             label="Pending"
             colors={colors}
+            onPress={() => setRequestsOpen(true)}
           />
         </View>
 
@@ -421,17 +426,27 @@ function StatCard({
   value,
   label,
   colors,
+  onPress,
 }: {
   icon: React.ComponentProps<typeof Feather>["name"];
   value: number;
   label: string;
   colors: ReturnType<typeof useColors>;
+  onPress?: () => void;
 }) {
   return (
-    <View
-      style={[
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value}`}
+      style={({ pressed }) => [
         styles.stat,
-        { backgroundColor: colors.card, borderColor: colors.border },
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          opacity: pressed ? 0.75 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+        },
       ]}
     >
       <Feather name={icon} size={18} color={colors.primary} />
@@ -441,7 +456,7 @@ function StatCard({
       <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
         {label}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
