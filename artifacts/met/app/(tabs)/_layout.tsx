@@ -4,10 +4,12 @@ import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 
 export default function TabLayout() {
   const colors = useColors();
   const isWeb = Platform.OS === "web";
+  const { t } = useT();
 
   return (
     <Tabs
@@ -41,7 +43,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t("tabs.home"),
           tabBarIcon: ({ color }) => (
             <Feather name="home" size={22} color={color} />
           ),
@@ -50,7 +52,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="recent"
         options={{
-          title: "Recent",
+          title: t("tabs.recent"),
           tabBarIcon: ({ color }) => (
             <Feather name="users" size={22} color={color} />
           ),
@@ -59,7 +61,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="connections"
         options={{
-          title: "Connections",
+          title: t("tabs.connections"),
           tabBarIcon: ({ color }) => (
             <Feather name="message-circle" size={22} color={color} />
           ),
@@ -68,7 +70,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: t("tabs.profile"),
           tabBarIcon: ({ color }) => (
             <Feather name="user" size={22} color={color} />
           ),

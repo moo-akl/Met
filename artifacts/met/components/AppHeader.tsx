@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 
 type IconName = React.ComponentProps<typeof Feather>["name"];
 
@@ -28,6 +29,7 @@ export function AppHeader({ title, actions, visibility }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webTop = Platform.OS === "web" ? 67 : 0;
+  const { t } = useT();
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.primary }]}>
@@ -46,8 +48,8 @@ export function AppHeader({ title, actions, visibility }: Props) {
               accessibilityState={{ checked: visibility.isVisible }}
               accessibilityLabel={
                 visibility.isVisible
-                  ? "Beacon visible. Tap to go invisible."
-                  : "Beacon hidden. Tap to become visible."
+                  ? t("appHeader.beaconVisibleA11y")
+                  : t("appHeader.beaconHiddenA11y")
               }
               hitSlop={8}
               style={({ pressed }) => [
@@ -64,7 +66,9 @@ export function AppHeader({ title, actions, visibility }: Props) {
                 color="#FFFFFF"
               />
               <Text style={styles.visPillText}>
-                {visibility.isVisible ? "Visible" : "Hidden"}
+                {visibility.isVisible
+                  ? t("appHeader.visible")
+                  : t("appHeader.hidden")}
               </Text>
             </Pressable>
           ) : null}

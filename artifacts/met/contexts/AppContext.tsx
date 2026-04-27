@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 
+import { clearReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
 import {
   DEFAULT_PREFERENCES,
@@ -238,6 +239,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await clearProfile();
     await clearEncounters();
     await clearPreferences();
+    await clearReferrals();
     await savePermissionsCompleted(false);
     const seeded = buildSeedEncounters();
     setProfileState(null);

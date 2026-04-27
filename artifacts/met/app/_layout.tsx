@@ -6,6 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as Linking from "expo-linking";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
@@ -15,6 +16,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/contexts/AppContext";
+import { initI18n } from "@/lib/i18n";
+import { initReferrals } from "@/lib/referrals";
 import {
   initializeRevenueCat,
   SubscriptionProvider,
@@ -31,6 +34,30 @@ try {
     "RevenueCat unavailable:",
     err instanceof Error ? err.message : err,
   );
+}
+
+// Kick off i18n + referrals state load before the first paint we care about.
+// They're idempotent and resolve quickly; failures fall back to defaults.
+void initI18n();
+void initReferrals();
+
+// Stash a referral code that came in via deep link (`met://r/CODE` or
+// universal link with `/r/CODE`) so onboarding can pre-fill it.
+let pendingDeepLinkReferral: string | null = null;
+export function consumePendingReferral(): string | null {
+  const v = pendingDeepLinkReferral;
+  pendingDeepLinkReferral = null;
+  return v;
+}
+
+function parseReferralFromUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const m = url.match(/\/r\/([A-Za-z2-9]{6})(?:[/?#]|$)/);
+    return m ? m[1].toUpperCase() : null;
+  } catch {
+    return null;
+  }
 }
 
 function ProfileGate() {
@@ -82,6 +109,10 @@ function RootLayoutNav() {
         name="paywall"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
+      <Stack.Screen
+        name="referrals"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
     </Stack>
   );
 }
@@ -93,6 +124,22 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+
+  // Capture initial / live deep link → stash any embedded referral code so
+  // onboarding (and the referrals screen) can pre-fill it on cold or warm start.
+  useEffect(() => {
+    Linking.getInitialURL()
+      .then((url) => {
+        const code = parseReferralFromUrl(url);
+        if (code) pendingDeepLinkReferral = code;
+      })
+      .catch(() => {});
+    const sub = Linking.addEventListener("url", (e) => {
+      const code = parseReferralFromUrl(e.url);
+      if (code) pendingDeepLinkReferral = code;
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
