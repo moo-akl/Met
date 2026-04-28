@@ -15,10 +15,12 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.met.founders"
+      "bundleIdentifier": "app.met.founders",
+      "buildNumber": "1"
     },
     "android": {
-      "package": "app.met.founders"
+      "package": "app.met.founders",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -31,7 +33,40 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Met uses your camera to scan QR codes from people you meet.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Met uses your location to find people nearby so you don't miss connections."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Met needs access to your photos so you can choose a profile picture."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          },
+          "android": {
+            "minSdkVersion": 24,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
