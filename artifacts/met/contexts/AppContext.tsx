@@ -8,11 +8,7 @@ import React, {
   useState,
 } from "react";
 
-import {
-  deleteUserAccount,
-  getOrCreateUserId,
-  isLegacyUserId,
-} from "@/lib/auth";
+import { deleteUserAccount } from "@/lib/auth";
 import { clearReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
 import {
@@ -131,24 +127,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ]);
       if (!mounted) return;
       if (p) {
-        // One-time migration: profiles created before Firebase Auth
-        // existed (or on the web fallback path) carry a legacy ID.
-        // Try to upgrade them to a Firebase UID. If Firebase is
-        // unavailable or sign-in fails, keep the legacy ID — the
-        // user can continue using the app and we'll retry next boot.
-        let migrated: Profile = { ...p, isVisible: p.isVisible ?? true };
-        if (isLegacyUserId(migrated.id)) {
-          try {
-            const uid = await getOrCreateUserId();
-            if (uid !== migrated.id && !isLegacyUserId(uid)) {
-              migrated = { ...migrated, id: uid };
-              await saveProfile(migrated);
-            }
-          } catch {
-            // Silent: stale legacy ID is preferable to a failed boot.
-          }
-        }
-        setProfileState(migrated);
+        setProfileState({ ...p, isVisible: p.isVisible ?? true });
       } else {
         setProfileState(p);
       }
