@@ -16,7 +16,8 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "package": "app.met.founders",
@@ -24,7 +25,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#92C977"
-      }
+      },
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -62,7 +64,8 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "15.1",
+            "useFrameworks": "static"
           },
           "android": {
             "minSdkVersion": 24,
@@ -70,7 +73,9 @@
             "targetSdkVersion": 35
           }
         }
-      ]
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
     ],
     "experiments": {
       "typedRoutes": true,
