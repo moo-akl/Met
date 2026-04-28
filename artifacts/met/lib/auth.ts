@@ -93,3 +93,34 @@ export async function signOut(): Promise<void> {
     // Ignore — caller is typically using this as a "best effort" cleanup.
   }
 }
+
+/**
+ * Permanently deletes the current Firebase user, then signs out. Used
+ * by the "Delete Account" flow so the user starts with a brand-new
+ * identity if they re-onboard.
+ *
+ * Best-effort: never throws. Anonymous users can always be deleted.
+ * For credentialed users (Phase 2: email/Apple/Google), Firebase may
+ * return `auth/requires-recent-login` — when that happens we fall back
+ * to signOut() so at least the local session is cleared. The caller
+ * (UI layer) is then responsible for prompting re-authentication if
+ * stricter deletion is required.
+ */
+export async function deleteUserAccount(): Promise<void> {
+  const auth = await getAuthModule();
+  if (!auth) return;
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    await user.delete();
+  } catch {
+    // Couldn't delete (e.g. requires-recent-login, network). Sign out
+    // so we at least invalidate the local session before the local
+    // data wipe runs.
+    try {
+      await auth.signOut();
+    } catch {
+      // Best-effort.
+    }
+  }
+}
