@@ -22,6 +22,9 @@ export const nl: LocaleTree = {
     no: "Nee",
     loading: "Laden…",
     error: "Er ging iets mis",
+    signInFailedTitle: "Aanmelden mislukt",
+    signInFailedBody:
+      "We konden onze servers niet bereiken. Controleer je verbinding en probeer het opnieuw.",
     tryAgain: "Probeer opnieuw",
     notNow: "Niet nu",
     upgrade: "Upgraden",

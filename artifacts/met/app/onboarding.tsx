@@ -4,6 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -18,6 +19,7 @@ import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { getOrCreateUserId } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
@@ -120,8 +122,22 @@ export default function OnboardingScreen() {
       const result = await recordReferral(code);
       setInviteApplied(result === "accepted");
     }
+    let userId: string;
+    try {
+      userId = await getOrCreateUserId();
+    } catch {
+      // Firebase is wired but anonymous sign-in failed (e.g. Anonymous
+      // provider not enabled in console, or a network blip). Block
+      // onboarding rather than silently issuing a non-Firebase ID.
+      setSaving(false);
+      Alert.alert(
+        t("common.signInFailedTitle"),
+        t("common.signInFailedBody"),
+      );
+      return;
+    }
     await setProfile({
-      id: Date.now().toString(),
+      id: userId,
       name: name.trim(),
       bio: bio.trim(),
       photoUri,

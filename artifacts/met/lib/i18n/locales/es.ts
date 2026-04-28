@@ -22,6 +22,9 @@ export const es: LocaleTree = {
     no: "No",
     loading: "Cargando…",
     error: "Algo salió mal",
+    signInFailedTitle: "No pudimos iniciar sesión",
+    signInFailedBody:
+      "No pudimos contactar nuestros servidores. Verifica tu conexión e inténtalo de nuevo.",
     tryAgain: "Inténtalo de nuevo",
     notNow: "Ahora no",
     upgrade: "Mejorar",

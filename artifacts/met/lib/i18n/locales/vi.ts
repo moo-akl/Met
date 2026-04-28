@@ -22,6 +22,9 @@ export const vi: LocaleTree = {
     no: "Không",
     loading: "Đang tải…",
     error: "Đã xảy ra lỗi",
+    signInFailedTitle: "Không thể đăng nhập",
+    signInFailedBody:
+      "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối và thử lại.",
     tryAgain: "Thử lại",
     notNow: "Không phải bây giờ",
     upgrade: "Nâng cấp",
