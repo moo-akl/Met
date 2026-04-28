@@ -22,6 +22,9 @@ export const ar: LocaleTree = {
     no: "لا",
     loading: "جارٍ التحميل…",
     error: "حدث خطأ ما",
+    signInFailedTitle: "تعذّر تسجيل الدخول",
+    signInFailedBody:
+      "تعذّر الوصول إلى خوادمنا. يرجى التحقق من اتصالك والمحاولة مرة أخرى.",
     tryAgain: "حاول مرة أخرى",
     notNow: "ليس الآن",
     upgrade: "ترقية",

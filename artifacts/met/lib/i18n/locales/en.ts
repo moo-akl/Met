@@ -20,6 +20,9 @@ export const en = {
     no: "No",
     loading: "Loading…",
     error: "Something went wrong",
+    signInFailedTitle: "Couldn't sign in",
+    signInFailedBody:
+      "We couldn't reach our servers. Please check your connection and try again.",
     tryAgain: "Try again",
     notNow: "Not now",
     upgrade: "Upgrade",

@@ -22,6 +22,9 @@ export const ru: LocaleTree = {
     no: "Нет",
     loading: "Загрузка…",
     error: "Что-то пошло не так",
+    signInFailedTitle: "Не удалось войти",
+    signInFailedBody:
+      "Не удалось связаться с нашими серверами. Проверьте подключение и попробуйте ещё раз.",
     tryAgain: "Попробовать снова",
     notNow: "Не сейчас",
     upgrade: "Улучшить",

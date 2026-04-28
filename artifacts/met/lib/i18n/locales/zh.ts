@@ -22,6 +22,9 @@ export const zh: LocaleTree = {
     no: "否",
     loading: "加载中…",
     error: "出错了",
+    signInFailedTitle: "无法登录",
+    signInFailedBody:
+      "无法连接到我们的服务器，请检查网络后重试。",
     tryAgain: "重试",
     notNow: "暂不",
     upgrade: "升级",
