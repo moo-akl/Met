@@ -17,7 +17,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
       "buildNumber": "1",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "app.met.founders",
@@ -75,7 +76,14 @@
         }
       ],
       "@react-native-firebase/app",
-      "@react-native-firebase/auth"
+      "@react-native-firebase/auth",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.572463722097-4iofschrap1ovqoluon9j41d9l31iejl"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

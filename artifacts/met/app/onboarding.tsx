@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, FontAwesome } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -19,7 +19,14 @@ import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { getOrCreateUserId } from "@/lib/auth";
+import {
+  getCurrentUserId,
+  sendPasswordReset,
+  signInWithApple,
+  signInWithEmail,
+  signInWithGoogle,
+  signUpWithEmail,
+} from "@/lib/auth";
 import { useT } from "@/lib/i18n";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
@@ -69,7 +76,7 @@ const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: st
   { key: "linkedin", label: "LinkedIn", placeholder: "your-name" },
 ];
 
-type Phase = "intro" | "photo" | "info" | "socials" | "invite";
+type Phase = "intro" | "auth" | "photo" | "info" | "socials" | "invite";
 
 export default function OnboardingScreen() {
   const colors = useColors();
@@ -93,6 +100,11 @@ export default function OnboardingScreen() {
     () => consumePendingReferral() ?? "",
   );
   const [inviteApplied, setInviteApplied] = useState<boolean | null>(null);
+  // Auth-screen state — gates onboarding behind real sign-in.
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
 
   const webTop = Platform.OS === "web" ? 67 : 0;
   const webBot = Platform.OS === "web" ? 34 : 0;
@@ -111,6 +123,101 @@ export default function OnboardingScreen() {
     }
   };
 
+  // ------------------------------------------------------------------
+  // Auth handlers — all funnel into setPhase("photo") on success so the
+  // user lands on the first profile-setup step with a Firebase UID
+  // already attached to the session.
+  // ------------------------------------------------------------------
+  const goToProfileSetup = () => setPhase("photo");
+
+  const showSignInError = () =>
+    Alert.alert(
+      t("onboarding.signInError"),
+      t("onboarding.signInErrorBody"),
+    );
+
+  const handleApple = async () => {
+    setAuthBusy(true);
+    try {
+      // Returns null when the user cancels the Apple sheet — silent.
+      const uid = await signInWithApple();
+      if (uid) goToProfileSetup();
+    } catch {
+      showSignInError();
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setAuthBusy(true);
+    try {
+      // Returns null when the user cancels the Google sheet — silent.
+      const uid = await signInWithGoogle();
+      if (uid) goToProfileSetup();
+    } catch {
+      showSignInError();
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleEmailAuth = async () => {
+    const email = authEmail.trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      Alert.alert(
+        t("onboarding.invalidEmail"),
+        t("onboarding.invalidEmailBody"),
+      );
+      return;
+    }
+    if (authPassword.length < 6) {
+      Alert.alert(
+        t("onboarding.weakPassword"),
+        t("onboarding.weakPasswordBody"),
+      );
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      if (authMode === "signin") {
+        await signInWithEmail(email, authPassword);
+      } else {
+        await signUpWithEmail(email, authPassword);
+      }
+      goToProfileSetup();
+    } catch {
+      showSignInError();
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const email = authEmail.trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      Alert.alert(
+        t("onboarding.invalidEmail"),
+        t("onboarding.invalidEmailBody"),
+      );
+      return;
+    }
+    try {
+      await sendPasswordReset(email);
+      Alert.alert(
+        t("onboarding.forgotPasswordSent"),
+        t("onboarding.forgotPasswordSentBody"),
+      );
+    } catch {
+      showSignInError();
+    }
+  };
+
+  // Web preview only — handleFinish will issue a local- ID since there's
+  // no signed-in Firebase user. Hidden on native, where real auth is
+  // required.
+  const handleWebSkip = () => goToProfileSetup();
+
   const handleFinish = async () => {
     if (!photoUri || !name.trim()) return;
     setSaving(true);
@@ -122,19 +229,22 @@ export default function OnboardingScreen() {
       const result = await recordReferral(code);
       setInviteApplied(result === "accepted");
     }
-    let userId: string;
-    try {
-      userId = await getOrCreateUserId();
-    } catch {
-      // Firebase is wired but anonymous sign-in failed (e.g. Anonymous
-      // provider not enabled in console, or a network blip). Block
-      // onboarding rather than silently issuing a non-Firebase ID.
-      setSaving(false);
-      Alert.alert(
-        t("common.signInFailedTitle"),
-        t("common.signInFailedBody"),
-      );
-      return;
+    let userId = await getCurrentUserId();
+    if (!userId) {
+      if (Platform.OS === "web") {
+        // Web preview only — no native sign-in available, so the dev
+        // "Skip sign-in" button drops us here. Issue a local- ID so the
+        // rest of onboarding can be exercised in the browser. Real
+        // builds always come in with a Firebase UID.
+        userId = "local-" + Math.random().toString(36).slice(2, 10);
+      } else {
+        setSaving(false);
+        Alert.alert(
+          t("common.signInFailedTitle"),
+          t("common.signInFailedBody"),
+        );
+        return;
+      }
     }
     await setProfile({
       id: userId,
@@ -189,7 +299,7 @@ export default function OnboardingScreen() {
 
           <View style={styles.introFooter}>
             <Pressable
-              onPress={() => setPhase("photo")}
+              onPress={() => setPhase("auth")}
               hitSlop={12}
               style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
             >
@@ -216,7 +326,7 @@ export default function OnboardingScreen() {
 
             {isLast ? (
               <Pressable
-                onPress={() => setPhase("photo")}
+                onPress={() => setPhase("auth")}
                 hitSlop={12}
                 style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
               >
@@ -254,38 +364,236 @@ export default function OnboardingScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.stepHeader}>
-          <Pressable
-            onPress={() => {
-              if (phase === "photo") setPhase("intro");
-              else if (phase === "info") setPhase("photo");
-              else if (phase === "socials") setPhase("info");
-              else setPhase("socials");
-            }}
-            hitSlop={12}
-          >
-            <Feather name="chevron-left" size={24} color={colors.foreground} />
-          </Pressable>
-          <View style={styles.stepDots}>
-            {(["photo", "info", "socials", "invite"] as Phase[]).map((p, i) => {
-              const order = ["photo", "info", "socials", "invite"];
-              const currentIndex = order.indexOf(phase);
-              const active = i <= currentIndex;
-              return (
-                <View
-                  key={p}
-                  style={[
-                    styles.dot,
-                    {
-                      backgroundColor: active ? colors.primary : "#CBD5D1",
-                      width: i === currentIndex ? 22 : 8,
-                    },
-                  ]}
-                />
-              );
-            })}
-          </View>
+          {phase === "photo" ? (
+            // Sign-in is committed by this point; hide back to avoid
+            // confusing re-entry into the auth screen.
+            <View style={{ width: 24 }} />
+          ) : (
+            <Pressable
+              onPress={() => {
+                if (phase === "auth") setPhase("intro");
+                else if (phase === "info") setPhase("photo");
+                else if (phase === "socials") setPhase("info");
+                else if (phase === "invite") setPhase("socials");
+              }}
+              hitSlop={12}
+            >
+              <Feather name="chevron-left" size={24} color={colors.foreground} />
+            </Pressable>
+          )}
+          {phase === "auth" ? (
+            <View style={{ flex: 1 }} />
+          ) : (
+            <View style={styles.stepDots}>
+              {(["photo", "info", "socials", "invite"] as Phase[]).map((p, i) => {
+                const order = ["photo", "info", "socials", "invite"];
+                const currentIndex = order.indexOf(phase);
+                const active = i <= currentIndex;
+                return (
+                  <View
+                    key={p}
+                    style={[
+                      styles.dot,
+                      {
+                        backgroundColor: active ? colors.primary : "#CBD5D1",
+                        width: i === currentIndex ? 22 : 8,
+                      },
+                    ]}
+                  />
+                );
+              })}
+            </View>
+          )}
           <View style={{ width: 24 }} />
         </View>
+
+        {phase === "auth" ? (
+          <View style={styles.step}>
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>
+              {t("onboarding.signInTitle")}
+            </Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              {t("onboarding.signInSub")}
+            </Text>
+
+            {Platform.OS === "ios" ? (
+              <Pressable
+                onPress={handleApple}
+                disabled={authBusy}
+                style={({ pressed }) => [
+                  styles.ssoBtn,
+                  {
+                    backgroundColor: "#000",
+                    opacity: pressed || authBusy ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <FontAwesome name="apple" size={18} color="#fff" />
+                <Text style={[styles.ssoBtnText, { color: "#fff" }]}>
+                  {t("onboarding.continueWithApple")}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              onPress={handleGoogle}
+              disabled={authBusy}
+              style={({ pressed }) => [
+                styles.ssoBtn,
+                {
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: pressed || authBusy ? 0.7 : 1,
+                },
+              ]}
+            >
+              <FontAwesome name="google" size={18} color={colors.foreground} />
+              <Text style={[styles.ssoBtnText, { color: colors.foreground }]}>
+                {t("onboarding.continueWithGoogle")}
+              </Text>
+            </Pressable>
+
+            <View style={styles.divider}>
+              <View
+                style={[styles.dividerLine, { backgroundColor: colors.border }]}
+              />
+              <Text
+                style={[styles.dividerText, { color: colors.mutedForeground }]}
+              >
+                {t("onboarding.orWithEmail")}
+              </Text>
+              <View
+                style={[styles.dividerLine, { backgroundColor: colors.border }]}
+              />
+            </View>
+
+            <View style={styles.modeRow}>
+              <Pressable
+                onPress={() => setAuthMode("signin")}
+                style={[
+                  styles.modeTab,
+                  {
+                    borderBottomColor:
+                      authMode === "signin" ? colors.primary : "transparent",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.modeTabText,
+                    {
+                      color:
+                        authMode === "signin"
+                          ? colors.foreground
+                          : colors.mutedForeground,
+                    },
+                  ]}
+                >
+                  {t("onboarding.signInTab")}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setAuthMode("signup")}
+                style={[
+                  styles.modeTab,
+                  {
+                    borderBottomColor:
+                      authMode === "signup" ? colors.primary : "transparent",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.modeTabText,
+                    {
+                      color:
+                        authMode === "signup"
+                          ? colors.foreground
+                          : colors.mutedForeground,
+                    },
+                  ]}
+                >
+                  {t("onboarding.signUpTab")}
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.field}>
+              <TextInput
+                value={authEmail}
+                onChangeText={setAuthEmail}
+                placeholder={t("onboarding.emailPlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={styles.field}>
+              <TextInput
+                value={authPassword}
+                onChangeText={setAuthPassword}
+                placeholder={t("onboarding.passwordPlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+              />
+            </View>
+
+            <PrimaryButton
+              label={
+                authMode === "signin"
+                  ? t("onboarding.signInBtn")
+                  : t("onboarding.signUpBtn")
+              }
+              onPress={handleEmailAuth}
+              disabled={
+                authBusy || !authEmail.trim() || authPassword.length < 6
+              }
+              loading={authBusy}
+            />
+
+            {authMode === "signin" ? (
+              <Pressable onPress={handleForgotPassword} hitSlop={8}>
+                <Text style={[styles.forgotText, { color: colors.primary }]}>
+                  {t("onboarding.forgotPassword")}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {Platform.OS === "web" && __DEV__ ? (
+              // Dev-only escape hatch so the web preview can advance to
+              // the rest of onboarding without native auth modules. Hidden
+              // in any production web build.
+              <Pressable onPress={handleWebSkip} hitSlop={8}>
+                <Text
+                  style={[styles.webSkipText, { color: colors.mutedForeground }]}
+                >
+                  {t("onboarding.webPreviewSkip")}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {phase === "photo" ? (
           <View style={styles.step}>
@@ -643,5 +951,55 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 11,
     textAlign: "right",
+  },
+  ssoBtn: {
+    height: 52,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  ssoBtnText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+  },
+  modeRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  modeTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderBottomWidth: 2,
+  },
+  modeTabText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
+  forgotText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  webSkipText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 8,
   },
 });
