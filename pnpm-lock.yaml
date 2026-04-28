@@ -219,6 +219,9 @@ importers:
 
   artifacts/met:
     dependencies:
+      '@react-native-ml-kit/face-detection':
+        specifier: ^2.0.1
+        version: 2.0.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       expo-camera:
         specifier: ~17.0.10
         version: 17.0.10(expo@54.0.33)(react-native-web@0.21.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -2091,6 +2094,12 @@ packages:
     resolution: {integrity: sha512-gvRvjR5JAaUZF8tv2Kcq/Gbt3JHwbKFYfmb445rhOj6NUMx3qPLixmDx5pZAyb9at1bYvJ4/eTUipU5aki45xw==}
     peerDependencies:
       react-native: ^0.0.0-0 || >=0.65 <1.0
+
+  '@react-native-ml-kit/face-detection@2.0.1':
+    resolution: {integrity: sha512-TOUwO90LRnJ3VhJYTS2VJbxtzDeaKjm6UjGufgqYjQbPsFCOwRtnmwBbjXZ0v5ih/Fmfjffb0W1I3c1773Q85Q==}
+    peerDependencies:
+      react: '>=16.8.1'
+      react-native: '>=0.60.0-rc.0 <1.0.x'
 
   '@react-native/assets-registry@0.81.5':
     resolution: {integrity: sha512-705B6x/5Kxm1RKRvSv0ADYWm5JOnoiQ1ufW7h8uu2E6G9Of/eE6hP/Ivw3U5jI16ERqZxiKQwk34VJbB0niX9w==}
@@ -7914,6 +7923,11 @@ snapshots:
   '@react-native-async-storage/async-storage@2.2.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))':
     dependencies:
       merge-options: 3.0.4
+      react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
+
+  '@react-native-ml-kit/face-detection@2.0.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      react: 19.1.0
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
 
   '@react-native/assets-registry@0.81.5': {}
