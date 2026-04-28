@@ -8,7 +8,11 @@ import React, {
   useState,
 } from "react";
 
-import { getOrCreateUserId, isLegacyUserId } from "@/lib/auth";
+import {
+  deleteUserAccount,
+  getOrCreateUserId,
+  isLegacyUserId,
+} from "@/lib/auth";
 import { clearReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
 import {
@@ -293,6 +297,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetAll = useCallback(async () => {
+    // Tear down the Firebase identity FIRST so the user truly starts
+    // fresh on next onboarding. Best-effort: never throws.
+    await deleteUserAccount();
     await clearProfile();
     await clearEncounters();
     await clearPreferences();
