@@ -237,6 +237,14 @@ export async function signUpWithEmail(
     email.trim(),
     password,
   );
+  // Fire-and-forget: send verification email immediately. Failure here
+  // shouldn't block the sign-up; the user can resend from the verify
+  // screen.
+  try {
+    await userCred.user.sendEmailVerification();
+  } catch {
+    // Best-effort.
+  }
   return userCred.user.uid;
 }
 
@@ -244,4 +252,53 @@ export async function sendPasswordReset(email: string): Promise<void> {
   const auth = await getAuthModule();
   if (!auth) throw new Error("Firebase not available");
   await auth.sendPasswordResetEmail(email.trim());
+}
+
+/**
+ * Sends (or resends) a verification email to the currently signed-in
+ * user. Throws if no user is signed in.
+ */
+export async function sendVerificationEmail(): Promise<void> {
+  const auth = await getAuthModule();
+  if (!auth || !auth.currentUser) {
+    throw new Error("Not signed in");
+  }
+  await auth.currentUser.sendEmailVerification();
+}
+
+/**
+ * Reload the current user from Firebase and return whether their email
+ * is now verified. Returns false when no user is signed in or the user
+ * doesn't have an email (e.g. anonymous accounts).
+ */
+export async function reloadAndCheckVerified(): Promise<boolean> {
+  const auth = await getAuthModule();
+  if (!auth || !auth.currentUser) return false;
+  try {
+    await auth.currentUser.reload();
+  } catch {
+    // Stale/expired token — treat as not verified rather than crashing.
+    return false;
+  }
+  return auth.currentUser.emailVerified === true;
+}
+
+/**
+ * Returns the current user's email (from any provider) without
+ * triggering a network reload. Null when no user is signed in or the
+ * provider didn't supply an email.
+ */
+export async function getCurrentUserEmail(): Promise<string | null> {
+  const auth = await getAuthModule();
+  return auth?.currentUser?.email ?? null;
+}
+
+/**
+ * Synchronous-ish read of the current user's emailVerified flag. Does
+ * NOT reload from Firebase — callers that need fresh data should use
+ * reloadAndCheckVerified().
+ */
+export async function isCurrentUserEmailVerified(): Promise<boolean> {
+  const auth = await getAuthModule();
+  return auth?.currentUser?.emailVerified === true;
 }

@@ -2,7 +2,7 @@ import { Feather, FontAwesome } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -20,11 +20,16 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
+  getCurrentUserEmail,
   getCurrentUserId,
+  isCurrentUserEmailVerified,
+  reloadAndCheckVerified,
   sendPasswordReset,
+  sendVerificationEmail,
   signInWithApple,
   signInWithEmail,
   signInWithGoogle,
+  signOut,
   signUpWithEmail,
 } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
@@ -76,7 +81,21 @@ const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: st
   { key: "linkedin", label: "LinkedIn", placeholder: "your-name" },
 ];
 
-type Phase = "intro" | "auth" | "photo" | "info" | "socials" | "invite";
+type Phase =
+  | "intro"
+  | "auth"
+  | "verify"
+  | "photo"
+  | "info"
+  | "socials"
+  | "invite";
+
+// Resend cooldown after sending a verification email — Firebase will
+// rate-limit aggressively if we let users spam this button.
+const RESEND_COOLDOWN_MS = 60 * 1000;
+// How often we silently re-check Firebase to see if the user verified
+// their email in another tab/app.
+const VERIFY_POLL_MS = 5 * 1000;
 
 export default function OnboardingScreen() {
   const colors = useColors();
@@ -105,6 +124,20 @@ export default function OnboardingScreen() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  // Verify-email-screen state. `verifyEmail` is the address the user
+  // signed up with (shown in the body copy). `resendCooldownEndsAt` is
+  // a wall-clock timestamp; `cooldownRemaining` is a tick that drives
+  // the countdown label.
+  const [verifyEmail, setVerifyEmail] = useState<string | null>(null);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendCooldownEndsAt, setResendCooldownEndsAt] = useState<number | null>(
+    null,
+  );
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  // Guard against double-mount (StrictMode) running our resume effect
+  // twice and overwriting the user's chosen phase.
+  const resumedRef = useRef(false);
 
   const webTop = Platform.OS === "web" ? 67 : 0;
   const webBot = Platform.OS === "web" ? 34 : 0;
@@ -183,14 +216,87 @@ export default function OnboardingScreen() {
       if (authMode === "signin") {
         await signInWithEmail(email, authPassword);
       } else {
+        // signUpWithEmail also fires off a verification email.
         await signUpWithEmail(email, authPassword);
       }
-      goToProfileSetup();
+      // Email/password accounts MUST verify before they can use the
+      // app. SSO providers (Apple/Google) come back already verified
+      // and bypass this gate via handleApple/handleGoogle.
+      const verified = await isCurrentUserEmailVerified();
+      if (verified) {
+        goToProfileSetup();
+        return;
+      }
+      // Sign-in path: an existing unverified account exists. Re-issue
+      // a verification link so the user has a fresh one to click.
+      if (authMode === "signin") {
+        try {
+          await sendVerificationEmail();
+        } catch {
+          // Best-effort — the verify screen exposes a manual resend
+          // button if this silently fails.
+        }
+      }
+      setVerifyEmail(email);
+      setResendCooldownEndsAt(Date.now() + RESEND_COOLDOWN_MS);
+      setPhase("verify");
     } catch {
       showSignInError();
     } finally {
       setAuthBusy(false);
     }
+  };
+
+  // --- Verify-phase handlers ---------------------------------------
+
+  const handleCheckVerified = async () => {
+    setVerifyBusy(true);
+    try {
+      const verified = await reloadAndCheckVerified();
+      if (verified) {
+        goToProfileSetup();
+      } else {
+        Alert.alert(
+          t("onboarding.verifyNotYetTitle"),
+          t("onboarding.verifyNotYetBody"),
+        );
+      }
+    } finally {
+      setVerifyBusy(false);
+    }
+  };
+
+  const handleResendVerify = async () => {
+    if (resendBusy) return;
+    if (resendCooldownEndsAt && resendCooldownEndsAt > Date.now()) return;
+    setResendBusy(true);
+    try {
+      await sendVerificationEmail();
+      setResendCooldownEndsAt(Date.now() + RESEND_COOLDOWN_MS);
+      Alert.alert(
+        t("onboarding.verifyResentTitle"),
+        t("onboarding.verifyResentBody"),
+      );
+    } catch {
+      showSignInError();
+    } finally {
+      setResendBusy(false);
+    }
+  };
+
+  const handleChangeEmail = async () => {
+    // Sign the unverified user out so the auth screen starts fresh.
+    try {
+      await signOut();
+    } catch {
+      // Best-effort.
+    }
+    setVerifyEmail(null);
+    setResendCooldownEndsAt(null);
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthMode("signup");
+    setPhase("auth");
   };
 
   const handleForgotPassword = async () => {
@@ -259,6 +365,70 @@ export default function OnboardingScreen() {
     });
     router.replace("/(tabs)");
   };
+
+  // ------------------------------------------------------------------
+  // Resume mid-flow on app re-open. If a Firebase user is already
+  // signed in but unverified, jump past the intro/auth slides directly
+  // to the verify phase. If they're signed in AND verified (e.g. they
+  // tapped the email link and reopened the app), jump to profile setup.
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (resumedRef.current) return;
+    let cancelled = false;
+    (async () => {
+      const uid = await getCurrentUserId();
+      if (cancelled || !uid) return;
+      const email = await getCurrentUserEmail();
+      // Reload from server in case verification happened on another
+      // device since the cached user was last touched.
+      const verified = await reloadAndCheckVerified();
+      if (cancelled) return;
+      resumedRef.current = true;
+      if (email && !verified) {
+        setVerifyEmail(email);
+        setResendCooldownEndsAt(Date.now() + RESEND_COOLDOWN_MS);
+        setPhase("verify");
+      } else {
+        // Verified email, or non-email provider (Apple/Google) —
+        // skip past intro/auth into profile setup.
+        setPhase("photo");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // While the verify screen is mounted, silently re-check the user's
+  // emailVerified flag every few seconds so the user doesn't have to
+  // tap "Continue" if they verified on another device.
+  useEffect(() => {
+    if (phase !== "verify") return;
+    const id = setInterval(async () => {
+      const verified = await reloadAndCheckVerified();
+      if (verified) goToProfileSetup();
+    }, VERIFY_POLL_MS);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  // 1Hz tick for the resend-cooldown countdown label.
+  useEffect(() => {
+    if (!resendCooldownEndsAt) {
+      setCooldownRemaining(0);
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((resendCooldownEndsAt - Date.now()) / 1000),
+      );
+      setCooldownRemaining(remaining);
+      if (remaining === 0) setResendCooldownEndsAt(null);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [resendCooldownEndsAt]);
 
   if (phase === "intro") {
     const current = SLIDES[slide];
@@ -368,6 +538,13 @@ export default function OnboardingScreen() {
             // Sign-in is committed by this point; hide back to avoid
             // confusing re-entry into the auth screen.
             <View style={{ width: 24 }} />
+          ) : phase === "verify" ? (
+            // Back from verify signs the unverified user out and
+            // returns them to the auth screen — same effect as the
+            // "Use a different email" link below.
+            <Pressable onPress={handleChangeEmail} hitSlop={12}>
+              <Feather name="chevron-left" size={24} color={colors.foreground} />
+            </Pressable>
           ) : (
             <Pressable
               onPress={() => {
@@ -381,7 +558,7 @@ export default function OnboardingScreen() {
               <Feather name="chevron-left" size={24} color={colors.foreground} />
             </Pressable>
           )}
-          {phase === "auth" ? (
+          {phase === "auth" || phase === "verify" ? (
             <View style={{ flex: 1 }} />
           ) : (
             <View style={styles.stepDots}>
@@ -592,6 +769,69 @@ export default function OnboardingScreen() {
                 </Text>
               </Pressable>
             ) : null}
+          </View>
+        ) : null}
+
+        {phase === "verify" ? (
+          <View style={styles.step}>
+            <View
+              style={[
+                styles.verifyIconWrap,
+                { backgroundColor: "#DBEAFE" },
+              ]}
+            >
+              <Feather name="mail" size={40} color="#3B82F6" />
+            </View>
+
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>
+              {t("onboarding.verifyTitle")}
+            </Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              {t("onboarding.verifyBody", { email: verifyEmail ?? "" })}
+            </Text>
+
+            <PrimaryButton
+              label={
+                verifyBusy
+                  ? t("onboarding.verifyCheckingEmail")
+                  : t("onboarding.verifyContinue")
+              }
+              onPress={handleCheckVerified}
+              disabled={verifyBusy}
+              loading={verifyBusy}
+            />
+
+            <Pressable
+              onPress={handleResendVerify}
+              disabled={resendBusy || cooldownRemaining > 0}
+              hitSlop={8}
+              style={({ pressed }) => ({
+                opacity: pressed || resendBusy || cooldownRemaining > 0 ? 0.6 : 1,
+              })}
+            >
+              <Text style={[styles.forgotText, { color: colors.primary }]}>
+                {cooldownRemaining > 0
+                  ? t("onboarding.verifyResendCooldown", {
+                      seconds: cooldownRemaining,
+                    })
+                  : t("onboarding.verifyResend")}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleChangeEmail}
+              hitSlop={8}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            >
+              <Text
+                style={[
+                  styles.webSkipText,
+                  { color: colors.mutedForeground, marginTop: 16 },
+                ]}
+              >
+                {t("onboarding.verifyChangeEmail")}
+              </Text>
+            </Pressable>
           </View>
         ) : null}
 
@@ -840,6 +1080,15 @@ const styles = StyleSheet.create({
     borderRadius: 70,
     alignItems: "center",
     justifyContent: "center",
+  },
+  verifyIconWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: 8,
   },
   introTextArea: {
     alignItems: "center",
