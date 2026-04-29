@@ -14,6 +14,11 @@ const COMPANY_NAME = "Met";
 const APP_NAME = "Met: We Crossed Paths";
 const LAST_UPDATED = "April 28, 2026";
 
+// Privacy policy is hosted externally so legal can edit it without a
+// redeploy. The /privacy route on this server simply forwards there.
+const PRIVACY_POLICY_URL =
+  "https://doc-hosting.flycricket.io/met-privacy-policy/fdc825e1-4bde-43aa-9e6f-cd4b9860f90d/privacy";
+
 const baseStyles = `
   :root {
     color-scheme: light;
@@ -222,11 +227,9 @@ router.get("/support", (_req: Request, res: Response) => {
 });
 
 router.get("/privacy", (_req: Request, res: Response) => {
-  res
-    .status(200)
-    .type("html")
-    .set("Cache-Control", "public, max-age=300")
-    .send(privacyHtml);
+  // 302 so search engines / Apple's crawler follow to the canonical
+  // externally-hosted policy rather than indexing the inline copy.
+  res.redirect(302, PRIVACY_POLICY_URL);
 });
 
 export default router;
