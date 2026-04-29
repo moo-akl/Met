@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { Platform } from "react-native";
 
 import { deleteUserAccount } from "@/lib/auth";
 import { clearReferrals } from "@/lib/referrals";
@@ -126,10 +127,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loadPreferences(),
       ]);
       if (!mounted) return;
-      if (p) {
-        setProfileState({ ...p, isVisible: p.isVisible ?? true });
+      // Dev-only screenshot bootstrap: when `?demo=1` is present in the web
+      // preview URL during development, synthesize a profile + completed
+      // permissions so the auth gate lets us through to the tabs without
+      // running real onboarding. Inert in production (`__DEV__` is false) and
+      // on native (`Platform.OS !== 'web'`).
+      const isDemoBootstrap =
+        Platform.OS === "web" &&
+        __DEV__ &&
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("demo") === "1";
+      const effectiveProfile =
+        p ??
+        (isDemoBootstrap
+          ? ({
+              id: "demo-user",
+              name: "Alex",
+              bio: "Coffee, long walks, & spontaneous conversations.",
+              photoUri: "https://i.pravatar.cc/600?u=met-demo-alex",
+              socials: { instagram: "alex" },
+              verified: true,
+              isVisible: true,
+            } satisfies Profile)
+          : null);
+      const effectivePermissions = perms || isDemoBootstrap;
+      if (effectiveProfile) {
+        setProfileState({
+          ...effectiveProfile,
+          isVisible: effectiveProfile.isVisible ?? true,
+        });
       } else {
-        setProfileState(p);
+        setProfileState(null);
       }
       if (e && e.length > 0) {
         const swept = expireStaleRequests(e);
@@ -143,7 +171,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAllEncounters(seeded);
         await saveEncounters(seeded);
       }
-      setPermissionsCompletedState(perms);
+      setPermissionsCompletedState(effectivePermissions);
       setPreferencesState(prefs);
       setReady(true);
     })();

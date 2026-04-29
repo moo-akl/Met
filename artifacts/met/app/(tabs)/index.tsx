@@ -35,6 +35,18 @@ export default function HomeScreen() {
   const [requestsOpen, setRequestsOpen] = useState(false);
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
 
+  // Dev-only screenshot helper: open the Requests sheet on mount when the
+  // web preview URL contains `?openSheet=requests`. Inert on native and in
+  // production builds.
+  useEffect(() => {
+    if (Platform.OS !== "web" || !__DEV__) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("openSheet") === "requests") {
+      setRequestsOpen(true);
+    }
+  }, []);
+
   const incoming = useMemo(
     () => encounters.filter((e) => e.status === "request_received"),
     [encounters],
