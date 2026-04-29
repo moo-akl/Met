@@ -16,34 +16,34 @@ title = "Met — Competitor Map & Monetization Plan"
 id = "pHbq5_4kcX-5svRhsFrye"
 uri = "file://artifacts/met/store-assets/screenshots/01_onboarding.png"
 type = "image"
-title = "1. Onboarding — Discover Nearby People"
+title = "1. Onboarding (1284×2778)"
 
 [[outputs]]
 id = "j3cVe71wwx4RVTprSYAyK"
 uri = "file://artifacts/met/store-assets/screenshots/02_home.png"
 type = "image"
-title = "2. Home — Beacon + Nearby"
+title = "2. Home (1284×2778)"
 
 [[outputs]]
 id = "llhgSxkJ9tiLPNKpNVV6a"
 uri = "file://artifacts/met/store-assets/screenshots/03_recent.png"
 type = "image"
-title = "3. Recent Encounters"
+title = "3. Recent Encounters (1284×2778)"
 
 [[outputs]]
 id = "OxwErTxvejDQDCtLQD_Wq"
 uri = "file://artifacts/met/store-assets/screenshots/04_requests.png"
 type = "image"
-title = "4. Reveal Requests"
+title = "4. Reveal Requests (1284×2778)"
 
 [[outputs]]
 id = "nPXQA9T8CJV2OQw59oFs2"
 uri = "file://artifacts/met/store-assets/screenshots/05_connections.png"
 type = "image"
-title = "5. Connections"
+title = "5. Connections (1284×2778)"
 
 [[outputs]]
 id = "qLMd1BFlRIHqmcFb8ZRlB"
 uri = "file://artifacts/met/store-assets/screenshots/06_profile.png"
 type = "image"
-title = "6. Profile"
+title = "6. Profile (1284×2778)"
