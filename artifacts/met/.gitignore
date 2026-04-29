@@ -34,9 +34,11 @@ yarn-error.*
 # local env files
 .env*.local
 
-# Firebase config files (NEVER commit — these contain project identifiers)
-GoogleService-Info.plist
-google-services.json
+# Firebase config files: intentionally TRACKED so EAS Build can include
+# them in the iOS/Android bundles. These contain project identifiers
+# (API key, sender ID, bundle ID) — the keys are scoped to bundle ID +
+# SHA fingerprint at the Firebase project level, so committing them is
+# safe and matches Firebase's official guidance.
 
 # typescript
 *.tsbuildinfo
