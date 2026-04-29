@@ -1,51 +1,26 @@
-// Thin wrapper around the on-device face detector. Loads the native
-// module lazily so the module-evaluation side-effects don't crash the
-// web preview or Expo Go (where the native module isn't linked).
+// Face-quality filtering is disabled in v1.0.
 //
-// Production iOS / Android builds (EAS, dev clients) include the native
-// module and get the real detector. Anywhere else this returns
-// `supported: false` so callers can fall back to a pass-through.
+// We previously used `@infinitered/react-native-mlkit-face-detection` to gate
+// uploads to "exactly one clear face", but that package's transitive
+// MLKit iOS pods (MLKitVision / MLKitCommon) require GoogleUtilities ~> 7
+// and GTMSessionFetcher ~> 1, which are incompatible with the modern
+// Firebase Auth (~> 8 / >= 3.4) and Google Sign-In stack we depend on.
+//
+// `runFaceCheck` in `./photoVerify.ts` already treats `supported: false`
+// as a graceful pass-through, so this stub keeps the photo-verifier UX
+// unchanged (visible stage timing preserved) without the native gate.
+//
+// Re-enable in a future version via either:
+//   1. A server-side check (e.g. Cloud Vision API in our API server), or
+//   2. A vision-camera-based detector that uses modern MLKit pods.
 
 export type FaceDetectionOutcome = {
   count: number;
   supported: boolean;
 };
 
-type DetectorLike = {
-  detectFaces: (
-    uri: string,
-  ) => Promise<{ faces?: unknown[] } | undefined>;
-};
-
-let cachedDetector: DetectorLike | null = null;
-let nativeUnavailable = false;
-
 export async function detectSingleFace(
-  uri: string,
+  _uri: string,
 ): Promise<FaceDetectionOutcome> {
-  if (nativeUnavailable) return { count: 0, supported: false };
-
-  try {
-    if (!cachedDetector) {
-      const mod = await import(
-        "@infinitered/react-native-mlkit-face-detection"
-      );
-      cachedDetector = new mod.RNMLKitFaceDetector({
-        performanceMode: "fast",
-        // Require the face to occupy at least 15% of image width — filters
-        // out tiny faces in group / scenery shots.
-        minFaceSize: 0.15,
-      }) as unknown as DetectorLike;
-    }
-    const result = await cachedDetector.detectFaces(uri);
-    return {
-      count: Array.isArray(result?.faces) ? result.faces.length : 0,
-      supported: true,
-    };
-  } catch {
-    // Web preview, Expo Go without the linked module, or an unexpected
-    // native failure. Mark unavailable so we don't keep retrying.
-    nativeUnavailable = true;
-    return { count: 0, supported: false };
-  }
+  return { count: 0, supported: false };
 }
