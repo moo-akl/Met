@@ -231,9 +231,6 @@ importers:
       '@react-native-google-signin/google-signin':
         specifier: ^16.1.2
         version: 16.1.2(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
-      '@react-native-ml-kit/face-detection':
-        specifier: ^2.0.1
-        version: 2.0.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       expo-apple-authentication:
         specifier: ^55.0.13
         version: 55.0.13(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
@@ -2411,12 +2408,6 @@ packages:
     peerDependenciesMeta:
       expo:
         optional: true
-
-  '@react-native-ml-kit/face-detection@2.0.1':
-    resolution: {integrity: sha512-TOUwO90LRnJ3VhJYTS2VJbxtzDeaKjm6UjGufgqYjQbPsFCOwRtnmwBbjXZ0v5ih/Fmfjffb0W1I3c1773Q85Q==}
-    peerDependencies:
-      react: '>=16.8.1'
-      react-native: '>=0.60.0-rc.0 <1.0.x'
 
   '@react-native/assets-registry@0.81.5':
     resolution: {integrity: sha512-705B6x/5Kxm1RKRvSv0ADYWm5JOnoiQ1ufW7h8uu2E6G9Of/eE6hP/Ivw3U5jI16ERqZxiKQwk34VJbB0niX9w==}
@@ -8688,11 +8679,6 @@ snapshots:
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
     optionalDependencies:
       expo: 54.0.33(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
-
-  '@react-native-ml-kit/face-detection@2.0.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
-    dependencies:
-      react: 19.1.0
-      react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
 
   '@react-native/assets-registry@0.81.5': {}
 
