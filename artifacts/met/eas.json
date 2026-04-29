@@ -50,6 +50,9 @@
   },
   "submit": {
     "production": {
+      "ios": {
+        "appleTeamId": "AWHU9BTQQX"
+      },
       "android": {
         "track": "internal"
       }
