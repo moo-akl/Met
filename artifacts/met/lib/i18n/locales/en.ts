@@ -274,6 +274,20 @@ export const en = {
     webPreviewSkip: "Skip sign-in (web preview only)",
     signInError: "Sign in failed",
     signInErrorBody: "We couldn't sign you in. Please try again.",
+    verifyTitle: "Verify your email",
+    verifyBody:
+      "We sent a verification link to %{email}. Open the email on this device, tap the link, then come back and tap Continue.",
+    verifyContinue: "I verified my email",
+    verifyResend: "Resend verification email",
+    verifyResendCooldown: "Resend in %{seconds}s",
+    verifyResentTitle: "Email sent",
+    verifyResentBody:
+      "We sent a new verification link. Check your inbox and spam folder.",
+    verifyNotYetTitle: "Not verified yet",
+    verifyNotYetBody:
+      "Open the link in the email we sent you, then tap Continue.",
+    verifyChangeEmail: "Use a different email",
+    verifyCheckingEmail: "Checking…",
     welcomeTitle: "Welcome to Met",
     welcomeSub: "Remember the human, not the follower count.",
     getStarted: "Get started",
