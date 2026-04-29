@@ -1,0 +1,27 @@
+[!] CocoaPods could not find compatible versions for pod "GTMSessionFetcher/Core":
+  In Podfile:
+    RNFBAuth (from `../../../node_modules/.pnpm/@react-native-firebase+auth@24.0.0_@react-native-firebase+app@24.0.0_@react-native-asyn_4588b7e412f4eb4d49649f6b0aa92cff/node_modules/@react-native-firebase/auth`) was resolved to 24.0.0, which depends on
+      Firebase/Auth (= 12.10.0) was resolved to 12.10.0, which depends on
+        FirebaseAuth (~> 12.10.0) was resolved to 12.10.0, which depends on
+          GTMSessionFetcher/Core (< 6.0, >= 3.4)
+    RNGoogleSignin (from `../../../node_modules/.pnpm/@react-native-google-signin+google-signin@16.1.2_expo@54.0.33_react-native@0.81.5_@babe_b721b586db6abf21ba06379200ea46b6/node_modules/@react-native-google-signin/google-signin`) was resolved to 16.1.2, which depends on
+      GoogleSignIn (~> 9.0) was resolved to 9.1.0, which depends on
+        GTMAppAuth (~> 5.0) was resolved to 5.0.0, which depends on
+          GTMSessionFetcher/Core (< 4.0, >= 3.3)
+    RNGoogleSignin (from `../../../node_modules/.pnpm/@react-native-google-signin+google-signin@16.1.2_expo@54.0.33_react-native@0.81.5_@babe_b721b586db6abf21ba06379200ea46b6/node_modules/@react-native-google-signin/google-signin`) was resolved to 16.1.2, which depends on
+      GoogleSignIn (~> 9.0) was resolved to 9.1.0, which depends on
+        GTMSessionFetcher/Core (~> 3.3)
+    RNMLKitCore (from `../../../node_modules/.pnpm/@infinitered+react-native-mlkit-core@5.0.0_expo-image@3.0.11_expo@54.0.33_react-native-_5e06d4c9bd36f45e3db131edbc9c9ff1/node_modules/@infinitered/react-native-mlkit-core/ios`) was resolved to 5.0.0, which depends on
+      MLKitVision was resolved to 4.2.0, which depends on
+        GTMSessionFetcher/Core (~> 1.1)
+CocoaPods could not find compatible versions for pod "GoogleUtilities/UserDefaults":
+  In Podfile:
+    RNGoogleSignin (from `../../../node_modules/.pnpm/@react-native-google-signin+google-signin@16.1.2_expo@54.0.33_react-native@0.81.5_@babe_b721b586db6abf21ba06379200ea46b6/node_modules/@react-native-google-signin/google-signin`) was resolved to 16.1.2, which depends on
+      GoogleSignIn (~> 9.0) was resolved to 9.1.0, which depends on
+        AppCheckCore (~> 11.0) was resolved to 11.2.0, which depends on
+          GoogleUtilities/UserDefaults (~> 8.0)
+    RNMLKitCore (from `../../../node_modules/.pnpm/@infinitered+react-native-mlkit-core@5.0.0_expo-image@3.0.11_expo@54.0.33_react-native-_5e06d4c9bd36f45e3db131edbc9c9ff1/node_modules/@infinitered/react-native-mlkit-core/ios`) was resolved to 5.0.0, which depends on
+      MLKitVision was resolved to 6.0.0, which depends on
+        MLKitCommon (~> 10.0) was resolved to 10.0.0, which depends on
+          GoogleUtilities/UserDefaults (~> 7.0)
+Error: Compatible versions of some pods could not be resolved.
