@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "6d0206f8-2c1a-4ab7-8e8f-dbe369198d45"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.moakl.workspace",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}
