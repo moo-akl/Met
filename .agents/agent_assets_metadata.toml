@@ -11,3 +11,39 @@ id = "77slVHvtkAaNWSn3JKhny"
 uri = "file://docs/MET_BUSINESS.md"
 type = "text"
 title = "Met — Competitor Map & Monetization Plan"
+
+[[outputs]]
+id = "pHbq5_4kcX-5svRhsFrye"
+uri = "file://artifacts/met/store-assets/screenshots/01_onboarding.png"
+type = "image"
+title = "1. Onboarding — Discover Nearby People"
+
+[[outputs]]
+id = "j3cVe71wwx4RVTprSYAyK"
+uri = "file://artifacts/met/store-assets/screenshots/02_home.png"
+type = "image"
+title = "2. Home — Beacon + Nearby"
+
+[[outputs]]
+id = "llhgSxkJ9tiLPNKpNVV6a"
+uri = "file://artifacts/met/store-assets/screenshots/03_recent.png"
+type = "image"
+title = "3. Recent Encounters"
+
+[[outputs]]
+id = "OxwErTxvejDQDCtLQD_Wq"
+uri = "file://artifacts/met/store-assets/screenshots/04_requests.png"
+type = "image"
+title = "4. Reveal Requests"
+
+[[outputs]]
+id = "nPXQA9T8CJV2OQw59oFs2"
+uri = "file://artifacts/met/store-assets/screenshots/05_connections.png"
+type = "image"
+title = "5. Connections"
+
+[[outputs]]
+id = "qLMd1BFlRIHqmcFb8ZRlB"
+uri = "file://artifacts/met/store-assets/screenshots/06_profile.png"
+type = "image"
+title = "6. Profile"
