@@ -9,7 +9,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 //
 // To change the contact email, edit `SUPPORT_EMAIL` below.
 
-const SUPPORT_EMAIL = "support@met.app";
+const SUPPORT_EMAIL = "metapp.contact@gmail.com";
 const COMPANY_NAME = "Met";
 const APP_NAME = "Met: We Crossed Paths";
 const LAST_UPDATED = "April 28, 2026";
