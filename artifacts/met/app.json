@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -86,6 +86,7 @@
       ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
+      "./plugins/with-modular-headers.js",
       "expo-apple-authentication",
       [
         "@react-native-google-signin/google-signin",
