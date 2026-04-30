@@ -47,3 +47,9 @@ id = "qLMd1BFlRIHqmcFb8ZRlB"
 uri = "file://artifacts/met/store-assets/screenshots/06_profile.png"
 type = "image"
 title = "6. Profile (1284×2778)"
+
+[[outputs]]
+id = "YJ6Cj6n51bmJPZWCcq1fw"
+uri = "file://artifacts/met/store-assets/iap-review/paywall.png"
+type = "image"
+title = "paywall.png — IAP Review Screenshot (1242×3182)"
