@@ -441,6 +441,7 @@ export const en = {
       "Free limit reached — Met Plus unlocks unlimited reveals",
     removeEncounterAction: "Remove encounter",
     blockAction: "Block",
+    reportAction: "Report",
     revealSheet: {
       title: "Send a reveal request",
       advisory:
@@ -449,6 +450,17 @@ export const en = {
       cancel: "Cancel",
       send: "Send request",
     },
+    reportSheet: {
+      title: "Report this person",
+      subtitle:
+        "Reports are reviewed within 24 hours. The person will also be blocked.",
+      reasonInappropriate: "Inappropriate content",
+      reasonHarassment: "Harassment or bullying",
+      reasonSpam: "Spam or scam",
+      reasonUnderage: "I think they're underage",
+      reasonOther: "Other",
+    },
+    reported: "Report submitted — they've been blocked.",
   },
 
   connection: {
