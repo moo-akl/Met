@@ -53,3 +53,15 @@ id = "YJ6Cj6n51bmJPZWCcq1fw"
 uri = "file://artifacts/met/store-assets/iap-review/paywall.png"
 type = "image"
 title = "paywall.png — 1290×2796 (iPhone 6.7\" standard)"
+
+[[outputs]]
+id = "6fduhaLO3AxSd4EH2xNpM"
+uri = "file://artifacts/met/store-assets/play-store/icon_512.png"
+type = "image"
+title = "Play Store Icon — 512×512"
+
+[[outputs]]
+id = "2BYdctEbsCjy12BCkZBB4"
+uri = "file://artifacts/met/store-assets/play-store/feature_graphic_1024x500.png"
+type = "image"
+title = "Play Store Feature Graphic — 1024×500"
