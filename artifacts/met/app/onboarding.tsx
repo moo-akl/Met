@@ -1,6 +1,7 @@
 import { Feather, FontAwesome } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -97,6 +98,13 @@ const RESEND_COOLDOWN_MS = 60 * 1000;
 // their email in another tab/app.
 const VERIFY_POLL_MS = 5 * 1000;
 
+// Public legal documents — required to be visible at sign-up time per
+// App Store Guideline 1.2 (User Generated Content) and Play Store policy.
+const TERMS_URL =
+  "https://doc-hosting.flycricket.io/met-terms-conditions/de6cbb09-1b5f-4203-aba7-c70fe3fa4932/terms";
+const PRIVACY_URL =
+  "https://doc-hosting.flycricket.io/met-privacy-policy/fdc825e1-e02f-4a47-8169-e8bb9c4f54c9/privacy";
+
 export default function OnboardingScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -124,6 +132,11 @@ export default function OnboardingScreen() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  // EULA acceptance — required by App Store Guideline 1.2 (User Generated
+  // Content). Gate ALL sign-in methods (Apple, Google, email) behind an
+  // explicit checkbox confirming the user is 18+ and accepts our Terms +
+  // Privacy Policy. Reset per session — never persisted.
+  const [termsAccepted, setTermsAccepted] = useState(false);
   // Verify-email-screen state. `verifyEmail` is the address the user
   // signed up with (shown in the body copy). `resendCooldownEndsAt` is
   // a wall-clock timestamp; `cooldownRemaining` is a tick that drives
@@ -169,7 +182,23 @@ export default function OnboardingScreen() {
       t("onboarding.signInErrorBody"),
     );
 
+  // EULA gate — every auth path funnels through this. Returning false
+  // pops an alert and aborts; the call sites simply early-return.
+  const requireTerms = (): boolean => {
+    if (termsAccepted) return true;
+    Alert.alert(
+      t("onboarding.termsRequiredTitle"),
+      t("onboarding.termsRequiredBody"),
+    );
+    return false;
+  };
+
+  const openLink = (url: string) => {
+    Linking.openURL(url).catch(() => {});
+  };
+
   const handleApple = async () => {
+    if (!requireTerms()) return;
     setAuthBusy(true);
     try {
       // Returns null when the user cancels the Apple sheet — silent.
@@ -183,6 +212,7 @@ export default function OnboardingScreen() {
   };
 
   const handleGoogle = async () => {
+    if (!requireTerms()) return;
     setAuthBusy(true);
     try {
       // Returns null when the user cancels the Google sheet — silent.
@@ -196,6 +226,7 @@ export default function OnboardingScreen() {
   };
 
   const handleEmailAuth = async () => {
+    if (!requireTerms()) return;
     const email = authEmail.trim();
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       Alert.alert(
@@ -322,7 +353,10 @@ export default function OnboardingScreen() {
   // Web preview only — handleFinish will issue a local- ID since there's
   // no signed-in Firebase user. Hidden on native, where real auth is
   // required.
-  const handleWebSkip = () => goToProfileSetup();
+  const handleWebSkip = () => {
+    if (!requireTerms()) return;
+    goToProfileSetup();
+  };
 
   const handleFinish = async () => {
     if (!photoUri || !name.trim()) return;
@@ -591,6 +625,73 @@ export default function OnboardingScreen() {
             </Text>
             <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
               {t("onboarding.signInSub")}
+            </Text>
+
+            {/* EULA acceptance — required by App Store Guideline 1.2 and
+                Play Store policy for apps with user-generated content. The
+                checkbox gates Apple/Google/email auth via requireTerms(). */}
+            <Pressable
+              onPress={() => setTermsAccepted((v) => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: termsAccepted }}
+              accessibilityLabel={t("onboarding.termsAgreementCheckbox")}
+              accessibilityHint={t("onboarding.termsRequiredBody")}
+              style={({ pressed }) => [
+                styles.termsRow,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: termsAccepted ? colors.primary : colors.border,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.termsCheckbox,
+                  {
+                    backgroundColor: termsAccepted
+                      ? colors.primary
+                      : "transparent",
+                    borderColor: termsAccepted
+                      ? colors.primary
+                      : colors.border,
+                  },
+                ]}
+              >
+                {termsAccepted ? (
+                  <Feather name="check" size={14} color="#fff" />
+                ) : null}
+              </View>
+              <Text style={[styles.termsText, { color: colors.foreground }]}>
+                {t("onboarding.termsAgreementCheckbox")}{" "}
+                <Text
+                  style={[styles.termsLink, { color: colors.primary }]}
+                  accessibilityRole="link"
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    openLink(TERMS_URL);
+                  }}
+                >
+                  {t("onboarding.termsAgreementTerms")}
+                </Text>{" "}
+                {t("onboarding.termsAgreementAnd")}{" "}
+                <Text
+                  style={[styles.termsLink, { color: colors.primary }]}
+                  accessibilityRole="link"
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    openLink(PRIVACY_URL);
+                  }}
+                >
+                  {t("onboarding.termsAgreementPrivacy")}
+                </Text>
+                .
+              </Text>
+            </Pressable>
+            <Text
+              style={[styles.termsSafety, { color: colors.mutedForeground }]}
+            >
+              {t("onboarding.termsAgreementSafety")}
             </Text>
 
             {Platform.OS === "ios" ? (
@@ -1250,5 +1351,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     marginTop: 8,
+  },
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  termsCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  termsText: {
+    flex: 1,
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  termsLink: {
+    fontFamily: "Inter_600SemiBold",
+    textDecorationLine: "underline",
+  },
+  termsSafety: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: -10,
   },
 });
