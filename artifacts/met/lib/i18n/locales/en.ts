@@ -274,6 +274,15 @@ export const en = {
     webPreviewSkip: "Skip sign-in (web preview only)",
     signInError: "Sign in failed",
     signInErrorBody: "We couldn't sign you in. Please try again.",
+    termsAgreementCheckbox: "I'm 18 or older and agree to the",
+    termsAgreementTerms: "Terms of Service",
+    termsAgreementAnd: "and",
+    termsAgreementPrivacy: "Privacy Policy",
+    termsAgreementSafety:
+      "Met has zero tolerance for objectionable content or abusive behavior. Reports are reviewed within 24 hours.",
+    termsRequiredTitle: "Please agree to continue",
+    termsRequiredBody:
+      "Tap the checkbox above to confirm you're 18 or older and agree to our Terms of Service and Privacy Policy.",
     verifyTitle: "Verify your email",
     verifyBody:
       "We sent a verification link to %{email}. Open the email on this device, tap the link, then come back and tap Continue.",
