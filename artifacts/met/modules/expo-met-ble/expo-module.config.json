@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["MetBleModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.metble.MetBleModule"]
+  }
+}

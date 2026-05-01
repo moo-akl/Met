@@ -119,6 +119,11 @@ export interface NearbyEntry {
   updatedAt: string;
 }
 
+export interface BleResolveEntry {
+  hash: string;
+  profile: RemoteProfile;
+}
+
 export const api = {
   baseUrl: BASE_URL,
   isConfigured: () => BASE_URL.length > 0,
@@ -161,4 +166,6 @@ export const api = {
       opts,
     );
   },
+  bleResolve: (opts: ApiOptions, hashes: string[]) =>
+    request<BleResolveEntry[]>("POST", "/api/ble/resolve", opts, { hashes }),
 };

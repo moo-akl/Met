@@ -9,6 +9,7 @@ import {
   GetProfileResponse,
 } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
+import { uidToHash } from "../lib/uidHash";
 
 const router: IRouter = Router();
 
@@ -42,10 +43,14 @@ router.put("/profiles/me", requireUid, async (req, res) => {
   const uid = req.uid!;
   const body = UpsertMyProfileBody.parse(req.body);
   const now = new Date();
+  // Recompute on every upsert so the column self-heals if the hashing
+  // scheme is ever migrated (or the column was added after the row).
+  const uidHash = uidToHash(uid);
   const [row] = await db
     .insert(profilesTable)
     .values({
       uid,
+      uidHash,
       displayName: body.displayName,
       photoUrl: body.photoUrl ?? null,
       bio: body.bio ?? null,
@@ -54,6 +59,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     .onConflictDoUpdate({
       target: profilesTable.uid,
       set: {
+        uidHash,
         displayName: body.displayName,
         photoUrl: body.photoUrl ?? null,
         bio: body.bio ?? null,
