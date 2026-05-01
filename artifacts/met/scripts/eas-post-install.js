@@ -6,40 +6,27 @@
 //
 // PURPOSE
 // -------
-// EAS Build runs `pnpm expo prebuild ...` after the install step. Depending
-// on which directory EAS launches that command from (workspace root vs the
-// artifact dir) and which node_modules layout pnpm chose (isolated vs
-// hoisted), the `expo` binary may not be reachable via parent-dir lookup.
+// Belt-and-suspenders safety net: even though the pre-install hook
+// already ensures `expo` is a workspace-root devDep (so its binary lands
+// at <workspace>/node_modules/.bin/expo after install), if anything has
+// gone wrong with that injection, this hook hunts for the `expo` binary
+// anywhere in the install tree and symlinks it to the workspace root.
 //
-// This hook is a belt-and-suspenders safety net: it walks each artifact's
-// `node_modules/.bin/` and symlinks every Expo-related binary it finds
-// into the workspace root's `node_modules/.bin/`. After this runs, `pnpm
-// expo prebuild` from the workspace root will always find `expo` at
-// `<workspace>/node_modules/.bin/expo`.
-//
-// Idempotent. Safe to run multiple times. Skips if the source binary
-// doesn't exist (e.g. wrong artifact, install failed) or if a symlink
-// already exists at the target.
+// We also log loudly (with a sentinel banner) so we can confirm in EAS
+// build output whether the hook actually ran. The previous build's
+// pipeline summary did NOT show a "Post-install hook" step, suggesting
+// EAS didn't pick up our registration. Loud logs give us proof one way
+// or the other.
 //
 // LOCAL SAFETY
 // ------------
-// Gated on `EAS_BUILD` / `CI` env. Local invocation is a no-op so it
-// can't accidentally modify your dev environment's symlinks.
-//
+// Gated on `EAS_BUILD` / `CI`. Local invocation is a no-op.
 // =============================================================================
 
 const fs = require("node:fs");
 const path = require("node:path");
 
-// Binaries we want findable at the workspace root.
-const EXPO_BINARIES = [
-  "expo",
-  "expo-cli",
-  "expo-modules-autolinking",
-  "eas",
-  "react-native",
-  "metro",
-];
+const TARGET_BINARIES = ["expo", "eas", "react-native"];
 
 function findWorkspaceRoot(start) {
   let dir = start;
@@ -54,31 +41,44 @@ function findWorkspaceRoot(start) {
   );
 }
 
-function listArtifactDirs(root) {
-  const artifactsRoot = path.join(root, "artifacts");
-  if (!fs.existsSync(artifactsRoot)) return [];
-  return fs
-    .readdirSync(artifactsRoot, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => path.join(artifactsRoot, d.name));
+// Walk a directory tree (capped depth) looking for a file named `name`
+// inside any `node_modules/.bin/` directory. Returns array of absolute paths.
+function findBinaryPaths(rootDir, name, maxDepth = 6) {
+  const results = [];
+  function walk(dir, depth) {
+    if (depth > maxDepth) return;
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name === ".bin") {
+          const candidate = path.join(full, name);
+          if (fs.existsSync(candidate)) results.push(candidate);
+        } else {
+          walk(full, depth + 1);
+        }
+      }
+    }
+  }
+  walk(rootDir, 0);
+  return results;
 }
 
 function ensureSymlink(src, dest) {
-  // Skip if source doesn't exist.
   if (!fs.existsSync(src)) return false;
-
-  // Skip if dest already exists (file or symlink — don't clobber).
   try {
     fs.lstatSync(dest);
-    console.log(`[eas-post-install] skip (already present): ${dest}`);
+    console.log(`[eas-post-install] already present: ${dest}`);
     return false;
   } catch {
-    // doesn't exist — proceed
+    /* doesn't exist - proceed */
   }
-
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-
-  // Use a relative symlink so it survives the moved EAS workdir.
   const relSrc = path.relative(path.dirname(dest), src);
   fs.symlinkSync(relSrc, dest);
   console.log(`[eas-post-install] linked: ${dest} -> ${relSrc}`);
@@ -86,6 +86,10 @@ function ensureSymlink(src, dest) {
 }
 
 function main() {
+  console.log("[eas-post-install] ========================================");
+  console.log("[eas-post-install] HOOK FIRED");
+  console.log("[eas-post-install] ========================================");
+
   const root = findWorkspaceRoot(__dirname);
   const isEas = !!process.env.EAS_BUILD || process.env.CI === "true";
   console.log(
@@ -102,22 +106,32 @@ function main() {
   }
 
   const rootBin = path.join(root, "node_modules", ".bin");
-  let linked = 0;
+  console.log(
+    `[eas-post-install] Inspecting workspace root .bin: ${rootBin}  exists=${fs.existsSync(rootBin)}`,
+  );
 
-  for (const artifactDir of listArtifactDirs(root)) {
-    const artifactBin = path.join(artifactDir, "node_modules", ".bin");
-    if (!fs.existsSync(artifactBin)) continue;
-
-    for (const bin of EXPO_BINARIES) {
-      const src = path.join(artifactBin, bin);
-      const dest = path.join(rootBin, bin);
-      if (ensureSymlink(src, dest)) linked++;
+  for (const bin of TARGET_BINARIES) {
+    const rootBinPath = path.join(rootBin, bin);
+    if (fs.existsSync(rootBinPath)) {
+      console.log(
+        `[eas-post-install] OK: ${bin} already at workspace root .bin`,
+      );
+      continue;
     }
+    console.log(`[eas-post-install] Hunting for ${bin}...`);
+    const found = findBinaryPaths(path.join(root, "node_modules"), bin);
+    found.push(...findBinaryPaths(path.join(root, "artifacts"), bin));
+    if (found.length === 0) {
+      console.warn(`[eas-post-install] WARN: no ${bin} binary found anywhere`);
+      continue;
+    }
+    console.log(
+      `[eas-post-install] Found ${found.length} candidates for ${bin}: ${found.join(", ")}`,
+    );
+    ensureSymlink(found[0], rootBinPath);
   }
 
-  console.log(
-    `[eas-post-install] Done. Created ${linked} new symlink(s) at ${rootBin}.`,
-  );
+  console.log("[eas-post-install] Done.");
 }
 
 main();
