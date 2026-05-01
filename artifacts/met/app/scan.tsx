@@ -73,7 +73,13 @@ export default function ScanScreen() {
     [router, upsertEncounterFromQr, t],
   );
 
+  // Dev-only QR simulator: lets us walk through the post-scan flow without
+  // a real QR code in front of the camera. Production builds must NOT
+  // expose this — fabricating an encounter from a tap is misleading
+  // (App Store 4.1 / Play "Deceptive Behavior") and the corresponding UI
+  // entry points are gated below.
   const handleSimulate = async () => {
+    if (!__DEV__) return;
     const fake: ParsedQr = {
       id: `qr-${Date.now()}`,
       name: t("scan.defaultPersonName"),
@@ -119,11 +125,13 @@ export default function ScanScreen() {
                 await requestPermission();
               }}
             />
-            <PrimaryButton
-              label={t("scan.useDemoQRBtn")}
-              variant="secondary"
-              onPress={handleSimulate}
-            />
+            {__DEV__ ? (
+              <PrimaryButton
+                label={t("scan.useDemoQRBtn")}
+                variant="secondary"
+                onPress={handleSimulate}
+              />
+            ) : null}
             <PrimaryButton
               label={t("scan.closeBtn")}
               variant="ghost"
@@ -181,17 +189,19 @@ export default function ScanScreen() {
               {t("scan.hintMain")}
             </Text>
           )}
-          <Pressable
-            onPress={handleSimulate}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.simBtn,
-              { opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Feather name="play-circle" size={16} color="#FFFFFF" />
-            <Text style={styles.simText}>{t("scan.simulateScan")}</Text>
-          </Pressable>
+          {__DEV__ ? (
+            <Pressable
+              onPress={handleSimulate}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.simBtn,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Feather name="play-circle" size={16} color="#FFFFFF" />
+              <Text style={styles.simText}>{t("scan.simulateScan")}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </View>

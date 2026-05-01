@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
 import { EmptyState } from "@/components/EmptyState";
+import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { EncounterRow } from "@/components/EncounterRow";
 import { RequestsSheet } from "@/components/RequestsSheet";
 import { ScanFab } from "@/components/ScanFab";
@@ -161,21 +162,33 @@ export default function RecentScreen() {
           </View>
         ) : null}
         {visible.length === 0 ? (
-          <EmptyState
-            icon="users"
-            title={
-              weeklyFilter === "new"
-                ? t("recent.emptyTitleNew")
-                : weeklyFilter === "repeats"
-                  ? t("recent.emptyTitleRepeats")
-                  : t("recent.emptyTitleAll")
-            }
-            description={
-              weeklyFilter
-                ? t("recent.emptySubFiltered")
-                : t("recent.emptySubAll")
-            }
-          />
+          // Brand-new user with zero encounters and no active filter →
+          // show the full visual welcome. Otherwise fall back to the slim
+          // EmptyState for filtered / no-match cases.
+          encounters.length === 0 && !weeklyFilter ? (
+            <WelcomeEmptyState
+              title={t("recent.welcomeTitle")}
+              description={t("recent.welcomeDesc")}
+              hintIcon="eye"
+              hint={t("recent.welcomeHint")}
+            />
+          ) : (
+            <EmptyState
+              icon="users"
+              title={
+                weeklyFilter === "new"
+                  ? t("recent.emptyTitleNew")
+                  : weeklyFilter === "repeats"
+                    ? t("recent.emptyTitleRepeats")
+                    : t("recent.emptyTitleAll")
+              }
+              description={
+                weeklyFilter
+                  ? t("recent.emptySubFiltered")
+                  : t("recent.emptySubAll")
+              }
+            />
+          )
         ) : (
           <View style={styles.list}>
             {visible.map((e, idx) => (
