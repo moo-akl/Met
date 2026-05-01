@@ -19,6 +19,11 @@ import {
   type ProximityDetection,
 } from "@/lib/proximity/presence";
 import {
+  startBleProximity,
+  stopBleProximity,
+  type BleProximityDetection,
+} from "@/lib/ble";
+import {
   DEFAULT_PREFERENCES,
   REQUEST_TTL_MS,
   clearEncounters,
@@ -426,10 +431,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Detected encounters land in the neutral "encounter" status — the
   // user explicitly initiates a reveal request via UI, never the system.
   const upsertEncounterFromProximity = useCallback(
-    async (event: ProximityDetection) => {
+    async (event: ProximityDetection | BleProximityDetection) => {
       const now = event.observedAt;
       const distance = Math.round(event.distanceM);
-      const sourceLabel = event.source === "gps" ? "Nearby" : "In the room";
+      const sourceLabel = event.source === "ble" ? "In the room" : "Nearby";
       let next: Encounter[] = [];
       setAllEncounters((prev) => {
         const existing = prev.find((e) => e.id === event.uid);
@@ -541,6 +546,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
       stopProximity();
+    };
+  }, [authedUid, permissionsCompleted]);
+
+  // Start/stop BLE proximity (scan + advertise). Same gating as GPS.
+  // Independent effect so a failure in one pipeline doesn't tear down
+  // the other. In Expo Go both halves no-op cleanly.
+  useEffect(() => {
+    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+      void stopBleProximity();
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const result = await startBleProximity({
+        uid: authedUid,
+        listener: (event) => {
+          void upsertProximityRef.current(event);
+        },
+      });
+      if (cancelled) {
+        void stopBleProximity();
+        return;
+      }
+      if (!result.scanner.started) {
+        console.warn(
+          "[appcontext] BLE scanner not started:",
+          result.scanner.reason ?? "unknown",
+        );
+      }
+      if (!result.advertiser.started) {
+        console.warn(
+          "[appcontext] BLE advertiser not started:",
+          result.advertiser.reason ?? "unknown",
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+      void stopBleProximity();
     };
   }, [authedUid, permissionsCompleted]);
 

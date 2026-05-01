@@ -155,6 +155,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/PresenceRecord"
 
+  /ble/resolve:
+    post:
+      operationId: bleResolve
+      tags: [ble]
+      summary: Resolve BLE identity hashes to user profiles
+      description: |
+        Given an array of 16-char hex identity hashes (the first 8 bytes of
+        SHA-256(uid)), returns the matching profiles. Used by the BLE
+        scanner to look up a UID after detecting a Met advertisement.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BleResolveRequest"
+      responses:
+        "200":
+          description: List of matched profiles. Unmatched hashes are omitted.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BleResolveEntry"
+
   /presence/nearby:
     get:
       operationId: nearbyPresence
@@ -377,3 +404,26 @@ components:
         - uid
         - distanceM
         - updatedAt
+    BleResolveRequest:
+      type: object
+      properties:
+        hashes:
+          type: array
+          items:
+            type: string
+            pattern: "^[0-9a-f]{16}$"
+          minItems: 1
+          maxItems: 64
+      required:
+        - hashes
+    BleResolveEntry:
+      type: object
+      properties:
+        hash:
+          type: string
+          pattern: "^[0-9a-f]{16}$"
+        profile:
+          $ref: "#/components/schemas/Profile"
+      required:
+        - hash
+        - profile

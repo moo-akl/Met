@@ -17,6 +17,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  BleResolveEntry,
+  BleResolveRequest,
   Encounter,
   EncounterWithProfile,
   Error,
@@ -606,6 +608,96 @@ export const useUpdatePresence = <
   TContext
 > => {
   return useMutation(getUpdatePresenceMutationOptions(options));
+};
+
+/**
+ * Given an array of 16-char hex identity hashes (the first 8 bytes of
+SHA-256(uid)), returns the matching profiles. Used by the BLE
+scanner to look up a UID after detecting a Met advertisement.
+
+ * @summary Resolve BLE identity hashes to user profiles
+ */
+export const getBleResolveUrl = () => {
+  return `/api/ble/resolve`;
+};
+
+export const bleResolve = async (
+  bleResolveRequest: BleResolveRequest,
+  options?: RequestInit,
+): Promise<BleResolveEntry[]> => {
+  return customFetch<BleResolveEntry[]>(getBleResolveUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bleResolveRequest),
+  });
+};
+
+export const getBleResolveMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bleResolve>>,
+    TError,
+    { data: BodyType<BleResolveRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bleResolve>>,
+  TError,
+  { data: BodyType<BleResolveRequest> },
+  TContext
+> => {
+  const mutationKey = ["bleResolve"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bleResolve>>,
+    { data: BodyType<BleResolveRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bleResolve(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BleResolveMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bleResolve>>
+>;
+export type BleResolveMutationBody = BodyType<BleResolveRequest>;
+export type BleResolveMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Resolve BLE identity hashes to user profiles
+ */
+export const useBleResolve = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bleResolve>>,
+    TError,
+    { data: BodyType<BleResolveRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bleResolve>>,
+  TError,
+  { data: BodyType<BleResolveRequest> },
+  TContext
+> => {
+  return useMutation(getBleResolveMutationOptions(options));
 };
 
 /**
