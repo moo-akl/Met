@@ -6,7 +6,13 @@
   },
   "build": {
     "base": {
-      "node": "20.18.0"
+      "node": "20.18.0",
+      "ios": {
+        "image": "latest"
+      },
+      "android": {
+        "image": "latest"
+      }
     },
     "development": {
       "extends": "base",
