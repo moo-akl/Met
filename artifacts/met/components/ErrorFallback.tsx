@@ -79,6 +79,25 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           {t("errorFallback.message")}
         </Text>
 
+        <View
+          style={[
+            styles.errorContainer,
+            { backgroundColor: colors.card, marginTop: 8 },
+          ]}
+        >
+          <Text
+            style={[
+              styles.errorText,
+              { color: colors.foreground, fontFamily: monoFont },
+            ]}
+            selectable
+          >
+            {(error.message || "(no message)") +
+              "\n\n" +
+              ((error.stack ?? "(no stack)").split("\n").slice(0, 8).join("\n"))}
+          </Text>
+        </View>
+
         <Pressable
           onPress={handleRestart}
           style={({ pressed }) => [
