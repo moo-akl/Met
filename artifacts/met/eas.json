@@ -6,7 +6,11 @@
   },
   "build": {
     "base": {
-      "node": "20.18.0"
+      "node": "20.18.0",
+      "env": {
+        "NPM_CONFIG_NODE_LINKER": "hoisted",
+        "NPM_CONFIG_SHAMEFULLY_HOIST": "true"
+      }
     },
     "development": {
       "extends": "base",
