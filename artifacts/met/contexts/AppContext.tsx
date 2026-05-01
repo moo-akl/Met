@@ -166,10 +166,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Persist the swept state so subsequent loads don't re-do the work.
           saveEncounters(swept.next).catch(() => {});
         }
-      } else {
+      } else if (__DEV__) {
+        // Dev-only seed: gives developers a populated app to work against
+        // without having to script real encounters. NEVER runs in production
+        // — App Store / Play Store policies prohibit shipping fake users in
+        // dating apps (Apple Guideline 4.1, Google "Deceptive Behavior").
         const seeded = buildSeedEncounters();
         setAllEncounters(seeded);
         await saveEncounters(seeded);
+      } else {
+        // Production: brand-new users start with a genuinely empty list.
+        // The Recent tab renders the WelcomeEmptyState in this case.
+        setAllEncounters([]);
       }
       setPermissionsCompletedState(effectivePermissions);
       setPreferencesState(prefs);
@@ -312,7 +320,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await clearPreferences();
     await clearReferrals();
     await savePermissionsCompleted(false);
-    const seeded = buildSeedEncounters();
+    // Same dev-only gate as initial load — production reset leaves the
+    // encounters list genuinely empty.
+    const seeded = __DEV__ ? buildSeedEncounters() : [];
     setProfileState(null);
     setAllEncounters(seeded);
     setPermissionsCompletedState(false);
@@ -366,6 +376,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
       await saveEncounters(next);
+
+      // Auto-reply simulation is dev-only — fabricating messages from a
+      // real-looking person in production would mislead users (App Store
+      // 4.1 / Play "Deceptive Behavior"). When a real backend is wired up
+      // the recipient's actual reply will arrive via push / fetch.
+      if (!__DEV__) return;
 
       // Simulate the recipient replying after a short delay so the prototype
       // shows the full thread without needing real backend wiring.
@@ -431,10 +447,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
           return next;
         }
+        // QR scan of an unknown user — fabricate a minimal encounter.
+        // Use an empty photoUri so Avatar falls back to initials/icon
+        // instead of a random pravatar face. A real face placeholder
+        // would misrepresent who the scanned user is (App Store 4.1).
+        // In production this row will be replaced as soon as the backend
+        // returns the real profile for the scanned ID.
         const fabricated: Encounter = {
           id: data.id,
           realName: data.name || "Met user",
-          photoUri: `https://i.pravatar.cc/600?u=${encodeURIComponent(data.id)}`,
+          photoUri: "",
           bio: "Met via QR code",
           socials: {},
           encounterCount: 1,

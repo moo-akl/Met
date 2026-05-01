@@ -132,6 +132,10 @@ export const en = {
     emptySubFiltered: "Try clearing the filter to see your full feed.",
     emptySubAll:
       "Keep your beacon on. The next person you cross paths with will appear here.",
+    welcomeTitle: "Your encounters will appear here",
+    welcomeDesc:
+      "Open Met when you're somewhere new — a café, a gym, a festival, a coworking space. Members who chose to be visible at that place will show up here.",
+    welcomeHint: "Tip: turn on visibility from your profile to start meeting people",
     limitTitle: "You've reached today's limit",
     limitSub_one: "{{count}} more encounter hidden. Met Plus shows them all.",
     limitSub_other:
@@ -149,6 +153,10 @@ export const en = {
     tagAll: "All",
     emptyTitle: "No connections yet",
     emptySub: "Once someone reveals back, they'll show up here.",
+    welcomeTitle: "Your connections will live here",
+    welcomeDesc:
+      "When you and another member both reveal each other, the connection lands here — yours to keep, with private notes, tags, and meeting spots.",
+    welcomeHint: "Send your first reveal request from the Recent tab",
     noMatchesTitle: "No matches",
     noMatchesByTag:
       "No connection tagged #{{tag}}{{andQuery}}.",
