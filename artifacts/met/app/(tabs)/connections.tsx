@@ -16,6 +16,7 @@ import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
+import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
@@ -252,11 +253,23 @@ export default function ConnectionsScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {connections.length === 0 ? (
-          <EmptyState
-            icon="message-circle"
-            title={t("connections.emptyTitle")}
-            description={t("connections.emptySub")}
-          />
+          // Brand-new user (no encounters at all) → big visual welcome.
+          // Active user with encounters but no connections yet → slim
+          // contextual hint that they just need someone to reveal back.
+          encounters.length === 0 ? (
+            <WelcomeEmptyState
+              title={t("connections.welcomeTitle")}
+              description={t("connections.welcomeDesc")}
+              hintIcon="send"
+              hint={t("connections.welcomeHint")}
+            />
+          ) : (
+            <EmptyState
+              icon="message-circle"
+              title={t("connections.emptyTitle")}
+              description={t("connections.emptySub")}
+            />
+          )
         ) : sorted.length === 0 ? (
           <EmptyState
             icon="search"

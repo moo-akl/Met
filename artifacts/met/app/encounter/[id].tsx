@@ -82,6 +82,12 @@ export default function EncounterDetail() {
   );
 
   useEffect(() => {
+    // Dev-only auto-accept: in production a real reveal request must be
+    // accepted by the actual recipient via push / fetch, never fabricated
+    // client-side. Auto-accepting in production would be misleading
+    // (App Store 4.1 / Play "Deceptive Behavior") and would also break
+    // the "100% mutual / 100% opt-in" promise in our App Store description.
+    if (!__DEV__) return;
     if (encounter?.status === "request_sent") {
       const timer = setTimeout(() => {
         updateEncounterStatus(encounter.id, "connected");
