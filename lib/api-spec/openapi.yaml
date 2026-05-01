@@ -14,6 +14,8 @@ tags:
     description: User profile operations
   - name: encounters
     description: Encounter logging operations
+  - name: presence
+    description: Location-based proximity
 paths:
   /healthz:
     get:
@@ -132,6 +134,74 @@ paths:
                 items:
                   $ref: "#/components/schemas/EncounterWithProfile"
 
+  /presence:
+    put:
+      operationId: updatePresence
+      tags: [presence]
+      summary: Update the authenticated user's last known location
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePresence"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresenceRecord"
+
+  /presence/nearby:
+    get:
+      operationId: nearbyPresence
+      tags: [presence]
+      summary: List Met users near a coordinate
+      description: Returns users within `radiusM` meters whose presence was updated within `maxAgeMin` minutes. Excludes the caller.
+      security:
+        - MetUid: []
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+        - name: lng
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+        - name: radiusM
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 200
+            minimum: 1
+            maximum: 5000
+        - name: maxAgeMin
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 15
+            minimum: 1
+            maximum: 1440
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NearbyEntry"
+
 components:
   securitySchemes:
     MetUid:
@@ -249,3 +319,61 @@ components:
               $ref: "#/components/schemas/Profile"
           required:
             - profile
+    UpdatePresence:
+      type: object
+      properties:
+        lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        accuracyM:
+          type: number
+          format: double
+          nullable: true
+      required:
+        - lat
+        - lng
+    PresenceRecord:
+      type: object
+      properties:
+        uid:
+          type: string
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+        accuracyM:
+          type: number
+          format: double
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - uid
+        - lat
+        - lng
+        - updatedAt
+    NearbyEntry:
+      type: object
+      properties:
+        uid:
+          type: string
+        distanceM:
+          type: number
+          format: double
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - uid
+        - distanceM
+        - updatedAt

@@ -83,3 +83,26 @@ Prioritize performance and user experience in all development tasks.
 - **Modular headers fix**: `useFrameworks: "static"` (required by Firebase iOS SDK) causes RNFBApp to error on non-modular React-Core header includes. The custom plugin `plugins/with-modular-headers.js` (registered in `app.json` plugins) injects two things into the prebuilt Podfile: (1) `use_modular_headers!` after `use_frameworks!`, and (2) `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES` on every pod target inside the `post_install` hook. The plugin requires `@expo/config-plugins` as a direct devDep (pnpm doesn't hoist it for EAS to find).
 - **SDK version alignment**: Several `expo-*` packages were on SDK 55 versions while the project is SDK 54. Fixed by aligning `expo-apple-authentication@~8.0.8`, `expo-build-properties@~1.0.10`, `expo-crypto@~15.0.9`. SDK 55 packages reference `StaticFunction`/`StaticAsyncFunction` Swift APIs that don't exist in SDK 54's `expo-modules-core@3.0.x`. Use `npx expo install --check` to verify alignment before any build.
 - **Face detector stub**: `lib/faceDetector.ts` returns `{count: 0, supported: false}` because both `@react-native-ml-kit/face-detection` and `@infinitered/react-native-mlkit-face-detection` had incompatible MLKit pods conflicting with Firebase 12.x's GoogleUtilities ~>8 / GTMSessionFetcher >=3.4. `runFaceCheck` already passes through gracefully when face detection is unavailable.
+
+## Real Proximity (Build #13)
+- **Architecture**: hybrid GPS + BLE. Build #13 ships GPS only. BLE scan + advertise (custom Expo native module) is scheduled for Build #14. Profile lookup unifies both paths by Firebase UID.
+- **Backend** (`artifacts/api-server`):
+  - Postgres (NOT Firebase Firestore) via Drizzle. Schemas in `lib/db/src/schema/{profiles,encounters,presence}.ts`.
+  - Routes in `artifacts/api-server/src/routes/{profiles,encounters,presence}.ts` + `middlewares/requireUid.ts` (X-Met-Uid header trust for MVP — hardening = `firebase-admin` token verification).
+  - Endpoints: `PUT /api/profiles/me`, `GET /api/profiles/{uid}`, `POST /api/encounters`, `GET /api/encounters`, `PUT /api/presence`, `GET /api/presence/nearby`. Nearby uses Haversine SQL, defaults: 200 m radius, 15 min maxAge.
+  - OpenAPI contract in `lib/api-spec/openapi.yaml`; codegen via `pnpm --filter @workspace/api-spec run codegen`.
+- **Mobile**:
+  - `lib/api/client.ts` — typed wrappers; resolves API URL from `EXPO_PUBLIC_API_URL` or expo Constants hostUri. Adds `X-Met-Uid` header.
+  - `lib/proximity/presence.ts` — singleton GPS loop. Pushes location every 60 s, polls nearby every 30 s, dedupes re-emits within 10 min, resolves each new uid via `/api/profiles/{uid}`, logs to `/api/encounters`, emits typed `ProximityDetection` events.
+  - `lib/auth.ts` — added `subscribeToAuthState(cb)` wrapping Firebase `onAuthStateChanged`.
+  - `contexts/AppContext.tsx` — `upsertEncounterFromProximity` merges detections into the local encounter list using uid as the row id (so a later QR scan unifies into the same encounter). Two effects: profile→backend sync; uid+permissions→start/stop proximity loop.
+- **BLE plumbing (Build #14)**:
+  - `react-native-ble-plx@^3.5.1` is installed but NOT yet imported anywhere — keeping Expo Go testing alive.
+  - Plan: `lib/ble/{uuids,encode,scanner,index}.ts` for central-mode scan; custom Expo native module under `lib/ble/advertise-native/` for peripheral-mode advertise (iOS `CBPeripheralManager`, Android `BluetoothLeAdvertiser`). Both require an EAS dev client.
+  - `app/permissions.tsx` Bluetooth + Notification rows are still stubs; will be wired to real APIs alongside the BLE module.
+- **UI polish (Build #13)**:
+  - Email-auth password field gained a show/hide eye toggle.
+  - Profile photo edit now offers Replace / Remove via `Alert.alert` (Save remains disabled until a photo is chosen).
+  - Settings sheet has a new Permissions row that deep-links to OS settings via `Linking.openSettings()`.
+  - Home vibe label "Quiet zone" was renamed to active language ("Looking around") across all 9 locales.
+- **App version**: iOS `buildNumber` = `13`, Android `versionCode` = `3`. App version stays `1.0.0`.
