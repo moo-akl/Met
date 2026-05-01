@@ -96,13 +96,26 @@ Prioritize performance and user experience in all development tasks.
   - `lib/proximity/presence.ts` — singleton GPS loop. Pushes location every 60 s, polls nearby every 30 s, dedupes re-emits within 10 min, resolves each new uid via `/api/profiles/{uid}`, logs to `/api/encounters`, emits typed `ProximityDetection` events.
   - `lib/auth.ts` — added `subscribeToAuthState(cb)` wrapping Firebase `onAuthStateChanged`.
   - `contexts/AppContext.tsx` — `upsertEncounterFromProximity` merges detections into the local encounter list using uid as the row id (so a later QR scan unifies into the same encounter). Two effects: profile→backend sync; uid+permissions→start/stop proximity loop.
-- **BLE plumbing (Build #14)**:
-  - `react-native-ble-plx@^3.5.1` is installed but NOT yet imported anywhere — keeping Expo Go testing alive.
-  - Plan: `lib/ble/{uuids,encode,scanner,index}.ts` for central-mode scan; custom Expo native module under `lib/ble/advertise-native/` for peripheral-mode advertise (iOS `CBPeripheralManager`, Android `BluetoothLeAdvertiser`). Both require an EAS dev client.
-  - `app/permissions.tsx` Bluetooth + Notification rows are still stubs; will be wired to real APIs alongside the BLE module.
 - **UI polish (Build #13)**:
   - Email-auth password field gained a show/hide eye toggle.
   - Profile photo edit now offers Replace / Remove via `Alert.alert` (Save remains disabled until a photo is chosen).
   - Settings sheet has a new Permissions row that deep-links to OS settings via `Linking.openSettings()`.
   - Home vibe label "Quiet zone" was renamed to active language ("Looking around") across all 9 locales.
-- **App version**: iOS `buildNumber` = `13`, Android `versionCode` = `3`. App version stays `1.0.0`.
+
+## Real BLE Proximity (Build #14)
+- **Encoding**: each user's identity hash = first 8 bytes of SHA-256(firebaseUid), encoded as 16 lowercase hex chars. Met service UUID `4d455400-7770-4ac2-9b3d-000000000001`.
+- **Backend**: added `uidHash text` column (indexed, default `''`) to `profilesTable`; recomputed on every profile upsert via `artifacts/api-server/src/lib/uidHash.ts`. New route `POST /api/ble/resolve` (`routes/ble.ts`) accepts `{ hashes: string[] }` (each 16 hex, max 64) and returns matched profiles. OpenAPI updated with `BleResolveRequest` + `BleResolveEntry` schemas.
+- **Mobile BLE library** (`artifacts/met/lib/ble/`):
+  - `uuids.ts`, `encode.ts` (uses `expo-crypto`), `plx.ts` (defensive lazy require of `react-native-ble-plx` so Expo Go silently no-ops).
+  - `scanner.ts` — singleton, generation tokens, dual-source hash extraction (Android service-data + iOS local-name `met:<hex>` fallback), batched resolve every 4s with `inFlightHashes` set to prevent dedup races during the resolve await, and proper overflow re-queueing for batches >32.
+  - `index.ts` — `startBleProximity({uid, listener})` / `stopBleProximity()` mirroring the GPS service. RSSI → meters estimator (rough, clamped 1–50m).
+- **Custom Expo native module** at `artifacts/met/modules/expo-met-ble/`:
+  - iOS Swift module using `CBPeripheralManager` (advertises Met service UUID + local name `met:<hex>` because iOS strips service data).
+  - Android Kotlin module using `BluetoothLeAdvertiser` (advertises service UUID + 8-byte service data payload).
+  - JS bridge `src/index.ts` exports `startAdvertising(uid, hashHex)`, `stopAdvertising()`, `isAdvertisingAvailable()` with `requireOptionalNativeModule` + try/catch fallback for Expo Go.
+  - Auto-discovered by `expo-modules-autolinking` from the `modules/` folder.
+- **Config plugin** `artifacts/met/plugins/with-met-ble.js` — idempotent injection of iOS `NSBluetoothAlwaysUsageDescription` and Android `BLUETOOTH`/`BLUETOOTH_ADMIN`/`BLUETOOTH_SCAN` (with `neverForLocation`)/`BLUETOOTH_CONNECT`/`BLUETOOTH_ADVERTISE` permissions.
+- **Permissions UI**: `app/permissions.tsx` Bluetooth row now performs real probes — `PermissionsAndroid.requestMultiple` on Android 12+, BleManager `onStateChange` probe on iOS (with subscription cleanup + 4s timeout).
+- **AppContext**: added a second `useEffect` that mirrors the GPS effect for BLE — same gating (uid + permissions + api configured), independent lifecycle so a failure in one pipeline doesn't tear down the other. Both pipelines feed `upsertEncounterFromProximity`, source label is "In the room" for BLE vs "Nearby" for GPS.
+- **Caveats**: BLE cannot be tested in Expo Go, simulator, or emulator — requires a pair of physical devices and an EAS dev/production build. Foreground only (background BLE on iOS requires App Store justification, deferred).
+- **App version**: iOS `buildNumber` = `14`, Android `versionCode` = `4`. App version stays `1.0.0`.

@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./bleResolveEntry";
+export * from "./bleResolveRequest";
 export * from "./encounter";
 export * from "./encounterWithProfile";
 export * from "./error";

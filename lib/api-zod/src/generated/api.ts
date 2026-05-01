@@ -140,6 +140,39 @@ export const UpdatePresenceResponse = zod.object({
 });
 
 /**
+ * Given an array of 16-char hex identity hashes (the first 8 bytes of
+SHA-256(uid)), returns the matching profiles. Used by the BLE
+scanner to look up a UID after detecting a Met advertisement.
+
+ * @summary Resolve BLE identity hashes to user profiles
+ */
+export const bleResolveBodyHashesItemRegExp = new RegExp("^[0-9a-f]{16}$");
+export const bleResolveBodyHashesMax = 64;
+
+export const BleResolveBody = zod.object({
+  hashes: zod
+    .array(zod.string().regex(bleResolveBodyHashesItemRegExp))
+    .min(1)
+    .max(bleResolveBodyHashesMax),
+});
+
+export const bleResolveResponseHashRegExp = new RegExp("^[0-9a-f]{16}$");
+
+export const BleResolveResponseItem = zod.object({
+  hash: zod.string().regex(bleResolveResponseHashRegExp),
+  profile: zod.object({
+    uid: zod.string(),
+    displayName: zod.string(),
+    photoUrl: zod.string().nullish(),
+    bio: zod.string().nullish(),
+    socials: zod.record(zod.string(), zod.string()).optional(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+});
+export const BleResolveResponse = zod.array(BleResolveResponseItem);
+
+/**
  * Returns users within `radiusM` meters whose presence was updated within `maxAgeMin` minutes. Excludes the caller.
  * @summary List Met users near a coordinate
  */

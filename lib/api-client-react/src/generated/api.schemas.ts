@@ -87,6 +87,20 @@ export interface NearbyEntry {
   updatedAt: string;
 }
 
+export interface BleResolveRequest {
+  /**
+   * @minItems 1
+   * @maxItems 64
+   */
+  hashes: string[];
+}
+
+export interface BleResolveEntry {
+  /** @pattern ^[0-9a-f]{16}$ */
+  hash: string;
+  profile: Profile;
+}
+
 export type NearbyPresenceParams = {
   lat: number;
   lng: number;

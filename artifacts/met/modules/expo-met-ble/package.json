@@ -1,0 +1,12 @@
+{
+  "name": "expo-met-ble",
+  "version": "1.0.0",
+  "description": "Custom BLE peripheral (advertise) module for the Met app",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "private": true,
+  "files": ["android", "ios", "src", "expo-module.config.json", "plugin"],
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

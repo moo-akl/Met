@@ -4,6 +4,7 @@ import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  PermissionsAndroid,
   Platform,
   Pressable,
   ScrollView,
@@ -11,6 +12,9 @@ import {
   Text,
   View,
 } from "react-native";
+
+import { loadPlx } from "@/lib/ble/plx";
+import { isAdvertisingAvailable } from "@/lib/ble";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -76,9 +80,70 @@ export default function PermissionsScreen() {
 
   const requestBluetooth = async () => {
     setBusy("bluetooth");
-    await new Promise((r) => setTimeout(r, 350));
-    setOne("bluetooth", "granted");
-    setBusy(null);
+    try {
+      // Android 12+: explicit runtime grants for the new BLE perms.
+      if (Platform.OS === "android" && (Platform.Version as number) >= 31) {
+        const res = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+        ]);
+        const allGranted = Object.values(res).every(
+          (v) => v === PermissionsAndroid.RESULTS.GRANTED,
+        );
+        setOne("bluetooth", allGranted ? "granted" : "denied");
+        return;
+      }
+
+      // iOS: simply *constructing* a BleManager triggers the system
+      // prompt. We don't need the manager itself here, just the side
+      // effect of asking the user. Falls back to the advertiser
+      // availability check if scanning isn't linked.
+      const plx = loadPlx();
+      if (plx) {
+        try {
+          const manager = new plx.BleManager();
+          // Wait for the radio to settle so we can read the user's
+          // decision. iOS reports `Unauthorized` if denied, `PoweredOn`
+          // if allowed (and BT is on), `PoweredOff` if allowed but BT
+          // is off (which is still a successful permission grant).
+          const granted = await new Promise<boolean>((resolve) => {
+            const timer = setTimeout(() => {
+              try { sub.remove(); } catch { /* noop */ }
+              resolve(false);
+            }, 4_000);
+            const sub = manager.onStateChange((s) => {
+              if (s === plx.State.PoweredOn || s === plx.State.PoweredOff) {
+                clearTimeout(timer);
+                sub.remove();
+                resolve(true);
+              } else if (
+                s === plx.State.Unauthorized ||
+                s === plx.State.Unsupported
+              ) {
+                clearTimeout(timer);
+                sub.remove();
+                resolve(false);
+              }
+            }, true);
+          });
+          try { manager.destroy(); } catch { /* noop */ }
+          setOne("bluetooth", granted ? "granted" : "denied");
+          return;
+        } catch (err) {
+          console.warn("[permissions] BLE probe failed", err);
+        }
+      }
+
+      // Fall back to the advertiser availability check (Expo Go safe).
+      const available = await isAdvertisingAvailable();
+      setOne("bluetooth", available ? "granted" : "denied");
+    } catch (err) {
+      console.warn("[permissions] requestBluetooth failed", err);
+      setOne("bluetooth", "denied");
+    } finally {
+      setBusy(null);
+    }
   };
 
   const requestNotifications = async () => {
