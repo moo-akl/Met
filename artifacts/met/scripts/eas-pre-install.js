@@ -4,52 +4,48 @@
 // EAS Build pre-install hook.
 // =============================================================================
 //
-// PROBLEM
-// -------
-// When EAS Build runs `pnpm install --frozen-lockfile` against this monorepo,
-// it fails with:
+// PROBLEMS THIS HOOK FIXES (in order, on the EAS Build worker only)
+// -----------------------------------------------------------------
 //
-//     ERR_PNPM_LOCKFILE_CONFIG_MISMATCH
-//     The current "overrides" configuration doesn't match the value found
-//     in the lockfile.
+// 1) `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`
+//    Our pnpm-workspace.yaml has a large `overrides:` block that tombstones
+//    every non-Linux-x64 native binary (esbuild/rollup/lightningcss/oxide/
+//    @expo/ngrok-bin) so Replit doesn't waste bandwidth/disk on darwin and
+//    win32 binaries we never run. pnpm 10's frozen install hashes that
+//    overrides block and compares it to a hash in the lockfile. Subtle
+//    serialization differences between pnpm versions produce different
+//    hashes, so the frozen check rejects an otherwise-valid lockfile.
+//    FIX: strip the `overrides:` block entirely on the EAS worker. EAS is
+//    macOS and actually wants the darwin binaries, so the overrides are
+//    pure deadweight there. With no overrides on either side, there's no
+//    hash to mismatch.
 //
-// Root cause: our `pnpm-workspace.yaml` contains a large `overrides:` block
-// that tombstones (`'-'`) every non-Linux-x64 native binary for esbuild,
-// rollup, lightningcss, tailwindcss/oxide, and @expo/ngrok-bin. This is a
-// bandwidth/disk optimisation for Replit (Linux x64 only) — without it,
-// pnpm pulls down dozens of darwin/win32/freebsd binaries we never use.
-//
-// pnpm 10's frozen install hashes the overrides block and compares it to a
-// hash stored in the lockfile. Subtle differences in how pnpm versions
-// serialise / order the overrides keys produce different hashes, so even
-// when the overrides are semantically identical the frozen check fails.
-//
-// SOLUTION
-// --------
-// On the EAS worker (which is macOS and DOES want the darwin binaries),
-// we don't need the overrides block at all. So this hook:
-//
-//   1. Strips the entire `overrides:` block from `pnpm-workspace.yaml`.
-//   2. Regenerates `pnpm-lock.yaml` with `--lockfile-only`, producing a
-//      lockfile with no overrides hash to mismatch.
-//
-// EAS's subsequent `pnpm install --frozen-lockfile` then sees a workspace
-// config and a lockfile that agree (both with no overrides), and proceeds.
+// 2) `Command "expo" not found` during `pnpm expo prebuild`
+//    pnpm's default `node-linker=isolated` puts each workspace package's
+//    binaries only in that package's local `node_modules/.bin/`. EAS runs
+//    `pnpm expo prebuild` from a directory where parent-dir lookup for
+//    `expo` fails. The Expo + pnpm monorepo guidance is to use the
+//    npm-style flat layout (`node-linker=hoisted`) so every binary lives
+//    at the workspace root's `node_modules/.bin/`.
+//    FIX: append `node-linker=hoisted` and `shamefully-hoist=true` to the
+//    workspace `.npmrc`. (We also set `NPM_CONFIG_*` env vars in eas.json
+//    as a fallback, but writing to .npmrc is the most reliable mechanism.)
 //
 // LOCAL SAFETY
 // ------------
-// We MUST NOT mutate `pnpm-workspace.yaml` during local development — that
-// would force the user to download all the platform binaries we're trying
-// to skip. The hook gates its destructive behaviour on EAS-set env vars
-// (`EAS_BUILD` or `CI`), so a local invocation is a harmless no-op.
+// We MUST NOT modify pnpm-workspace.yaml or .npmrc during local
+// development — that would force the user to download all the platform
+// binaries we're trying to skip on Replit, and would change the local
+// node_modules layout in disruptive ways. The hook gates every
+// destructive step on EAS-set env vars (`EAS_BUILD` or `CI`), so a local
+// invocation is a harmless no-op.
 //
 // HOOK DISCOVERY
 // --------------
-// EAS's documentation on `eas-build-pre-install` is ambiguous for pnpm
-// workspaces — it may look in the artifact's package.json (where eas.json
-// lives) OR in the workspace root (where pnpm-workspace.yaml lives). We
-// register the hook in BOTH `package.json` files and point both at this
-// single script, so it runs no matter which one EAS picks up.
+// EAS's `eas-build-pre-install` hook lookup for pnpm workspaces is
+// undocumented. We register the hook in BOTH the workspace root
+// `package.json` AND `artifacts/met/package.json` (both pointing here),
+// so it runs no matter which one EAS inspects.
 //
 // =============================================================================
 
@@ -75,9 +71,9 @@ function run(cmd, cwd) {
   execSync(cmd, { cwd, stdio: "inherit" });
 }
 
-// Strip the entire `overrides:` block from pnpm-workspace.yaml. The block
-// starts with a line `overrides:` and continues until either a non-indented
-// line begins a different top-level key, or EOF.
+// Strip the `overrides:` block from pnpm-workspace.yaml. The block starts
+// with a top-level `overrides:` line and continues until either a new
+// non-indented top-level key or EOF.
 function stripOverridesBlock(yamlText) {
   const lines = yamlText.split("\n");
   const out = [];
@@ -86,23 +82,29 @@ function stripOverridesBlock(yamlText) {
     if (!inOverrides) {
       if (/^overrides\s*:\s*$/.test(line)) {
         inOverrides = true;
-        // skip this line entirely
         continue;
       }
       out.push(line);
     } else {
-      // We're inside the overrides block. It ends when we hit a line that
-      // is non-empty AND not indented (i.e. a new top-level YAML key).
-      if (line.length === 0 || /^\s/.test(line)) {
-        // still inside the block (blank line or indented child) — skip
-        continue;
-      }
-      // back to a top-level key: stop skipping, emit this line
+      if (line.length === 0 || /^\s/.test(line)) continue;
       inOverrides = false;
       out.push(line);
     }
   }
   return out.join("\n");
+}
+
+function ensureNpmrcSetting(npmrcPath, key, value) {
+  let text = fs.existsSync(npmrcPath) ? fs.readFileSync(npmrcPath, "utf8") : "";
+  const re = new RegExp(`^${key}\\s*=.*$`, "m");
+  if (re.test(text)) {
+    text = text.replace(re, `${key}=${value}`);
+  } else {
+    if (text.length > 0 && !text.endsWith("\n")) text += "\n";
+    text += `${key}=${value}\n`;
+  }
+  fs.writeFileSync(npmrcPath, text, "utf8");
+  console.log(`[eas-pre-install] .npmrc: set ${key}=${value}`);
 }
 
 function main() {
@@ -116,33 +118,31 @@ function main() {
 
   if (!isEas) {
     console.log(
-      "[eas-pre-install] Not running on EAS/CI (no EAS_BUILD or CI env). " +
-        "Skipping all destructive steps so local pnpm-workspace.yaml stays intact.",
+      "[eas-pre-install] Not running on EAS/CI. Skipping all destructive steps.",
     );
     return;
   }
 
-  // 1. Strip overrides from pnpm-workspace.yaml on the EAS worker only.
+  // 1. Strip overrides from pnpm-workspace.yaml.
   const wsPath = path.join(root, "pnpm-workspace.yaml");
   const original = fs.readFileSync(wsPath, "utf8");
   const stripped = stripOverridesBlock(original);
   if (stripped !== original) {
     fs.writeFileSync(wsPath, stripped, "utf8");
     console.log(
-      "[eas-pre-install] Stripped `overrides:` block from pnpm-workspace.yaml " +
-        "(EAS macOS worker downloads native binaries it actually needs).",
-    );
-  } else {
-    console.log(
-      "[eas-pre-install] No `overrides:` block found in pnpm-workspace.yaml " +
-        "(already clean).",
+      "[eas-pre-install] Stripped `overrides:` block from pnpm-workspace.yaml.",
     );
   }
 
-  // 2. Activate the pinned pnpm version via Corepack so the regenerated
-  //    lockfile is produced by the same pnpm EAS will use for the frozen
-  //    install. Corepack failures are non-fatal — we fall through to the
-  //    pnpm already on PATH.
+  // 2. Force npm-style flat node_modules layout so the `expo` binary lives
+  //    at <workspace>/node_modules/.bin/expo where EAS's prebuild step
+  //    looks for it.
+  const npmrcPath = path.join(root, ".npmrc");
+  ensureNpmrcSetting(npmrcPath, "node-linker", "hoisted");
+  ensureNpmrcSetting(npmrcPath, "shamefully-hoist", "true");
+
+  // 3. Activate pinned pnpm via Corepack so the lockfile we regenerate is
+  //    produced by the same pnpm EAS will use for the frozen install.
   try {
     run("corepack enable", root);
   } catch (err) {
@@ -152,12 +152,11 @@ function main() {
     );
   }
 
-  // 3. Regenerate pnpm-lock.yaml without modifying node_modules. EAS's own
-  //    install step will materialise node_modules right after this returns.
+  // 4. Regenerate the lockfile against the now-stripped workspace config.
   run("pnpm install --lockfile-only --no-strict-peer-dependencies", root);
 
   console.log(
-    "[eas-pre-install] Lockfile regenerated. EAS's frozen install should now succeed.",
+    "[eas-pre-install] Done. EAS frozen install will run with hoisted layout.",
   );
 }
 
