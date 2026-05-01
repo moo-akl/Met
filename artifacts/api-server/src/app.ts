@@ -1,6 +1,12 @@
-import express, { type Express } from "express";
+import express, {
+  type Express,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import { ZodError } from "zod";
 import router from "./routes";
 import legalRouter from "./routes/legal";
 import { logger } from "./lib/logger";
@@ -36,5 +42,22 @@ app.use("/api", router);
 // App Store and Play Store. These are mounted at the root (not under
 // `/api`) so they show up at clean URLs like https://met.app/support.
 app.use(legalRouter);
+
+// JSON error handler so async route exceptions don't escape as HTML.
+// Express 5 forwards thrown promises here automatically.
+app.use(
+  (err: unknown, req: Request, res: Response, _next: NextFunction): void => {
+    if (err instanceof ZodError) {
+      req.log?.warn({ err }, "validation error");
+      res.status(400).json({
+        message: "Validation error",
+        issues: err.issues,
+      });
+      return;
+    }
+    req.log?.error({ err }, "unhandled route error");
+    res.status(500).json({ message: "Internal server error" });
+  },
+);
 
 export default app;

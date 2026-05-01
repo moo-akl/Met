@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: profiles
+    description: User profile operations
+  - name: encounters
+    description: Encounter logging operations
 paths:
   /healthz:
     get:
@@ -24,7 +28,117 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /profiles/me:
+    get:
+      operationId: getMyProfile
+      tags: [profiles]
+      summary: Get the authenticated user's profile
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: upsertMyProfile
+      tags: [profiles]
+      summary: Create or update the authenticated user's profile
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertProfile"
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+  /profiles/{uid}:
+    get:
+      operationId: getProfile
+      tags: [profiles]
+      summary: Get a profile by user id
+      security:
+        - MetUid: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /encounters:
+    post:
+      operationId: logEncounter
+      tags: [encounters]
+      summary: Log a Bluetooth detection of another user
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogEncounter"
+      responses:
+        "200":
+          description: Encounter recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Encounter"
+    get:
+      operationId: listMyEncounters
+      tags: [encounters]
+      summary: List encounters observed by the authenticated user
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EncounterWithProfile"
+
 components:
+  securitySchemes:
+    MetUid:
+      type: apiKey
+      in: header
+      name: X-Met-Uid
+      description: Firebase UID of the requesting user (MVP — replace with verified ID token later)
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +147,105 @@ components:
           type: string
       required:
         - status
-
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    Profile:
+      type: object
+      properties:
+        uid:
+          type: string
+        displayName:
+          type: string
+        photoUrl:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        socials:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - uid
+        - displayName
+        - createdAt
+        - updatedAt
+    UpsertProfile:
+      type: object
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        photoUrl:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+          maxLength: 500
+        socials:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+        - displayName
+    LogEncounter:
+      type: object
+      properties:
+        observedUid:
+          type: string
+          minLength: 1
+        rssi:
+          type: integer
+          nullable: true
+      required:
+        - observedUid
+    Encounter:
+      type: object
+      properties:
+        id:
+          type: integer
+        observerUid:
+          type: string
+        observedUid:
+          type: string
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        encounterCount:
+          type: integer
+        lastRssi:
+          type: integer
+          nullable: true
+      required:
+        - id
+        - observerUid
+        - observedUid
+        - firstSeenAt
+        - lastSeenAt
+        - encounterCount
+    EncounterWithProfile:
+      allOf:
+        - $ref: "#/components/schemas/Encounter"
+        - type: object
+          properties:
+            profile:
+              $ref: "#/components/schemas/Profile"
+          required:
+            - profile

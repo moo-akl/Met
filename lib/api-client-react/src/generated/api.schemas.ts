@@ -8,3 +8,53 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface Error {
+  message: string;
+}
+
+export type ProfileSocials = { [key: string]: string };
+
+export interface Profile {
+  uid: string;
+  displayName: string;
+  photoUrl?: string | null;
+  bio?: string | null;
+  socials?: ProfileSocials;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type UpsertProfileSocials = { [key: string]: string };
+
+export interface UpsertProfile {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  displayName: string;
+  photoUrl?: string | null;
+  /** @maxLength 500 */
+  bio?: string | null;
+  socials?: UpsertProfileSocials;
+}
+
+export interface LogEncounter {
+  /** @minLength 1 */
+  observedUid: string;
+  rssi?: number | null;
+}
+
+export interface Encounter {
+  id: number;
+  observerUid: string;
+  observedUid: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  encounterCount: number;
+  lastRssi?: number | null;
+}
+
+export type EncounterWithProfile = Encounter & {
+  profile: Profile;
+};

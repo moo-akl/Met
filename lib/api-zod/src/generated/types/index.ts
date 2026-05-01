@@ -6,4 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./encounter";
+export * from "./encounterWithProfile";
+export * from "./error";
 export * from "./healthStatus";
+export * from "./logEncounter";
+export * from "./profile";
+export * from "./profileSocials";
+export * from "./upsertProfile";
+export * from "./upsertProfileSocials";
