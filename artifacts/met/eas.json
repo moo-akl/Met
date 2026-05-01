@@ -6,11 +6,7 @@
   },
   "build": {
     "base": {
-      "node": "20.18.0",
-      "env": {
-        "NPM_CONFIG_NODE_LINKER": "hoisted",
-        "NPM_CONFIG_SHAMEFULLY_HOIST": "true"
-      }
+      "node": "20.18.0"
     },
     "development": {
       "extends": "base",
@@ -18,7 +14,6 @@
       "distribution": "internal",
       "channel": "development",
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.1",
         "simulator": true
       },
       "android": {
@@ -30,7 +25,6 @@
       "distribution": "internal",
       "channel": "preview",
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.1",
         "simulator": true
       },
       "android": {
@@ -41,25 +35,14 @@
       "extends": "base",
       "distribution": "internal",
       "channel": "preview",
-      "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.1"
-      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
-      "node": "20.18.0",
+      "extends": "base",
       "channel": "production",
       "autoIncrement": false,
-      "env": {
-        "NPM_CONFIG_NODE_LINKER": "hoisted",
-        "NPM_CONFIG_SHAMEFULLY_HOIST": "true"
-      },
-      "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.1",
-        "resourceClass": "m-medium"
-      },
       "android": {
         "buildType": "app-bundle"
       }
