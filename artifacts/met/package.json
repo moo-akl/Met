@@ -8,7 +8,8 @@
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "eas-build-pre-install": "node ./scripts/eas-pre-install.js"
+    "eas-build-pre-install": "node ./scripts/eas-pre-install.js",
+    "eas-build-post-install": "node ./scripts/eas-post-install.js"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
