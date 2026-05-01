@@ -58,3 +58,46 @@ export interface Encounter {
 export type EncounterWithProfile = Encounter & {
   profile: Profile;
 };
+
+export interface UpdatePresence {
+  /**
+   * @minimum -90
+   * @maximum 90
+   */
+  lat: number;
+  /**
+   * @minimum -180
+   * @maximum 180
+   */
+  lng: number;
+  accuracyM?: number | null;
+}
+
+export interface PresenceRecord {
+  uid: string;
+  lat: number;
+  lng: number;
+  accuracyM?: number | null;
+  updatedAt: string;
+}
+
+export interface NearbyEntry {
+  uid: string;
+  distanceM: number;
+  updatedAt: string;
+}
+
+export type NearbyPresenceParams = {
+  lat: number;
+  lng: number;
+  /**
+   * @minimum 1
+   * @maximum 5000
+   */
+  radiusM?: number;
+  /**
+   * @minimum 1
+   * @maximum 1440
+   */
+  maxAgeMin?: number;
+};

@@ -115,3 +115,58 @@ export const ListMyEncountersResponseItem = zod
     }),
   );
 export const ListMyEncountersResponse = zod.array(ListMyEncountersResponseItem);
+
+/**
+ * @summary Update the authenticated user's last known location
+ */
+export const updatePresenceBodyLatMin = -90;
+export const updatePresenceBodyLatMax = 90;
+
+export const updatePresenceBodyLngMin = -180;
+export const updatePresenceBodyLngMax = 180;
+
+export const UpdatePresenceBody = zod.object({
+  lat: zod.number().min(updatePresenceBodyLatMin).max(updatePresenceBodyLatMax),
+  lng: zod.number().min(updatePresenceBodyLngMin).max(updatePresenceBodyLngMax),
+  accuracyM: zod.number().nullish(),
+});
+
+export const UpdatePresenceResponse = zod.object({
+  uid: zod.string(),
+  lat: zod.number(),
+  lng: zod.number(),
+  accuracyM: zod.number().nullish(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * Returns users within `radiusM` meters whose presence was updated within `maxAgeMin` minutes. Excludes the caller.
+ * @summary List Met users near a coordinate
+ */
+export const nearbyPresenceQueryRadiusMDefault = 200;
+export const nearbyPresenceQueryRadiusMMax = 5000;
+
+export const nearbyPresenceQueryMaxAgeMinDefault = 15;
+export const nearbyPresenceQueryMaxAgeMinMax = 1440;
+
+export const NearbyPresenceQueryParams = zod.object({
+  lat: zod.coerce.number(),
+  lng: zod.coerce.number(),
+  radiusM: zod.coerce
+    .number()
+    .min(1)
+    .max(nearbyPresenceQueryRadiusMMax)
+    .default(nearbyPresenceQueryRadiusMDefault),
+  maxAgeMin: zod.coerce
+    .number()
+    .min(1)
+    .max(nearbyPresenceQueryMaxAgeMinMax)
+    .default(nearbyPresenceQueryMaxAgeMinDefault),
+});
+
+export const NearbyPresenceResponseItem = zod.object({
+  uid: zod.string(),
+  distanceM: zod.number(),
+  updatedAt: zod.coerce.date(),
+});
+export const NearbyPresenceResponse = zod.array(NearbyPresenceResponseItem);
