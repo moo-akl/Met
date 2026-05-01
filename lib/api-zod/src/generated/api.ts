@@ -14,3 +14,104 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary Get the authenticated user's profile
+ */
+export const GetMyProfileResponse = zod.object({
+  uid: zod.string(),
+  displayName: zod.string(),
+  photoUrl: zod.string().nullish(),
+  bio: zod.string().nullish(),
+  socials: zod.record(zod.string(), zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Create or update the authenticated user's profile
+ */
+export const upsertMyProfileBodyDisplayNameMax = 80;
+
+export const upsertMyProfileBodyBioMax = 500;
+
+export const UpsertMyProfileBody = zod.object({
+  displayName: zod.string().min(1).max(upsertMyProfileBodyDisplayNameMax),
+  photoUrl: zod.string().nullish(),
+  bio: zod.string().max(upsertMyProfileBodyBioMax).nullish(),
+  socials: zod.record(zod.string(), zod.string()).optional(),
+});
+
+export const UpsertMyProfileResponse = zod.object({
+  uid: zod.string(),
+  displayName: zod.string(),
+  photoUrl: zod.string().nullish(),
+  bio: zod.string().nullish(),
+  socials: zod.record(zod.string(), zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Get a profile by user id
+ */
+export const GetProfileParams = zod.object({
+  uid: zod.coerce.string(),
+});
+
+export const GetProfileResponse = zod.object({
+  uid: zod.string(),
+  displayName: zod.string(),
+  photoUrl: zod.string().nullish(),
+  bio: zod.string().nullish(),
+  socials: zod.record(zod.string(), zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Log a Bluetooth detection of another user
+ */
+
+export const LogEncounterBody = zod.object({
+  observedUid: zod.string().min(1),
+  rssi: zod.number().nullish(),
+});
+
+export const LogEncounterResponse = zod.object({
+  id: zod.number(),
+  observerUid: zod.string(),
+  observedUid: zod.string(),
+  firstSeenAt: zod.coerce.date(),
+  lastSeenAt: zod.coerce.date(),
+  encounterCount: zod.number(),
+  lastRssi: zod.number().nullish(),
+});
+
+/**
+ * @summary List encounters observed by the authenticated user
+ */
+export const ListMyEncountersResponseItem = zod
+  .object({
+    id: zod.number(),
+    observerUid: zod.string(),
+    observedUid: zod.string(),
+    firstSeenAt: zod.coerce.date(),
+    lastSeenAt: zod.coerce.date(),
+    encounterCount: zod.number(),
+    lastRssi: zod.number().nullish(),
+  })
+  .and(
+    zod.object({
+      profile: zod.object({
+        uid: zod.string(),
+        displayName: zod.string(),
+        photoUrl: zod.string().nullish(),
+        bio: zod.string().nullish(),
+        socials: zod.record(zod.string(), zod.string()).optional(),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      }),
+    }),
+  );
+export const ListMyEncountersResponse = zod.array(ListMyEncountersResponseItem);

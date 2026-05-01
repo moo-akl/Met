@@ -5,18 +5,29 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  Encounter,
+  EncounterWithProfile,
+  Error,
+  HealthStatus,
+  LogEncounter,
+  Profile,
+  UpsertProfile,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -92,6 +103,413 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the authenticated user's profile
+ */
+export const getGetMyProfileUrl = () => {
+  return `/api/profiles/me`;
+};
+
+export const getMyProfile = async (options?: RequestInit): Promise<Profile> => {
+  return customFetch<Profile>(getGetMyProfileUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyProfileQueryKey = () => {
+  return [`/api/profiles/me`] as const;
+};
+
+export const getGetMyProfileQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyProfile>>,
+  TError = ErrorType<Error>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyProfile>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyProfileQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyProfile>>> = ({
+    signal,
+  }) => getMyProfile({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyProfile>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyProfileQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyProfile>>
+>;
+export type GetMyProfileQueryError = ErrorType<Error>;
+
+/**
+ * @summary Get the authenticated user's profile
+ */
+
+export function useGetMyProfile<
+  TData = Awaited<ReturnType<typeof getMyProfile>>,
+  TError = ErrorType<Error>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyProfile>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyProfileQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create or update the authenticated user's profile
+ */
+export const getUpsertMyProfileUrl = () => {
+  return `/api/profiles/me`;
+};
+
+export const upsertMyProfile = async (
+  upsertProfile: UpsertProfile,
+  options?: RequestInit,
+): Promise<Profile> => {
+  return customFetch<Profile>(getUpsertMyProfileUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertProfile),
+  });
+};
+
+export const getUpsertMyProfileMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertMyProfile>>,
+    TError,
+    { data: BodyType<UpsertProfile> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertMyProfile>>,
+  TError,
+  { data: BodyType<UpsertProfile> },
+  TContext
+> => {
+  const mutationKey = ["upsertMyProfile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertMyProfile>>,
+    { data: BodyType<UpsertProfile> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return upsertMyProfile(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertMyProfileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertMyProfile>>
+>;
+export type UpsertMyProfileMutationBody = BodyType<UpsertProfile>;
+export type UpsertMyProfileMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create or update the authenticated user's profile
+ */
+export const useUpsertMyProfile = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertMyProfile>>,
+    TError,
+    { data: BodyType<UpsertProfile> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertMyProfile>>,
+  TError,
+  { data: BodyType<UpsertProfile> },
+  TContext
+> => {
+  return useMutation(getUpsertMyProfileMutationOptions(options));
+};
+
+/**
+ * @summary Get a profile by user id
+ */
+export const getGetProfileUrl = (uid: string) => {
+  return `/api/profiles/${uid}`;
+};
+
+export const getProfile = async (
+  uid: string,
+  options?: RequestInit,
+): Promise<Profile> => {
+  return customFetch<Profile>(getGetProfileUrl(uid), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProfileQueryKey = (uid: string) => {
+  return [`/api/profiles/${uid}`] as const;
+};
+
+export const getGetProfileQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProfile>>,
+  TError = ErrorType<Error>,
+>(
+  uid: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProfile>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetProfileQueryKey(uid);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getProfile>>> = ({
+    signal,
+  }) => getProfile(uid, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!uid,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProfile>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProfileQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProfile>>
+>;
+export type GetProfileQueryError = ErrorType<Error>;
+
+/**
+ * @summary Get a profile by user id
+ */
+
+export function useGetProfile<
+  TData = Awaited<ReturnType<typeof getProfile>>,
+  TError = ErrorType<Error>,
+>(
+  uid: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProfile>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProfileQueryOptions(uid, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Log a Bluetooth detection of another user
+ */
+export const getLogEncounterUrl = () => {
+  return `/api/encounters`;
+};
+
+export const logEncounter = async (
+  logEncounter: LogEncounter,
+  options?: RequestInit,
+): Promise<Encounter> => {
+  return customFetch<Encounter>(getLogEncounterUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(logEncounter),
+  });
+};
+
+export const getLogEncounterMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logEncounter>>,
+    TError,
+    { data: BodyType<LogEncounter> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logEncounter>>,
+  TError,
+  { data: BodyType<LogEncounter> },
+  TContext
+> => {
+  const mutationKey = ["logEncounter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logEncounter>>,
+    { data: BodyType<LogEncounter> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return logEncounter(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogEncounterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logEncounter>>
+>;
+export type LogEncounterMutationBody = BodyType<LogEncounter>;
+export type LogEncounterMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Log a Bluetooth detection of another user
+ */
+export const useLogEncounter = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logEncounter>>,
+    TError,
+    { data: BodyType<LogEncounter> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof logEncounter>>,
+  TError,
+  { data: BodyType<LogEncounter> },
+  TContext
+> => {
+  return useMutation(getLogEncounterMutationOptions(options));
+};
+
+/**
+ * @summary List encounters observed by the authenticated user
+ */
+export const getListMyEncountersUrl = () => {
+  return `/api/encounters`;
+};
+
+export const listMyEncounters = async (
+  options?: RequestInit,
+): Promise<EncounterWithProfile[]> => {
+  return customFetch<EncounterWithProfile[]>(getListMyEncountersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMyEncountersQueryKey = () => {
+  return [`/api/encounters`] as const;
+};
+
+export const getListMyEncountersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyEncounters>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyEncounters>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyEncountersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyEncounters>>
+  > = ({ signal }) => listMyEncounters({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyEncounters>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMyEncountersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyEncounters>>
+>;
+export type ListMyEncountersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List encounters observed by the authenticated user
+ */
+
+export function useListMyEncounters<
+  TData = Awaited<ReturnType<typeof listMyEncounters>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyEncounters>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMyEncountersQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
