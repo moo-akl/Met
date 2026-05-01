@@ -131,6 +131,7 @@ export default function OnboardingScreen() {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authPasswordVisible, setAuthPasswordVisible] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   // EULA acceptance — required by App Store Guideline 1.2 (User Generated
   // Content). Gate ALL sign-in methods (Apple, Google, email) behind an
@@ -818,23 +819,46 @@ export default function OnboardingScreen() {
             </View>
 
             <View style={styles.field}>
-              <TextInput
-                value={authPassword}
-                onChangeText={setAuthPassword}
-                placeholder={t("onboarding.passwordPlaceholder")}
-                placeholderTextColor={colors.mutedForeground}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                    color: colors.foreground,
-                  },
-                ]}
-              />
+              <View style={styles.passwordWrap}>
+                <TextInput
+                  value={authPassword}
+                  onChangeText={setAuthPassword}
+                  placeholder={t("onboarding.passwordPlaceholder")}
+                  placeholderTextColor={colors.mutedForeground}
+                  secureTextEntry={!authPasswordVisible}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={[
+                    styles.input,
+                    styles.passwordInput,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      color: colors.foreground,
+                    },
+                  ]}
+                />
+                <Pressable
+                  onPress={() => setAuthPasswordVisible((v) => !v)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    authPasswordVisible
+                      ? t("onboarding.hidePassword")
+                      : t("onboarding.showPassword")
+                  }
+                  style={({ pressed }) => [
+                    styles.passwordToggle,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Feather
+                    name={authPasswordVisible ? "eye-off" : "eye"}
+                    size={18}
+                    color={colors.mutedForeground}
+                  />
+                </Pressable>
+              </View>
             </View>
 
             <PrimaryButton
@@ -1296,6 +1320,22 @@ const styles = StyleSheet.create({
     height: 96,
     paddingTop: 14,
     textAlignVertical: "top",
+  },
+  passwordWrap: {
+    position: "relative",
+    justifyContent: "center",
+  },
+  passwordInput: {
+    paddingRight: 48,
+  },
+  passwordToggle: {
+    position: "absolute",
+    right: 12,
+    top: 0,
+    bottom: 0,
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
   counter: {
     fontFamily: "Inter_400Regular",

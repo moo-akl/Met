@@ -22,7 +22,11 @@ import type {
   Error,
   HealthStatus,
   LogEncounter,
+  NearbyEntry,
+  NearbyPresenceParams,
+  PresenceRecord,
   Profile,
+  UpdatePresence,
   UpsertProfile,
 } from "./api.schemas";
 
@@ -510,6 +514,187 @@ export function useListMyEncounters<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListMyEncountersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update the authenticated user's last known location
+ */
+export const getUpdatePresenceUrl = () => {
+  return `/api/presence`;
+};
+
+export const updatePresence = async (
+  updatePresence: UpdatePresence,
+  options?: RequestInit,
+): Promise<PresenceRecord> => {
+  return customFetch<PresenceRecord>(getUpdatePresenceUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePresence),
+  });
+};
+
+export const getUpdatePresenceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePresence>>,
+    TError,
+    { data: BodyType<UpdatePresence> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePresence>>,
+  TError,
+  { data: BodyType<UpdatePresence> },
+  TContext
+> => {
+  const mutationKey = ["updatePresence"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePresence>>,
+    { data: BodyType<UpdatePresence> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updatePresence(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePresenceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePresence>>
+>;
+export type UpdatePresenceMutationBody = BodyType<UpdatePresence>;
+export type UpdatePresenceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update the authenticated user's last known location
+ */
+export const useUpdatePresence = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePresence>>,
+    TError,
+    { data: BodyType<UpdatePresence> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePresence>>,
+  TError,
+  { data: BodyType<UpdatePresence> },
+  TContext
+> => {
+  return useMutation(getUpdatePresenceMutationOptions(options));
+};
+
+/**
+ * Returns users within `radiusM` meters whose presence was updated within `maxAgeMin` minutes. Excludes the caller.
+ * @summary List Met users near a coordinate
+ */
+export const getNearbyPresenceUrl = (params: NearbyPresenceParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/presence/nearby?${stringifiedParams}`
+    : `/api/presence/nearby`;
+};
+
+export const nearbyPresence = async (
+  params: NearbyPresenceParams,
+  options?: RequestInit,
+): Promise<NearbyEntry[]> => {
+  return customFetch<NearbyEntry[]>(getNearbyPresenceUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNearbyPresenceQueryKey = (params?: NearbyPresenceParams) => {
+  return [`/api/presence/nearby`, ...(params ? [params] : [])] as const;
+};
+
+export const getNearbyPresenceQueryOptions = <
+  TData = Awaited<ReturnType<typeof nearbyPresence>>,
+  TError = ErrorType<unknown>,
+>(
+  params: NearbyPresenceParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof nearbyPresence>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNearbyPresenceQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof nearbyPresence>>> = ({
+    signal,
+  }) => nearbyPresence(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof nearbyPresence>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NearbyPresenceQueryResult = NonNullable<
+  Awaited<ReturnType<typeof nearbyPresence>>
+>;
+export type NearbyPresenceQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List Met users near a coordinate
+ */
+
+export function useNearbyPresence<
+  TData = Awaited<ReturnType<typeof nearbyPresence>>,
+  TError = ErrorType<unknown>,
+>(
+  params: NearbyPresenceParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof nearbyPresence>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNearbyPresenceQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

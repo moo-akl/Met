@@ -4,6 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -91,6 +92,34 @@ export default function ProfileScreen() {
       setPendingIntent(intent);
       setPendingPhotoUri(res.assets[0].uri);
     }
+  };
+
+  // Tap-on-photo while editing: if no photo, jump straight to picker. If a
+  // photo already exists, present the user with replace/remove choices.
+  // "Remove" only clears the local edit-form photo — Save remains disabled
+  // until they pick a new one (a profile photo is always required).
+  const handleMainPhotoPress = () => {
+    if (!photoUri) {
+      void pickPhoto("main");
+      return;
+    }
+    Alert.alert(
+      t("profile.photoMenuTitle"),
+      undefined,
+      [
+        {
+          text: t("profile.photoReplace"),
+          onPress: () => void pickPhoto("main"),
+        },
+        {
+          text: t("profile.photoRemove"),
+          style: "destructive",
+          onPress: () => setPhotoUri(null),
+        },
+        { text: t("common.cancel"), style: "cancel" },
+      ],
+      { cancelable: true },
+    );
   };
 
   const handlePhotoVerified = async (uri: string) => {
@@ -205,7 +234,7 @@ export default function ProfileScreen() {
       >
         <View style={styles.photoArea}>
           <Pressable
-            onPress={editing ? () => pickPhoto("main") : undefined}
+            onPress={editing ? handleMainPhotoPress : undefined}
             style={styles.photoTarget}
           >
             <View

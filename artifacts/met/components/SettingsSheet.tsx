@@ -407,6 +407,22 @@ export function SettingsSheet({ visible, onClose }: Props) {
               />
 
               <NavRow
+                icon="shield"
+                label={t("settings.permissions")}
+                sub={t("settings.permissionsSub")}
+                onPress={() => {
+                  // The OS only shows the permission dialog once. After that,
+                  // users have to change grants in Settings — so this row
+                  // deep-links straight there. openSettings() resolves the
+                  // app-specific page on iOS and the app info screen on
+                  // Android. Falls back to a no-op if the platform doesn't
+                  // support it (e.g. web).
+                  void Linking.openSettings().catch(() => {});
+                }}
+                colors={colors}
+              />
+
+              <NavRow
                 icon="archive"
                 label={t("settings.autoCleanup")}
                 sub={

@@ -9,9 +9,15 @@ import React, {
 } from "react";
 import { Platform } from "react-native";
 
-import { deleteUserAccount } from "@/lib/auth";
+import { deleteUserAccount, subscribeToAuthState } from "@/lib/auth";
 import { clearReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
+import { api } from "@/lib/api/client";
+import {
+  startProximity,
+  stopProximity,
+  type ProximityDetection,
+} from "@/lib/proximity/presence";
 import {
   DEFAULT_PREFERENCES,
   REQUEST_TTL_MS,
@@ -412,6 +418,131 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   );
+
+  // Merges a proximity detection (BLE or GPS) into the local encounter
+  // list. Uses the observed user's Firebase UID as the encounter id so
+  // future detections of the same person update the same row, and a
+  // later QR scan of that same uid also unifies into the same encounter.
+  // Detected encounters land in the neutral "encounter" status — the
+  // user explicitly initiates a reveal request via UI, never the system.
+  const upsertEncounterFromProximity = useCallback(
+    async (event: ProximityDetection) => {
+      const now = event.observedAt;
+      const distance = Math.round(event.distanceM);
+      const sourceLabel = event.source === "gps" ? "Nearby" : "In the room";
+      let next: Encounter[] = [];
+      setAllEncounters((prev) => {
+        const existing = prev.find((e) => e.id === event.uid);
+        if (existing) {
+          // Re-emit window in proximity service is 10 min; this branch
+          // really fires on profile refreshes or distance changes within
+          // the same session. Bump lastSeen + distance, keep status.
+          next = prev.map((e): Encounter => {
+            if (e.id !== existing.id) return e;
+            return {
+              ...e,
+              realName: event.profile.displayName || e.realName,
+              photoUri: event.profile.photoUrl ?? e.photoUri,
+              bio: event.profile.bio ?? e.bio,
+              socials: (event.profile.socials ?? e.socials) as typeof e.socials,
+              lastSeenAt: now,
+              lastDistanceM: distance,
+              encounterCount: e.encounterCount + 1,
+            };
+          });
+          return next;
+        }
+        const fresh: Encounter = {
+          id: event.uid,
+          realName: event.profile.displayName || "Met user",
+          photoUri: event.profile.photoUrl ?? "",
+          bio: event.profile.bio ?? "",
+          socials: (event.profile.socials ?? {}) as Encounter["socials"],
+          encounterCount: 1,
+          firstSeenAt: now,
+          lastSeenAt: now,
+          lastDistanceM: distance,
+          lastLocation: sourceLabel,
+          status: "encounter",
+        };
+        next = [fresh, ...prev];
+        return next;
+      });
+      await saveEncounters(next);
+    },
+    [],
+  );
+
+  // ---- Backend identity sync + proximity lifecycle ----
+  // Push our profile to the api-server whenever it changes so other
+  // users can fetch it after they detect us. Start the GPS proximity
+  // loop once we have (uid + profile + location permission). We use
+  // refs to keep the latest closure for the proximity callback without
+  // restarting the loop on every render.
+  const upsertProximityRef = useRef(upsertEncounterFromProximity);
+  upsertProximityRef.current = upsertEncounterFromProximity;
+  const [authedUid, setAuthedUid] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeToAuthState((uid) => setAuthedUid(uid));
+    return () => unsub();
+  }, []);
+
+  // Push profile -> backend whenever it changes (and we have an auth
+  // session). Best-effort: never blocks UI, never throws.
+  useEffect(() => {
+    if (!authedUid || !profile || !api.isConfigured()) return;
+    const ctrl = new AbortController();
+    void api
+      .upsertMyProfile(
+        { uid: authedUid, signal: ctrl.signal },
+        {
+          displayName: profile.name,
+          photoUrl: profile.photoUri || null,
+          bio: profile.bio || null,
+          socials: profile.socials as Record<string, string>,
+        },
+      )
+      .catch((err) => {
+        if ((err as { name?: string }).name !== "AbortError") {
+          console.warn("[appcontext] upsertMyProfile failed", err);
+        }
+      });
+    return () => ctrl.abort();
+  }, [authedUid, profile]);
+
+  // Start/stop proximity loop. Reruns when uid or permissions change.
+  useEffect(() => {
+    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+      stopProximity();
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const result = await startProximity({
+        uid: authedUid,
+        listener: (event) => {
+          // Always read the latest upsert callback through the ref so
+          // rerenders that change it don't require restarting the loop.
+          void upsertProximityRef.current(event);
+        },
+      });
+      if (cancelled) {
+        stopProximity();
+        return;
+      }
+      if (!result.started) {
+        console.warn(
+          "[appcontext] proximity not started:",
+          result.reason ?? "unknown",
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+      stopProximity();
+    };
+  }, [authedUid, permissionsCompleted]);
 
   const upsertEncounterFromQr = useCallback(
     async (data: { id: string; name: string }) => {

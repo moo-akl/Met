@@ -87,6 +87,50 @@ export async function getCurrentUserId(): Promise<string | null> {
 }
 
 /**
+ * Subscribe to auth state changes. Returns an unsubscribe function.
+ * The callback fires immediately with the current uid (or null) and then
+ * again on every sign-in/sign-out. Safe to call before Firebase has
+ * loaded — falls back to a one-shot null emit and a no-op unsubscribe.
+ */
+export function subscribeToAuthState(
+  cb: (uid: string | null) => void,
+): () => void {
+  if (!isFirebaseAvailable()) {
+    cb(null);
+    return () => {};
+  }
+  let unsubbed = false;
+  let unsubscribe: (() => void) | null = null;
+  void getAuthModule().then((auth) => {
+    // The caller may have unsubscribed before getAuthModule() resolves
+    // (e.g. fast component unmount). In that case do NOT invoke the
+    // callback — that would trigger setState-after-unmount warnings and
+    // risks reviving stale React state.
+    if (unsubbed) return;
+    if (!auth) {
+      cb(null);
+      return;
+    }
+    cb(auth.currentUser?.uid ?? null);
+    const off = auth.onAuthStateChanged((user) => {
+      // The unsubscribe path below calls `off()`, but Firebase may emit
+      // one final event between this assignment and that call — guard.
+      if (unsubbed) return;
+      cb(user?.uid ?? null);
+    });
+    if (unsubbed) {
+      off();
+    } else {
+      unsubscribe = off;
+    }
+  });
+  return () => {
+    unsubbed = true;
+    if (unsubscribe) unsubscribe();
+  };
+}
+
+/**
  * Returns the current Firebase UID, or throws if no user is signed in.
  * Use this at the boundary of any operation that needs an authenticated
  * identity.
