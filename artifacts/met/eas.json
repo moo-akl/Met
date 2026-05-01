@@ -6,13 +6,7 @@
   },
   "build": {
     "base": {
-      "node": "20.18.0",
-      "ios": {
-        "image": "latest"
-      },
-      "android": {
-        "image": "latest"
-      }
+      "node": "20.18.0"
     },
     "development": {
       "extends": "base",
@@ -20,9 +14,11 @@
       "distribution": "internal",
       "channel": "development",
       "ios": {
+        "image": "latest",
         "simulator": true
       },
       "android": {
+        "image": "latest",
         "buildType": "apk"
       }
     },
@@ -31,9 +27,11 @@
       "distribution": "internal",
       "channel": "preview",
       "ios": {
+        "image": "latest",
         "simulator": true
       },
       "android": {
+        "image": "latest",
         "buildType": "apk"
       }
     },
@@ -41,7 +39,11 @@
       "extends": "base",
       "distribution": "internal",
       "channel": "preview",
+      "ios": {
+        "image": "latest"
+      },
       "android": {
+        "image": "latest",
         "buildType": "apk"
       }
     },
@@ -49,7 +51,11 @@
       "extends": "base",
       "channel": "production",
       "autoIncrement": false,
+      "ios": {
+        "image": "latest"
+      },
       "android": {
+        "image": "latest",
         "buildType": "app-bundle"
       }
     }
