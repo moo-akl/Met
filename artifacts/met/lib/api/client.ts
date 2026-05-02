@@ -120,16 +120,8 @@ export interface NearbyEntry {
 }
 
 export interface BleResolveEntry {
-  /** Set when the entry came from a `hashes` lookup (legacy GATT). */
-  hash: string | null;
-  /** Set when the entry came from a `majors` lookup (iBeacon). */
-  major: number | null;
+  hash: string;
   profile: RemoteProfile;
-}
-
-export interface BleResolveInput {
-  hashes?: string[];
-  majors?: number[];
 }
 
 export type RevealStatus = "pending" | "accepted" | "declined";
@@ -193,11 +185,8 @@ export const api = {
       opts,
     );
   },
-  bleResolve: (opts: ApiOptions, input: BleResolveInput) =>
-    request<BleResolveEntry[]>("POST", "/api/ble/resolve", opts, {
-      hashes: input.hashes,
-      majors: input.majors,
-    }),
+  bleResolve: (opts: ApiOptions, hashes: string[]) =>
+    request<BleResolveEntry[]>("POST", "/api/ble/resolve", opts, { hashes }),
   // ----- Reveal requests -----
   sendReveal: (
     opts: ApiOptions,
