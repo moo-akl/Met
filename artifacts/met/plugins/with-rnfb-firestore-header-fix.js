@@ -7,34 +7,44 @@ const path = require("path");
  * under `use_frameworks! :linkage => :static` + Expo SDK 54 New Architecture.
  *
  * Root cause:
- *   RNFBApp's umbrella (RNFBSharedUtils.h) imports `<React/RCTBridgeModule.h>`,
- *   so once RNFBApp is built as a static framework with a module map, the
- *   `RCTBridgeModule` symbol is owned by `RNFBApp.RNFBAppModule`. When the
- *   RNFBFirestore headers then `#import <React/RCTBridgeModule.h>` directly,
- *   Clang emits:
+ *   RNFBApp ships as a static framework with a module map that exposes its
+ *   headers as Clang submodules (`RNFBApp.RNFBAppModule`,
+ *   `RNFBApp.RCTConvert_FIRApp`, etc). RNFBApp's headers transitively include
+ *   `<React/RCTBridgeModule.h>` and `<React/RCTConvert.h>`, so once RNFBApp's
+ *   module is loaded, those React-Core symbols become "owned" by RNFBApp's
+ *   submodules. When the RNFBFirestore headers then `#import` them directly
+ *   from `<React/...>`, Clang emits:
  *
  *     declaration of 'RCTBridgeModule' must be imported from module
  *     'RNFBApp.RNFBAppModule' before it is required
  *
+ *     declaration of 'RCTConvert' must be imported from module
+ *     'RNFBApp.RCTConvert_FIRApp' before it is required
+ *
  *   and downstream `expected a type` failures on `RCTPromiseRejectBlock`.
  *
  * Fix:
- *   Rewrite every `#import <React/RCTBridgeModule.h>` (and `<React/RCTConvert.h>`)
- *   in `ios/RNFBFirestore/*.h` to `#import <RNFBApp/RNFBSharedUtils.h>`. That
- *   header re-exports the same symbols via the RNFBApp module path, satisfying
- *   the modular-headers requirement.
+ *   Replace every `#import <React/RCTBridgeModule.h>` and
+ *   `#import <React/RCTConvert.h>` in `ios/RNFBFirestore/*.h` with the
+ *   module-level import `@import RNFBApp;`. That single statement loads
+ *   ALL of RNFBApp's submodules — including the ones that re-export
+ *   `RCTBridgeModule`, `RCTPromiseRejectBlock`, and `RCTConvert` — via
+ *   the canonical RNFBApp module path, which satisfies Clang's strict
+ *   modular-headers ownership check.
  *
  *   Idempotent — safe to run multiple times. Logs each file it touches.
  */
 
+const RNFB_APP_MODULE_IMPORT = "@import RNFBApp;";
+
 const HEADER_PATCHES = [
   {
     from: /^#import <React\/RCTBridgeModule\.h>\s*$/m,
-    to: "#import <RNFBApp/RNFBSharedUtils.h>",
+    to: RNFB_APP_MODULE_IMPORT,
   },
   {
     from: /^#import <React\/RCTConvert\.h>\s*$/m,
-    to: "#import <RNFBApp/RNFBSharedUtils.h>",
+    to: RNFB_APP_MODULE_IMPORT,
   },
 ];
 
@@ -91,12 +101,12 @@ function patchHeader(absPath) {
   for (const { from, to } of HEADER_PATCHES) {
     next = next.replace(from, to);
   }
-  // Collapse the case where a file used to have BOTH the React import and
-  // the RNFBSharedUtils import — after rewriting the React line, we'd have
-  // the RNFBSharedUtils import twice in a row. Dedupe consecutive identical
-  // import lines.
+  // Collapse duplicate `@import RNFBApp;` lines that appear when a header
+  // had multiple React imports rewritten side-by-side. `@import` is
+  // idempotent at the module-loader level so duplicates are harmless, but
+  // keeping the file tidy makes diff inspection easier on the EAS server.
   next = next.replace(
-    /(#import <RNFBApp\/RNFBSharedUtils\.h>\s*\n)(\s*#import <RNFBApp\/RNFBSharedUtils\.h>\s*\n)+/g,
+    /(@import RNFBApp;\s*\n)(\s*@import RNFBApp;\s*\n)+/g,
     "$1",
   );
   if (next !== original) {

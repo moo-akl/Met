@@ -1,0 +1,74 @@
+› Compiling @react-native-firebase/firestore Pods/FirebaseFirestore » FirebaseFirestore_vers.c
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RCTConvert+FIRLoggerLevel.h:20:12)
+
+  18 | #import <Firebase/Firebase.h>
+  19 | #import <RNFBApp/RNFBSharedUtils.h>
+> 20 | @interface RCTConvert (FIRLoggerLevel)
+     |            ^ declaration of 'RCTConvert' must be imported from module 'RNFBApp.RCTConvert_FIRApp' before it is required
+  21 | + (FIRLoggerLevel)convertStringLogLevel:(NSString *)rawString;
+  22 | @end
+  23 | 
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreCommon.h:39:42)
+
+  37 |                               type:(NSString *)type;
+  38 | 
+> 39 | + (void)promiseRejectFirestoreException:(RCTPromiseRejectBlock)reject error:(NSError *)error;
+     |                                          ^ expected a type
+  40 | 
+  41 | + (NSArray *)getCodeAndMessage:(NSError *)error;
+  42 | 
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreCollectionModule.h:28:54)
+
+  26 | static NSString *const KEY_INCLUDE_METADATA_CHANGES = @"includeMetadataChanges";
+  27 | 
+> 28 | @interface RNFBFirestoreCollectionModule : NSObject <RCTBridgeModule>
+     |                                                      ^ declaration of 'RCTBridgeModule' must be imported from module 'RNFBApp.RNFBAppModule' before it is required
+  29 | 
+  30 | @end
+  31 | 
+› Compiling @react-native-firebase/auth Pods/RNFBAuth » RNFBAuth_vers.c
+› Compiling @react-native-firebase/app-check Pods/RNFBAppCheck » RNFBAppCheck_vers.c
+› Compiling @react-native-firebase/firestore Pods/FirebaseFirestore » FirebaseFirestore-dummy.m
+› Compiling @react-native-firebase/auth Pods/RNFBAuth » RNFBAuth-dummy.m
+    Run script build phase '[CP-User] [Hermes] Replace Hermes for the right configuration, if needed' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'hermes-engine' from project 'Pods')
+    Run script build phase '[CP-User] [RNFB] Core Configuration' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'Met' from project 'Met')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'gRPC-Core' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'gRPC-C++' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'abseil' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'ReactCodegen' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'RNWorklets' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'RNReanimated' from project 'Pods')
+    Run script build phase '[CP-User] Generate updates resources for expo-updates' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'EXUpdates' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'BoringSSL-GRPC' from project 'Pods')
+▸ ** ARCHIVE FAILED **
+▸ The following build commands failed:
+▸ 	CompileSwift normal arm64 (in target 'RNFBFirestore' from project 'Pods')
+▸ 	SwiftCompile normal arm64 Compiling\ RNFBFirestorePipelineBridgeFactory.swift,\ RNFBFirestorePipelineCallHandler.swift,\ RNFBFirestorePipelineNodeBuilder.swift,\ RNFBFirestorePipelineParser.swift,\ RNFBFirestorePipelineSnapshotSerializer.swift /Users/expo/workingdir/build/node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestorePipelineBridgeFactory.swift /Users/expo/workingdir/build/node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestorePipelineCallHandler.swift /Users/expo/workingdir/build/node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestorePipelineNodeBuilder.swift /Users/expo/workingdir/build/node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestorePipelineParser.swift /Users/expo/workingdir/build/node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestorePipelineSnapshotSerializer.swift (in target 'RNFBFirestore' from project 'Pods')
+▸ 	Archiving workspace Met with scheme Met
+▸ (3 failures)
+Exit status: 65
++---------------------------------------+
+|           Build environment           |
++-------------+-------------------------+
+| xcode_path  | /Applications/Xcode.app |
+| gym_version | 2.228.0                 |
+| sdk         | iPhoneOS26.0.sdk        |
++-------------+-------------------------+
+Looks like fastlane ran into a build/archive error with your project
+It's hard to tell what's causing the error, so we wrote some guides on how
+to troubleshoot build and signing issues: https://docs.fastlane.tools/codesigning/getting-started/
+Before submitting an issue on GitHub, please follow the guide above and make
+sure your project is set up correctly.
+fastlane uses `xcodebuild` commands to generate your binary, you can see the
+the full commands printed out in yellow in the above log.
+Make sure to inspect the output above, as usually you'll find more error information there
+[!] Error building the application - see the log above
+Error: The "Run fastlane" step failed because of an error in the Xcode build process. We automatically detected following errors in your Xcode build logs:
+- declaration of 'RCTConvert' must be imported from module 'RNFBApp.RCTConvert_FIRApp' before it is required
+- expected a type
+- declaration of 'RCTBridgeModule' must be imported from module 'RNFBApp.RNFBAppModule' before it is required
+- could not build Objective-C module 'RNFBFirestore'
+Refer to "Xcode Logs" below for additional, more detailed logs.
