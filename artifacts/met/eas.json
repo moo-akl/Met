@@ -17,6 +17,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev"
+      },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0",
         "simulator": true
@@ -29,6 +32,9 @@
       "extends": "base",
       "distribution": "internal",
       "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev"
+      },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0",
         "simulator": true
@@ -41,6 +47,9 @@
       "extends": "base",
       "distribution": "internal",
       "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev"
+      },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0"
       },
