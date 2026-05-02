@@ -3,8 +3,15 @@ const fs = require("fs");
 const path = require("path");
 
 /**
- * Patches `@react-native-firebase/firestore@24.x` iOS headers so they compile
- * under `use_frameworks! :linkage => :static` + Expo SDK 54 New Architecture.
+ * Patches every `@react-native-firebase/<pod>@24.x` iOS header (excluding the
+ * `app` pod itself) so they compile under `use_frameworks! :linkage => :static`
+ * + Expo SDK 54 New Architecture.
+ *
+ * Despite the historical filename ("firestore-header-fix"), this plugin is
+ * intentionally generic — it scans every installed RNFB pod EXCEPT `app` and
+ * applies the same rewrite. RNFBApp ships its own headers that already wrap
+ * `<React/RCTBridgeModule.h>` etc., so it MUST NOT be rewritten — it is the
+ * source the other pods import FROM.
  *
  * Root cause:
  *   RNFBApp ships as a static framework with a module map that exposes its
@@ -57,9 +64,51 @@ const HEADER_PATCHES = [
 
 const TAG = "[with-rnfb-firestore-header-fix]";
 
-function findFirestoreIosDirs(projectRoot) {
+// RNFB pods we MUST NOT rewrite. RNFBApp is the source whose submodule headers
+// (`RNFBAppModule.h`, `RCTConvert+FIRApp.h`) every other pod will be redirected
+// to import; rewriting it would create a circular import.
+const SKIP_PACKAGES = new Set(["app"]);
+
+function listRnfbIosDirs(rnfbRootDir) {
+  // Given a path like ".../node_modules/@react-native-firebase",
+  // return every "<pkg>/ios/<RNFB...>" directory containing .h files,
+  // excluding SKIP_PACKAGES.
+  const out = [];
+  if (!fs.existsSync(rnfbRootDir)) return out;
+  let pkgs = [];
+  try {
+    pkgs = fs.readdirSync(rnfbRootDir);
+  } catch {
+    return out;
+  }
+  for (const pkg of pkgs) {
+    if (SKIP_PACKAGES.has(pkg)) continue;
+    const iosRoot = path.join(rnfbRootDir, pkg, "ios");
+    if (!fs.existsSync(iosRoot)) continue;
+    let inner = [];
+    try {
+      inner = fs.readdirSync(iosRoot);
+    } catch {
+      continue;
+    }
+    for (const sub of inner) {
+      const subDir = path.join(iosRoot, sub);
+      // Only directories named like RNFB<Pod> — skip xcodeproj packages.
+      if (sub.endsWith(".xcodeproj")) continue;
+      if (!fs.statSync(subDir).isDirectory()) continue;
+      // Confirm it has at least one .h file before considering it.
+      const hasHeader = fs
+        .readdirSync(subDir)
+        .some((f) => f.endsWith(".h"));
+      if (hasHeader) out.push(subDir);
+    }
+  }
+  return out;
+}
+
+function findRnfbIosDirs(projectRoot) {
   // Walk up from artifacts/met to find every node_modules tree that
-  // contains @react-native-firebase/firestore. We can't rely on
+  // contains @react-native-firebase/<pkg>. We can't rely on
   // `require.resolve` because EAS prebuild runs in an isolated CWD with a
   // pnpm store layout that confuses Node's resolver. We also collect
   // EVERY hit (not just the first) because pnpm + monorepo can install
@@ -82,21 +131,18 @@ function findFirestoreIosDirs(projectRoot) {
   const found = new Set();
   for (const nm of nmCandidates) {
     if (!fs.existsSync(nm)) continue;
-    // Direct symlink layout: <nm>/@react-native-firebase/firestore/...
-    const direct = path.join(
-      nm,
-      "@react-native-firebase",
-      "firestore",
-      "ios",
-      "RNFBFirestore",
-    );
-    if (fs.existsSync(direct)) {
-      const real = fs.realpathSync(direct);
-      found.add(real);
-      console.log(`${TAG}   direct hit: ${direct} -> realpath ${real}`);
+
+    // Direct symlink layout: <nm>/@react-native-firebase/<pkg>/...
+    const directRoot = path.join(nm, "@react-native-firebase");
+    for (const d of listRnfbIosDirs(directRoot)) {
+      const real = fs.realpathSync(d);
+      if (!found.has(real)) {
+        found.add(real);
+        console.log(`${TAG}   direct hit: ${d} -> realpath ${real}`);
+      }
     }
 
-    // pnpm store layout — scan every firestore@<version> entry.
+    // pnpm store layout — scan every @react-native-firebase+<pkg>@<ver> entry.
     const pnpmDir = path.join(nm, ".pnpm");
     if (fs.existsSync(pnpmDir)) {
       let entries = [];
@@ -104,22 +150,32 @@ function findFirestoreIosDirs(projectRoot) {
         entries = fs.readdirSync(pnpmDir);
       } catch (e) {
         console.log(`${TAG}   readdir failed for ${pnpmDir}: ${e.message}`);
+        continue;
       }
       for (const e of entries) {
-        if (!e.startsWith("@react-native-firebase+firestore@")) continue;
-        const inner = path.join(
+        if (!e.startsWith("@react-native-firebase+")) continue;
+        // Skip the `app` package — it's the source we import FROM.
+        // Entry names look like "@react-native-firebase+app@24.0.0_..."
+        // so we extract the package name between "+" and "@".
+        const after = e.substring("@react-native-firebase+".length);
+        const at = after.indexOf("@");
+        const pkgName = at >= 0 ? after.substring(0, at) : after;
+        if (SKIP_PACKAGES.has(pkgName)) continue;
+
+        const innerRoot = path.join(
           pnpmDir,
           e,
           "node_modules",
           "@react-native-firebase",
-          "firestore",
-          "ios",
-          "RNFBFirestore",
         );
-        if (fs.existsSync(inner)) {
-          const real = fs.realpathSync(inner);
-          found.add(real);
-          console.log(`${TAG}   pnpm-store hit: ${inner} -> realpath ${real}`);
+        for (const d of listRnfbIosDirs(innerRoot)) {
+          const real = fs.realpathSync(d);
+          if (!found.has(real)) {
+            found.add(real);
+            console.log(
+              `${TAG}   pnpm-store hit: ${d} -> realpath ${real}`,
+            );
+          }
         }
       }
     }
@@ -155,13 +211,13 @@ const withRnfbFirestoreHeaderFix = (config) => {
     "ios",
     async (cfg) => {
       const projectRoot = cfg.modRequest.projectRoot;
-      const dirs = findFirestoreIosDirs(projectRoot);
+      const dirs = findRnfbIosDirs(projectRoot);
 
       if (dirs.length === 0) {
         // Fail LOUDLY rather than silently skipping. Otherwise EAS produces
         // the same opaque module-headers error as if the plugin never ran.
         throw new Error(
-          `${TAG} could not locate any RNFBFirestore ios/ directory under projectRoot=${projectRoot}. The plugin requires @react-native-firebase/firestore to be installed before prebuild runs. Check the candidates listed above to debug.`,
+          `${TAG} could not locate any @react-native-firebase/<pod>/ios directory under projectRoot=${projectRoot}. The plugin requires the RNFB packages to be installed before prebuild runs. Check the candidates listed above to debug.`,
         );
       }
 
@@ -175,23 +231,18 @@ const withRnfbFirestoreHeaderFix = (config) => {
         totalHeaders += headers.length;
 
         let touched = 0;
+        const touchedFiles = [];
         for (const h of headers) {
-          if (patchHeader(h)) touched += 1;
+          if (patchHeader(h)) {
+            touched += 1;
+            touchedFiles.push(path.basename(h));
+          }
         }
         totalTouched += touched;
         console.log(
-          `${TAG} patched ${touched}/${headers.length} headers in ${dir}`,
+          `${TAG} patched ${touched}/${headers.length} headers in ${dir}` +
+            (touched > 0 ? ` -> ${touchedFiles.join(", ")}` : ""),
         );
-
-        // Print the FIRST line of the now-patched RNFBFirestoreCommon.h so
-        // the EAS log proves the rewrite was applied (we will look for
-        // "RNFBAppModule" in the import area).
-        const sample = path.join(dir, "RNFBFirestoreCommon.h");
-        if (fs.existsSync(sample)) {
-          const lines = fs.readFileSync(sample, "utf8").split("\n").slice(0, 25);
-          console.log(`${TAG} === ${sample} (lines 1-25) ===`);
-          for (const l of lines) console.log(`${TAG} | ${l}`);
-        }
       }
 
       console.log(
