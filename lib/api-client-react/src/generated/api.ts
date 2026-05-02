@@ -19,6 +19,7 @@ import type {
 import type {
   BleResolveEntry,
   BleResolveRequest,
+  CreateRevealRequest,
   Encounter,
   EncounterWithProfile,
   Error,
@@ -28,6 +29,9 @@ import type {
   NearbyPresenceParams,
   PresenceRecord,
   Profile,
+  RespondToReveal,
+  RevealRequest,
+  RevealRequestWithProfile,
   UpdatePresence,
   UpsertProfile,
 } from "./api.schemas";
@@ -608,6 +612,432 @@ export const useUpdatePresence = <
   TContext
 > => {
   return useMutation(getUpdatePresenceMutationOptions(options));
+};
+
+/**
+ * Upserts a reveal request between the authenticated user (sender) and
+the recipient. If a row already exists for this pair it is reset to
+`pending` with a fresh `createdAt` and the new optional message.
+
+ * @summary Send a reveal request to another user
+ */
+export const getCreateRevealRequestUrl = () => {
+  return `/api/reveals`;
+};
+
+export const createRevealRequest = async (
+  createRevealRequest: CreateRevealRequest,
+  options?: RequestInit,
+): Promise<RevealRequestWithProfile> => {
+  return customFetch<RevealRequestWithProfile>(getCreateRevealRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createRevealRequest),
+  });
+};
+
+export const getCreateRevealRequestMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRevealRequest>>,
+    TError,
+    { data: BodyType<CreateRevealRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRevealRequest>>,
+  TError,
+  { data: BodyType<CreateRevealRequest> },
+  TContext
+> => {
+  const mutationKey = ["createRevealRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRevealRequest>>,
+    { data: BodyType<CreateRevealRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRevealRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRevealRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRevealRequest>>
+>;
+export type CreateRevealRequestMutationBody = BodyType<CreateRevealRequest>;
+export type CreateRevealRequestMutationError = ErrorType<Error>;
+
+/**
+ * @summary Send a reveal request to another user
+ */
+export const useCreateRevealRequest = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRevealRequest>>,
+    TError,
+    { data: BodyType<CreateRevealRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRevealRequest>>,
+  TError,
+  { data: BodyType<CreateRevealRequest> },
+  TContext
+> => {
+  return useMutation(getCreateRevealRequestMutationOptions(options));
+};
+
+/**
+ * Returns all reveal requests where the authenticated user is the
+recipient and status is `pending`. Each entry includes the sender's
+profile so the client can render the encounter without a separate
+profile lookup.
+
+ * @summary List pending reveal requests addressed to me
+ */
+export const getListInboundRevealsUrl = () => {
+  return `/api/reveals/inbox`;
+};
+
+export const listInboundReveals = async (
+  options?: RequestInit,
+): Promise<RevealRequestWithProfile[]> => {
+  return customFetch<RevealRequestWithProfile[]>(getListInboundRevealsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListInboundRevealsQueryKey = () => {
+  return [`/api/reveals/inbox`] as const;
+};
+
+export const getListInboundRevealsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInboundReveals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listInboundReveals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListInboundRevealsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInboundReveals>>
+  > = ({ signal }) => listInboundReveals({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInboundReveals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInboundRevealsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInboundReveals>>
+>;
+export type ListInboundRevealsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List pending reveal requests addressed to me
+ */
+
+export function useListInboundReveals<
+  TData = Awaited<ReturnType<typeof listInboundReveals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listInboundReveals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInboundRevealsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns reveal requests where the authenticated user is the sender,
+regardless of status. Used by the client to detect when a recipient
+accepts or declines an outgoing request.
+
+ * @summary List my outgoing reveal requests with their current status
+ */
+export const getListOutboundRevealsUrl = () => {
+  return `/api/reveals/outbox`;
+};
+
+export const listOutboundReveals = async (
+  options?: RequestInit,
+): Promise<RevealRequestWithProfile[]> => {
+  return customFetch<RevealRequestWithProfile[]>(getListOutboundRevealsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListOutboundRevealsQueryKey = () => {
+  return [`/api/reveals/outbox`] as const;
+};
+
+export const getListOutboundRevealsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listOutboundReveals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listOutboundReveals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListOutboundRevealsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listOutboundReveals>>
+  > = ({ signal }) => listOutboundReveals({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listOutboundReveals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListOutboundRevealsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listOutboundReveals>>
+>;
+export type ListOutboundRevealsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List my outgoing reveal requests with their current status
+ */
+
+export function useListOutboundReveals<
+  TData = Awaited<ReturnType<typeof listOutboundReveals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listOutboundReveals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListOutboundRevealsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * The authenticated user (recipient) accepts the most-recent pending
+reveal request from `senderUid`. Also auto-accepts any pending
+reverse request from the recipient back to the sender so mutual
+consent is symmetric.
+
+ * @summary Accept the pending reveal request from a specific sender
+ */
+export const getAcceptRevealRequestUrl = () => {
+  return `/api/reveals/accept`;
+};
+
+export const acceptRevealRequest = async (
+  respondToReveal: RespondToReveal,
+  options?: RequestInit,
+): Promise<RevealRequest> => {
+  return customFetch<RevealRequest>(getAcceptRevealRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(respondToReveal),
+  });
+};
+
+export const getAcceptRevealRequestMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptRevealRequest>>,
+    TError,
+    { data: BodyType<RespondToReveal> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptRevealRequest>>,
+  TError,
+  { data: BodyType<RespondToReveal> },
+  TContext
+> => {
+  const mutationKey = ["acceptRevealRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptRevealRequest>>,
+    { data: BodyType<RespondToReveal> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return acceptRevealRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptRevealRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptRevealRequest>>
+>;
+export type AcceptRevealRequestMutationBody = BodyType<RespondToReveal>;
+export type AcceptRevealRequestMutationError = ErrorType<Error>;
+
+/**
+ * @summary Accept the pending reveal request from a specific sender
+ */
+export const useAcceptRevealRequest = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptRevealRequest>>,
+    TError,
+    { data: BodyType<RespondToReveal> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptRevealRequest>>,
+  TError,
+  { data: BodyType<RespondToReveal> },
+  TContext
+> => {
+  return useMutation(getAcceptRevealRequestMutationOptions(options));
+};
+
+/**
+ * @summary Decline the pending reveal request from a specific sender
+ */
+export const getDeclineRevealRequestUrl = () => {
+  return `/api/reveals/decline`;
+};
+
+export const declineRevealRequest = async (
+  respondToReveal: RespondToReveal,
+  options?: RequestInit,
+): Promise<RevealRequest> => {
+  return customFetch<RevealRequest>(getDeclineRevealRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(respondToReveal),
+  });
+};
+
+export const getDeclineRevealRequestMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineRevealRequest>>,
+    TError,
+    { data: BodyType<RespondToReveal> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof declineRevealRequest>>,
+  TError,
+  { data: BodyType<RespondToReveal> },
+  TContext
+> => {
+  const mutationKey = ["declineRevealRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof declineRevealRequest>>,
+    { data: BodyType<RespondToReveal> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return declineRevealRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeclineRevealRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineRevealRequest>>
+>;
+export type DeclineRevealRequestMutationBody = BodyType<RespondToReveal>;
+export type DeclineRevealRequestMutationError = ErrorType<Error>;
+
+/**
+ * @summary Decline the pending reveal request from a specific sender
+ */
+export const useDeclineRevealRequest = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineRevealRequest>>,
+    TError,
+    { data: BodyType<RespondToReveal> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof declineRevealRequest>>,
+  TError,
+  { data: BodyType<RespondToReveal> },
+  TContext
+> => {
+  return useMutation(getDeclineRevealRequestMutationOptions(options));
 };
 
 /**

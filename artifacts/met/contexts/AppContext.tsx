@@ -16,7 +16,7 @@ import {
 } from "@/lib/auth";
 import { clearReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
-import { api } from "@/lib/api/client";
+import { api, type RemoteRevealRequestWithProfile } from "@/lib/api/client";
 import {
   startProximity,
   stopProximity,
@@ -67,6 +67,16 @@ type AppContextValue = {
   signOutAndClear: () => Promise<void>;
   setPermissionsCompleted: (done: boolean) => Promise<void>;
   upsertEncounterFromQr: (data: { id: string; name: string }) => Promise<string>;
+  // Reveal-request lifecycle (server-backed). These are the production
+  // path the encounter screen should call instead of `updateEncounterStatus`
+  // for the request_sent / accept / decline transitions, because they
+  // also tell the recipient (or sender) about the action via the backend.
+  sendRevealRequest: (
+    recipientUid: string,
+    message?: string,
+  ) => Promise<void>;
+  acceptRevealRequest: (senderUid: string) => Promise<void>;
+  declineRevealRequest: (senderUid: string) => Promise<void>;
   sendOpeningMessage: (id: string, text: string) => Promise<void>;
   updatePreferences: (patch: Partial<Preferences>) => Promise<void>;
   markPhotoVerified: () => Promise<void>;
@@ -575,6 +585,278 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [authedUid, permissionsCompleted]);
 
+  // Per-peer watermarks track the latest reveal `updatedAt` (epoch ms)
+  // we've already applied to local state. They protect against two
+  // categories of races:
+  //   1. Out-of-order / stale poll responses — a slow-returning poll can
+  //      deliver server state that's older than what we've already merged.
+  //      Without a watermark, a stale `declined` outbox entry could revert
+  //      a freshly re-sent `request_sent` back to neutral.
+  //   2. User-driven actions racing against an in-flight poll — when the
+  //      user accepts/declines/sends, we bump the watermark to the
+  //      response's `updatedAt`, so any older poll response that arrives
+  //      later won't undo the action.
+  //
+  // Keys are peer uids (sender for inbound, recipient for outbound).
+  // `pollInFlight` is single-flight protection: skip ticks while a prior
+  // poll is still running so concurrent polls can't fight each other.
+  const pollInFlight = useRef(false);
+  const revealWatermarks = useRef<{
+    inbound: Map<string, number>;
+    outbound: Map<string, number>;
+  }>({ inbound: new Map(), outbound: new Map() });
+
+  // Reset on auth identity change so a previous user's reveal state can't
+  // leak into a new session if the same provider instance is reused.
+  useEffect(() => {
+    revealWatermarks.current = { inbound: new Map(), outbound: new Map() };
+    pollInFlight.current = false;
+  }, [authedUid]);
+
+  const bumpInboundWatermark = useCallback((senderUid: string, ts: number) => {
+    const cur = revealWatermarks.current.inbound.get(senderUid) ?? 0;
+    if (ts > cur) revealWatermarks.current.inbound.set(senderUid, ts);
+  }, []);
+  const bumpOutboundWatermark = useCallback(
+    (recipientUid: string, ts: number) => {
+      const cur = revealWatermarks.current.outbound.get(recipientUid) ?? 0;
+      if (ts > cur) revealWatermarks.current.outbound.set(recipientUid, ts);
+    },
+    [],
+  );
+
+  // Merges the current state of the server-side reveal-request inbox /
+  // outbox into local encounters in a single setState. Returns true if
+  // anything actually changed so we can avoid pointless AsyncStorage writes
+  // on idle polls.
+  //
+  // Inbox semantics (we are the recipient, status="pending"):
+  //   - existing encounter in "encounter" / "request_sent" → "request_received"
+  //   - existing in "request_received" → refresh message/profile only
+  //   - existing in "connected" or `blocked` → leave alone
+  //   - no existing encounter → fabricate one in "request_received"
+  // Outbox semantics (we are the sender):
+  //   - server "accepted" + local not connected/blocked → "connected"
+  //   - server "declined" + local "request_sent" → "encounter" (silent revert)
+  //   - server "pending" → no change (lock card already shows the spinner)
+  // All entries are watermark-gated: an entry whose `updatedAt` is not
+  // strictly newer than our last applied value for that peer is skipped.
+  const applyRemoteRevealState = useCallback(
+    (
+      inbox: RemoteRevealRequestWithProfile[],
+      outbox: RemoteRevealRequestWithProfile[],
+    ) => {
+      setAllEncounters((prev) => {
+        let changed = false;
+        const byId = new Map(prev.map((e) => [e.id, e] as const));
+        const created: Encounter[] = [];
+
+        for (const r of inbox) {
+          const ts = Date.parse(r.updatedAt);
+          if (!Number.isFinite(ts)) continue;
+          const wm = revealWatermarks.current.inbound.get(r.senderUid) ?? 0;
+          if (ts <= wm) continue; // stale — a later action already won
+          const message = r.message ?? undefined;
+          const existing = byId.get(r.senderUid);
+          if (existing) {
+            if (existing.status === "connected" || existing.blocked) continue;
+            const sameMsg =
+              (existing.revealMessage ?? undefined) === message &&
+              existing.status === "request_received";
+            if (sameMsg) continue;
+            const next: Encounter = {
+              ...existing,
+              status: "request_received",
+              realName: r.profile.displayName || existing.realName,
+              photoUri: r.profile.photoUrl ?? existing.photoUri,
+              bio: r.profile.bio ?? existing.bio,
+              socials: (r.profile.socials ??
+                existing.socials) as Encounter["socials"],
+            };
+            if (message) next.revealMessage = message;
+            else delete (next as { revealMessage?: string }).revealMessage;
+            delete (next as { requestSentAt?: number }).requestSentAt;
+            byId.set(r.senderUid, next);
+            revealWatermarks.current.inbound.set(r.senderUid, ts);
+            changed = true;
+          } else {
+            // Sender isn't in our local list yet (e.g. they scanned our QR
+            // and reveal-requested us before we ever detected them). Create
+            // a fabricated encounter so the request surfaces in the inbox.
+            const ts = Date.parse(r.createdAt) || Date.now();
+            const fabricated: Encounter = {
+              id: r.senderUid,
+              realName: r.profile.displayName || "Met user",
+              photoUri: r.profile.photoUrl ?? "",
+              bio: r.profile.bio ?? "",
+              socials: (r.profile.socials ?? {}) as Encounter["socials"],
+              encounterCount: 1,
+              firstSeenAt: ts,
+              lastSeenAt: ts,
+              lastDistanceM: 0,
+              lastLocation: "Reveal request",
+              status: "request_received",
+            };
+            if (message) fabricated.revealMessage = message;
+            byId.set(r.senderUid, fabricated);
+            created.push(fabricated);
+            revealWatermarks.current.inbound.set(r.senderUid, ts);
+            changed = true;
+          }
+        }
+
+        for (const r of outbox) {
+          const ts = Date.parse(r.updatedAt);
+          if (!Number.isFinite(ts)) continue;
+          const wm = revealWatermarks.current.outbound.get(r.recipientUid) ?? 0;
+          if (ts <= wm) continue; // stale — a later send/accept already won
+          const existing = byId.get(r.recipientUid);
+          if (!existing) {
+            // Still bump the watermark even if we have no local encounter
+            // to update — otherwise we'll keep re-evaluating this entry on
+            // every poll. The peer not being present means the user
+            // removed/blocked them locally; the server row is just history.
+            revealWatermarks.current.outbound.set(r.recipientUid, ts);
+            continue;
+          }
+          if (r.status === "accepted") {
+            if (existing.status === "connected" || existing.blocked) {
+              revealWatermarks.current.outbound.set(r.recipientUid, ts);
+              continue;
+            }
+            const next: Encounter = { ...existing, status: "connected" };
+            delete (next as { requestSentAt?: number }).requestSentAt;
+            delete (next as { revealMessage?: string }).revealMessage;
+            byId.set(r.recipientUid, next);
+            revealWatermarks.current.outbound.set(r.recipientUid, ts);
+            changed = true;
+          } else if (r.status === "declined") {
+            // Silent revert: only if we're still showing "waiting" locally.
+            // Don't bounce already-connected or already-neutral encounters.
+            if (existing.status !== "request_sent") {
+              revealWatermarks.current.outbound.set(r.recipientUid, ts);
+              continue;
+            }
+            const next: Encounter = { ...existing, status: "encounter" };
+            delete (next as { requestSentAt?: number }).requestSentAt;
+            delete (next as { revealMessage?: string }).revealMessage;
+            byId.set(r.recipientUid, next);
+            revealWatermarks.current.outbound.set(r.recipientUid, ts);
+            changed = true;
+          } else {
+            // pending — no state change but still bump the watermark so
+            // we don't keep re-evaluating an unchanged row.
+            revealWatermarks.current.outbound.set(r.recipientUid, ts);
+          }
+        }
+
+        if (!changed) return prev;
+        const merged = prev.map((e) => byId.get(e.id) ?? e);
+        // Newly fabricated encounters land at the top so they're discoverable.
+        const next = created.length > 0 ? [...created, ...merged] : merged;
+        // Best-effort persist; never block render.
+        saveEncounters(next).catch(() => {});
+        return next;
+      });
+    },
+    [],
+  );
+
+  // Reveal-request poller. Runs every 20s while signed in and gated by
+  // the same conditions as the proximity loops. Polling (vs push) is the
+  // MVP delivery mechanism — push notifications via FCM/APNs are a follow-up.
+  useEffect(() => {
+    if (!authedUid || !permissionsCompleted || !api.isConfigured()) return;
+    let cancelled = false;
+    const poll = async () => {
+      // Single-flight: never let two polls overlap. A slow response would
+      // otherwise be able to clobber the next tick's fresher data.
+      if (pollInFlight.current) return;
+      pollInFlight.current = true;
+      try {
+        const [inbox, outbox] = await Promise.all([
+          api.listInboundReveals({ uid: authedUid }),
+          api.listOutboundReveals({ uid: authedUid }),
+        ]);
+        if (cancelled) return;
+        applyRemoteRevealState(inbox, outbox);
+      } catch (err) {
+        if (!cancelled) {
+          console.warn("[appcontext] reveal poll failed", err);
+        }
+      } finally {
+        pollInFlight.current = false;
+      }
+    };
+    void poll();
+    const id = setInterval(poll, 20_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [authedUid, permissionsCompleted, applyRemoteRevealState]);
+
+  const sendRevealRequest = useCallback(
+    async (recipientUid: string, message?: string) => {
+      if (!authedUid) throw new Error("Not signed in");
+      if (!api.isConfigured()) throw new Error("API not configured");
+      const trimmed = message?.trim();
+      // Pessimistic order: API first, then local state. If the network
+      // call fails we throw and the encounter screen surfaces an error
+      // rather than leaving the user with a fake "waiting" spinner.
+      const created = await api.sendReveal(
+        { uid: authedUid },
+        {
+          recipientUid,
+          message: trimmed && trimmed.length > 0 ? trimmed : null,
+        },
+      );
+      // Bump the outbound watermark BEFORE the local update so any
+      // in-flight poll that started before this send and lands later
+      // can't downgrade us based on stale server state.
+      const ts = Date.parse(created.updatedAt);
+      if (Number.isFinite(ts)) bumpOutboundWatermark(recipientUid, ts);
+      await updateEncounterStatus(recipientUid, "request_sent", {
+        revealMessage: trimmed && trimmed.length > 0 ? trimmed : undefined,
+      });
+    },
+    [authedUid, updateEncounterStatus, bumpOutboundWatermark],
+  );
+
+  const acceptRevealRequest = useCallback(
+    async (senderUid: string) => {
+      if (!authedUid) throw new Error("Not signed in");
+      if (!api.isConfigured()) throw new Error("API not configured");
+      const accepted = await api.acceptReveal({ uid: authedUid }, senderUid);
+      const ts = Date.parse(accepted.updatedAt);
+      if (Number.isFinite(ts)) {
+        // Both directions: the inbound row we accepted, AND any reverse
+        // outbound row the server auto-accepted as part of mutual consent.
+        bumpInboundWatermark(senderUid, ts);
+        bumpOutboundWatermark(senderUid, ts);
+      }
+      await updateEncounterStatus(senderUid, "connected");
+    },
+    [
+      authedUid,
+      updateEncounterStatus,
+      bumpInboundWatermark,
+      bumpOutboundWatermark,
+    ],
+  );
+
+  const declineRevealRequest = useCallback(
+    async (senderUid: string) => {
+      if (!authedUid) throw new Error("Not signed in");
+      if (!api.isConfigured()) throw new Error("API not configured");
+      const declined = await api.declineReveal({ uid: authedUid }, senderUid);
+      const ts = Date.parse(declined.updatedAt);
+      if (Number.isFinite(ts)) bumpInboundWatermark(senderUid, ts);
+      await updateEncounterStatus(senderUid, "encounter");
+    },
+    [authedUid, updateEncounterStatus, bumpInboundWatermark],
+  );
+
   // Start/stop BLE proximity (scan + advertise). Same gating as GPS.
   // Independent effect so a failure in one pipeline doesn't tear down
   // the other. In Expo Go both halves no-op cleanly.
@@ -702,6 +984,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOutAndClear,
       setPermissionsCompleted,
       upsertEncounterFromQr,
+      sendRevealRequest,
+      acceptRevealRequest,
+      declineRevealRequest,
       sendOpeningMessage,
       updatePreferences,
       markPhotoVerified,
@@ -724,6 +1009,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOutAndClear,
       setPermissionsCompleted,
       upsertEncounterFromQr,
+      sendRevealRequest,
+      acceptRevealRequest,
+      declineRevealRequest,
       sendOpeningMessage,
       updatePreferences,
       markPhotoVerified,
