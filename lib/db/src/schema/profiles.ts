@@ -1,4 +1,11 @@
-import { pgTable, text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  jsonb,
+  boolean,
+  index,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -16,6 +23,10 @@ export const profilesTable = pgTable(
     photoUrl: text("photo_url"),
     bio: text("bio"),
     socials: jsonb("socials").$type<Record<string, string>>().default({}),
+    // Ghost Mode: when false the user is hidden from other devices' nearby
+    // queries (Firestore mirror sets isVisible to the same value). Default
+    // true so existing rows are visible without an explicit migration.
+    isVisible: boolean("is_visible").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

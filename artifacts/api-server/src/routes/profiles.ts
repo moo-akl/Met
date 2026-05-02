@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
 import { uidToHash } from "../lib/uidHash";
+import { mirrorProfileToFirestore } from "../lib/firestoreMirror";
 
 const router: IRouter = Router();
 
@@ -20,6 +21,7 @@ function serialize(p: Profile) {
     photoUrl: p.photoUrl ?? null,
     bio: p.bio ?? null,
     socials: (p.socials ?? {}) as Record<string, string>,
+    isVisible: p.isVisible,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -46,28 +48,52 @@ router.put("/profiles/me", requireUid, async (req, res) => {
   // Recompute on every upsert so the column self-heals if the hashing
   // scheme is ever migrated (or the column was added after the row).
   const uidHash = uidToHash(uid);
+
+  // isVisible is optional on upsert: if the client omits it we want to
+  // PRESERVE the existing value (and default to true on create), not
+  // silently flip the user out of Ghost Mode.
+  const insertValues: typeof profilesTable.$inferInsert = {
+    uid,
+    uidHash,
+    displayName: body.displayName,
+    photoUrl: body.photoUrl ?? null,
+    bio: body.bio ?? null,
+    socials: body.socials ?? {},
+    isVisible: body.isVisible ?? true,
+  };
+  const updateValues: Partial<typeof profilesTable.$inferInsert> = {
+    uidHash,
+    displayName: body.displayName,
+    photoUrl: body.photoUrl ?? null,
+    bio: body.bio ?? null,
+    socials: body.socials ?? {},
+    updatedAt: now,
+  };
+  if (body.isVisible !== undefined) updateValues.isVisible = body.isVisible;
+
   const [row] = await db
     .insert(profilesTable)
-    .values({
-      uid,
-      uidHash,
-      displayName: body.displayName,
-      photoUrl: body.photoUrl ?? null,
-      bio: body.bio ?? null,
-      socials: body.socials ?? {},
-    })
+    .values(insertValues)
     .onConflictDoUpdate({
       target: profilesTable.uid,
-      set: {
-        uidHash,
-        displayName: body.displayName,
-        photoUrl: body.photoUrl ?? null,
-        bio: body.bio ?? null,
-        socials: body.socials ?? {},
-        updatedAt: now,
-      },
+      set: updateValues,
     })
     .returning();
+
+  // Best-effort Firestore mirror so other clients can read this profile
+  // for nearby/encounter rendering without going through the api-server.
+  // Failures are logged inside the helper and do not affect the response —
+  // Postgres is the source of truth for profile data.
+  await mirrorProfileToFirestore({
+    uid: row!.uid,
+    uidHash: row!.uidHash,
+    displayName: row!.displayName,
+    photoUrl: row!.photoUrl ?? null,
+    bio: row!.bio ?? null,
+    socials: (row!.socials ?? {}) as Record<string, string>,
+    isVisible: row!.isVisible,
+  });
+
   res.json(UpsertMyProfileResponse.parse(serialize(row!)));
 });
 

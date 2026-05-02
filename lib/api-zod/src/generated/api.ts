@@ -24,6 +24,11 @@ export const GetMyProfileResponse = zod.object({
   photoUrl: zod.string().nullish(),
   bio: zod.string().nullish(),
   socials: zod.record(zod.string(), zod.string()).optional(),
+  isVisible: zod
+    .boolean()
+    .describe(
+      "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+    ),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -40,6 +45,10 @@ export const UpsertMyProfileBody = zod.object({
   photoUrl: zod.string().nullish(),
   bio: zod.string().max(upsertMyProfileBodyBioMax).nullish(),
   socials: zod.record(zod.string(), zod.string()).optional(),
+  isVisible: zod
+    .boolean()
+    .optional()
+    .describe("Ghost Mode flag. Optional on upsert; preserved when omitted."),
 });
 
 export const UpsertMyProfileResponse = zod.object({
@@ -48,6 +57,11 @@ export const UpsertMyProfileResponse = zod.object({
   photoUrl: zod.string().nullish(),
   bio: zod.string().nullish(),
   socials: zod.record(zod.string(), zod.string()).optional(),
+  isVisible: zod
+    .boolean()
+    .describe(
+      "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+    ),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -65,6 +79,11 @@ export const GetProfileResponse = zod.object({
   photoUrl: zod.string().nullish(),
   bio: zod.string().nullish(),
   socials: zod.record(zod.string(), zod.string()).optional(),
+  isVisible: zod
+    .boolean()
+    .describe(
+      "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+    ),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -109,12 +128,57 @@ export const ListMyEncountersResponseItem = zod
         photoUrl: zod.string().nullish(),
         bio: zod.string().nullish(),
         socials: zod.record(zod.string(), zod.string()).optional(),
+        isVisible: zod
+          .boolean()
+          .describe(
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+          ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
       }),
     }),
   );
 export const ListMyEncountersResponse = zod.array(ListMyEncountersResponseItem);
+
+/**
+ * Writes mirror entries to `users/{me}/met_people/{other}` AND
+`users/{other}/met_people/{me}` in Firestore using the Admin SDK,
+using a single batched commit so both sides see the encounter
+atomically. Caller-provided location is stored as a GeoPoint on
+both docs. Idempotent within the configured cooldown window.
+
+ * @summary Record a symmetric Firestore encounter with another user
+ */
+
+export const recordEncounterBodyLocationLatMin = -90;
+export const recordEncounterBodyLocationLatMax = 90;
+
+export const recordEncounterBodyLocationLngMin = -180;
+export const recordEncounterBodyLocationLngMax = 180;
+
+export const RecordEncounterBody = zod.object({
+  otherUid: zod.string().min(1),
+  location: zod
+    .object({
+      lat: zod
+        .number()
+        .min(recordEncounterBodyLocationLatMin)
+        .max(recordEncounterBodyLocationLatMax),
+      lng: zod
+        .number()
+        .min(recordEncounterBodyLocationLngMin)
+        .max(recordEncounterBodyLocationLngMax),
+    })
+    .nullish(),
+});
+
+export const RecordEncounterResponse = zod.object({
+  otherUid: zod.string(),
+  metCount: zod
+    .number()
+    .describe("Stored met count on this user's side after the write."),
+  lastMet: zod.coerce.date(),
+});
 
 /**
  * @summary Update the authenticated user's last known location
@@ -174,6 +238,11 @@ export const CreateRevealRequestResponse = zod
         photoUrl: zod.string().nullish(),
         bio: zod.string().nullish(),
         socials: zod.record(zod.string(), zod.string()).optional(),
+        isVisible: zod
+          .boolean()
+          .describe(
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+          ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
       }),
@@ -207,6 +276,11 @@ export const ListInboundRevealsResponseItem = zod
         photoUrl: zod.string().nullish(),
         bio: zod.string().nullish(),
         socials: zod.record(zod.string(), zod.string()).optional(),
+        isVisible: zod
+          .boolean()
+          .describe(
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+          ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
       }),
@@ -242,6 +316,11 @@ export const ListOutboundRevealsResponseItem = zod
         photoUrl: zod.string().nullish(),
         bio: zod.string().nullish(),
         socials: zod.record(zod.string(), zod.string()).optional(),
+        isVisible: zod
+          .boolean()
+          .describe(
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+          ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
       }),
@@ -323,6 +402,11 @@ export const BleResolveResponseItem = zod.object({
     photoUrl: zod.string().nullish(),
     bio: zod.string().nullish(),
     socials: zod.record(zod.string(), zod.string()).optional(),
+    isVisible: zod
+      .boolean()
+      .describe(
+        "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+      ),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
