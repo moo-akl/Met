@@ -17,6 +17,7 @@
 // well-typed no-op that resolves with `started: false` and the reason.
 
 import type { RemoteProfile } from "../api/client";
+import { recordAdvertiserStart, recordSelf } from "./debug";
 import { uidToMajor } from "./encode";
 import {
   startBleScanner,
@@ -101,6 +102,7 @@ export async function startBleProximity(
   };
   try {
     const major = uidToMajor(opts.uid);
+    recordSelf(opts.uid, major);
     if (session && session.generation === generation) {
       const ok = await startBeaconAdvertising(
         MET_IBEACON_UUID,
@@ -126,6 +128,7 @@ export async function startBleProximity(
     };
   }
 
+  recordAdvertiserStart(advertiserResult.started, advertiserResult.reason);
   return { scanner: scannerResult, advertiser: advertiserResult };
 }
 
@@ -136,6 +139,7 @@ export async function stopBleProximity(): Promise<void> {
   if (s?.advertising) {
     await stopBeaconAdvertising();
   }
+  recordSelf(null, null);
 }
 
 export { isBeaconAdvertisingAvailable as isAdvertisingAvailable };

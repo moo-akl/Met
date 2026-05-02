@@ -30,6 +30,13 @@ import {
   startBeaconRanging,
   type BeaconRangedEvent,
 } from "../../modules/expo-met-ble/src";
+import {
+  recordDrop,
+  recordRangedEvent,
+  recordResolveAttempt,
+  recordResolveResult,
+  recordScannerStart,
+} from "./debug";
 import { MET_IBEACON_MINOR, MET_IBEACON_UUID } from "./uuids";
 
 // Resolve cadence. iBeacon ranging delivers callbacks roughly once per
@@ -96,7 +103,9 @@ export async function startBleScanner(
   }
 
   if (!api.isConfigured()) {
-    return { started: false, reason: "API not configured" };
+    const reason = "API not configured";
+    recordScannerStart(false, reason);
+    return { started: false, reason };
   }
 
   const generation = nextGeneration++;
@@ -125,15 +134,17 @@ export async function startBleScanner(
   if (generation + 1 !== nextGeneration || state !== next) {
     // Superseded — newer start/stop won the race.
     handle.remove();
-    return { started: false, reason: "Superseded by newer start/stop" };
+    const reason = "Superseded by newer start/stop";
+    recordScannerStart(false, reason);
+    return { started: false, reason };
   }
 
   if (!handle.started) {
     state = null;
-    return {
-      started: false,
-      reason: "iBeacon ranging unavailable (Expo Go or permission denied)",
-    };
+    const reason =
+      "iBeacon ranging unavailable (Expo Go or permission denied)";
+    recordScannerStart(false, reason);
+    return { started: false, reason };
   }
 
   next.rangingHandle = handle;
@@ -142,6 +153,7 @@ export async function startBleScanner(
     RESOLVE_BATCH_INTERVAL_MS,
   );
 
+  recordScannerStart(true);
   return { started: true };
 }
 
@@ -161,6 +173,13 @@ export function isBleScannerRunning(): boolean {
 
 function handleRangedEvent(live: ScannerState, ev: BeaconRangedEvent): void {
   const now = Date.now();
+  // Record EVERY ranged beacon for debug, BEFORE any filtering. This
+  // is the only signal we have on-device that the native ranger is
+  // actually producing events.
+  recordRangedEvent(
+    ev.beacons.length,
+    ev.beacons.map((b) => b.major | 0),
+  );
   for (const beacon of ev.beacons) {
     const major = beacon.major | 0;
     // The server's `uidToMajor` is `... % 65535`, so its valid output
@@ -168,15 +187,25 @@ function handleRangedEvent(live: ScannerState, ev: BeaconRangedEvent): void {
     // single rogue/foreign beacon advertising `major === 65535` would
     // 400 the entire resolve batch and starve every legitimate major
     // alongside it. Clamp client-side and drop minor mismatches too.
-    if (major < 0 || major > 65534) continue;
+    if (major < 0 || major > 65534) {
+      recordDrop("invalidMajor");
+      continue;
+    }
     if (beacon.minor !== undefined && beacon.minor !== MET_IBEACON_MINOR) {
+      recordDrop("minorMismatch");
       continue;
     }
     // Skip if we emitted this peer recently OR a resolve for this
     // major is in flight (which will emit shortly).
     const lastEmit = live.lastEmitted.get(major) ?? 0;
-    if (now - lastEmit < FIRE_REEMIT_MS) continue;
-    if (live.inFlightMajors.has(major)) continue;
+    if (now - lastEmit < FIRE_REEMIT_MS) {
+      recordDrop("cooldown");
+      continue;
+    }
+    if (live.inFlightMajors.has(major)) {
+      recordDrop("inFlight");
+      continue;
+    }
     // Capture the strongest (least-negative) RSSI seen this batch.
     const prev = live.pendingMajors.get(major) ?? null;
     const rssi = typeof beacon.rssi === "number" ? beacon.rssi : null;
@@ -208,6 +237,7 @@ async function runResolveOnce(gen: number): Promise<void> {
   for (const m of batch.keys()) s.inFlightMajors.add(m);
   s.resolveInFlight = true;
   const majors = [...batch.keys()];
+  recordResolveAttempt();
 
   try {
     let entries: { major: number | null; profile: RemoteProfile }[] = [];
@@ -220,12 +250,21 @@ async function runResolveOnce(gen: number): Promise<void> {
           if (!live.pendingMajors.has(m)) live.pendingMajors.set(m, r);
         }
       }
-      console.warn("[ble] resolve failed", (err as Error)?.message ?? err);
+      const msg = (err as Error)?.message ?? String(err);
+      recordResolveResult({ ok: false, error: msg });
+      console.warn("[ble] resolve failed", msg);
       return;
     }
 
     s = liveStateFor(gen);
-    if (!s) return;
+    if (!s) {
+      recordResolveResult({
+        ok: true,
+        entries: entries.length,
+        matched: 0,
+      });
+      return;
+    }
 
     const now = Date.now();
     // Group resolved profiles by major so we can pick exactly one
@@ -236,7 +275,10 @@ async function runResolveOnce(gen: number): Promise<void> {
     for (const entry of entries) {
       if (entry.major == null) continue;
       // Filter self by uid.
-      if (entry.profile.uid === s.uid) continue;
+      if (entry.profile.uid === s.uid) {
+        recordDrop("self");
+        continue;
+      }
       const list = byMajor.get(entry.major) ?? [];
       list.push(entry.profile);
       byMajor.set(entry.major, list);
@@ -267,6 +309,13 @@ async function runResolveOnce(gen: number): Promise<void> {
     // Don't lock them via lastEmitted — leaving them out lets the next
     // tick re-resolve. We still rely on inFlightMajors being cleared
     // in `finally` to allow them to re-enter the queue.
+    let matched = 0;
+    for (const profiles of byMajor.values()) matched += profiles.length;
+    recordResolveResult({
+      ok: true,
+      entries: entries.length,
+      matched,
+    });
   } finally {
     const live = liveStateFor(gen);
     if (live) {

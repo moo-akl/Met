@@ -19,6 +19,10 @@
 
 import { Platform } from "react-native";
 
+import {
+  recordNativeModule as recordNativeModuleDebug,
+} from "../../../lib/ble/debug";
+
 interface RangedBeacon {
   major: number;
   minor: number;
@@ -69,6 +73,7 @@ function getNative(): NativeMetBle | null {
   if (nativeMod !== undefined) return nativeMod;
   if (Platform.OS === "web") {
     nativeMod = null;
+    recordNativeModuleDebug(false, "web (no native module)");
     return null;
   }
   try {
@@ -87,6 +92,10 @@ function getNative(): NativeMetBle | null {
         ? (req("ExpoMetBle") as NativeMetBle | null)
         : null;
     nativeMod = raw ?? null;
+    recordNativeModuleDebug(
+      nativeMod !== null,
+      nativeMod !== null ? null : "requireNativeModule returned null (Expo Go?)",
+    );
     return nativeMod;
   } catch (err) {
     console.warn(
@@ -94,6 +103,10 @@ function getNative(): NativeMetBle | null {
       err,
     );
     nativeMod = null;
+    recordNativeModuleDebug(
+      false,
+      `requireNativeModule threw: ${(err as Error)?.message ?? "unknown"}`,
+    );
     return null;
   }
 }
