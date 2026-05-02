@@ -1,11 +1,11 @@
 import { Feather } from "@expo/vector-icons";
-import { useCameraPermissions } from "expo-camera";
-
-import { CameraView } from "@/components/MetCameraView";
+import { Camera, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { Stack, useRouter } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   StyleSheet,
@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { recordNativeError } from "@/lib/diagnostics";
 import { useT } from "@/lib/i18n";
 
 type ParsedQr = { id: string; name: string };
@@ -39,6 +40,26 @@ function parseQr(raw: string): ParsedQr | null {
   }
 }
 
+// Production iOS builds (#14 onwards) hit a broken
+// `ViewManagerAdapter_Expo*` registration in ExpoModulesCore — confirmed
+// in #18 by the in-app Diagnostics screen, which is why MetGradient,
+// MetImage and MetCameraView all show flat fallbacks. For QR scanning
+// that previously meant "Camera unavailable" because we relied on the
+// live `<CameraView>` view manager.
+//
+// Workaround: capture a still photo via the system camera UI
+// (`expo-image-picker.launchCameraAsync` opens a UIImagePickerController
+// — no view manager involved) and then decode the QR from the resulting
+// image with `Camera.scanFromURLAsync` (a pure static native function on
+// the expo-camera module — no view manager involved either).
+//
+// This costs the user one extra tap and removes the live auto-detect
+// scanline animation, but works on production binaries where the live
+// camera view fails to render. We keep the existing camera-permission
+// gate because `launchCameraAsync` requires it.
+
+type ScanStatus = "ok" | "not-met" | "failed";
+
 export default function ScanScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -47,18 +68,21 @@ export default function ScanScreen() {
   const { upsertEncounterFromQr } = useApp();
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const lockRef = useRef(false);
+  // Synchronous in-flight guard so a fast double-tap on Open Camera or
+  // Choose from Photos cannot launch two system pickers stacked on top
+  // of each other (the `busy` state guard is async — there's a window
+  // between the tap and the setState propagating where the button is
+  // still tappable).
+  const inFlightRef = useRef(false);
 
-  const handleScanned = useCallback(
-    async ({ data }: { data: string }) => {
-      if (lockRef.current) return;
+  const processQrData = useCallback(
+    async (data: string): Promise<ScanStatus> => {
+      if (lockRef.current) return "failed";
       const parsed = parseQr(data);
-      if (!parsed) {
-        setError(t("scan.notMetQRError"));
-        return;
-      }
+      if (!parsed) return "not-met";
       lockRef.current = true;
-      setError(null);
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(
           Haptics.NotificationFeedbackType.Success,
@@ -67,19 +91,95 @@ export default function ScanScreen() {
       try {
         const id = await upsertEncounterFromQr(parsed);
         router.replace(`/encounter/${id}`);
+        return "ok";
       } catch {
         lockRef.current = false;
-        setError(t("scan.couldntAddError"));
+        return "failed";
       }
     },
-    [router, upsertEncounterFromQr, t],
+    [router, upsertEncounterFromQr],
   );
 
-  // Dev-only QR simulator: lets us walk through the post-scan flow without
-  // a real QR code in front of the camera. Production builds must NOT
-  // expose this — fabricating an encounter from a tap is misleading
-  // (App Store 4.1 / Play "Deceptive Behavior") and the corresponding UI
-  // entry points are gated below.
+  const processPhoto = useCallback(
+    async (uri: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        // `Camera.scanFromURLAsync` is a pure static native method
+        // (iOS Vision framework / Android ML Kit). It does not go
+        // through the broken view-manager interop, so this still works
+        // even when `<CameraView>` does not render.
+        const results = await Camera.scanFromURLAsync(uri, ["qr"]);
+        if (!results || results.length === 0) {
+          setError(t("scan.noQrFound"));
+          return;
+        }
+        let sawNonMet = false;
+        for (const r of results) {
+          const status = await processQrData(r.data);
+          if (status === "ok") return;
+          if (status === "failed") {
+            setError(t("scan.couldntAddError"));
+            return;
+          }
+          if (status === "not-met") sawNonMet = true;
+        }
+        setError(sawNonMet ? t("scan.notMetQRError") : t("scan.noQrFound"));
+      } catch (e) {
+        recordNativeError("scan.scanFromURL", "runtime", e);
+        setError(t("scan.couldntAddError"));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [t, processQrData],
+  );
+
+  const openCamera = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    try {
+      const res = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.7,
+        allowsEditing: false,
+      });
+      if (!res.canceled && res.assets[0]) {
+        await processPhoto(res.assets[0].uri);
+      }
+    } catch (e) {
+      recordNativeError("scan.launchCamera", "runtime", e);
+      setError(t("scan.couldntAddError"));
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [processPhoto, t]);
+
+  const pickFromLibrary = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+        allowsEditing: false,
+      });
+      if (!res.canceled && res.assets[0]) {
+        await processPhoto(res.assets[0].uri);
+      }
+    } catch (e) {
+      recordNativeError("scan.launchLibrary", "runtime", e);
+      setError(t("scan.couldntAddError"));
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [processPhoto, t]);
+
+  // Dev-only QR simulator: lets us walk through the post-scan flow
+  // without a real QR code. Production builds must NOT expose this —
+  // fabricating an encounter from a tap is misleading (App Store 4.1 /
+  // Play "Deceptive Behavior") and the corresponding UI entry points
+  // are gated below.
   const handleSimulate = async () => {
     if (!__DEV__) return;
     const fake: ParsedQr = {
@@ -96,7 +196,7 @@ export default function ScanScreen() {
   if (!permission) {
     return (
       <View
-        style={[styles.container, { backgroundColor: "#000" }]}
+        style={[styles.container, { backgroundColor: colors.background }]}
       />
     );
   }
@@ -146,65 +246,95 @@ export default function ScanScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: "#000" }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <CameraView
-        style={StyleSheet.absoluteFill}
-        facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        onBarcodeScanned={handleScanned}
-      />
-      <View style={[styles.overlay]} pointerEvents="box-none">
+
+      <View
+        style={[
+          styles.scanTopBar,
+          {
+            paddingTop: topPad + 12,
+            backgroundColor: colors.background,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={[styles.iconBtn, { backgroundColor: colors.muted }]}
+        >
+          <Feather name="x" size={22} color={colors.foreground} />
+        </Pressable>
+        <Text style={[styles.scanTopTitle, { color: colors.foreground }]}>
+          {t("scan.titleScreen")}
+        </Text>
+        <View style={{ width: 38 }} />
+      </View>
+
+      <View style={styles.scanBody}>
         <View
           style={[
-            styles.topBar,
-            { paddingTop: topPad + 12 },
+            styles.scanIllustration,
+            { backgroundColor: "#DCFCE7" },
           ]}
         >
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            style={styles.iconBtn}
-          >
-            <Feather name="x" size={22} color="#FFFFFF" />
-          </Pressable>
-          <Text style={styles.topTitle}>{t("scan.titleScreen")}</Text>
-          <View style={{ width: 38 }} />
+          <Feather name="maximize" size={64} color={colors.primary} />
         </View>
 
-        <View style={styles.frameWrap} pointerEvents="none">
+        <Text style={[styles.scanHeadline, { color: colors.foreground }]}>
+          {t("scan.captureHint")}
+        </Text>
+        <Text style={[styles.scanSub, { color: colors.mutedForeground }]}>
+          {t("scan.hintMain")}
+        </Text>
+
+        {error ? (
           <View
-            style={[styles.frame, { borderColor: colors.primary }]}
-          />
-        </View>
+            style={[
+              styles.errorPill,
+              { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" },
+            ]}
+          >
+            <Feather name="alert-circle" size={14} color="#B91C1C" />
+            <Text style={styles.errorPillText}>{error}</Text>
+          </View>
+        ) : null}
 
-        <View
-          style={[
-            styles.bottomBar,
-            { paddingBottom: insets.bottom + 28 },
-          ]}
-        >
-          {error ? (
-            <Text style={styles.errorText}>{error}</Text>
-          ) : (
-            <Text style={styles.hintText}>
-              {t("scan.hintMain")}
+        {busy ? (
+          <View style={styles.busyRow}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[styles.busyText, { color: colors.mutedForeground }]}>
+              {t("scan.scanningPhoto")}
             </Text>
-          )}
-          {__DEV__ ? (
-            <Pressable
-              onPress={handleSimulate}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.simBtn,
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
-              <Feather name="play-circle" size={16} color="#FFFFFF" />
-              <Text style={styles.simText}>{t("scan.simulateScan")}</Text>
-            </Pressable>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
+      </View>
+
+      <View
+        style={[
+          styles.scanFooter,
+          { paddingBottom: insets.bottom + 24 },
+        ]}
+      >
+        <PrimaryButton
+          label={t("scan.captureBtn")}
+          onPress={openCamera}
+          disabled={busy}
+        />
+        <PrimaryButton
+          label={t("scan.libraryBtn")}
+          variant="secondary"
+          onPress={pickFromLibrary}
+          disabled={busy}
+        />
+        {__DEV__ ? (
+          <PrimaryButton
+            label={t("scan.simulateScan")}
+            variant="ghost"
+            onPress={handleSimulate}
+          />
+        ) : null}
       </View>
     </View>
   );
@@ -212,20 +342,15 @@ export default function ScanScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "space-between",
-  },
-  topBar: {
+  scanTopBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 18,
     paddingBottom: 16,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  topTitle: {
-    color: "#FFFFFF",
+  scanTopTitle: {
     fontFamily: "Inter_700Bold",
     fontSize: 16,
   },
@@ -235,54 +360,63 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.18)",
   },
-  frameWrap: {
+  scanBody: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  frame: {
-    width: 240,
-    height: 240,
-    borderRadius: 24,
-    borderWidth: 3,
-    backgroundColor: "transparent",
-  },
-  bottomBar: {
-    paddingHorizontal: 26,
-    paddingTop: 18,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 28,
     gap: 14,
-    alignItems: "center",
   },
-  hintText: {
-    color: "#FFFFFF",
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
+  scanIllustration: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  scanHeadline: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 22,
     textAlign: "center",
-    lineHeight: 19,
+  },
+  scanSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 21,
     maxWidth: 320,
   },
-  errorText: {
-    color: "#FCA5A5",
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    textAlign: "center",
-  },
-  simBtn: {
+  errorPill: {
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
   },
-  simText: {
-    color: "#FFFFFF",
-    fontFamily: "Inter_600SemiBold",
+  errorPillText: {
+    color: "#B91C1C",
+    fontFamily: "Inter_500Medium",
     fontSize: 13,
+  },
+  busyRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  busyText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+  },
+  scanFooter: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    gap: 10,
   },
   permWrap: {
     flex: 1,

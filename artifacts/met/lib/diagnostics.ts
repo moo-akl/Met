@@ -24,8 +24,15 @@ export type DiagnosticEntry = {
   ts: number;
   /** Which wrapper caught the error (e.g. "MetImage", "MetCameraView"). */
   source: string;
-  /** "import" if the lazy require() failed, "render" if the boundary fired. */
-  phase: "import" | "render";
+  /**
+   * Where in the lifecycle the failure was caught:
+   *   - "import"   – the lazy require() of a native module failed
+   *   - "render"   – an error boundary around a native view fired
+   *   - "runtime"  – a non-render runtime call to a native API failed
+   *                  (e.g. `Camera.scanFromURLAsync`,
+   *                  `ImagePicker.launchCameraAsync`)
+   */
+  phase: "import" | "render" | "runtime";
   /** Error.name when available, "Error" otherwise. */
   name: string;
   /** Error.message or stringified value. */
@@ -53,7 +60,7 @@ function bump(): void {
 
 export function recordNativeError(
   source: string,
-  phase: "import" | "render",
+  phase: "import" | "render" | "runtime",
   error: unknown,
 ): void {
   // This function is invoked from catch blocks and componentDidCatch in
