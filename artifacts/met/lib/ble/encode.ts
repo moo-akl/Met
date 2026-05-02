@@ -52,6 +52,28 @@ export async function uidToBleHash(uid: string): Promise<string> {
   return fullHex.slice(0, 16).toLowerCase();
 }
 
+/**
+ * Derive the iBeacon `major` value (16-bit) for a Firebase UID using
+ * the same polynomial-rolling hash the original Flutter MVP shipped:
+ *
+ *   `acc = (31 * acc + utf16CodeUnit(c)) % 65535`
+ *
+ * Returns an integer in [0, 65534]. Synchronous because there's no
+ * crypto involved — it's a tiny bit of arithmetic. Callers can lean
+ * on this from any context (scan callbacks, advertise setup, …).
+ *
+ * IMPORTANT: must stay byte-identical to `uidToMajor` in
+ * `artifacts/api-server/src/lib/uidHash.ts`. They are paired by the
+ * `/api/ble/resolve` endpoint.
+ */
+export function uidToMajor(uid: string): number {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = (31 * hash + uid.charCodeAt(i)) % 65535;
+  }
+  return hash;
+}
+
 /** Base64 (standard) encoder for the 8 raw payload bytes. */
 export function bytesToBase64(bytes: Uint8Array): string {
   // Avoid Buffer (RN/Hermes doesn't always have it) and avoid the

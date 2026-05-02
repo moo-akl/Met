@@ -5,8 +5,18 @@
 //        peripheral string, defensively, for legacy simulators).
 //
 //   Android: `BLUETOOTH`, `BLUETOOTH_ADMIN`, `BLUETOOTH_SCAN`
-//        (with `neverForLocation`), `BLUETOOTH_CONNECT`,
-//        `BLUETOOTH_ADVERTISE`.
+//        (WITHOUT `neverForLocation` — see note below),
+//        `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE`.
+//
+// `neverForLocation` note: Met uses BLE specifically to infer physical
+// proximity via Apple's iBeacon protocol. That's exactly the kind of
+// "deriving location from BLE" Google's `neverForLocation` flag is
+// designed to disclaim — and on Android 12+ devices, declaring it
+// causes the OS to filter scan results in ways that materially break
+// proximity discovery (we lose beacons that would otherwise resolve).
+// We therefore omit the flag and pair the BLE scan permission with
+// the standard `ACCESS_FINE_LOCATION` declaration that the
+// `expo-location` plugin already adds to the manifest.
 //
 // The native module itself is autolinked via `expo-modules-autolinking`
 // because it lives at `<project>/modules/expo-met-ble/` with an
@@ -51,11 +61,18 @@ function withAndroidPermissions(config) {
 
     ensure("android.permission.BLUETOOTH");
     ensure("android.permission.BLUETOOTH_ADMIN");
-    ensure("android.permission.BLUETOOTH_SCAN", {
-      "android:usesPermissionFlags": "neverForLocation",
-    });
+    // Intentionally NOT tagged `neverForLocation` — see the file
+    // header for the rationale. iBeacon ranging IS location inference
+    // and the OS scan-result filter actively breaks proximity when
+    // the flag is set.
+    ensure("android.permission.BLUETOOTH_SCAN");
     ensure("android.permission.BLUETOOTH_CONNECT");
     ensure("android.permission.BLUETOOTH_ADVERTISE");
+    // ACCESS_FINE_LOCATION is the legacy permission required for
+    // BLE scanning on Android 6..11. The `expo-location` plugin
+    // declares it for the GPS pipeline, but we ensure it here too in
+    // case the plugin order ever changes.
+    ensure("android.permission.ACCESS_FINE_LOCATION");
 
     return cfg;
   });

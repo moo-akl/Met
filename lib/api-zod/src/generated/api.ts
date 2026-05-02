@@ -306,27 +306,60 @@ scanner to look up a UID after detecting a Met advertisement.
 export const bleResolveBodyHashesItemRegExp = new RegExp("^[0-9a-f]{16}$");
 export const bleResolveBodyHashesMax = 64;
 
-export const BleResolveBody = zod.object({
-  hashes: zod
-    .array(zod.string().regex(bleResolveBodyHashesItemRegExp))
-    .min(1)
-    .max(bleResolveBodyHashesMax),
-});
+export const bleResolveBodyMajorsItemMin = 0;
+export const bleResolveBodyMajorsItemMax = 65534;
+
+export const bleResolveBodyMajorsMax = 64;
+
+export const BleResolveBody = zod
+  .object({
+    hashes: zod
+      .array(zod.string().regex(bleResolveBodyHashesItemRegExp))
+      .max(bleResolveBodyHashesMax)
+      .optional()
+      .describe("First 8 bytes of SHA-256(uid), 16 lowercase hex chars."),
+    majors: zod
+      .array(
+        zod
+          .number()
+          .min(bleResolveBodyMajorsItemMin)
+          .max(bleResolveBodyMajorsItemMax),
+      )
+      .max(bleResolveBodyMajorsMax)
+      .optional()
+      .describe(
+        "iBeacon major value (16-bit, 0..65534) computed via the same\npolynomial-rolling hash the Flutter MVP used.\n",
+      ),
+  })
+  .describe(
+    "Resolve BLE identifiers to user profiles. At least one of\n`hashes` (legacy GATT pipeline) or `majors` (iBeacon pipeline)\nmust be present and non-empty. Both may be sent simultaneously\n— the server unions the matches into a single response.\n",
+  );
 
 export const bleResolveResponseHashRegExp = new RegExp("^[0-9a-f]{16}$");
+export const bleResolveResponseMajorMin = 0;
+export const bleResolveResponseMajorMax = 65534;
 
-export const BleResolveResponseItem = zod.object({
-  hash: zod.string().regex(bleResolveResponseHashRegExp),
-  profile: zod.object({
-    uid: zod.string(),
-    displayName: zod.string(),
-    photoUrl: zod.string().nullish(),
-    bio: zod.string().nullish(),
-    socials: zod.record(zod.string(), zod.string()).optional(),
-    createdAt: zod.coerce.date(),
-    updatedAt: zod.coerce.date(),
-  }),
-});
+export const BleResolveResponseItem = zod
+  .object({
+    hash: zod.string().regex(bleResolveResponseHashRegExp).nullish(),
+    major: zod
+      .number()
+      .min(bleResolveResponseMajorMin)
+      .max(bleResolveResponseMajorMax)
+      .nullish(),
+    profile: zod.object({
+      uid: zod.string(),
+      displayName: zod.string(),
+      photoUrl: zod.string().nullish(),
+      bio: zod.string().nullish(),
+      socials: zod.record(zod.string(), zod.string()).optional(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  })
+  .describe(
+    "A single match. `hash` is set when the entry came from a `hashes`\nlookup; `major` is set when it came from a `majors` lookup. Both\nmay be set if the same profile matched in both pipelines.\n",
+  );
 export const BleResolveResponse = zod.array(BleResolveResponseItem);
 
 /**
