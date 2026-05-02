@@ -196,3 +196,55 @@ Prioritize performance and user experience in all development tasks.
 - **DB note**: The `uid_major` column added by the iBeacon switch is left in place (drizzle-orm tolerates extra DB columns; nothing reads it now). Cleaning it up can wait until the Firestore rebuild.
 - **Build numbers**: iOS `buildNumber` = `24`, Android `versionCode` = `11`. App version stays `1.0.0`.
 - **Next step (separately planned with user)**: rebuild the matching layer on Firebase Firestore (GPS push every 2 min + nearby check + BLE-triggered encounter writes) using the user's previous app's Firestore rules / Cloud Functions as the reference.
+
+## Firestore matching/encounters/reveals (Build #25 / versionCode 12)
+- **Goal**: Rebuild matching, encounters, and reveal-request handshake on Firebase Firestore (project `metapp-b4642`) while keeping Postgres + Express as the source of truth for `/api/profiles` and `/api/ble/resolve`. Symmetric writes happen via the api-server using firebase-admin (no Cloud Functions). Mirrors the old Flutter app's behavior: 50m radius, 2h cooldown, 30m GPS movement filter, isVisible (Ghost Mode), reveal handshake.
+- **Auth model**:
+  - `lib/firebaseAdmin.ts` initializes firebase-admin from the `FIREBASE_SERVICE_ACCOUNT_JSON` secret.
+  - `middlewares/requireUid.ts` rewritten to verify `Authorization: Bearer <id token>` via `admin.auth().verifyIdToken()`. Dev-only fallback to `X-Met-Uid` is gated on `NODE_ENV !== 'production'` so curl flows still work in development without breaking production security.
+  - Mobile `lib/api/client.ts` attaches the ID token via `auth().currentUser.getIdToken(false)` on every request (token cache is the Firebase SDK's responsibility). Web preview / Expo Go falls back to the legacy `X-Met-Uid` header since the native bridge isn't linked there.
+- **Server-side Firestore mirror** (`artifacts/api-server/src/lib/firestoreMirror.ts`):
+  - `mirrorProfileToFirestore(uid, profile)` — writes `displayName`, `photoUrl`, `bio`, `socials`, `isVisible` to `users/{uid}` whenever PUT /api/profiles/me succeeds. Best-effort; Postgres remains source of truth.
+  - `recordSymmetricEncounter(myUid, otherUid, location?)` — single Admin SDK batch write to BOTH `users/{me}/met_people/{them}` AND `users/{them}/met_people/{me}` with `lastMet`, `metCount` (FieldValue.increment), and optional GeoPoint.
+  - `mirrorRevealRequest`, `mirrorRevealStatus` — write directional `users/{me}/requests/{them}` + `users/{them}/requests/{me}` docs with `direction: 'inbound' | 'outbound'`, status, message.
+- **New / augmented routes**:
+  - `POST /api/encounters/record` (new) — body `{ otherUid, location?: { lat, lng } }`; calls `recordSymmetricEncounter`. Returns `{ otherUid, metCount, lastMet }`. Self-encounters reject 400.
+  - `PUT /api/profiles/me` — augmented to fire `mirrorProfileToFirestore` after the Postgres upsert. Profile schema gained `isVisible: boolean` (DB column `is_visible NOT NULL DEFAULT true`, applied via raw SQL since drizzle-kit push couldn't be piped).
+  - `POST /api/reveals` / `/accept` / `/decline` — augmented to also fire the corresponding Firestore mirror.
+  - All mirror writes are wrapped in try/catch and never block the Postgres response — Firestore failure logs a warning but doesn't 5xx the request.
+- **Firestore rules** (`firestore.rules`, deployable via `scripts/deploy-firestore-rules.sh`):
+  - `users/{uid}` — readable when `isVisible == true || isOwner`. Owner can write all fields except `uid` (immutable).
+  - `users/{uid}/met_people/{otherUid}` — read by owner only. **Write: false** (only Admin SDK via api-server).
+  - `users/{uid}/requests/{otherUid}` — read by owner only. **Write: false** (only Admin SDK via api-server).
+  - App Check is enforced in production rules but tolerant in dev (debug provider).
+- **Mobile Firestore stack** (`artifacts/met/lib/firestore/`):
+  - `client.ts` — lazy init of Firestore + App Check. Web / Expo Go return null cleanly. App Check uses `debug` in `__DEV__` and `playIntegrity` / `appAttestWithDeviceCheckFallback` in release. `_layout.tsx` calls `initializeFirestore()` at boot to warm the singleton.
+  - `presence.ts` — replaces the legacy GPS-only proximity loop on native:
+    - **Push loop** (every 60s OR 30m movement, whichever first): writes `{ location: GeoPoint, geohash, lastActive: serverTimestamp, uid }` to `users/{uid}` via `merge: true`.
+    - **Pull loop** (every 30s): computes geohash bounds for 50m via `geofire-common.geohashQueryBounds`, dispatches one Firestore range query per bound, filters by true distance + `isVisible`, applies persistent 2h cooldown via AsyncStorage, then calls `api.recordEncounter` and emits a `ProximityDetection` to the listener.
+    - Same race-safety pattern as legacy: per-session generation token, single-flight in-flight guards, dedup window seeded BEFORE the await.
+  - `cooldown.ts` — AsyncStorage-backed `met:cooldown:{myUid}:{otherUid} = epochMs` with 2h window. Cleared on sign-out via `clearCooldownsFor(uid)`.
+  - `encounters.ts` — `subscribeToMetPeople(uid, listener)` returns the current met_people snapshot ordered by `lastMet desc`, plus an unsubscribe. `subscribeToRequestsChange(uid, listener)` fires `listener()` on any reveal-request change in Firestore (used to trigger an immediate REST poll).
+- **AppContext wiring**:
+  - Legacy `startProximity` (api-server backed) AND new `startFirestoreProximity` run in parallel; both feed the same `upsertProximityRef.current`. Per-peer dedup windows in each module prevent duplicate UI emissions.
+  - BLE listener now ALSO calls `api.recordEncounter` (with the same 2h AsyncStorage cooldown) so a BLE-detected peer gets a symmetric Firestore encounter even when neither side has a fresh GPS fix.
+  - `subscribeToMetPeople` snapshot fabricates encounter cards for peers we haven't seen locally (e.g. the OTHER side detected us first). Tracks fabricated uids in a ref so each peer is only profile-fetched once.
+  - `subscribeToRequestsChange` triggers the existing 20s reveal poll on any server-side request change, giving near-instant accept/decline updates without rewriting the watermark-based merge.
+- **Ghost Mode** (`hooks/useVisibility.ts`):
+  - Existing local toggle now also fires `api.upsertMyProfile({ isVisible })`. Profile mirror to Firestore propagates the flag to `users/{uid}.isVisible`, which other clients' Firestore range queries filter on. Optimistic local update with rollback on server failure.
+- **Build numbers**: iOS `buildNumber` = `25`, Android `versionCode` = `12`. App version stays `1.0.0`. **Native module surface unchanged** (no new Expo config plugins — `@react-native-firebase/firestore` and `app-check` are auto-linked, NOT plugin-shaped); existing dev clients keep working but a fresh `eas build` is required for production rollout.
+- **Pre-deploy checklist**:
+  1. Enable Firestore in Firebase console for project `metapp-b4642` (Native mode, region `nam5` or closest to user base).
+  2. Deploy rules via `bash scripts/deploy-firestore-rules.sh` (requires firebase CLI + service account auth).
+  3. Set `FIREBASE_SERVICE_ACCOUNT_JSON` secret in production deploy environment (already set for dev).
+  4. (Optional) Configure App Check debug token via `EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN` for development testing.
+  5. Run `eas build --platform android --profile preview` (skip iOS until Apple Connect is healthy).
+
+### Firestore — known limitations & follow-ups (post-architect review)
+- **Profile read scope**: any authenticated app-checked client can read any visible user's full profile doc (uid, displayName, photoUrl, bio, socials, geohash, location). The geohash range query needs broad reads, so we accept this for the MVP. Hardening: split `users/{uid}` into a public `presence` subset (uid, geohash, isVisible) and a private `profile` subset gated on a per-pair handshake.
+- **Best-effort mirror**: Postgres writes succeed even if the Firestore mirror fails. A reconciliation worker is out of scope for #25; surfaced for follow-up.
+- **N+1 profile fetch from `met_people` stream**: each unknown peer triggers a separate `/api/profiles/{uid}` round-trip. Acceptable for current peer counts; optimize via bulk-profile endpoint OR by mirroring `displayName` + `photoUrl` into the `met_people` doc itself when peer counts grow.
+- **Cooldown race fix (applied)**: both `lib/firestore/presence.ts` and the AppContext BLE listener now stamp the AsyncStorage cooldown BEFORE the `recordEncounter` API call. A failure leaves the pair locked for 2h instead of risking a double-increment of `metCount`.
+- **App Check enforcement (applied)**: `firestore.rules` now requires `request.app_check_token != null` on every read/write. Mobile client initialises App Check at boot (`lib/firestore/client.ts`) with the debug provider in `__DEV__` and Play Integrity / App Attest in release.
+- **Sign-out cleanup (applied)**: both `resetAll` and `signOutAndClear` in AppContext now call `clearCooldownsFor(previousUid)` so a fresh sign-in on a shared device starts with a clean cooldown table.
+- **GPS accuracy bump (applied)**: `lib/firestore/presence.ts` now requests `Location.Accuracy.High` (~10m) instead of `Balanced` (~100m on Android) — necessary for reliable matching against a 50m radius.
