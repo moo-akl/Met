@@ -136,6 +136,45 @@ paths:
                 items:
                   $ref: "#/components/schemas/EncounterWithProfile"
 
+  /encounters/record:
+    post:
+      operationId: recordEncounter
+      tags: [encounters]
+      summary: Record a symmetric Firestore encounter with another user
+      description: |
+        Writes mirror entries to `users/{me}/met_people/{other}` AND
+        `users/{other}/met_people/{me}` in Firestore using the Admin SDK,
+        using a single batched commit so both sides see the encounter
+        atomically. Caller-provided location is stored as a GeoPoint on
+        both docs. Idempotent within the configured cooldown window.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordEncounter"
+      responses:
+        "200":
+          description: Encounter recorded on both sides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEncounterResult"
+        "400":
+          description: Invalid input (e.g. self-targeted)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Other user has no profile or is not visible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /presence:
     put:
       operationId: updatePresence
@@ -409,6 +448,11 @@ components:
           type: object
           additionalProperties:
             type: string
+        isVisible:
+          type: boolean
+          description: |
+            Ghost Mode flag. When false, this user is hidden from other
+            devices' nearby queries. Defaults to true on creation.
         createdAt:
           type: string
           format: date-time
@@ -418,6 +462,7 @@ components:
       required:
         - uid
         - displayName
+        - isVisible
         - createdAt
         - updatedAt
     UpsertProfile:
@@ -438,6 +483,9 @@ components:
           type: object
           additionalProperties:
             type: string
+        isVisible:
+          type: boolean
+          description: Ghost Mode flag. Optional on upsert; preserved when omitted.
       required:
         - displayName
     LogEncounter:
@@ -451,6 +499,44 @@ components:
           nullable: true
       required:
         - observedUid
+    RecordEncounter:
+      type: object
+      properties:
+        otherUid:
+          type: string
+          minLength: 1
+        location:
+          type: object
+          nullable: true
+          properties:
+            lat:
+              type: number
+              minimum: -90
+              maximum: 90
+            lng:
+              type: number
+              minimum: -180
+              maximum: 180
+          required:
+            - lat
+            - lng
+      required:
+        - otherUid
+    RecordEncounterResult:
+      type: object
+      properties:
+        otherUid:
+          type: string
+        metCount:
+          type: integer
+          description: Stored met count on this user's side after the write.
+        lastMet:
+          type: string
+          format: date-time
+      required:
+        - otherUid
+        - metCount
+        - lastMet
     Encounter:
       type: object
       properties:

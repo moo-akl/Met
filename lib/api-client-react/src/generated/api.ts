@@ -29,6 +29,8 @@ import type {
   NearbyPresenceParams,
   PresenceRecord,
   Profile,
+  RecordEncounter,
+  RecordEncounterResult,
   RespondToReveal,
   RevealRequest,
   RevealRequestWithProfile,
@@ -527,6 +529,98 @@ export function useListMyEncounters<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Writes mirror entries to `users/{me}/met_people/{other}` AND
+`users/{other}/met_people/{me}` in Firestore using the Admin SDK,
+using a single batched commit so both sides see the encounter
+atomically. Caller-provided location is stored as a GeoPoint on
+both docs. Idempotent within the configured cooldown window.
+
+ * @summary Record a symmetric Firestore encounter with another user
+ */
+export const getRecordEncounterUrl = () => {
+  return `/api/encounters/record`;
+};
+
+export const recordEncounter = async (
+  recordEncounter: RecordEncounter,
+  options?: RequestInit,
+): Promise<RecordEncounterResult> => {
+  return customFetch<RecordEncounterResult>(getRecordEncounterUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(recordEncounter),
+  });
+};
+
+export const getRecordEncounterMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordEncounter>>,
+    TError,
+    { data: BodyType<RecordEncounter> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordEncounter>>,
+  TError,
+  { data: BodyType<RecordEncounter> },
+  TContext
+> => {
+  const mutationKey = ["recordEncounter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordEncounter>>,
+    { data: BodyType<RecordEncounter> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return recordEncounter(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordEncounterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordEncounter>>
+>;
+export type RecordEncounterMutationBody = BodyType<RecordEncounter>;
+export type RecordEncounterMutationError = ErrorType<Error>;
+
+/**
+ * @summary Record a symmetric Firestore encounter with another user
+ */
+export const useRecordEncounter = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordEncounter>>,
+    TError,
+    { data: BodyType<RecordEncounter> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof recordEncounter>>,
+  TError,
+  { data: BodyType<RecordEncounter> },
+  TContext
+> => {
+  return useMutation(getRecordEncounterMutationOptions(options));
+};
 
 /**
  * @summary Update the authenticated user's last known location

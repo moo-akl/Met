@@ -13,6 +13,10 @@ export interface Profile {
   photoUrl?: string | null;
   bio?: string | null;
   socials?: ProfileSocials;
+  /** Ghost Mode flag. When false, this user is hidden from other
+devices' nearby queries. Defaults to true on creation.
+ */
+  isVisible: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
