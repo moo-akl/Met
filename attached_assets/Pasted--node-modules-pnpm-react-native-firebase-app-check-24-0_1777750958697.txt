@@ -1,0 +1,181 @@
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.h:24:43)
+
+  22 | #import "RNFBAppCheckProviderFactory.h"
+  23 | 
+> 24 | @interface RNFBAppCheckModule : NSObject <RCTBridgeModule>
+     |                                           ^ declaration of 'RCTBridgeModule' must be imported from module 'RNFBApp.RNFBAppModule' before it is required
+  25 | 
+  26 | @property RNFBAppCheckProviderFactory* _Nullable providerFactory;
+  27 | 
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:30:1)
+
+  28 | #pragma mark Module Setup
+  29 | 
+> 30 | RCT_EXPORT_MODULE();
+     | ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  31 | 
+  32 | - (dispatch_queue_t)methodQueue {
+  33 |   return dispatch_get_main_queue();
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:50:19)
+
+  48 | #pragma mark Firebase AppCheck Methods
+  49 | 
+> 50 | RCT_EXPORT_METHOD(activate
+     |                   ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  51 |                   : (FIRApp *)firebaseApp
+  52 |                   : (nonnull NSString *)siteKeyOrProvider
+  53 |                   : (BOOL)isTokenAutoRefreshEnabled
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:51:19)
+
+  49 | 
+  50 | RCT_EXPORT_METHOD(activate
+> 51 |                   : (FIRApp *)firebaseApp
+     |                   ^ expected ')'
+  52 |                   : (nonnull NSString *)siteKeyOrProvider
+  53 |                   : (BOOL)isTokenAutoRefreshEnabled
+  54 |                   : (RCTPromiseResolveBlock)resolve rejecter
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:67:19)
+
+  65 | }
+  66 | 
+> 67 | RCT_EXPORT_METHOD(configureProvider
+     |                   ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  68 |                   : (FIRApp *)firebaseApp
+  69 |                   : (nonnull NSString *)providerName
+  70 |                   : (nullable NSString *)debugToken
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:68:19)
+
+  66 | 
+  67 | RCT_EXPORT_METHOD(configureProvider
+> 68 |                   : (FIRApp *)firebaseApp
+     |                   ^ expected ')'
+  69 |                   : (nonnull NSString *)providerName
+  70 |                   : (nullable NSString *)debugToken
+  71 |                   : (RCTPromiseResolveBlock)resolve rejecter
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:67:1)
+
+  65 | }
+  66 | 
+> 67 | RCT_EXPORT_METHOD(configureProvider
+     | ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  68 |                   : (FIRApp *)firebaseApp
+  69 |                   : (nonnull NSString *)providerName
+  70 |                   : (nullable NSString *)debugToken
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:81:19)
+
+  79 | }
+  80 | 
+> 81 | RCT_EXPORT_METHOD(setTokenAutoRefreshEnabled
+     |                   ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  82 |                   : (FIRApp *)firebaseApp
+  83 |                   : (BOOL)isTokenAutoRefreshEnabled) {
+  84 |   DLog(@"app/isTokenAutoRefreshEnabled: %@/%d", firebaseApp.name, isTokenAutoRefreshEnabled);
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:82:19)
+
+  80 | 
+  81 | RCT_EXPORT_METHOD(setTokenAutoRefreshEnabled
+> 82 |                   : (FIRApp *)firebaseApp
+     |                   ^ expected ')'
+  83 |                   : (BOOL)isTokenAutoRefreshEnabled) {
+  84 |   DLog(@"app/isTokenAutoRefreshEnabled: %@/%d", firebaseApp.name, isTokenAutoRefreshEnabled);
+  85 |   FIRAppCheck *appCheck = [FIRAppCheck appCheckWithApp:firebaseApp];
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:81:1)
+
+  79 | }
+  80 | 
+> 81 | RCT_EXPORT_METHOD(setTokenAutoRefreshEnabled
+     | ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  82 |                   : (FIRApp *)firebaseApp
+  83 |                   : (BOOL)isTokenAutoRefreshEnabled) {
+  84 |   DLog(@"app/isTokenAutoRefreshEnabled: %@/%d", firebaseApp.name, isTokenAutoRefreshEnabled);
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:91:19)
+
+  89 | // Not present in JS or Android - it is iOS-specific so we only call this in testing - it is not in
+  90 | // index.d.ts
+> 91 | RCT_EXPORT_METHOD(isTokenAutoRefreshEnabled
+     |                   ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  92 |                   : (FIRApp *)firebaseApp
+  93 |                   : (RCTPromiseResolveBlock)resolve rejecter
+  94 |                   : (RCTPromiseRejectBlock)reject) {
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:92:19)
+
+  90 | // index.d.ts
+  91 | RCT_EXPORT_METHOD(isTokenAutoRefreshEnabled
+> 92 |                   : (FIRApp *)firebaseApp
+     |                   ^ expected ')'
+  93 |                   : (RCTPromiseResolveBlock)resolve rejecter
+  94 |                   : (RCTPromiseRejectBlock)reject) {
+  95 |   FIRAppCheck *appCheck = [FIRAppCheck appCheckWithApp:firebaseApp];
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:91:1)
+
+  89 | // Not present in JS or Android - it is iOS-specific so we only call this in testing - it is not in
+  90 | // index.d.ts
+> 91 | RCT_EXPORT_METHOD(isTokenAutoRefreshEnabled
+     | ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  92 |                   : (FIRApp *)firebaseApp
+  93 |                   : (RCTPromiseResolveBlock)resolve rejecter
+  94 |                   : (RCTPromiseRejectBlock)reject) {
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:101:19)
+
+   99 | }
+  100 | 
+> 101 | RCT_EXPORT_METHOD(getToken
+      |                   ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  102 |                   : (FIRApp *)firebaseApp
+  103 |                   : (BOOL)forceRefresh
+  104 |                   : (RCTPromiseResolveBlock)resolve
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:102:19)
+
+  100 | 
+  101 | RCT_EXPORT_METHOD(getToken
+> 102 |                   : (FIRApp *)firebaseApp
+      |                   ^ expected ')'
+  103 |                   : (BOOL)forceRefresh
+  104 |                   : (RCTPromiseResolveBlock)resolve
+  105 |                   : (RCTPromiseRejectBlock)reject) {
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:101:1)
+
+   99 | }
+  100 | 
+> 101 | RCT_EXPORT_METHOD(getToken
+      | ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  102 |                   : (FIRApp *)firebaseApp
+  103 |                   : (BOOL)forceRefresh
+  104 |                   : (RCTPromiseResolveBlock)resolve
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:137:19)
+
+  135 | }
+  136 | 
+> 137 | RCT_EXPORT_METHOD(getLimitedUseToken
+      |                   ^ type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
+  138 |                   : (FIRApp *)firebaseApp
+  139 |                   : (RCTPromiseResolveBlock)resolve
+  140 |                   : (RCTPromiseRejectBlock)reject) {
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+app-check@24.0.0_@react-native-firebase+app@24.0.0_@react-native_4c3de34e198cf81779f95cd883c9d265/node_modules/@react-native-firebase/app-check/ios/RNFBAppCheck/RNFBAppCheckModule.m:138:19)
+
+  136 | 
+  137 | RCT_EXPORT_METHOD(getLimitedUseToken
+> 138 |                   : (FIRApp *)firebaseApp
+      |                   ^ expected ')'
+  139 |                   : (RCTPromiseResolveBlock)resolve
+  140 |                   : (RCTPromiseRejectBlock)reject) {
+  141 |   FIRAppCheck *appCheck = [FIRAppCheck appCheckWithApp:firebaseApp];
+
+❌  fatal error: too many errors emitted, stopping now [-ferror-lim
