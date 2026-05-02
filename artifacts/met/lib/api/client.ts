@@ -124,6 +124,25 @@ export interface BleResolveEntry {
   profile: RemoteProfile;
 }
 
+export type RevealStatus = "pending" | "accepted" | "declined";
+
+export interface RemoteRevealRequest {
+  id: number;
+  senderUid: string;
+  recipientUid: string;
+  message: string | null;
+  status: RevealStatus;
+  createdAt: string;
+  updatedAt: string;
+  respondedAt: string | null;
+}
+
+export interface RemoteRevealRequestWithProfile extends RemoteRevealRequest {
+  // Inbox entries: profile is the SENDER. Outbox entries: profile is the RECIPIENT.
+  // The endpoint context determines which.
+  profile: RemoteProfile;
+}
+
 export const api = {
   baseUrl: BASE_URL,
   isConfigured: () => BASE_URL.length > 0,
@@ -168,4 +187,33 @@ export const api = {
   },
   bleResolve: (opts: ApiOptions, hashes: string[]) =>
     request<BleResolveEntry[]>("POST", "/api/ble/resolve", opts, { hashes }),
+  // ----- Reveal requests -----
+  sendReveal: (
+    opts: ApiOptions,
+    input: { recipientUid: string; message?: string | null },
+  ) =>
+    request<RemoteRevealRequestWithProfile>("POST", "/api/reveals", opts, {
+      recipientUid: input.recipientUid,
+      message: input.message ?? null,
+    }),
+  listInboundReveals: (opts: ApiOptions) =>
+    request<RemoteRevealRequestWithProfile[]>(
+      "GET",
+      "/api/reveals/inbox",
+      opts,
+    ),
+  listOutboundReveals: (opts: ApiOptions) =>
+    request<RemoteRevealRequestWithProfile[]>(
+      "GET",
+      "/api/reveals/outbox",
+      opts,
+    ),
+  acceptReveal: (opts: ApiOptions, senderUid: string) =>
+    request<RemoteRevealRequest>("POST", "/api/reveals/accept", opts, {
+      senderUid,
+    }),
+  declineReveal: (opts: ApiOptions, senderUid: string) =>
+    request<RemoteRevealRequest>("POST", "/api/reveals/decline", opts, {
+      senderUid,
+    }),
 };
