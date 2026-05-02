@@ -4,6 +4,7 @@ import { LinearGradient } from "@/components/MetGradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -27,6 +28,7 @@ import { useSubscription } from "@/lib/revenuecat";
 import {
   FREE_REVEALS_PER_DAY,
   getRevealsRemaining,
+  refundFreeReveal,
   tryConsumeFreeReveal,
 } from "@/lib/usage";
 
@@ -51,6 +53,9 @@ export default function EncounterDetail() {
     updateEncounterStatus,
     removeEncounter,
     setBlocked,
+    sendRevealRequest,
+    acceptRevealRequest,
+    declineRevealRequest,
   } = useApp();
   const { isSubscribed, isSubscriptionReady } = useSubscription();
 
@@ -142,6 +147,7 @@ export default function EncounterDetail() {
     if (sending) return;
     if (!isSubscriptionReady) return;
     setSending(true);
+    let consumedFreeReveal = false;
     try {
       if (!isSubscribed) {
         const consumed = await tryConsumeFreeReveal();
@@ -150,22 +156,55 @@ export default function EncounterDetail() {
           router.push("/paywall");
           return;
         }
+        consumedFreeReveal = true;
         setRevealsRemaining(await getRevealsRemaining());
       }
       const trimmed = revealDraft.trim();
-      await updateEncounterStatus(encounter.id, "request_sent", {
-        revealMessage: trimmed.length > 0 ? trimmed : undefined,
-      });
+      // Server-backed send. Throws on network/API failure so we can show
+      // an alert and avoid a phantom "waiting" spinner the recipient will
+      // never see.
+      await sendRevealRequest(
+        encounter.id,
+        trimmed.length > 0 ? trimmed : undefined,
+      );
       setRevealSheetOpen(false);
       setRevealDraft("");
+    } catch (err) {
+      // Refund the free reveal if the call failed — we charged the quota
+      // assuming a successful send. `tryConsumeFreeReveal` actually wrote
+      // the decremented count to AsyncStorage, so the refund must do the
+      // inverse write through the same mutex (just re-reading would leave
+      // the user permanently down a reveal on every network error).
+      if (consumedFreeReveal) {
+        await refundFreeReveal();
+        setRevealsRemaining(await getRevealsRemaining());
+      }
+      const msg =
+        err instanceof Error && err.message ? err.message : "Please try again.";
+      Alert.alert(t("encounter.revealSheet.title"), msg);
     } finally {
       setSending(false);
     }
   };
 
-  const handleAccept = () => updateEncounterStatus(encounter.id, "connected");
-  const handleDecline = () => {
-    updateEncounterStatus(encounter.id, "encounter");
+  const handleAccept = async () => {
+    try {
+      await acceptRevealRequest(encounter.id);
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message ? err.message : "Please try again.";
+      Alert.alert(t("encounter.acceptReveal"), msg);
+    }
+  };
+  const handleDecline = async () => {
+    try {
+      await declineRevealRequest(encounter.id);
+    } catch (err) {
+      // Best-effort: even if the API fails, locally drop the request so
+      // the user isn't stuck with a card they can't dismiss.
+      await updateEncounterStatus(encounter.id, "encounter");
+      console.warn("[encounter] decline reveal failed", err);
+    }
     router.back();
   };
 

@@ -101,6 +101,48 @@ export interface BleResolveEntry {
   profile: Profile;
 }
 
+export interface CreateRevealRequest {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  recipientUid: string;
+  /** @maxLength 240 */
+  message?: string | null;
+}
+
+export interface RespondToReveal {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  senderUid: string;
+}
+
+export type RevealRequestStatus =
+  (typeof RevealRequestStatus)[keyof typeof RevealRequestStatus];
+
+export const RevealRequestStatus = {
+  pending: "pending",
+  accepted: "accepted",
+  declined: "declined",
+} as const;
+
+export interface RevealRequest {
+  id: number;
+  senderUid: string;
+  recipientUid: string;
+  message?: string | null;
+  status: RevealRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  respondedAt?: string | null;
+}
+
+export type RevealRequestWithProfile = RevealRequest & {
+  profile: Profile;
+};
+
 export type NearbyPresenceParams = {
   lat: number;
   lng: number;

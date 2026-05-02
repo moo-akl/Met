@@ -16,6 +16,8 @@ tags:
     description: Encounter logging operations
   - name: presence
     description: Location-based proximity
+  - name: reveals
+    description: Mutual-reveal request lifecycle
 paths:
   /healthz:
     get:
@@ -154,6 +156,145 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PresenceRecord"
+
+  /reveals:
+    post:
+      operationId: createRevealRequest
+      tags: [reveals]
+      summary: Send a reveal request to another user
+      description: |
+        Upserts a reveal request between the authenticated user (sender) and
+        the recipient. If a row already exists for this pair it is reset to
+        `pending` with a fresh `createdAt` and the new optional message.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRevealRequest"
+      responses:
+        "200":
+          description: Reveal request created or refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevealRequestWithProfile"
+        "400":
+          description: Invalid input (e.g. self-targeted)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Recipient profile not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /reveals/inbox:
+    get:
+      operationId: listInboundReveals
+      tags: [reveals]
+      summary: List pending reveal requests addressed to me
+      description: |
+        Returns all reveal requests where the authenticated user is the
+        recipient and status is `pending`. Each entry includes the sender's
+        profile so the client can render the encounter without a separate
+        profile lookup.
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RevealRequestWithProfile"
+
+  /reveals/outbox:
+    get:
+      operationId: listOutboundReveals
+      tags: [reveals]
+      summary: List my outgoing reveal requests with their current status
+      description: |
+        Returns reveal requests where the authenticated user is the sender,
+        regardless of status. Used by the client to detect when a recipient
+        accepts or declines an outgoing request.
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RevealRequestWithProfile"
+
+  /reveals/accept:
+    post:
+      operationId: acceptRevealRequest
+      tags: [reveals]
+      summary: Accept the pending reveal request from a specific sender
+      description: |
+        The authenticated user (recipient) accepts the most-recent pending
+        reveal request from `senderUid`. Also auto-accepts any pending
+        reverse request from the recipient back to the sender so mutual
+        consent is symmetric.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RespondToReveal"
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevealRequest"
+        "404":
+          description: No pending request from that sender
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /reveals/decline:
+    post:
+      operationId: declineRevealRequest
+      tags: [reveals]
+      summary: Decline the pending reveal request from a specific sender
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RespondToReveal"
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevealRequest"
+        "404":
+          description: No pending request from that sender
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /ble/resolve:
     post:
@@ -427,3 +568,66 @@ components:
       required:
         - hash
         - profile
+    CreateRevealRequest:
+      type: object
+      properties:
+        recipientUid:
+          type: string
+          minLength: 1
+          maxLength: 128
+        message:
+          type: string
+          nullable: true
+          maxLength: 240
+      required:
+        - recipientUid
+    RespondToReveal:
+      type: object
+      properties:
+        senderUid:
+          type: string
+          minLength: 1
+          maxLength: 128
+      required:
+        - senderUid
+    RevealRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        senderUid:
+          type: string
+        recipientUid:
+          type: string
+        message:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, accepted, declined]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        respondedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - senderUid
+        - recipientUid
+        - status
+        - createdAt
+        - updatedAt
+    RevealRequestWithProfile:
+      allOf:
+        - $ref: "#/components/schemas/RevealRequest"
+        - type: object
+          properties:
+            profile:
+              $ref: "#/components/schemas/Profile"
+          required:
+            - profile

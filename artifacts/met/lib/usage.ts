@@ -85,6 +85,23 @@ export function tryConsumeFreeReveal(): Promise<number | null> {
   return tryConsume(REVEALS_KEY, FREE_REVEALS_PER_DAY);
 }
 
+// Atomic refund — used when a free reveal was consumed but the API call
+// to actually send the request failed. Goes through the same write chain
+// as `tryConsume` so a refund + concurrent consume can't race the bucket.
+// Floors at 0 so a refund can never push the bucket negative.
+export function refundFreeReveal(): Promise<number> {
+  const prev = writeChains[REVEALS_KEY] ?? Promise.resolve();
+  const next = prev.then(async () => {
+    const cur = await readBucket(REVEALS_KEY);
+    if (cur.count <= 0) return 0;
+    const updated: DailyUsage = { dayKey: cur.dayKey, count: cur.count - 1 };
+    await AsyncStorage.setItem(REVEALS_KEY, JSON.stringify(updated));
+    return updated.count;
+  });
+  writeChains[REVEALS_KEY] = next.catch(() => undefined);
+  return next;
+}
+
 export async function resetRevealsToday(): Promise<void> {
   await AsyncStorage.removeItem(REVEALS_KEY);
 }

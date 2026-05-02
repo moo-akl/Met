@@ -8,6 +8,7 @@
 
 export * from "./bleResolveEntry";
 export * from "./bleResolveRequest";
+export * from "./createRevealRequest";
 export * from "./encounter";
 export * from "./encounterWithProfile";
 export * from "./error";
@@ -18,6 +19,10 @@ export * from "./nearbyPresenceParams";
 export * from "./presenceRecord";
 export * from "./profile";
 export * from "./profileSocials";
+export * from "./respondToReveal";
+export * from "./revealRequest";
+export * from "./revealRequestStatus";
+export * from "./revealRequestWithProfile";
 export * from "./updatePresence";
 export * from "./upsertProfile";
 export * from "./upsertProfileSocials";

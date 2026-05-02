@@ -140,6 +140,163 @@ export const UpdatePresenceResponse = zod.object({
 });
 
 /**
+ * Upserts a reveal request between the authenticated user (sender) and
+the recipient. If a row already exists for this pair it is reset to
+`pending` with a fresh `createdAt` and the new optional message.
+
+ * @summary Send a reveal request to another user
+ */
+export const createRevealRequestBodyRecipientUidMax = 128;
+
+export const createRevealRequestBodyMessageMax = 240;
+
+export const CreateRevealRequestBody = zod.object({
+  recipientUid: zod.string().min(1).max(createRevealRequestBodyRecipientUidMax),
+  message: zod.string().max(createRevealRequestBodyMessageMax).nullish(),
+});
+
+export const CreateRevealRequestResponse = zod
+  .object({
+    id: zod.number(),
+    senderUid: zod.string(),
+    recipientUid: zod.string(),
+    message: zod.string().nullish(),
+    status: zod.enum(["pending", "accepted", "declined"]),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+    respondedAt: zod.coerce.date().nullish(),
+  })
+  .and(
+    zod.object({
+      profile: zod.object({
+        uid: zod.string(),
+        displayName: zod.string(),
+        photoUrl: zod.string().nullish(),
+        bio: zod.string().nullish(),
+        socials: zod.record(zod.string(), zod.string()).optional(),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      }),
+    }),
+  );
+
+/**
+ * Returns all reveal requests where the authenticated user is the
+recipient and status is `pending`. Each entry includes the sender's
+profile so the client can render the encounter without a separate
+profile lookup.
+
+ * @summary List pending reveal requests addressed to me
+ */
+export const ListInboundRevealsResponseItem = zod
+  .object({
+    id: zod.number(),
+    senderUid: zod.string(),
+    recipientUid: zod.string(),
+    message: zod.string().nullish(),
+    status: zod.enum(["pending", "accepted", "declined"]),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+    respondedAt: zod.coerce.date().nullish(),
+  })
+  .and(
+    zod.object({
+      profile: zod.object({
+        uid: zod.string(),
+        displayName: zod.string(),
+        photoUrl: zod.string().nullish(),
+        bio: zod.string().nullish(),
+        socials: zod.record(zod.string(), zod.string()).optional(),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      }),
+    }),
+  );
+export const ListInboundRevealsResponse = zod.array(
+  ListInboundRevealsResponseItem,
+);
+
+/**
+ * Returns reveal requests where the authenticated user is the sender,
+regardless of status. Used by the client to detect when a recipient
+accepts or declines an outgoing request.
+
+ * @summary List my outgoing reveal requests with their current status
+ */
+export const ListOutboundRevealsResponseItem = zod
+  .object({
+    id: zod.number(),
+    senderUid: zod.string(),
+    recipientUid: zod.string(),
+    message: zod.string().nullish(),
+    status: zod.enum(["pending", "accepted", "declined"]),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+    respondedAt: zod.coerce.date().nullish(),
+  })
+  .and(
+    zod.object({
+      profile: zod.object({
+        uid: zod.string(),
+        displayName: zod.string(),
+        photoUrl: zod.string().nullish(),
+        bio: zod.string().nullish(),
+        socials: zod.record(zod.string(), zod.string()).optional(),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      }),
+    }),
+  );
+export const ListOutboundRevealsResponse = zod.array(
+  ListOutboundRevealsResponseItem,
+);
+
+/**
+ * The authenticated user (recipient) accepts the most-recent pending
+reveal request from `senderUid`. Also auto-accepts any pending
+reverse request from the recipient back to the sender so mutual
+consent is symmetric.
+
+ * @summary Accept the pending reveal request from a specific sender
+ */
+export const acceptRevealRequestBodySenderUidMax = 128;
+
+export const AcceptRevealRequestBody = zod.object({
+  senderUid: zod.string().min(1).max(acceptRevealRequestBodySenderUidMax),
+});
+
+export const AcceptRevealRequestResponse = zod.object({
+  id: zod.number(),
+  senderUid: zod.string(),
+  recipientUid: zod.string(),
+  message: zod.string().nullish(),
+  status: zod.enum(["pending", "accepted", "declined"]),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  respondedAt: zod.coerce.date().nullish(),
+});
+
+/**
+ * @summary Decline the pending reveal request from a specific sender
+ */
+export const declineRevealRequestBodySenderUidMax = 128;
+
+export const DeclineRevealRequestBody = zod.object({
+  senderUid: zod.string().min(1).max(declineRevealRequestBodySenderUidMax),
+});
+
+export const DeclineRevealRequestResponse = zod.object({
+  id: zod.number(),
+  senderUid: zod.string(),
+  recipientUid: zod.string(),
+  message: zod.string().nullish(),
+  status: zod.enum(["pending", "accepted", "declined"]),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  respondedAt: zod.coerce.date().nullish(),
+});
+
+/**
  * Given an array of 16-char hex identity hashes (the first 8 bytes of
 SHA-256(uid)), returns the matching profiles. Used by the BLE
 scanner to look up a UID after detecting a Met advertisement.
