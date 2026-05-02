@@ -547,26 +547,48 @@ components:
         - updatedAt
     BleResolveRequest:
       type: object
+      description: |
+        Resolve BLE identifiers to user profiles. At least one of
+        `hashes` (legacy GATT pipeline) or `majors` (iBeacon pipeline)
+        must be present and non-empty. Both may be sent simultaneously
+        — the server unions the matches into a single response.
       properties:
         hashes:
           type: array
+          description: First 8 bytes of SHA-256(uid), 16 lowercase hex chars.
           items:
             type: string
             pattern: "^[0-9a-f]{16}$"
-          minItems: 1
           maxItems: 64
-      required:
-        - hashes
+        majors:
+          type: array
+          description: |
+            iBeacon major value (16-bit, 0..65534) computed via the same
+            polynomial-rolling hash the Flutter MVP used.
+          items:
+            type: integer
+            minimum: 0
+            maximum: 65534
+          maxItems: 64
     BleResolveEntry:
       type: object
+      description: |
+        A single match. `hash` is set when the entry came from a `hashes`
+        lookup; `major` is set when it came from a `majors` lookup. Both
+        may be set if the same profile matched in both pipelines.
       properties:
         hash:
           type: string
           pattern: "^[0-9a-f]{16}$"
+          nullable: true
+        major:
+          type: integer
+          minimum: 0
+          maximum: 65534
+          nullable: true
         profile:
           $ref: "#/components/schemas/Profile"
       required:
-        - hash
         - profile
     CreateRevealRequest:
       type: object
