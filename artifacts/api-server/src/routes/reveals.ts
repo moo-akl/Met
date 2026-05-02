@@ -18,6 +18,7 @@ import {
   DeclineRevealRequestResponse,
 } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
+import { mirrorRevealRequest, mirrorRevealStatus } from "../lib/firestoreMirror";
 
 const router: IRouter = Router();
 
@@ -28,6 +29,7 @@ function serializeProfile(p: Profile) {
     photoUrl: p.photoUrl ?? null,
     bio: p.bio ?? null,
     socials: (p.socials ?? {}) as Record<string, string>,
+    isVisible: p.isVisible,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -94,6 +96,16 @@ router.post("/reveals", requireUid, async (req, res) => {
       },
     })
     .returning();
+
+  // Best-effort mirror to both users' Firestore `requests` subcollections
+  // so onSnapshot listeners on either side update without a refetch.
+  // Postgres remains the source of truth for the lifecycle.
+  await mirrorRevealRequest({
+    senderUid,
+    recipientUid: body.recipientUid,
+    status: "pending",
+    message: body.message ?? null,
+  });
 
   res.json(
     CreateRevealRequestResponse.parse({
@@ -210,6 +222,20 @@ router.post("/reveals/accept", requireUid, async (req, res) => {
     return;
   }
 
+  // Mirror the accepted state to BOTH the inbound and outbound docs in
+  // Firestore. If a reverse pending request was also auto-accepted above,
+  // mirror that pair too so neither user's stream lags behind Postgres.
+  await mirrorRevealStatus({
+    senderUid: body.senderUid,
+    recipientUid,
+    status: "accepted",
+  });
+  await mirrorRevealStatus({
+    senderUid: recipientUid,
+    recipientUid: body.senderUid,
+    status: "accepted",
+  });
+
   res.json(AcceptRevealRequestResponse.parse(serializeReveal(updated)));
 });
 
@@ -237,6 +263,12 @@ router.post("/reveals/decline", requireUid, async (req, res) => {
     res.status(404).json({ message: "No pending request from that sender" });
     return;
   }
+
+  await mirrorRevealStatus({
+    senderUid: body.senderUid,
+    recipientUid,
+    status: "declined",
+  });
 
   res.json(DeclineRevealRequestResponse.parse(serializeReveal(updated)));
 });

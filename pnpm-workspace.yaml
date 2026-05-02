@@ -6,6 +6,12 @@ packages:
 
 autoInstallPeers: false
 
+dedupePeerDependents: true
+
+peerDependencyRules:
+  allowAny:
+    - '@opentelemetry/api'
+
 catalog:
   '@replit/vite-plugin-cartographer': ^0.5.1
   '@replit/vite-plugin-dev-banner': ^0.1.1

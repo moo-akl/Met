@@ -17,4 +17,6 @@ export interface UpsertProfile {
   /** @maxLength 500 */
   bio?: string | null;
   socials?: UpsertProfileSocials;
+  /** Ghost Mode flag. Optional on upsert; preserved when omitted. */
+  isVisible?: boolean;
 }

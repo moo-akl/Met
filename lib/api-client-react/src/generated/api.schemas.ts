@@ -21,6 +21,10 @@ export interface Profile {
   photoUrl?: string | null;
   bio?: string | null;
   socials?: ProfileSocials;
+  /** Ghost Mode flag. When false, this user is hidden from other
+devices' nearby queries. Defaults to true on creation.
+ */
+  isVisible: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,12 +41,40 @@ export interface UpsertProfile {
   /** @maxLength 500 */
   bio?: string | null;
   socials?: UpsertProfileSocials;
+  /** Ghost Mode flag. Optional on upsert; preserved when omitted. */
+  isVisible?: boolean;
 }
 
 export interface LogEncounter {
   /** @minLength 1 */
   observedUid: string;
   rssi?: number | null;
+}
+
+export type RecordEncounterLocation = {
+  /**
+   * @minimum -90
+   * @maximum 90
+   */
+  lat: number;
+  /**
+   * @minimum -180
+   * @maximum 180
+   */
+  lng: number;
+} | null;
+
+export interface RecordEncounter {
+  /** @minLength 1 */
+  otherUid: string;
+  location?: RecordEncounterLocation;
+}
+
+export interface RecordEncounterResult {
+  otherUid: string;
+  /** Stored met count on this user's side after the write. */
+  metCount: number;
+  lastMet: string;
 }
 
 export interface Encounter {

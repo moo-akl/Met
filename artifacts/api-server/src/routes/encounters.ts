@@ -11,8 +11,11 @@ import {
   LogEncounterBody,
   LogEncounterResponse,
   ListMyEncountersResponse,
+  RecordEncounterBody,
+  RecordEncounterResponse,
 } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
+import { recordSymmetricEncounter } from "../lib/firestoreMirror";
 
 const router: IRouter = Router();
 
@@ -35,6 +38,7 @@ function serializeProfile(p: Profile) {
     photoUrl: p.photoUrl ?? null,
     bio: p.bio ?? null,
     socials: (p.socials ?? {}) as Record<string, string>,
+    isVisible: p.isVisible,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -121,6 +125,64 @@ router.get("/encounters", requireUid, async (req, res) => {
     }));
 
   res.json(ListMyEncountersResponse.parse(items));
+});
+
+// POST /api/encounters/record — symmetric Firestore encounter write.
+//
+// Unlike POST /api/encounters (the legacy asymmetric Postgres endpoint
+// kept for backwards-compat during the migration), this writes mirror
+// docs to BOTH users' met_people subcollections in Firestore using a
+// single batched commit. Profile data is read from Postgres so we can
+// reject encounters with non-existent users early.
+router.post("/encounters/record", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const body = RecordEncounterBody.parse(req.body);
+
+  if (body.otherUid === uid) {
+    res.status(400).json({ message: "Cannot record encounter with self" });
+    return;
+  }
+
+  // Reject encounters with non-existent profiles so a stray uid from a
+  // BLE resolve cache miss never poisons the met_people subcollection
+  // with an unresolvable doc id.
+  const [other] = await db
+    .select({ uid: profilesTable.uid, isVisible: profilesTable.isVisible })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, body.otherUid))
+    .limit(1);
+  if (!other) {
+    res.status(404).json({ message: "Other user not found" });
+    return;
+  }
+  // Don't expose Ghost Mode to the caller as a separate state — surface
+  // the same 404 we'd return for a missing profile so a probing client
+  // can't enumerate hidden users.
+  if (!other.isVisible) {
+    res.status(404).json({ message: "Other user not found" });
+    return;
+  }
+
+  try {
+    const result = await recordSymmetricEncounter({
+      uidA: uid,
+      uidB: body.otherUid,
+      location: body.location ?? null,
+    });
+    res.json(
+      RecordEncounterResponse.parse({
+        otherUid: result.otherUid,
+        metCount: result.metCount,
+        lastMet: result.lastMet.toISOString(),
+      }),
+    );
+  } catch (err) {
+    req.log?.error(
+      { err: (err as Error)?.message, uidA: uid, uidB: body.otherUid },
+      "Symmetric Firestore encounter write failed",
+    );
+    res.status(502).json({ message: "Encounter mirror failed" });
+  }
 });
 
 export default router;
