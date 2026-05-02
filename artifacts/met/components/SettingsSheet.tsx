@@ -106,6 +106,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
     blockedEncounters,
     setBlocked,
     resetAll,
+    signOutAndClear,
     preferences,
     updatePreferences,
     markPhotoVerified,
@@ -204,7 +205,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const [view, setView] = useState<SheetView>("menu");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reverifying, setReverifying] = useState(false);
-  const [signOutInfo, setSignOutInfo] = useState(false);
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const [cleanupMenuOpen, setCleanupMenuOpen] = useState(false);
 
@@ -212,7 +214,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
     setView("menu");
     setConfirmDelete(false);
     setReverifying(false);
-    setSignOutInfo(false);
+    setSignOutConfirm(false);
+    setSigningOut(false);
     setRangeMenuOpen(false);
     setCleanupMenuOpen(false);
     setRtlNotice(false);
@@ -551,7 +554,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 colors={colors}
               />
 
-              {signOutInfo ? (
+              {signOutConfirm ? (
                 <View
                   style={[
                     styles.confirmCard,
@@ -564,32 +567,68 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   <Text
                     style={[styles.confirmTitle, { color: colors.foreground }]}
                   >
-                    {t("settings.signOutSoonTitle")}
+                    {t("settings.signOutConfirmTitle")}
                   </Text>
                   <Text
                     style={[styles.confirmSub, { color: colors.mutedForeground }]}
                   >
-                    {t("settings.signOutSoonBody")}
+                    {t("settings.signOutConfirmBody")}
                   </Text>
-                  <Pressable
-                    onPress={() => setSignOutInfo(false)}
-                    style={({ pressed }) => [
-                      styles.confirmBtn,
-                      {
-                        backgroundColor: colors.primary,
-                        borderColor: colors.primary,
-                        opacity: pressed ? 0.85 : 1,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.confirmBtnText, { color: "#FFFFFF" }]}>
-                      {t("common.ok")}
-                    </Text>
-                  </Pressable>
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <Pressable
+                      onPress={() => setSignOutConfirm(false)}
+                      disabled={signingOut}
+                      style={({ pressed }) => [
+                        styles.confirmBtn,
+                        {
+                          backgroundColor: colors.card,
+                          borderColor: colors.border,
+                          opacity: pressed || signingOut ? 0.7 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.confirmBtnText,
+                          { color: colors.foreground },
+                        ]}
+                      >
+                        {t("common.cancel")}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={async () => {
+                        if (signingOut) return;
+                        setSigningOut(true);
+                        try {
+                          // signOutAndClear wipes profile/encounters/prefs
+                          // and signs out of Firebase. ProfileGate sees
+                          // profile go null and routes to /onboarding, so
+                          // no manual nav needed.
+                          await signOutAndClear();
+                          close();
+                        } finally {
+                          setSigningOut(false);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.confirmBtn,
+                        {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                          opacity: pressed || signingOut ? 0.85 : 1,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.confirmBtnText, { color: "#FFFFFF" }]}>
+                        {t("settings.signOutConfirmAction")}
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
               ) : (
                 <Pressable
-                  onPress={() => setSignOutInfo(true)}
+                  onPress={() => setSignOutConfirm(true)}
                   style={({ pressed }) => [
                     styles.row,
                     {

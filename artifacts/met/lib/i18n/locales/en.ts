@@ -673,10 +673,11 @@ export const en = {
     verifiedPhotoTapVerify: "Tap to run face check on your photo",
     verify: "Verify",
     signOut: "Sign out",
-    signOutSub: "Coming with full accounts",
-    signOutSoonTitle: "Sign out is coming soon",
-    signOutSoonBody:
-      "Met currently runs on this device with no account. When real accounts ship, you'll be able to sign out and back in here.",
+    signOutSub: "Sign out of your account on this device",
+    signOutConfirmTitle: "Sign out?",
+    signOutConfirmBody:
+      "You'll need to sign in again to use Met on this device. Your photos and connections on this device will be cleared.",
+    signOutConfirmAction: "Sign out",
     blockedPeople: "Blocked people",
     noOneBlocked: "No one blocked",
     peopleBlocked: "{{count}} blocked",

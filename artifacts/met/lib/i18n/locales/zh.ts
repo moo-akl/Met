@@ -595,10 +595,11 @@ export const zh: LocaleTree = {
     verifiedPhotoTapVerify: "点按为照片进行人脸检查",
     verify: "验证",
     signOut: "退出登录",
-    signOutSub: "完整账户上线后开放",
-    signOutSoonTitle: "退出登录即将推出",
-    signOutSoonBody:
-      "Met 目前在此设备上无账户运行。当真实账户推出后,你可在此退出和重新登录。",
+    signOutSub: "在此设备上退出账户",
+    signOutConfirmTitle: "退出登录?",
+    signOutConfirmBody:
+      "你需要重新登录才能在此设备上使用 Met。此设备上的照片和连接将被清除。",
+    signOutConfirmAction: "退出登录",
     blockedPeople: "已屏蔽的人",
     noOneBlocked: "无人被屏蔽",
     peopleBlocked: "已屏蔽 {{count}} 人",

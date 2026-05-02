@@ -633,10 +633,11 @@ export const nl: LocaleTree = {
     verifiedPhotoTapVerify: "Tik om een gezichtscheck op je foto uit te voeren",
     verify: "Verifiëren",
     signOut: "Uitloggen",
-    signOutSub: "Komt met volledige accounts",
-    signOutSoonTitle: "Uitloggen komt binnenkort",
-    signOutSoonBody:
-      "Met draait nu op dit apparaat zonder account. Wanneer echte accounts er zijn, kun je hier uitloggen en weer inloggen.",
+    signOutSub: "Log uit op dit apparaat",
+    signOutConfirmTitle: "Uitloggen?",
+    signOutConfirmBody:
+      "Je moet opnieuw inloggen om Met op dit apparaat te gebruiken. Je foto's en connecties op dit apparaat worden gewist.",
+    signOutConfirmAction: "Uitloggen",
     blockedPeople: "Geblokkeerde mensen",
     noOneBlocked: "Niemand geblokkeerd",
     peopleBlocked: "{{count}} geblokkeerd",

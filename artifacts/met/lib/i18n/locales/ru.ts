@@ -635,10 +635,11 @@ export const ru: LocaleTree = {
     verifiedPhotoTapVerify: "Нажмите, чтобы пройти проверку лица для фото",
     verify: "Проверить",
     signOut: "Выйти",
-    signOutSub: "Появится с полноценными аккаунтами",
-    signOutSoonTitle: "Выход скоро будет доступен",
-    signOutSoonBody:
-      "Met сейчас работает на этом устройстве без аккаунта. Когда появятся настоящие аккаунты, вы сможете выйти и снова войти здесь.",
+    signOutSub: "Выйти из учётной записи на этом устройстве",
+    signOutConfirmTitle: "Выйти?",
+    signOutConfirmBody:
+      "Чтобы пользоваться Met на этом устройстве, нужно будет войти снова. Ваши фото и связи на этом устройстве будут удалены.",
+    signOutConfirmAction: "Выйти",
     blockedPeople: "Заблокированные",
     noOneBlocked: "Никого не заблокировано",
     peopleBlocked: "{{count}} заблокировано",
