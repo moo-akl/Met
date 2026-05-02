@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
-import { recordNativeError } from "@/lib/diagnostics";
+import { isExpoViewManagerError, recordNativeError } from "@/lib/diagnostics";
 
 // Defensive wrapper around expo-camera's CameraView component.
 //
@@ -22,8 +22,14 @@ export type MetCameraViewProps = {
 
 let resolvedImpl: React.ComponentType<MetCameraViewProps> | null = null;
 let resolveAttempted = false;
+// Once a render-time failure is observed we know expo-camera's view
+// manager is broken in this binary; future instances skip the native
+// path. This also keeps the diagnostics ring buffer from being flooded
+// with duplicates from re-mounts.
+let renderFailed = false;
 
 function getImpl(): React.ComponentType<MetCameraViewProps> | null {
+  if (renderFailed) return null;
   if (resolveAttempted) return resolvedImpl;
   resolveAttempted = true;
   try {
@@ -53,12 +59,20 @@ class CameraBoundary extends React.Component<BoundaryProps, BoundaryState> {
   }
 
   componentDidCatch(error: unknown) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      "MetCameraView: native render failed; using fallback.",
-      error,
-    );
-    recordNativeError("MetCameraView", "render", error);
+    // Only flip the module-level "renderFailed" poison flag on the
+    // expected iOS view-manager-registration signature so an unrelated
+    // transient error doesn't permanently disable the camera.
+    if (!renderFailed) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "MetCameraView: native render failed; using fallback.",
+        error,
+      );
+      recordNativeError("MetCameraView", "render", error);
+      if (isExpoViewManagerError(error)) {
+        renderFailed = true;
+      }
+    }
   }
 
   render() {

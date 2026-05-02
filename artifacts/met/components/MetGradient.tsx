@@ -1,7 +1,7 @@
 import React from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 
-import { recordNativeError } from "@/lib/diagnostics";
+import { isExpoViewManagerError, recordNativeError } from "@/lib/diagnostics";
 
 // Defensive wrapper around expo-linear-gradient.
 //
@@ -43,8 +43,14 @@ export type MetGradientProps = {
 
 let resolvedImpl: React.ComponentType<MetGradientProps> | null = null;
 let resolveAttempted = false;
+// Once a render-time failure is observed we know expo-linear-gradient's
+// view manager is broken in this binary; future MetGradient instances
+// skip the native path. This prevents the diagnostics ring buffer from
+// being flooded with identical entries from every gradient on screen.
+let renderFailed = false;
 
 function getImpl(): React.ComponentType<MetGradientProps> | null {
+  if (renderFailed) return null;
   if (resolveAttempted) return resolvedImpl;
   resolveAttempted = true;
   try {
@@ -74,12 +80,22 @@ class GradientBoundary extends React.Component<BoundaryProps, BoundaryState> {
   }
 
   componentDidCatch(error: unknown) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      "MetGradient: native render failed; using flat fallback.",
-      error,
-    );
-    recordNativeError("MetGradient", "render", error);
+    // Only flip the module-level "renderFailed" poison flag if the error
+    // matches the iOS view-manager-registration signature — this
+    // boundary wraps `children`, so a render error from a gradient's
+    // child subtree would otherwise incorrectly disable gradients for
+    // the whole session.
+    if (!renderFailed) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "MetGradient: native render failed; using flat fallback.",
+        error,
+      );
+      recordNativeError("MetGradient", "render", error);
+      if (isExpoViewManagerError(error)) {
+        renderFailed = true;
+      }
+    }
   }
 
   render() {
