@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { Image } from "@/components/MetImage";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 

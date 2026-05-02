@@ -1,5 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { useCameraPermissions } from "expo-camera";
+
+import { CameraView } from "@/components/MetCameraView";
 import * as Haptics from "expo-haptics";
 import { Stack, useRouter } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
