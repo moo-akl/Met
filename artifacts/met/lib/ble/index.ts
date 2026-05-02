@@ -1,15 +1,23 @@
-// Unified BLE proximity service: scanner + advertiser.
+// Unified BLE proximity service: iBeacon range + advertise.
 //
 // Mirrors the public API of `lib/proximity/presence.ts` so AppContext
 // can wire them up with the same effect pattern. Exports a single
-// `ProximityDetection`-shaped event so the upsert pipeline doesn't
+// `BleProximityDetection`-shaped event so the upsert pipeline doesn't
 // have to special-case the BLE path.
+//
+// Architecture
+// ------------
+// We use Apple's iBeacon protocol (CoreLocation on iOS, BluetoothLeScanner
+// + manufacturer-data parsing on Android) as the wire format. The
+// proximity UUID is constant across all Met installs; each device's
+// identity is encoded in the `major` field as the polynomial-rolling
+// hash of their uid (matches the original Flutter MVP byte-for-byte).
 //
 // In Expo Go (no native BLE module linked) every call here is a
 // well-typed no-op that resolves with `started: false` and the reason.
 
 import type { RemoteProfile } from "../api/client";
-import { uidToBleHash } from "./encode";
+import { uidToMajor } from "./encode";
 import {
   startBleScanner,
   stopBleScanner,
@@ -17,10 +25,11 @@ import {
   type BleListener,
 } from "./scanner";
 import {
-  startAdvertising,
-  stopAdvertising,
-  isAdvertisingAvailable,
+  startBeaconAdvertising,
+  stopBeaconAdvertising,
+  isBeaconAdvertisingAvailable,
 } from "../../modules/expo-met-ble/src";
+import { MET_IBEACON_UUID, MET_IBEACON_MINOR } from "./uuids";
 
 export type { BleDetection };
 
@@ -83,16 +92,27 @@ export async function startBleProximity(
     listener: adapter,
   });
 
-  // Compute our own identity hash for the advertiser. If hashing fails
-  // somehow we still want the scanner running, so we don't bail.
-  let advertiserResult = { started: false, reason: "Not attempted" };
+  // Compute our own iBeacon major and start advertising. If the
+  // advertiser fails the scanner can still discover other peers, so
+  // we surface both results independently.
+  let advertiserResult: { started: boolean; reason?: string } = {
+    started: false,
+    reason: "Not attempted",
+  };
   try {
-    const hash = await uidToBleHash(opts.uid);
+    const major = uidToMajor(opts.uid);
     if (session && session.generation === generation) {
-      const ok = await startAdvertising(opts.uid, hash);
+      const ok = await startBeaconAdvertising(
+        MET_IBEACON_UUID,
+        major,
+        MET_IBEACON_MINOR,
+      );
       advertiserResult = ok
-        ? { started: true, reason: "" }
-        : { started: false, reason: "Advertiser unavailable or denied" };
+        ? { started: true }
+        : {
+            started: false,
+            reason: "iBeacon advertiser unavailable or denied",
+          };
       if (session && session.generation === generation) {
         session.advertising = ok;
       }
@@ -114,11 +134,11 @@ export async function stopBleProximity(): Promise<void> {
   session = null;
   stopBleScanner();
   if (s?.advertising) {
-    await stopAdvertising();
+    await stopBeaconAdvertising();
   }
 }
 
-export { isAdvertisingAvailable };
+export { isBeaconAdvertisingAvailable as isAdvertisingAvailable };
 
 // Very rough RSSI → distance estimator. Uses a free-space path-loss
 // approximation with a calibrated 1-meter reference of -59 dBm and an

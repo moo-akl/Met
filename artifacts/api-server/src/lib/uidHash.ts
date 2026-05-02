@@ -26,3 +26,35 @@ export function uidToHash(uid: string): string {
 export function isValidUidHash(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{16}$/.test(value);
 }
+
+/**
+ * Derive the iBeacon `major` value (16-bit) for a Firebase UID using
+ * the same polynomial-rolling hash the original Flutter MVP shipped:
+ *
+ *   `acc = (31 * acc + utf16CodeUnit(c)) % 65535`
+ *
+ * Returns an integer in the range [0, 65534]. NOT cryptographic — it
+ * exists only so two phones can encode/decode the same major from
+ * the same uid byte-for-byte. Collisions resolve to multiple profile
+ * candidates server-side and are de-duped by the client.
+ *
+ * IMPORTANT: must stay byte-identical to `uidToMajor` in
+ * `artifacts/met/lib/ble/encode.ts`.
+ */
+export function uidToMajor(uid: string): number {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = (31 * hash + uid.charCodeAt(i)) % 65535;
+  }
+  return hash;
+}
+
+/** A valid major is an integer in [0, 65534]. */
+export function isValidUidMajor(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 65534
+  );
+}
