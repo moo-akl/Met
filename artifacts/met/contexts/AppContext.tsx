@@ -28,6 +28,20 @@ import {
   type BleProximityDetection,
 } from "@/lib/ble";
 import {
+  startFirestoreProximity,
+  stopFirestoreProximity,
+} from "@/lib/firestore/presence";
+import {
+  subscribeToMetPeople,
+  subscribeToRequestsChange,
+  type MetPersonDoc,
+} from "@/lib/firestore/encounters";
+import {
+  clearCooldownsFor,
+  isInCooldown,
+  markCooldown,
+} from "@/lib/firestore/cooldown";
+import {
   DEFAULT_PREFERENCES,
   REQUEST_TTL_MS,
   clearEncounters,
@@ -340,11 +354,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resetAll = useCallback(async () => {
     // Tear down the Firebase identity FIRST so the user truly starts
     // fresh on next onboarding. Best-effort: never throws.
+    const previousUid = profileRef.current?.id ?? null;
     await deleteUserAccount();
     await clearProfile();
     await clearEncounters();
     await clearPreferences();
     await clearReferrals();
+    if (previousUid) await clearCooldownsFor(previousUid);
     await savePermissionsCompleted(false);
     // Same dev-only gate as initial load — production reset leaves the
     // encounters list genuinely empty.
@@ -363,11 +379,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // because everything user-specific lives on-device — leaving them in
   // place would leak the previous user's data to whoever signs in next.
   const signOutAndClear = useCallback(async () => {
+    const previousUid = profileRef.current?.id ?? null;
     await firebaseSignOut();
     await clearProfile();
     await clearEncounters();
     await clearPreferences();
     await clearReferrals();
+    if (previousUid) await clearCooldownsFor(previousUid);
     await savePermissionsCompleted(false);
     const seeded = __DEV__ ? buildSeedEncounters() : [];
     setProfileState(null);
@@ -552,7 +570,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => ctrl.abort();
   }, [authedUid, profile]);
 
-  // Start/stop proximity loop. Reruns when uid or permissions change.
+  // Start/stop legacy api-server-backed proximity loop. Kept running
+  // alongside the Firestore loop because it exercises /api/encounters
+  // (Postgres source-of-truth) — the Firestore loop only writes to
+  // users/{me}/met_people via /api/encounters/record. Per-peer dedup
+  // windows in each module prevent duplicate UI emissions.
   useEffect(() => {
     if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
       stopProximity();
@@ -582,6 +604,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
       stopProximity();
+    };
+  }, [authedUid, permissionsCompleted]);
+
+  // Firestore-backed proximity loop. Replaces the legacy api-server
+  // pipeline on native: writes our location+geohash to users/{uid},
+  // queries other users within 50m, and calls /api/encounters/record
+  // (which batch-writes to BOTH users' met_people subcollections via
+  // Admin SDK). Falls back to a noop on web / Expo Go where the native
+  // Firebase bridge isn't linked — the legacy loop above carries the
+  // load there.
+  useEffect(() => {
+    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+      stopFirestoreProximity();
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const result = await startFirestoreProximity({
+        uid: authedUid,
+        listener: (event) => {
+          void upsertProximityRef.current(event);
+        },
+      });
+      if (cancelled) {
+        stopFirestoreProximity();
+        return;
+      }
+      if (!result.started) {
+        console.warn(
+          "[appcontext] firestore proximity not started:",
+          result.reason ?? "unknown",
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+      stopFirestoreProximity();
     };
   }, [authedUid, permissionsCompleted]);
 
@@ -762,11 +821,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  // Ref to the current reveal-poll closure so external triggers (e.g.
+  // the Firestore requests stream below) can request an immediate poll
+  // without duplicating the inbox+outbox fetch / merge logic.
+  const triggerRevealPollRef = useRef<(() => void) | null>(null);
+
   // Reveal-request poller. Runs every 20s while signed in and gated by
-  // the same conditions as the proximity loops. Polling (vs push) is the
-  // MVP delivery mechanism — push notifications via FCM/APNs are a follow-up.
+  // the same conditions as the proximity loops. The Firestore requests
+  // stream subscribed below also fires this poll on any server-side
+  // change, giving us near-instant accept/decline updates without
+  // teaching the merge logic to consume mirror-shaped Firestore docs.
   useEffect(() => {
-    if (!authedUid || !permissionsCompleted || !api.isConfigured()) return;
+    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+      triggerRevealPollRef.current = null;
+      return;
+    }
     let cancelled = false;
     const poll = async () => {
       // Single-flight: never let two polls overlap. A slow response would
@@ -788,13 +857,122 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         pollInFlight.current = false;
       }
     };
+    triggerRevealPollRef.current = () => {
+      void poll();
+    };
     void poll();
     const id = setInterval(poll, 20_000);
     return () => {
       cancelled = true;
+      triggerRevealPollRef.current = null;
       clearInterval(id);
     };
   }, [authedUid, permissionsCompleted, applyRemoteRevealState]);
+
+  // Firestore real-time subscription for met_people. The legacy GPS
+  // and BLE pipelines already maintain the encounter list for peers
+  // we detect ourselves; this stream catches the inverse case — peers
+  // who detected US first (e.g. their device was awake while ours was
+  // backgrounded) so the next time we open the app we see them
+  // immediately instead of waiting to detect them again.
+  //
+  // Lazy profile fetch: each unknown peer triggers a single
+  // /api/profiles/<uid> roundtrip. Repeated on every snapshot would
+  // waste bandwidth, so we track which uids we've already fabricated
+  // an encounter for in a ref and skip them on subsequent snapshots.
+  const fabricatedFromMetPeopleRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+      fabricatedFromMetPeopleRef.current = new Set();
+      return;
+    }
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+    void (async () => {
+      unsubscribe = await subscribeToMetPeople(
+        authedUid,
+        (people: MetPersonDoc[]) => {
+          if (cancelled) return;
+          // Snapshot the local list once per stream tick; the actual
+          // mutation happens inside setAllEncounters so we always see
+          // the freshest committed state.
+          const knownIds = new Set<string>();
+          setAllEncounters((prev) => {
+            for (const e of prev) knownIds.add(e.id);
+            return prev;
+          });
+          for (const p of people) {
+            if (knownIds.has(p.otherUid)) continue;
+            if (fabricatedFromMetPeopleRef.current.has(p.otherUid)) continue;
+            fabricatedFromMetPeopleRef.current.add(p.otherUid);
+            // Off-thread: fetch profile, then synthesize an encounter
+            // via the same upsertEncounterFromProximity callback the
+            // local detection paths use, so the merge logic stays in
+            // one place.
+            void (async () => {
+              try {
+                const profile = await api.getProfile(
+                  { uid: authedUid },
+                  p.otherUid,
+                );
+                if (cancelled) return;
+                await upsertProximityRef.current({
+                  uid: p.otherUid,
+                  distanceM: 0,
+                  source: "gps",
+                  profile,
+                  observedAt: p.lastMet || Date.now(),
+                });
+              } catch (err) {
+                if ((err as { name?: string }).name !== "AbortError") {
+                  console.warn(
+                    "[appcontext] met_people profile fetch failed",
+                    p.otherUid,
+                    err,
+                  );
+                }
+                // Allow retry on the next snapshot tick.
+                fabricatedFromMetPeopleRef.current.delete(p.otherUid);
+              }
+            })();
+          }
+        },
+      );
+      if (cancelled && unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, [authedUid, permissionsCompleted]);
+
+  // Firestore real-time subscription for reveal requests. Fires the
+  // existing REST poll on any server-side change so accept/decline
+  // updates land in the UI within a second instead of waiting for the
+  // next 20s tick. Initial snapshot is intentionally skipped (the
+  // mount-time poll already covers it).
+  useEffect(() => {
+    if (!authedUid || !permissionsCompleted || !api.isConfigured()) return;
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+    void (async () => {
+      unsubscribe = await subscribeToRequestsChange(authedUid, () => {
+        if (cancelled) return;
+        triggerRevealPollRef.current?.();
+      });
+      if (cancelled && unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, [authedUid, permissionsCompleted]);
 
   const sendRevealRequest = useCallback(
     async (recipientUid: string, message?: string) => {
@@ -871,6 +1049,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         uid: authedUid,
         listener: (event) => {
           void upsertProximityRef.current(event);
+          // Mirror the BLE detection into Firestore via the symmetric
+          // recordEncounter endpoint. BLE has no GPS fix, so we omit
+          // location — the server is happy to record with location null.
+          // Cooldown-gate it locally so a fast re-emit doesn't spam the
+          // server (the persistent 2h cooldown is shared with the GPS
+          // loop's own cooldown check, so the two pipelines never
+          // double-record the same pair within the window).
+          void (async () => {
+            if (await isInCooldown(authedUid, event.uid)) return;
+            // Stamp cooldown BEFORE the API call so a concurrent BLE
+            // re-emit (or a GPS-triggered recordEncounter for the same
+            // pair) can't read "not cooled" while our request is in
+            // flight and double-write. See firestore/presence.ts for
+            // the matching pattern.
+            await markCooldown(authedUid, event.uid);
+            try {
+              await api.recordEncounter(
+                { uid: authedUid },
+                { otherUid: event.uid, location: null },
+              );
+            } catch (err) {
+              console.warn(
+                "[appcontext] BLE recordEncounter failed",
+                event.uid,
+                err,
+              );
+            }
+          })();
         },
       });
       if (cancelled) {

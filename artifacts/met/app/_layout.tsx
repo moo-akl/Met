@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/contexts/AppContext";
+import { initializeFirestore } from "@/lib/firestore/client";
 import { initI18n } from "@/lib/i18n";
 import { initReferrals } from "@/lib/referrals";
 import {
@@ -40,6 +41,17 @@ try {
 // They're idempotent and resolve quickly; failures fall back to defaults.
 void initI18n();
 void initReferrals();
+
+// Warm up Firestore + App Check so the first encounter / nearby query
+// doesn't pay the cold-start cost. Resolves to false on web preview /
+// Expo Go (no native bridge); the proximity service falls back to its
+// legacy api-server-backed path in that case.
+void initializeFirestore().catch((err) => {
+  console.warn(
+    "Firestore unavailable:",
+    err instanceof Error ? err.message : err,
+  );
+});
 
 // Stash a referral code that came in via deep link (`met://r/CODE` or
 // universal link with `/r/CODE`) so onboarding can pre-fill it.
