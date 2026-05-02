@@ -626,10 +626,11 @@ export const es: LocaleTree = {
     verifiedPhotoTapVerify: "Toca para hacer el chequeo facial de tu foto",
     verify: "Verificar",
     signOut: "Cerrar sesión",
-    signOutSub: "Llega con cuentas reales",
-    signOutSoonTitle: "Cerrar sesión llega pronto",
-    signOutSoonBody:
-      "Met funciona ahora mismo en este dispositivo sin cuenta. Cuando lleguen las cuentas reales, podrás cerrar sesión y volver a entrar aquí.",
+    signOutSub: "Cierra sesión en este dispositivo",
+    signOutConfirmTitle: "¿Cerrar sesión?",
+    signOutConfirmBody:
+      "Tendrás que volver a iniciar sesión para usar Met en este dispositivo. Tus fotos y conexiones en este dispositivo se borrarán.",
+    signOutConfirmAction: "Cerrar sesión",
     blockedPeople: "Personas bloqueadas",
     noOneBlocked: "Nadie bloqueado",
     peopleBlocked: "{{count}} bloqueados",

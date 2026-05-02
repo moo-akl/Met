@@ -9,7 +9,11 @@ import React, {
 } from "react";
 import { Platform } from "react-native";
 
-import { deleteUserAccount, subscribeToAuthState } from "@/lib/auth";
+import {
+  deleteUserAccount,
+  signOut as firebaseSignOut,
+  subscribeToAuthState,
+} from "@/lib/auth";
 import { clearReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
 import { api } from "@/lib/api/client";
@@ -60,6 +64,7 @@ type AppContextValue = {
   setNote: (id: string, note: string) => Promise<void>;
   setTags: (id: string, tags: string[]) => Promise<void>;
   resetAll: () => Promise<void>;
+  signOutAndClear: () => Promise<void>;
   setPermissionsCompleted: (done: boolean) => Promise<void>;
   upsertEncounterFromQr: (data: { id: string; name: string }) => Promise<string>;
   sendOpeningMessage: (id: string, text: string) => Promise<void>;
@@ -333,6 +338,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await savePermissionsCompleted(false);
     // Same dev-only gate as initial load — production reset leaves the
     // encounters list genuinely empty.
+    const seeded = __DEV__ ? buildSeedEncounters() : [];
+    setProfileState(null);
+    setAllEncounters(seeded);
+    setPermissionsCompletedState(false);
+    setPreferencesState(DEFAULT_PREFERENCES);
+    await saveEncounters(seeded);
+  }, []);
+
+  // Sign out of Firebase and wipe local app state, but DO NOT delete the
+  // Firebase account. Distinct from `resetAll` (Delete Account) because
+  // the user can sign back in later and recreate their profile under the
+  // same identity. We still clear local profile/encounters/preferences
+  // because everything user-specific lives on-device — leaving them in
+  // place would leak the previous user's data to whoever signs in next.
+  const signOutAndClear = useCallback(async () => {
+    await firebaseSignOut();
+    await clearProfile();
+    await clearEncounters();
+    await clearPreferences();
+    await clearReferrals();
+    await savePermissionsCompleted(false);
     const seeded = __DEV__ ? buildSeedEncounters() : [];
     setProfileState(null);
     setAllEncounters(seeded);
@@ -676,6 +702,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setNote,
       setTags,
       resetAll,
+      signOutAndClear,
       setPermissionsCompleted,
       upsertEncounterFromQr,
       sendOpeningMessage,
@@ -697,6 +724,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setNote,
       setTags,
       resetAll,
+      signOutAndClear,
       setPermissionsCompleted,
       upsertEncounterFromQr,
       sendOpeningMessage,

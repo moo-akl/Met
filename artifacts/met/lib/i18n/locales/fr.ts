@@ -640,10 +640,11 @@ export const fr: LocaleTree = {
       "Touchez pour lancer le contrôle facial sur votre photo",
     verify: "Vérifier",
     signOut: "Se déconnecter",
-    signOutSub: "Disponible avec les comptes complets",
-    signOutSoonTitle: "Déconnexion bientôt disponible",
-    signOutSoonBody:
-      "Met fonctionne actuellement sur cet appareil sans compte. Quand les vrais comptes arriveront, vous pourrez vous déconnecter et vous reconnecter ici.",
+    signOutSub: "Déconnectez-vous sur cet appareil",
+    signOutConfirmTitle: "Se déconnecter ?",
+    signOutConfirmBody:
+      "Vous devrez vous reconnecter pour utiliser Met sur cet appareil. Vos photos et connexions sur cet appareil seront effacées.",
+    signOutConfirmAction: "Se déconnecter",
     blockedPeople: "Personnes bloquées",
     noOneBlocked: "Personne de bloqué",
     peopleBlocked: "{{count}} bloqués",
