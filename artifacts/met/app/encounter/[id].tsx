@@ -166,7 +166,17 @@ export default function EncounterDetail() {
     setSending(true);
     let consumedFreeReveal = false;
     try {
-      if (!isSubscribed) {
+      // Free-quota / paywall gate — but only when RevenueCat actually
+      // resolved. If we're here purely because of the 5s readiness
+      // timeout fallback (`revenuecatTimedOut && !isSubscriptionReady`),
+      // we genuinely don't know the user's tier yet. Routing them through
+      // `tryConsumeFreeReveal` / `/paywall` in that window would silently
+      // downgrade a paying user, so we let the request through directly.
+      // The blast radius is tiny: it only matters when RC stays unresolved
+      // (broken integration on Android ad-hoc builds) AND the free user
+      // is at quota. In every other case the gate runs as before.
+      const rcResolved = isSubscriptionReady;
+      if (rcResolved && !isSubscribed) {
         const consumed = await tryConsumeFreeReveal();
         if (consumed === null) {
           setRevealSheetOpen(false);
