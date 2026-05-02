@@ -1,12 +1,22 @@
-// Thin fetch wrapper for the Met api-server. Adds the X-Met-Uid header
-// (MVP auth — replaced by a verified Firebase ID token later) and
-// throws on non-2xx so callers can rely on a parsed JSON body.
+// Thin fetch wrapper for the Met api-server.
+//
+// Auth strategy:
+//   - On native (iOS / Android with the linked Firebase native module):
+//     attach `Authorization: Bearer <firebase id token>`. The server
+//     verifies the token via firebase-admin and resolves the uid.
+//   - On web preview / Expo Go (no native Firebase): fall back to the
+//     legacy `X-Met-Uid` header. The server only honours this header
+//     when NODE_ENV !== "production", which is fine for development
+//     surfaces and never reaches the deployed app.
+//
+// Throws on non-2xx so callers can rely on a parsed JSON body.
 //
 // Base URL resolution:
 //   1. EXPO_PUBLIC_API_URL env var (set in eas.json or app.config)
 //   2. Replit dev domain when running locally / in Expo Go
 //   3. Throws so we never silently send to the wrong host
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 function resolveBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
@@ -24,6 +34,28 @@ function resolveBaseUrl(): string {
 
 const BASE_URL = resolveBaseUrl();
 
+// Cache the auth-module dynamic import. We never import it statically
+// because on web / Expo Go the native bridge isn't linked and the
+// import would crash the bundle.
+let authImportFailed = false;
+async function getCurrentIdToken(): Promise<string | null> {
+  if (authImportFailed) return null;
+  if (Platform.OS === "web") return null;
+  try {
+    const mod = await import("@react-native-firebase/auth");
+    const auth = mod.default();
+    const user = auth.currentUser;
+    if (!user) return null;
+    // Firebase caches the token internally for ~1 hour; force-refresh
+    // would add 200-500ms per request and a network round-trip, so we
+    // pass `false`.
+    return await user.getIdToken(false);
+  } catch {
+    authImportFailed = true;
+    return null;
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -36,6 +68,11 @@ export class ApiError extends Error {
 }
 
 export interface ApiOptions {
+  /**
+   * Caller's Firebase uid. Used as the `X-Met-Uid` fallback header on
+   * platforms where we can't fetch a real ID token (web preview /
+   * Expo Go) and as a sanity check the request is for the right user.
+   */
   uid: string;
   signal?: AbortSignal;
 }
@@ -50,9 +87,17 @@ async function request<T>(
     throw new ApiError("EXPO_PUBLIC_API_URL not configured", 0, null);
   }
   const headers: Record<string, string> = {
-    "X-Met-Uid": opts.uid,
     Accept: "application/json",
   };
+  // Prefer a real Firebase ID token when we can get one. The dev-only
+  // X-Met-Uid header is sent as a fallback so any path that runs before
+  // sign-in completes (or in web preview) still works.
+  const idToken = await getCurrentIdToken();
+  if (idToken) {
+    headers["Authorization"] = `Bearer ${idToken}`;
+  } else {
+    headers["X-Met-Uid"] = opts.uid;
+  }
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -92,6 +137,7 @@ export interface RemoteProfile {
   photoUrl: string | null;
   bio: string | null;
   socials: Record<string, string>;
+  isVisible: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -101,6 +147,13 @@ export interface UpsertProfileInput {
   photoUrl?: string | null;
   bio?: string | null;
   socials?: Record<string, string>;
+  /**
+   * Ghost Mode flag. Optional on upsert — when omitted the server
+   * preserves the existing value (and defaults to true on first
+   * create), so we never silently flip a user out of Ghost Mode just
+   * by saving an unrelated profile field.
+   */
+  isVisible?: boolean;
 }
 
 export interface RemoteEncounter {
@@ -111,6 +164,12 @@ export interface RemoteEncounter {
   lastSeenAt: string;
   encounterCount: number;
   lastRssi: number | null;
+}
+
+export interface RecordEncounterResult {
+  otherUid: string;
+  metCount: number;
+  lastMet: string;
 }
 
 export interface NearbyEntry {
@@ -158,6 +217,21 @@ export const api = {
     opts: ApiOptions,
     input: { observedUid: string; rssi?: number | null },
   ) => request<RemoteEncounter>("POST", "/api/encounters", opts, input),
+  /**
+   * Symmetric Firestore encounter write — replaces logEncounter for the
+   * Firestore-backed pipeline. Server writes mirror docs to BOTH users'
+   * met_people subcollections in a single batched commit.
+   */
+  recordEncounter: (
+    opts: ApiOptions,
+    input: { otherUid: string; location?: { lat: number; lng: number } | null },
+  ) =>
+    request<RecordEncounterResult>(
+      "POST",
+      "/api/encounters/record",
+      opts,
+      input,
+    ),
   updatePresence: (
     opts: ApiOptions,
     input: { lat: number; lng: number; accuracyM?: number | null },

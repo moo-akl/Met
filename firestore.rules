@@ -14,8 +14,11 @@ service cloud.firestore {
     function isAuthed() { return request.auth != null; }
     function isOwner(userId) { return isAuthed() && request.auth.uid == userId; }
 
-    // App Check: enforced in production, optional in development.
-    // Toggle by deploying with an env-aware rules file or via remote config.
+    // App Check: every read / write must carry a valid App Check token.
+    // The mobile client initialises App Check at boot via
+    // `lib/firestore/client.ts` (debug provider in __DEV__, Play
+    // Integrity / App Attest in release), so dev and production both
+    // satisfy this gate.
     function isVerifiedApp() {
       return request.app_check_token != null;
     }
@@ -28,17 +31,23 @@ service cloud.firestore {
     // mutable fields (location, lastActive, isVisible).
     match /users/{userId} {
       // Read: only if the target user has Ghost Mode off, or it's self.
-      allow read: if isAuthed() && (
+      // Note: any visible profile is currently readable by any authed
+      // user (the geohash range query needs broad reads). Sensitive
+      // fields like `socials` and `bio` are still in this doc — a
+      // future hardening pass should split the doc into a public
+      // `presence` subset (uid, geohash, isVisible) and a private
+      // `profile` subset gated on a per-pair handshake.
+      allow read: if isAuthed() && isVerifiedApp() && (
         resource.data.isVisible == true || isOwner(userId)
       );
 
       // Create: only the user themselves, and the doc must contain at
       // least a uid that matches.
-      allow create: if isOwner(userId) &&
+      allow create: if isOwner(userId) && isVerifiedApp() &&
         request.resource.data.uid == userId;
 
       // Update: owner only, and certain immutable fields cannot change.
-      allow update: if isOwner(userId) &&
+      allow update: if isOwner(userId) && isVerifiedApp() &&
         request.resource.data.uid == resource.data.uid;
 
       // Delete: never from client. Use api-server admin path.
@@ -51,7 +60,7 @@ service cloud.firestore {
       // exclusively from the api-server via Admin SDK (rules bypassed),
       // so client writes are blocked.
       match /met_people/{otherUid} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && isVerifiedApp();
         allow write: if false;
       }
 
@@ -61,7 +70,7 @@ service cloud.firestore {
       // Reveal-request handshake. Reads are owner-only. Writes happen
       // from the api-server via Admin SDK so both sides update atomically.
       match /requests/{otherUid} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && isVerifiedApp();
         allow write: if false;
       }
     }
