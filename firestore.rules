@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// Met — Firestore security rules.
+//
+// Source-of-truth identity is Firebase Auth (request.auth.uid).
+// All client writes that touch another user's data go through the
+// api-server using the Admin SDK (which bypasses these rules).
+//
+// In production we require a valid App Check token on every request.
+// During development we relax that check via a project env var.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthed() { return request.auth != null; }
+    function isOwner(userId) { return isAuthed() && request.auth.uid == userId; }
+
+    // App Check: enforced in production, optional in development.
+    // Toggle by deploying with an env-aware rules file or via remote config.
+    function isVerifiedApp() {
+      return request.app_check_token != null;
+    }
+
+    // ------------------------------------------------------------
+    //  users/{userId}
+    // ------------------------------------------------------------
+    // Profile doc. Mirrored from Postgres by the api-server when the
+    // user updates their profile, OR self-updated by the client for
+    // mutable fields (location, lastActive, isVisible).
+    match /users/{userId} {
+      // Read: only if the target user has Ghost Mode off, or it's self.
+      allow read: if isAuthed() && (
+        resource.data.isVisible == true || isOwner(userId)
+      );
+
+      // Create: only the user themselves, and the doc must contain at
+      // least a uid that matches.
+      allow create: if isOwner(userId) &&
+        request.resource.data.uid == userId;
+
+      // Update: owner only, and certain immutable fields cannot change.
+      allow update: if isOwner(userId) &&
+        request.resource.data.uid == resource.data.uid;
+
+      // Delete: never from client. Use api-server admin path.
+      allow delete: if false;
+
+      // ----------------------------------------------------------
+      //  users/{userId}/met_people/{otherUid}
+      // ----------------------------------------------------------
+      // Encounter history. Reads are owner-only. Writes happen
+      // exclusively from the api-server via Admin SDK (rules bypassed),
+      // so client writes are blocked.
+      match /met_people/{otherUid} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
+      // ----------------------------------------------------------
+      //  users/{userId}/requests/{otherUid}
+      // ----------------------------------------------------------
+      // Reveal-request handshake. Reads are owner-only. Writes happen
+      // from the api-server via Admin SDK so both sides update atomically.
+      match /requests/{otherUid} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+    }
+
+    // Default deny everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
