@@ -55,22 +55,34 @@ const HEADER_PATCHES = [
   },
 ];
 
-function findFirestoreIosDir(projectRoot) {
-  // Walk up from artifacts/met to find a node_modules that resolves
-  // @react-native-firebase/firestore. We can't rely on `require.resolve`
-  // because EAS prebuild runs in an isolated CWD.
-  const candidates = [];
+const TAG = "[with-rnfb-firestore-header-fix]";
+
+function findFirestoreIosDirs(projectRoot) {
+  // Walk up from artifacts/met to find every node_modules tree that
+  // contains @react-native-firebase/firestore. We can't rely on
+  // `require.resolve` because EAS prebuild runs in an isolated CWD with a
+  // pnpm store layout that confuses Node's resolver. We also collect
+  // EVERY hit (not just the first) because pnpm + monorepo can install
+  // the same package in multiple locations and we need to patch all of them.
+  console.log(`${TAG} projectRoot = ${projectRoot}`);
+
+  const nmCandidates = [];
   let dir = projectRoot;
-  for (let i = 0; i < 6; i++) {
-    candidates.push(path.join(dir, "node_modules"));
+  for (let i = 0; i < 8; i++) {
+    nmCandidates.push(path.join(dir, "node_modules"));
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
+  console.log(`${TAG} node_modules candidates checked:`);
+  for (const c of nmCandidates) {
+    console.log(`${TAG}   - ${c} (exists=${fs.existsSync(c)})`);
+  }
 
-  for (const nm of candidates) {
+  const found = new Set();
+  for (const nm of nmCandidates) {
     if (!fs.existsSync(nm)) continue;
-    // Direct symlink layout (pnpm hoists the leaf into <pkg>/node_modules/<name>).
+    // Direct symlink layout: <nm>/@react-native-firebase/firestore/...
     const direct = path.join(
       nm,
       "@react-native-firebase",
@@ -78,12 +90,21 @@ function findFirestoreIosDir(projectRoot) {
       "ios",
       "RNFBFirestore",
     );
-    if (fs.existsSync(direct)) return direct;
+    if (fs.existsSync(direct)) {
+      const real = fs.realpathSync(direct);
+      found.add(real);
+      console.log(`${TAG}   direct hit: ${direct} -> realpath ${real}`);
+    }
 
-    // pnpm store layout — find the firestore@24.x.y directory.
+    // pnpm store layout — scan every firestore@<version> entry.
     const pnpmDir = path.join(nm, ".pnpm");
     if (fs.existsSync(pnpmDir)) {
-      const entries = fs.readdirSync(pnpmDir);
+      let entries = [];
+      try {
+        entries = fs.readdirSync(pnpmDir);
+      } catch (e) {
+        console.log(`${TAG}   readdir failed for ${pnpmDir}: ${e.message}`);
+      }
       for (const e of entries) {
         if (!e.startsWith("@react-native-firebase+firestore@")) continue;
         const inner = path.join(
@@ -95,11 +116,16 @@ function findFirestoreIosDir(projectRoot) {
           "ios",
           "RNFBFirestore",
         );
-        if (fs.existsSync(inner)) return inner;
+        if (fs.existsSync(inner)) {
+          const real = fs.realpathSync(inner);
+          found.add(real);
+          console.log(`${TAG}   pnpm-store hit: ${inner} -> realpath ${real}`);
+        }
       }
     }
   }
-  return null;
+
+  return Array.from(found);
 }
 
 function patchHeader(absPath) {
@@ -129,25 +155,47 @@ const withRnfbFirestoreHeaderFix = (config) => {
     "ios",
     async (cfg) => {
       const projectRoot = cfg.modRequest.projectRoot;
-      const dir = findFirestoreIosDir(projectRoot);
-      if (!dir) {
-        console.warn(
-          "[with-rnfb-firestore-header-fix] could not locate RNFBFirestore ios/ directory; skipping (build may fail with module-map errors).",
+      const dirs = findFirestoreIosDirs(projectRoot);
+
+      if (dirs.length === 0) {
+        // Fail LOUDLY rather than silently skipping. Otherwise EAS produces
+        // the same opaque module-headers error as if the plugin never ran.
+        throw new Error(
+          `${TAG} could not locate any RNFBFirestore ios/ directory under projectRoot=${projectRoot}. The plugin requires @react-native-firebase/firestore to be installed before prebuild runs. Check the candidates listed above to debug.`,
         );
-        return cfg;
       }
 
-      const headers = fs
-        .readdirSync(dir)
-        .filter((f) => f.endsWith(".h"))
-        .map((f) => path.join(dir, f));
+      let totalTouched = 0;
+      let totalHeaders = 0;
+      for (const dir of dirs) {
+        const headers = fs
+          .readdirSync(dir)
+          .filter((f) => f.endsWith(".h"))
+          .map((f) => path.join(dir, f));
+        totalHeaders += headers.length;
 
-      let touched = 0;
-      for (const h of headers) {
-        if (patchHeader(h)) touched += 1;
+        let touched = 0;
+        for (const h of headers) {
+          if (patchHeader(h)) touched += 1;
+        }
+        totalTouched += touched;
+        console.log(
+          `${TAG} patched ${touched}/${headers.length} headers in ${dir}`,
+        );
+
+        // Print the FIRST line of the now-patched RNFBFirestoreCommon.h so
+        // the EAS log proves the rewrite was applied (we will look for
+        // "RNFBAppModule" in the import area).
+        const sample = path.join(dir, "RNFBFirestoreCommon.h");
+        if (fs.existsSync(sample)) {
+          const lines = fs.readFileSync(sample, "utf8").split("\n").slice(0, 25);
+          console.log(`${TAG} === ${sample} (lines 1-25) ===`);
+          for (const l of lines) console.log(`${TAG} | ${l}`);
+        }
       }
+
       console.log(
-        `[with-rnfb-firestore-header-fix] patched ${touched}/${headers.length} headers in ${dir}`,
+        `${TAG} TOTAL patched ${totalTouched}/${totalHeaders} headers across ${dirs.length} dir(s)`,
       );
       return cfg;
     },
