@@ -7,19 +7,8 @@
  */
 import type { Profile } from "./profile";
 
-/**
- * A single match. `hash` is set when the entry came from a `hashes`
-lookup; `major` is set when it came from a `majors` lookup. Both
-may be set if the same profile matched in both pipelines.
-
- */
 export interface BleResolveEntry {
   /** @pattern ^[0-9a-f]{16}$ */
-  hash?: string | null;
-  /**
-   * @minimum 0
-   * @maximum 65534
-   */
-  major?: number | null;
+  hash: string;
   profile: Profile;
 }

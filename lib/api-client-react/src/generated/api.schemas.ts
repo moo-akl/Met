@@ -87,42 +87,17 @@ export interface NearbyEntry {
   updatedAt: string;
 }
 
-/**
- * Resolve BLE identifiers to user profiles. At least one of
-`hashes` (legacy GATT pipeline) or `majors` (iBeacon pipeline)
-must be present and non-empty. Both may be sent simultaneously
-— the server unions the matches into a single response.
-
- */
 export interface BleResolveRequest {
   /**
-   * First 8 bytes of SHA-256(uid), 16 lowercase hex chars.
+   * @minItems 1
    * @maxItems 64
    */
-  hashes?: string[];
-  /**
-   * iBeacon major value (16-bit, 0..65534) computed via the same
-polynomial-rolling hash the Flutter MVP used.
-
-   * @maxItems 64
-   */
-  majors?: number[];
+  hashes: string[];
 }
 
-/**
- * A single match. `hash` is set when the entry came from a `hashes`
-lookup; `major` is set when it came from a `majors` lookup. Both
-may be set if the same profile matched in both pipelines.
-
- */
 export interface BleResolveEntry {
   /** @pattern ^[0-9a-f]{16}$ */
-  hash?: string | null;
-  /**
-   * @minimum 0
-   * @maximum 65534
-   */
-  major?: number | null;
+  hash: string;
   profile: Profile;
 }
 

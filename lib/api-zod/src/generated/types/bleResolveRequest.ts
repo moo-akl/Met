@@ -6,24 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Resolve BLE identifiers to user profiles. At least one of
-`hashes` (legacy GATT pipeline) or `majors` (iBeacon pipeline)
-must be present and non-empty. Both may be sent simultaneously
-— the server unions the matches into a single response.
-
- */
 export interface BleResolveRequest {
   /**
-   * First 8 bytes of SHA-256(uid), 16 lowercase hex chars.
+   * @minItems 1
    * @maxItems 64
    */
-  hashes?: string[];
-  /**
-   * iBeacon major value (16-bit, 0..65534) computed via the same
-polynomial-rolling hash the Flutter MVP used.
-
-   * @maxItems 64
-   */
-  majors?: number[];
+  hashes: string[];
 }

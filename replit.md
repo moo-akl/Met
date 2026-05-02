@@ -176,3 +176,23 @@ Prioritize performance and user experience in all development tasks.
   - Copy button writes the result of `formatBleDebugSnapshot()` (a multi-line plain-text dump including timestamps, drop counters, last result/error) to the clipboard via `expo-clipboard`. Tap → "Copied" → reverts after 1.5s.
 - **Code-review pass** (architect, evaluate_task): confirmed recorder paths are safe, snapshot identity bumping is correct for `useSyncExternalStore`, and the surfaced fields cover all four primary failure modes (native missing, scanner not started, advertiser not started, resolve failing). One blind spot identified — "ranged events arrive but all filtered" — addressed by adding the per-filter drop counters. One stylistic concern flagged (workspace import from `modules/expo-met-ble/src` into `lib/ble/debug` creates reverse coupling); accepted for now since the module is not published independently.
 - **Build numbers**: iOS `buildNumber` = `23`, Android `versionCode` = `10`. App version stays `1.0.0`. **Native module changed → requires fresh `eas build` (TestFlight for iOS, preview APK for Android); cannot be OTA-updated.**
+
+## Surgical iBeacon revert → legacy GATT BLE (Build #24 / versionCode 11)
+- **Reason**: User reported phone-to-phone matching had previously worked between two Androids on the legacy GATT pipeline (custom service-UUID + 8-byte hash advertisement). The iBeacon migration (Build #22/v9 onwards) silently produced zero `/api/ble/resolve` calls in the field; even after Build #23/v10 added the on-device debug HUD, the user preferred to roll back to the known-good legacy version while we plan a separate Firestore-based architecture for matching/encounters.
+- **Scope of revert**: 12 files restored to commit `cdf6766` (parent of `8b2d7ee`, the iBeacon switch):
+  - Mobile BLE: `lib/ble/encode.ts`, `index.ts`, `scanner.ts`, `uuids.ts`, `modules/expo-met-ble/src/index.ts`, `plugins/with-met-ble.js`, `lib/api/client.ts`
+  - Server: `routes/ble.ts`, `lib/uidHash.ts`, `routes/profiles.ts`
+  - Contract / generated: `lib/api-spec/openapi.yaml`, `lib/db/src/schema/profiles.ts` + regenerated `api-client-react` and `api-zod` outputs.
+- **What was kept (NOT reverted)**:
+  - `lib/ble/debug.ts` and the **Settings → Diagnostics** BLE Pipeline card from Build #23 — still works, now feeds off the legacy pipeline. iBeacon-specific fields (`ourMajor`, `rangedEvent*`, drop counters) just stay null/zero in the formatted output, which is harmless.
+  - All version bumps in `app.json` (preserved from the iBeacon-era builds and incremented further).
+  - All non-BLE features: GPS presence, encounters API, reveal-requests API, Firebase Auth, profile QR, contact reveal, etc.
+- **Re-wired HUD recorders into the reverted code** (so the card isn't blank):
+  - `recordNativeModule(loaded, reason)` in `modules/expo-met-ble/src/index.ts` `getNative()` (covers web / Expo Go / linked-OK / require-threw).
+  - `recordSelf(uid, null)` in `lib/ble/index.ts` `startBleProximity` — `major` is `null` on the legacy path (no iBeacon major exists).
+  - `recordScannerStart(started, reason)` wraps `lib/ble/scanner.ts`'s `startBleScanner` via a thin outer fn → inner `_startBleScannerImpl`. Single recording site covers every existing early return.
+  - `recordAdvertiserStart(started, reason)` after the `startAdvertising` call in `lib/ble/index.ts`.
+  - `recordResolveAttempt()` before `api.bleResolve` and `recordResolveResult({...})` on both success and failure paths in `runResolveOnce`.
+- **DB note**: The `uid_major` column added by the iBeacon switch is left in place (drizzle-orm tolerates extra DB columns; nothing reads it now). Cleaning it up can wait until the Firestore rebuild.
+- **Build numbers**: iOS `buildNumber` = `24`, Android `versionCode` = `11`. App version stays `1.0.0`.
+- **Next step (separately planned with user)**: rebuild the matching layer on Firebase Firestore (GPS push every 2 min + nearby check + BLE-triggered encounter writes) using the user's previous app's Firestore rules / Cloud Functions as the reference.
