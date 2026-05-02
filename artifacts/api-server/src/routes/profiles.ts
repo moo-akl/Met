@@ -9,7 +9,7 @@ import {
   GetProfileResponse,
 } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
-import { uidToHash, uidToMajor } from "../lib/uidHash";
+import { uidToHash } from "../lib/uidHash";
 
 const router: IRouter = Router();
 
@@ -43,18 +43,14 @@ router.put("/profiles/me", requireUid, async (req, res) => {
   const uid = req.uid!;
   const body = UpsertMyProfileBody.parse(req.body);
   const now = new Date();
-  // Recompute on every upsert so the columns self-heal if the hashing
-  // scheme is ever migrated (or the columns were added after the row).
-  // Both BLE identifiers are stored: `uidHash` (legacy GATT pipeline)
-  // and `uidMajor` (current iBeacon pipeline).
+  // Recompute on every upsert so the column self-heals if the hashing
+  // scheme is ever migrated (or the column was added after the row).
   const uidHash = uidToHash(uid);
-  const uidMajor = uidToMajor(uid);
   const [row] = await db
     .insert(profilesTable)
     .values({
       uid,
       uidHash,
-      uidMajor,
       displayName: body.displayName,
       photoUrl: body.photoUrl ?? null,
       bio: body.bio ?? null,
@@ -64,7 +60,6 @@ router.put("/profiles/me", requireUid, async (req, res) => {
       target: profilesTable.uid,
       set: {
         uidHash,
-        uidMajor,
         displayName: body.displayName,
         photoUrl: body.photoUrl ?? null,
         bio: body.bio ?? null,
