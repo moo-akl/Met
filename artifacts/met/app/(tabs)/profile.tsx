@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { Image } from "@/components/MetImage";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";

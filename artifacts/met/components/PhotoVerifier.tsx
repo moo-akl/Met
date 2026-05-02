@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { Image } from "@/components/MetImage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
