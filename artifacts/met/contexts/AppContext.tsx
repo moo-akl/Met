@@ -625,35 +625,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           resolvedId = existing.id;
           next = prev.map((e): Encounter => {
             if (e.id !== existing.id) return e;
+            // QR scan is a "you've met IRL" signal — same semantic as a
+            // BLE / GPS detection. The user must tap "Send reveal request"
+            // explicitly; we never auto-fire a reveal on their behalf.
+            // Preserve any existing reveal-flow progress so re-scanning a
+            // peer mid-flow doesn't undo what's already been sent/accepted.
             const nextStatus: EncounterStatus =
-              e.status === "connected" ? "connected" : "request_sent";
-            // Mirror updateEncounterStatus: stamp requestSentAt fresh on every
-            // re-issued request so the 24h sweep doesn't read a stale timestamp.
-            // Clear it on any other transition.
-            const base = {
+              e.status === "connected" ||
+              e.status === "request_sent" ||
+              e.status === "request_received"
+                ? e.status
+                : "encounter";
+            return {
               ...e,
               blocked: false,
               status: nextStatus,
               lastSeenAt: now,
               encounterCount: e.encounterCount + 1,
             };
-            if (nextStatus === "request_sent") {
-              return { ...base, requestSentAt: now };
-            }
-            if (base.requestSentAt !== undefined) {
-              const { requestSentAt: _r, ...rest } = base;
-              return rest;
-            }
-            return base;
           });
           return next;
         }
-        // QR scan of an unknown user — fabricate a minimal encounter.
-        // Use an empty photoUri so Avatar falls back to initials/icon
-        // instead of a random pravatar face. A real face placeholder
-        // would misrepresent who the scanned user is (App Store 4.1).
-        // In production this row will be replaced as soon as the backend
-        // returns the real profile for the scanned ID.
+        // QR scan of an unknown user — fabricate a minimal encounter in the
+        // neutral "encounter" status. The user lands on the lock card and
+        // taps "Send reveal request" to initiate. Use an empty photoUri so
+        // Avatar falls back to initials/icon instead of a random pravatar
+        // face — a real face placeholder would misrepresent who the
+        // scanned user is (App Store 4.1).
         const fabricated: Encounter = {
           id: data.id,
           realName: data.name || "Met user",
@@ -665,8 +663,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           lastSeenAt: now,
           lastDistanceM: 0,
           lastLocation: "Scanned in person",
-          status: "request_sent",
-          requestSentAt: now,
+          status: "encounter",
         };
         next = [fabricated, ...prev];
         return next;
