@@ -408,9 +408,14 @@ export const en = {
     notMetQRError: "That doesn't look like a Met QR code.",
     couldntAddError: "Couldn't add that encounter. Try again.",
     hintMain:
-      "Point at another Met user's QR code to instantly add them as an encounter and send a reveal request.",
+      "Take a photo of another Met user's QR code to instantly add them as an encounter and send a reveal request.",
     simulateScan: "Simulate a scan",
     defaultPersonName: "Sam from the cafe",
+    captureHint: "Scan a Met QR code",
+    captureBtn: "Open camera",
+    libraryBtn: "Choose from photos",
+    scanningPhoto: "Reading QR code…",
+    noQrFound: "No QR code found in that photo. Try again.",
   },
 
   myQr: {

@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "19",
+      "buildNumber": "20",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -72,7 +72,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Met needs access to your photos so you can choose a profile picture."
+          "photosPermission": "Met needs access to your photos so you can choose a profile picture or scan a saved Met QR code."
         }
       ],
       [
