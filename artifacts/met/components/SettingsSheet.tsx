@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
@@ -24,6 +25,11 @@ import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { type AccountInfo, getCurrentUserAccount } from "@/lib/auth";
+import {
+  formatBleDebugSnapshot,
+  getBleDebugSnapshot,
+  subscribeToBleDebug,
+} from "@/lib/ble/debug";
 import {
   clearDiagnostics,
   type DiagnosticEntry,
@@ -244,6 +250,18 @@ export function SettingsSheet({ visible, onClose }: Props) {
     getDiagnosticsSnapshot,
     getDiagnosticsSnapshot,
   );
+
+  // Live snapshot of the BLE pipeline (native module load, scanner /
+  // advertiser start, ranged-event count, last resolve outcome). Used
+  // by the read-only debug card inside the diagnostics view so a
+  // tester can screenshot it and we can pinpoint which BLE layer is
+  // failing without shipping yet another build.
+  const bleDebug = useSyncExternalStore(
+    subscribeToBleDebug,
+    getBleDebugSnapshot,
+    getBleDebugSnapshot,
+  );
+  const [bleCopied, setBleCopied] = useState(false);
 
   // Map the provider tag to its localized display label. Brand names
   // (Apple, Google) stay verbatim across all languages.
@@ -1225,6 +1243,92 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     </Text>
                   </Pressable>
                 ) : null}
+              </View>
+
+              <View
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.muted,
+                  padding: 12,
+                  gap: 8,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "Inter_700Bold",
+                      fontSize: 11,
+                      letterSpacing: 0.5,
+                      textTransform: "uppercase",
+                      color: colors.foreground,
+                    }}
+                  >
+                    BLE pipeline
+                  </Text>
+                  <Pressable
+                    onPress={async () => {
+                      try {
+                        await Clipboard.setStringAsync(
+                          formatBleDebugSnapshot(bleDebug),
+                        );
+                        setBleCopied(true);
+                        setTimeout(() => setBleCopied(false), 1500);
+                      } catch {
+                        /* noop */
+                      }
+                    }}
+                    style={({ pressed }) => ({
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      opacity: pressed ? 0.75 : 1,
+                    })}
+                  >
+                    <Feather
+                      name={bleCopied ? "check" : "copy"}
+                      size={12}
+                      color={colors.mutedForeground}
+                    />
+                    <Text
+                      style={{
+                        fontFamily: "Inter_600SemiBold",
+                        fontSize: 11,
+                        color: colors.foreground,
+                      }}
+                    >
+                      {bleCopied ? "Copied" : "Copy"}
+                    </Text>
+                  </Pressable>
+                </View>
+                <Text
+                  style={{
+                    fontFamily: Platform.select({
+                      ios: "Menlo",
+                      android: "monospace",
+                      default: "monospace",
+                    }),
+                    fontSize: 11,
+                    lineHeight: 15,
+                    color: colors.foreground,
+                  }}
+                  selectable
+                >
+                  {formatBleDebugSnapshot(bleDebug)}
+                </Text>
               </View>
 
               {diagnostics.length === 0 ? (
