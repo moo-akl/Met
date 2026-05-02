@@ -1,6 +1,8 @@
 import React from "react";
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
+import { recordNativeError } from "@/lib/diagnostics";
+
 // Defensive wrapper around expo-camera's CameraView component.
 //
 // Same protective pattern as `MetGradient` and `MetImage`. If the
@@ -34,6 +36,7 @@ function getImpl(): React.ComponentType<MetCameraViewProps> | null {
       "MetCameraView: expo-camera failed to load; using fallback.",
       err,
     );
+    recordNativeError("MetCameraView", "import", err);
     resolvedImpl = null;
   }
   return resolvedImpl;
@@ -55,6 +58,7 @@ class CameraBoundary extends React.Component<BoundaryProps, BoundaryState> {
       "MetCameraView: native render failed; using fallback.",
       error,
     );
+    recordNativeError("MetCameraView", "render", error);
   }
 
   render() {

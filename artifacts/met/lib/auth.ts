@@ -346,3 +346,55 @@ export async function isCurrentUserEmailVerified(): Promise<boolean> {
   const auth = await getAuthModule();
   return auth?.currentUser?.emailVerified === true;
 }
+
+// ---------------------------------------------------------------------
+// Account introspection — used by Settings to show "Signed in as ..."
+// ---------------------------------------------------------------------
+
+export type AuthProvider = "apple" | "google" | "password" | "other";
+
+export type AccountInfo = {
+  /**
+   * The email Firebase has on file for this user, falling back to the
+   * provider's payload when the top-level field is empty (Apple in
+   * particular only surfaces the email on the very first sign-in).
+   * Null when no email is associated with the account.
+   */
+  email: string | null;
+  /** Normalized provider tag for the user's primary credential. */
+  provider: AuthProvider;
+  /** Whether the email has been verified (always true for SSO). */
+  emailVerified: boolean;
+};
+
+/**
+ * Snapshot of the currently signed-in user's identity for display
+ * purposes. Returns null when no user is signed in or when Firebase
+ * isn't available (web preview / Expo Go without the linked module).
+ */
+export async function getCurrentUserAccount(): Promise<AccountInfo | null> {
+  const auth = await getAuthModule();
+  const user = auth?.currentUser;
+  if (!user) return null;
+
+  // Firebase exposes providerData as an array of "provider profiles"
+  // — for our flow there's only ever one entry. Normalize it.
+  const primary = user.providerData?.[0];
+  const providerId = primary?.providerId;
+  let provider: AuthProvider = "other";
+  if (providerId === "apple.com") provider = "apple";
+  else if (providerId === "google.com") provider = "google";
+  else if (providerId === "password") provider = "password";
+
+  // Apple's "Hide my email" relays to <hash>@privaterelay.appleid.com
+  // — that's still a deliverable address so we treat it like any other.
+  const email = user.email ?? primary?.email ?? null;
+
+  // SSO providers vouch for the email already, so we treat their
+  // accounts as verified even when Firebase's top-level flag is false
+  // (it can lag for fresh Apple sign-ins).
+  const ssoVerified = provider === "apple" || provider === "google";
+  const emailVerified = ssoVerified || user.emailVerified === true;
+
+  return { email, provider, emailVerified };
+}

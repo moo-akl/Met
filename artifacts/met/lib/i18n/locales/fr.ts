@@ -639,6 +639,11 @@ export const fr: LocaleTree = {
     verifiedPhotoTapVerify:
       "Touchez pour lancer le contrôle facial sur votre photo",
     verify: "Vérifier",
+    signedInAs: "Connecté en tant que",
+    noEmail: "Aucun email associé",
+    providerApple: "Apple",
+    providerGoogle: "Google",
+    providerEmail: "Email",
     signOut: "Se déconnecter",
     signOutSub: "Déconnectez-vous sur cet appareil",
     signOutConfirmTitle: "Se déconnecter ?",

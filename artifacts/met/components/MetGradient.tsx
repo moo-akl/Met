@@ -1,6 +1,8 @@
 import React from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 
+import { recordNativeError } from "@/lib/diagnostics";
+
 // Defensive wrapper around expo-linear-gradient.
 //
 // Build #14 / #15 surfaced an iOS production crash on launch:
@@ -55,6 +57,7 @@ function getImpl(): React.ComponentType<MetGradientProps> | null {
       "MetGradient: expo-linear-gradient failed to load; using flat fallback.",
       err,
     );
+    recordNativeError("MetGradient", "import", err);
     resolvedImpl = null;
   }
   return resolvedImpl;
@@ -76,6 +79,7 @@ class GradientBoundary extends React.Component<BoundaryProps, BoundaryState> {
       "MetGradient: native render failed; using flat fallback.",
       error,
     );
+    recordNativeError("MetGradient", "render", error);
   }
 
   render() {
