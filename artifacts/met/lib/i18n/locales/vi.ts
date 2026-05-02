@@ -632,10 +632,11 @@ export const vi: LocaleTree = {
     verifiedPhotoTapVerify: "Chạm để chạy kiểm tra khuôn mặt cho ảnh",
     verify: "Xác minh",
     signOut: "Đăng xuất",
-    signOutSub: "Sẽ có khi có tài khoản đầy đủ",
-    signOutSoonTitle: "Đăng xuất sắp ra mắt",
-    signOutSoonBody:
-      "Met hiện chạy trên thiết bị này không có tài khoản. Khi có tài khoản thật, bạn có thể đăng xuất và đăng nhập lại tại đây.",
+    signOutSub: "Đăng xuất tài khoản trên thiết bị này",
+    signOutConfirmTitle: "Đăng xuất?",
+    signOutConfirmBody:
+      "Bạn sẽ cần đăng nhập lại để dùng Met trên thiết bị này. Ảnh và kết nối của bạn trên thiết bị này sẽ bị xóa.",
+    signOutConfirmAction: "Đăng xuất",
     blockedPeople: "Người bị chặn",
     noOneBlocked: "Không có ai bị chặn",
     peopleBlocked: "Đã chặn {{count}}",

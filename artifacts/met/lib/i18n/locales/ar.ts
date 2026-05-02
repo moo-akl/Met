@@ -635,10 +635,11 @@ export const ar: LocaleTree = {
     verifiedPhotoTapVerify: "اضغط لتشغيل فحص الوجه على صورتك",
     verify: "توثيق",
     signOut: "تسجيل الخروج",
-    signOutSub: "سيتوفر مع الحسابات الكاملة",
-    signOutSoonTitle: "تسجيل الخروج قادم قريبًا",
-    signOutSoonBody:
-      "Met يعمل حاليًا على هذا الجهاز بدون حساب. عند توفر الحسابات الحقيقية، ستتمكن من تسجيل الخروج والدخول من جديد هنا.",
+    signOutSub: "تسجيل الخروج من حسابك على هذا الجهاز",
+    signOutConfirmTitle: "تسجيل الخروج؟",
+    signOutConfirmBody:
+      "ستحتاج إلى تسجيل الدخول مرة أخرى لاستخدام Met على هذا الجهاز. سيتم مسح صورك واتصالاتك على هذا الجهاز.",
+    signOutConfirmAction: "تسجيل الخروج",
     blockedPeople: "الأشخاص المحظورون",
     noOneBlocked: "لا أحد محظور",
     peopleBlocked: "{{count}} محظور",
