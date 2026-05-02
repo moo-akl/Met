@@ -118,3 +118,35 @@ export function subscribeToDiagnostics(listener: () => void): () => void {
     listeners.delete(listener);
   };
 }
+
+// Heuristic: does this error look like the iOS production
+// view-manager-registration failure that the defensive wrappers exist
+// to catch?
+//
+//   "View config getter callback for component
+//    `ViewManagerAdapter_ExpoLinearGradient_<id>` must be a function
+//    (received `undefined`)"
+//
+// The wrappers use this to decide whether the error is permanent (the
+// native module is broken in this binary, so flip the per-wrapper
+// "renderFailed" flag and stop trying) or transient (e.g. a one-off
+// child render error inside a gradient subtree, in which case we should
+// keep trying for future renders rather than permanently disabling the
+// component for the whole session).
+export function isExpoViewManagerError(error: unknown): boolean {
+  try {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "";
+    if (!message) return false;
+    return (
+      /ViewManagerAdapter_Expo[A-Za-z0-9_]+/.test(message) &&
+      /must be a function/.test(message)
+    );
+  } catch {
+    return false;
+  }
+}
