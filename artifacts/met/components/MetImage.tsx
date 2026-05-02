@@ -1,6 +1,8 @@
 import React from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 
+import { recordNativeError } from "@/lib/diagnostics";
+
 // Defensive wrapper around expo-image's Image component.
 //
 // Same protective pattern as `MetGradient` — see that file for the long
@@ -40,6 +42,7 @@ function getImpl(): React.ComponentType<MetImageProps> | null {
       "MetImage: expo-image failed to load; using placeholder fallback.",
       err,
     );
+    recordNativeError("MetImage", "import", err);
     resolvedImpl = null;
   }
   return resolvedImpl;
@@ -61,6 +64,7 @@ class ImageBoundary extends React.Component<BoundaryProps, BoundaryState> {
       "MetImage: native render failed; using placeholder fallback.",
       error,
     );
+    recordNativeError("MetImage", "render", error);
   }
 
   render() {

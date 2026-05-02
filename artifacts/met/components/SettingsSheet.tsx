@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import * as Updates from "expo-updates";
-import React, { useState } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import {
   DevSettings,
   Modal,
@@ -23,6 +23,13 @@ import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { type AccountInfo, getCurrentUserAccount } from "@/lib/auth";
+import {
+  clearDiagnostics,
+  type DiagnosticEntry,
+  getDiagnosticsSnapshot,
+  subscribeToDiagnostics,
+} from "@/lib/diagnostics";
 import {
   type LangCode,
   setLanguage,
@@ -41,7 +48,13 @@ type Props = {
   onClose: () => void;
 };
 
-type SheetView = "menu" | "blocked" | "notifications" | "about" | "language";
+type SheetView =
+  | "menu"
+  | "blocked"
+  | "notifications"
+  | "about"
+  | "language"
+  | "diagnostics";
 
 // External "About Met" links. Leave empty to hide the row entirely so we
 // don't ship a broken link. Fill RATE_URL_* in once you have the real
@@ -207,6 +220,46 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const [reverifying, setReverifying] = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  // Signed-in account snapshot for the "Signed in as ..." row. Refreshed
+  // every time the sheet opens — cheap (one Firebase getter) and ensures
+  // the email shown matches the actual session even if it changed in a
+  // background flow (token refresh, provider re-link, etc.).
+  const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    void getCurrentUserAccount().then((info) => {
+      if (!cancelled) setAccountInfo(info);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
+
+  // Live snapshot of the diagnostics ring buffer. Updates whenever a
+  // defensive wrapper records a new error (or the user clears the log).
+  const diagnostics = useSyncExternalStore(
+    subscribeToDiagnostics,
+    getDiagnosticsSnapshot,
+    getDiagnosticsSnapshot,
+  );
+
+  // Map the provider tag to its localized display label. Brand names
+  // (Apple, Google) stay verbatim across all languages.
+  const providerLabel = (() => {
+    if (!accountInfo) return null;
+    switch (accountInfo.provider) {
+      case "apple":
+        return t("settings.providerApple");
+      case "google":
+        return t("settings.providerGoogle");
+      case "password":
+        return t("settings.providerEmail");
+      default:
+        return null;
+    }
+  })();
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const [cleanupMenuOpen, setCleanupMenuOpen] = useState(false);
 
@@ -242,6 +295,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
         return t("settings.aboutTitle");
       case "language":
         return t("language.title");
+      case "diagnostics":
+        return t("settings.diagnostics");
     }
   })();
 
@@ -441,6 +496,72 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
               <SectionLabel label={t("settings.sectionAccount")} colors={colors} />
 
+              {accountInfo ? (
+                <View
+                  style={[
+                    styles.row,
+                    {
+                      backgroundColor: colors.muted,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.rowIcon,
+                      { backgroundColor: colors.background },
+                    ]}
+                  >
+                    <Feather
+                      name={
+                        accountInfo.provider === "password" ? "mail" : "user"
+                      }
+                      size={18}
+                      color={colors.foreground}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Text
+                        style={[styles.rowLabel, { color: colors.foreground }]}
+                      >
+                        {t("settings.signedInAs")}
+                      </Text>
+                      {accountInfo.emailVerified ? (
+                        <View
+                          style={[
+                            styles.verifiedDot,
+                            { backgroundColor: colors.primary },
+                          ]}
+                        >
+                          <Feather name="check" size={8} color="#FFFFFF" />
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text
+                      style={[styles.rowSub, { color: colors.mutedForeground }]}
+                      numberOfLines={1}
+                      ellipsizeMode="middle"
+                    >
+                      {accountInfo.email ?? t("settings.noEmail")}
+                    </Text>
+                  </View>
+                  {providerLabel ? (
+                    <Text
+                      style={[styles.rowAction, { color: colors.mutedForeground }]}
+                    >
+                      {providerLabel}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
               <NavRow
                 icon="gift"
                 label={t("settings.referrals")}
@@ -551,6 +672,20 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 label={t("settings.aboutMet")}
                 sub={t("settings.aboutVersion", { version: appVersion })}
                 onPress={() => setView("about")}
+                colors={colors}
+              />
+
+              <NavRow
+                icon="activity"
+                label={t("settings.diagnostics")}
+                sub={
+                  diagnostics.length > 0
+                    ? t("settings.diagnosticsCount", {
+                        count: diagnostics.length,
+                      })
+                    : t("settings.diagnosticsEmpty")
+                }
+                onPress={() => setView("diagnostics")}
                 colors={colors}
               />
 
@@ -957,7 +1092,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 </View>
               ) : null}
             </ScrollView>
-          ) : (
+          ) : view === "about" ? (
             <ScrollView
               style={{ maxHeight: 420 }}
               contentContainerStyle={{ gap: 10 }}
@@ -1040,6 +1175,86 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   colors={colors}
                 />
               ) : null}
+            </ScrollView>
+          ) : (
+            <ScrollView
+              style={{ maxHeight: 540 }}
+              contentContainerStyle={{ gap: 10 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <Text
+                  style={[
+                    styles.diagnosticsHeader,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  {t("settings.diagnosticsHeader")}
+                </Text>
+                {diagnostics.length > 0 ? (
+                  <Pressable
+                    onPress={() => clearDiagnostics()}
+                    style={({ pressed }) => [
+                      styles.diagnosticsClearBtn,
+                      {
+                        backgroundColor: colors.muted,
+                        borderColor: colors.border,
+                        opacity: pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name="trash-2"
+                      size={14}
+                      color={colors.mutedForeground}
+                    />
+                    <Text
+                      style={[
+                        styles.diagnosticsClearText,
+                        { color: colors.foreground },
+                      ]}
+                    >
+                      {t("settings.diagnosticsClear")}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {diagnostics.length === 0 ? (
+                <View style={styles.emptyWrap}>
+                  <Feather
+                    name="check-circle"
+                    size={30}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.emptyTitle, { color: colors.foreground }]}
+                  >
+                    {t("settings.diagnosticsNoneTitle")}
+                  </Text>
+                  <Text
+                    style={[styles.emptySub, { color: colors.mutedForeground }]}
+                  >
+                    {t("settings.diagnosticsNoneBody")}
+                  </Text>
+                </View>
+              ) : (
+                diagnostics.map((entry) => (
+                  <DiagnosticCard
+                    key={entry.id}
+                    entry={entry}
+                    lang={lang}
+                    colors={colors}
+                  />
+                ))
+              )}
             </ScrollView>
           )}
         </Pressable>
@@ -1175,6 +1390,94 @@ export function SettingsSheet({ visible, onClose }: Props) {
         </View>
       ) : null}
     </Modal>
+  );
+}
+
+function DiagnosticCard({
+  entry,
+  lang,
+  colors,
+}: {
+  entry: DiagnosticEntry;
+  lang: string;
+  colors: ReturnType<typeof useColors>;
+}) {
+  // Compact "HH:MM:SS" timestamp — date is implied by the session.
+  let when = "";
+  try {
+    when = new Date(entry.ts).toLocaleTimeString(lang, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    when = `${entry.ts}`;
+  }
+  return (
+    <View
+      style={[
+        styles.diagnosticsCard,
+        { backgroundColor: colors.muted, borderColor: colors.border },
+      ]}
+    >
+      <View style={styles.diagnosticsRow}>
+        <View
+          style={[
+            styles.diagnosticsBadge,
+            { backgroundColor: colors.background },
+          ]}
+        >
+          <Text
+            style={[
+              styles.diagnosticsBadgeText,
+              { color: colors.foreground },
+            ]}
+          >
+            {entry.source}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.diagnosticsBadge,
+            { backgroundColor: colors.background },
+          ]}
+        >
+          <Text
+            style={[
+              styles.diagnosticsBadgeText,
+              { color: colors.mutedForeground },
+            ]}
+          >
+            {entry.phase}
+          </Text>
+        </View>
+        <Text
+          style={[styles.diagnosticsTime, { color: colors.mutedForeground }]}
+        >
+          {when}
+        </Text>
+      </View>
+      <Text
+        style={[styles.diagnosticsName, { color: colors.foreground }]}
+        selectable
+      >
+        {entry.name}
+      </Text>
+      <Text
+        style={[styles.diagnosticsMessage, { color: colors.foreground }]}
+        selectable
+      >
+        {entry.message}
+      </Text>
+      {entry.stack ? (
+        <Text
+          style={[styles.diagnosticsStack, { color: colors.mutedForeground }]}
+          selectable
+        >
+          {entry.stack}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -1535,5 +1838,64 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: "italic",
     lineHeight: 18,
+  },
+  diagnosticsHeader: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    flex: 1,
+  },
+  diagnosticsClearBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  diagnosticsClearText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+  },
+  diagnosticsCard: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 12,
+    gap: 6,
+  },
+  diagnosticsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  diagnosticsBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  diagnosticsBadgeText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+  },
+  diagnosticsTime: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    marginLeft: "auto",
+  },
+  diagnosticsName: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    marginTop: 2,
+  },
+  diagnosticsMessage: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  diagnosticsStack: {
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 4,
   },
 });
