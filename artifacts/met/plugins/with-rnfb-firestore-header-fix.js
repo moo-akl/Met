@@ -8,10 +8,20 @@ const path = require("path");
  * + Expo SDK 54 New Architecture.
  *
  * Despite the historical filename ("firestore-header-fix"), this plugin is
- * intentionally generic — it scans every installed RNFB pod EXCEPT `app` and
- * applies the same rewrite. RNFBApp ships its own headers that already wrap
- * `<React/RCTBridgeModule.h>` etc., so it MUST NOT be rewritten — it is the
- * source the other pods import FROM.
+ * intentionally generic — it scans every installed RNFB pod EXCEPT `app`.
+ * RNFBApp must be skipped because it is the *source* of the submodule headers
+ * (`RNFBAppModule.h`, `RCTConvert+FIRApp.h`) we redirect through.
+ *
+ * The fix is additive, not destructive: for every header that imports
+ * `<React/RCTBridgeModule.h>` or `<React/RCTConvert.h>` we PREPEND a matching
+ * `<RNFBApp/...>` import on the line above. Clang sees the RNFBApp submodule
+ * loaded first (which satisfies the "must be imported from module
+ * 'RNFBApp.RNFBAppModule' before required" diagnostic) and the original React
+ * import remains in place so the .m translation units still get the
+ * `RCT_EXPORT_MODULE` / `RCT_EXTERN` / `RCT_EXPORT_METHOD` macros they need
+ * to compile. An earlier iteration tried REPLACING the React import — that
+ * broke compilation because `RNFBAppModule.h` only declares the
+ * `<RCTBridgeModule>` protocol, not the macro family.
  *
  * Root cause:
  *   RNFBApp ships as a static framework with a module map that exposes its
@@ -51,14 +61,24 @@ const path = require("path");
  *   Idempotent — safe to run multiple times. Logs each file it touches.
  */
 
+// Each patch prepends an `<RNFBApp/...>` import on the line ABOVE a matching
+// `<React/...>` import. The original React import stays — only the new line
+// is added. Each patch carries an `idempotencyMarker` so re-running the
+// plugin does not stack duplicate prepended lines.
 const HEADER_PATCHES = [
   {
-    from: /^#import <React\/RCTBridgeModule\.h>\s*$/m,
-    to: "#import <RNFBApp/RNFBAppModule.h>",
+    from: /^([ \t]*)#import <React\/RCTBridgeModule\.h>\s*$/m,
+    insert: "#import <RNFBApp/RNFBAppModule.h>",
+    // Sequence we look for to detect "already patched". The newline matters
+    // because we only add the prepended import directly above the React one.
+    idempotencyMarker:
+      "#import <RNFBApp/RNFBAppModule.h>\n#import <React/RCTBridgeModule.h>",
   },
   {
-    from: /^#import <React\/RCTConvert\.h>\s*$/m,
-    to: "#import <RNFBApp/RCTConvert+FIRApp.h>",
+    from: /^([ \t]*)#import <React\/RCTConvert\.h>\s*$/m,
+    insert: "#import <RNFBApp/RCTConvert+FIRApp.h>",
+    idempotencyMarker:
+      "#import <RNFBApp/RCTConvert+FIRApp.h>\n#import <React/RCTConvert.h>",
   },
 ];
 
@@ -187,18 +207,14 @@ function findRnfbIosDirs(projectRoot) {
 function patchHeader(absPath) {
   const original = fs.readFileSync(absPath, "utf8");
   let next = original;
-  for (const { from, to } of HEADER_PATCHES) {
-    next = next.replace(from, to);
+  for (const { from, insert, idempotencyMarker } of HEADER_PATCHES) {
+    // Skip if this exact pair already exists — keeps the patch idempotent
+    // across repeated prebuild invocations and EAS cache hits.
+    if (next.includes(idempotencyMarker)) continue;
+    next = next.replace(from, (_match, indent) => {
+      return `${indent}${insert}\n${indent}${_match.trimStart()}`;
+    });
   }
-  // Collapse duplicate `#import <RNFBApp/RNFBAppModule.h>` lines that
-  // appear when a header had multiple React imports rewritten side-by-side.
-  // The header has its own `#ifndef`/`#pragma once` guard so duplicates are
-  // harmless, but keeping the file tidy makes diff inspection easier on
-  // the EAS server.
-  next = next.replace(
-    /(#import <RNFBApp\/RNFBAppModule\.h>\s*\n)(\s*#import <RNFBApp\/RNFBAppModule\.h>\s*\n)+/g,
-    "$1",
-  );
   if (next !== original) {
     fs.writeFileSync(absPath, next);
     return true;

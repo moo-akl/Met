@@ -1,0 +1,312 @@
+ Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestoreModule.m
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:33:1)
+
+  31 | #pragma mark Module Setup
+  32 | 
+> 33 | RCT_EXPORT_MODULE();
+     | ^ unknown type name 'RCT_EXTERN'
+  34 | 
+  35 | - (dispatch_queue_t)methodQueue {
+  36 |   return [RNFBFirestoreCommon getFirestoreQueue];
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:46:1)
+
+  44 | #pragma mark Firebase Firestore Methods
+  45 | 
+> 46 | RCT_EXPORT_METHOD(setLogLevel : (FIRLoggerLevel)loggerLevel) {
+     | ^ expected method body
+  47 |   [[FIRConfiguration sharedInstance] setLoggerLevel:loggerLevel];
+  48 | }
+  49 | 
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:46:61)
+
+  44 | #pragma mark Firebase Firestore Methods
+  45 | 
+> 46 | RCT_EXPORT_METHOD(setLogLevel : (FIRLoggerLevel)loggerLevel) {
+     |                                                             ^ expected ':'
+  47 |   [[FIRConfiguration sharedInstance] setLoggerLevel:loggerLevel];
+  48 | }
+  49 | 
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:50:1)
+
+  48 | }
+  49 | 
+> 50 | RCT_EXPORT_METHOD(disableNetwork
+     | ^ duplicate declaration of method 'RCT_CONCAT'
+  51 |                   : (FIRApp *)firebaseApp
+  52 |                   : (NSString *)databaseId
+  53 |                   : (RCTPromiseResolveBlock)resolve
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:50:1)
+
+  48 | }
+  49 | 
+> 50 | RCT_EXPORT_METHOD(disableNetwork
+     | ^ expected method body
+  51 |                   : (FIRApp *)firebaseApp
+  52 |                   : (NSString *)databaseId
+  53 |                   : (RCTPromiseResolveBlock)resolve
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:54:51)
+
+  52 |                   : (NSString *)databaseId
+  53 |                   : (RCTPromiseResolveBlock)resolve
+> 54 |                   : (RCTPromiseRejectBlock)reject) {
+     |                                                   ^ expected ':'
+  55 |   [[RNFBFirestoreCommon getFirestoreForApp:firebaseApp databaseId:databaseId]
+  56 |       disableNetworkWithCompletion:^(NSError *error) {
+  57 |         if (error) {
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:65:1)
+
+  63 | }
+  64 | 
+> 65 | RCT_EXPORT_METHOD(enableNetwork
+     | ^ duplicate declaration of method 'RCT_CONCAT'
+  66 |                   : (FIRApp *)firebaseApp
+  67 |                   : (NSString *)databaseId
+  68 |                   : (RCTPromiseResolveBlock)resolve
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:65:1)
+
+  63 | }
+  64 | 
+> 65 | RCT_EXPORT_METHOD(enableNetwork
+     | ^ expected method body
+  66 |                   : (FIRApp *)firebaseApp
+  67 |                   : (NSString *)databaseId
+  68 |                   : (RCTPromiseResolveBlock)resolve
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:69:51)
+
+  67 |                   : (NSString *)databaseId
+  68 |                   : (RCTPromiseResolveBlock)resolve
+> 69 |                   : (RCTPromiseRejectBlock)reject) {
+     |                                                   ^ expected ':'
+  70 |   [[RNFBFirestoreCommon getFirestoreForApp:firebaseApp databaseId:databaseId]
+  71 |       enableNetworkWithCompletion:^(NSError *error) {
+  72 |         if (error) {
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:80:1)
+
+  78 | }
+  79 | 
+> 80 | RCT_EXPORT_METHOD(settings
+     | ^ duplicate declaration of method 'RCT_CONCAT'
+  81 |                   : (FIRApp *)firebaseApp
+  82 |                   : (NSString *)databaseId
+  83 |                   : (NSDictionary *)settings
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:80:1)
+
+  78 | }
+  79 | 
+> 80 | RCT_EXPORT_METHOD(settings
+     | ^ expected method body
+  81 |                   : (FIRApp *)firebaseApp
+  82 |                   : (NSString *)databaseId
+  83 |                   : (NSDictionary *)settings
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:85:51)
+
+  83 |                   : (NSDictionary *)settings
+  84 |                   : (RCTPromiseResolveBlock)resolve
+> 85 |                   : (RCTPromiseRejectBlock)reject) {
+     |                                                   ^ expected ':'
+  86 |   NSString *appName = [RNFBSharedUtils getAppJavaScriptName:firebaseApp.name];
+  87 |   NSString *firestoreKey = [RNFBFirestoreCommon createFirestoreKeyWithAppName:appName
+  88 |                                                                    databaseId:databaseId];
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:122:1)
+
+  120 | }
+  121 | 
+> 122 | RCT_EXPORT_METHOD(loadBundle
+      | ^ duplicate declaration of method 'RCT_CONCAT'
+  123 |                   : (FIRApp *)firebaseApp
+  124 |                   : (NSString *)databaseId
+  125 |                   : (nonnull NSString *)bundle
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:122:1)
+
+  120 | }
+  121 | 
+> 122 | RCT_EXPORT_METHOD(loadBundle
+      | ^ expected method body
+  123 |                   : (FIRApp *)firebaseApp
+  124 |                   : (NSString *)databaseId
+  125 |                   : (nonnull NSString *)bundle
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:127:51)
+
+  125 |                   : (nonnull NSString *)bundle
+  126 |                   : (RCTPromiseResolveBlock)resolve
+> 127 |                   : (RCTPromiseRejectBlock)reject) {
+      |                                                   ^ expected ':'
+  128 |   NSData *bundleData = [bundle dataUsingEncoding:NSUTF8StringEncoding];
+  129 |   [[RNFBFirestoreCommon getFirestoreForApp:firebaseApp databaseId:databaseId]
+  130 |       loadBundle:bundleData
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:140:1)
+
+  138 | }
+  139 | 
+> 140 | RCT_EXPORT_METHOD(clearPersistence
+      | ^ duplicate declaration of method 'RCT_CONCAT'
+  141 |                   : (FIRApp *)firebaseApp
+  142 |                   : (NSString *)databaseId
+  143 |                   : (RCTPromiseResolveBlock)resolve
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:140:1)
+
+  138 | }
+  139 | 
+> 140 | RCT_EXPORT_METHOD(clearPersistence
+      | ^ expected method body
+  141 |                   : (FIRApp *)firebaseApp
+  142 |                   : (NSString *)databaseId
+  143 |                   : (RCTPromiseResolveBlock)resolve
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:144:51)
+
+  142 |                   : (NSString *)databaseId
+  143 |                   : (RCTPromiseResolveBlock)resolve
+> 144 |                   : (RCTPromiseRejectBlock)reject) {
+      |                                                   ^ expected ':'
+  145 |   [[RNFBFirestoreCommon getFirestoreForApp:firebaseApp databaseId:databaseId]
+  146 |       clearPersistenceWithCompletion:^(NSError *error) {
+  147 |         if (error) {
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m:155:1)
+
+  153 | }
+  154 | 
+> 155 | RCT_EXPORT_METHOD(useEmulator
+      | ^ duplicate declaration of method 'RCT_CONCAT'
+  156 |                   : (FIRApp *)firebaseApp
+  157 |                   : (NSString *)databaseId
+  158 |                   : (nonnull NSString *)host
+
+❌  fatal error: too many errors emitted, stopping now [-ferror-limit=]
+
+› Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestoreTransactionModule.m
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreTransactionModule.m:30:1)
+
+  28 | #pragma mark Module Setup
+  29 | 
+> 30 | RCT_EXPORT_MODULE();
+     | ^ unknown type name 'RCT_EXTERN'
+  31 | 
+  32 | - (id)init {
+  33 |   self = [super init];
+
+❌  (../../../../../../node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreTransactionModule.m:62:1)
+
+RCT_EXPORT_METHOD(transactionGetDocument
+^ expected method body
+
+❌  (../../node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreTransactionModule.m:68:51)
+
+  66 |                   : (NSString *)path
+  67 |                   : (RCTPromiseResolveBlock)resolve
+> 68 |                   : (RCTPromiseRejectBlock)reject) {
+     |                                                   ^ expected ':'
+  69 |   @synchronized(transactions[[transactionId stringValue]]) {
+  70 |     NSMutableDictionary *transactionState = transactions[[transactionId stringValue]];
+  71 | 
+    Run script build phase '[CP-User] [Hermes] Replace Hermes for the right configuration, if needed' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'hermes-engine' from project 'Pods')
+    Run script build phase '[CP-User] [RNFB] Core Configuration' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'Met' from project 'Met')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'ReactCodegen' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'gRPC-Core' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'gRPC-C++' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'abseil' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'RNWorklets' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'RNReanimated' from project 'Pods')
+    Run script build phase '[CP-User] Generate updates resources for expo-updates' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'EXUpdates' from project 'Pods')
+    Run script build phase 'Create Symlinks to Header Folders' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'BoringSSL-GRPC' from project 'Pods')
+▸ ** ARCHIVE FAILED **
+▸ The following build commands failed:
+▸ 	CompileC /Users/expo/workingdir/build/artifacts/met/ios/build/Build/Intermediates.noindex/ArchiveIntermediates/Met/IntermediateBuildFilesPath/Pods.build/Release-iphoneos/RNFBFirestore.build/Objects-normal/arm64/RNFBFirestoreModule.o /Users/expo/workingdir/build/node_modules/.pnpm/@react-native-firebase+firestore@24.0.0_@react-native-firebase+app@24.0.0_@react-native_42708815e6ea723c19dfe6b501d602ae/node_modules/@react-native-firebase/firestore/ios/RNFBFirestore/RNFBFirestoreModule.m normal arm64 objective-c com.apple.compilers.llvm.clang.1_0.compiler (in target 'RNFBFirestore' from project 'Pods')
+▸ 	Archiving workspace Met with scheme Met
+▸ (2 failures)
+Exit status: 65
++---------------------------------------+
+|           Build environment           |
++-------------+-------------------------+
+| xcode_path  | /Applications/Xcode.app |
+| gym_version | 2.228.0                 |
+| sdk         | iPhoneOS26.0.sdk        |
++-------------+-------------------------+
+Looks like fastlane ran into a build/archive error with your project
+It's hard to tell what's causing the error, so we wrote some guides on how
+to troubleshoot build and signing issues: https://docs.fastlane.tools/codesigning/getting-started/
+Before submitting an issue on GitHub, please follow the guide above and make
+sure your project is set up correctly.
+fastlane uses `xcodebuild` commands to generate your binary, you can see the
+the full commands printed out in yellow in the above log.
+Make sure to inspect the output above, as usually you'll find more error information there
+[!] Error building the application - see the log above
+Error: The "Run fastlane" step failed because of an error in the Xcode build process. We automatically detected following errors in your Xcode build logs:
+- unknown type name 'RCT_EXTERN'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- too many errors emitted, stopping now [-ferror-limit=]
+- unknown type name 'RCT_EXTERN'
+- expected method body
+- expected ':'
+Refer to "Xcode Logs" below for additional, more detailed logs.
+Clean up credentials
+
+838ms
+
+
+Fail job
+
+0ms
+
+
+Build failed: The "Run fastlane" step failed because of an error in the Xcode build process. We automatically detected following errors in your Xcode build logs:
+- unknown type name 'RCT_EXTERN'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- expected method body
+- expected ':'
+- duplicate declaration of method 'RCT_CONCAT'
+- too many errors emitted, stopping now [-ferror-limit=]
+- unknown type name 'RCT_EXTERN'
+- expected method body
+- expected ':'
+Refer to "Xcode Logs" below for additional, more detailed log
