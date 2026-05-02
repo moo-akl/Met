@@ -41,6 +41,10 @@ localPort = 8090
 externalPort = 3003
 
 [[ports]]
+localPort = 9005
+externalPort = 4200
+
+[[ports]]
 localPort = 25933
 externalPort = 3000
 
@@ -50,6 +54,7 @@ externalPort = 3002
 
 [nix]
 channel = "stable-25_05"
+packages = ["firebase-tools"]
 
 [userenv]
 
