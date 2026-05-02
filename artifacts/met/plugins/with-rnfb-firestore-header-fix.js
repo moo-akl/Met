@@ -24,27 +24,34 @@ const path = require("path");
  *   and downstream `expected a type` failures on `RCTPromiseRejectBlock`.
  *
  * Fix:
- *   Replace every `#import <React/RCTBridgeModule.h>` and
- *   `#import <React/RCTConvert.h>` in `ios/RNFBFirestore/*.h` with the
- *   module-level import `@import RNFBApp;`. That single statement loads
- *   ALL of RNFBApp's submodules — including the ones that re-export
- *   `RCTBridgeModule`, `RCTPromiseRejectBlock`, and `RCTConvert` — via
- *   the canonical RNFBApp module path, which satisfies Clang's strict
- *   modular-headers ownership check.
+ *   Replace every `#import <React/...>` line in `ios/RNFBFirestore/*.h`
+ *   with the corresponding RNFBApp submodule header that already wraps it:
+ *
+ *     `#import <React/RCTBridgeModule.h>` → `#import <RNFBApp/RNFBAppModule.h>`
+ *     `#import <React/RCTConvert.h>`      → `#import <RNFBApp/RCTConvert+FIRApp.h>`
+ *
+ *   Those RNFBApp headers DO `#import` the React-Core headers, so we still
+ *   get `RCTBridgeModule`, `RCTPromiseRejectBlock`, `RCTConvert`, etc — but
+ *   now via the canonical submodule path Clang's modular-headers check
+ *   demands (`RNFBApp.RNFBAppModule` and `RNFBApp.RCTConvert_FIRApp`).
+ *
+ *   Why not `@import RNFBApp;`? The top-level module import does not
+ *   transitively re-export the non-modular React-Core symbols its
+ *   submodule headers `#import`. Only loading the specific submodule
+ *   header (which itself includes the React header) makes the typedefs
+ *   visible to downstream translation units.
  *
  *   Idempotent — safe to run multiple times. Logs each file it touches.
  */
 
-const RNFB_APP_MODULE_IMPORT = "@import RNFBApp;";
-
 const HEADER_PATCHES = [
   {
     from: /^#import <React\/RCTBridgeModule\.h>\s*$/m,
-    to: RNFB_APP_MODULE_IMPORT,
+    to: "#import <RNFBApp/RNFBAppModule.h>",
   },
   {
     from: /^#import <React\/RCTConvert\.h>\s*$/m,
-    to: RNFB_APP_MODULE_IMPORT,
+    to: "#import <RNFBApp/RCTConvert+FIRApp.h>",
   },
 ];
 
@@ -101,12 +108,13 @@ function patchHeader(absPath) {
   for (const { from, to } of HEADER_PATCHES) {
     next = next.replace(from, to);
   }
-  // Collapse duplicate `@import RNFBApp;` lines that appear when a header
-  // had multiple React imports rewritten side-by-side. `@import` is
-  // idempotent at the module-loader level so duplicates are harmless, but
-  // keeping the file tidy makes diff inspection easier on the EAS server.
+  // Collapse duplicate `#import <RNFBApp/RNFBAppModule.h>` lines that
+  // appear when a header had multiple React imports rewritten side-by-side.
+  // The header has its own `#ifndef`/`#pragma once` guard so duplicates are
+  // harmless, but keeping the file tidy makes diff inspection easier on
+  // the EAS server.
   next = next.replace(
-    /(@import RNFBApp;\s*\n)(\s*@import RNFBApp;\s*\n)+/g,
+    /(#import <RNFBApp\/RNFBAppModule\.h>\s*\n)(\s*#import <RNFBApp\/RNFBAppModule\.h>\s*\n)+/g,
     "$1",
   );
   if (next !== original) {
