@@ -86,6 +86,23 @@ export default function EncounterDetail() {
     [allEncounters, id],
   );
 
+  // RevenueCat occasionally never resolves `customerInfo` on Android — most
+  // commonly on ad-hoc / direct-install builds where Google Play Billing
+  // isn't fully wired. When that happens `isSubscriptionReady` stays false
+  // forever and the reveal-request button stays disabled, which strands the
+  // user. After a 5-second grace period we fall back to treating the user
+  // as free (the safe default) so the button becomes clickable again. The
+  // downstream `confirmSend` flow still consults `isSubscribed`, so a paid
+  // user is never accidentally pushed through the free-reveal path once
+  // RevenueCat eventually does resolve.
+  const [revenuecatTimedOut, setRevenuecatTimedOut] = useState(false);
+  useEffect(() => {
+    if (isSubscriptionReady) return;
+    const timer = setTimeout(() => setRevenuecatTimedOut(true), 5000);
+    return () => clearTimeout(timer);
+  }, [isSubscriptionReady]);
+  const effectivelyReady = isSubscriptionReady || revenuecatTimedOut;
+
   useEffect(() => {
     // Dev-only auto-accept: in production a real reveal request must be
     // accepted by the actual recipient via push / fetch, never fabricated
@@ -138,14 +155,14 @@ export default function EncounterDetail() {
   // once the user (optionally) attaches a personal note.
   const openRevealSheet = () => {
     if (sending) return;
-    if (!isSubscriptionReady) return;
+    if (!effectivelyReady) return;
     setRevealDraft("");
     setRevealSheetOpen(true);
   };
 
   const confirmSend = async () => {
     if (sending) return;
-    if (!isSubscriptionReady) return;
+    if (!effectivelyReady) return;
     setSending(true);
     let consumedFreeReveal = false;
     try {
@@ -456,11 +473,11 @@ export default function EncounterDetail() {
                     <PrimaryButton
                       label={t("encounter.sendRevealRequestBtn")}
                       onPress={openRevealSheet}
-                      disabled={!isSubscriptionReady || sending}
+                      disabled={!effectivelyReady || sending}
                       loading={sending}
                     />
                   </View>
-                  {isSubscriptionReady && !isSubscribed && revealsRemaining !== null ? (
+                  {effectivelyReady && !isSubscribed && revealsRemaining !== null ? (
                     <Text
                       style={[
                         styles.lockSub,
@@ -637,7 +654,7 @@ export default function EncounterDetail() {
                     label={t("encounter.revealSheet.send")}
                     onPress={confirmSend}
                     loading={sending}
-                    disabled={sending || !isSubscriptionReady}
+                    disabled={sending || !effectivelyReady}
                   />
                 </View>
               </View>
