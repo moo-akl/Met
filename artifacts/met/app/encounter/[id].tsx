@@ -172,17 +172,21 @@ export default function EncounterDetail() {
     setSending(true);
     let consumedFreeReveal = false;
     try {
-      // Free-quota / paywall gate — but only when RevenueCat actually
-      // resolved. If we're here purely because of the 5s readiness
-      // timeout fallback (`revenuecatTimedOut && !isSubscriptionReady`),
-      // we genuinely don't know the user's tier yet. Routing them through
-      // `tryConsumeFreeReveal` / `/paywall` in that window would silently
-      // downgrade a paying user, so we let the request through directly.
-      // The blast radius is tiny: it only matters when RC stays unresolved
-      // (broken integration on Android ad-hoc builds) AND the free user
-      // is at quota. In every other case the gate runs as before.
-      const rcResolved = isSubscriptionReady;
-      if (rcResolved && !isSubscribed) {
+      // Free-quota / paywall gate.
+      //
+      // Treat any user we don't know is subscribed as free — including the
+      // window where RevenueCat hasn't resolved yet but the 5-second
+      // readiness fallback (`effectivelyReady`) has already enabled the
+      // button. Previously this branch only ran when `isSubscriptionReady`
+      // was true, which meant a free user could send unlimited reveals
+      // during the RC-loading window without ever decrementing the bucket
+      // — and on the next app launch the counter would appear "reset"
+      // relative to how many requests they actually fired off. Using
+      // `!isSubscribed` (which defaults to false until RC explicitly
+      // confirms a paid entitlement) is the safe default: a paying user
+      // is never charged a free reveal because their `isSubscribed` flips
+      // true the moment RC resolves; a free user never bypasses the cap.
+      if (!isSubscribed) {
         const consumed = await tryConsumeFreeReveal();
         if (consumed === null) {
           setRevealSheetOpen(false);
@@ -314,11 +318,36 @@ export default function EncounterDetail() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroWrap}>
-          <Image
-            source={{ uri: encounter.photoUri }}
-            style={styles.heroImg}
-            contentFit="cover"
-          />
+          {encounter.photoUri ? (
+            <Image
+              source={{ uri: encounter.photoUri }}
+              style={styles.heroImg}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : (
+            // Peer hasn't uploaded a profile photo yet (or the backend
+            // returned `photoUrl: null`). Render a branded placeholder
+            // with their initial so the hero doesn't show a blank/black
+            // rectangle. Without this fallback the gradient + name text
+            // float over a void, which the user reads as "broken image".
+            <View
+              style={[
+                styles.heroImg,
+                styles.heroPlaceholder,
+                { backgroundColor: colors.muted },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.heroPlaceholderInitial,
+                  { color: colors.mutedForeground },
+                ]}
+              >
+                {encounter.realName?.trim().charAt(0).toUpperCase() || "?"}
+              </Text>
+            </View>
+          )}
           <LinearGradient
             colors={["rgba(0,0,0,0.5)", "transparent", "rgba(0,0,0,0.65)"]}
             locations={[0, 0.4, 1]}
@@ -734,6 +763,15 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   heroImg: { width: "100%", height: "100%" },
+  heroPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroPlaceholderInitial: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 160,
+    lineHeight: 180,
+  },
   heroFade: {
     position: "absolute",
     left: 0,
