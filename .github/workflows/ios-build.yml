@@ -28,6 +28,11 @@ on:
           - preview
           - production
           - development
+      submit:
+        description: "Auto-upload to TestFlight after build (production profile only)"
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - "ios-build-*"
@@ -142,3 +147,20 @@ jobs:
           path: artifacts/met/met-ios.ipa
           retention-days: 30
           if-no-files-found: error
+
+      - name: Submit to TestFlight
+        if: ${{ github.event.inputs.submit == 'true' && steps.profile.outputs.name == 'production' }}
+        working-directory: artifacts/met
+        run: |
+          echo "Uploading met-ios.ipa to App Store Connect (TestFlight)..."
+          eas submit \
+            --platform ios \
+            --profile production \
+            --path "$(pwd)/met-ios.ipa" \
+            --non-interactive
+          echo "✅ Upload complete. Build will appear in App Store Connect → TestFlight → iOS Builds within ~5–10 minutes (status: Processing → Ready to Test)."
+
+      - name: Submit skipped notice
+        if: ${{ github.event.inputs.submit == 'true' && steps.profile.outputs.name != 'production' }}
+        run: |
+          echo "::warning::Submit was requested but profile is '${{ steps.profile.outputs.name }}', not 'production'. TestFlight only accepts App Store-signed builds. Re-run with profile=production to auto-submit."
