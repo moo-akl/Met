@@ -62,6 +62,15 @@ export function useVisibility() {
             );
             // Roll back the optimistic flip so the UI matches reality.
             void setProfile({ ...profile, isVisible: !next });
+            // Surface the failure so the user understands why the toggle
+            // snapped back instead of staying flipped. Without this the
+            // pill silently reverts and looks "stuck", which is exactly
+            // the symptom seen in build 36 when EXPO_PUBLIC_API_URL was
+            // missing from the production EAS profile.
+            Alert.alert(
+              "Couldn't update visibility",
+              "We couldn't reach the server to save your visibility setting. Please check your connection and try again.",
+            );
           });
       }
     },
