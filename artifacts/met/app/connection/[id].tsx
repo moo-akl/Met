@@ -21,6 +21,7 @@ import { SocialChip } from "@/components/SocialChip";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { type ReportReason, submitReport } from "@/lib/reports";
 import type { SocialPlatform } from "@/lib/types";
 
 export default function ConnectionScreen() {
@@ -36,9 +37,17 @@ export default function ConnectionScreen() {
     setBlocked,
     setNote,
     setTags,
+    profile,
   } = useApp();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  // Report-a-connection flow — required by App Store Review Guideline 1.2
+  // and Google Play "User-Generated Content" policy. Encounters already
+  // had this in `app/encounter/[id].tsx`; once an encounter graduates to
+  // a connected conversation the report path needs to follow it here so
+  // a user is never stranded with an abusive contact and no way to act.
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [reportConfirmation, setReportConfirmation] = useState(false);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -80,6 +89,27 @@ export default function ConnectionScreen() {
   const handleBlock = async () => {
     await setBlocked(encounter.id, true);
     router.back();
+  };
+
+  // Mirror of the encounter-screen report handler. Writes a local copy
+  // for instant confirmation, fires a best-effort POST to the api-server
+  // (which stores the report in Firestore for the moderation team), and
+  // auto-blocks the reported user — Apple/Google both require that a
+  // reporter not keep receiving content from the person they reported.
+  const handleReport = async (reason: ReportReason) => {
+    setReportSheetOpen(false);
+    await submitReport({
+      encounterId: encounter.id,
+      reason,
+      revealMessage: encounter.revealMessage,
+      reporterUid: profile?.id ?? null,
+      reportedUid: null,
+    });
+    await setBlocked(encounter.id, true);
+    setReportConfirmation(true);
+    setTimeout(() => {
+      router.back();
+    }, 1500);
   };
 
   const openMap = () => {
@@ -252,10 +282,17 @@ export default function ConnectionScreen() {
         title={encounter.realName}
         actions={[
           {
-            label: t("connection.removeConnectionAction"),
-            icon: "trash-2",
+            // Reuses `encounter.reportAction` / `encounter.reportSheet.*`
+            // i18n keys so we don't have to add a parallel set of strings
+            // to all nine locale files. The wording ("Report", "Report
+            // this person", reasons) reads identically in either context.
+            label: t("encounter.reportAction"),
+            icon: "flag",
             destructive: true,
-            onPress: handleRemove,
+            onPress: () => {
+              setMenuOpen(false);
+              setTimeout(() => setReportSheetOpen(true), 250);
+            },
           },
           {
             label: t("connection.blockAction"),
@@ -263,8 +300,64 @@ export default function ConnectionScreen() {
             destructive: true,
             onPress: handleBlock,
           },
+          {
+            label: t("connection.removeConnectionAction"),
+            icon: "trash-2",
+            destructive: true,
+            onPress: handleRemove,
+          },
         ]}
       />
+
+      <ActionSheet
+        visible={reportSheetOpen}
+        onClose={() => setReportSheetOpen(false)}
+        title={t("encounter.reportSheet.title")}
+        message={t("encounter.reportSheet.subtitle")}
+        actions={[
+          {
+            label: t("encounter.reportSheet.reasonInappropriate"),
+            icon: "alert-octagon",
+            onPress: () => handleReport("inappropriate"),
+          },
+          {
+            label: t("encounter.reportSheet.reasonHarassment"),
+            icon: "user-x",
+            onPress: () => handleReport("harassment"),
+          },
+          {
+            label: t("encounter.reportSheet.reasonSpam"),
+            icon: "shield-off",
+            onPress: () => handleReport("spam"),
+          },
+          {
+            label: t("encounter.reportSheet.reasonUnderage"),
+            icon: "alert-triangle",
+            onPress: () => handleReport("underage"),
+          },
+          {
+            label: t("encounter.reportSheet.reasonOther"),
+            icon: "more-horizontal",
+            onPress: () => handleReport("other"),
+          },
+        ]}
+      />
+
+      {reportConfirmation ? (
+        <View style={styles.reportToastWrap} pointerEvents="none">
+          <View
+            style={[
+              styles.reportToast,
+              { backgroundColor: colors.foreground },
+            ]}
+          >
+            <Feather name="check-circle" size={18} color={colors.card} />
+            <Text style={[styles.reportToastText, { color: colors.card }]}>
+              {t("encounter.reported")}
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -493,6 +586,28 @@ function TagsEditor({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  reportToastWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 32,
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  reportToast: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 14,
+    maxWidth: 380,
+  },
+  reportToastText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+    flexShrink: 1,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
