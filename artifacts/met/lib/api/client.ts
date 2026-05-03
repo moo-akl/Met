@@ -306,4 +306,26 @@ export const api = {
     request<RemoteRevealRequest>("POST", "/api/reveals/decline", opts, {
       senderUid,
     }),
+  /**
+   * Submit a content / abuse report. Server persists to Firestore
+   * `reports` collection so the team can action within 24h per Apple
+   * Guideline 1.2. Best-effort from the client side — we always also
+   * keep a local copy via lib/reports.ts so the user sees instant
+   * confirmation even if the server is unreachable.
+   */
+  submitReport: (
+    opts: ApiOptions,
+    input: {
+      encounterId: string;
+      reportedUid?: string | null;
+      reason: "inappropriate" | "harassment" | "spam" | "underage" | "other";
+      revealMessage?: string | null;
+    },
+  ) =>
+    request<{ id: string }>("POST", "/api/reports", opts, {
+      encounterId: input.encounterId,
+      reportedUid: input.reportedUid ?? null,
+      reason: input.reason,
+      revealMessage: input.revealMessage ?? null,
+    }),
 };

@@ -22,6 +22,7 @@ import { ActionSheet } from "@/components/ActionSheet";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { findBlockedTerm } from "@/lib/contentFilter";
 import { useT } from "@/lib/i18n";
 import { type ReportReason, submitReport } from "@/lib/reports";
 import { useSubscription } from "@/lib/revenuecat";
@@ -56,6 +57,7 @@ export default function EncounterDetail() {
     sendRevealRequest,
     acceptRevealRequest,
     declineRevealRequest,
+    profile,
   } = useApp();
   const { isSubscribed, isSubscriptionReady } = useSubscription();
 
@@ -191,6 +193,21 @@ export default function EncounterDetail() {
         setRevealsRemaining(await getRevealsRemaining());
       }
       const trimmed = revealDraft.trim();
+      // Content filter (App Store Review Guideline 1.2) — refuse to
+      // send a reveal request whose attached note contains a slur or
+      // harassment phrase. We do the check AFTER the paywall gate so
+      // we don't burn the user's free quota on a blocked draft.
+      if (trimmed && findBlockedTerm(trimmed)) {
+        if (consumedFreeReveal) {
+          await refundFreeReveal();
+          setRevealsRemaining(await getRevealsRemaining());
+        }
+        Alert.alert(
+          "Please edit your message",
+          "Your reveal note contains language that isn't allowed on Met. Please remove it and try again.",
+        );
+        return;
+      }
       // Server-backed send. Throws on network/API failure so we can show
       // an alert and avoid a phantom "waiting" spinner the recipient will
       // never see.
@@ -253,10 +270,17 @@ export default function EncounterDetail() {
   // expects: a user who reports someone shouldn't keep getting their content.
   const handleReport = async (reason: ReportReason) => {
     setReportSheetOpen(false);
+    // Pass the reporter's uid so the server-side mirror in
+    // lib/reports.ts can authenticate against POST /api/reports.
+    // Encounters don't carry a peer uid (BLE-only discovery), so
+    // `reportedUid` stays null and the moderation team locates the
+    // offending profile via `encounterId` in Firestore.
     await submitReport({
       encounterId: encounter.id,
       reason,
       revealMessage: encounter.revealMessage,
+      reporterUid: profile?.id ?? null,
+      reportedUid: null,
     });
     await setBlocked(encounter.id, true);
     setReportConfirmation(true);

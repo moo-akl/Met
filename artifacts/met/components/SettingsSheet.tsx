@@ -1,10 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import * as Updates from "expo-updates";
-import React, { useEffect, useState, useSyncExternalStore } from "react";
+import React, { useEffect, useState } from "react";
 import {
   DevSettings,
   Modal,
@@ -24,18 +23,8 @@ import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useVisibility } from "@/hooks/useVisibility";
 import { type AccountInfo, getCurrentUserAccount } from "@/lib/auth";
-import {
-  formatBleDebugSnapshot,
-  getBleDebugSnapshot,
-  subscribeToBleDebug,
-} from "@/lib/ble/debug";
-import {
-  clearDiagnostics,
-  type DiagnosticEntry,
-  getDiagnosticsSnapshot,
-  subscribeToDiagnostics,
-} from "@/lib/diagnostics";
 import {
   type LangCode,
   setLanguage,
@@ -59,8 +48,7 @@ type SheetView =
   | "blocked"
   | "notifications"
   | "about"
-  | "language"
-  | "diagnostics";
+  | "language";
 
 // External "About Met" links. Leave empty to hide the row entirely so we
 // don't ship a broken link. Fill RATE_URL_* in once you have the real
@@ -133,7 +121,12 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const { tier, promoPlusActive } = useSubscription();
   const referrals = useReferrals();
   const router = useRouter();
-  const isVisible = profile?.isVisible ?? true;
+  // App Store Review Guideline 5.1.2(i): the visibility toggle MUST go
+  // through the shared `useVisibility` hook so the first-time consent
+  // dialog fires for every hidden→visible transition (header pill AND
+  // settings switch alike). Reading isVisible from the hook also keeps
+  // the default in sync with the AppContext default of `false`.
+  const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [rtlNotice, setRtlNotice] = useState(false);
   const [reloading, setReloading] = useState(false);
   // The language the user has tapped but not yet confirmed. We show a small
@@ -216,11 +209,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
     }
   };
 
-  const toggleVisible = async (next: boolean) => {
-    if (!profile) return;
-    await setProfile({ ...profile, isVisible: next });
-  };
-
   const [view, setView] = useState<SheetView>("menu");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reverifying, setReverifying] = useState(false);
@@ -242,26 +230,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
       cancelled = true;
     };
   }, [visible]);
-
-  // Live snapshot of the diagnostics ring buffer. Updates whenever a
-  // defensive wrapper records a new error (or the user clears the log).
-  const diagnostics = useSyncExternalStore(
-    subscribeToDiagnostics,
-    getDiagnosticsSnapshot,
-    getDiagnosticsSnapshot,
-  );
-
-  // Live snapshot of the BLE pipeline (native module load, scanner /
-  // advertiser start, ranged-event count, last resolve outcome). Used
-  // by the read-only debug card inside the diagnostics view so a
-  // tester can screenshot it and we can pinpoint which BLE layer is
-  // failing without shipping yet another build.
-  const bleDebug = useSyncExternalStore(
-    subscribeToBleDebug,
-    getBleDebugSnapshot,
-    getBleDebugSnapshot,
-  );
-  const [bleCopied, setBleCopied] = useState(false);
 
   // Map the provider tag to its localized display label. Brand names
   // (Apple, Google) stay verbatim across all languages.
@@ -313,8 +281,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
         return t("settings.aboutTitle");
       case "language":
         return t("language.title");
-      case "diagnostics":
-        return t("settings.diagnostics");
     }
   })();
 
@@ -442,7 +408,18 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 </View>
                 <Switch
                   value={isVisible}
-                  onValueChange={toggleVisible}
+                  onValueChange={() => {
+                    // Delegate to the shared hook so the first-time
+                    // consent dialog fires consistently. The Switch
+                    // component fights us a bit because it eagerly
+                    // flips its visual state — useVisibility.toggle
+                    // re-syncs `profile.isVisible` either way (after
+                    // user confirms or after they cancel), and the
+                    // Switch is a controlled component bound to that
+                    // value, so the visual state corrects itself on
+                    // the next render.
+                    void toggleVisibility();
+                  }}
                   trackColor={{ false: "#D1D5DB", true: colors.primary }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#D1D5DB"
@@ -690,20 +667,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 label={t("settings.aboutMet")}
                 sub={t("settings.aboutVersion", { version: appVersion })}
                 onPress={() => setView("about")}
-                colors={colors}
-              />
-
-              <NavRow
-                icon="activity"
-                label={t("settings.diagnostics")}
-                sub={
-                  diagnostics.length > 0
-                    ? t("settings.diagnosticsCount", {
-                        count: diagnostics.length,
-                      })
-                    : t("settings.diagnosticsEmpty")
-                }
-                onPress={() => setView("diagnostics")}
                 colors={colors}
               />
 
@@ -1194,173 +1157,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 />
               ) : null}
             </ScrollView>
-          ) : (
-            <ScrollView
-              style={{ maxHeight: 540 }}
-              contentContainerStyle={{ gap: 10 }}
-              showsVerticalScrollIndicator={false}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 10,
-                }}
-              >
-                <Text
-                  style={[
-                    styles.diagnosticsHeader,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
-                  {t("settings.diagnosticsHeader")}
-                </Text>
-                {diagnostics.length > 0 ? (
-                  <Pressable
-                    onPress={() => clearDiagnostics()}
-                    style={({ pressed }) => [
-                      styles.diagnosticsClearBtn,
-                      {
-                        backgroundColor: colors.muted,
-                        borderColor: colors.border,
-                        opacity: pressed ? 0.75 : 1,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="trash-2"
-                      size={14}
-                      color={colors.mutedForeground}
-                    />
-                    <Text
-                      style={[
-                        styles.diagnosticsClearText,
-                        { color: colors.foreground },
-                      ]}
-                    >
-                      {t("settings.diagnosticsClear")}
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.muted,
-                  padding: 12,
-                  gap: 8,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: "Inter_700Bold",
-                      fontSize: 11,
-                      letterSpacing: 0.5,
-                      textTransform: "uppercase",
-                      color: colors.foreground,
-                    }}
-                  >
-                    BLE pipeline
-                  </Text>
-                  <Pressable
-                    onPress={async () => {
-                      try {
-                        await Clipboard.setStringAsync(
-                          formatBleDebugSnapshot(bleDebug),
-                        );
-                        setBleCopied(true);
-                        setTimeout(() => setBleCopied(false), 1500);
-                      } catch {
-                        /* noop */
-                      }
-                    }}
-                    style={({ pressed }) => ({
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 4,
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 8,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.background,
-                      opacity: pressed ? 0.75 : 1,
-                    })}
-                  >
-                    <Feather
-                      name={bleCopied ? "check" : "copy"}
-                      size={12}
-                      color={colors.mutedForeground}
-                    />
-                    <Text
-                      style={{
-                        fontFamily: "Inter_600SemiBold",
-                        fontSize: 11,
-                        color: colors.foreground,
-                      }}
-                    >
-                      {bleCopied ? "Copied" : "Copy"}
-                    </Text>
-                  </Pressable>
-                </View>
-                <Text
-                  style={{
-                    fontFamily: Platform.select({
-                      ios: "Menlo",
-                      android: "monospace",
-                      default: "monospace",
-                    }),
-                    fontSize: 11,
-                    lineHeight: 15,
-                    color: colors.foreground,
-                  }}
-                  selectable
-                >
-                  {formatBleDebugSnapshot(bleDebug)}
-                </Text>
-              </View>
-
-              {diagnostics.length === 0 ? (
-                <View style={styles.emptyWrap}>
-                  <Feather
-                    name="check-circle"
-                    size={30}
-                    color={colors.primary}
-                  />
-                  <Text
-                    style={[styles.emptyTitle, { color: colors.foreground }]}
-                  >
-                    {t("settings.diagnosticsNoneTitle")}
-                  </Text>
-                  <Text
-                    style={[styles.emptySub, { color: colors.mutedForeground }]}
-                  >
-                    {t("settings.diagnosticsNoneBody")}
-                  </Text>
-                </View>
-              ) : (
-                diagnostics.map((entry) => (
-                  <DiagnosticCard
-                    key={entry.id}
-                    entry={entry}
-                    lang={lang}
-                    colors={colors}
-                  />
-                ))
-              )}
-            </ScrollView>
-          )}
+          ) : null}
         </Pressable>
       </Pressable>
 
@@ -1494,94 +1291,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
         </View>
       ) : null}
     </Modal>
-  );
-}
-
-function DiagnosticCard({
-  entry,
-  lang,
-  colors,
-}: {
-  entry: DiagnosticEntry;
-  lang: string;
-  colors: ReturnType<typeof useColors>;
-}) {
-  // Compact "HH:MM:SS" timestamp — date is implied by the session.
-  let when = "";
-  try {
-    when = new Date(entry.ts).toLocaleTimeString(lang, {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    when = `${entry.ts}`;
-  }
-  return (
-    <View
-      style={[
-        styles.diagnosticsCard,
-        { backgroundColor: colors.muted, borderColor: colors.border },
-      ]}
-    >
-      <View style={styles.diagnosticsRow}>
-        <View
-          style={[
-            styles.diagnosticsBadge,
-            { backgroundColor: colors.background },
-          ]}
-        >
-          <Text
-            style={[
-              styles.diagnosticsBadgeText,
-              { color: colors.foreground },
-            ]}
-          >
-            {entry.source}
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.diagnosticsBadge,
-            { backgroundColor: colors.background },
-          ]}
-        >
-          <Text
-            style={[
-              styles.diagnosticsBadgeText,
-              { color: colors.mutedForeground },
-            ]}
-          >
-            {entry.phase}
-          </Text>
-        </View>
-        <Text
-          style={[styles.diagnosticsTime, { color: colors.mutedForeground }]}
-        >
-          {when}
-        </Text>
-      </View>
-      <Text
-        style={[styles.diagnosticsName, { color: colors.foreground }]}
-        selectable
-      >
-        {entry.name}
-      </Text>
-      <Text
-        style={[styles.diagnosticsMessage, { color: colors.foreground }]}
-        selectable
-      >
-        {entry.message}
-      </Text>
-      {entry.stack ? (
-        <Text
-          style={[styles.diagnosticsStack, { color: colors.mutedForeground }]}
-          selectable
-        >
-          {entry.stack}
-        </Text>
-      ) : null}
-    </View>
   );
 }
 
@@ -1942,64 +1651,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: "italic",
     lineHeight: 18,
-  },
-  diagnosticsHeader: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 12,
-    flex: 1,
-  },
-  diagnosticsClearBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  diagnosticsClearText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 12,
-  },
-  diagnosticsCard: {
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 12,
-    gap: 6,
-  },
-  diagnosticsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  diagnosticsBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  diagnosticsBadgeText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 11,
-  },
-  diagnosticsTime: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    marginLeft: "auto",
-  },
-  diagnosticsName: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 13,
-    marginTop: 2,
-  },
-  diagnosticsMessage: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  diagnosticsStack: {
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    fontSize: 10,
-    lineHeight: 14,
-    marginTop: 4,
   },
 });
