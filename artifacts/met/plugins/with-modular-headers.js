@@ -70,7 +70,7 @@ const POST_INSTALL_INJECTION = `
     # any modular React import runs. The defines are copied verbatim from
     # React-Core's RCTDefines.h to stay byte-identical with what RCTBridgeModule.h's
     # macros expect.
-    rnfb_macro_marker = "// RNFB-react-macro-prelude-v1"
+    rnfb_macro_marker = "// RNFB-react-macro-prelude-v2"
     rnfb_macro_prelude = <<~PCH
       #{rnfb_macro_marker}
       #ifdef __OBJC__
@@ -88,6 +88,48 @@ const POST_INSTALL_INJECTION = `
       #ifndef RCT_CONCAT
       #define RCT_CONCAT2(A, B) A##B
       #define RCT_CONCAT(A, B) RCT_CONCAT2(A, B)
+      #endif
+      #ifndef RCT_DEBUG
+      #ifdef DEBUG
+      #define RCT_DEBUG 1
+      #else
+      #define RCT_DEBUG 0
+      #endif
+      #endif
+      #ifndef RCT_DEV
+      #ifdef DEBUG
+      #define RCT_DEV 1
+      #else
+      #define RCT_DEV 0
+      #endif
+      #endif
+      #ifndef RCT_DYNAMIC
+      #if __has_attribute(objc_dynamic)
+      #define RCT_DYNAMIC __attribute__((objc_dynamic))
+      #else
+      #define RCT_DYNAMIC
+      #endif
+      #endif
+      #ifndef RCT_NSASSERT
+      #define RCT_NSASSERT RCT_DEBUG
+      #endif
+      #ifndef RCT_IF_DEV
+      #if RCT_DEV
+      #define RCT_IF_DEV(...) __VA_ARGS__
+      #else
+      #define RCT_IF_DEV(...)
+      #endif
+      #endif
+      #ifndef RCT_NOT_IMPLEMENTED
+      #define RCT_NOT_IMPLEMENTED(method)                                                                     \\
+        _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \\"-Wmissing-method-return-type\\"") \\
+            _Pragma("clang diagnostic ignored \\"-Wunused-parameter\\"")                                        \\
+                RCT_EXTERN NSException *_RCTNotImplementedException(SEL, Class);                              \\
+        method NS_UNAVAILABLE                                                                                 \\
+        {                                                                                                     \\
+          @throw _RCTNotImplementedException(_cmd, [self class]);                                             \\
+        }                                                                                                     \\
+        _Pragma("clang diagnostic pop")
       #endif
       #endif
     PCH
@@ -107,7 +149,7 @@ const POST_INSTALL_INJECTION = `
     end
 `;
 
-const POST_INSTALL_MARKER = "RNFB-react-macro-prelude-v1";
+const POST_INSTALL_MARKER = "RNFB-react-macro-prelude-v2";
 
 const withModularHeaders = (config) => {
   return withDangerousMod(config, [
