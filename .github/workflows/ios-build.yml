@@ -53,13 +53,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 16.x
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+      - name: Select latest Xcode with installed iOS SDK
+        run: |
+          # The macos-15 runner ships several Xcode versions, but only some
+          # have the iOS platform SDK installed. Pick the newest one that does.
+          BEST=""
+          BEST_VER=""
+          for app in $(ls -d /Applications/Xcode_*.app /Applications/Xcode.app 2>/dev/null | sort -Vr); do
+            DEV="$app/Contents/Developer"
+            if [ -d "$DEV/Platforms/iPhoneOS.platform/Developer/SDKs" ] && \
+               ls "$DEV/Platforms/iPhoneOS.platform/Developer/SDKs/" 2>/dev/null | grep -q "iPhoneOS.*\.sdk"; then
+              VER=$("$DEV/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
+              echo "Candidate: $app  (Xcode $VER, iOS SDK present)"
+              if [ -z "$BEST" ]; then BEST="$app"; BEST_VER="$VER"; fi
+            else
+              echo "Skip:      $app  (no iOS SDK)"
+            fi
+          done
+          if [ -z "$BEST" ]; then
+            echo "::error::No Xcode with iOS SDK found on this runner."
+            exit 1
+          fi
+          echo "Selected:  $BEST  (Xcode $BEST_VER)"
+          sudo xcode-select -s "$BEST/Contents/Developer"
 
       - name: Show toolchain
         run: |
           sw_vers
           xcodebuild -version
+          xcodebuild -showsdks | grep -i ios || true
           ruby --version
           which pod || gem install cocoapods --no-document
           pod --version
