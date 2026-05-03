@@ -1,0 +1,161 @@
+name: Build Android (free Linux runner)
+
+# Builds the Met Android app on a free GitHub-hosted Linux runner using
+# `eas build --local`, which uses ZERO EAS cloud credits. Output is uploaded
+# as a downloadable workflow artifact (.apk for preview, .aab for production).
+#
+# Linux minutes are NOT multiplied (unlike macOS at 10x), so the free 2000
+# minutes/month covers ~30+ Android builds easily.
+#
+# REQUIRED SECRETS (Settings → Secrets and variables → Actions):
+#   EXPO_TOKEN
+#     - From https://expo.dev/accounts/moakl/settings/access-tokens
+#     - Lets EAS CLI fetch the project's Android keystore so signing is
+#       deterministic across builds. First build auto-generates a keystore
+#       on EAS servers; every subsequent build reuses the same one.
+#
+# OPTIONAL SECRETS (only needed if you check "Submit to Play Console"):
+#   EXPO_ANDROID_SERVICE_ACCOUNT_JSON_BASE64
+#     - base64 of a Google Play Console service-account JSON key with
+#       "Release manager" permission on the app.
+#     - Run locally: base64 -i path/to/play-service-account.json
+#     - Setup guide: https://github.com/expo/fyi/blob/main/creating-google-service-account.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        required: true
+        default: "preview"
+        type: choice
+        options:
+          - preview
+          - preview:device
+          - production
+          - development
+      submit:
+        description: "Auto-upload to Play Console internal track (production profile only)"
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - "android-build-*"
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: eas build --local (Android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+      EAS_SKIP_AUTO_FINGERPRINT: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0 ndk;26.1.10909125"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli@18.9.1
+
+      - name: Choose build profile + output extension
+        id: profile
+        run: |
+          PROFILE="${{ github.event.inputs.profile }}"
+          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi
+          # Production uses app-bundle (.aab) for Play Store; everything
+          # else builds an installable .apk for direct sideloading.
+          if [ "$PROFILE" = "production" ]; then
+            EXT="aab"
+          else
+            EXT="apk"
+          fi
+          echo "name=${PROFILE}" >> "$GITHUB_OUTPUT"
+          echo "ext=${EXT}" >> "$GITHUB_OUTPUT"
+          echo "Selected EAS profile: ${PROFILE}  (output: met-android.${EXT})"
+
+      - name: Restore Play Console service account (if submitting)
+        if: ${{ github.event.inputs.submit == 'true' && github.event.inputs.profile == 'production' }}
+        run: |
+          if [ -z "${{ secrets.EXPO_ANDROID_SERVICE_ACCOUNT_JSON_BASE64 }}" ]; then
+            echo "::error::Submit requested but EXPO_ANDROID_SERVICE_ACCOUNT_JSON_BASE64 secret is not set."
+            echo "::error::See https://github.com/expo/fyi/blob/main/creating-google-service-account.md"
+            exit 1
+          fi
+          mkdir -p artifacts/met/.secrets
+          KEY_PATH="$(pwd)/artifacts/met/.secrets/play-service-account.json"
+          echo "${{ secrets.EXPO_ANDROID_SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 --decode > "${KEY_PATH}"
+          chmod 600 "${KEY_PATH}"
+          echo "EXPO_ANDROID_SERVICE_ACCOUNT_KEY_PATH=${KEY_PATH}" >> "$GITHUB_ENV"
+          echo "Wrote Play service-account JSON ($(wc -c < "${KEY_PATH}") bytes)"
+
+      - name: Build .${{ steps.profile.outputs.ext }} locally (no EAS credits)
+        working-directory: artifacts/met
+        run: |
+          eas build \
+            --platform android \
+            --profile "${{ steps.profile.outputs.name }}" \
+            --local \
+            --output "$(pwd)/met-android.${{ steps.profile.outputs.ext }}" \
+            --non-interactive
+
+      - name: Verify output
+        run: |
+          ls -lh artifacts/met/met-android.${{ steps.profile.outputs.ext }}
+          file artifacts/met/met-android.${{ steps.profile.outputs.ext }}
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: met-android-build-${{ github.run_number }}
+          path: artifacts/met/met-android.${{ steps.profile.outputs.ext }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Submit to Play Console (internal track)
+        if: ${{ github.event.inputs.submit == 'true' && steps.profile.outputs.name == 'production' }}
+        working-directory: artifacts/met
+        run: |
+          echo "Uploading met-android.aab to Play Console (internal track)..."
+          eas submit \
+            --platform android \
+            --profile production \
+            --path "$(pwd)/met-android.aab" \
+            --non-interactive
+          echo "✅ Upload complete. Build will appear in Play Console → Testing → Internal testing within ~5 minutes."
+
+      - name: Submit skipped notice
+        if: ${{ github.event.inputs.submit == 'true' && steps.profile.outputs.name != 'production' }}
+        run: |
+          echo "::warning::Submit was requested but profile is '${{ steps.profile.outputs.name }}', not 'production'. Play Console only accepts signed .aab from the production profile. Re-run with profile=production to auto-submit."
