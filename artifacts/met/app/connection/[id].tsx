@@ -198,11 +198,35 @@ export default function ConnectionScreen() {
           ]}
         >
           <View style={styles.detailsHeroRow}>
-            <Image
-              source={{ uri: encounter.photoUri }}
-              style={styles.detailsAvatar}
-              contentFit="cover"
-            />
+            {encounter.photoUri ? (
+              <Image
+                source={{ uri: encounter.photoUri }}
+                style={styles.detailsAvatar}
+                contentFit="cover"
+              />
+            ) : (
+              // Same fallback as the encounter screen: when the peer
+              // has no profile photo (or the URL hasn't been enriched
+              // yet on this device) render a branded initial-letter
+              // avatar instead of an empty grey square. This mirrors
+              // the encounter-hero placeholder added in build 38.
+              <View
+                style={[
+                  styles.detailsAvatar,
+                  styles.detailsAvatarPlaceholder,
+                  { backgroundColor: colors.muted },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.detailsAvatarInitial,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  {encounter.realName?.trim().charAt(0).toUpperCase() || "?"}
+                </Text>
+              </View>
+            )}
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[styles.detailsName, { color: colors.foreground }]}>
                 {encounter.realName}
@@ -647,6 +671,14 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
+  },
+  detailsAvatarPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detailsAvatarInitial: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 26,
   },
   detailsName: {
     fontFamily: "Inter_700Bold",

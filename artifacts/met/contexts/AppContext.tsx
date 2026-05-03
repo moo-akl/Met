@@ -856,7 +856,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               revealWatermarks.current.outbound.set(r.recipientUid, ts);
               continue;
             }
-            const next: Encounter = { ...existing, status: "connected" };
+            // Bug fix (build 39 → 40): we used to only flip status here.
+            // The result was that when the sender's local encounter was
+            // fabricated with stale or empty profile data — e.g. it
+            // started life as a QR scan with `photoUri: ""` — accepting
+            // the reveal moved the row to the connections tab but the
+            // hero/avatar stayed blank because no merger ever copied the
+            // recipient's real photo / name / bio across. The inbox
+            // merger above already does this enrichment for the receiver
+            // side; here we mirror it for the sender side so the same
+            // refresh happens the moment the accept lands.
+            const next: Encounter = {
+              ...existing,
+              status: "connected",
+              realName: r.profile.displayName || existing.realName,
+              photoUri: r.profile.photoUrl ?? existing.photoUri,
+              bio: r.profile.bio ?? existing.bio,
+              socials: (r.profile.socials ??
+                existing.socials) as Encounter["socials"],
+            };
             delete (next as { requestSentAt?: number }).requestSentAt;
             delete (next as { revealMessage?: string }).revealMessage;
             byId.set(r.recipientUid, next);
@@ -905,7 +923,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // change, giving us near-instant accept/decline updates without
   // teaching the merge logic to consume mirror-shaped Firestore docs.
   useEffect(() => {
-    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+    // Reveal polling is intentionally NOT gated on `permissionsCompleted`.
+    // BLE / location permissions only matter for the proximity pipelines
+    // that detect new peers; the reveal-request lifecycle (send / accept
+    // / decline) goes purely over REST + Firestore and must work for any
+    // signed-in user, including testers who deferred the permission
+    // prompts. Bug fix (build 39 → 40): with the old gate, a sender who
+    // hadn't granted BLE/location would never poll their outbox, so the
+    // recipient's accept never lifted them out of "request_sent" locally
+    // and the connection never appeared in the sender's connections tab.
+    if (!authedUid || !api.isConfigured()) {
       triggerRevealPollRef.current = null;
       return;
     }
@@ -940,7 +967,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       triggerRevealPollRef.current = null;
       clearInterval(id);
     };
-  }, [authedUid, permissionsCompleted, applyRemoteRevealState]);
+  }, [authedUid, applyRemoteRevealState]);
 
   // Firestore real-time subscription for met_people. The legacy GPS
   // and BLE pipelines already maintain the encounter list for peers
@@ -955,7 +982,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // an encounter for in a ref and skip them on subsequent snapshots.
   const fabricatedFromMetPeopleRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+    // Same reasoning as the reveal poll above: the met_people stream
+    // surfaces peers who detected US first, which is purely server-side
+    // state. It doesn't require local BLE/location permissions to be
+    // useful, and gating on them prevented testers from ever seeing
+    // peers populate their encounter list before granting permissions.
+    if (!authedUid || !api.isConfigured()) {
       fabricatedFromMetPeopleRef.current = new Set();
       return;
     }
@@ -1020,7 +1052,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       if (unsubscribe) unsubscribe();
     };
-  }, [authedUid, permissionsCompleted]);
+  }, [authedUid]);
 
   // Firestore real-time subscription for reveal requests. Fires the
   // existing REST poll on any server-side change so accept/decline
@@ -1028,7 +1060,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // next 20s tick. Initial snapshot is intentionally skipped (the
   // mount-time poll already covers it).
   useEffect(() => {
-    if (!authedUid || !permissionsCompleted || !api.isConfigured()) return;
+    // Same un-gated reasoning as the reveal poll above. Without this the
+    // sender of a reveal request — if they hadn't yet completed BLE /
+    // location permission prompts — would never receive the real-time
+    // notification that the recipient accepted, leaving the encounter
+    // stuck on "request_sent" indefinitely on their device.
+    if (!authedUid || !api.isConfigured()) return;
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
     void (async () => {
@@ -1045,7 +1082,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       if (unsubscribe) unsubscribe();
     };
-  }, [authedUid, permissionsCompleted]);
+  }, [authedUid]);
 
   const sendRevealRequest = useCallback(
     async (recipientUid: string, message?: string) => {
