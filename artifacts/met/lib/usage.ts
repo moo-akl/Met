@@ -2,13 +2,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Per-day quotas, keyed by local-day so the bucket resets at midnight.
 //
-// Free tier: 4 reveals per day (used to be 2/day · originally 3/week).
+// Free tier: 6 reveals per day (was 4/day · 2/day · originally 3/week).
 // Plus tier: 1 opening message per day.
 // Pro tier:  2 opening messages per day.
 //
 // We also expose a soft cap on the visible encounter feed for free users.
 
-export const FREE_REVEALS_PER_DAY = 4;
+export const FREE_REVEALS_PER_DAY = 6;
 export const PLUS_OPENING_MESSAGES_PER_DAY = 1;
 export const PRO_OPENING_MESSAGES_PER_DAY = 2;
 export const FREE_VISIBLE_ENCOUNTERS = 20;
