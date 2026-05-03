@@ -1,0 +1,122 @@
+name: Build iOS .ipa (free macOS runner)
+
+# Builds the Met iOS app on a free GitHub-hosted macOS runner using
+# `eas build --local`, which uses ZERO EAS cloud credits. Output is uploaded
+# as a downloadable workflow artifact.
+#
+# Free tier: GitHub gives ~2000 Actions minutes/month, but macOS minutes count
+# 10x — so effectively ~200 macOS minutes (≈ 10–15 iOS builds per month).
+#
+# REQUIRED SECRETS (Settings → Secrets and variables → Actions):
+#   EXPO_TOKEN              - From https://expo.dev/accounts/moakl/settings/access-tokens
+#   EXPO_ASC_API_KEY_BASE64 - base64 of artifacts/met/.secrets/AuthKey_78GT7G5P5A.p8
+#                             Run locally: base64 -i artifacts/met/.secrets/AuthKey_78GT7G5P5A.p8
+#   EXPO_ASC_KEY_ID         - 78GT7G5P5A
+#   EXPO_ASC_ISSUER_ID      - ace2baad-b6ed-4999-90c5-7f8cf8feb768
+#   EXPO_APPLE_TEAM_ID      - AWHU9BTQQX
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        required: true
+        default: "preview:device"
+        type: choice
+        options:
+          - preview:device
+          - preview
+          - production
+          - development
+  push:
+    tags:
+      - "ios-build-*"
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: eas build --local (iOS)
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_ASC_KEY_ID: ${{ secrets.EXPO_ASC_KEY_ID }}
+      EXPO_ASC_ISSUER_ID: ${{ secrets.EXPO_ASC_ISSUER_ID }}
+      EXPO_APPLE_TEAM_ID: ${{ secrets.EXPO_APPLE_TEAM_ID }}
+      EAS_NO_VCS: "1"
+      EAS_SKIP_AUTO_FINGERPRINT: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16.x
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          ruby --version
+          which pod || gem install cocoapods --no-document
+          pod --version
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli@18.9.1
+
+      - name: Restore App Store Connect API key
+        run: |
+          mkdir -p artifacts/met/.secrets
+          KEY_PATH="$(pwd)/artifacts/met/.secrets/AuthKey_${EXPO_ASC_KEY_ID}.p8"
+          echo "${{ secrets.EXPO_ASC_API_KEY_BASE64 }}" | base64 --decode > "${KEY_PATH}"
+          chmod 600 "${KEY_PATH}"
+          echo "EXPO_ASC_API_KEY_PATH=${KEY_PATH}" >> "$GITHUB_ENV"
+          echo "Wrote ASC key ($(wc -c < "${KEY_PATH}") bytes)"
+
+      - name: Choose build profile
+        id: profile
+        run: |
+          PROFILE="${{ github.event.inputs.profile }}"
+          if [ -z "$PROFILE" ]; then PROFILE="preview:device"; fi
+          echo "name=${PROFILE}" >> "$GITHUB_OUTPUT"
+          echo "Selected EAS profile: ${PROFILE}"
+
+      - name: Build .ipa locally (no EAS credits)
+        working-directory: artifacts/met
+        run: |
+          eas build \
+            --platform ios \
+            --profile "${{ steps.profile.outputs.name }}" \
+            --local \
+            --output "$(pwd)/met-ios.ipa" \
+            --non-interactive
+
+      - name: Verify output
+        run: |
+          ls -lh artifacts/met/met-ios.ipa
+          file artifacts/met/met-ios.ipa
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: met-ios-build-${{ github.run_number }}
+          path: artifacts/met/met-ios.ipa
+          retention-days: 30
+          if-no-files-found: error
