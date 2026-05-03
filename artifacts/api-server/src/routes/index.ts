@@ -6,6 +6,7 @@ import encountersRouter from "./encounters";
 import presenceRouter from "./presence";
 import bleRouter from "./ble";
 import revealsRouter from "./reveals";
+import reportsRouter from "./reports";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(encountersRouter);
 router.use(presenceRouter);
 router.use(bleRouter);
 router.use(revealsRouter);
+router.use(reportsRouter);
 
 export default router;

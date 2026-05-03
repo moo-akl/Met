@@ -25,6 +25,7 @@ import { SocialLinkRow } from "@/components/SocialLinkRow";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
+import { findBlockedTerm } from "@/lib/contentFilter";
 import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
 import { MAX_EXTRA_PHOTOS_BY_TIER } from "@/lib/storage";
@@ -173,6 +174,20 @@ export default function ProfileScreen() {
 
   const handleSave = async () => {
     if (!photoUri || !name.trim() || !profile) return;
+    // Content filter (App Store Review Guideline 1.2 — UGC must have a
+    // method for filtering objectionable content). We block save when
+    // either the display name or the bio contains a slur / harassment
+    // term and surface a non-shaming message that points the user at
+    // edit mode rather than auto-moderating silently.
+    const offending =
+      findBlockedTerm(name) ?? findBlockedTerm(bio);
+    if (offending) {
+      Alert.alert(
+        "Please edit your profile",
+        "Your name or bio contains language that isn't allowed on Met. Please remove it and try again.",
+      );
+      return;
+    }
     setSaving(true);
     const photoChanged = photoUri !== profile.photoUri;
     await setProfile({

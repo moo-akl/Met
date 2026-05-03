@@ -192,9 +192,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           : null);
       const effectivePermissions = perms || isDemoBootstrap;
       if (effectiveProfile) {
+        // App Store Review Guideline 5.1.2(i) requires explicit user
+        // consent before broadcasting their presence to others. New
+        // users default to HIDDEN — they have to deliberately tap the
+        // visibility toggle (which fires the first-time consent dialog
+        // in `useVisibility`) before they appear on anyone's beacon.
+        // Existing users keep whatever they last set; we only fill in
+        // a default when the field is genuinely missing.
         setProfileState({
           ...effectiveProfile,
-          isVisible: effectiveProfile.isVisible ?? true,
+          isVisible: effectiveProfile.isVisible ?? false,
         });
       } else {
         setProfileState(null);

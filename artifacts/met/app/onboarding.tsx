@@ -394,7 +394,12 @@ export default function OnboardingScreen() {
       photoUri,
       socials,
       verified: true,
-      isVisible: true,
+      // App Store Review Guideline 5.1.2(i): users must explicitly opt
+      // in before being broadcast to nearby strangers. New profiles
+      // start hidden; the user becomes discoverable by tapping the
+      // visibility pill in the home header (which fires a one-time
+      // consent dialog explaining what that means).
+      isVisible: false,
       photoVerifiedAt: Date.now(),
       extraPhotos: [],
     });
