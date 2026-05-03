@@ -549,24 +549,90 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Push profile -> backend whenever it changes (and we have an auth
   // session). Best-effort: never blocks UI, never throws.
+  //
+  // Photo handling: ImagePicker hands us a `file://` (or `content://`
+  // on Android) URI that points at a local file on THIS device. Sending
+  // that URI verbatim to the backend means every other user's app gets
+  // a string they can't load — the recipient's `Image` just renders
+  // blank. Before the upsert we detect any non-http(s) URI, read the
+  // bytes via expo-file-system, and POST them through our new
+  // `/api/profiles/me/photo` endpoint, which uploads to Firebase
+  // Storage and returns a real public URL.
+  // Track the last remote photo URL we successfully synced. Used as a
+  // safety net so a transient upload failure never blanks out a photo
+  // the recipient is already showing. Lives in a ref (not state) so
+  // updating it doesn't retrigger this effect.
+  const lastSyncedPhotoUrlRef = useRef<string | null>(null);
   useEffect(() => {
     if (!authedUid || !profile || !api.isConfigured()) return;
     const ctrl = new AbortController();
-    void api
-      .upsertMyProfile(
-        { uid: authedUid, signal: ctrl.signal },
-        {
-          displayName: profile.name,
-          photoUrl: profile.photoUri || null,
-          bio: profile.bio || null,
-          socials: profile.socials as Record<string, string>,
-        },
-      )
-      .catch((err) => {
+    void (async () => {
+      const localUri = profile.photoUri || null;
+      let photoUrl: string | null = localUri;
+      let uploadFailed = false;
+      if (localUri && !/^https?:\/\//i.test(localUri)) {
+        try {
+          const FileSystem = await import("expo-file-system/legacy");
+          const base64 = await FileSystem.readAsStringAsync(localUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          // Best-effort sniff: ImagePicker preserves the source ext on
+          // iOS/Android, so we use the URI suffix for the content type.
+          const lower = localUri.toLowerCase();
+          const contentType = lower.endsWith(".png")
+            ? "image/png"
+            : lower.endsWith(".webp")
+              ? "image/webp"
+              : lower.endsWith(".heic") || lower.endsWith(".heif")
+                ? "image/heic"
+                : "image/jpeg";
+          const uploaded = await api.uploadProfilePhoto(
+            { uid: authedUid, signal: ctrl.signal },
+            { base64, contentType },
+          );
+          if (ctrl.signal.aborted) return;
+          photoUrl = uploaded.photoUrl;
+          // Persist the remote URL back into local state + storage so
+          // subsequent profile edits (bio, name, socials...) don't
+          // re-upload the same photo. Use a functional update against
+          // the LATEST state — `profile` here is the snapshot from when
+          // the effect started; the user may have edited their bio
+          // while the upload was in flight, and we don't want to roll
+          // those edits back.
+          setProfileState((current) => {
+            if (!current || current.photoUri !== localUri) return current;
+            const next: Profile = { ...current, photoUri: uploaded.photoUrl };
+            void saveProfile(next);
+            return next;
+          });
+        } catch (err) {
+          if ((err as { name?: string }).name === "AbortError") return;
+          console.warn("[appcontext] profile photo upload failed", err);
+          uploadFailed = true;
+          // Preserve the previously-synced remote URL so a transient
+          // upload failure doesn't blank out the photo other users are
+          // already seeing on their encounter cards. The user will get
+          // another chance on their next profile save.
+          photoUrl = lastSyncedPhotoUrlRef.current;
+        }
+      }
+      try {
+        await api.upsertMyProfile(
+          { uid: authedUid, signal: ctrl.signal },
+          {
+            displayName: profile.name,
+            photoUrl,
+            bio: profile.bio || null,
+            socials: profile.socials as Record<string, string>,
+          },
+        );
+        if (!uploadFailed) lastSyncedPhotoUrlRef.current = photoUrl;
+      } catch (err) {
         if ((err as { name?: string }).name !== "AbortError") {
           console.warn("[appcontext] upsertMyProfile failed", err);
         }
-      });
+      }
+    })();
     return () => ctrl.abort();
   }, [authedUid, profile]);
 

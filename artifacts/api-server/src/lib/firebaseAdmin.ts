@@ -1,6 +1,7 @@
 import { initializeApp, cert, getApps, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getStorage, type Storage } from "firebase-admin/storage";
 import { logger } from "./logger";
 
 let app: App | null = null;
@@ -44,6 +45,14 @@ function init(): App {
     throw initError;
   }
 
+  // Default Cloud Storage bucket for the project. Firebase projects
+  // created after Sept 2024 use the `<project-id>.firebasestorage.app`
+  // host; older ones use `<project-id>.appspot.com`. Allow override via
+  // env in case the project was created with a non-default bucket name.
+  const storageBucket =
+    process.env["FIREBASE_STORAGE_BUCKET"] ||
+    `${parsed.project_id}.firebasestorage.app`;
+
   app = initializeApp({
     credential: cert({
       projectId: parsed.project_id,
@@ -53,9 +62,13 @@ function init(): App {
       privateKey: parsed.private_key.replace(/\\n/g, "\n"),
     }),
     projectId: parsed.project_id,
+    storageBucket,
   });
 
-  logger.info({ projectId: parsed.project_id }, "Firebase Admin SDK initialized");
+  logger.info(
+    { projectId: parsed.project_id, storageBucket },
+    "Firebase Admin SDK initialized",
+  );
   return app;
 }
 
@@ -65,6 +78,10 @@ export function adminAuth(): Auth {
 
 export function adminDb(): Firestore {
   return getFirestore(init());
+}
+
+export function adminStorage(): Storage {
+  return getStorage(init());
 }
 
 /** Probe init without throwing; returns null on failure. */
