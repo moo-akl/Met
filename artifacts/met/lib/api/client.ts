@@ -207,6 +207,22 @@ export const api = {
   isConfigured: () => BASE_URL.length > 0,
   upsertMyProfile: (opts: ApiOptions, input: UpsertProfileInput) =>
     request<RemoteProfile>("PUT", "/api/profiles/me", opts, input),
+  /**
+   * Upload a profile photo as raw base64 (no `data:` prefix). Server
+   * stores it in Firebase Storage at `profile-photos/{uid}.{ext}` and
+   * returns a tokenised public download URL that can be saved as the
+   * profile's `photoUrl`. Local `file://` URIs MUST be uploaded via
+   * this endpoint before being sent to other devices, or the photo
+   * will fail to render on the recipient.
+   */
+  uploadProfilePhoto: (
+    opts: ApiOptions,
+    input: { base64: string; contentType?: string },
+  ) =>
+    request<{ photoUrl: string }>("POST", "/api/profiles/me/photo", opts, {
+      base64: input.base64,
+      contentType: input.contentType ?? "image/jpeg",
+    }),
   getProfile: (opts: ApiOptions, uid: string) =>
     request<RemoteProfile>(
       "GET",

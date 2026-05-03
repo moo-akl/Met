@@ -152,10 +152,14 @@ export default function EncounterDetail() {
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   // Open the confirmation sheet first — actual send happens in `confirmSend`
-  // once the user (optionally) attaches a personal note.
+  // once the user (optionally) attaches a personal note. Note: we
+  // intentionally do NOT block on RC readiness here — `confirmSend` already
+  // routes paying users correctly when RC is still warming up (see comment
+  // there). Blocking the open here just leaves the user staring at a
+  // greyed-out button right after a fresh encounter, which they read as
+  // "broken".
   const openRevealSheet = () => {
     if (sending) return;
-    if (!effectivelyReady) return;
     setRevealDraft("");
     setRevealSheetOpen(true);
   };
@@ -483,7 +487,7 @@ export default function EncounterDetail() {
                     <PrimaryButton
                       label={t("encounter.sendRevealRequestBtn")}
                       onPress={openRevealSheet}
-                      disabled={!effectivelyReady || sending}
+                      disabled={sending}
                       loading={sending}
                     />
                   </View>
