@@ -1,0 +1,203 @@
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_overlay_migration_manager.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_opener.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_mutation_queue.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_migrations.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_lru_reference_delegate.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_key.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_index_manager.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_globals_cache.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_document_overlay_cache.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » leveldb_bundle_cache.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » latlng.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » key_field_not_in_filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » key_field_in_filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » key_field_filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » json_reader.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » index_entry.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » index_backfiller.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » index.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » in_filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » http.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » hard_assert.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » grpc_util.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » grpc_unary_call.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » grpc_streaming_reader.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » grpc_stream.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » grpc_root_certificates_generated.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » grpc_root_certificate_finder_generated.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » grpc_nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » grpc_connection.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » grpc_completion.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » geo_point.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » firestore_version.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » firestore_index_value_writer.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » firestore_client.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » firestore.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » firestore.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » firebase_metadata_provider_noop.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » firebase_metadata_provider_apple.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » firebase_metadata_provider.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » firebase_app_check_credentials_provider_apple.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » filesystem_posix.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » filesystem_common.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » filesystem_apple.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » field_transform.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » field_path.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » field_mask.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » field_index.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » field_filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » field_behavior.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » expressions_eval.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » expressions.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » exponential_backoff.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » explain_stats.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » executor_std.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » executor_libdispatch.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » exception_apple.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » exception.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » event_manager.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » error_apple.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » empty.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » document_snapshot.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » document_set.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » document_reference.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » document_overlay_cache.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » document_key_reference.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » document_key.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » document_change.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » document.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » document.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » direction.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » delete_mutation.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » datastore.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » database_info.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » database_id.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » converters.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » connectivity_monitor_apple.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » connectivity_monitor.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » composite_filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » comparison.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » common.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » collection_reference.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » byte_string.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » byte_stream_cpp.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » byte_stream_apple.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » bundle_serializer.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » bundle_reader.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » bundle_loader.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » bundle.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » bound.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » bloom_filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » bloom_filter.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » bits.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » background_queue.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » autoid.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » auth_token.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » async_queue.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » array_contains_filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » array_contains_any_filter.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » any.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » annotations.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » aggregation_result.nanopb.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » aggregate_query.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » aggregate_field.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » aggregate_expressions.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » aggregate_alias.cc
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FSTUserDataWriter.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FSTUserDataReader.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FSTFirestoreComponent.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRWriteBatch.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRTransactionOptions.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRTransaction.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRSnapshotMetadata.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRSnapshotListenOptions.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRQuerySnapshot.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRQuery.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRPipelineBridge.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRPersistentCacheIndexManager.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRLocalCacheSettings.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRLoadBundleTask.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRListenerRegistration.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRGeoPoint.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRFirestoreSource.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRFirestoreSettings.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRFirestore.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRFilter.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRFieldValue.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRFieldPath.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRDocumentSnapshot.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRDocumentReference.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRDocumentChange.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRCollectionReference.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRAggregateQuerySnapshot.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRAggregateQuery.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRAggregateField.mm
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FirebaseFirestoreInternal_vers.c
+[RUN_FASTLANE] › Preparing @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FirebaseFirestoreInternal-Info.plist
+[RUN_FASTLANE] › Creating  expo-updates Pods/EXUpdates » EXUpdates.framework
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FirebaseFirestoreInternal-dummy.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FIRVectorValue.m
+[RUN_FASTLANE] › Creating  @react-native-firebase/firestore Pods/FirebaseFirestoreInternal » FirebaseFirestoreInternal.framework
+[RUN_FASTLANE] › Preparing @react-native-firebase/firestore Pods/FirebaseFirestore » FirebaseFirestore-Info.plist
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestore » dummy.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestore » FirebaseFirestore_vers.c
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/FirebaseFirestore » FirebaseFirestore-dummy.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app Pods/RNFBApp » RNFBVersion.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app Pods/RNFBApp » RNFBRCTEventEmitter.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app Pods/RNFBApp » RNFBPreferences.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app Pods/RNFBApp » RNFBNullSentinelInterceptor.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app Pods/RNFBApp » RNFBMeta.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app Pods/RNFBApp » RNFBJSON.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app Pods/RNFBApp » RNFBApp_vers.c
+[RUN_FASTLANE] › Compiling @react-native-firebase/app Pods/RNFBApp » RCTConvert+FIROptions.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app Pods/RNFBApp » RCTConvert+FIRApp.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/auth Pods/RNFBAuth » RNFBAuth_vers.c
+[RUN_FASTLANE] › Compiling @react-native-firebase/auth Pods/RNFBAuth » RNFBAuth-dummy.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app-check Pods/RNFBAppCheck » RNFBAppCheck_vers.c
+[RUN_FASTLANE] › Compiling @react-native-firebase/auth Pods/RNFBAuth » RNFBAuthModule.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app-check Pods/RNFBAppCheck » RNFBAppCheckProviderFactory.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app-check Pods/RNFBAppCheck » RNFBAppCheckModule.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/app-check Pods/RNFBAppCheck » RNFBAppCheckProvider.m
+[RUN_FASTLANE] › Creating  @react-native-firebase/firestore Pods/FirebaseFirestore » FirebaseFirestore.framework
+[RUN_FASTLANE] › Creating  @react-native-firebase/app Pods/RNFBApp » RNFBApp.framework
+[RUN_FASTLANE] › Preparing @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestore-Info.plist
+[RUN_FASTLANE] › Preparing @react-native-firebase/auth Pods/RNFBAuth » RNFBAuth-Info.plist
+[RUN_FASTLANE] › Preparing @react-native-firebase/app-check Pods/RNFBAppCheck » RNFBAppCheck-Info.plist
+[RUN_FASTLANE] › Creating  @react-native-firebase/auth Pods/RNFBAuth » RNFBAuth.framework
+[RUN_FASTLANE] › Compiling @react-native-firebase/app-check Pods/RNFBAppCheck » RNFBAppCheck-dummy.m
+[RUN_FASTLANE] › Creating  @react-native-firebase/app-check Pods/RNFBAppCheck » RNFBAppCheck.framework
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestore_vers.c
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestoreSerialize.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestoreTransactionModule.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestoreQuery.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestoreModule.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestoreDocumentModule.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestoreCommon.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestoreCollectionModule.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore RCTConvert+FIRLoggerLevel.m
+[RUN_FASTLANE] › Compiling @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestore-dummy.m
+[RUN_FASTLANE] › Creating  @react-native-firebase/firestore Pods/RNFBFirestore » RNFBFirestore.framework
+[RUN_FASTLANE] › Preparing Pods/Pods-Met » Pods-Met-Info.plist
+[RUN_FASTLANE] › Compiling Pods/Pods-Met » Pods-Met-dummy.m
+[RUN_FASTLANE] › Creating  Pods/Pods-Met » Pods_Met.framework
+[RUN_FASTLANE] › Executing Met » [CP] Check Pods Manifest.lock
+[RUN_FASTLANE] › Executing Met » [Expo] Configure project
+[RUN_FASTLANE] › Copying   ios/build/Build/Intermediates.noindex/ArchiveIntermediates/Met/InstallationBuildProductsLocation/Applications/Met.app/PrivacyInfo.xcprivacy ➜ ../../../../../../../var/folders/tb/y368xp_x10s3ty1b_mtl5mxr0000gn/T/eas-build-local-nodejs/b746b986-aa39-454a-979c-b56985995594/build/artifacts/met/ios/Met/PrivacyInfo.xcprivacy
+[RUN_FASTLANE] › Copying   ios/Met/GoogleService-Info.plist ➜ ./GoogleService-Info.plist
+[RUN_FASTLANE] › Copying   ios/Met/Supporting/Expo.plist ➜ ./Expo.plist
+[RUN_FASTLANE] › Compiling Met » SplashScreen.storyboard
+[RUN_FASTLANE] ⚠️  Script has ambiguous dependencies causing it to run on every build.
+   To fix, go to: Xcode » Met/Met » Build Phases » '[CP-User] [RNFB] Core Configuration'
+   Either: Uncheck "Based on dependency analysis", or select output files to trigger the script
+
+[RUN_FASTLANE] ⚠️  Pods/leveldb-library-leveldb_Privacy: iOS@11.0 deployment version mismatch, expected >= 2.0 <= 18.2.99
+[RUN_FASTLANE] ⚠️  Pods/gRPC-Core-grpc: iOS@11.0 deployment version mismatch, expected >= 2.0 <= 18.2.99
+[RUN_FASTLANE] ⚠️  Pods/gRPC-C++-grpcpp: iOS@11.0 deployment version mismatch, expected >= 2.0 <= 18.2.99
+[RUN_FASTLANE] ⚠️  Pods/gRPC-C++-gRPCCertificates-Cpp: iOS@11.0 deployment version mismatch, expected >= 2.0 <= 18.2.99
+[RUN_FASTLANE] ⚠️  Pods/abseil-xcprivacy: iOS@9.0 deployment version mismatch, expected >= 2.0 <= 18.2.99
+[RUN_FASTLANE]     Run script build phase 'Create Symlinks to Header Folders' will 
+[RUN_FASTLANE] ⚠️  Pods/SDWebImage-SDWebImage: iOS@9.0 deployment version mismatch, expected >= 2.0 <= 18.2.99
+[RUN_FASTLANE] ⚠️  Pods/PromisesObjC-FBLPromises_Privacy: iOS@9.0 deployment version mismatch, expected >= 2.0 <= 18.2.99
+[RUN_FASTLANE]     Run script build phase '[CP-User] Generate updates resources for expo-updates' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency ana
+[RUN_FASTLANE] ⚠️  Pods/BoringSSL-GRPC-openssl_grpc: iOS@10.0 deployment version mismatch, expected >= 2.0 <= 18.2.99
