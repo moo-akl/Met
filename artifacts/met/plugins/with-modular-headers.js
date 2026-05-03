@@ -50,9 +50,64 @@ const POST_INSTALL_INJECTION = `
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
       end
     end
+
+    # === RNFB v24 React-macro restoration ===
+    # When use_frameworks! :linkage => :static is on (required by Firebase iOS SDK),
+    # React-Core ships as a static framework with a module map. RNFB's headers
+    # transitively load <React/RCTBridgeModule.h> through <RNFBApp/RNFBSharedUtils.h>,
+    # which is itself a modular import. Modules export DECLARATIONS (types,
+    # protocols, functions) but NOT preprocessor macros. So the macros defined
+    # in RCTDefines.h (RCT_EXTERN, RCT_CONCAT, RCT_CONCAT2, RCT_EXTERN_C_BEGIN/END)
+    # are invisible at the RNFB .m file's translation-unit scope. When
+    # RCT_EXPORT_MODULE() / RCT_EXPORT_METHOD() expand inside the .m file,
+    # the expansion contains RCT_EXTERN and RCT_CONCAT — and Clang reports
+    # "unknown type name 'RCT_EXTERN'" / "duplicate declaration of method
+    # 'RCT_CONCAT'" because those symbols never made it across the module boundary.
+    #
+    # Fix: prepend the macro definitions to each RNFB pod's auto-generated
+    # prefix.pch file. CocoaPods force-includes that pch on every .m/.mm
+    # compile in the pod, so the macros become visible at .m scope BEFORE
+    # any modular React import runs. The defines are copied verbatim from
+    # React-Core's RCTDefines.h to stay byte-identical with what RCTBridgeModule.h's
+    # macros expect.
+    rnfb_macro_marker = "// RNFB-react-macro-prelude-v1"
+    rnfb_macro_prelude = <<~PCH
+      #{rnfb_macro_marker}
+      #ifdef __OBJC__
+      #ifndef RCT_EXTERN
+      #if defined(__cplusplus)
+      #define RCT_EXTERN extern "C" __attribute__((visibility("default")))
+      #define RCT_EXTERN_C_BEGIN extern "C" {
+      #define RCT_EXTERN_C_END }
+      #else
+      #define RCT_EXTERN extern __attribute__((visibility("default")))
+      #define RCT_EXTERN_C_BEGIN
+      #define RCT_EXTERN_C_END
+      #endif
+      #endif
+      #ifndef RCT_CONCAT
+      #define RCT_CONCAT2(A, B) A##B
+      #define RCT_CONCAT(A, B) RCT_CONCAT2(A, B)
+      #endif
+      #endif
+    PCH
+    installer.pods_project.targets.each do |target|
+      next unless target.name.start_with?("RNFB")
+      pch_path = File.join(
+        installer.sandbox.root,
+        "Target Support Files",
+        target.name,
+        "#{target.name}-prefix.pch"
+      )
+      next unless File.exist?(pch_path)
+      contents = File.read(pch_path)
+      next if contents.include?(rnfb_macro_marker)
+      File.write(pch_path, rnfb_macro_prelude + contents)
+      Pod::UI.message "[with-modular-headers] Patched #{target.name}-prefix.pch with React macro prelude"
+    end
 `;
 
-const POST_INSTALL_MARKER = "CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES";
+const POST_INSTALL_MARKER = "RNFB-react-macro-prelude-v1";
 
 const withModularHeaders = (config) => {
   return withDangerousMod(config, [
