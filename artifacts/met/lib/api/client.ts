@@ -306,6 +306,10 @@ export const api = {
     request<RemoteRevealRequest>("POST", "/api/reveals/decline", opts, {
       senderUid,
     }),
+  cancelReveal: (opts: ApiOptions, recipientUid: string) =>
+    request<{ success: boolean }>("POST", "/api/reveals/cancel", opts, {
+      senderUid: recipientUid,
+    }),
   /**
    * Submit a content / abuse report. Server persists to Firestore
    * `reports` collection so the team can action within 24h per Apple

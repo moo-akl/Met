@@ -420,6 +420,8 @@ export const nl: LocaleTree = {
     requestSentTitle: "Verzoek verzonden",
     requestSentSub: "Wachten tot {{name}} zich ook onthult…",
     waiting: "WACHTEN…",
+    cancelReveal: "Verzoek annuleren",
+    cancelRevealTitle: "Verzoek annuleren",
     socialsHidden: "Socials zijn verborgen",
     sendRevealRequestBtn: "ONTHULLINGSVERZOEK STUREN",
     revealsLeftFree: "{{n}} van {{cap}} gratis onthullingen vandaag",

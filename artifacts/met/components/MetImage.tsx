@@ -185,15 +185,27 @@ class ImageBoundary extends React.Component<BoundaryProps, BoundaryState> {
   }
 }
 
-export function MetImage(props: MetImageProps) {
+function MetImageInner(props: MetImageProps) {
   const Impl = getImpl();
+  const [loadFailed, setLoadFailed] = React.useState(false);
   const fallback = <CoreImageFallback {...props} />;
-  if (!Impl) return fallback;
+  if (!Impl || loadFailed) return fallback;
   return (
     <ImageBoundary fallback={fallback}>
-      <Impl {...props} />
+      <Impl
+        {...props}
+        onError={(e: unknown) => {
+          recordNativeError("MetImage", "runtime", e);
+          setLoadFailed(true);
+          props.onError?.(e);
+        }}
+      />
     </ImageBoundary>
   );
+}
+
+export function MetImage(props: MetImageProps) {
+  return <MetImageInner key={String((props.source as any)?.uri ?? props.source)} {...props} />;
 }
 
 // Drop-in alias so import sites can keep their existing identifier.

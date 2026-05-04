@@ -91,6 +91,7 @@ type AppContextValue = {
   ) => Promise<void>;
   acceptRevealRequest: (senderUid: string) => Promise<void>;
   declineRevealRequest: (senderUid: string) => Promise<void>;
+  cancelRevealRequest: (recipientUid: string) => Promise<void>;
   sendOpeningMessage: (id: string, text: string) => Promise<void>;
   updatePreferences: (patch: Partial<Preferences>) => Promise<void>;
   markPhotoVerified: () => Promise<void>;
@@ -837,6 +838,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        const inboxSenderUids = new Set(inbox.map((r) => r.senderUid));
+        for (const [id, enc] of byId) {
+          if (
+            enc.status === "request_received" &&
+            !enc.blocked &&
+            !inboxSenderUids.has(id)
+          ) {
+            const next: Encounter = { ...enc, status: "encounter" };
+            delete (next as { revealMessage?: string }).revealMessage;
+            byId.set(id, next);
+            changed = true;
+          }
+        }
+
         for (const r of outbox) {
           const ts = Date.parse(r.updatedAt);
           if (!Number.isFinite(ts)) continue;
@@ -1145,6 +1160,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [authedUid, updateEncounterStatus, bumpInboundWatermark],
   );
 
+  const cancelRevealRequest = useCallback(
+    async (recipientUid: string) => {
+      if (!authedUid) throw new Error("Not signed in");
+      if (!api.isConfigured()) throw new Error("API not configured");
+      await api.cancelReveal({ uid: authedUid }, recipientUid);
+      bumpOutboundWatermark(recipientUid, Date.now());
+      await updateEncounterStatus(recipientUid, "encounter", {});
+    },
+    [authedUid, updateEncounterStatus, bumpOutboundWatermark],
+  );
+
   // Start/stop BLE proximity (scan + advertise). Same gating as GPS.
   // Independent effect so a failure in one pipeline doesn't tear down
   // the other. In Expo Go both halves no-op cleanly.
@@ -1303,6 +1329,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sendRevealRequest,
       acceptRevealRequest,
       declineRevealRequest,
+      cancelRevealRequest,
       sendOpeningMessage,
       updatePreferences,
       markPhotoVerified,
@@ -1328,6 +1355,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sendRevealRequest,
       acceptRevealRequest,
       declineRevealRequest,
+      cancelRevealRequest,
       sendOpeningMessage,
       updatePreferences,
       markPhotoVerified,

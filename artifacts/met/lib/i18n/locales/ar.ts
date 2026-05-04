@@ -424,6 +424,8 @@ export const ar: LocaleTree = {
     requestSentTitle: "أُرسل الطلب",
     requestSentSub: "بانتظار {{name}} للكشف بدوره…",
     waiting: "في الانتظار…",
+    cancelReveal: "إلغاء الطلب",
+    cancelRevealTitle: "إلغاء الطلب",
     socialsHidden: "الشبكات مخفية",
     sendRevealRequestBtn: "إرسال طلب كشف",
     revealsLeftFree: "{{n}} من {{cap}} كشوفات مجانية اليوم",
