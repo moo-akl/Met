@@ -418,6 +418,8 @@ export const pt: LocaleTree = {
     requestSentTitle: "Pedido enviado",
     requestSentSub: "Aguardando {{name}} se revelar também…",
     waiting: "AGUARDANDO…",
+    cancelReveal: "Cancelar pedido",
+    cancelRevealTitle: "Cancelar pedido",
     socialsHidden: "As redes estão ocultas",
     sendRevealRequestBtn: "ENVIAR SOLICITAÇÃO DE REVELAÇÃO",
     revealsLeftFree: "{{n}} de {{cap}} revelações grátis hoje",

@@ -425,6 +425,8 @@ export const fr: LocaleTree = {
     requestSentTitle: "Demande envoyée",
     requestSentSub: "En attente que {{name}} se révèle aussi…",
     waiting: "EN ATTENTE…",
+    cancelReveal: "Annuler la demande",
+    cancelRevealTitle: "Annuler la demande",
     socialsHidden: "Les réseaux sont masqués",
     sendRevealRequestBtn: "ENVOYER UNE DEMANDE DE RÉVÉLATION",
     revealsLeftFree:

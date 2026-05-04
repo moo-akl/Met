@@ -420,6 +420,8 @@ export const ru: LocaleTree = {
     requestSentTitle: "Запрос отправлен",
     requestSentSub: "Ожидание, пока {{name}} тоже раскроется…",
     waiting: "ОЖИДАНИЕ…",
+    cancelReveal: "Отменить запрос",
+    cancelRevealTitle: "Отменить запрос",
     socialsHidden: "Соцсети скрыты",
     sendRevealRequestBtn: "ОТПРАВИТЬ ЗАПРОС НА РАСКРЫТИЕ",
     revealsLeftFree:

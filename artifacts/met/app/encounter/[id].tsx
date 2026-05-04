@@ -57,6 +57,7 @@ export default function EncounterDetail() {
     sendRevealRequest,
     acceptRevealRequest,
     declineRevealRequest,
+    cancelRevealRequest,
     profile,
   } = useApp();
   const { isSubscribed, isSubscriptionReady } = useSubscription();
@@ -248,6 +249,21 @@ export default function EncounterDetail() {
       Alert.alert(t("encounter.acceptReveal"), msg);
     }
   };
+  const [cancelling, setCancelling] = useState(false);
+  const handleCancel = async () => {
+    if (cancelling) return;
+    setCancelling(true);
+    try {
+      await cancelRevealRequest(encounter.id);
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message ? err.message : "Please try again.";
+      Alert.alert(t("encounter.cancelRevealTitle"), msg);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handleDecline = async () => {
     try {
       await declineRevealRequest(encounter.id);
@@ -521,12 +537,19 @@ export default function EncounterDetail() {
                   <Text style={[styles.lockSub, { color: colors.mutedForeground }]}>
                     {t("encounter.requestSentSub", { name: encounter.realName })}
                   </Text>
-                  <View style={{ width: "100%", marginTop: 6 }}>
+                  <View style={{ width: "100%", gap: 10, marginTop: 6 }}>
                     <PrimaryButton
                       label={t("encounter.waiting")}
                       onPress={() => {}}
                       loading
                       disabled
+                    />
+                    <PrimaryButton
+                      label={t("encounter.cancelReveal")}
+                      variant="ghost"
+                      onPress={handleCancel}
+                      disabled={cancelling}
+                      loading={cancelling}
                     />
                   </View>
                 </>
