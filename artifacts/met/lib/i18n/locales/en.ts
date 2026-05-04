@@ -459,6 +459,8 @@ export const en = {
     requestSentTitle: "Request sent",
     requestSentSub: "Waiting for {{name}} to reveal back…",
     waiting: "WAITING…",
+    cancelReveal: "Cancel request",
+    cancelRevealTitle: "Cancel request",
     socialsHidden: "Socials are hidden",
     sendRevealRequestBtn: "SEND REVEAL REQUEST",
     revealsLeftFree: "{{n}} of {{cap}} free reveals left today",

@@ -397,6 +397,8 @@ export const zh: LocaleTree = {
     requestSentTitle: "请求已发送",
     requestSentSub: "等待 {{name}} 也公开身份…",
     waiting: "等待中…",
+    cancelReveal: "取消请求",
+    cancelRevealTitle: "取消请求",
     socialsHidden: "社交账号已隐藏",
     sendRevealRequestBtn: "发送公开身份请求",
     revealsLeftFree: "今日还剩 {{n}}/{{cap}} 次免费公开",

@@ -239,6 +239,41 @@ router.post("/reveals/accept", requireUid, async (req, res) => {
   res.json(AcceptRevealRequestResponse.parse(serializeReveal(updated)));
 });
 
+// POST /api/reveals/cancel — sender withdraws their own pending request.
+// Only the original sender may cancel; only pending rows are affected.
+// Mirrors the cancellation to Firestore so the recipient's real-time
+// listener picks up the removal.
+router.post("/reveals/cancel", requireUid, async (req, res) => {
+  const senderUid = req.uid!;
+  const body = DeclineRevealRequestBody.parse(req.body);
+  const recipientUid = (body as { senderUid: string }).senderUid;
+
+  const [cancelled] = await db
+    .update(revealRequestsTable)
+    .set({ status: "declined", updatedAt: new Date() })
+    .where(
+      and(
+        eq(revealRequestsTable.senderUid, senderUid),
+        eq(revealRequestsTable.recipientUid, recipientUid),
+        eq(revealRequestsTable.status, "pending"),
+      ),
+    )
+    .returning();
+
+  if (!cancelled) {
+    res.status(404).json({ message: "No pending outbound request to that user" });
+    return;
+  }
+
+  await mirrorRevealStatus({
+    senderUid,
+    recipientUid,
+    status: "declined",
+  });
+
+  res.json({ success: true });
+});
+
 // POST /api/reveals/decline — recipient declines a pending request.
 // Does NOT touch any reverse request: declining is a per-direction
 // statement, not a mutual block.

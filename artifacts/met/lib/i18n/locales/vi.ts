@@ -420,6 +420,8 @@ export const vi: LocaleTree = {
     requestSentTitle: "Đã gửi yêu cầu",
     requestSentSub: "Đang chờ {{name}} cũng lộ diện…",
     waiting: "ĐANG CHỜ…",
+    cancelReveal: "Hủy yêu cầu",
+    cancelRevealTitle: "Hủy yêu cầu",
     socialsHidden: "Mạng xã hội đang ẩn",
     sendRevealRequestBtn: "GỬI YÊU CẦU LỘ DIỆN",
     revealsLeftFree: "Còn {{n}}/{{cap}} lượt lộ diện miễn phí hôm nay",
