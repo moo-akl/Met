@@ -276,6 +276,10 @@ export const fr: LocaleTree = {
     webPreviewSkip: "Ignorer la connexion (aperçu web seulement)",
     signInError: "Échec de la connexion",
     signInErrorBody: "Impossible de vous connecter. Veuillez réessayer.",
+    wrongCredentials: "E-mail ou mot de passe incorrect. Veuillez réessayer.",
+    emailInUse: "Un compte avec cet e-mail existe déjà. Essayez de vous connecter.",
+    tooManyAttempts: "Trop de tentatives. Patientez un moment et réessayez.",
+    networkError: "Pas de connexion internet. Vérifiez votre réseau et réessayez.",
     welcomeTitle: "Bienvenue sur Met",
     welcomeSub:
       "Souvenez-vous de la personne, pas du nombre d'abonnés.",
