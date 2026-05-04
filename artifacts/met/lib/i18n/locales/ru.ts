@@ -276,6 +276,7 @@ export const ru: LocaleTree = {
     emailInUse: "Аккаунт с этим email уже существует. Попробуйте войти.",
     tooManyAttempts: "Слишком много попыток. Подождите немного и попробуйте снова.",
     networkError: "Нет подключения к интернету. Проверьте сеть и попробуйте снова.",
+    emailAuthDisabled: "Вход по email не включён. Используйте Google или Apple.",
     welcomeTitle: "Добро пожаловать в Met",
     welcomeSub: "Помните человека, а не количество подписчиков.",
     getStarted: "Начать",

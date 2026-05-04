@@ -205,6 +205,8 @@ export interface RemoteRevealRequestWithProfile extends RemoteRevealRequest {
 export const api = {
   baseUrl: BASE_URL,
   isConfigured: () => BASE_URL.length > 0,
+  getMyProfile: (opts: ApiOptions) =>
+    request<RemoteProfile>("GET", "/api/profiles/me", opts),
   upsertMyProfile: (opts: ApiOptions, input: UpsertProfileInput) =>
     request<RemoteProfile>("PUT", "/api/profiles/me", opts, input),
   /**

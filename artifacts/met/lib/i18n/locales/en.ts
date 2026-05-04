@@ -289,6 +289,7 @@ export const en = {
     emailInUse: "An account with this email already exists. Try signing in instead.",
     tooManyAttempts: "Too many attempts. Please wait a moment and try again.",
     networkError: "No internet connection. Please check your network and try again.",
+    emailAuthDisabled: "Email sign-in is not enabled. Please use Google or Apple to sign in.",
     termsAgreementCheckbox: "I'm 18 or older and agree to the",
     termsAgreementTerms: "Terms of Service",
     termsAgreementAnd: "and",
