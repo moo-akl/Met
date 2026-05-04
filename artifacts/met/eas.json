@@ -18,7 +18,9 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev"
+        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_MaVQlHLubCXRmZPewbuJiIruIhH",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ"
       },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0",
@@ -33,7 +35,9 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev"
+        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_MaVQlHLubCXRmZPewbuJiIruIhH",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ"
       },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0",
@@ -48,7 +52,9 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev"
+        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_MaVQlHLubCXRmZPewbuJiIruIhH",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ"
       },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0"
@@ -62,7 +68,9 @@
       "channel": "production",
       "autoIncrement": false,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev"
+        "EXPO_PUBLIC_API_URL": "https://6af4c78c-ed33-4099-89ad-3023553b0294-00-1fqmoofrx8svc.kirk.replit.dev",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_MaVQlHLubCXRmZPewbuJiIruIhH",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ"
       },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0"
