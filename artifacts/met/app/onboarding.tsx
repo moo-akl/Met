@@ -33,9 +33,10 @@ import {
   signOut,
   signUpWithEmail,
 } from "@/lib/auth";
+import { api, ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
-import type { SocialLinks, SocialPlatform } from "@/lib/types";
+import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
 import { consumePendingReferral } from "./_layout";
 
@@ -171,11 +172,46 @@ export default function OnboardingScreen() {
   };
 
   // ------------------------------------------------------------------
-  // Auth handlers — all funnel into setPhase("photo") on success so the
-  // user lands on the first profile-setup step with a Firebase UID
-  // already attached to the session.
+  // Auth handlers — all funnel into goToProfileSetup() on success.
+  // If the user already has a server-side profile (re-login after
+  // logout), we restore it locally and skip straight to the main app.
   // ------------------------------------------------------------------
-  const goToProfileSetup = () => setPhase("photo");
+  const tryRestoreExistingProfile = async (): Promise<boolean> => {
+    try {
+      const uid = await getCurrentUserId();
+      if (!uid) return false;
+      if (!api.isConfigured()) return false;
+      const remote = await api.getMyProfile({ uid });
+      if (!remote || !remote.displayName) return false;
+      const restored: Profile = {
+        id: remote.uid,
+        name: remote.displayName,
+        bio: remote.bio ?? "",
+        photoUri: remote.photoUrl ?? "",
+        socials: (remote.socials ?? {}) as SocialLinks,
+        verified: true,
+        isVisible: remote.isVisible ?? false,
+        photoVerifiedAt: Date.now(),
+        extraPhotos: [],
+      };
+      if (!restored.photoUri) return false;
+      await setProfile(restored);
+      await ensureMyCode();
+      router.replace("/(tabs)");
+      return true;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) return false;
+      if (err instanceof ApiError && (err.status === 0 || err.status >= 500)) {
+        return false;
+      }
+      return false;
+    }
+  };
+
+  const goToProfileSetup = async () => {
+    const restored = await tryRestoreExistingProfile();
+    if (!restored) setPhase("photo");
+  };
 
   const showSignInError = () =>
     Alert.alert(
@@ -204,7 +240,7 @@ export default function OnboardingScreen() {
     try {
       // Returns null when the user cancels the Apple sheet — silent.
       const uid = await signInWithApple();
-      if (uid) goToProfileSetup();
+      if (uid) await goToProfileSetup();
     } catch {
       showSignInError();
     } finally {
@@ -218,7 +254,7 @@ export default function OnboardingScreen() {
     try {
       // Returns null when the user cancels the Google sheet — silent.
       const uid = await signInWithGoogle();
-      if (uid) goToProfileSetup();
+      if (uid) await goToProfileSetup();
     } catch {
       showSignInError();
     } finally {
@@ -256,7 +292,7 @@ export default function OnboardingScreen() {
       // and bypass this gate via handleApple/handleGoogle.
       const verified = await isCurrentUserEmailVerified();
       if (verified) {
-        goToProfileSetup();
+        await goToProfileSetup();
         return;
       }
       // Sign-in path: an existing unverified account exists. Re-issue
@@ -295,10 +331,15 @@ export default function OnboardingScreen() {
           t("onboarding.signInError"),
           t("onboarding.networkError"),
         );
+      } else if (code === "auth/operation-not-allowed") {
+        Alert.alert(
+          t("onboarding.signInError"),
+          t("onboarding.emailAuthDisabled"),
+        );
       } else {
         Alert.alert(
           t("onboarding.signInError"),
-          __DEV__ ? `${code || "unknown"}: ${msg}` : t("onboarding.signInErrorBody"),
+          code ? `${t("onboarding.signInErrorBody")} (${code})` : t("onboarding.signInErrorBody"),
         );
       }
     } finally {
@@ -313,7 +354,7 @@ export default function OnboardingScreen() {
     try {
       const verified = await reloadAndCheckVerified();
       if (verified) {
-        goToProfileSetup();
+        await goToProfileSetup();
       } else {
         Alert.alert(
           t("onboarding.verifyNotYetTitle"),
@@ -381,9 +422,9 @@ export default function OnboardingScreen() {
   // Web preview only — handleFinish will issue a local- ID since there's
   // no signed-in Firebase user. Hidden on native, where real auth is
   // required.
-  const handleWebSkip = () => {
+  const handleWebSkip = async () => {
     if (!requireTerms()) return;
-    goToProfileSetup();
+    await goToProfileSetup();
   };
 
   const handleFinish = async () => {
@@ -457,8 +498,8 @@ export default function OnboardingScreen() {
         setPhase("verify");
       } else {
         // Verified email, or non-email provider (Apple/Google) —
-        // skip past intro/auth into profile setup.
-        setPhase("photo");
+        // try restoring from server first, otherwise show profile setup.
+        await goToProfileSetup();
       }
     })();
     return () => {
@@ -473,7 +514,7 @@ export default function OnboardingScreen() {
     if (phase !== "verify") return;
     const id = setInterval(async () => {
       const verified = await reloadAndCheckVerified();
-      if (verified) goToProfileSetup();
+      if (verified) await goToProfileSetup();
     }, VERIFY_POLL_MS);
     return () => clearInterval(id);
   }, [phase]);

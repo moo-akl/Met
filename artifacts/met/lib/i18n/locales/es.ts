@@ -274,6 +274,7 @@ export const es: LocaleTree = {
     emailInUse: "Ya existe una cuenta con este correo. Prueba iniciar sesión.",
     tooManyAttempts: "Demasiados intentos. Espera un momento y vuelve a intentar.",
     networkError: "Sin conexión a internet. Verifica tu red e inténtalo de nuevo.",
+    emailAuthDisabled: "El inicio con correo no está habilitado. Usa Google o Apple.",
     welcomeTitle: "Bienvenido a Met",
     welcomeSub: "Recuerda a la persona, no el número de seguidores.",
     getStarted: "Empezar",

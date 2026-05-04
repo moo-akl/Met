@@ -276,6 +276,7 @@ export const nl: LocaleTree = {
     emailInUse: "Er bestaat al een account met dit e-mailadres. Probeer in te loggen.",
     tooManyAttempts: "Te veel pogingen. Wacht even en probeer het opnieuw.",
     networkError: "Geen internetverbinding. Controleer je netwerk en probeer het opnieuw.",
+    emailAuthDisabled: "Inloggen met e-mail is niet ingeschakeld. Gebruik Google of Apple.",
     welcomeTitle: "Welkom bij Met",
     welcomeSub: "Onthoud de mens, niet het aantal volgers.",
     getStarted: "Beginnen",

@@ -276,6 +276,7 @@ export const vi: LocaleTree = {
     emailInUse: "Đã có tài khoản với email này. Hãy thử đăng nhập.",
     tooManyAttempts: "Quá nhiều lần thử. Vui lòng đợi một lát rồi thử lại.",
     networkError: "Không có kết nối internet. Kiểm tra mạng và thử lại.",
+    emailAuthDisabled: "Đăng nhập bằng email chưa được bật. Hãy dùng Google hoặc Apple.",
     welcomeTitle: "Chào mừng đến Met",
     welcomeSub: "Hãy nhớ về con người, không phải số người theo dõi.",
     getStarted: "Bắt đầu",
