@@ -263,6 +263,7 @@ export const zh: LocaleTree = {
     emailInUse: "该邮箱已注册账号，请尝试登录。",
     tooManyAttempts: "尝试次数过多，请稍后再试。",
     networkError: "无网络连接，请检查网络后重试。",
+    emailAuthDisabled: "邮箱登录未启用，请使用 Google 或 Apple 登录。",
     welcomeTitle: "欢迎来到 Met",
     welcomeSub: "记住这个人,而不是粉丝数。",
     getStarted: "开始",

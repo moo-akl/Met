@@ -281,6 +281,7 @@ export const ar: LocaleTree = {
     emailInUse: "يوجد حساب بهذا البريد بالفعل. جرّب تسجيل الدخول.",
     tooManyAttempts: "محاولات كثيرة جداً. انتظر قليلاً ثم حاول مجدداً.",
     networkError: "لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مجدداً.",
+    emailAuthDisabled: "تسجيل الدخول بالبريد غير مفعّل. استخدم Google أو Apple.",
     welcomeTitle: "مرحبًا بك في Met",
     welcomeSub: "تذكّر الإنسان لا عدد المتابعين.",
     getStarted: "ابدأ",

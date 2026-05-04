@@ -9,8 +9,6 @@ import Purchases, {
   type PurchasesPackage,
 } from "react-native-purchases";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Constants from "expo-constants";
-
 import { useReferrals } from "./referrals";
 
 const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
@@ -29,28 +27,29 @@ export const PRO_OFFERING_IDENTIFIER = "pro";
 export type Tier = "free" | "plus" | "pro";
 
 export function isRevenueCatTestMode() {
-  return (
-    __DEV__ ||
-    Platform.OS === "web" ||
-    Constants.executionEnvironment === "storeClient"
-  );
+  return __DEV__ || Platform.OS === "web";
 }
 
 function getRevenueCatApiKey() {
-  if (
-    !REVENUECAT_TEST_API_KEY ||
-    !REVENUECAT_IOS_API_KEY ||
-    !REVENUECAT_ANDROID_API_KEY
-  ) {
-    throw new Error("RevenueCat Public API Keys not found");
-  }
-
   if (isRevenueCatTestMode()) {
+    if (!REVENUECAT_TEST_API_KEY) {
+      throw new Error("RevenueCat test API key not found");
+    }
     return REVENUECAT_TEST_API_KEY;
   }
-  if (Platform.OS === "ios") return REVENUECAT_IOS_API_KEY;
-  if (Platform.OS === "android") return REVENUECAT_ANDROID_API_KEY;
-  return REVENUECAT_TEST_API_KEY;
+  if (Platform.OS === "ios") {
+    if (!REVENUECAT_IOS_API_KEY) {
+      throw new Error("RevenueCat iOS API key not found");
+    }
+    return REVENUECAT_IOS_API_KEY;
+  }
+  if (Platform.OS === "android") {
+    if (!REVENUECAT_ANDROID_API_KEY) {
+      throw new Error("RevenueCat Android API key not found");
+    }
+    return REVENUECAT_ANDROID_API_KEY;
+  }
+  throw new Error("RevenueCat: unsupported platform");
 }
 
 let initialized = false;
