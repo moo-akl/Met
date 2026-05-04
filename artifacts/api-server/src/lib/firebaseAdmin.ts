@@ -2,10 +2,26 @@ import { initializeApp, cert, getApps, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getStorage, type Storage } from "firebase-admin/storage";
+import * as fs from "fs";
+import * as path from "path";
 import { logger } from "./logger";
 
 let app: App | null = null;
 let initError: Error | null = null;
+
+function loadServiceAccountJson(): string {
+  const filePath = path.resolve(__dirname, "..", "firebase-sa.json");
+  if (fs.existsSync(filePath)) {
+    logger.info({ filePath }, "Loading Firebase SA from file");
+    return fs.readFileSync(filePath, "utf8");
+  }
+  const raw = process.env["FIREBASE_SERVICE_ACCOUNT_JSON"];
+  if (raw && raw.trim()) return raw;
+  throw new Error(
+    "Firebase service account not found. Provide firebase-sa.json " +
+      "next to the server entry point or set FIREBASE_SERVICE_ACCOUNT_JSON env var.",
+  );
+}
 
 function init(): App {
   if (app) return app;
@@ -17,12 +33,11 @@ function init(): App {
     return app;
   }
 
-  const raw = process.env["FIREBASE_SERVICE_ACCOUNT_JSON"];
-  if (!raw || !raw.trim()) {
-    initError = new Error(
-      "FIREBASE_SERVICE_ACCOUNT_JSON env var is not set. " +
-        "Cannot initialize Firebase Admin SDK.",
-    );
+  let raw: string;
+  try {
+    raw = loadServiceAccountJson();
+  } catch (err) {
+    initError = err as Error;
     throw initError;
   }
 
@@ -31,7 +46,7 @@ function init(): App {
     parsed = JSON.parse(raw) as typeof parsed;
   } catch (err) {
     initError = new Error(
-      "FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON: " +
+      "Firebase service account JSON is not valid: " +
         (err as Error).message,
     );
     throw initError;
