@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   db,
   profilesTable,
@@ -115,9 +115,11 @@ router.post("/reveals", requireUid, async (req, res) => {
   );
 });
 
-// GET /api/reveals/inbox — pending requests addressed to the caller, with
-// the sender's profile inlined so the client can render the encounter
-// without a follow-up profile fetch per request.
+// GET /api/reveals/inbox — pending AND accepted requests addressed to the
+// caller, with the sender's profile inlined so the client can render the
+// encounter without a follow-up profile fetch per request. Accepted entries
+// are included so the client can reconstruct connections where the user was
+// the recipient after a logout+re-login (local storage wipe).
 router.get("/reveals/inbox", requireUid, async (req, res) => {
   const uid = req.uid!;
   const rows = await db
@@ -133,7 +135,7 @@ router.get("/reveals/inbox", requireUid, async (req, res) => {
     .where(
       and(
         eq(revealRequestsTable.recipientUid, uid),
-        eq(revealRequestsTable.status, "pending"),
+        inArray(revealRequestsTable.status, ["pending", "accepted"]),
       ),
     )
     .orderBy(desc(revealRequestsTable.createdAt));

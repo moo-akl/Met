@@ -790,33 +790,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const wm = revealWatermarks.current.inbound.get(r.senderUid) ?? 0;
           if (ts <= wm) continue; // stale — a later action already won
           const message = r.message ?? undefined;
+          const targetStatus: EncounterStatus =
+            r.status === "accepted" ? "connected" : "request_received";
           const existing = byId.get(r.senderUid);
           if (existing) {
-            if (existing.status === "connected" || existing.blocked) continue;
-            const sameMsg =
+            if (existing.status === "connected" || existing.blocked) {
+              revealWatermarks.current.inbound.set(r.senderUid, ts);
+              continue;
+            }
+            if (
+              targetStatus === "request_received" &&
               (existing.revealMessage ?? undefined) === message &&
-              existing.status === "request_received";
-            if (sameMsg) continue;
+              existing.status === "request_received"
+            ) {
+              continue;
+            }
             const next: Encounter = {
               ...existing,
-              status: "request_received",
+              status: targetStatus,
               realName: r.profile.displayName || existing.realName,
               photoUri: r.profile.photoUrl ?? existing.photoUri,
               bio: r.profile.bio ?? existing.bio,
               socials: (r.profile.socials ??
                 existing.socials) as Encounter["socials"],
             };
-            if (message) next.revealMessage = message;
+            if (targetStatus === "request_received" && message)
+              next.revealMessage = message;
             else delete (next as { revealMessage?: string }).revealMessage;
             delete (next as { requestSentAt?: number }).requestSentAt;
             byId.set(r.senderUid, next);
             revealWatermarks.current.inbound.set(r.senderUid, ts);
             changed = true;
           } else {
-            // Sender isn't in our local list yet (e.g. they scanned our QR
-            // and reveal-requested us before we ever detected them). Create
-            // a fabricated encounter so the request surfaces in the inbox.
-            const ts = Date.parse(r.createdAt) || Date.now();
+            const createdTs = Date.parse(r.createdAt) || Date.now();
             const fabricated: Encounter = {
               id: r.senderUid,
               realName: r.profile.displayName || "Met user",
@@ -824,13 +830,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               bio: r.profile.bio ?? "",
               socials: (r.profile.socials ?? {}) as Encounter["socials"],
               encounterCount: 1,
-              firstSeenAt: ts,
-              lastSeenAt: ts,
+              firstSeenAt: createdTs,
+              lastSeenAt: createdTs,
               lastDistanceM: 0,
-              lastLocation: "Reveal request",
-              status: "request_received",
+              lastLocation:
+                targetStatus === "connected" ? "Connection" : "Reveal request",
+              status: targetStatus,
             };
-            if (message) fabricated.revealMessage = message;
+            if (targetStatus === "request_received" && message)
+              fabricated.revealMessage = message;
             byId.set(r.senderUid, fabricated);
             created.push(fabricated);
             revealWatermarks.current.inbound.set(r.senderUid, ts);
@@ -859,11 +867,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (ts <= wm) continue; // stale — a later send/accept already won
           const existing = byId.get(r.recipientUid);
           if (!existing) {
-            // Still bump the watermark even if we have no local encounter
-            // to update — otherwise we'll keep re-evaluating this entry on
-            // every poll. The peer not being present means the user
-            // removed/blocked them locally; the server row is just history.
-            revealWatermarks.current.outbound.set(r.recipientUid, ts);
+            if (r.status === "accepted") {
+              const createdTs = Date.parse(r.createdAt) || Date.now();
+              const fabricated: Encounter = {
+                id: r.recipientUid,
+                realName: r.profile.displayName || "Met user",
+                photoUri: r.profile.photoUrl ?? "",
+                bio: r.profile.bio ?? "",
+                socials: (r.profile.socials ?? {}) as Encounter["socials"],
+                encounterCount: 1,
+                firstSeenAt: createdTs,
+                lastSeenAt: createdTs,
+                lastDistanceM: 0,
+                lastLocation: "Connection",
+                status: "connected",
+              };
+              byId.set(r.recipientUid, fabricated);
+              created.push(fabricated);
+              revealWatermarks.current.outbound.set(r.recipientUid, ts);
+              changed = true;
+            } else {
+              revealWatermarks.current.outbound.set(r.recipientUid, ts);
+            }
             continue;
           }
           if (r.status === "accepted") {
