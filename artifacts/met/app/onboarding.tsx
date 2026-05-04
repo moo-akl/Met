@@ -272,8 +272,35 @@ export default function OnboardingScreen() {
       setVerifyEmail(email);
       setResendCooldownEndsAt(Date.now() + RESEND_COOLDOWN_MS);
       setPhase("verify");
-    } catch {
-      showSignInError();
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? "";
+      const msg = (err as { message?: string })?.message ?? "";
+      if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
+        Alert.alert(
+          t("onboarding.signInError"),
+          t("onboarding.wrongCredentials"),
+        );
+      } else if (code === "auth/email-already-in-use") {
+        Alert.alert(
+          t("onboarding.signInError"),
+          t("onboarding.emailInUse"),
+        );
+      } else if (code === "auth/too-many-requests") {
+        Alert.alert(
+          t("onboarding.signInError"),
+          t("onboarding.tooManyAttempts"),
+        );
+      } else if (code === "auth/network-request-failed") {
+        Alert.alert(
+          t("onboarding.signInError"),
+          t("onboarding.networkError"),
+        );
+      } else {
+        Alert.alert(
+          t("onboarding.signInError"),
+          __DEV__ ? `${code || "unknown"}: ${msg}` : t("onboarding.signInErrorBody"),
+        );
+      }
     } finally {
       setAuthBusy(false);
     }
