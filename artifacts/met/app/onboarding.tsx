@@ -109,7 +109,7 @@ const PRIVACY_URL =
 export default function OnboardingScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { setProfile } = useApp();
+  const { setProfile, setPermissionsCompleted } = useApp();
   const insets = useSafeAreaInsets();
   const { t } = useT();
 
@@ -196,14 +196,11 @@ export default function OnboardingScreen() {
       };
       if (!restored.photoUri) return false;
       await setProfile(restored);
+      await setPermissionsCompleted(true);
       await ensureMyCode();
       router.replace("/(tabs)");
       return true;
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) return false;
-      if (err instanceof ApiError && (err.status === 0 || err.status >= 500)) {
-        return false;
-      }
+    } catch {
       return false;
     }
   };
@@ -455,22 +452,55 @@ export default function OnboardingScreen() {
         return;
       }
     }
-    await setProfile({
+    const newProfile: Profile = {
       id: userId,
       name: name.trim(),
       bio: bio.trim(),
       photoUri,
       socials,
       verified: true,
-      // App Store Review Guideline 5.1.2(i): users must explicitly opt
-      // in before being broadcast to nearby strangers. New profiles
-      // start hidden; the user becomes discoverable by tapping the
-      // visibility pill in the home header (which fires a one-time
-      // consent dialog explaining what that means).
       isVisible: false,
       photoVerifiedAt: Date.now(),
       extraPhotos: [],
-    });
+    };
+    await setProfile(newProfile);
+    if (api.isConfigured() && !/^local-/.test(userId)) {
+      try {
+        let remotePhotoUrl: string | null = null;
+        if (photoUri && !/^https?:\/\//i.test(photoUri)) {
+          const FileSystem = await import("expo-file-system/legacy");
+          const base64 = await FileSystem.readAsStringAsync(photoUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const lower = photoUri.toLowerCase();
+          const contentType = lower.endsWith(".png")
+            ? "image/png"
+            : lower.endsWith(".webp")
+              ? "image/webp"
+              : "image/jpeg";
+          const uploaded = await api.uploadProfilePhoto(
+            { uid: userId },
+            { base64, contentType },
+          );
+          remotePhotoUrl = uploaded.photoUrl;
+          await setProfile({ ...newProfile, photoUri: remotePhotoUrl });
+        } else {
+          remotePhotoUrl = photoUri;
+        }
+        await api.upsertMyProfile(
+          { uid: userId },
+          {
+            displayName: newProfile.name,
+            photoUrl: remotePhotoUrl,
+            bio: newProfile.bio || null,
+            socials: newProfile.socials as Record<string, string>,
+            isVisible: false,
+          },
+        );
+      } catch {
+        // Best-effort — the background effect in AppContext will retry.
+      }
+    }
     router.replace("/(tabs)");
   };
 
