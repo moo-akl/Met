@@ -317,15 +317,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
       await saveEncounters(next);
-      // Symmetric removal: if this was a real connection (backed by an
-      // accepted reveal-request pair on the server), tell the api-server
-      // to delete BOTH directions and mirror the removal to the peer's
-      // Firestore so their device drops the encounter too. Best-effort:
-      // local removal already happened, so a network failure just means
-      // the peer keeps the stale connection until they remove it
-      // themselves. We don't need to await the server call to update the
-      // UI — fire-and-forget keeps the tap snappy.
-      if (wasConnected && authedUid && api.isConfigured()) {
+      // Symmetric removal: tell the api-server to delete EVERYTHING
+      // about the pair (any reveal-request rows in Postgres, both
+      // sides' requests / met_people / encounter mirror docs in
+      // Firestore, plus a one-shot removal signal on each side). We do
+      // this for ANY encounter — not just connected ones — because a
+      // plain "encounter" (we crossed paths but never connected) is
+      // still backed by a met_people doc on both sides, and without
+      // wiping that doc the peer's met_people listener will re-
+      // fabricate the encounter on their next snapshot tick. The
+      // endpoint is idempotent: missing rows / docs are no-ops.
+      // wasConnected is no longer used as a gate but kept above for
+      // potential future analytics; mark it referenced to keep the
+      // linter happy.
+      void wasConnected;
+      if (authedUid && api.isConfigured()) {
         try {
           await api.removeConnection({ uid: authedUid }, id);
         } catch (err) {
