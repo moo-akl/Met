@@ -297,3 +297,10 @@ Standing checklist for every release:
 2. Republish the api-server (Replit autoscale deployment).
 3. Verify with `curl https://metapp.replit.app/api/healthz` AND one auth-protected route like `curl -i https://metapp.replit.app/api/profiles/me` — the latter should return `401 Missing Authorization` (not a `404` HTML page). A 404 means the deploy is stale.
 4. Only then trigger the EAS mobile build.
+
+## Android versionCode rule
+Every Android build uploaded to the Play Store (internal testing or production) **must** use a `versionCode` that has never been used before. The Play Store rejects duplicates with `Version code N has already been used. Try another version code.`
+
+`versionCode` lives in `artifacts/met/app.json` under `expo.android.versionCode`. It is a monotonically increasing integer and is separate from the user-facing `expo.version` string (e.g. `"1.0.0"`). Bump `versionCode` by 1 on every EAS Android build, even if `expo.version` is unchanged.
+
+(For iOS the equivalent field is `expo.ios.buildNumber`, which must also increase on every TestFlight/App Store upload.)
