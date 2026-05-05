@@ -1227,9 +1227,12 @@ export default function OnboardingScreen() {
             </View>
 
             <PrimaryButton
-              label={t("common.continue")}
+              label={
+                Object.values(socials).some((v) => v && v.trim())
+                  ? t("common.continue")
+                  : t("common.skip")
+              }
               onPress={() => setPhase("invite")}
-              disabled={!Object.values(socials).some((v) => v && v.trim())}
             />
           </View>
         ) : null}

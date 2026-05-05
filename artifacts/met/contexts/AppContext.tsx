@@ -892,10 +892,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             continue;
           }
           if (r.status === "accepted") {
-            if (existing.status === "connected" || existing.blocked) {
+            if (existing.blocked) {
               revealWatermarks.current.outbound.set(r.recipientUid, ts);
               continue;
             }
+            // Note (build 47): we intentionally do NOT early-skip when
+            // existing.status is already "connected". The Firestore
+            // mirror listener flips status to "connected" the moment the
+            // recipient accepts (so the sender's UI updates within ~1s
+            // instead of waiting up to 20s for this poll), but the
+            // mirror doc doesn't carry the recipient's profile. So we
+            // still need this branch to run for the profile enrichment
+            // below — re-asserting status="connected" is idempotent.
             // Bug fix (build 39 → 40): we used to only flip status here.
             // The result was that when the sender's local encounter was
             // fabricated with stale or empty profile data — e.g. it
@@ -1109,8 +1117,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
     void (async () => {
-      unsubscribe = await subscribeToRequestsChange(authedUid, () => {
+      unsubscribe = await subscribeToRequestsChange(authedUid, (changes) => {
         if (cancelled) return;
+        // Critical path for the SENDER: the moment the recipient accepts,
+        // their server-side mirror writes status="accepted" to BOTH the
+        // recipient's inbox doc AND the sender's outbox doc. We flip the
+        // matching local encounter to "connected" right here so the
+        // sender doesn't have to wait for the next 20s REST poll (and
+        // doesn't depend on the poll's watermark math working perfectly
+        // every time). This is what was broken between builds #45 and
+        // #46: receivers saw the connection instantly because they
+        // updated locally on accept; senders only saw it after the REST
+        // poll merged the outbox row, which under some conditions never
+        // landed before the user gave up and concluded it was broken.
+        // The follow-up poll still runs to enrich the encounter with
+        // the joined recipient profile (mirror docs are slim).
+        for (const change of changes) {
+          if (change.direction !== "outbound") continue;
+          if (change.status !== "accepted") continue;
+          setAllEncounters((prev) => {
+            const existing = prev.find((e) => e.id === change.peerUid);
+            if (!existing) return prev;
+            if (existing.status === "connected" || existing.blocked) {
+              return prev;
+            }
+            // Intentionally do NOT bump the outbound watermark here.
+            // The follow-up REST poll still needs to run its profile
+            // enrichment branch (which copies the recipient's fresh
+            // photo / displayName / bio / socials into the encounter).
+            // The mirror doc only carries status, not profile fields,
+            // so we let the poll do that part. The poll's accepted-
+            // outbox branch is idempotent w.r.t. status="connected".
+            const next: Encounter = {
+              ...existing,
+              status: "connected",
+            };
+            delete (next as { requestSentAt?: number }).requestSentAt;
+            delete (next as { revealMessage?: string }).revealMessage;
+            const updated = prev.map((e) =>
+              e.id === existing.id ? next : e,
+            );
+            saveEncounters(updated).catch(() => {});
+            return updated;
+          });
+        }
         triggerRevealPollRef.current?.();
       });
       if (cancelled && unsubscribe) {
