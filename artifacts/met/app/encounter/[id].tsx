@@ -131,6 +131,15 @@ export default function EncounterDetail() {
     }
   }, [encounter?.status, encounter?.id, router]);
 
+  // IMPORTANT: this useState MUST stay above the early-return guards
+  // below. Declaring it inline next to `handleCancel` (~line 252) means
+  // the component renders a different number of hooks once the
+  // encounter flips to "connected" (which short-circuits at line 147),
+  // tripping React's hooks-order check with "rendered fewer hooks than
+  // expected" and crashing the screen on accept. Build #48 shipped
+  // with that bug; do not move this back down.
+  const [cancelling, setCancelling] = useState(false);
+
   if (!encounter) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -249,7 +258,6 @@ export default function EncounterDetail() {
       Alert.alert(t("encounter.acceptReveal"), msg);
     }
   };
-  const [cancelling, setCancelling] = useState(false);
   const handleCancel = async () => {
     if (cancelling) return;
     setCancelling(true);
