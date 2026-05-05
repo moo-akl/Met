@@ -13,11 +13,29 @@
 // Behavior in Expo Go: `loadPlx()` returns null and `start()` resolves
 // `{started:false, reason:"BLE native module unavailable"}` without
 // throwing. Same fallback for web.
+//
+// GATT-on-detection fallback
+// --------------------------
+// When two iPhones are both backgrounded, iOS strips serviceData and
+// localName from the BLE advertisement — only the service UUID
+// survives. In that case `extractHash` returns null but we still know
+// a Met device is nearby. We briefly connect to the peripheral, read
+// the hash characteristic published by `MetBleModule.swift`, and feed
+// the result into the same resolve pipeline.
+//
+// Per-device state machine for the connect path:
+//   - `idle`        — never seen, or cooldown elapsed; eligible to try
+//   - `pending`     — queued; waiting for the connect slot to open
+//   - `connecting`  — actively connecting / reading
+//   - `cooldown`    — recent attempt finished; suppress retries until
+//                     `nextAttemptAt`
+// We only allow `MAX_PARALLEL_CONNECTS` simultaneous connects to keep
+// radio congestion low.
 
 import { api, type RemoteProfile } from "../api/client";
 import { extractHash } from "./encode";
-import { loadPlx, type PlxManager } from "./plx";
-import { MET_SERVICE_UUID } from "./uuids";
+import { loadPlx, type PlxConnectedDevice, type PlxManager } from "./plx";
+import { MET_HASH_CHARACTERISTIC_UUID, MET_SERVICE_UUID } from "./uuids";
 import {
   recordScannerStart,
   recordResolveAttempt,
@@ -27,6 +45,15 @@ import {
 const RESOLVE_BATCH_INTERVAL_MS = 4_000;
 const RESOLVE_BATCH_MAX = 32;
 const FIRE_REEMIT_MS = 10 * 60_000;
+
+// GATT-on-detection tunables. These are deliberately conservative —
+// the goal is to read one characteristic in a few seconds and get out
+// before the OS reclaims the connection.
+const GATT_CONNECT_TIMEOUT_MS = 6_000;
+const GATT_OVERALL_TIMEOUT_MS = 8_000;
+const GATT_SUCCESS_COOLDOWN_MS = 5 * 60_000;
+const GATT_FAILURE_COOLDOWN_MS = 30_000;
+const MAX_PARALLEL_CONNECTS = 2;
 
 export interface BleDetection {
   uid: string;
@@ -42,6 +69,16 @@ export type BleListener = (event: BleDetection) => void;
 export interface StartBleScannerOptions {
   uid: string;
   listener: BleListener;
+}
+
+type ConnectStatus = "idle" | "pending" | "connecting" | "cooldown";
+
+interface ConnectAttempt {
+  deviceId: string;
+  status: ConnectStatus;
+  rssi: number | null;
+  // Earliest wall-clock time we should retry this device.
+  nextAttemptAt: number;
 }
 
 interface ScannerState {
@@ -63,6 +100,11 @@ interface ScannerState {
   resolveTimer: ReturnType<typeof setInterval> | null;
   resolveInFlight: boolean;
   stateSub: { remove: () => void } | null;
+  // Per-device GATT-on-detection bookkeeping. Keyed by ble-plx
+  // device.id (a stable per-radio identifier on the local device —
+  // not the peer's identity).
+  connects: Map<string, ConnectAttempt>;
+  activeConnects: number;
 }
 
 let state: ScannerState | null = null;
@@ -148,6 +190,8 @@ async function _startBleScannerImpl(
     resolveTimer: null,
     resolveInFlight: false,
     stateSub: null,
+    connects: new Map(),
+    activeConnects: 0,
   };
   state = next;
 
@@ -180,6 +224,13 @@ export function stopBleScanner(): void {
     try { s.stateSub.remove(); } catch { /* noop */ }
   }
   try { s.manager.stopDeviceScan(); } catch { /* noop */ }
+  // Best-effort: tear down any in-flight GATT connections so the
+  // BleManager can destroy cleanly.
+  for (const [deviceId, attempt] of s.connects) {
+    if (attempt.status === "connecting") {
+      try { s.manager.cancelDeviceConnection(deviceId); } catch { /* noop */ }
+    }
+  }
   try { s.manager.destroy(); } catch { /* noop */ }
 }
 
@@ -238,25 +289,197 @@ function restartScan(gen: number): void {
         serviceDataKeys: [MET_SERVICE_UUID, MET_SERVICE_UUID.toUpperCase()],
         localName: device.localName ?? device.name,
       });
-      if (!hash) return;
-      const now = Date.now();
-      // Skip if we emitted recently OR a resolve for this hash is in
-      // flight (which will emit shortly). The in-flight check is what
-      // prevents the dedup race during the resolve await window.
-      const lastEmit = live.lastEmitted.get(hash) ?? 0;
-      if (now - lastEmit < FIRE_REEMIT_MS) return;
-      if (live.inFlightHashes.has(hash)) return;
-      // Capture the strongest (least-negative) RSSI seen this batch.
-      const prev = live.pendingHashes.get(hash) ?? null;
-      const rssi = device.rssi;
-      if (rssi != null && (prev == null || rssi > prev)) {
-        live.pendingHashes.set(hash, rssi);
-      } else if (!live.pendingHashes.has(hash)) {
-        live.pendingHashes.set(hash, rssi);
+      if (!hash) {
+        // No payload in the advertisement (iOS-bg peer). Try the
+        // GATT-on-detection fallback. Cheap if the device is already
+        // queued or in cooldown — the helper handles dedupe.
+        maybeQueueGattRead(gen, device.id, device.rssi);
+        return;
       }
+      enqueueHash(live, hash, device.rssi);
     },
   );
 }
+
+// Record a hash observation in the resolve queue, applying the
+// "recently emitted" and "in flight" filters. Extracted so the GATT
+// path can reuse the same logic when a connect-and-read completes.
+function enqueueHash(
+  live: ScannerState, hash: string, rssi: number | null,
+): void {
+  const now = Date.now();
+  const lastEmit = live.lastEmitted.get(hash) ?? 0;
+  if (now - lastEmit < FIRE_REEMIT_MS) return;
+  if (live.inFlightHashes.has(hash)) return;
+  // Capture the strongest (least-negative) RSSI seen this batch.
+  const prev = live.pendingHashes.get(hash) ?? null;
+  if (rssi != null && (prev == null || rssi > prev)) {
+    live.pendingHashes.set(hash, rssi);
+  } else if (!live.pendingHashes.has(hash)) {
+    live.pendingHashes.set(hash, rssi);
+  }
+}
+
+// ===== GATT-on-detection =====
+//
+// Called from the scan callback whenever we see a Met service UUID
+// without an extractable hash. Schedules at most one in-flight
+// connect per device.id, with cooldown after success/failure.
+
+function maybeQueueGattRead(
+  gen: number, deviceId: string, rssi: number | null,
+): void {
+  const s = liveStateFor(gen);
+  if (!s) return;
+  const now = Date.now();
+  const existing = s.connects.get(deviceId);
+  if (existing) {
+    // Refresh the rssi snapshot for whenever we do attempt the read.
+    if (rssi != null && (existing.rssi == null || rssi > existing.rssi)) {
+      existing.rssi = rssi;
+    }
+    if (existing.status === "cooldown" && now >= existing.nextAttemptAt) {
+      existing.status = "pending";
+      void runConnectQueue(gen);
+    }
+    return;
+  }
+  s.connects.set(deviceId, {
+    deviceId,
+    status: "pending",
+    rssi,
+    nextAttemptAt: 0,
+  });
+  void runConnectQueue(gen);
+}
+
+// Pull pending devices off the queue while we have spare slots.
+async function runConnectQueue(gen: number): Promise<void> {
+  const s = liveStateFor(gen);
+  if (!s) return;
+  while (s.activeConnects < MAX_PARALLEL_CONNECTS) {
+    let nextDeviceId: string | null = null;
+    for (const [id, attempt] of s.connects) {
+      if (attempt.status === "pending") {
+        nextDeviceId = id;
+        break;
+      }
+    }
+    if (!nextDeviceId) return;
+    const attempt = s.connects.get(nextDeviceId);
+    if (!attempt) return;
+    attempt.status = "connecting";
+    s.activeConnects += 1;
+    // Run the connect outside the loop iteration, but DO NOT await
+    // here — we want concurrency up to MAX_PARALLEL_CONNECTS.
+    void performGattRead(gen, nextDeviceId).finally(() => {
+      const live = liveStateFor(gen);
+      if (live) {
+        live.activeConnects = Math.max(0, live.activeConnects - 1);
+        // After one finishes, re-pump in case more pending arrived.
+        void runConnectQueue(gen);
+      }
+    });
+  }
+}
+
+async function performGattRead(gen: number, deviceId: string): Promise<void> {
+  const s = liveStateFor(gen);
+  if (!s) return;
+  const attempt = s.connects.get(deviceId);
+  if (!attempt) return;
+
+  let connected: PlxConnectedDevice | null = null;
+  let timedOut = false;
+  const overallTimer = setTimeout(() => {
+    timedOut = true;
+    try { s.manager.cancelDeviceConnection(deviceId); } catch { /* noop */ }
+  }, GATT_OVERALL_TIMEOUT_MS);
+
+  try {
+    connected = await s.manager.connectToDevice(deviceId, {
+      timeout: GATT_CONNECT_TIMEOUT_MS,
+    });
+    if (!liveStateFor(gen)) return;
+    await connected.discoverAllServicesAndCharacteristics();
+    if (!liveStateFor(gen)) return;
+    const ch = await connected.readCharacteristicForService(
+      MET_SERVICE_UUID,
+      MET_HASH_CHARACTERISTIC_UUID,
+    );
+    const live = liveStateFor(gen);
+    if (!live) return;
+    const b64 = ch.value;
+    if (!b64) {
+      finishAttempt(live, deviceId, /*ok*/ false);
+      return;
+    }
+    const hash = base64HeadHex(b64, 8);
+    if (!hash) {
+      finishAttempt(live, deviceId, /*ok*/ false);
+      return;
+    }
+    enqueueHash(live, hash, attempt.rssi);
+    finishAttempt(live, deviceId, /*ok*/ true);
+  } catch (err) {
+    const live = liveStateFor(gen);
+    if (live) {
+      const reason = timedOut ? "timeout" : ((err as Error)?.message ?? "unknown");
+      // Quiet log — these failures are expected when peers come and
+      // go out of range mid-handshake.
+      console.warn(`[ble] gatt-on-detection failed for ${deviceId}: ${reason}`);
+      finishAttempt(live, deviceId, /*ok*/ false);
+    }
+  } finally {
+    clearTimeout(overallTimer);
+    if (connected) {
+      try { await connected.cancelConnection(); } catch { /* noop */ }
+    } else {
+      try { s.manager.cancelDeviceConnection(deviceId); } catch { /* noop */ }
+    }
+  }
+}
+
+function finishAttempt(
+  live: ScannerState, deviceId: string, ok: boolean,
+): void {
+  const a = live.connects.get(deviceId);
+  if (!a) return;
+  a.status = "cooldown";
+  a.nextAttemptAt = Date.now() +
+    (ok ? GATT_SUCCESS_COOLDOWN_MS : GATT_FAILURE_COOLDOWN_MS);
+}
+
+// Decode the first `byteLen` bytes of a base64 string into lowercase
+// hex. Returns null on malformed input or short payloads.
+function base64HeadHex(b64: string, byteLen: number): string | null {
+  const ALPHA =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const lookup = new Int8Array(128).fill(-1);
+  for (let i = 0; i < ALPHA.length; i++) lookup[ALPHA.charCodeAt(i)] = i;
+  const clean = b64.replace(/[^A-Za-z0-9+/]/g, "");
+  const out: number[] = [];
+  for (let i = 0; i < clean.length && out.length < byteLen; i += 4) {
+    const c1 = lookup[clean.charCodeAt(i)] ?? -1;
+    const c2 = lookup[clean.charCodeAt(i + 1)] ?? -1;
+    const c3 = lookup[clean.charCodeAt(i + 2)] ?? -1;
+    const c4 = lookup[clean.charCodeAt(i + 3)] ?? -1;
+    if (c1 < 0 || c2 < 0) return null;
+    out.push((c1 << 2) | (c2 >> 4));
+    if (out.length < byteLen && c3 >= 0) out.push(((c2 & 0x0f) << 4) | (c3 >> 2));
+    if (out.length < byteLen && c4 >= 0) out.push(((c3 & 0x03) << 6) | c4);
+  }
+  if (out.length < byteLen) return null;
+  const HEX = "0123456789abcdef";
+  let hex = "";
+  for (let i = 0; i < byteLen; i++) {
+    const b = out[i]!;
+    hex += HEX[(b >> 4) & 0x0f]! + HEX[b & 0x0f]!;
+  }
+  return hex;
+}
+
+// ===== Resolve loop =====
 
 async function runResolveOnce(gen: number): Promise<void> {
   let s = liveStateFor(gen);
