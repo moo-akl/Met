@@ -30,6 +30,21 @@ export interface PlxDevice {
   manufacturerData: string | null;
 }
 
+export interface PlxCharacteristic {
+  uuid: string;
+  serviceUUID: string;
+  value: string | null; // base64
+}
+
+export interface PlxConnectedDevice extends PlxDevice {
+  discoverAllServicesAndCharacteristics(): Promise<PlxConnectedDevice>;
+  readCharacteristicForService(
+    serviceUUID: string,
+    characteristicUUID: string,
+  ): Promise<PlxCharacteristic>;
+  cancelConnection(): Promise<PlxConnectedDevice>;
+}
+
 export interface PlxManager {
   startDeviceScan(
     uuids: string[] | null,
@@ -46,6 +61,16 @@ export interface PlxManager {
     emitCurrent: boolean,
   ): { remove: () => void };
   destroy(): void;
+  // ----- GATT-on-detection. Used by the scanner when the scanned
+  // advertisement carries the Met service UUID but no extractable hash
+  // (the iOS-bg ↔ iOS-bg case). We connect briefly, read the hash
+  // characteristic, then disconnect.
+  connectToDevice(
+    deviceId: string,
+    options?: { timeout?: number; autoConnect?: boolean },
+  ): Promise<PlxConnectedDevice>;
+  cancelDeviceConnection(deviceId: string): Promise<PlxConnectedDevice>;
+  isDeviceConnected(deviceId: string): Promise<boolean>;
 }
 
 let cached: PlxModule | null | undefined;
