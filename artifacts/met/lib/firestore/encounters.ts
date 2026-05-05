@@ -103,20 +103,30 @@ export async function subscribeToMetPeople(
   };
 }
 
+export interface RequestSnapshotDoc {
+  peerUid: string;
+  direction: "inbound" | "outbound";
+  status: "pending" | "accepted" | "declined";
+}
+
 /**
- * Subscribe to the current user's requests subcollection. We don't
- * surface the full doc shape — the AppContext reveal merger needs the
- * REST-shaped `RemoteRevealRequestWithProfile` payload, which the
- * Firestore mirror docs don't have. So this stream serves only as a
- * "something changed" trigger: AppContext re-runs its REST poll (which
- * carries the joined sender/recipient profile) immediately on any
- * request change.
+ * Subscribe to the current user's requests subcollection.
+ *
+ * The listener receives:
+ *   - `changes`: docs that changed in this snapshot (added/modified).
+ *     Used by AppContext to apply outbound-accepted transitions
+ *     immediately, without waiting for the next 20s REST poll. This is
+ *     the critical path for the SENDER to see "request_sent → connected"
+ *     the moment the recipient accepts.
+ *   - The REST poll is still triggered as a follow-up so the joined
+ *     sender/recipient profile (which the mirror docs don't carry) gets
+ *     merged in for full UI fidelity.
  *
  * Returns an unsubscribe callback.
  */
 export async function subscribeToRequestsChange(
   uid: string,
-  listener: () => void,
+  listener: (changes: RequestSnapshotDoc[]) => void,
 ): Promise<() => void> {
   let cancelled = false;
   let real: (() => void) | null = null;
@@ -141,8 +151,26 @@ export async function subscribeToRequestsChange(
           firstSnapshot = false;
           return;
         }
-        if (snap.empty && snap.docChanges().length === 0) return;
-        listener();
+        const docChanges = snap.docChanges();
+        if (snap.empty && docChanges.length === 0) return;
+        const changes: RequestSnapshotDoc[] = [];
+        for (const change of docChanges) {
+          if (change.type === "removed") continue;
+          const d = change.doc.data() as Record<string, unknown>;
+          const peerUid =
+            typeof d["peerUid"] === "string"
+              ? (d["peerUid"] as string)
+              : change.doc.id;
+          const direction =
+            d["direction"] === "outbound" ? "outbound" : "inbound";
+          const rawStatus = d["status"];
+          const status =
+            rawStatus === "accepted" || rawStatus === "declined"
+              ? rawStatus
+              : "pending";
+          changes.push({ peerUid, direction, status });
+        }
+        listener(changes);
       },
       (err) => {
         console.warn("[firestore] requests snapshot error", err);
