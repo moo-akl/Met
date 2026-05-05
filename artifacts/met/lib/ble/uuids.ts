@@ -24,3 +24,17 @@ export const MET_SERVICE_UUID_RAW = MET_SERVICE_UUID.replace(/-/g, "");
  * payloads are sometimes stripped. Format: `met:<16-hex-chars>`.
  */
 export const MET_LOCAL_NAME_PREFIX = "met:";
+
+/**
+ * Read-only characteristic on the Met GATT service that returns the
+ * 8-byte identity hash. Used as the "GATT-on-detection" fallback for
+ * iOS↔iOS background pairs, where iOS strips serviceData/localName
+ * from a backgrounded peripheral's advertisement and only the service
+ * UUID survives. The scanner connects, reads this characteristic, and
+ * then feeds the hash into the normal `/api/ble/resolve` pipeline.
+ *
+ * Last byte of the UUID bumps to `02` to keep the protocol-versioning
+ * scheme from `MET_SERVICE_UUID` consistent.
+ */
+export const MET_HASH_CHARACTERISTIC_UUID =
+  "4d455400-7770-4ac2-9b3d-000000000002";
