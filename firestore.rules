@@ -73,6 +73,17 @@ service cloud.firestore {
         allow read: if isOwner(userId) && isVerifiedApp();
         allow write: if false;
       }
+
+      // ----------------------------------------------------------
+      //  users/{userId}/removals/{otherUid}
+      // ----------------------------------------------------------
+      // One-shot signal that a connection was removed (by either
+      // party). Owner-readable; the api-server is the sole writer
+      // via the Admin SDK so client writes are blocked.
+      match /removals/{otherUid} {
+        allow read: if isOwner(userId) && isVerifiedApp();
+        allow write: if false;
+      }
     }
 
     // Default deny everything else.
