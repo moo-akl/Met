@@ -104,7 +104,16 @@ async function _startBleScannerImpl(
   const generation = nextGeneration++;
   let manager: PlxManager;
   try {
-    manager = new plx.BleManager();
+    // restoreStateIdentifier lets iOS resurrect the central manager
+    // when the app is relaunched in the background after termination.
+    // Combined with the `bluetooth-central` UIBackgroundMode, our
+    // service-UUID-filtered scan keeps delivering peripherals while
+    // the app is suspended. Android handles background scanning via
+    // the foreground service started by the native MetBleModule, so
+    // the identifier is harmless cross-platform.
+    manager = new plx.BleManager({
+      restoreStateIdentifier: "MetBleCentralRestore",
+    });
   } catch (err) {
     console.warn("[ble] failed to construct BleManager", err);
     return { started: false, reason: "BleManager construction failed" };

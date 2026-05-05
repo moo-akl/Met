@@ -56,6 +56,13 @@ function withAndroidPermissions(config) {
     });
     ensure("android.permission.BLUETOOTH_CONNECT");
     ensure("android.permission.BLUETOOTH_ADVERTISE");
+    // Foreground service permissions — required so the BLE scan and
+    // advertise can keep running while the app is backgrounded. The
+    // service itself is declared in the expo-met-ble module's
+    // AndroidManifest.xml and merged in at build time.
+    ensure("android.permission.FOREGROUND_SERVICE");
+    ensure("android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE");
+    ensure("android.permission.POST_NOTIFICATIONS");
 
     return cfg;
   });
