@@ -182,3 +182,56 @@ export async function subscribeToRequestsChange(
     if (real) real();
   };
 }
+
+export interface RemovalDoc {
+  peerUid: string;
+  removedAt: number; // epoch ms
+}
+
+/**
+ * Subscribe to the current user's `removals` subcollection. The
+ * api-server writes a doc here when the OTHER party removes the
+ * connection — the client uses it as a one-shot signal to drop the
+ * encounter from its local list so both devices stay in sync.
+ *
+ * The initial snapshot is delivered too — that way a removal that
+ * happened while the user was offline still gets applied on next launch.
+ */
+export async function subscribeToRemovals(
+  uid: string,
+  listener: (removals: RemovalDoc[]) => void,
+): Promise<() => void> {
+  let cancelled = false;
+  let real: (() => void) | null = null;
+  const fs = await getFirestoreModule();
+  if (!fs) return () => {};
+  if (cancelled) return () => {};
+
+  real = fs
+    .collection("users")
+    .doc(uid)
+    .collection("removals")
+    .onSnapshot(
+      (snap) => {
+        const out: RemovalDoc[] = [];
+        snap.forEach((doc) => {
+          const d = doc.data() as Record<string, unknown>;
+          const peerUid =
+            typeof d["peerUid"] === "string"
+              ? (d["peerUid"] as string)
+              : doc.id;
+          const removedAt = toEpochMs(d["removedAt"] as MaybeTimestamp);
+          out.push({ peerUid, removedAt });
+        });
+        listener(out);
+      },
+      (err) => {
+        console.warn("[firestore] removals snapshot error", err);
+      },
+    );
+
+  return () => {
+    cancelled = true;
+    if (real) real();
+  };
+}

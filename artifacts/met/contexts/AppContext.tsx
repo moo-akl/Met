@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 
 import {
   deleteUserAccount,
@@ -33,6 +33,7 @@ import {
 } from "@/lib/firestore/presence";
 import {
   subscribeToMetPeople,
+  subscribeToRemovals,
   subscribeToRequestsChange,
   type MetPersonDoc,
 } from "@/lib/firestore/encounters";
@@ -145,6 +146,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [profile, setProfileState] = useState<Profile | null>(null);
   const [allEncounters, setAllEncounters] = useState<Encounter[]>([]);
+  // authedUid is read by `removeEncounter` (which needs to call the
+  // server-side symmetric removal endpoint). Declared up here so it's
+  // in scope for the callback definitions below; the auth-state
+  // subscription that populates it lives later in this component.
+  const [authedUid, setAuthedUid] = useState<string | null>(null);
   const [permissionsCompleted, setPermissionsCompletedState] = useState(false);
   const [preferences, setPreferencesState] = useState<Preferences>(
     DEFAULT_PREFERENCES,
@@ -300,14 +306,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const removeEncounter = useCallback(async (id: string) => {
-    let next: Encounter[] = [];
-    setAllEncounters((prev) => {
-      next = prev.filter((enc) => enc.id !== id);
-      return next;
-    });
-    await saveEncounters(next);
-  }, []);
+  const removeEncounter = useCallback(
+    async (id: string) => {
+      let next: Encounter[] = [];
+      let wasConnected = false;
+      setAllEncounters((prev) => {
+        const target = prev.find((enc) => enc.id === id);
+        wasConnected = target?.status === "connected";
+        next = prev.filter((enc) => enc.id !== id);
+        return next;
+      });
+      await saveEncounters(next);
+      // Symmetric removal: if this was a real connection (backed by an
+      // accepted reveal-request pair on the server), tell the api-server
+      // to delete BOTH directions and mirror the removal to the peer's
+      // Firestore so their device drops the encounter too. Best-effort:
+      // local removal already happened, so a network failure just means
+      // the peer keeps the stale connection until they remove it
+      // themselves. We don't need to await the server call to update the
+      // UI — fire-and-forget keeps the tap snappy.
+      if (wasConnected && authedUid && api.isConfigured()) {
+        try {
+          await api.removeConnection({ uid: authedUid }, id);
+        } catch (err) {
+          console.warn("[appcontext] removeConnection failed", err);
+        }
+      }
+    },
+    [authedUid],
+  );
 
   const setBlocked = useCallback(async (id: string, blocked: boolean) => {
     let next: Encounter[] = [];
@@ -548,8 +575,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // restarting the loop on every render.
   const upsertProximityRef = useRef(upsertEncounterFromProximity);
   upsertProximityRef.current = upsertEncounterFromProximity;
-  const [authedUid, setAuthedUid] = useState<string | null>(null);
-
   useEffect(() => {
     const unsub = subscribeToAuthState((uid) => setAuthedUid(uid));
     return () => unsub();
@@ -1009,11 +1034,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void poll();
     };
     void poll();
-    const id = setInterval(poll, 20_000);
+    // 5s interval (was 20s in build #46/#47): the sender of a reveal
+    // request needs to see "request_sent → connected" promptly when
+    // the recipient accepts. The Firestore real-time listener below is
+    // the primary path for that update, but if it's blocked (App Check
+    // hiccup, native bridge race, etc.) the REST poll is the safety
+    // net — and 20s of staleness was long enough that users assumed
+    // the app was broken. 5s of polling two small REST endpoints per
+    // signed-in user is a non-issue for battery and bandwidth.
+    const id = setInterval(poll, 5_000);
+    // Also kick an immediate poll whenever the app returns to the
+    // foreground so a user who locked their phone mid-handshake sees
+    // the connection appear the moment they reopen Met, instead of
+    // waiting for the next interval tick.
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void poll();
+    });
     return () => {
       cancelled = true;
       triggerRevealPollRef.current = null;
       clearInterval(id);
+      appStateSub.remove();
     };
   }, [authedUid, applyRemoteRevealState]);
 
@@ -1162,6 +1203,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
         }
         triggerRevealPollRef.current?.();
+      });
+      if (cancelled && unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, [authedUid]);
+
+  // Firestore real-time subscription for the user's `removals`
+  // subcollection. When the OTHER party removes a connection, the
+  // api-server writes a doc here; we use it as a one-shot signal to
+  // drop the matching encounter from the local list so both devices
+  // stay in sync. Initial snapshot is processed too — that way a
+  // removal that happened while we were offline is applied on launch.
+  // Removals we already processed are tracked in a ref so re-arriving
+  // snapshots don't churn the list.
+  const processedRemovalsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!authedUid || !api.isConfigured()) {
+      processedRemovalsRef.current = new Set();
+      return;
+    }
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+    void (async () => {
+      unsubscribe = await subscribeToRemovals(authedUid, (removals) => {
+        if (cancelled) return;
+        const fresh = removals.filter(
+          (r) => !processedRemovalsRef.current.has(r.peerUid),
+        );
+        if (fresh.length === 0) return;
+        const peerUids = new Set(fresh.map((r) => r.peerUid));
+        for (const r of fresh) processedRemovalsRef.current.add(r.peerUid);
+        setAllEncounters((prev) => {
+          const next = prev.filter((e) => !peerUids.has(e.id));
+          if (next.length === prev.length) return prev;
+          saveEncounters(next).catch(() => {});
+          return next;
+        });
       });
       if (cancelled && unsubscribe) {
         unsubscribe();
