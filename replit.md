@@ -288,3 +288,12 @@ Prioritize performance and user experience in all development tasks.
   - On success, the resolved hash is fed into the same `enqueueHash(...)` path as serviceData hits, so it goes through the normal batched `/api/ble/resolve` pipeline. Cooldown after success: `5 min`. After failure: `30s`.
   - The `connects` map and `activeConnects` counter are torn down on `stopBleScanner` (in-flight connections are cancelled).
 - **Permissions / build**: no new permissions needed (existing `BLUETOOTH_CONNECT` covers the new path on Android; iOS only needs `bluetooth-peripheral` which Build #45 already added). Bumped iOS `buildNumber` 45→46 and Android `versionCode` 23→24.
+
+## Release rule (do not skip)
+The api-server at `https://metapp.replit.app` is a **separate deployment** from the EAS mobile build. Whenever code changes touch any file under `artifacts/api-server/` (routes, middleware, app.ts, db schema, etc.), the api-server **must be republished before** the new mobile build is shipped to users. Skipping this causes old-server / new-app mismatches that surface as bogus "couldn't reach server" errors and 404s on perfectly valid routes — exactly what happened between builds #45 and #46 (visibility/profile-save broke because the server was still on a build from before `routes/profiles.ts`, `routes/presence.ts`, `routes/reveals.ts`, and `routes/profilePhoto.ts` existed).
+
+Standing checklist for every release:
+1. Run `pnpm --filter @workspace/api-server run build` and confirm it succeeds.
+2. Republish the api-server (Replit autoscale deployment).
+3. Verify with `curl https://metapp.replit.app/api/healthz` AND one auth-protected route like `curl -i https://metapp.replit.app/api/profiles/me` — the latter should return `401 Missing Authorization` (not a `404` HTML page). A 404 means the deploy is stale.
+4. Only then trigger the EAS mobile build.
