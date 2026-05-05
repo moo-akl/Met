@@ -279,13 +279,20 @@ export async function mirrorRevealStatus(args: {
  * Symmetric removal mirror — when one user removes a connection, both
  * users need to see the other disappear from their connections list.
  *
- * We do two things here:
+ * We do three things here:
  *   1. Delete BOTH sides' `requests/{otherUid}` mirror docs so neither
  *      device's snapshot stream keeps surfacing the now-gone pair.
- *   2. Write a `users/{otherUid}/removals/{me}` doc on each side so the
+ *   2. Delete BOTH sides' `met_people/{otherUid}` encounter-history
+ *      docs. Without this, the `subscribeToMetPeople` listener on the
+ *      peer's device re-fabricates the encounter from Firestore on the
+ *      next snapshot tick and the connection appears to come back from
+ *      the dead. This is the bit that was missing in build #48.
+ *   3. Write a `users/{otherUid}/removals/{me}` doc on each side so the
  *      peer's client (which has its own local "encounter" state machine
  *      not directly bound to the requests collection) gets a one-shot
- *      signal it can act on to drop the encounter from its UI.
+ *      signal it can act on to drop the encounter from its UI
+ *      immediately, without waiting for the met_people delete to round-
+ *      trip through onSnapshot.
  *
  * Best-effort: Postgres deletes are the source of truth; a Firestore
  * outage must not roll back the API response.
@@ -308,6 +315,16 @@ export async function mirrorConnectionRemoval(args: {
       .doc(args.uidB)
       .collection("requests")
       .doc(args.uidA);
+    const aMetPerson = db
+      .collection("users")
+      .doc(args.uidA)
+      .collection("met_people")
+      .doc(args.uidB);
+    const bMetPerson = db
+      .collection("users")
+      .doc(args.uidB)
+      .collection("met_people")
+      .doc(args.uidA);
     const aRemoval = db
       .collection("users")
       .doc(args.uidA)
@@ -322,6 +339,8 @@ export async function mirrorConnectionRemoval(args: {
     const batch = db.batch();
     batch.delete(aRequests);
     batch.delete(bRequests);
+    batch.delete(aMetPerson);
+    batch.delete(bMetPerson);
     batch.set(aRemoval, { peerUid: args.uidB, removedAt: now }, { merge: true });
     batch.set(bRemoval, { peerUid: args.uidA, removedAt: now }, { merge: true });
     await batch.commit();

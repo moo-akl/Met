@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "app.met.founders",
-      "versionCode": 27,
+      "versionCode": 28,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#92C977"
