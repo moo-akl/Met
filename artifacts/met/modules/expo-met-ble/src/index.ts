@@ -4,9 +4,10 @@
 // UUID) carrying an 8-byte identity hash so other Met phones can
 // detect us. Scanning is handled separately by `react-native-ble-plx`.
 //
-// Foreground only. Background advertising on iOS requires
-// `bluetooth-peripheral` background mode + App Store justification —
-// out of scope for v1.0.
+// Background-capable as of build #45. iOS uses the
+// `bluetooth-peripheral` UIBackgroundMode + CBPeripheralManager
+// `restoreIdentifier`. Android uses a foreground service started by
+// the native module the moment advertising/scan begins.
 //
 // In Expo Go (no native module linked) every method here is a no-op
 // that resolves harmlessly so callers don't need to feature-detect.
