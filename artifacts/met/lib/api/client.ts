@@ -313,6 +313,16 @@ export const api = {
       senderUid: recipientUid,
     }),
   /**
+   * Symmetric removal of a connection — deletes the underlying reveal-
+   * request rows on the server for BOTH directions and mirrors the
+   * removal to Firestore so the peer's device drops the encounter from
+   * its UI without polling.
+   */
+  removeConnection: (opts: ApiOptions, peerUid: string) =>
+    request<{ success: boolean }>("POST", "/api/connections/remove", opts, {
+      peerUid,
+    }),
+  /**
    * Submit a content / abuse report. Server persists to Firestore
    * `reports` collection so the team can action within 24h per Apple
    * Guideline 1.2. Best-effort from the client side — we always also

@@ -274,3 +274,64 @@ export async function mirrorRevealStatus(args: {
     return { ok: false, error };
   }
 }
+
+/**
+ * Symmetric removal mirror — when one user removes a connection, both
+ * users need to see the other disappear from their connections list.
+ *
+ * We do two things here:
+ *   1. Delete BOTH sides' `requests/{otherUid}` mirror docs so neither
+ *      device's snapshot stream keeps surfacing the now-gone pair.
+ *   2. Write a `users/{otherUid}/removals/{me}` doc on each side so the
+ *      peer's client (which has its own local "encounter" state machine
+ *      not directly bound to the requests collection) gets a one-shot
+ *      signal it can act on to drop the encounter from its UI.
+ *
+ * Best-effort: Postgres deletes are the source of truth; a Firestore
+ * outage must not roll back the API response.
+ */
+export async function mirrorConnectionRemoval(args: {
+  uidA: string;
+  uidB: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const db = adminDb();
+    const now = FieldValue.serverTimestamp();
+
+    const aRequests = db
+      .collection("users")
+      .doc(args.uidA)
+      .collection("requests")
+      .doc(args.uidB);
+    const bRequests = db
+      .collection("users")
+      .doc(args.uidB)
+      .collection("requests")
+      .doc(args.uidA);
+    const aRemoval = db
+      .collection("users")
+      .doc(args.uidA)
+      .collection("removals")
+      .doc(args.uidB);
+    const bRemoval = db
+      .collection("users")
+      .doc(args.uidB)
+      .collection("removals")
+      .doc(args.uidA);
+
+    const batch = db.batch();
+    batch.delete(aRequests);
+    batch.delete(bRequests);
+    batch.set(aRemoval, { peerUid: args.uidB, removedAt: now }, { merge: true });
+    batch.set(bRemoval, { peerUid: args.uidA, removedAt: now }, { merge: true });
+    await batch.commit();
+    return { ok: true };
+  } catch (err) {
+    const error = (err as Error)?.message ?? String(err);
+    logger.warn(
+      { err: error, uidA: args.uidA, uidB: args.uidB },
+      "Firestore connection removal mirror failed",
+    );
+    return { ok: false, error };
+  }
+}
