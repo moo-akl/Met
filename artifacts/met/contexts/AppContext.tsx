@@ -1369,26 +1369,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const acceptRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Sole network path: write the new "accepted" status DIRECTLY
-      // into both users' Firestore `requests/{peerUid}` docs in a
-      // single batch. The sender's `subscribeToRequestsChange`
-      // listener fires the moment Firestore acks the write, flipping
-      // their encounter to "connected" without any server round-trip.
-      //
-      // The Postgres source-of-truth mirror is handled server-side by
-      // the `mirrorRevealStatusToPostgres` Cloud Function (see
-      // `functions/src/index.ts`), which watches the recipient's
-      // `requests/{peerUid}` doc and applies the same status flip to
-      // the `reveal_requests` table. That removes the previous
-      // fire-and-forget call to `/api/reveals/accept`, which silently
-      // dropped writes when the api-server was slow or unreachable.
+      // Try writing directly to Firestore first (fastest path — the
+      // sender's listener picks it up instantly). If the Firestore
+      // write fails for any reason, fall back to the API server,
+      // which uses the Admin SDK and is not subject to client-side
+      // security-rule or App Check constraints.
       const fsOk = await writeRevealResponse(authedUid, senderUid, "accepted");
-      // Don't flip local state on Firestore failure — otherwise the
-      // UI shows "connected" while the peer never hears about it,
-      // and Postgres (mirrored by the Cloud Function from this same
-      // Firestore write) also stays out of sync.
       if (!fsOk) {
-        throw new Error("Could not reach the network. Please try again.");
+        if (!api.isConfigured()) {
+          throw new Error("Could not reach the network. Please try again.");
+        }
+        await api.acceptReveal({ uid: authedUid }, senderUid);
       }
       await updateEncounterStatus(senderUid, "connected");
     },
@@ -1398,12 +1389,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const declineRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Same Firestore-first strategy as accept. The Postgres mirror
-      // is handled by the `mirrorRevealStatusToPostgres` Cloud
-      // Function — no fire-and-forget API call from the client.
+      // Same Firestore-first strategy as accept, with API server fallback.
       const fsOk = await writeRevealResponse(authedUid, senderUid, "declined");
       if (!fsOk) {
-        throw new Error("Could not reach the network. Please try again.");
+        if (!api.isConfigured()) {
+          throw new Error("Could not reach the network. Please try again.");
+        }
+        await api.declineReveal({ uid: authedUid }, senderUid);
       }
       await updateEncounterStatus(senderUid, "encounter");
     },
