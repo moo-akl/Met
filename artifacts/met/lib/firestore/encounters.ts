@@ -183,6 +183,81 @@ export async function subscribeToRequestsChange(
   };
 }
 
+/**
+ * Recipient-driven response to a reveal request — writes the new
+ * `status` ("accepted" | "declined") into BOTH users' `requests/`
+ * subcollections in a single Firestore batch.
+ *
+ * This is the bulletproof primary path for accept/decline:
+ *   - It updates the recipient's own inbound doc (which the recipient's
+ *     UI already reads) AND the sender's outbound doc (which the
+ *     sender's `subscribeToRequestsChange` listener picks up
+ *     immediately, flipping their encounter to "connected").
+ *   - It does NOT depend on the api-server being reachable; rules
+ *     allow either party to write the doc on their own side.
+ *   - The api-server still gets called in parallel from AppContext to
+ *     keep Postgres (source of truth for cross-session restore) in
+ *     sync, but the user-facing UX no longer waits for it.
+ *
+ * Mirrors the pattern the legacy Flutter app used:
+ *   batch.set(myRef, {status}, merge:true)
+ *   batch.set(theirRef, {status}, merge:true)
+ *
+ * No-op on web / Expo Go (no native bridge).
+ */
+export async function writeRevealResponse(
+  myUid: string,
+  peerUid: string,
+  status: "accepted" | "declined",
+): Promise<boolean> {
+  const fs = await getFirestoreModule();
+  if (!fs) return false;
+  try {
+    // Pull the namespace fresh to access FieldValue.serverTimestamp().
+    // The cached firestore() *instance* doesn't expose FieldValue —
+    // it lives on the module's default export (the namespace fn).
+    const fsMod = await import("@react-native-firebase/firestore");
+    const now = fsMod.default.FieldValue.serverTimestamp();
+    const myRef = fs
+      .collection("users")
+      .doc(myUid)
+      .collection("requests")
+      .doc(peerUid);
+    const theirRef = fs
+      .collection("users")
+      .doc(peerUid)
+      .collection("requests")
+      .doc(myUid);
+    const batch = fs.batch();
+    // merge:true so we keep any other fields the api-server already
+    // wrote (peerUid, direction, message, createdAt) and only flip
+    // status / updatedAt / respondedAt.
+    batch.set(
+      myRef,
+      {
+        status,
+        updatedAt: now,
+        respondedAt: now,
+      },
+      { merge: true },
+    );
+    batch.set(
+      theirRef,
+      {
+        status,
+        updatedAt: now,
+        respondedAt: now,
+      },
+      { merge: true },
+    );
+    await batch.commit();
+    return true;
+  } catch (err) {
+    console.warn("[firestore] writeRevealResponse failed", err);
+    return false;
+  }
+}
+
 export interface RemovalDoc {
   peerUid: string;
   removedAt: number; // epoch ms
