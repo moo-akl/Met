@@ -39,7 +39,7 @@
  * same sender, we flip that reverse row to "accepted" too.
  */
 
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onDocumentWrittenWithAuthContext } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { Pool } from "pg";
@@ -79,7 +79,7 @@ function isTerminalStatus(value: unknown): value is TerminalStatus {
   return typeof value === "string" && TERMINAL_STATUSES.has(value as TerminalStatus);
 }
 
-export const mirrorRevealStatusToPostgres = onDocumentWritten(
+export const mirrorRevealStatusToPostgres = onDocumentWrittenWithAuthContext(
   {
     document: "users/{uid}/requests/{peerUid}",
     secrets: [DATABASE_URL],
@@ -118,6 +118,45 @@ export const mirrorRevealStatusToPostgres = onDocumentWritten(
     // is the sender's uid.
     const recipientUid = uid;
     const senderUid = peerUid;
+
+    // Authorization gate.
+    //
+    // Firestore rules currently allow EITHER party to write
+    // `users/{uid}/requests/{otherUid}` (the recipient owns the doc,
+    // and the sender is allowed to flip it as a resilience path).
+    // That's fine for the live UI handshake on the two phones, but it
+    // means we cannot trust the doc state alone as authorization to
+    // mutate Postgres — a malicious sender could write the recipient's
+    // inbound doc to "accepted" themselves and trick this trigger
+    // into recording a fake consent.
+    //
+    // Accept and decline are RECIPIENT actions. Mirror to Postgres only
+    // when the writer is the recipient (the doc owner). The Admin SDK
+    // (api-server) bypasses auth and shows up as `null` authType — we
+    // mirror those too because they already went through the API's
+    // `requireUid` middleware.
+    const authType = event.authType;
+    const writerUid = event.authId;
+    const writerIsRecipient = authType === "user" && writerUid === recipientUid;
+    const writerIsAdmin =
+      authType === "system" ||
+      authType === "service_account" ||
+      authType === "admin" ||
+      authType === "unauthenticated" ||
+      authType === undefined;
+    if (!writerIsRecipient && !writerIsAdmin) {
+      logger.warn(
+        {
+          authType,
+          writerUid,
+          senderUid,
+          recipientUid,
+          status,
+        },
+        "Refusing to mirror reveal status: writer is not the recipient",
+      );
+      return;
+    }
 
     const db = getPool();
     const client = await db.connect();

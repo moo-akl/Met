@@ -1309,11 +1309,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // fire-and-forget call to `/api/reveals/accept`, which silently
       // dropped writes when the api-server was slow or unreachable.
       const fsOk = await writeRevealResponse(authedUid, senderUid, "accepted");
-      // Local UI flip on this device.
-      await updateEncounterStatus(senderUid, "connected");
+      // Don't flip local state on Firestore failure — otherwise the
+      // UI shows "connected" while the peer never hears about it,
+      // and Postgres (mirrored by the Cloud Function from this same
+      // Firestore write) also stays out of sync.
       if (!fsOk) {
         throw new Error("Could not reach the network. Please try again.");
       }
+      await updateEncounterStatus(senderUid, "connected");
     },
     [authedUid, updateEncounterStatus],
   );
@@ -1325,10 +1328,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // is handled by the `mirrorRevealStatusToPostgres` Cloud
       // Function — no fire-and-forget API call from the client.
       const fsOk = await writeRevealResponse(authedUid, senderUid, "declined");
-      await updateEncounterStatus(senderUid, "encounter");
       if (!fsOk) {
         throw new Error("Could not reach the network. Please try again.");
       }
+      await updateEncounterStatus(senderUid, "encounter");
     },
     [authedUid, updateEncounterStatus],
   );
