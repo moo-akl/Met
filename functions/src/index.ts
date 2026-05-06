@@ -138,12 +138,13 @@ export const mirrorRevealStatusToPostgres = onDocumentWrittenWithAuthContext(
     const authType = event.authType;
     const writerUid = event.authId;
     const writerIsRecipient = authType === "user" && writerUid === recipientUid;
+    // Trusted contexts: only Admin SDK writes from the api-server. We
+    // intentionally do NOT treat "unauthenticated" or unknown auth
+    // types as trusted — writes through the client must come from a
+    // signed-in user, and the only legitimate non-user writer in this
+    // path is the api-server's Admin SDK.
     const writerIsAdmin =
-      authType === "system" ||
-      authType === "service_account" ||
-      authType === "admin" ||
-      authType === "unauthenticated" ||
-      authType === undefined;
+      authType === "system" || authType === "service_account";
     if (!writerIsRecipient && !writerIsAdmin) {
       logger.warn(
         {
