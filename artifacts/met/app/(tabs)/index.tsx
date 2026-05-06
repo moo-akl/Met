@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -21,6 +22,7 @@ import { RequestsSheet } from "@/components/RequestsSheet";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useCountUp } from "@/hooks/useCountUp";
+import { usePermissionStatus } from "@/hooks/usePermissionStatus";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useT } from "@/lib/i18n";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
@@ -34,6 +36,8 @@ export default function HomeScreen() {
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
+  const { locationOk, bluetoothOk, checked } = usePermissionStatus();
+  const permsMissing = checked && (!locationOk || !bluetoothOk);
 
   // Dev-only screenshot helper: open the Requests sheet on mount when the
   // web preview URL contains `?openSheet=requests`. Inert on native and in
@@ -166,6 +170,50 @@ export default function HomeScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
+        {permsMissing ? (
+          <Pressable
+            onPress={() => Linking.openSettings()}
+            accessibilityRole="button"
+            accessibilityLabel="Bluetooth and Location permissions needed. Tap to open Settings."
+            style={({ pressed }) => [
+              styles.banner,
+              {
+                backgroundColor: "#FFF7ED",
+                borderColor: "#F97316",
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.permAlertIcon,
+                { backgroundColor: "#FFEDD5" },
+              ]}
+            >
+              <Feather name="alert-triangle" size={18} color="#F97316" />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[styles.bannerTitle, { color: "#9A3412" }]}>
+                {!locationOk && !bluetoothOk
+                  ? "Location & Bluetooth off"
+                  : !locationOk
+                    ? "Location off"
+                    : "Bluetooth off"}
+              </Text>
+              <Text style={[styles.bannerSub, { color: "#C2410C" }]}>
+                Met can't detect nearby people without{" "}
+                {!locationOk && !bluetoothOk
+                  ? "Location & Bluetooth"
+                  : !locationOk
+                    ? "Location"
+                    : "Bluetooth"}
+                . Tap to open Settings.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#F97316" />
+          </Pressable>
+        ) : null}
+
         {incoming.length > 0 ? (
           <Pressable
             onPress={() => setRequestsOpen(true)}
@@ -598,6 +646,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 14,
     borderWidth: 1,
+  },
+  permAlertIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
   },
   bannerAvatars: {
     flexDirection: "row",
