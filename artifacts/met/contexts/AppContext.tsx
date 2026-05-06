@@ -1295,86 +1295,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const acceptRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Primary path: write the new "accepted" status DIRECTLY into both
-      // users' Firestore `requests/{peerUid}` docs in a single batch.
-      // The sender's `subscribeToRequestsChange` listener fires the
-      // moment Firestore acks the write, flipping their encounter to
-      // "connected" without any server round-trip. This is the same
-      // pattern the legacy Flutter app used and is robust against api-
-      // server outages, slow responses, or a stale APK that lost the
-      // server route. We do this BEFORE flipping our own local state
-      // so the cross-device update goes out as soon as possible.
+      // Sole network path: write the new "accepted" status DIRECTLY
+      // into both users' Firestore `requests/{peerUid}` docs in a
+      // single batch. The sender's `subscribeToRequestsChange`
+      // listener fires the moment Firestore acks the write, flipping
+      // their encounter to "connected" without any server round-trip.
+      //
+      // The Postgres source-of-truth mirror is handled server-side by
+      // the `mirrorRevealStatusToPostgres` Cloud Function (see
+      // `functions/src/index.ts`), which watches the recipient's
+      // `requests/{peerUid}` doc and applies the same status flip to
+      // the `reveal_requests` table. That removes the previous
+      // fire-and-forget call to `/api/reveals/accept`, which silently
+      // dropped writes when the api-server was slow or unreachable.
       const fsOk = await writeRevealResponse(authedUid, senderUid, "accepted");
       // Local UI flip on this device.
       await updateEncounterStatus(senderUid, "connected");
-      // Background best-effort sync to Postgres source-of-truth so the
-      // accepted state survives a logout / re-install. Fire-and-forget
-      // — failure here does NOT affect the user-visible flow because
-      // Firestore (above) already propagated the accept to both phones.
-      if (api.isConfigured()) {
-        void (async () => {
-          try {
-            const accepted = await api.acceptReveal(
-              { uid: authedUid },
-              senderUid,
-            );
-            const ts = Date.parse(accepted.updatedAt);
-            if (Number.isFinite(ts)) {
-              bumpInboundWatermark(senderUid, ts);
-              bumpOutboundWatermark(senderUid, ts);
-            }
-          } catch (err) {
-            console.warn("[appcontext] acceptReveal sync to server failed", err);
-          }
-        })();
-      }
-      // If the Firestore write failed (rules not yet deployed, App
-      // Check token issue, native bridge missing on Expo Go) AND the
-      // API isn't configured either, surface an error so the user can
-      // retry. Otherwise the UI shows "connected" but the peer never
-      // hears about it.
-      if (!fsOk && !api.isConfigured()) {
+      if (!fsOk) {
         throw new Error("Could not reach the network. Please try again.");
       }
     },
-    [
-      authedUid,
-      updateEncounterStatus,
-      bumpInboundWatermark,
-      bumpOutboundWatermark,
-    ],
+    [authedUid, updateEncounterStatus],
   );
 
   const declineRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Same dual-path strategy as accept — Firestore batch first
-      // (instant peer notification), API in the background for
-      // Postgres sync.
+      // Same Firestore-first strategy as accept. The Postgres mirror
+      // is handled by the `mirrorRevealStatusToPostgres` Cloud
+      // Function — no fire-and-forget API call from the client.
       const fsOk = await writeRevealResponse(authedUid, senderUid, "declined");
       await updateEncounterStatus(senderUid, "encounter");
-      if (api.isConfigured()) {
-        void (async () => {
-          try {
-            const declined = await api.declineReveal(
-              { uid: authedUid },
-              senderUid,
-            );
-            const ts = Date.parse(declined.updatedAt);
-            if (Number.isFinite(ts)) bumpInboundWatermark(senderUid, ts);
-          } catch (err) {
-            console.warn(
-              "[appcontext] declineReveal sync to server failed",
-              err,
-            );
-          }
-        })();
-      }
-      if (!fsOk && !api.isConfigured()) {
+      if (!fsOk) {
         throw new Error("Could not reach the network. Please try again.");
       }
     },
-    [authedUid, updateEncounterStatus, bumpInboundWatermark],
+    [authedUid, updateEncounterStatus],
   );
 
   const cancelRevealRequest = useCallback(
