@@ -40,6 +40,10 @@ import {
   type MetPersonDoc,
 } from "@/lib/firestore/encounters";
 import {
+  presentRevealAcceptedNotification,
+  presentRevealRequestNotification,
+} from "@/lib/notifications";
+import {
   clearCooldownsFor,
   isInCooldown,
   markCooldown,
@@ -148,6 +152,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [profile, setProfileState] = useState<Profile | null>(null);
   const [allEncounters, setAllEncounters] = useState<Encounter[]>([]);
+  // Mirror of `allEncounters` for synchronous reads from Firestore
+  // subscription callbacks. Kept in sync via the effect below.
+  const allEncountersRef = useRef<Encounter[]>([]);
+  useEffect(() => {
+    allEncountersRef.current = allEncounters;
+  }, [allEncounters]);
+  // Dedupe keys for local reveal notifications. Cleared whenever the
+  // signed-in user changes so a different account doesn't inherit the
+  // previous user's suppression list.
+  const notifiedKeysRef = useRef<Set<string>>(new Set());
   // authedUid is read by `removeEncounter` (which needs to call the
   // server-side symmetric removal endpoint). Declared up here so it's
   // in scope for the callback definitions below; the auth-state
@@ -787,6 +801,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     revealWatermarks.current = { inbound: new Map(), outbound: new Map() };
     pollInFlight.current = false;
+    // Drop notification-dedupe keys so a new account doesn't inherit the
+    // previous user's suppression list.
+    notifiedKeysRef.current = new Set();
   }, [authedUid]);
 
   const bumpInboundWatermark = useCallback((senderUid: string, ts: number) => {
@@ -1191,6 +1208,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // landed before the user gave up and concluded it was broken.
         // The follow-up poll still runs to enrich the encounter with
         // the joined recipient profile (mirror docs are slim).
+        // Fire local notifications for the events the user cares about:
+        //   - inbound pending → "X wants to reveal"
+        //   - outbound accepted → "X accepted your request"
+        // Dedupe is keyed by `${direction}:${peerUid}:${status}` so a
+        // Firestore re-snapshot of the same doc never re-fires a
+        // notification, regardless of how local encounter state has
+        // since transitioned. Set is in-memory: a fresh app launch is
+        // intentionally allowed one notification per pending event.
+        for (const change of changes) {
+          const dedupeKey = `${change.direction}:${change.peerUid}:${change.status}`;
+          if (notifiedKeysRef.current.has(dedupeKey)) continue;
+
+          if (change.direction === "inbound" && change.status === "pending") {
+            const existing = allEncountersRef.current.find(
+              (e: Encounter) => e.id === change.peerUid,
+            );
+            // Suppress if we already had this as request_received or further
+            // (covers the case where the poll merged before the live snapshot).
+            const alreadySeen =
+              existing &&
+              (existing.status === "request_received" ||
+                existing.status === "connected" ||
+                existing.blocked);
+            if (!alreadySeen) {
+              notifiedKeysRef.current.add(dedupeKey);
+              void presentRevealRequestNotification({
+                fromUid: change.peerUid,
+                fromName: existing?.realName,
+              });
+            }
+          } else if (
+            change.direction === "outbound" &&
+            change.status === "accepted"
+          ) {
+            const existing = allEncountersRef.current.find(
+              (e: Encounter) => e.id === change.peerUid,
+            );
+            if (existing && existing.status !== "connected") {
+              notifiedKeysRef.current.add(dedupeKey);
+              void presentRevealAcceptedNotification({
+                fromUid: change.peerUid,
+                fromName: existing.realName,
+              });
+            }
+          }
+        }
         for (const change of changes) {
           if (change.direction !== "outbound") continue;
           if (change.status !== "accepted") continue;
