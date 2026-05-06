@@ -67,11 +67,24 @@ service cloud.firestore {
       // ----------------------------------------------------------
       //  users/{userId}/requests/{otherUid}
       // ----------------------------------------------------------
-      // Reveal-request handshake. Reads are owner-only. Writes happen
-      // from the api-server via Admin SDK so both sides update atomically.
+      // Reveal-request handshake. Reads are owner-only.
+      //
+      // Writes:
+      // - The api-server (Admin SDK) bypasses these rules and is still
+      //   the canonical writer for full-fidelity mirrors.
+      // - From the client we ALSO allow either party to update the doc:
+      //     * the owner (userId) — for their own outbox/inbox doc, AND
+      //     * the OTHER party (otherUid) — so the recipient can flip the
+      //       sender's outbox doc to "accepted" / "declined" without a
+      //       server round-trip. This is the resilience path that makes
+      //       accept work even when the api-server is slow/unreachable.
+      //   Same shape as the legacy Flutter app used: a 2-way batch write
+      //   into BOTH parties' `users/{uid}/requests/{otherUid}` docs.
       match /requests/{otherUid} {
         allow read: if isOwner(userId) && isVerifiedApp();
-        allow write: if false;
+        allow write: if isVerifiedApp() && isAuthed() && (
+          request.auth.uid == userId || request.auth.uid == otherUid
+        );
       }
 
       // ----------------------------------------------------------
