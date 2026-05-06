@@ -73,8 +73,8 @@ const PLUS_TIER: TierSpec = {
       packageIdentifier: "$rc_monthly",
       packageDisplayName: "Monthly",
       prices: [
-        { amount_micros: 4990000, currency: "USD" },
-        { amount_micros: 4490000, currency: "EUR" },
+        { amount_micros: 2990000, currency: "USD" },
+        { amount_micros: 2790000, currency: "EUR" },
       ],
     },
     {
@@ -86,8 +86,8 @@ const PLUS_TIER: TierSpec = {
       packageIdentifier: "$rc_annual",
       packageDisplayName: "Yearly",
       prices: [
-        { amount_micros: 39990000, currency: "USD" },
-        { amount_micros: 35990000, currency: "EUR" },
+        { amount_micros: 29990000, currency: "USD" },
+        { amount_micros: 27990000, currency: "EUR" },
       ],
     },
   ],
@@ -111,8 +111,8 @@ const PRO_TIER: TierSpec = {
       packageIdentifier: "$rc_monthly",
       packageDisplayName: "Monthly",
       prices: [
-        { amount_micros: 8990000, currency: "USD" },
-        { amount_micros: 7990000, currency: "EUR" },
+        { amount_micros: 4990000, currency: "USD" },
+        { amount_micros: 4490000, currency: "EUR" },
       ],
     },
     {
@@ -124,8 +124,8 @@ const PRO_TIER: TierSpec = {
       packageIdentifier: "$rc_annual",
       packageDisplayName: "Yearly",
       prices: [
-        { amount_micros: 69990000, currency: "USD" },
-        { amount_micros: 62990000, currency: "EUR" },
+        { amount_micros: 49990000, currency: "USD" },
+        { amount_micros: 44990000, currency: "EUR" },
       ],
     },
   ],
