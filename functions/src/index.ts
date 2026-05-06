@@ -177,9 +177,16 @@ export const mirrorRevealStatusToPostgres = onDocumentWrittenWithAuthContext(
         [status, senderUid, recipientUid],
       );
 
-      // Mutual-consent shortcut — only on accept, only if a reverse
-      // pending row exists. Mirrors the api-server's accept route.
-      if (status === "accepted") {
+      // Mutual-consent shortcut — only on accept, AND only if the
+      // forward update actually flipped a real pending row. Without
+      // this gate, a stray "accepted" write on the inbound doc with
+      // no matching forward pending row could still flip an
+      // unrelated reverse pending row to accepted, manufacturing a
+      // connection without genuine recipient consent. This mirrors
+      // the api-server's accept route which only runs the reverse
+      // update inside the same transaction after confirming the
+      // forward row existed.
+      if (status === "accepted" && (forward.rowCount ?? 0) > 0) {
         await client.query(
           `UPDATE reveal_requests
               SET status = 'accepted',
