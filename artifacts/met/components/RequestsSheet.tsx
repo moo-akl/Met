@@ -41,7 +41,7 @@ export function RequestsSheet({ visible, onClose }: Props) {
   const router = useRouter();
   const { t } = useT();
   const webBot = Platform.OS === "web" ? 34 : 0;
-  const { encounters, updateEncounterStatus } = useApp();
+  const { encounters, acceptRevealRequest, declineRevealRequest } = useApp();
 
   const incoming = encounters
     .filter((e) => e.status === "request_received")
@@ -53,16 +53,31 @@ export function RequestsSheet({ visible, onClose }: Props) {
   };
 
   const accept = async (id: string) => {
-    // Await the status flip so the connection screen sees "connected" and
-    // doesn't bounce back to /encounter/[id]. Then close + navigate in one
-    // deterministic pass — no setTimeout race.
-    await updateEncounterStatus(id, "connected");
+    // CRITICAL: must go through acceptRevealRequest, which hits
+    // POST /api/reveals/accept on the server. The server then mirrors
+    // the accepted state back into Firestore on BOTH sides so the
+    // sender's listener flips their encounter to "connected" too.
+    // A local-only updateEncounterStatus would leave the sender stuck.
+    try {
+      await acceptRevealRequest(id);
+    } catch (err) {
+      console.warn("[requestsSheet] accept failed", err);
+      return;
+    }
     onClose();
     router.push(`/connection/${id}`);
   };
 
-  const decline = (id: string) => {
-    updateEncounterStatus(id, "encounter");
+  const decline = async (id: string) => {
+    // Same reason as accept: declines must round-trip through the
+    // server so the sender's outbox poll / listener picks up the
+    // declined state, otherwise the sender stays in "request_sent"
+    // forever.
+    try {
+      await declineRevealRequest(id);
+    } catch (err) {
+      console.warn("[requestsSheet] decline failed", err);
+    }
   };
 
   return (
