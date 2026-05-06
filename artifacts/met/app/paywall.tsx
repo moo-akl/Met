@@ -24,6 +24,17 @@ import {
 type PaidTier = "plus" | "pro";
 type Billing = "monthly" | "yearly";
 
+const FALLBACK_PRICES: Record<PaidTier, Record<Billing, { price: string; yearly12: number; monthly1: number }>> = {
+  plus: {
+    monthly: { price: "$1.99", yearly12: 23.88, monthly1: 1.99 },
+    yearly: { price: "$18.00", yearly12: 18.0, monthly1: 1.5 },
+  },
+  pro: {
+    monthly: { price: "$3.49", yearly12: 41.88, monthly1: 3.49 },
+    yearly: { price: "$35.00", yearly12: 35.0, monthly1: 2.92 },
+  },
+};
+
 type ColorPalette = ReturnType<typeof useColors>;
 
 type FeatureMatrix = {
@@ -176,8 +187,14 @@ export default function PaywallScreen() {
     b: Billing,
   ): { price: string; perMonth: string } => {
     const pkg = packageFor(t, b);
-    if (!pkg)
-      return { price: "—", perMonth: b === "yearly" ? "Annual" : "Monthly" };
+    const fb = FALLBACK_PRICES[t][b];
+    if (!pkg) {
+      if (b === "yearly") {
+        const perMonth = `$${fb.monthly1.toFixed(2)} / mo`;
+        return { price: fb.price, perMonth };
+      }
+      return { price: fb.price, perMonth: "Billed monthly" };
+    }
     const total = pkg.product.price;
     const cur = pkg.product.currencyCode || "USD";
     if (b === "yearly") {
@@ -199,7 +216,14 @@ export default function PaywallScreen() {
   const yearlySavingsFor = (t: PaidTier): string | null => {
     const m = packageFor(t, "monthly");
     const y = packageFor(t, "yearly");
-    if (!m?.product.price || !y?.product.price) return null;
+    if (!m?.product.price || !y?.product.price) {
+      const fb = FALLBACK_PRICES[t];
+      const yearlyAsMonthly = fb.monthly.monthly1 * 12;
+      const saved = Math.round(
+        ((yearlyAsMonthly - fb.yearly.yearly12) / yearlyAsMonthly) * 100,
+      );
+      return saved > 0 ? `Save ${saved}%` : null;
+    }
     const yearlyAsMonthly = m.product.price * 12;
     const saved = Math.round(
       ((yearlyAsMonthly - y.product.price) / yearlyAsMonthly) * 100,
