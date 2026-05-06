@@ -195,9 +195,11 @@ export async function subscribeToRequestsChange(
  *     immediately, flipping their encounter to "connected").
  *   - It does NOT depend on the api-server being reachable; rules
  *     allow either party to write the doc on their own side.
- *   - The api-server still gets called in parallel from AppContext to
- *     keep Postgres (source of truth for cross-session restore) in
- *     sync, but the user-facing UX no longer waits for it.
+ *   - Postgres (source of truth for cross-session restore) is kept in
+ *     sync server-side by the `mirrorRevealStatusToPostgres` Firebase
+ *     Cloud Function (`functions/src/index.ts`), which watches this
+ *     same Firestore doc. AppContext no longer makes a fire-and-forget
+ *     call to the api-server here.
  *
  * Mirrors the pattern the legacy Flutter app used:
  *   batch.set(myRef, {status}, merge:true)
