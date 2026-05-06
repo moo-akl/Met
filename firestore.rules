@@ -56,12 +56,23 @@ service cloud.firestore {
       // ----------------------------------------------------------
       //  users/{userId}/met_people/{otherUid}
       // ----------------------------------------------------------
-      // Encounter history. Reads are owner-only. Writes happen
-      // exclusively from the api-server via Admin SDK (rules bypassed),
-      // so client writes are blocked.
+      // Encounter history. Reads are owner-only.
+      //
+      // Create / update: server-only (api-server via Admin SDK writes
+      // these when two users actually cross paths — the client doesn't
+      // get to fabricate met_people docs).
+      //
+      // Delete: allowed for EITHER party. This is the resilience path
+      // for Remove / Block — when user A removes user B, A wipes both
+      // sides' met_people docs in a single client batch so B's
+      // encounter list updates immediately even if the api-server is
+      // slow / unreachable. Mirrors the legacy Flutter app's batch.
       match /met_people/{otherUid} {
         allow read: if isOwner(userId) && isVerifiedApp();
-        allow write: if false;
+        allow create, update: if false;
+        allow delete: if isVerifiedApp() && isAuthed() && (
+          request.auth.uid == userId || request.auth.uid == otherUid
+        );
       }
 
       // ----------------------------------------------------------
@@ -90,12 +101,21 @@ service cloud.firestore {
       // ----------------------------------------------------------
       //  users/{userId}/removals/{otherUid}
       // ----------------------------------------------------------
-      // One-shot signal that a connection was removed (by either
-      // party). Owner-readable; the api-server is the sole writer
-      // via the Admin SDK so client writes are blocked.
+      // One-shot signal that a connection was removed (or the blocker
+      // blocked the user). Owner-readable. Writes:
+      //   - Create / update: only the OTHER party (otherUid). Path is
+      //     users/{victim}/removals/{actor} so the actor IS otherUid
+      //     here and writes the signal directly into the victim's
+      //     subcollection. The victim's `subscribeToRemovals` listener
+      //     picks it up and removes the encounter from their UI in
+      //     real time.
+      //   - Delete: only the owner (the victim) — used to clear
+      //     processed signals locally if we ever wire that up.
       match /removals/{otherUid} {
         allow read: if isOwner(userId) && isVerifiedApp();
-        allow write: if false;
+        allow create, update: if isVerifiedApp() && isAuthed() &&
+          request.auth.uid == otherUid;
+        allow delete: if isOwner(userId) && isVerifiedApp();
       }
     }
 

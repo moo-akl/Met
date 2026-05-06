@@ -35,6 +35,7 @@ import {
   subscribeToMetPeople,
   subscribeToRemovals,
   subscribeToRequestsChange,
+  writeRemoval,
   writeRevealResponse,
   type MetPersonDoc,
 } from "@/lib/firestore/encounters";
@@ -310,47 +311,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeEncounter = useCallback(
     async (id: string) => {
       let next: Encounter[] = [];
-      let wasConnected = false;
       setAllEncounters((prev) => {
-        const target = prev.find((enc) => enc.id === id);
-        wasConnected = target?.status === "connected";
         next = prev.filter((enc) => enc.id !== id);
         return next;
       });
       await saveEncounters(next);
-      // Symmetric removal: tell the api-server to delete EVERYTHING
-      // about the pair (any reveal-request rows in Postgres, both
-      // sides' requests / met_people / encounter mirror docs in
-      // Firestore, plus a one-shot removal signal on each side). We do
-      // this for ANY encounter — not just connected ones — because a
-      // plain "encounter" (we crossed paths but never connected) is
-      // still backed by a met_people doc on both sides, and without
-      // wiping that doc the peer's met_people listener will re-
-      // fabricate the encounter on their next snapshot tick. The
-      // endpoint is idempotent: missing rows / docs are no-ops.
-      // wasConnected is no longer used as a gate but kept above for
-      // potential future analytics; mark it referenced to keep the
-      // linter happy.
-      void wasConnected;
+      // Primary symmetric-removal path: a single Firestore batch wipes
+      // both sides' requests / met_people docs and drops a removals
+      // signal into the peer's subcollection (their
+      // `subscribeToRemovals` listener picks it up and removes the
+      // encounter from their UI in real time). This works even when
+      // the api-server is slow / unreachable, mirroring the legacy
+      // Flutter app's pattern.
+      if (authedUid) {
+        await writeRemoval(authedUid, id);
+      }
+      // Background Postgres mirror — fire-and-forget so any
+      // reveal-request rows get cleared on the source-of-truth side.
+      // Failure here doesn't undo the user-facing removal because the
+      // Firestore batch above already handled the cross-device sync.
       if (authedUid && api.isConfigured()) {
-        try {
-          await api.removeConnection({ uid: authedUid }, id);
-        } catch (err) {
+        api.removeConnection({ uid: authedUid }, id).catch((err) => {
           console.warn("[appcontext] removeConnection failed", err);
-        }
+        });
       }
     },
     [authedUid],
   );
 
-  const setBlocked = useCallback(async (id: string, blocked: boolean) => {
-    let next: Encounter[] = [];
-    setAllEncounters((prev) => {
-      next = prev.map((enc) => (enc.id === id ? { ...enc, blocked } : enc));
-      return next;
-    });
-    await saveEncounters(next);
-  }, []);
+  const setBlocked = useCallback(
+    async (id: string, blocked: boolean) => {
+      let next: Encounter[] = [];
+      setAllEncounters((prev) => {
+        next = prev.map((enc) => (enc.id === id ? { ...enc, blocked } : enc));
+        return next;
+      });
+      await saveEncounters(next);
+      // Block also wipes the connection on the peer's side so the
+      // blocker disappears from their encounter list. The blocker
+      // keeps the encounter locally with `blocked: true` so they can
+      // see / manage it from the Blocked tab. Unblock is purely local.
+      if (blocked && authedUid) {
+        await writeRemoval(authedUid, id);
+        if (api.isConfigured()) {
+          api.removeConnection({ uid: authedUid }, id).catch((err) => {
+            console.warn("[appcontext] removeConnection (block) failed", err);
+          });
+        }
+      }
+    },
+    [authedUid],
+  );
 
   const setNote = useCallback(async (id: string, note: string) => {
     const trimmed = note.trim();
