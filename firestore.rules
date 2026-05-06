@@ -93,7 +93,7 @@ service cloud.firestore {
       //   into BOTH parties' `users/{uid}/requests/{otherUid}` docs.
       match /requests/{otherUid} {
         allow read: if isOwner(userId) && isVerifiedApp();
-        allow write: if isVerifiedApp() && isAuthed() && (
+        allow write: if isAuthed() && (
           request.auth.uid == userId || request.auth.uid == otherUid
         );
       }
