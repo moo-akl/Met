@@ -7,6 +7,45 @@ const ENCOUNTERS_KEY = "met:encounters:v1";
 const PERMISSIONS_KEY = "met:permissions:v1";
 const CONNECTIONS_SORT_KEY = "met:connectionsSort:v1";
 const PREFERENCES_KEY = "met:prefs:v1";
+const DISCLOSURE_LOCATION_KEY = "met:disclosure:location:v1";
+const DISCLOSURE_BLUETOOTH_KEY = "met:disclosure:bluetooth:v1";
+const PUSH_TOKEN_KEY = "met:pushToken:v1";
+
+export type DisclosureKindStorage = "location" | "bluetooth";
+
+function disclosureKey(kind: DisclosureKindStorage): string {
+  return kind === "location" ? DISCLOSURE_LOCATION_KEY : DISCLOSURE_BLUETOOTH_KEY;
+}
+
+export async function loadDisclosureAccepted(
+  kind: DisclosureKindStorage,
+): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(disclosureKey(kind));
+  return raw === "1";
+}
+
+export async function saveDisclosureAccepted(
+  kind: DisclosureKindStorage,
+  accepted: boolean,
+): Promise<void> {
+  if (accepted) {
+    await AsyncStorage.setItem(disclosureKey(kind), "1");
+  } else {
+    await AsyncStorage.removeItem(disclosureKey(kind));
+  }
+}
+
+export async function loadPushToken(): Promise<string | null> {
+  return AsyncStorage.getItem(PUSH_TOKEN_KEY);
+}
+
+export async function savePushToken(token: string): Promise<void> {
+  await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+}
+
+export async function clearPushToken(): Promise<void> {
+  await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+}
 
 // 24h TTL for pending reveal requests in either direction. After this they
 // silently revert to "encounter" so the requests sheet doesn't pile up forever.
