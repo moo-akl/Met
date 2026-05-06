@@ -34,6 +34,7 @@ Met is a proximity-based social networking application for discovering and conne
 - **API Contracts**: `lib/api-spec/openapi.yaml`
 - **Native Modules**: `artifacts/met/modules/expo-met-ble/`
 - **Firebase Rules**: `firestore.rules`
+- **Cloud Functions**: `functions/src/` (mirrors Firestore reveal status into Postgres)
 
 ## Architecture decisions
 

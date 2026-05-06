@@ -35,6 +35,7 @@ import {
   subscribeToMetPeople,
   subscribeToRemovals,
   subscribeToRequestsChange,
+  writeRemoval,
   writeRevealResponse,
   type MetPersonDoc,
 } from "@/lib/firestore/encounters";
@@ -310,47 +311,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeEncounter = useCallback(
     async (id: string) => {
       let next: Encounter[] = [];
-      let wasConnected = false;
       setAllEncounters((prev) => {
-        const target = prev.find((enc) => enc.id === id);
-        wasConnected = target?.status === "connected";
         next = prev.filter((enc) => enc.id !== id);
         return next;
       });
       await saveEncounters(next);
-      // Symmetric removal: tell the api-server to delete EVERYTHING
-      // about the pair (any reveal-request rows in Postgres, both
-      // sides' requests / met_people / encounter mirror docs in
-      // Firestore, plus a one-shot removal signal on each side). We do
-      // this for ANY encounter — not just connected ones — because a
-      // plain "encounter" (we crossed paths but never connected) is
-      // still backed by a met_people doc on both sides, and without
-      // wiping that doc the peer's met_people listener will re-
-      // fabricate the encounter on their next snapshot tick. The
-      // endpoint is idempotent: missing rows / docs are no-ops.
-      // wasConnected is no longer used as a gate but kept above for
-      // potential future analytics; mark it referenced to keep the
-      // linter happy.
-      void wasConnected;
+      // Primary symmetric-removal path: a single Firestore batch wipes
+      // both sides' requests / met_people docs and drops a removals
+      // signal into the peer's subcollection (their
+      // `subscribeToRemovals` listener picks it up and removes the
+      // encounter from their UI in real time). This works even when
+      // the api-server is slow / unreachable, mirroring the legacy
+      // Flutter app's pattern.
+      if (authedUid) {
+        await writeRemoval(authedUid, id);
+      }
+      // Background Postgres mirror — fire-and-forget so any
+      // reveal-request rows get cleared on the source-of-truth side.
+      // Failure here doesn't undo the user-facing removal because the
+      // Firestore batch above already handled the cross-device sync.
       if (authedUid && api.isConfigured()) {
-        try {
-          await api.removeConnection({ uid: authedUid }, id);
-        } catch (err) {
+        api.removeConnection({ uid: authedUid }, id).catch((err) => {
           console.warn("[appcontext] removeConnection failed", err);
-        }
+        });
       }
     },
     [authedUid],
   );
 
-  const setBlocked = useCallback(async (id: string, blocked: boolean) => {
-    let next: Encounter[] = [];
-    setAllEncounters((prev) => {
-      next = prev.map((enc) => (enc.id === id ? { ...enc, blocked } : enc));
-      return next;
-    });
-    await saveEncounters(next);
-  }, []);
+  const setBlocked = useCallback(
+    async (id: string, blocked: boolean) => {
+      let next: Encounter[] = [];
+      setAllEncounters((prev) => {
+        next = prev.map((enc) => (enc.id === id ? { ...enc, blocked } : enc));
+        return next;
+      });
+      await saveEncounters(next);
+      // Block also wipes the connection on the peer's side so the
+      // blocker disappears from their encounter list. The blocker
+      // keeps the encounter locally with `blocked: true` so they can
+      // see / manage it from the Blocked tab. Unblock is purely local.
+      if (blocked && authedUid) {
+        await writeRemoval(authedUid, id);
+        if (api.isConfigured()) {
+          api.removeConnection({ uid: authedUid }, id).catch((err) => {
+            console.warn("[appcontext] removeConnection (block) failed", err);
+          });
+        }
+      }
+    },
+    [authedUid],
+  );
 
   const setNote = useCallback(async (id: string, note: string) => {
     const trimmed = note.trim();
@@ -1295,86 +1306,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const acceptRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Primary path: write the new "accepted" status DIRECTLY into both
-      // users' Firestore `requests/{peerUid}` docs in a single batch.
-      // The sender's `subscribeToRequestsChange` listener fires the
-      // moment Firestore acks the write, flipping their encounter to
-      // "connected" without any server round-trip. This is the same
-      // pattern the legacy Flutter app used and is robust against api-
-      // server outages, slow responses, or a stale APK that lost the
-      // server route. We do this BEFORE flipping our own local state
-      // so the cross-device update goes out as soon as possible.
+      // Sole network path: write the new "accepted" status DIRECTLY
+      // into both users' Firestore `requests/{peerUid}` docs in a
+      // single batch. The sender's `subscribeToRequestsChange`
+      // listener fires the moment Firestore acks the write, flipping
+      // their encounter to "connected" without any server round-trip.
+      //
+      // The Postgres source-of-truth mirror is handled server-side by
+      // the `mirrorRevealStatusToPostgres` Cloud Function (see
+      // `functions/src/index.ts`), which watches the recipient's
+      // `requests/{peerUid}` doc and applies the same status flip to
+      // the `reveal_requests` table. That removes the previous
+      // fire-and-forget call to `/api/reveals/accept`, which silently
+      // dropped writes when the api-server was slow or unreachable.
       const fsOk = await writeRevealResponse(authedUid, senderUid, "accepted");
-      // Local UI flip on this device.
-      await updateEncounterStatus(senderUid, "connected");
-      // Background best-effort sync to Postgres source-of-truth so the
-      // accepted state survives a logout / re-install. Fire-and-forget
-      // — failure here does NOT affect the user-visible flow because
-      // Firestore (above) already propagated the accept to both phones.
-      if (api.isConfigured()) {
-        void (async () => {
-          try {
-            const accepted = await api.acceptReveal(
-              { uid: authedUid },
-              senderUid,
-            );
-            const ts = Date.parse(accepted.updatedAt);
-            if (Number.isFinite(ts)) {
-              bumpInboundWatermark(senderUid, ts);
-              bumpOutboundWatermark(senderUid, ts);
-            }
-          } catch (err) {
-            console.warn("[appcontext] acceptReveal sync to server failed", err);
-          }
-        })();
-      }
-      // If the Firestore write failed (rules not yet deployed, App
-      // Check token issue, native bridge missing on Expo Go) AND the
-      // API isn't configured either, surface an error so the user can
-      // retry. Otherwise the UI shows "connected" but the peer never
-      // hears about it.
-      if (!fsOk && !api.isConfigured()) {
+      // Don't flip local state on Firestore failure — otherwise the
+      // UI shows "connected" while the peer never hears about it,
+      // and Postgres (mirrored by the Cloud Function from this same
+      // Firestore write) also stays out of sync.
+      if (!fsOk) {
         throw new Error("Could not reach the network. Please try again.");
       }
+      await updateEncounterStatus(senderUid, "connected");
     },
-    [
-      authedUid,
-      updateEncounterStatus,
-      bumpInboundWatermark,
-      bumpOutboundWatermark,
-    ],
+    [authedUid, updateEncounterStatus],
   );
 
   const declineRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Same dual-path strategy as accept — Firestore batch first
-      // (instant peer notification), API in the background for
-      // Postgres sync.
+      // Same Firestore-first strategy as accept. The Postgres mirror
+      // is handled by the `mirrorRevealStatusToPostgres` Cloud
+      // Function — no fire-and-forget API call from the client.
       const fsOk = await writeRevealResponse(authedUid, senderUid, "declined");
-      await updateEncounterStatus(senderUid, "encounter");
-      if (api.isConfigured()) {
-        void (async () => {
-          try {
-            const declined = await api.declineReveal(
-              { uid: authedUid },
-              senderUid,
-            );
-            const ts = Date.parse(declined.updatedAt);
-            if (Number.isFinite(ts)) bumpInboundWatermark(senderUid, ts);
-          } catch (err) {
-            console.warn(
-              "[appcontext] declineReveal sync to server failed",
-              err,
-            );
-          }
-        })();
-      }
-      if (!fsOk && !api.isConfigured()) {
+      if (!fsOk) {
         throw new Error("Could not reach the network. Please try again.");
       }
+      await updateEncounterStatus(senderUid, "encounter");
     },
-    [authedUid, updateEncounterStatus, bumpInboundWatermark],
+    [authedUid, updateEncounterStatus],
   );
 
   const cancelRevealRequest = useCallback(
