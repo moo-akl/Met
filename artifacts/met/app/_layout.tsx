@@ -18,6 +18,10 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { initializeFirestore } from "@/lib/firestore/client";
 import { initI18n } from "@/lib/i18n";
+import {
+  configureNotifications,
+  setupNotificationListeners,
+} from "@/lib/notifications";
 import { initReferrals } from "@/lib/referrals";
 import {
   initializeRevenueCat,
@@ -27,6 +31,17 @@ import {
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+// Configure expo-notifications once at module load. Idempotent — sets
+// the foreground presentation handler and Android default channel.
+try {
+  configureNotifications();
+} catch (err) {
+  console.warn(
+    "Notifications init failed:",
+    err instanceof Error ? err.message : err,
+  );
+}
 
 try {
   initializeRevenueCat();
@@ -130,6 +145,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const router = useRouter();
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -158,6 +174,29 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  // Wire notification taps → deep-link to the matching encounter screen.
+  // Cold-start taps are also picked up here via getLastNotificationResponseAsync.
+  useEffect(() => {
+    const unsubscribe = setupNotificationListeners((data) => {
+      const peerUid = data.encounterId ?? data.fromUid;
+      if (!peerUid) return;
+      // Slight defer so the router is mounted before we navigate when
+      // the notification was a cold-start tap.
+      setTimeout(() => {
+        try {
+          if (data.type === "reveal_accepted") {
+            router.push(`/connection/${peerUid}` as never);
+          } else {
+            router.push(`/encounter/${peerUid}` as never);
+          }
+        } catch (err) {
+          console.warn("[notifications] nav failed", err);
+        }
+      }, 50);
+    });
+    return unsubscribe;
+  }, [router]);
 
   if (!fontsLoaded && !fontError) return null;
 

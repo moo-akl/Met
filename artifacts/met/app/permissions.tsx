@@ -17,10 +17,19 @@ import { loadPlx } from "@/lib/ble/plx";
 import { isAdvertisingAvailable } from "@/lib/ble";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  PermissionDisclosureDialog,
+  type DisclosureKind,
+} from "@/components/PermissionDisclosureDialog";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import {
+  registerForPushTokenAsync,
+  requestNotificationPermission,
+} from "@/lib/notifications";
+import { saveDisclosureAccepted } from "@/lib/storage";
 
 type Status = "idle" | "granted" | "denied";
 
@@ -50,11 +59,16 @@ export default function PermissionsScreen() {
     camera: "idle",
   });
   const [busy, setBusy] = useState<PermKey | null>(null);
+  // Which disclosure dialog (if any) is currently shown. The actual OS
+  // permission prompt only fires when the user accepts the disclosure.
+  const [disclosure, setDisclosure] = useState<DisclosureKind | null>(null);
 
   const setOne = (k: PermKey, s: Status) =>
     setStatuses((prev) => ({ ...prev, [k]: s }));
 
-  const requestLocation = async () => {
+  // Real OS prompt — only called once the user has accepted the
+  // prominent disclosure (Play Store / App Store policy).
+  const doRequestLocation = async () => {
     setBusy("location");
     try {
       const res = await Location.requestForegroundPermissionsAsync();
@@ -64,6 +78,12 @@ export default function PermissionsScreen() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const requestLocation = () => {
+    // Show prominent disclosure first. The dialog calls the real OS
+    // prompt from its onAccept handler.
+    setDisclosure("location");
   };
 
   const requestCamera = async () => {
@@ -78,7 +98,11 @@ export default function PermissionsScreen() {
     }
   };
 
-  const requestBluetooth = async () => {
+  const requestBluetooth = () => {
+    setDisclosure("bluetooth");
+  };
+
+  const doRequestBluetooth = async () => {
     setBusy("bluetooth");
     try {
       // Android 12+: explicit runtime grants for the new BLE perms.
@@ -148,18 +172,28 @@ export default function PermissionsScreen() {
 
   const requestNotifications = async () => {
     setBusy("notifications");
-    if (Platform.OS === "web" && typeof window !== "undefined" && "Notification" in window) {
-      try {
+    try {
+      if (
+        Platform.OS === "web" &&
+        typeof window !== "undefined" &&
+        "Notification" in window
+      ) {
         const res = await Notification.requestPermission();
         setOne("notifications", res === "granted" ? "granted" : "denied");
-      } catch {
-        setOne("notifications", "denied");
+      } else {
+        const granted = await requestNotificationPermission();
+        setOne("notifications", granted ? "granted" : "denied");
+        // Best-effort token fetch — stashed locally; api-server upload
+        // is wired in a follow-up task. No-op on simulator / Expo Go.
+        if (granted) {
+          void registerForPushTokenAsync();
+        }
       }
-    } else {
-      await new Promise((r) => setTimeout(r, 350));
-      setOne("notifications", "granted");
+    } catch {
+      setOne("notifications", "denied");
+    } finally {
+      setBusy(null);
     }
-    setBusy(null);
   };
 
   const handleContinue = async () => {
@@ -294,6 +328,24 @@ export default function PermissionsScreen() {
           ) : null}
         </View>
       </ScrollView>
+
+      <PermissionDisclosureDialog
+        visible={disclosure !== null}
+        kind={disclosure ?? "location"}
+        mode="prompt"
+        onAccept={async () => {
+          const kind = disclosure;
+          setDisclosure(null);
+          if (!kind) return;
+          await saveDisclosureAccepted(kind, true);
+          if (kind === "location") {
+            await doRequestLocation();
+          } else if (kind === "bluetooth") {
+            await doRequestBluetooth();
+          }
+        }}
+        onDismiss={() => setDisclosure(null)}
+      />
     </View>
   );
 }

@@ -17,11 +17,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
+import { PermissionDisclosureDialog } from "@/components/PermissionDisclosureDialog";
 import { PulseBeacon } from "@/components/PulseBeacon";
 import { RequestsSheet } from "@/components/RequestsSheet";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useCountUp } from "@/hooks/useCountUp";
+import { usePermissionReminders } from "@/hooks/usePermissionReminders";
 import { usePermissionStatus } from "@/hooks/usePermissionStatus";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useT } from "@/lib/i18n";
@@ -38,6 +40,11 @@ export default function HomeScreen() {
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
   const { locationOk, bluetoothOk, checked } = usePermissionStatus();
   const permsMissing = checked && (!locationOk || !bluetoothOk);
+  const {
+    reminder,
+    dismiss: dismissReminder,
+    openSettings: openReminderSettings,
+  } = usePermissionReminders();
 
   // Dev-only screenshot helper: open the Requests sheet on mount when the
   // web preview URL contains `?openSheet=requests`. Inert on native and in
@@ -213,6 +220,14 @@ export default function HomeScreen() {
             <Feather name="chevron-right" size={20} color="#F97316" />
           </Pressable>
         ) : null}
+
+        <PermissionDisclosureDialog
+          visible={reminder?.visible ?? false}
+          kind={reminder?.kind ?? "location"}
+          mode="reminder"
+          onAccept={openReminderSettings}
+          onDismiss={dismissReminder}
+        />
 
         {incoming.length > 0 ? (
           <Pressable
