@@ -215,11 +215,7 @@ export async function writeRevealResponse(
   const fs = await getFirestoreModule();
   if (!fs) return false;
   try {
-    // Pull the namespace fresh to access FieldValue.serverTimestamp().
-    // The cached firestore() *instance* doesn't expose FieldValue —
-    // it lives on the module's default export (the namespace fn).
-    const fsMod = await import("@react-native-firebase/firestore");
-    const now = fsMod.default.FieldValue.serverTimestamp();
+    const now = new Date();
     const myRef = fs
       .collection("users")
       .doc(myUid)
