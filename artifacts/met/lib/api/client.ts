@@ -38,20 +38,41 @@ const BASE_URL = resolveBaseUrl();
 // because on web / Expo Go the native bridge isn't linked and the
 // import would crash the bundle.
 let authImportFailed = false;
+// Cache the resolved module so we only pay the dynamic-import cost once.
+let authMod: typeof import("@react-native-firebase/auth") | null = null;
+
 async function getCurrentIdToken(): Promise<string | null> {
   if (authImportFailed) return null;
   if (Platform.OS === "web") return null;
+
+  // Step 1 — import the native module. Only permanent-fail on import errors
+  // (e.g. native bridge not linked). Runtime errors like a stale token must
+  // NOT set authImportFailed, otherwise a single transient failure would
+  // permanently break auth until the app is restarted.
+  if (!authMod) {
+    try {
+      authMod = await import("@react-native-firebase/auth");
+    } catch {
+      authImportFailed = true;
+      return null;
+    }
+  }
+
+  // Step 2 — fetch the token. Try without force-refresh first (fast path),
+  // then retry with force-refresh in case the cached token just expired.
   try {
-    const mod = await import("@react-native-firebase/auth");
-    const auth = mod.default();
-    const user = auth.currentUser;
+    const user = authMod.default().currentUser;
     if (!user) return null;
-    // Firebase caches the token internally for ~1 hour; force-refresh
-    // would add 200-500ms per request and a network round-trip, so we
-    // pass `false`.
-    return await user.getIdToken(false);
+    try {
+      return await user.getIdToken(false);
+    } catch {
+      // Token may be stale — force a network refresh once before giving up.
+      return await user.getIdToken(true);
+    }
   } catch {
-    authImportFailed = true;
+    // getIdToken failed entirely — transient error. Return null so the
+    // caller falls back to X-Met-Uid (dev) or gets a 401 (prod). Do NOT
+    // set authImportFailed here or every subsequent request will also fail.
     return null;
   }
 }
