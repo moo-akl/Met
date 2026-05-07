@@ -50,7 +50,7 @@ export default function PermissionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useT();
-  const { setPermissionsCompleted } = useApp();
+  const { setPermissionsCompleted, permissionsCompleted } = useApp();
 
   const [statuses, setStatuses] = useState<Record<PermKey, Status>>({
     location: "idle",
@@ -198,12 +198,14 @@ export default function PermissionsScreen() {
 
   const handleContinue = async () => {
     await setPermissionsCompleted(true);
-    router.replace("/(tabs)");
+    if (permissionsCompleted) router.back();
+    else router.replace("/(tabs)");
   };
 
   const handleSkip = async () => {
     await setPermissionsCompleted(true);
-    router.replace("/(tabs)");
+    if (permissionsCompleted) router.back();
+    else router.replace("/(tabs)");
   };
 
   const allDecided = (Object.values(statuses) as Status[]).every(
@@ -215,9 +217,18 @@ export default function PermissionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {permissionsCompleted ? (
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={[styles.backBtn, { top: insets.top + 12 }]}
+        >
+          <Feather name="x" size={22} color={colors.foreground} />
+        </Pressable>
+      ) : null}
       <ScrollView
         contentContainerStyle={{
-          paddingTop: insets.top + webTop + 28,
+          paddingTop: permissionsCompleted ? insets.top + webTop + 60 : insets.top + webTop + 28,
           paddingBottom: insets.bottom + webBot + 32,
           paddingHorizontal: 24,
           gap: 22,
@@ -442,6 +453,12 @@ function PermRow({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  backBtn: {
+    position: "absolute",
+    right: 20,
+    zIndex: 10,
+    padding: 6,
+  },
   header: { alignItems: "center", gap: 10, paddingTop: 4 },
   iconHero: {
     width: 92,
