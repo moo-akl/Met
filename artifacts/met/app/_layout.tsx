@@ -106,11 +106,8 @@ function ProfileGate() {
       if (!inPermissions) router.replace("/permissions");
       return;
     }
-    // A fully set-up user may navigate to /permissions voluntarily (e.g.
-    // from the home-page permissions banner) — don't redirect them away.
-    if (inOnboarding) {
-      router.replace("/(tabs)");
-    }
+    // Fully set-up users may visit /permissions or /onboarding voluntarily
+    // (e.g. from the home-page banner). Don't redirect them away.
   }, [ready, profile, permissionsCompleted, segments, router]);
 
   return null;
