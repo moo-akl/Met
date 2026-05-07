@@ -35,8 +35,6 @@ import {
   subscribeToMetPeople,
   subscribeToRemovals,
   subscribeToRequestsChange,
-  writeRemoval,
-  writeRevealResponse,
   type MetPersonDoc,
 } from "@/lib/firestore/encounters";
 import {
@@ -330,24 +328,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
       await saveEncounters(next);
-      // Primary symmetric-removal path: a single Firestore batch wipes
-      // both sides' requests / met_people docs and drops a removals
-      // signal into the peer's subcollection (their
-      // `subscribeToRemovals` listener picks it up and removes the
-      // encounter from their UI in real time). This works even when
-      // the api-server is slow / unreachable, mirroring the legacy
-      // Flutter app's pattern.
+      // Route through the API server (Admin SDK — bypasses Firestore
+      // security rules and App Check entirely). The server deletes the
+      // Postgres reveal-request rows and mirrors the removal into both
+      // parties' Firestore docs via mirrorConnectionRemoval, so the
+      // peer's subscribeToRemovals listener drops the encounter from
+      // their UI in real time without any client-side Firestore write.
       if (authedUid) {
-        await writeRemoval(authedUid, id);
-      }
-      // Background Postgres mirror — fire-and-forget so any
-      // reveal-request rows get cleared on the source-of-truth side.
-      // Failure here doesn't undo the user-facing removal because the
-      // Firestore batch above already handled the cross-device sync.
-      if (authedUid && api.isConfigured()) {
-        api.removeConnection({ uid: authedUid }, id).catch((err) => {
-          console.warn("[appcontext] removeConnection failed", err);
-        });
+        await api.removeConnection({ uid: authedUid }, id);
       }
     },
     [authedUid],
@@ -361,17 +349,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
       await saveEncounters(next);
-      // Block also wipes the connection on the peer's side so the
-      // blocker disappears from their encounter list. The blocker
-      // keeps the encounter locally with `blocked: true` so they can
-      // see / manage it from the Blocked tab. Unblock is purely local.
+      // Block wipes the connection on the peer's side via the API server
+      // (Admin SDK — same reasoning as removeEncounter). The blocker keeps
+      // the encounter locally with `blocked: true` so they can manage it
+      // from the Blocked tab. Unblock is purely local.
       if (blocked && authedUid) {
-        await writeRemoval(authedUid, id);
-        if (api.isConfigured()) {
-          api.removeConnection({ uid: authedUid }, id).catch((err) => {
-            console.warn("[appcontext] removeConnection (block) failed", err);
-          });
-        }
+        await api.removeConnection({ uid: authedUid }, id);
       }
     },
     [authedUid],
