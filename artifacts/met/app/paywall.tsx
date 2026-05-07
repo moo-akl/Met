@@ -148,6 +148,7 @@ export default function PaywallScreen() {
     restore,
     isRestoring,
     purchaseError,
+    refetch,
   } = useSubscription();
 
   // Default selection: Pro pre-selected if the user is already on Plus (the
@@ -497,9 +498,14 @@ export default function PaywallScreen() {
             Loading plans…
           </Text>
         ) : !plusOffering && !proOffering ? (
-          <Text style={[styles.legal, { color: colors.destructive }]}>
-            Plans aren&rsquo;t available right now. Pull to refresh.
-          </Text>
+          <Pressable onPress={refetch} style={{ alignItems: "center", gap: 4 }}>
+            <Text style={[styles.legal, { color: colors.destructive }]}>
+              Plans aren&rsquo;t available right now.
+            </Text>
+            <Text style={[styles.legal, { color: colors.primary, textDecorationLine: "underline" }]}>
+              Tap to retry
+            </Text>
+          </Pressable>
         ) : (
           <>
             {purchaseError ? (
