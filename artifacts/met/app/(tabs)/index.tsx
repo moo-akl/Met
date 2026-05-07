@@ -179,7 +179,7 @@ export default function HomeScreen() {
       >
         {permsMissing ? (
           <Pressable
-            onPress={() => Linking.openSettings()}
+            onPress={() => router.push("/onboarding?startAt=permissions")}
             accessibilityRole="button"
             accessibilityLabel="Bluetooth and Location permissions needed. Tap to open Settings."
             style={({ pressed }) => [
