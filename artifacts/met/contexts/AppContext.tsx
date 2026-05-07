@@ -1369,18 +1369,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const acceptRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Try writing directly to Firestore first (fastest path — the
-      // sender's listener picks it up instantly). If the Firestore
-      // write fails for any reason, fall back to the API server,
-      // which uses the Admin SDK and is not subject to client-side
-      // security-rule or App Check constraints.
-      const fsOk = await writeRevealResponse(authedUid, senderUid, "accepted");
-      if (!fsOk) {
-        if (!api.isConfigured()) {
-          throw new Error("Could not reach the network. Please try again.");
-        }
-        await api.acceptReveal({ uid: authedUid }, senderUid);
-      }
+      // Route through the API server (Admin SDK — bypasses Firestore
+      // security rules and App Check entirely). The server mirrors the
+      // accepted status into both parties' Firestore docs so the
+      // sender's real-time listener flips their encounter to "connected"
+      // without any extra client-side Firestore write.
+      await api.acceptReveal({ uid: authedUid }, senderUid);
       await updateEncounterStatus(senderUid, "connected");
     },
     [authedUid, updateEncounterStatus],
@@ -1389,14 +1383,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const declineRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Same Firestore-first strategy as accept, with API server fallback.
-      const fsOk = await writeRevealResponse(authedUid, senderUid, "declined");
-      if (!fsOk) {
-        if (!api.isConfigured()) {
-          throw new Error("Could not reach the network. Please try again.");
-        }
-        await api.declineReveal({ uid: authedUid }, senderUid);
-      }
+      // Route through the API server — same reasoning as acceptRevealRequest.
+      await api.declineReveal({ uid: authedUid }, senderUid);
       await updateEncounterStatus(senderUid, "encounter");
     },
     [authedUid, updateEncounterStatus],
