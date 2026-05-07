@@ -93,6 +93,11 @@ function useSubscriptionContext() {
     queryKey: ["revenuecat", "offerings"],
     queryFn: async () => Purchases.getOfferings(),
     staleTime: 5 * 60 * 1000,
+    // Android's billing client takes a moment to connect after configure().
+    // Retry up to 4 times with exponential back-off (1s, 2s, 4s, 8s) so a
+    // transient "BillingClient not ready" error heals without user action.
+    retry: 4,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
   });
 
   const purchaseMutation = useMutation({
