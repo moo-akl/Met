@@ -526,6 +526,10 @@ export default function OnboardingScreen() {
   // tapped the email link and reopened the app), jump to profile setup.
   // ------------------------------------------------------------------
   useEffect(() => {
+    // When opened voluntarily from the home banner (?startAt=permissions),
+    // the user is already set up — skip the auto-restore that would redirect
+    // them straight back to tabs.
+    if (permissionsOnly) return;
     if (resumedRef.current) return;
     let cancelled = false;
     (async () => {
