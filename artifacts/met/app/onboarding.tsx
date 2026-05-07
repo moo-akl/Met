@@ -2,7 +2,7 @@ import { Feather, FontAwesome } from "@expo/vector-icons";
 import { Image } from "@/components/MetImage";
 import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -112,8 +112,16 @@ export default function OnboardingScreen() {
   const { setProfile, setPermissionsCompleted } = useApp();
   const insets = useSafeAreaInsets();
   const { t } = useT();
+  // When opened from the home-page permissions banner with
+  // `?startAt=permissions`, we skip the full signup flow and land
+  // directly on the activateBeacon step so the user can grant
+  // permissions without re-doing onboarding.
+  const { startAt } = useLocalSearchParams<{ startAt?: string }>();
+  const permissionsOnly = startAt === "permissions";
 
-  const [phase, setPhase] = useState<Phase>("intro");
+  const [phase, setPhase] = useState<Phase>(
+    permissionsOnly ? "invite" : "intro",
+  );
   const [slide, setSlide] = useState(0);
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -425,6 +433,13 @@ export default function OnboardingScreen() {
   };
 
   const handleFinish = async () => {
+    // When opened from the home-page permissions banner, just open
+    // Settings so the user can grant the missing permissions and go back.
+    if (permissionsOnly) {
+      Linking.openSettings();
+      router.back();
+      return;
+    }
     if (!photoUri || !name.trim()) return;
     setSaving(true);
     // Generate this user's own referral code on the way in.
@@ -686,6 +701,7 @@ export default function OnboardingScreen() {
           ) : (
             <Pressable
               onPress={() => {
+                if (permissionsOnly) { router.back(); return; }
                 if (phase === "auth") setPhase("intro");
                 else if (phase === "info") setPhase("photo");
                 else if (phase === "socials") setPhase("info");
@@ -1246,6 +1262,7 @@ export default function OnboardingScreen() {
               {t("onboarding.inviteSub")}
             </Text>
 
+            {!permissionsOnly ? (
             <View style={styles.field}>
               <Text
                 style={[styles.fieldLabel, { color: colors.mutedForeground }]}
@@ -1281,6 +1298,7 @@ export default function OnboardingScreen() {
                 </Text>
               ) : null}
             </View>
+            ) : null}
 
             <PrimaryButton
               label={t("onboarding.activateBeacon")}
