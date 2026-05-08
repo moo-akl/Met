@@ -5,8 +5,6 @@ import { adminStorage } from "../lib/firebaseAdmin";
 
 const router: IRouter = Router();
 
-// Hand-rolled body schema (kept here instead of @workspace/api-zod to
-// avoid a codegen round-trip for a leaf endpoint).
 const UploadPhotoBody = z.object({
   // Raw base64 (no `data:` prefix). Limit ~6MB encoded ≈ 4.5MB binary
   // — generous headroom for a heavily-compressed profile photo.
@@ -42,27 +40,14 @@ router.post("/profiles/me/photo", requireUid, async (req, res) => {
   }
 
   const bucket = adminStorage().bucket();
-  // One canonical object per user — repeated uploads overwrite, so we
-  // never accumulate orphan blobs and Firestore consumers always see a
-  // stable URL prefix per uid.
   const objectPath = `profile-photos/${uid}.${extFor(body.contentType)}`;
   const file = bucket.file(objectPath);
 
-  // `firebaseStorageDownloadTokens` is the magic metadata key Firebase
-  // honours: any object that has a token gets a public download URL of
-  // the form `/o/<encoded-path>?alt=media&token=<token>`. We keep one
-  // stable token per upload so the URL changes on each save (which lets
-  // expo-image's cache invalidate naturally and avoids stale previews).
-  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-
+  // Step 1: upload the raw bytes.
   try {
     await file.save(buf, {
       contentType: body.contentType,
       resumable: false,
-      metadata: {
-        cacheControl: "public, max-age=86400",
-        metadata: { firebaseStorageDownloadTokens: token },
-      },
     });
   } catch (err) {
     req.log?.error?.({ err }, "profile photo upload failed");
@@ -70,10 +55,39 @@ router.post("/profiles/me/photo", requireUid, async (req, res) => {
     return;
   }
 
+  // Step 2: try to make the object publicly readable (works when the
+  // bucket has fine-grained ACLs; silently skipped for uniform-access
+  // buckets). If this succeeds we return the simple public GCS URL which
+  // never expires and needs no token.
+  try {
+    await file.makePublic();
+    const photoUrl = `https://storage.googleapis.com/${bucket.name}/${objectPath}`;
+    req.log?.info?.({ uid, photoUrl }, "profile photo made public");
+    res.json({ photoUrl });
+    return;
+  } catch {
+    // Uniform bucket-level access — fall through to the download-token path.
+  }
+
+  // Step 3 (fallback): set the Firebase download-token via a dedicated
+  // setMetadata() call. file.save() with resumable:false does NOT reliably
+  // apply custom metadata in all GCS SDK versions, so we always do this as
+  // a separate operation to guarantee the token is persisted on the object.
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    await file.setMetadata({
+      cacheControl: "public, max-age=86400",
+      metadata: { firebaseStorageDownloadTokens: token },
+    });
+  } catch (err) {
+    req.log?.warn?.({ err }, "setMetadata failed; download URL may not work");
+  }
+
   const photoUrl =
     `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
     `${encodeURIComponent(objectPath)}?alt=media&token=${token}`;
 
+  req.log?.info?.({ uid, photoUrl }, "profile photo uploaded with token URL");
   res.json({ photoUrl });
 });
 
