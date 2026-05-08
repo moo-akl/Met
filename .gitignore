@@ -47,3 +47,10 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Private keys / secrets — never commit
+*.p8
+*.p12
+*.pem
+*.key
+.secrets/
