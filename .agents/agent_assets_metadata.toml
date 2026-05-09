@@ -119,3 +119,15 @@ id = "FvbmNUy5Z2IXrS1Y1b9y1"
 uri = "file://attached_assets/screenshots/pro_yearly.png"
 type = "image"
 title = "4 — Pro Yearly ($49.99/yr)"
+
+[[outputs]]
+id = "P7L_RiL8WohnxTta3VtvP"
+uri = "file://attached_assets/screenshots/plus_view.png"
+type = "image"
+title = "Met Plus — $2.99/mo · $29.99/yr"
+
+[[outputs]]
+id = "LAVm7j0U9JpWT0O1dbWtk"
+uri = "file://attached_assets/screenshots/pro_view.png"
+type = "image"
+title = "Met Pro — $4.99/mo · $49.99/yr"
