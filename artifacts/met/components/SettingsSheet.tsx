@@ -1138,12 +1138,27 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   colors={colors}
                 />
               ) : null}
-              <AboutLink
-                icon="mail"
-                label={t("settings.aboutContact")}
-                onPress={() => openLink("mailto:metapp.contact@gmail.com")}
-                colors={colors}
-              />
+              <View
+                style={[
+                  styles.contactCard,
+                  {
+                    backgroundColor: colors.muted,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <View style={[styles.rowIcon, { backgroundColor: colors.background }]}>
+                  <Feather name="mail" size={18} color={colors.foreground} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.contactLabel, { color: colors.foreground }]}>
+                    {t("settings.aboutContact")}
+                  </Text>
+                  <Text style={[styles.contactEmail, { color: colors.mutedForeground }]}>
+                    metapp.contact@gmail.com
+                  </Text>
+                </View>
+              </View>
               {RATE_URL_IOS && RATE_URL_ANDROID ? (
                 <AboutLink
                   icon="star"
@@ -1651,5 +1666,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: "italic",
     lineHeight: 18,
+  },
+  contactCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  contactLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    marginBottom: 3,
+  },
+  contactEmail: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
   },
 });
