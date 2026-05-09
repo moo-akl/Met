@@ -71,3 +71,27 @@ id = "qxL0MfdBY0TB8oLstsXU7"
 uri = "file://artifacts/met/store-assets/asc-resolution-reply.md"
 type = "text"
 title = "App Store Connect — Resolution Center Reply"
+
+[[outputs]]
+id = "mXh7dPddqjqAn9dZx0Alk"
+uri = "file://attached_assets/met_plus_monthly.svg"
+type = "image"
+title = "1 — Met Plus Monthly ($2.99)"
+
+[[outputs]]
+id = "RqCor5nUNyJl9Kc15Fxce"
+uri = "file://attached_assets/met_plus_yearly.svg"
+type = "image"
+title = "2 — Met Plus Yearly ($29.99)"
+
+[[outputs]]
+id = "2mpJvjP8sB-09RGZyLTVe"
+uri = "file://attached_assets/met_pro_monthly.svg"
+type = "image"
+title = "3 — Met Pro Monthly ($4.99)"
+
+[[outputs]]
+id = "H5lEHwznvWQxJR5IayTwn"
+uri = "file://attached_assets/met_pro_yearly.svg"
+type = "image"
+title = "4 — Met Pro Yearly ($49.99)"
