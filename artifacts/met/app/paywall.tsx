@@ -26,12 +26,12 @@ type Billing = "monthly" | "yearly";
 
 const FALLBACK_PRICES: Record<PaidTier, Record<Billing, { price: string; yearly12: number; monthly1: number }>> = {
   plus: {
-    monthly: { price: "$1.99", yearly12: 23.88, monthly1: 1.99 },
-    yearly: { price: "$18.00", yearly12: 18.0, monthly1: 1.5 },
+    monthly: { price: "$2.99", yearly12: 35.88, monthly1: 2.99 },
+    yearly: { price: "$29.99", yearly12: 29.99, monthly1: 2.50 },
   },
   pro: {
-    monthly: { price: "$3.49", yearly12: 41.88, monthly1: 3.49 },
-    yearly: { price: "$35.00", yearly12: 35.0, monthly1: 2.92 },
+    monthly: { price: "$4.99", yearly12: 59.88, monthly1: 4.99 },
+    yearly: { price: "$49.99", yearly12: 49.99, monthly1: 4.17 },
   },
 };
 
