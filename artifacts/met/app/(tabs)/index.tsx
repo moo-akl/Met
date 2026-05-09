@@ -499,49 +499,88 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        <Pressable
-          onPress={() => router.push("/referrals")}
-          accessibilityRole="button"
-          accessibilityLabel={t("home.referralCtaTitle")}
-          style={({ pressed }) => [
-            styles.referralCard,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.primary,
-              opacity: pressed ? 0.85 : 1,
-              transform: [{ scale: pressed ? 0.99 : 1 }],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={["rgba(61,204,68,0.18)", "rgba(61,204,68,0)"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View
-            style={[
-              styles.referralIconWrap,
-              { backgroundColor: colors.primary },
+        {permsMissing ? (
+          <Pressable
+            onPress={() => router.push("/permissions")}
+            accessibilityRole="button"
+            accessibilityLabel="Set up your beacon — tap to enable permissions"
+            style={({ pressed }) => [
+              styles.referralCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: "#F97316",
+                opacity: pressed ? 0.85 : 1,
+                transform: [{ scale: pressed ? 0.99 : 1 }],
+              },
             ]}
           >
-            <Feather name="gift" size={20} color="#FFFFFF" />
-          </View>
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={[styles.referralTitle, { color: colors.foreground }]}>
-              {t("home.referralCtaTitle")}
-            </Text>
-            <Text
-              style={[styles.referralSub, { color: colors.mutedForeground }]}
+            <LinearGradient
+              colors={["rgba(249,115,22,0.15)", "rgba(249,115,22,0)"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={[styles.referralIconWrap, { backgroundColor: "#F97316" }]}>
+              <Feather name="radio" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.referralTitle, { color: colors.foreground }]}>
+                Set up your beacon
+              </Text>
+              <Text style={[styles.referralSub, { color: colors.mutedForeground }]}>
+                Enable Bluetooth & Location so Met can detect nearby people.
+              </Text>
+              <Text style={[styles.referralCta, { color: "#F97316" }]}>
+                Enable permissions{"  "}
+                <Feather name="arrow-right" size={12} color="#F97316" />
+              </Text>
+            </View>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => router.push("/referrals")}
+            accessibilityRole="button"
+            accessibilityLabel={t("home.referralCtaTitle")}
+            style={({ pressed }) => [
+              styles.referralCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.primary,
+                opacity: pressed ? 0.85 : 1,
+                transform: [{ scale: pressed ? 0.99 : 1 }],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={["rgba(61,204,68,0.18)", "rgba(61,204,68,0)"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View
+              style={[
+                styles.referralIconWrap,
+                { backgroundColor: colors.primary },
+              ]}
             >
-              {t("home.referralCtaSub")}
-            </Text>
-            <Text style={[styles.referralCta, { color: colors.primary }]}>
-              {t("home.referralCtaCta")}{"  "}
-              <Feather name="arrow-right" size={12} color={colors.primary} />
-            </Text>
-          </View>
-        </Pressable>
+              <Feather name="gift" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.referralTitle, { color: colors.foreground }]}>
+                {t("home.referralCtaTitle")}
+              </Text>
+              <Text
+                style={[styles.referralSub, { color: colors.mutedForeground }]}
+              >
+                {t("home.referralCtaSub")}
+              </Text>
+              <Text style={[styles.referralCta, { color: colors.primary }]}>
+                {t("home.referralCtaCta")}{"  "}
+                <Feather name="arrow-right" size={12} color={colors.primary} />
+              </Text>
+            </View>
+          </Pressable>
+        )}
       </ScrollView>
       <RequestsSheet
         visible={requestsOpen}
