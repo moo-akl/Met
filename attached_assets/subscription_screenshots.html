@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Met Subscription Screenshots</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #111;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    padding: 32px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  .screen {
+    width: 430px;
+    height: 932px;
+    border-radius: 48px;
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* ── PLUS style ── */
+  .plus { background: #0C0C0C; }
+  .plus-accent { color: #92C977; }
+  .plus-bg { background: #92C977; }
+  .plus-border { border-color: #92C977; }
+  .plus-glow { box-shadow: 0 0 80px rgba(146,201,119,0.18); }
+
+  /* ── PRO style ── */
+  .pro { background: #080C09; }
+  .pro-accent { color: #4ADE80; }
+  .pro-bg { background: linear-gradient(135deg, #22C55E, #15803D); }
+  .pro-border { border-color: #22C55E; }
+  .pro-glow { box-shadow: 0 0 80px rgba(34,197,94,0.22); }
+
+  /* ── Shared layout ── */
+  .screen-inner {
+    width: 100%;
+    height: 100%;
+    padding: 52px 36px 40px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Top bar */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 40px;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .logo-text {
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.5px;
+  }
+
+  .plan-badge {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #000;
+  }
+
+  /* Hero price section */
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 0 8px;
+    gap: 0;
+  }
+
+  .hero-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    opacity: 0.6;
+    color: #fff;
+  }
+
+  .hero-plan {
+    font-size: 52px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    color: #ffffff;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .hero-tagline {
+    font-size: 16px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.45);
+    margin-bottom: 36px;
+    line-height: 1.4;
+  }
+
+  .price-card {
+    border-radius: 24px;
+    padding: 28px 36px;
+    margin-bottom: 32px;
+    text-align: center;
+    border: 1.5px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.05);
+    width: 100%;
+  }
+
+  .price-amount {
+    font-size: 64px;
+    font-weight: 900;
+    letter-spacing: -3px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .price-period {
+    font-size: 16px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.45);
+  }
+
+  .price-save {
+    margin-top: 10px;
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(146,201,119,0.15);
+    color: #92C977;
+  }
+
+  .price-save.pro-save {
+    background: rgba(34,197,94,0.15);
+    color: #4ADE80;
+  }
+
+  /* Features list */
+  .features {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+
+  .feature-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .feature-check {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .check-svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .feature-text {
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.88);
+    line-height: 1.3;
+  }
+
+  .feature-text strong {
+    color: #fff;
+    font-weight: 700;
+  }
+
+  /* CTA button */
+  .cta-btn {
+    width: 100%;
+    padding: 20px;
+    border-radius: 18px;
+    border: none;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: #000;
+    cursor: pointer;
+    margin-top: auto;
+  }
+
+  .sub-note {
+    text-align: center;
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+    margin-top: 12px;
+    line-height: 1.4;
+  }
+
+  /* Background decoration */
+  .bg-glow {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    top: -80px;
+    right: -80px;
+    pointer-events: none;
+  }
+
+  .bg-glow-bottom {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    bottom: 60px;
+    left: -60px;
+    pointer-events: none;
+  }
+
+  /* Label below each screen */
+  .screen-label {
+    color: #666;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    text-align: center;
+    margin-top: 12px;
+  }
+
+  .screen-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── 1. MET PLUS MONTHLY ── -->
+<div class="screen-wrap">
+  <div class="screen plus plus-glow">
+    <div class="bg-glow" style="background: radial-gradient(circle, rgba(146,201,119,0.12) 0%, transparent 70%);"></div>
+    <div class="bg-glow-bottom" style="background: radial-gradient(circle, rgba(146,201,119,0.06) 0%, transparent 70%);"></div>
+    <div class="screen-inner" style="position:relative;z-index:1;">
+      <div class="top-bar">
+        <div class="logo-row">
+          <div class="logo-dot plus-bg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <span class="logo-text">Met</span>
+        </div>
+        <div class="plan-badge plus-bg">Plus</div>
+      </div>
+
+      <div class="hero">
+        <div class="hero-label">Subscription</div>
+        <div class="hero-plan">Met <span class="plus-accent">Plus</span></div>
+        <div class="hero-tagline">Unlock the full Met experience.<br>Meet more, reveal more.</div>
+
+        <div class="price-card">
+          <div class="price-amount plus-accent">$2.99</div>
+          <div class="price-period">per month</div>
+        </div>
+
+        <div class="features">
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>Unlimited</strong> daily encounters</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>Unlimited</strong> reveal requests</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>3 profile photos</strong> to show your personality</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>1 opening message</strong> per day</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text">Full encounter <strong>history & read receipts</strong></div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text">See <strong>frequent paths</strong> — people you keep crossing</div>
+          </div>
+        </div>
+
+        <button class="cta-btn plus-bg">Subscribe for $2.99 / mo</button>
+        <div class="sub-note">Cancel anytime · Auto-renews monthly</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">1 — Plus Monthly.png</div>
+</div>
+
+<!-- ── 2. MET PLUS YEARLY ── -->
+<div class="screen-wrap">
+  <div class="screen plus plus-glow">
+    <div class="bg-glow" style="background: radial-gradient(circle, rgba(146,201,119,0.14) 0%, transparent 70%);"></div>
+    <div class="bg-glow-bottom" style="background: radial-gradient(circle, rgba(146,201,119,0.06) 0%, transparent 70%);"></div>
+    <div class="screen-inner" style="position:relative;z-index:1;">
+      <div class="top-bar">
+        <div class="logo-row">
+          <div class="logo-dot plus-bg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <span class="logo-text">Met</span>
+        </div>
+        <div class="plan-badge plus-bg">Plus</div>
+      </div>
+
+      <div class="hero">
+        <div class="hero-label">Best Value</div>
+        <div class="hero-plan">Met <span class="plus-accent">Plus</span></div>
+        <div class="hero-tagline">All the features you love,<br>at the best price of the year.</div>
+
+        <div class="price-card">
+          <div class="price-amount plus-accent">$29.99</div>
+          <div class="price-period">per year</div>
+          <div class="price-save">Save 16% vs monthly</div>
+        </div>
+
+        <div class="features">
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>Unlimited</strong> daily encounters</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>Unlimited</strong> reveal requests</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>3 profile photos</strong> to show your personality</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>1 opening message</strong> per day</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text">Full encounter <strong>history & read receipts</strong></div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check plus-bg">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text">See <strong>frequent paths</strong> — people you keep crossing</div>
+          </div>
+        </div>
+
+        <button class="cta-btn plus-bg">Subscribe for $29.99 / yr</button>
+        <div class="sub-note">Cancel anytime · Renews annually · ~$2.50/month</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">2 — Plus Yearly.png</div>
+</div>
+
+<!-- ── 3. MET PRO MONTHLY ── -->
+<div class="screen-wrap">
+  <div class="screen pro pro-glow">
+    <div class="bg-glow" style="background: radial-gradient(circle, rgba(34,197,94,0.15) 0%, transparent 70%);"></div>
+    <div class="bg-glow-bottom" style="background: radial-gradient(circle, rgba(34,197,94,0.07) 0%, transparent 70%);"></div>
+    <div class="screen-inner" style="position:relative;z-index:1;">
+      <div class="top-bar">
+        <div class="logo-row">
+          <div class="logo-dot" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <span class="logo-text">Met</span>
+        </div>
+        <div class="plan-badge" style="background:linear-gradient(135deg,#22C55E,#15803D);color:#fff;">Pro</div>
+      </div>
+
+      <div class="hero">
+        <div class="hero-label">Premium Plan</div>
+        <div class="hero-plan">Met <span class="pro-accent">Pro</span></div>
+        <div class="hero-tagline">The ultimate Met experience.<br>Everything, no limits.</div>
+
+        <div class="price-card" style="border-color:rgba(34,197,94,0.2);background:rgba(34,197,94,0.06);">
+          <div class="price-amount pro-accent">$4.99</div>
+          <div class="price-period">per month</div>
+        </div>
+
+        <div class="features">
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>Unlimited</strong> encounters & reveals</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>6 profile photos</strong> — show every side of you</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>2 opening messages</strong> per day</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text">Full history, <strong>read receipts</strong> & frequent paths</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text">Everything in <strong>Met Plus</strong>, and more</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>Priority support</strong> from the Met team</div>
+          </div>
+        </div>
+
+        <button class="cta-btn" style="background:linear-gradient(135deg,#22C55E,#15803D);color:#fff;">Subscribe for $4.99 / mo</button>
+        <div class="sub-note">Cancel anytime · Auto-renews monthly</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">3 — Pro Monthly.png</div>
+</div>
+
+<!-- ── 4. MET PRO YEARLY ── -->
+<div class="screen-wrap">
+  <div class="screen pro pro-glow">
+    <div class="bg-glow" style="background: radial-gradient(circle, rgba(34,197,94,0.18) 0%, transparent 70%);"></div>
+    <div class="bg-glow-bottom" style="background: radial-gradient(circle, rgba(34,197,94,0.08) 0%, transparent 70%);"></div>
+    <div class="screen-inner" style="position:relative;z-index:1;">
+      <div class="top-bar">
+        <div class="logo-row">
+          <div class="logo-dot" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <span class="logo-text">Met</span>
+        </div>
+        <div class="plan-badge" style="background:linear-gradient(135deg,#22C55E,#15803D);color:#fff;">Pro</div>
+      </div>
+
+      <div class="hero">
+        <div class="hero-label">Best Value</div>
+        <div class="hero-plan">Met <span class="pro-accent">Pro</span></div>
+        <div class="hero-tagline">The full power of Met Pro,<br>at our best annual price.</div>
+
+        <div class="price-card" style="border-color:rgba(34,197,94,0.2);background:rgba(34,197,94,0.06);">
+          <div class="price-amount pro-accent">$49.99</div>
+          <div class="price-period">per year</div>
+          <div class="price-save pro-save">Save 17% vs monthly</div>
+        </div>
+
+        <div class="features">
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>Unlimited</strong> encounters & reveals</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>6 profile photos</strong> — show every side of you</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>2 opening messages</strong> per day</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text">Full history, <strong>read receipts</strong> & frequent paths</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text">Everything in <strong>Met Plus</strong>, and more</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-check" style="background:linear-gradient(135deg,#22C55E,#15803D);">
+              <svg class="check-svg" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 7 6 11 12 3"/></svg>
+            </div>
+            <div class="feature-text"><strong>Priority support</strong> from the Met team</div>
+          </div>
+        </div>
+
+        <button class="cta-btn" style="background:linear-gradient(135deg,#22C55E,#15803D);color:#fff;">Subscribe for $49.99 / yr</button>
+        <div class="sub-note">Cancel anytime · Renews annually · ~$4.17/month</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">4 — Pro Yearly.png</div>
+</div>
+
+</body>
+</html>
