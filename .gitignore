@@ -54,3 +54,16 @@ Thumbs.db
 *.pem
 *.key
 .secrets/
+
+# attached_assets — user-pasted files including credentials and build artefacts
+# Individual screenshots under attached_assets/screenshots/ are safe but the
+# top-level files often contain Firebase service-account JSON, google-services
+# configs, and binary build outputs that must never reach a public repo.
+attached_assets/*.json
+attached_assets/*.plist
+attached_assets/*.aab
+attached_assets/*.ipa
+attached_assets/*.jks
+attached_assets/*.jfif
+attached_assets/*.txt
+attached_assets/*.dart

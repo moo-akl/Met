@@ -35,6 +35,8 @@ import {
   subscribeToMetPeople,
   subscribeToRemovals,
   subscribeToRequestsChange,
+  writeRemoval,
+  writeRevealResponse,
   type MetPersonDoc,
 } from "@/lib/firestore/encounters";
 import {
@@ -328,14 +330,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
       await saveEncounters(next);
-      // Route through the API server (Admin SDK — bypasses Firestore
-      // security rules and App Check entirely). The server deletes the
-      // Postgres reveal-request rows and mirrors the removal into both
-      // parties' Firestore docs via mirrorConnectionRemoval, so the
-      // peer's subscribeToRemovals listener drops the encounter from
-      // their UI in real time without any client-side Firestore write.
       if (authedUid) {
-        await api.removeConnection({ uid: authedUid }, id);
+        // Primary path: Firestore batch wipes both sides and signals the
+        // peer's subscribeToRemovals listener in real time without
+        // depending on the api-server being reachable.
+        await writeRemoval(authedUid, id);
+        // Fire-and-forget mirror so Postgres stays in sync even when
+        // the Cloud Function hasn't run yet.
+        api.removeConnection({ uid: authedUid }, id).catch(() => {});
       }
     },
     [authedUid],
@@ -349,12 +351,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
       await saveEncounters(next);
-      // Block wipes the connection on the peer's side via the API server
-      // (Admin SDK — same reasoning as removeEncounter). The blocker keeps
-      // the encounter locally with `blocked: true` so they can manage it
-      // from the Blocked tab. Unblock is purely local.
+      // Block wipes the peer's Firestore view in real time via the same
+      // symmetric batch as Remove. The blocker keeps the encounter locally
+      // with `blocked: true` so they can manage it from the Blocked tab.
+      // Unblock is purely local (no Firestore write needed).
       if (blocked && authedUid) {
-        await api.removeConnection({ uid: authedUid }, id);
+        await writeRemoval(authedUid, id);
+        api.removeConnection({ uid: authedUid }, id).catch(() => {});
       }
     },
     [authedUid],
@@ -1352,12 +1355,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const acceptRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Route through the API server (Admin SDK — bypasses Firestore
-      // security rules and App Check entirely). The server mirrors the
-      // accepted status into both parties' Firestore docs so the
-      // sender's real-time listener flips their encounter to "connected"
-      // without any extra client-side Firestore write.
-      await api.acceptReveal({ uid: authedUid }, senderUid);
+      // Primary path: Firestore batch writes "accepted" into both parties'
+      // requests/ docs. The sender's subscribeToRequestsChange listener
+      // flips their encounter to "connected" in real time. Postgres is
+      // kept in sync by the mirrorRevealStatusToPostgres Cloud Function —
+      // no api-server call needed here.
+      await writeRevealResponse(authedUid, senderUid, "accepted");
       await updateEncounterStatus(senderUid, "connected");
     },
     [authedUid, updateEncounterStatus],
@@ -1366,8 +1369,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const declineRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
-      // Route through the API server — same reasoning as acceptRevealRequest.
-      await api.declineReveal({ uid: authedUid }, senderUid);
+      // Primary path: same symmetric Firestore batch as accept, with
+      // "declined" status. No api-server call needed.
+      await writeRevealResponse(authedUid, senderUid, "declined");
       await updateEncounterStatus(senderUid, "encounter");
     },
     [authedUid, updateEncounterStatus],
