@@ -95,3 +95,27 @@ id = "H5lEHwznvWQxJR5IayTwn"
 uri = "file://attached_assets/met_pro_yearly.svg"
 type = "image"
 title = "4 — Met Pro Yearly ($49.99)"
+
+[[outputs]]
+id = "4apTLAArEVt6OSBIeBJSa"
+uri = "file://attached_assets/screenshots/plus_monthly.png"
+type = "image"
+title = "1 — Plus Monthly ($2.99/mo)"
+
+[[outputs]]
+id = "fZfaReb99csFHkNy6NwVZ"
+uri = "file://attached_assets/screenshots/plus_yearly.png"
+type = "image"
+title = "2 — Plus Yearly ($29.99/yr)"
+
+[[outputs]]
+id = "WOQtKKnCcr1XJ8_Qd9YJG"
+uri = "file://attached_assets/screenshots/pro_monthly.png"
+type = "image"
+title = "3 — Pro Monthly ($4.99/mo)"
+
+[[outputs]]
+id = "FvbmNUy5Z2IXrS1Y1b9y1"
+uri = "file://attached_assets/screenshots/pro_yearly.png"
+type = "image"
+title = "4 — Pro Yearly ($49.99/yr)"
