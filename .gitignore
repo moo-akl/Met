@@ -55,6 +55,11 @@ Thumbs.db
 *.key
 .secrets/
 
+# Firebase credentials — must never be committed; use env vars / EAS secrets instead
+firebase-sa.json
+google-services.json
+GoogleService-Info.plist
+
 # attached_assets — user-pasted files including credentials and build artefacts
 # Individual screenshots under attached_assets/screenshots/ are safe but the
 # top-level files often contain Firebase service-account JSON, google-services
