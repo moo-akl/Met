@@ -11,25 +11,55 @@ const path = require("path");
  * its googleServicesFile declarations (so Expo handles correct placement in
  * the native project) while the source files never need to be committed to git.
  *
- * Required env vars (set as EAS secrets or in your local shell for native builds):
+ * Secrets MUST be stored as --type string (full file content), NOT --type file.
+ * EAS --type file secrets expose a filesystem path, not the content itself,
+ * which would cause this plugin to write a path string into the credential
+ * file instead of valid JSON/XML — resulting in broken native builds.
+ *
+ * Required env vars — store as EAS string secrets or export in your shell:
  *   GOOGLE_SERVICES_JSON        — full JSON content of google-services.json
  *   GOOGLE_SERVICE_INFO_PLIST   — full XML content of GoogleService-Info.plist
  *
- * If either variable is absent the plugin emits a warning and skips writing
- * that file, allowing local Expo Go / web runs to proceed without credentials.
- * A native (iOS/Android) build will fail later when googleServicesFile is
- * missing, which is the intended behaviour — this is a required build step.
+ * To set secrets (from artifacts/met/ with EAS CLI):
+ *   eas secret:create --scope project --name GOOGLE_SERVICES_JSON \
+ *     --type string --value "$(cat google-services.json)"
+ *   eas secret:create --scope project --name GOOGLE_SERVICE_INFO_PLIST \
+ *     --type string --value "$(cat GoogleService-Info.plist)"
+ *
+ * During EAS builds (EAS_BUILD=true) a missing env var is a hard error.
+ * Outside EAS (local Expo Go / web) a warning is emitted and the build
+ * continues — credential files are only required for native targets.
  */
 
-function writeCredentialFile(projectRoot, filename, content, label) {
+const EAS_BUILD = process.env.EAS_BUILD === "true";
+
+const SETUP_INSTRUCTIONS = {
+  GOOGLE_SERVICES_JSON: [
+    "  eas secret:create --scope project --name GOOGLE_SERVICES_JSON \\",
+    '    --type string --value "$(cat google-services.json)"',
+  ].join("\n"),
+  GOOGLE_SERVICE_INFO_PLIST: [
+    "  eas secret:create --scope project --name GOOGLE_SERVICE_INFO_PLIST \\",
+    '    --type string --value "$(cat GoogleService-Info.plist)"',
+  ].join("\n"),
+};
+
+function writeCredentialFile(projectRoot, filename, content, envVar) {
   if (!content || !content.trim()) {
-    console.warn(
-      `[with-firebase-credentials] ${label} env var is not set. ` +
-        `${filename} will not be written. ` +
-        `Set this env var (or EAS secret) before running a native build.`,
-    );
+    const msg =
+      `[with-firebase-credentials] ${envVar} is not set — ` +
+      `${filename} will not be written.\n` +
+      `Run this command from artifacts/met/ to store the secret in EAS:\n` +
+      SETUP_INSTRUCTIONS[envVar];
+
+    if (EAS_BUILD) {
+      throw new Error(msg);
+    }
+
+    console.warn(msg);
     return;
   }
+
   const dest = path.join(projectRoot, filename);
   fs.writeFileSync(dest, content, "utf8");
   console.log(`[with-firebase-credentials] Wrote ${filename} to ${dest}`);
