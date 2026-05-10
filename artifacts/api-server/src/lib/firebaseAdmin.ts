@@ -2,24 +2,18 @@ import { initializeApp, cert, getApps, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getStorage, type Storage } from "firebase-admin/storage";
-import * as fs from "fs";
-import * as path from "path";
 import { logger } from "./logger";
 
 let app: App | null = null;
 let initError: Error | null = null;
 
 function loadServiceAccountJson(): string {
-  const filePath = path.resolve(__dirname, "..", "firebase-sa.json");
-  if (fs.existsSync(filePath)) {
-    logger.info({ filePath }, "Loading Firebase SA from file");
-    return fs.readFileSync(filePath, "utf8");
-  }
   const raw = process.env["FIREBASE_SERVICE_ACCOUNT_JSON"];
   if (raw && raw.trim()) return raw;
   throw new Error(
-    "Firebase service account not found. Provide firebase-sa.json " +
-      "next to the server entry point or set FIREBASE_SERVICE_ACCOUNT_JSON env var.",
+    "Firebase service account not configured. " +
+      "Set the FIREBASE_SERVICE_ACCOUNT_JSON environment secret to the " +
+      "contents of a valid Firebase Admin SDK service account JSON file.",
   );
 }
 

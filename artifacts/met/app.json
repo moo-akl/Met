@@ -111,6 +111,7 @@
       "./plugins/with-rnfb-firestore-header-fix.js",
       "./plugins/with-met-ble.js",
       "./plugins/with-android-build-fixes.js",
+      "./plugins/with-firebase-credentials.js",
       "expo-apple-authentication",
       [
         "@react-native-google-signin/google-signin",
