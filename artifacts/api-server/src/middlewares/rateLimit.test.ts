@@ -657,4 +657,39 @@ describe("AlertAggregator burst-coalescing", () => {
       "rate limit burst ended",
     );
   });
+
+  it("emits 'burst ended' exactly once when triggerSweep() is called twice after a burst goes quiet", async () => {
+    let fakeNow = Date.now();
+    _alertAggregatorForTest.now = () => fakeNow;
+
+    const middleware = createIpRateLimiter({ windowMs: 60_000, max: 1, name: "sweep-idempotent" });
+    const ip = "192.168.200.20";
+
+    // Exhaust the limit (1 allowed request).
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // First 429: hitCount=1, lastLoggedCount=1 → logs "rate limit exceeded".
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // Second 429: absorbed → hitCount=2, lastLoggedCount=1 (1 unreported hit pending flush).
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // Isolate the upcoming flush assertions.
+    loggerMocks.warn.mockClear();
+
+    // Advance past the 10-second burst window so the burst is now quiet.
+    fakeNow += 10_001;
+
+    // First sweep — should flush the quiet burst and emit "rate limit burst ended" once.
+    _alertAggregatorForTest.triggerSweep();
+
+    // Second sweep — entry was already deleted; nothing to flush, no duplicate log.
+    _alertAggregatorForTest.triggerSweep();
+
+    const burstEndedCalls = loggerMocks.warn.mock.calls.filter(
+      ([, msg]) => msg === "rate limit burst ended",
+    );
+    expect(burstEndedCalls).toHaveLength(1);
+    expect(burstEndedCalls[0]![0]).toMatchObject({ hitCount: 2, rateLimitName: "sweep-idempotent" });
+  });
 });
