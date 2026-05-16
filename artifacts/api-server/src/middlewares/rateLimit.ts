@@ -80,8 +80,11 @@ interface BurstEntry {
 class AlertAggregator {
   private readonly bursts = new Map<string, BurstEntry>();
   private readonly sweepTimer: ReturnType<typeof setInterval>;
+  /** Clock function — defaults to `Date.now`; can be overridden in tests. */
+  now: () => number;
 
-  constructor() {
+  constructor(now?: () => number) {
+    this.now = now ?? Date.now;
     // Sweep every half burst-window to flush entries that have gone quiet.
     this.sweepTimer = setInterval(
       () => this.sweep(),
@@ -105,7 +108,7 @@ class AlertAggregator {
     message: string;
   } | null {
     const mapKey = `${name}:${keyHash}`;
-    const now = Date.now();
+    const now = this.now();
     const existing = this.bursts.get(mapKey);
 
     if (!existing || now - existing.lastHitMs > ALERT_BURST_WINDOW_MS) {
@@ -177,7 +180,7 @@ class AlertAggregator {
    * Emits a final summary if there are unreported hits since the last log.
    */
   private sweep(): void {
-    const now = Date.now();
+    const now = this.now();
     for (const [mapKey, entry] of this.bursts) {
       if (now - entry.lastHitMs < ALERT_BURST_WINDOW_MS) continue;
       this.flushEntry(entry);
@@ -187,6 +190,9 @@ class AlertAggregator {
 }
 
 const alertAggregator = new AlertAggregator();
+
+/** Exported for testing only — allows overriding the clock without fake timers. */
+export const _alertAggregatorForTest = alertAggregator;
 
 // ---------------------------------------------------------------------------
 // Redis client — created once, shared across all limiter instances.

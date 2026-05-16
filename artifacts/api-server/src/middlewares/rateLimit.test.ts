@@ -59,7 +59,7 @@ vi.mock("../lib/logger", () => ({ logger: loggerMocks }));
 // Subject — imported after mocks are registered.
 // ---------------------------------------------------------------------------
 
-import { createIpRateLimiter, createUserRateLimiter } from "./rateLimit";
+import { createIpRateLimiter, createUserRateLimiter, _alertAggregatorForTest } from "./rateLimit";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -528,7 +528,8 @@ describe("AlertAggregator burst-coalescing", () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    // Reset the aggregator clock back to real Date.now after each test.
+    _alertAggregatorForTest.now = Date.now;
   });
 
   it("emits exactly one warn log for the first 429 in a burst; subsequent hits within the burst window are silently absorbed", async () => {
@@ -591,7 +592,9 @@ describe("AlertAggregator burst-coalescing", () => {
   });
 
   it("emits a 'burst ended' warn via logger when the burst window expires and a new hit arrives", async () => {
-    vi.useFakeTimers();
+    // Use a controlled clock so we can advance time without patching global timers.
+    let fakeNow = Date.now();
+    _alertAggregatorForTest.now = () => fakeNow;
 
     const middleware = createIpRateLimiter({ windowMs: 60_000, max: 1, name: "burst-ended" });
     const ip = "192.168.200.3";
@@ -608,9 +611,9 @@ describe("AlertAggregator burst-coalescing", () => {
     // Isolate the upcoming flush assertion.
     loggerMocks.warn.mockClear();
 
-    // Advance past the 10-second burst window but stay within the 60-second rate-limit window,
-    // so the MemoryStore still treats the next request as blocked (still in the same rate window).
-    vi.advanceTimersByTime(10_001);
+    // Advance the injected clock past the 10-second burst window but stay within the
+    // 60-second rate-limit window so the MemoryStore still blocks the next request.
+    fakeNow += 10_001;
 
     // A new 429 from the same key arrives — record() detects the expired burst and calls
     // flushEntry() inline, which emits the "burst ended" summary via logger.warn.
