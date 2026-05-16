@@ -10,8 +10,21 @@ import { ZodError } from "zod";
 import router from "./routes";
 import legalRouter from "./routes/legal";
 import { logger } from "./lib/logger";
+import { createIpRateLimiter } from "./middlewares/rateLimit";
 
 const app: Express = express();
+
+// Tell Express to trust exactly one hop of reverse-proxy headers.
+// Replit's ingress adds one `X-Forwarded-For` entry; trusting a single
+// hop lets `req.ip` resolve to the real client IP while preventing a
+// client from spoofing the header by injecting its own value.
+// Adjust to the actual proxy depth if the deployment topology changes.
+app.set("trust proxy", 1);
+
+// Per-IP rate limiting applied to all routes: 100 requests per minute.
+// This is the first line of defence against enumeration and brute-force
+// attacks on every public and authenticated endpoint.
+app.use(createIpRateLimiter({ windowMs: 60_000, max: 100, name: "ip" }));
 
 app.use(
   pinoHttp({

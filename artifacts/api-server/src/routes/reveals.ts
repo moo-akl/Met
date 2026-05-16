@@ -18,9 +18,19 @@ import {
   DeclineRevealRequestResponse,
 } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
+import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { mirrorRevealRequest, mirrorRevealStatus } from "../lib/firestoreMirror";
 
 const router: IRouter = Router();
+
+// Per-user rate limit for reveal write endpoints: 20 requests per minute.
+// Reveal requests are deliberate actions; a strict limit prevents a bad
+// actor from flooding recipients with spurious reveal notifications.
+const revealWriteLimit = createUserRateLimiter({
+  windowMs: 60_000,
+  max: 20,
+  name: "user-reveal-write",
+});
 
 function serializeProfile(p: Profile) {
   return {
@@ -49,7 +59,7 @@ function serializeReveal(r: RevealRequest) {
 }
 
 // POST /api/reveals — sender initiates (or refreshes) a reveal request.
-router.post("/reveals", requireUid, async (req, res) => {
+router.post("/reveals", requireUid, revealWriteLimit, async (req, res) => {
   const senderUid = req.uid!;
   const body = CreateRevealRequestBody.parse(req.body);
 
@@ -182,7 +192,7 @@ router.get("/reveals/outbox", requireUid, async (req, res) => {
 // neither side is left waiting on a request the other already consented
 // to. We never auto-create a reverse request — only accept one that the
 // other party already initiated.
-router.post("/reveals/accept", requireUid, async (req, res) => {
+router.post("/reveals/accept", requireUid, revealWriteLimit, async (req, res) => {
   const recipientUid = req.uid!;
   const body = AcceptRevealRequestBody.parse(req.body);
   const now = new Date();
@@ -245,7 +255,7 @@ router.post("/reveals/accept", requireUid, async (req, res) => {
 // Only the original sender may cancel; only pending rows are affected.
 // Mirrors the cancellation to Firestore so the recipient's real-time
 // listener picks up the removal.
-router.post("/reveals/cancel", requireUid, async (req, res) => {
+router.post("/reveals/cancel", requireUid, revealWriteLimit, async (req, res) => {
   const senderUid = req.uid!;
   const body = DeclineRevealRequestBody.parse(req.body);
   const recipientUid = (body as { senderUid: string }).senderUid;
@@ -279,7 +289,7 @@ router.post("/reveals/cancel", requireUid, async (req, res) => {
 // POST /api/reveals/decline — recipient declines a pending request.
 // Does NOT touch any reverse request: declining is a per-direction
 // statement, not a mutual block.
-router.post("/reveals/decline", requireUid, async (req, res) => {
+router.post("/reveals/decline", requireUid, revealWriteLimit, async (req, res) => {
   const recipientUid = req.uid!;
   const body = DeclineRevealRequestBody.parse(req.body);
   const now = new Date();

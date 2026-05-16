@@ -15,9 +15,19 @@ import {
   RecordEncounterResponse,
 } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
+import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { recordSymmetricEncounter } from "../lib/firestoreMirror";
 
 const router: IRouter = Router();
+
+// Per-user rate limit for encounter write endpoints: 30 requests per minute.
+// Encounters are proximity-triggered but a single session should never
+// produce more than a handful per minute in normal use.
+const encounterWriteLimit = createUserRateLimiter({
+  windowMs: 60_000,
+  max: 30,
+  name: "user-encounter-write",
+});
 
 function serializeEncounter(e: Encounter) {
   return {
@@ -49,7 +59,7 @@ function serializeProfile(p: Profile) {
 // older counts as a new encounter session.
 const ENCOUNTER_WINDOW_MS = 10 * 60 * 1000;
 
-router.post("/encounters", requireUid, async (req, res) => {
+router.post("/encounters", requireUid, encounterWriteLimit, async (req, res) => {
   const uid = req.uid!;
   const body = LogEncounterBody.parse(req.body);
   if (body.observedUid === uid) {
@@ -134,7 +144,7 @@ router.get("/encounters", requireUid, async (req, res) => {
 // docs to BOTH users' met_people subcollections in Firestore using a
 // single batched commit. Profile data is read from Postgres so we can
 // reject encounters with non-existent users early.
-router.post("/encounters/record", requireUid, async (req, res) => {
+router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, res) => {
   const uid = req.uid!;
   const body = RecordEncounterBody.parse(req.body);
 
