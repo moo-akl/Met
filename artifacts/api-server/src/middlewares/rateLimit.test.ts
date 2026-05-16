@@ -692,4 +692,41 @@ describe("AlertAggregator burst-coalescing", () => {
     expect(burstEndedCalls).toHaveLength(1);
     expect(burstEndedCalls[0]![0]).toMatchObject({ hitCount: 2, rateLimitName: "sweep-idempotent" });
   });
+
+  it("stays silent at sweep time when all burst hits were already reported via intermediate summaries (unreported === 0)", async () => {
+    let fakeNow = Date.now();
+    _alertAggregatorForTest.now = () => fakeNow;
+
+    const middleware = createIpRateLimiter({ windowMs: 60_000, max: 1, name: "sweep-fully-logged" });
+    const ip = "192.168.201.10";
+
+    // Exhaust the limit (1 allowed request).
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // First 429: hitCount=1, lastLoggedCount=1 — logs "rate limit exceeded".
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // Fire 10 more 429s within the burst window.
+    // Hits 2–10 are silently absorbed; hit 11 crosses the ALERT_LOG_EVERY_N threshold
+    // and logs "rate limit burst in progress", setting lastLoggedCount=11=hitCount.
+    for (let i = 0; i < 10; i++) {
+      await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+    }
+
+    // At this point hitCount === lastLoggedCount === 11, so unreported === 0.
+
+    // Isolate sweep assertions — clear any warn calls from above.
+    loggerMocks.warn.mockClear();
+
+    // Advance past the 10-second burst window so the burst is now quiet.
+    fakeNow += 10_001;
+
+    // Sweep — flushEntry should detect unreported===0 and emit nothing.
+    _alertAggregatorForTest.triggerSweep();
+
+    const burstEndedCalls = loggerMocks.warn.mock.calls.filter(
+      ([, msg]) => msg === "rate limit burst ended",
+    );
+    expect(burstEndedCalls).toHaveLength(0);
+  });
 });
