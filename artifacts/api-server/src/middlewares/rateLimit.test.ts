@@ -12,7 +12,7 @@
  * keys are also used per test for the same reason.
  */
 
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { Request, Response, NextFunction } from "express";
 
 // ---------------------------------------------------------------------------
@@ -514,5 +514,111 @@ describe("Redis mock backend", () => {
       });
       expect((fields["keyHash"] as string).length).toBe(12);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. AlertAggregator burst-coalescing behaviour
+// ---------------------------------------------------------------------------
+
+describe("AlertAggregator burst-coalescing", () => {
+  beforeEach(() => {
+    redisMocks.mockRedisInstance.status = "close";
+    process.env["REDIS_URL"] = "redis://localhost:6379";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("emits exactly one warn log for the first 429 in a burst; subsequent hits within the burst window are silently absorbed", async () => {
+    // Unique limiter name ensures no key collision with other tests in the shared AlertAggregator.
+    const middleware = createIpRateLimiter({ windowMs: 60_000, max: 1, name: "burst-first-hit" });
+    const ip = "192.168.200.1";
+
+    // First request passes (within limit).
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // Second request — first 429 in the burst — should log "rate limit exceeded".
+    const firstBlocked = makeReq({ ip });
+    await runMiddleware(middleware, firstBlocked, makeRes().res);
+
+    // Third request — still within the burst window — should be silently absorbed.
+    const secondBlocked = makeReq({ ip });
+    await runMiddleware(middleware, secondBlocked, makeRes().res);
+
+    const firstSpy = (firstBlocked as unknown as { _warnSpy: ReturnType<typeof vi.fn> })._warnSpy;
+    const secondSpy = (secondBlocked as unknown as { _warnSpy: ReturnType<typeof vi.fn> })._warnSpy;
+
+    expect(firstSpy).toHaveBeenCalledOnce();
+    const [, firstMsg] = firstSpy.mock.calls[0] as [unknown, string];
+    expect(firstMsg).toBe("rate limit exceeded");
+
+    expect(secondSpy).not.toHaveBeenCalled();
+  });
+
+  it("emits a 'burst in progress' warn log after every ALERT_LOG_EVERY_N (10) accumulated hits within the burst window", async () => {
+    const middleware = createIpRateLimiter({ windowMs: 60_000, max: 1, name: "burst-progress" });
+    const ip = "192.168.200.2";
+
+    // Exhaust the limit (1 allowed request).
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // First 429 — burst starts, hitCount=1, lastLoggedCount=1 — logs "rate limit exceeded".
+    const firstBlocked = makeReq({ ip });
+    await runMiddleware(middleware, firstBlocked, makeRes().res);
+
+    // Hits 2–10 within the burst (9 absorbed requests).
+    for (let i = 0; i < 9; i++) {
+      await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+    }
+
+    // Hit 11 — newHits since last log = 10 >= ALERT_LOG_EVERY_N — logs "rate limit burst in progress".
+    const eleventhBlocked = makeReq({ ip });
+    await runMiddleware(middleware, eleventhBlocked, makeRes().res);
+
+    const firstSpy = (firstBlocked as unknown as { _warnSpy: ReturnType<typeof vi.fn> })._warnSpy;
+    const eleventhSpy = (eleventhBlocked as unknown as { _warnSpy: ReturnType<typeof vi.fn> })._warnSpy;
+
+    // First 429 should have logged exactly once.
+    expect(firstSpy).toHaveBeenCalledOnce();
+
+    // Eleventh 429 should trigger the intermediate summary.
+    expect(eleventhSpy).toHaveBeenCalledOnce();
+    const [fields, msg] = eleventhSpy.mock.calls[0] as [Record<string, unknown>, string];
+    expect(msg).toBe("rate limit burst in progress");
+    expect(fields).toMatchObject({ hitCount: 11 });
+  });
+
+  it("emits a 'burst ended' warn via logger when the burst window expires and a new hit arrives", async () => {
+    vi.useFakeTimers();
+
+    const middleware = createIpRateLimiter({ windowMs: 60_000, max: 1, name: "burst-ended" });
+    const ip = "192.168.200.3";
+
+    // Exhaust the limit.
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // First 429: hitCount=1, lastLoggedCount=1 → logs "rate limit exceeded".
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // Second 429: absorbed → hitCount=2, lastLoggedCount=1 (1 unreported hit pending flush).
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // Isolate the upcoming flush assertion.
+    loggerMocks.warn.mockClear();
+
+    // Advance past the 10-second burst window but stay within the 60-second rate-limit window,
+    // so the MemoryStore still treats the next request as blocked (still in the same rate window).
+    vi.advanceTimersByTime(10_001);
+
+    // A new 429 from the same key arrives — record() detects the expired burst and calls
+    // flushEntry() inline, which emits the "burst ended" summary via logger.warn.
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ hitCount: 2, rateLimitName: "burst-ended" }),
+      "rate limit burst ended",
+    );
   });
 });
