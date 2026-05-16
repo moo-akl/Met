@@ -176,6 +176,14 @@ class AlertAggregator {
   }
 
   /**
+   * Exposed for tests only — triggers the same logic as the periodic sweep
+   * timer without requiring fake timers or real waits.
+   */
+  triggerSweep(): void {
+    this.sweep();
+  }
+
+  /**
    * Flush burst entries that have gone quiet (no hit for a full burst window).
    * Emits a final summary if there are unreported hits since the last log.
    */

@@ -591,6 +591,39 @@ describe("AlertAggregator burst-coalescing", () => {
     expect(fields).toMatchObject({ hitCount: 11 });
   });
 
+  it("emits a 'burst ended' warn via logger when the sweep timer fires after a burst goes quiet", async () => {
+    // Use a controlled clock so we can advance time without patching global timers.
+    let fakeNow = Date.now();
+    _alertAggregatorForTest.now = () => fakeNow;
+
+    const middleware = createIpRateLimiter({ windowMs: 60_000, max: 1, name: "sweep-flush" });
+    const ip = "192.168.200.10";
+
+    // Exhaust the limit (1 allowed request).
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // First 429: hitCount=1, lastLoggedCount=1 → logs "rate limit exceeded".
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // Second 429: silently absorbed → hitCount=2, lastLoggedCount=1 (1 unreported hit pending flush).
+    await runMiddleware(middleware, makeReq({ ip }), makeRes().res);
+
+    // Isolate the upcoming flush assertion.
+    loggerMocks.warn.mockClear();
+
+    // Advance the injected clock past the 10-second burst window — the burst is now "quiet".
+    fakeNow += 10_001;
+
+    // Simulate the periodic sweep timer firing (no real setInterval wait needed).
+    _alertAggregatorForTest.triggerSweep();
+
+    // The sweep should have flushed the quiet burst and emitted the "burst ended" summary.
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ hitCount: 2, rateLimitName: "sweep-flush" }),
+      "rate limit burst ended",
+    );
+  });
+
   it("emits a 'burst ended' warn via logger when the burst window expires and a new hit arrives", async () => {
     // Use a controlled clock so we can advance time without patching global timers.
     let fakeNow = Date.now();
