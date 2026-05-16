@@ -24,8 +24,22 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
+import { createHash } from "crypto";
 import Redis from "ioredis";
 import { logger } from "../lib/logger";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the first 12 hex characters of the SHA-256 of `value`.
+ * Used to include a stable fingerprint of an IP or UID in log entries
+ * without recording plaintext PII.
+ */
+function hashKey(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 12);
+}
 
 // ---------------------------------------------------------------------------
 // Redis client — created once, shared across all limiter instances.
@@ -122,7 +136,7 @@ class RateLimiter {
     this.memoryStore = new MemoryStore(opts.windowMs);
   }
 
-  async check(key: string): Promise<{ allowed: boolean; retryAfterSec: number }> {
+  async check(key: string): Promise<{ allowed: boolean; count: number; retryAfterSec: number }> {
     const redis = getRedisClient();
 
     if (redis && redis.status === "ready") {
@@ -135,7 +149,7 @@ class RateLimiter {
   private async checkRedis(
     redis: Redis,
     key: string,
-  ): Promise<{ allowed: boolean; retryAfterSec: number }> {
+  ): Promise<{ allowed: boolean; count: number; retryAfterSec: number }> {
     const windowSec = Math.ceil(this.windowMs / 1000);
     const nowSec = Math.floor(Date.now() / 1000);
     const windowStart = nowSec - (nowSec % windowSec);
@@ -155,6 +169,7 @@ class RateLimiter {
       const retryAfterSec = windowEnd - nowSec;
       return {
         allowed: count <= this.max,
+        count,
         retryAfterSec: count > this.max ? retryAfterSec : 0,
       };
     } catch (err) {
@@ -163,10 +178,11 @@ class RateLimiter {
     }
   }
 
-  private checkMemory(key: string): { allowed: boolean; retryAfterSec: number } {
+  private checkMemory(key: string): { allowed: boolean; count: number; retryAfterSec: number } {
     const { count, windowExpiresSec } = this.memoryStore.check(key);
     return {
       allowed: count <= this.max,
+      count,
       retryAfterSec: count > this.max ? windowExpiresSec : 0,
     };
   }
@@ -194,9 +210,24 @@ export function createIpRateLimiter(
     // hop — preventing header-spoofing bypasses.
     const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
 
-    const { allowed, retryAfterSec } = await limiter.check(ip);
+    const { allowed, count, retryAfterSec } = await limiter.check(ip);
 
     if (!allowed) {
+      // req.log is set by pino-http, which may be registered after this
+      // middleware (the IP limiter is intentionally placed first in app.ts).
+      // Fall back to the module logger so the warn is never silently dropped.
+      const log = req.log ?? logger;
+      log.warn(
+        {
+          rateLimitName: opts.name ?? "ip",
+          keyHash: hashKey(ip),
+          route: req.path,
+          method: req.method,
+          windowCount: count,
+          retryAfterSec,
+        },
+        "rate limit exceeded",
+      );
       res.setHeader("Retry-After", String(retryAfterSec));
       res.status(429).json({
         message: `Too many requests — please retry after ${retryAfterSec} second(s).`,
@@ -225,9 +256,21 @@ export function createUserRateLimiter(
     // Prefer UID (always set after requireUid). Fall back to req.ip so
     // the key remains proxy-aware even in the unlikely case uid is absent.
     const key = req.uid ?? req.ip ?? req.socket.remoteAddress ?? "unknown";
-    const { allowed, retryAfterSec } = await limiter.check(key);
+    const { allowed, count, retryAfterSec } = await limiter.check(key);
 
     if (!allowed) {
+      const log = req.log ?? logger;
+      log.warn(
+        {
+          rateLimitName: opts.name ?? "user-write",
+          keyHash: hashKey(key),
+          route: req.path,
+          method: req.method,
+          windowCount: count,
+          retryAfterSec,
+        },
+        "rate limit exceeded",
+      );
       res.setHeader("Retry-After", String(retryAfterSec));
       res.status(429).json({
         message: `Too many requests — please retry after ${retryAfterSec} second(s).`,
