@@ -17,6 +17,7 @@
     "drizzle-orm": "catalog:",
     "express": "^5",
     "firebase-admin": "^13.8.0",
+    "ioredis": "^5.10.1",
     "pino": "^9",
     "pino-http": "^10",
     "zod": "catalog:"

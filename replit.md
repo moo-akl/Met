@@ -14,6 +14,7 @@ Met is a proximity-based social networking application for discovering and conne
     - `EXPO_PUBLIC_API_URL`: API server URL (e.g., `https://metapp.replit.app`)
     - `FIREBASE_SERVICE_ACCOUNT_JSON`: Firebase Admin SDK credentials (for API server)
     - `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` (for EAS builds)
+    - `REDIS_URL`: Redis connection URL for distributed rate limiting (e.g., `redis://localhost:6379` or a managed Redis URL). Optional in local dev — falls back to in-memory counters when absent.
 
 ## Stack
 
