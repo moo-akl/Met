@@ -21,6 +21,12 @@
  *   by injecting arbitrary values into the header.
  *   If the deployment gains additional proxy layers, increase `trust proxy`
  *   accordingly.
+ *
+ * Log aggregation:
+ *   Repeated 429s from the same source within a burst window are coalesced to
+ *   avoid flooding logs. The first hit is always logged immediately. Subsequent
+ *   hits within the burst window are silently counted; a summary log is emitted
+ *   every ALERT_LOG_EVERY_N hits and once more when the burst window closes.
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -40,6 +46,147 @@ import { logger } from "../lib/logger";
 function hashKey(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
+
+// ---------------------------------------------------------------------------
+// Alert aggregator — coalesces burst 429 log entries per (name, keyHash)
+// ---------------------------------------------------------------------------
+
+/**
+ * How long (ms) a burst window stays open after the last hit before the
+ * aggregator flushes a final summary and resets.
+ */
+const ALERT_BURST_WINDOW_MS = 10_000; // 10 seconds
+
+/**
+ * Emit an intermediate summary every N hits so very active abusers are
+ * still visible without producing one log line per request.
+ */
+const ALERT_LOG_EVERY_N = 10;
+
+interface BurstEntry {
+  /** Total hits recorded in the current burst window. */
+  hitCount: number;
+  /** Timestamp of the first hit in this burst. */
+  burstStartMs: number;
+  /** Timestamp of the most recent hit — used to expire quiet bursts. */
+  lastHitMs: number;
+  /** hitCount at the time of the last log emission (to detect new growth). */
+  lastLoggedCount: number;
+  /** Stored here so the sweep/flush path never needs to parse the map key. */
+  name: string;
+  keyHash: string;
+}
+
+class AlertAggregator {
+  private readonly bursts = new Map<string, BurstEntry>();
+  private readonly sweepTimer: ReturnType<typeof setInterval>;
+
+  constructor() {
+    // Sweep every half burst-window to flush entries that have gone quiet.
+    this.sweepTimer = setInterval(
+      () => this.sweep(),
+      ALERT_BURST_WINDOW_MS / 2,
+    );
+    this.sweepTimer.unref();
+  }
+
+  /**
+   * Record one 429 hit for the given (name, keyHash).
+   *
+   * Returns a log context object when a log line should be emitted, or `null`
+   * when the hit is silently absorbed into the current burst.
+   */
+  record(
+    name: string,
+    keyHash: string,
+    extraFields: Record<string, unknown>,
+  ): {
+    fields: Record<string, unknown>;
+    message: string;
+  } | null {
+    const mapKey = `${name}:${keyHash}`;
+    const now = Date.now();
+    const existing = this.bursts.get(mapKey);
+
+    if (!existing || now - existing.lastHitMs > ALERT_BURST_WINDOW_MS) {
+      // Flush any unreported hits from the previous burst before resetting.
+      // This covers the case where a new hit arrives after the burst window
+      // expires but before the periodic sweep timer runs — without this flush
+      // those accumulated counts would be silently dropped.
+      if (existing) {
+        this.flushEntry(existing);
+      }
+
+      // First hit of a new burst — always log immediately.
+      this.bursts.set(mapKey, {
+        hitCount: 1,
+        burstStartMs: now,
+        lastHitMs: now,
+        lastLoggedCount: 1,
+        name,
+        keyHash,
+      });
+      return {
+        fields: { ...extraFields, hitCount: 1 },
+        message: "rate limit exceeded",
+      };
+    }
+
+    // Within an active burst window — accumulate.
+    existing.hitCount += 1;
+    existing.lastHitMs = now;
+
+    const newHits = existing.hitCount - existing.lastLoggedCount;
+    if (newHits >= ALERT_LOG_EVERY_N) {
+      existing.lastLoggedCount = existing.hitCount;
+      return {
+        fields: {
+          ...extraFields,
+          hitCount: existing.hitCount,
+          burstDurationMs: now - existing.burstStartMs,
+        },
+        message: "rate limit burst in progress",
+      };
+    }
+
+    // Absorb silently.
+    return null;
+  }
+
+  /**
+   * Emit a final summary log for an entry if it has unreported hits.
+   * Called both by the sweep timer and inline in record() when a burst expires.
+   */
+  private flushEntry(entry: BurstEntry): void {
+    const unreported = entry.hitCount - entry.lastLoggedCount;
+    if (unreported > 0) {
+      logger.warn(
+        {
+          rateLimitName: entry.name,
+          keyHash: entry.keyHash,
+          hitCount: entry.hitCount,
+          burstDurationMs: entry.lastHitMs - entry.burstStartMs,
+        },
+        "rate limit burst ended",
+      );
+    }
+  }
+
+  /**
+   * Flush burst entries that have gone quiet (no hit for a full burst window).
+   * Emits a final summary if there are unreported hits since the last log.
+   */
+  private sweep(): void {
+    const now = Date.now();
+    for (const [mapKey, entry] of this.bursts) {
+      if (now - entry.lastHitMs < ALERT_BURST_WINDOW_MS) continue;
+      this.flushEntry(entry);
+      this.bursts.delete(mapKey);
+    }
+  }
+}
+
+const alertAggregator = new AlertAggregator();
 
 // ---------------------------------------------------------------------------
 // Redis client — created once, shared across all limiter instances.
@@ -189,6 +336,33 @@ class RateLimiter {
 }
 
 // ---------------------------------------------------------------------------
+// Shared log helper — runs a 429 through the aggregator and emits if needed
+// ---------------------------------------------------------------------------
+
+function logRateLimitExceeded(
+  req: Request,
+  name: string,
+  key: string,
+  count: number,
+  retryAfterSec: number,
+): void {
+  const baseFields = {
+    rateLimitName: name,
+    keyHash: hashKey(key),
+    route: req.path,
+    method: req.method,
+    windowCount: count,
+    retryAfterSec,
+  };
+
+  const entry = alertAggregator.record(name, hashKey(key), baseFields);
+  if (!entry) return; // silently absorbed into burst
+
+  const log = req.log ?? logger;
+  log.warn(entry.fields, entry.message);
+}
+
+// ---------------------------------------------------------------------------
 // Middleware factories
 // ---------------------------------------------------------------------------
 
@@ -213,21 +387,7 @@ export function createIpRateLimiter(
     const { allowed, count, retryAfterSec } = await limiter.check(ip);
 
     if (!allowed) {
-      // req.log is set by pino-http, which may be registered after this
-      // middleware (the IP limiter is intentionally placed first in app.ts).
-      // Fall back to the module logger so the warn is never silently dropped.
-      const log = req.log ?? logger;
-      log.warn(
-        {
-          rateLimitName: opts.name ?? "ip",
-          keyHash: hashKey(ip),
-          route: req.path,
-          method: req.method,
-          windowCount: count,
-          retryAfterSec,
-        },
-        "rate limit exceeded",
-      );
+      logRateLimitExceeded(req, opts.name ?? "ip", ip, count, retryAfterSec);
       res.setHeader("Retry-After", String(retryAfterSec));
       res.status(429).json({
         message: `Too many requests — please retry after ${retryAfterSec} second(s).`,
@@ -259,18 +419,7 @@ export function createUserRateLimiter(
     const { allowed, count, retryAfterSec } = await limiter.check(key);
 
     if (!allowed) {
-      const log = req.log ?? logger;
-      log.warn(
-        {
-          rateLimitName: opts.name ?? "user-write",
-          keyHash: hashKey(key),
-          route: req.path,
-          method: req.method,
-          windowCount: count,
-          retryAfterSec,
-        },
-        "rate limit exceeded",
-      );
+      logRateLimitExceeded(req, opts.name ?? "user-write", key, count, retryAfterSec);
       res.setHeader("Retry-After", String(retryAfterSec));
       res.status(429).json({
         message: `Too many requests — please retry after ${retryAfterSec} second(s).`,
