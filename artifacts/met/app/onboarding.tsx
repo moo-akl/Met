@@ -244,8 +244,14 @@ export default function OnboardingScreen() {
     setAuthBusy(true);
     try {
       // Returns null when the user cancels the Apple sheet — silent.
-      const uid = await signInWithApple();
-      if (uid) await goToProfileSetup();
+      const result = await signInWithApple();
+      if (result) {
+        // Apple provides the full name only on the very first sign-in.
+        // Pre-populate the name field so the user doesn't have to retype
+        // information Apple already supplied (Guideline 4 compliance).
+        if (result.fullName) setName(result.fullName);
+        await goToProfileSetup();
+      }
     } catch {
       showSignInError();
     } finally {

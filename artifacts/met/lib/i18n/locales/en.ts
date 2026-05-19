@@ -390,7 +390,7 @@ export const en = {
     disclosure:
       "Your name, photo and exact location are never shared with anyone until you both reveal. You can change any of this later in Settings.",
     statusGranted: "Granted",
-    statusAllow: "Allow",
+    statusAllow: "Continue",
     statusTryAgain: "Try again",
   },
 

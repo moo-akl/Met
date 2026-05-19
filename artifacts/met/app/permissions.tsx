@@ -313,30 +313,9 @@ export default function PermissionsScreen() {
 
         <View style={{ gap: 10 }}>
           <PrimaryButton
-            label={
-              allDecided
-                ? t("permissions.continue")
-                : t("permissions.continueAnyway")
-            }
+            label={t("permissions.continue")}
             onPress={handleContinue}
           />
-          {!allDecided ? (
-            <Pressable
-              onPress={handleSkip}
-              hitSlop={10}
-              style={({ pressed }) => ({
-                opacity: pressed ? 0.6 : 1,
-                alignSelf: "center",
-                paddingVertical: 6,
-              })}
-            >
-              <Text
-                style={[styles.skipText, { color: colors.mutedForeground }]}
-              >
-                {t("permissions.skipForNow")}
-              </Text>
-            </Pressable>
-          ) : null}
         </View>
       </ScrollView>
 

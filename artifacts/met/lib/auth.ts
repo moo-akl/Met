@@ -189,7 +189,7 @@ export async function deleteUserAccount(): Promise<void> {
 //   - throw on every other failure (network, invalid credentials, etc.)
 // ---------------------------------------------------------------------
 
-export async function signInWithApple(): Promise<string | null> {
+export async function signInWithApple(): Promise<{ uid: string; fullName: string | null } | null> {
   if (Platform.OS !== "ios") {
     throw new Error("Apple Sign-In is only available on iOS");
   }
@@ -223,7 +223,12 @@ export async function signInWithApple(): Promise<string | null> {
     raw,
   );
   const userCred = await auth.signInWithCredential(provider);
-  return userCred.user.uid;
+  const appleFullName = [credential.fullName?.givenName, credential.fullName?.familyName]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || null;
+  const fullName = appleFullName || userCred.user.displayName || null;
+  return { uid: userCred.user.uid, fullName };
 }
 
 export async function signInWithGoogle(): Promise<string | null> {
