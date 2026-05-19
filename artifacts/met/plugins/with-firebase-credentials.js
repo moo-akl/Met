@@ -52,10 +52,11 @@ function writeCredentialFile(projectRoot, filename, content, envVar) {
       `Run this command from artifacts/met/ to store the secret in EAS:\n` +
       SETUP_INSTRUCTIONS[envVar];
 
-    if (EAS_BUILD) {
-      throw new Error(msg);
-    }
-
+    // Always warn — never throw — so that `npx expo config --type introspect`
+    // (which EAS runs before prebuild) can complete even when secrets are not
+    // yet available.  The build will still fail at native compilation if the
+    // credential file is missing, but with a clearer platform-level error
+    // rather than a cryptic "expo config exited with code 1".
     console.warn(msg);
     return;
   }
