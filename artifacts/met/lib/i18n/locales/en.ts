@@ -1,3 +1,5 @@
+import { interestLocales } from "@workspace/interests";
+
 export const en = {
   common: {
     cancel: "Cancel",
@@ -848,28 +850,7 @@ export const en = {
     timeDaysAgo: "{{count}} days ago",
   },
 
-  interestLabels: {
-    sport: "Sport",
-    music: "Music",
-    art: "Art",
-    travel: "Travel",
-    food: "Food",
-    gaming: "Gaming",
-    tech: "Tech",
-    fitness: "Fitness",
-    photography: "Photography",
-    reading: "Reading",
-    film: "Film",
-    nature: "Nature",
-    cooking: "Cooking",
-    fashion: "Fashion",
-    hiking: "Hiking",
-    yoga: "Yoga",
-    dancing: "Dancing",
-    coffee: "Coffee",
-    dogs: "Dogs",
-    cats: "Cats",
-  },
+  interestLabels: interestLocales.en,
 
   referrals: {
     title: "Invite friends",

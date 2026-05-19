@@ -1,4 +1,5 @@
 import type { LocaleTree } from "./en";
+import { interestLocales } from "@workspace/interests";
 
 export const ru: LocaleTree = {
   common: {
@@ -828,26 +829,5 @@ export const ru: LocaleTree = {
       "Только прототип — в продакшене атрибуция работает на сервере.",
   },
 
-  interestLabels: {
-    sport: "Спорт",
-    music: "Музыка",
-    art: "Искусство",
-    travel: "Путешествия",
-    food: "Еда",
-    gaming: "Игры",
-    tech: "Технологии",
-    fitness: "Фитнес",
-    photography: "Фотография",
-    reading: "Чтение",
-    film: "Кино",
-    nature: "Природа",
-    cooking: "Кулинария",
-    fashion: "Мода",
-    hiking: "Походы",
-    yoga: "Йога",
-    dancing: "Танцы",
-    coffee: "Кофе",
-    dogs: "Собаки",
-    cats: "Кошки",
-  },
+  interestLabels: interestLocales.ru,
 };

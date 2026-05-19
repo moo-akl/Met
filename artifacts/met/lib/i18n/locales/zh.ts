@@ -1,4 +1,5 @@
 import type { LocaleTree } from "./en";
+import { interestLocales } from "@workspace/interests";
 
 export const zh: LocaleTree = {
   common: {
@@ -777,26 +778,5 @@ export const zh: LocaleTree = {
     simulateHint: "仅原型 — 在生产环境中,归因发生在服务端。",
   },
 
-  interestLabels: {
-    sport: "运动",
-    music: "音乐",
-    art: "艺术",
-    travel: "旅行",
-    food: "美食",
-    gaming: "游戏",
-    tech: "科技",
-    fitness: "健身",
-    photography: "摄影",
-    reading: "阅读",
-    film: "电影",
-    nature: "自然",
-    cooking: "烹饪",
-    fashion: "时尚",
-    hiking: "徒步",
-    yoga: "瑜伽",
-    dancing: "舞蹈",
-    coffee: "咖啡",
-    dogs: "狗狗",
-    cats: "猫咪",
-  },
+  interestLabels: interestLocales.zh,
 };

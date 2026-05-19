@@ -1,4 +1,5 @@
 import type { LocaleTree } from "./en";
+import { interestLocales } from "@workspace/interests";
 
 export const pt: LocaleTree = {
   common: {
@@ -821,26 +822,5 @@ export const pt: LocaleTree = {
       "Só prototipo — em produção, a atribuição acontece no servidor.",
   },
 
-  interestLabels: {
-    sport: "Esporte",
-    music: "Música",
-    art: "Arte",
-    travel: "Viagens",
-    food: "Gastronomia",
-    gaming: "Jogos",
-    tech: "Tecnologia",
-    fitness: "Fitness",
-    photography: "Fotografia",
-    reading: "Leitura",
-    film: "Cinema",
-    nature: "Natureza",
-    cooking: "Culinária",
-    fashion: "Moda",
-    hiking: "Trilhas",
-    yoga: "Yoga",
-    dancing: "Dança",
-    coffee: "Café",
-    dogs: "Cachorros",
-    cats: "Gatos",
-  },
+  interestLabels: interestLocales.pt,
 };
