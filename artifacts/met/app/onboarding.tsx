@@ -3,7 +3,7 @@ import { Image } from "@/components/MetImage";
 import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -38,6 +38,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { getLanguage, useT } from "@/lib/i18n";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
+import { loadDragHintDismissed, saveDragHintDismissed } from "@/lib/storage";
 import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
 import { consumePendingReferral } from "./_layout";
@@ -134,6 +135,7 @@ export default function OnboardingScreen() {
   const [socials, setSocials] = useState<SocialLinks>({});
   const [interests, setInterests] = useState<string[]>([]);
   const [interestSearch, setInterestSearch] = useState("");
+  const [showDragHint, setShowDragHint] = useState(false);
   const [saving, setSaving] = useState(false);
   // Referral code the user is redeeming. Pre-filled from any deep-link
   // (`met://r/CODE`) the system captured before onboarding mounted.
@@ -166,6 +168,29 @@ export default function OnboardingScreen() {
   // Guard against double-mount (StrictMode) running our resume effect
   // twice and overwriting the user's chosen phase.
   const resumedRef = useRef(false);
+
+  useEffect(() => {
+    if (phase === "interests") {
+      let cancelled = false;
+      loadDragHintDismissed().then((dismissed) => {
+        if (!cancelled) setShowDragHint(!dismissed);
+      });
+      return () => { cancelled = true; };
+    }
+  }, [phase]);
+
+  const handleInterestsReorder = useCallback((newItems: string[]) => {
+    setInterests((prev) => {
+      if (showDragHint) {
+        const changed = prev.length !== newItems.length || prev.some((v, i) => v !== newItems[i]);
+        if (changed) {
+          setShowDragHint(false);
+          void saveDragHintDismissed();
+        }
+      }
+      return newItems;
+    });
+  }, [showDragHint]);
 
   const webTop = Platform.OS === "web" ? 67 : 0;
   const webBot = Platform.OS === "web" ? 34 : 0;
@@ -1285,8 +1310,10 @@ export default function OnboardingScreen() {
             {interests.length > 0 ? (
               <SortableChips
                 items={interests}
-                onReorder={setInterests}
+                onReorder={handleInterestsReorder}
                 style={{ gap: 10 }}
+                showDragHint={showDragHint && interests.length > 1}
+                dragHintLabel={t("onboarding.dragReorderHint")}
                 renderChip={(tag, isPlaceholder) => (
                   <Pressable
                     onPress={

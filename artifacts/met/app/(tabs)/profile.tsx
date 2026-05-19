@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "@/components/MetImage";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Platform,
@@ -30,7 +30,7 @@ import { findBlockedTerm } from "@/lib/contentFilter";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
-import { MAX_EXTRA_PHOTOS_BY_TIER } from "@/lib/storage";
+import { loadDragHintDismissed, MAX_EXTRA_PHOTOS_BY_TIER, saveDragHintDismissed } from "@/lib/storage";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
 
 const SOCIAL_FIELDS: Array<{ key: SocialPlatform; labelKey: string }> = [
@@ -63,6 +63,7 @@ export default function ProfileScreen() {
   const [interests, setInterests] = useState<string[]>(profile?.interests ?? []);
   const [interestSearch, setInterestSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showDragHint, setShowDragHint] = useState(false);
 
   // Photo verification overlay state. `pendingIntent` distinguishes a
   // main-photo replacement (handled in edit mode, awaits Save) from an extra
@@ -87,6 +88,29 @@ export default function ProfileScreen() {
       setInterestSearch("");
     }
   }, [profile, editing]);
+
+  useEffect(() => {
+    if (editing) {
+      let cancelled = false;
+      loadDragHintDismissed().then((dismissed) => {
+        if (!cancelled) setShowDragHint(!dismissed);
+      });
+      return () => { cancelled = true; };
+    }
+  }, [editing]);
+
+  const handleInterestsReorder = useCallback((newItems: string[]) => {
+    setInterests((prev) => {
+      if (showDragHint) {
+        const changed = prev.length !== newItems.length || prev.some((v, i) => v !== newItems[i]);
+        if (changed) {
+          setShowDragHint(false);
+          void saveDragHintDismissed();
+        }
+      }
+      return newItems;
+    });
+  }, [showDragHint]);
 
   const pickPhoto = async (intent: PhotoIntent) => {
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -539,7 +563,9 @@ export default function ProfileScreen() {
             {interests.length > 0 ? (
               <SortableChips
                 items={interests}
-                onReorder={setInterests}
+                onReorder={handleInterestsReorder}
+                showDragHint={showDragHint && interests.length > 1}
+                dragHintLabel={t("onboarding.dragReorderHint")}
                 renderChip={(tag, isPlaceholder) => (
                   <Pressable
                     onPress={

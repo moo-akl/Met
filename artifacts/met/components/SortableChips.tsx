@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LayoutRectangle, View, ViewStyle } from "react-native";
+import { LayoutRectangle, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  FadeIn,
+  FadeOut,
   LinearTransition,
   useAnimatedStyle,
   useSharedValue,
@@ -12,6 +14,8 @@ interface SortableChipsProps {
   onReorder: (newItems: string[]) => void;
   renderChip: (tag: string, isPlaceholder: boolean) => React.ReactNode;
   style?: ViewStyle;
+  showDragHint?: boolean;
+  dragHintLabel?: string;
 }
 
 interface ChipProps {
@@ -37,7 +41,7 @@ function SortableChip({ tag, isPlaceholder, onLayout, gesture, renderChip }: Chi
   );
 }
 
-export function SortableChips({ items, onReorder, renderChip, style }: SortableChipsProps) {
+export function SortableChips({ items, onReorder, renderChip, style, showDragHint, dragHintLabel }: SortableChipsProps) {
   const [displayItems, setDisplayItems] = useState<string[]>(items);
   const [draggingTag, setDraggingTag] = useState<string | null>(null);
 
@@ -174,27 +178,44 @@ export function SortableChips({ items, onReorder, renderChip, style }: SortableC
   }));
 
   return (
-    <View
-      ref={containerRef}
-      onLayout={remeasureContainer}
-      style={[{ flexDirection: "row", flexWrap: "wrap", gap: 8 }, style]}
-    >
-      {displayItems.map((tag) => {
-        const gesture = gestures.get(tag) ?? makeGesture(tag);
-        return (
-          <SortableChip
-            key={tag}
-            tag={tag}
-            isPlaceholder={tag === draggingTag}
-            onLayout={handleLayout}
-            gesture={gesture}
-            renderChip={renderChip}
-          />
-        );
-      })}
-      <Animated.View style={ghostAnimStyle} pointerEvents="none">
-        {draggingTag ? renderChip(draggingTag, false) : null}
-      </Animated.View>
+    <View style={{ gap: 6 }}>
+      <View
+        ref={containerRef}
+        onLayout={remeasureContainer}
+        style={[{ flexDirection: "row", flexWrap: "wrap", gap: 8 }, style]}
+      >
+        {displayItems.map((tag) => {
+          const gesture = gestures.get(tag) ?? makeGesture(tag);
+          return (
+            <SortableChip
+              key={tag}
+              tag={tag}
+              isPlaceholder={tag === draggingTag}
+              onLayout={handleLayout}
+              gesture={gesture}
+              renderChip={renderChip}
+            />
+          );
+        })}
+        <Animated.View style={ghostAnimStyle} pointerEvents="none">
+          {draggingTag ? renderChip(draggingTag, false) : null}
+        </Animated.View>
+      </View>
+      {showDragHint && dragHintLabel ? (
+        <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}>
+          <Text style={styles.dragHint}>{dragHintLabel}</Text>
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  dragHint: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    textAlign: "center",
+    letterSpacing: 0.1,
+    marginTop: 2,
+  },
+});

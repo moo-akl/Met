@@ -325,6 +325,7 @@ export const nl: LocaleTree = {
       "Kies tot {{count}} interesses. Ze helpen te benadrukken wat jij en mensen in je buurt gemeen hebben.",
     interestsSelectedCount: "{{current}}/{{max}} geselecteerd",
     interestsSearchPlaceholder: "Zoek interesses…",
+    dragReorderHint: "Ingedrukt houden en slepen om te herordenen",
     referralTitle: "Heb je een uitnodigingscode?",
     referralSub:
       "Optioneel. Voer de code van een vriend in zodat hij credit krijgt.",

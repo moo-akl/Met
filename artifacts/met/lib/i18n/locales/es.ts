@@ -322,6 +322,7 @@ export const es: LocaleTree = {
       "Elige hasta {{count}} intereses. Ayudan a destacar lo que tienes en común con la gente cerca.",
     interestsSelectedCount: "{{current}}/{{max}} seleccionados",
     interestsSearchPlaceholder: "Buscar intereses…",
+    dragReorderHint: "Mantén pulsado y arrastra para reordenar",
     referralTitle: "¿Tienes un código de invitación?",
     referralSub:
       "Opcional. Introduce el código de un amigo para que reciba el crédito.",

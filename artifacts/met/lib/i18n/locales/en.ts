@@ -361,6 +361,7 @@ export const en = {
       "Pick up to {{count}} interests. They help highlight what you have in common with people nearby.",
     interestsSelectedCount: "{{current}}/{{max}} selected",
     interestsSearchPlaceholder: "Search interests…",
+    dragReorderHint: "Hold & drag to reorder",
     referralTitle: "Got an invite code?",
     referralSub: "Optional. Enter a friend's code so they get credit.",
     referralPlaceholder: "Invite code",

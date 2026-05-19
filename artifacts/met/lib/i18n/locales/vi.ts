@@ -326,6 +326,7 @@ export const vi: LocaleTree = {
       "Chọn tối đa {{count}} sở thích. Chúng giúp nổi bật điểm chung với những người gần bạn.",
     interestsSelectedCount: "Đã chọn {{current}}/{{max}}",
     interestsSearchPlaceholder: "Tìm kiếm sở thích…",
+    dragReorderHint: "Giữ và kéo để sắp xếp lại",
     referralTitle: "Có mã mời không?",
     referralSub:
       "Tuỳ chọn. Nhập mã của bạn bè để họ được ghi nhận.",

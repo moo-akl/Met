@@ -10,6 +10,7 @@ const PREFERENCES_KEY = "met:prefs:v1";
 const DISCLOSURE_LOCATION_KEY = "met:disclosure:location:v1";
 const DISCLOSURE_BLUETOOTH_KEY = "met:disclosure:bluetooth:v1";
 const PUSH_TOKEN_KEY = "met:pushToken:v1";
+const DRAG_HINT_DISMISSED_KEY = "met:interestsDragHintDismissed:v1";
 
 export type DisclosureKindStorage = "location" | "bluetooth";
 
@@ -192,4 +193,13 @@ export async function savePreferences(p: Preferences): Promise<void> {
 
 export async function clearPreferences(): Promise<void> {
   await AsyncStorage.removeItem(PREFERENCES_KEY);
+}
+
+export async function loadDragHintDismissed(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(DRAG_HINT_DISMISSED_KEY);
+  return raw === "1";
+}
+
+export async function saveDragHintDismissed(): Promise<void> {
+  await AsyncStorage.setItem(DRAG_HINT_DISMISSED_KEY, "1");
 }

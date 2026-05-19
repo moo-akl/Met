@@ -330,6 +330,7 @@ export const fr: LocaleTree = {
       "Choisissez jusqu'à {{count}} centres d'intérêt. Ils mettent en avant ce que vous avez en commun avec les gens proches.",
     interestsSelectedCount: "{{current}}/{{max}} sélectionnés",
     interestsSearchPlaceholder: "Rechercher des intérêts…",
+    dragReorderHint: "Maintenir et glisser pour réorganiser",
     referralTitle: "Vous avez un code d'invitation ?",
     referralSub:
       "Optionnel. Entrez le code d'un ami pour qu'il en soit crédité.",
