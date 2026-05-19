@@ -1273,10 +1273,10 @@ export default function OnboardingScreen() {
         {phase === "interests" ? (
           <View style={styles.step}>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>
-              What are you into?
+              {t("onboarding.interestsTitle")}
             </Text>
             <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
-              Pick up to {MAX_INTERESTS} interests. People nearby who share them get a personalised notification.
+              {t("onboarding.interestsSub", { count: MAX_INTERESTS })}
             </Text>
 
             <View style={styles.interestsGrid}>
@@ -1315,7 +1315,10 @@ export default function OnboardingScreen() {
             </View>
 
             <Text style={[styles.interestsCount, { color: colors.mutedForeground }]}>
-              {interests.length}/{MAX_INTERESTS} selected
+              {t("onboarding.interestsSelectedCount", {
+                current: interests.length,
+                max: MAX_INTERESTS,
+              })}
             </Text>
 
             <PrimaryButton

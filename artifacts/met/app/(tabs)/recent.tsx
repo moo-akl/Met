@@ -31,7 +31,7 @@ export default function RecentScreen() {
   const router = useRouter();
   const { t } = useT();
   const params = useLocalSearchParams<{ filter?: string }>();
-  const { encounters, preferences } = useApp();
+  const { encounters, preferences, profile } = useApp();
   const { isPlusSubscriber, isSubscriptionReady } = useSubscription();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
@@ -118,6 +118,11 @@ export default function RecentScreen() {
 
   const handleUpgrade = () => router.push("/paywall");
 
+  const handleAddInterests = () => router.push("/(tabs)/profile");
+
+  const showInterestsNudge =
+    !!profile && (!profile.interests || profile.interests.length === 0);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
@@ -158,6 +163,50 @@ export default function RecentScreen() {
               accessibilityLabel={t("recent.clearFilterA11y")}
             >
               <Feather name="x" size={16} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+        ) : null}
+
+        {showInterestsNudge ? (
+          <View
+            style={[
+              styles.nudgeCard,
+              {
+                backgroundColor: colors.muted,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.nudgeIcon,
+                { backgroundColor: colors.primary },
+              ]}
+            >
+              <Feather name="star" size={18} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.nudgeTitle, { color: colors.foreground }]}>
+                {t("recent.interestsNudgeTitle")}
+              </Text>
+              <Text
+                style={[styles.nudgeSub, { color: colors.mutedForeground }]}
+              >
+                {t("recent.interestsNudgeBody")}
+              </Text>
+            </View>
+            <Pressable
+              onPress={handleAddInterests}
+              style={({ pressed }) => [
+                styles.nudgeBtn,
+                { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={t("recent.interestsNudgeBtn")}
+            >
+              <Text style={styles.nudgeBtnText}>
+                {t("recent.interestsNudgeBtn")}
+              </Text>
             </Pressable>
           </View>
         ) : null}
@@ -307,6 +356,42 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   limitCtaText: {
+    color: "#FFFFFF",
+    fontFamily: "Inter_700Bold",
+    fontSize: 12,
+  },
+  nudgeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  nudgeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nudgeTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+  },
+  nudgeSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  nudgeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  nudgeBtnText: {
     color: "#FFFFFF",
     fontFamily: "Inter_700Bold",
     fontSize: 12,

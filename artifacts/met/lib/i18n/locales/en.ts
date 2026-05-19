@@ -141,6 +141,10 @@ export const en = {
     limitSub_other:
       "{{count}} more encounters hidden. Met Plus shows them all.",
     upgradeBtn: "Upgrade",
+    interestsNudgeTitle: "Add your interests",
+    interestsNudgeBody:
+      "Discover what you have in common with the people you meet.",
+    interestsNudgeBtn: "Add interests",
   },
 
   connections: {
@@ -350,6 +354,10 @@ export const en = {
     takePhoto: "Take a photo",
     socialsTitle: "Link your socials",
     socialsSub: "Optional. Shown only when you both reveal.",
+    interestsTitle: "What are you into?",
+    interestsSub:
+      "Pick up to {{count}} interests. They help highlight what you have in common with people nearby.",
+    interestsSelectedCount: "{{current}}/{{max}} selected",
     referralTitle: "Got an invite code?",
     referralSub: "Optional. Enter a friend's code so they get credit.",
     referralPlaceholder: "Invite code",
