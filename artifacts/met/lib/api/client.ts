@@ -179,6 +179,8 @@ export interface UpsertProfileInput {
    * by saving an unrelated profile field.
    */
   isVisible?: boolean;
+  /** BCP-47 language code selected in the app. Optional; null preserves existing. */
+  preferredLocale?: string | null;
 }
 
 export interface RemoteEncounter {
