@@ -325,6 +325,7 @@ export const pt: LocaleTree = {
     interestsSub:
       "Escolha até {{count}} interesses. Eles ajudam a destacar o que você tem em comum com as pessoas por perto.",
     interestsSelectedCount: "{{current}}/{{max}} selecionados",
+    interestsSearchPlaceholder: "Pesquisar interesses…",
     referralTitle: "Tem código de convite?",
     referralSub:
       "Opcional. Digite o código de um amigo para ele receber o crédito.",

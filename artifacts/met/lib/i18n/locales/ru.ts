@@ -325,6 +325,7 @@ export const ru: LocaleTree = {
     interestsSub:
       "Выберите до {{count}} интересов. Они помогут выделить общее с людьми рядом.",
     interestsSelectedCount: "{{current}}/{{max}} выбрано",
+    interestsSearchPlaceholder: "Поиск интересов…",
     referralTitle: "Есть код приглашения?",
     referralSub:
       "Необязательно. Введите код друга, чтобы он получил награду.",

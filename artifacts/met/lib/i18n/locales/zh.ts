@@ -305,6 +305,7 @@ export const zh: LocaleTree = {
     interestsSub:
       "最多选 {{count}} 个兴趣爱好，帮助你发现与附近的人的共同点。",
     interestsSelectedCount: "{{current}}/{{max}} 已选",
+    interestsSearchPlaceholder: "搜索兴趣…",
     referralTitle: "有邀请码吗?",
     referralSub: "可选。输入朋友的代码以便记入贡献。",
     referralPlaceholder: "邀请码",

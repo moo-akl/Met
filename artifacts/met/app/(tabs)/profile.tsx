@@ -47,7 +47,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { t } = useT();
+  const { t, lang } = useT();
   const { profile, setProfile } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const { tier } = useSubscription();
@@ -60,6 +60,7 @@ export default function ProfileScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(profile?.photoUri ?? null);
   const [socials, setSocials] = useState<SocialLinks>(profile?.socials ?? {});
   const [interests, setInterests] = useState<string[]>(profile?.interests ?? []);
+  const [interestSearch, setInterestSearch] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Photo verification overlay state. `pendingIntent` distinguishes a
@@ -82,6 +83,7 @@ export default function ProfileScreen() {
       setPhotoUri(profile.photoUri);
       setSocials(profile.socials ?? {});
       setInterests(profile.interests ?? []);
+      setInterestSearch("");
     }
   }, [profile, editing]);
 
@@ -533,8 +535,32 @@ export default function ProfileScreen() {
                 {interests.length}/{MAX_INTERESTS}
               </Text>
             </View>
+            <TextInput
+              value={interestSearch}
+              onChangeText={setInterestSearch}
+              placeholder={t("onboarding.interestsSearchPlaceholder")}
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+              style={[
+                styles.searchInput,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  color: colors.foreground,
+                },
+              ]}
+            />
             <View style={styles.interestsGrid}>
-              {ALL_INTERESTS.map((tag) => {
+              {ALL_INTERESTS.filter((tag) => {
+                const query = interestSearch.trim().toLocaleLowerCase(lang);
+                if (!query) return true;
+                return (
+                  tag.toLocaleLowerCase(lang).includes(query) ||
+                  t(`interestLabels.${tag.toLowerCase()}`).toLocaleLowerCase(lang).includes(query)
+                );
+              }).map((tag) => {
                 const selected = interests.includes(tag);
                 return (
                   <Pressable
@@ -777,6 +803,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     paddingVertical: 16,
+  },
+  searchInput: {
+    height: 44,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
   },
   interestsGrid: {
     flexDirection: "row",

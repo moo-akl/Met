@@ -113,7 +113,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { setProfile, setPermissionsCompleted } = useApp();
   const insets = useSafeAreaInsets();
-  const { t } = useT();
+  const { t, lang } = useT();
   // When opened from the home-page permissions banner with
   // `?startAt=permissions`, we skip the full signup flow and land
   // directly on the activateBeacon step so the user can grant
@@ -132,6 +132,7 @@ export default function OnboardingScreen() {
   const [bio, setBio] = useState("");
   const [socials, setSocials] = useState<SocialLinks>({});
   const [interests, setInterests] = useState<string[]>([]);
+  const [interestSearch, setInterestSearch] = useState("");
   const [saving, setSaving] = useState(false);
   // Referral code the user is redeeming. Pre-filled from any deep-link
   // (`met://r/CODE`) the system captured before onboarding mounted.
@@ -1280,8 +1281,33 @@ export default function OnboardingScreen() {
               {t("onboarding.interestsSub", { count: MAX_INTERESTS })}
             </Text>
 
+            <TextInput
+              value={interestSearch}
+              onChangeText={setInterestSearch}
+              placeholder={t("onboarding.interestsSearchPlaceholder")}
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  color: colors.foreground,
+                },
+              ]}
+            />
+
             <View style={styles.interestsGrid}>
-              {ALL_INTERESTS.map((tag) => {
+              {ALL_INTERESTS.filter((tag) => {
+                const query = interestSearch.trim().toLocaleLowerCase(lang);
+                if (!query) return true;
+                return (
+                  tag.toLocaleLowerCase(lang).includes(query) ||
+                  t(`interestLabels.${tag.toLowerCase()}`).toLocaleLowerCase(lang).includes(query)
+                );
+              }).map((tag) => {
                 const selected = interests.includes(tag);
                 return (
                   <Pressable
@@ -1324,7 +1350,7 @@ export default function OnboardingScreen() {
 
             <PrimaryButton
               label={interests.length > 0 ? t("common.continue") : t("common.skip")}
-              onPress={() => setPhase("invite")}
+              onPress={() => { setInterestSearch(""); setPhase("invite"); }}
             />
           </View>
         ) : null}

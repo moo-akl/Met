@@ -328,6 +328,7 @@ export const ar: LocaleTree = {
     interestsSub:
       "اختر حتى {{count}} اهتمامات. تساعد على إبراز ما بينك وبين من حولك من قواسم مشتركة.",
     interestsSelectedCount: "{{current}}/{{max}} محدد",
+    interestsSearchPlaceholder: "ابحث عن الاهتمامات…",
     referralTitle: "هل لديك رمز دعوة؟",
     referralSub:
       "اختياري. أدخل رمز صديق ليُحتسب له.",
