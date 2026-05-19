@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { LayoutRectangle, View, ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
 } from "react-native-reanimated";
@@ -21,12 +22,17 @@ interface ChipProps {
   renderChip: (tag: string, isPlaceholder: boolean) => React.ReactNode;
 }
 
+const CHIP_SPRING = LinearTransition.springify().damping(20).stiffness(220);
+
 function SortableChip({ tag, isPlaceholder, onLayout, gesture, renderChip }: ChipProps) {
   return (
     <GestureDetector gesture={gesture}>
-      <View onLayout={(e) => onLayout(tag, e.nativeEvent.layout)}>
+      <Animated.View
+        layout={CHIP_SPRING}
+        onLayout={(e) => onLayout(tag, e.nativeEvent.layout)}
+      >
         {renderChip(tag, isPlaceholder)}
-      </View>
+      </Animated.View>
     </GestureDetector>
   );
 }
