@@ -926,6 +926,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 photoUri: r.profile.photoUrl ?? "",
                 bio: r.profile.bio ?? "",
                 socials: (r.profile.socials ?? {}) as Encounter["socials"],
+                interests: (r.profile.interests ?? undefined) as string[] | undefined,
                 encounterCount: 1,
                 firstSeenAt: createdTs,
                 lastSeenAt: createdTs,
@@ -973,6 +974,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               bio: r.profile.bio ?? existing.bio,
               socials: (r.profile.socials ??
                 existing.socials) as Encounter["socials"],
+              interests: (r.profile.interests ?? existing.interests) as string[] | undefined,
             };
             delete (next as { requestSentAt?: number }).requestSentAt;
             delete (next as { revealMessage?: string }).revealMessage;
