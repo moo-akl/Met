@@ -138,6 +138,10 @@ export const fr: LocaleTree = {
     limitSub_other:
       "{{count}} rencontres cachées. Met Plus les affiche toutes.",
     upgradeBtn: "Passer au supérieur",
+    interestsNudgeTitle: "Ajoutez vos centres d'intérêt",
+    interestsNudgeBody:
+      "Découvrez ce que vous avez en commun avec les personnes que vous rencontrez.",
+    interestsNudgeBtn: "Ajouter des intérêts",
   },
   connections: {
     title: "Connexions",
@@ -320,6 +324,10 @@ export const fr: LocaleTree = {
     takePhoto: "Prendre une photo",
     socialsTitle: "Liez vos réseaux",
     socialsSub: "Optionnel. Affichés uniquement si vous vous révélez tous les deux.",
+    interestsTitle: "Qu'est-ce qui vous passionne ?",
+    interestsSub:
+      "Choisissez jusqu'à {{count}} centres d'intérêt. Ils mettent en avant ce que vous avez en commun avec les gens proches.",
+    interestsSelectedCount: "{{current}}/{{max}} sélectionnés",
     referralTitle: "Vous avez un code d'invitation ?",
     referralSub:
       "Optionnel. Entrez le code d'un ami pour qu'il en soit crédité.",

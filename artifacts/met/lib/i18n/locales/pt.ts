@@ -137,6 +137,10 @@ export const pt: LocaleTree = {
     limitSub_other:
       "{{count}} encontros escondidos. Met Plus mostra todos.",
     upgradeBtn: "Atualizar",
+    interestsNudgeTitle: "Adicione seus interesses",
+    interestsNudgeBody:
+      "Descubra o que você tem em comum com as pessoas que encontra.",
+    interestsNudgeBtn: "Adicionar interesses",
   },
   connections: {
     title: "Conexões",
@@ -316,6 +320,10 @@ export const pt: LocaleTree = {
     socialsTitle: "Conecte suas redes",
     socialsSub:
       "Opcional. Mostradas só quando vocês dois se revelam.",
+    interestsTitle: "O que você curte?",
+    interestsSub:
+      "Escolha até {{count}} interesses. Eles ajudam a destacar o que você tem em comum com as pessoas por perto.",
+    interestsSelectedCount: "{{current}}/{{max}} selecionados",
     referralTitle: "Tem código de convite?",
     referralSub:
       "Opcional. Digite o código de um amigo para ele receber o crédito.",

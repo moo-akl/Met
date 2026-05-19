@@ -137,6 +137,10 @@ export const nl: LocaleTree = {
     limitSub_other:
       "{{count}} extra ontmoetingen verborgen. Met Plus laat ze allemaal zien.",
     upgradeBtn: "Upgraden",
+    interestsNudgeTitle: "Voeg je interesses toe",
+    interestsNudgeBody:
+      "Ontdek wat je gemeen hebt met de mensen die je ontmoet.",
+    interestsNudgeBtn: "Interesses toevoegen",
   },
   connections: {
     title: "Connecties",
@@ -315,6 +319,10 @@ export const nl: LocaleTree = {
     socialsTitle: "Koppel je socials",
     socialsSub:
       "Optioneel. Alleen zichtbaar als jullie elkaar beiden onthullen.",
+    interestsTitle: "Waar ben jij in geïnteresseerd?",
+    interestsSub:
+      "Kies tot {{count}} interesses. Ze helpen te benadrukken wat jij en mensen in je buurt gemeen hebben.",
+    interestsSelectedCount: "{{current}}/{{max}} geselecteerd",
     referralTitle: "Heb je een uitnodigingscode?",
     referralSub:
       "Optioneel. Voer de code van een vriend in zodat hij credit krijgt.",

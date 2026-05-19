@@ -139,6 +139,10 @@ export const ar: LocaleTree = {
     limitSub_other:
       "{{count}} لقاءات أخرى مخفية. Met Plus يعرضها كلها.",
     upgradeBtn: "ترقية",
+    interestsNudgeTitle: "أضف اهتماماتك",
+    interestsNudgeBody:
+      "اكتشف ما بينك وبين من تلتقيهم من قواسم مشتركة.",
+    interestsNudgeBtn: "إضافة الاهتمامات",
   },
   connections: {
     title: "المعارف",
@@ -319,6 +323,10 @@ export const ar: LocaleTree = {
     takePhoto: "التقط صورة",
     socialsTitle: "اربط شبكاتك",
     socialsSub: "اختياري. تظهر فقط حين تكشفان معًا.",
+    interestsTitle: "ما الذي يثير اهتمامك؟",
+    interestsSub:
+      "اختر حتى {{count}} اهتمامات. تساعد على إبراز ما بينك وبين من حولك من قواسم مشتركة.",
+    interestsSelectedCount: "{{current}}/{{max}} محدد",
     referralTitle: "هل لديك رمز دعوة؟",
     referralSub:
       "اختياري. أدخل رمز صديق ليُحتسب له.",

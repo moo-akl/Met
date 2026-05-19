@@ -128,6 +128,9 @@ export const zh: LocaleTree = {
     limitSub_one: "还隐藏了 1 次相遇。Met Plus 全部显示。",
     limitSub_other: "还隐藏了 {{count}} 次相遇。Met Plus 全部显示。",
     upgradeBtn: "升级",
+    interestsNudgeTitle: "添加你的兴趣爱好",
+    interestsNudgeBody: "发现你与遇到的人之间的共同点。",
+    interestsNudgeBtn: "添加兴趣",
   },
   connections: {
     title: "联系人",
@@ -297,6 +300,10 @@ export const zh: LocaleTree = {
     takePhoto: "拍一张照片",
     socialsTitle: "关联你的社交账号",
     socialsSub: "可选。仅在双方公开身份时显示。",
+    interestsTitle: "你喜欢什么？",
+    interestsSub:
+      "最多选 {{count}} 个兴趣爱好，帮助你发现与附近的人的共同点。",
+    interestsSelectedCount: "{{current}}/{{max}} 已选",
     referralTitle: "有邀请码吗?",
     referralSub: "可选。输入朋友的代码以便记入贡献。",
     referralPlaceholder: "邀请码",

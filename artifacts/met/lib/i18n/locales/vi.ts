@@ -137,6 +137,10 @@ export const vi: LocaleTree = {
     limitSub_other:
       "Còn {{count}} cuộc gặp bị ẩn. Met Plus hiển thị tất cả.",
     upgradeBtn: "Nâng cấp",
+    interestsNudgeTitle: "Thêm sở thích của bạn",
+    interestsNudgeBody:
+      "Khám phá điểm chung với những người bạn gặp.",
+    interestsNudgeBtn: "Thêm sở thích",
   },
   connections: {
     title: "Kết nối",
@@ -316,6 +320,10 @@ export const vi: LocaleTree = {
     socialsTitle: "Liên kết mạng xã hội",
     socialsSub:
       "Tuỳ chọn. Chỉ hiển thị khi cả hai cùng lộ diện.",
+    interestsTitle: "Bạn thích gì?",
+    interestsSub:
+      "Chọn tối đa {{count}} sở thích. Chúng giúp nổi bật điểm chung với những người gần bạn.",
+    interestsSelectedCount: "Đã chọn {{current}}/{{max}}",
     referralTitle: "Có mã mời không?",
     referralSub:
       "Tuỳ chọn. Nhập mã của bạn bè để họ được ghi nhận.",

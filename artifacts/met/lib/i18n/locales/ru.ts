@@ -137,6 +137,10 @@ export const ru: LocaleTree = {
     limitSub_other:
       "Скрыто ещё {{count}} встреч. Met Plus покажет все.",
     upgradeBtn: "Улучшить",
+    interestsNudgeTitle: "Добавьте свои интересы",
+    interestsNudgeBody:
+      "Узнайте, что у вас общего с людьми, которых вы встречаете.",
+    interestsNudgeBtn: "Добавить интересы",
   },
   connections: {
     title: "Знакомые",
@@ -316,6 +320,10 @@ export const ru: LocaleTree = {
     socialsTitle: "Привяжите соцсети",
     socialsSub:
       "Необязательно. Показываются только когда вы оба раскроетесь.",
+    interestsTitle: "Что вас интересует?",
+    interestsSub:
+      "Выберите до {{count}} интересов. Они помогут выделить общее с людьми рядом.",
+    interestsSelectedCount: "{{current}}/{{max}} выбрано",
     referralTitle: "Есть код приглашения?",
     referralSub:
       "Необязательно. Введите код друга, чтобы он получил награду.",
