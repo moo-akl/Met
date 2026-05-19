@@ -53,7 +53,16 @@ router.put("/profiles/me", requireUid, async (req, res) => {
   // isVisible is optional on upsert: if the client omits it we want to
   // PRESERVE the existing value (and default to true on create), not
   // silently flip the user out of Ghost Mode.
-  // Validate interests: trim, dedupe, limit to MAX_INTERESTS, strip blanks.
+  // Canonical interest tags — must stay in sync with ALL_INTERESTS in
+  // artifacts/met/lib/interests.ts (client-side mirror). The server
+  // enforces this as a whitelist so arbitrary strings cannot be stored
+  // via direct API calls, which is an explicit v1 requirement.
+  const ALLOWED_INTERESTS = new Set([
+    "Sport", "Music", "Art", "Travel", "Food",
+    "Gaming", "Tech", "Fitness", "Photography",
+    "Reading", "Film", "Nature", "Cooking", "Fashion",
+    "Hiking", "Yoga", "Dancing", "Coffee", "Dogs", "Cats",
+  ]);
   const MAX_INTERESTS = 10;
   const cleanInterests =
     body.interests != null
@@ -61,7 +70,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
           new Set(
             (body.interests as string[])
               .map((s) => s.trim())
-              .filter((s) => s.length > 0 && s.length <= 32),
+              .filter((s) => ALLOWED_INTERESTS.has(s)),
           ),
         ).slice(0, MAX_INTERESTS)
       : undefined;

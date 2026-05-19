@@ -204,8 +204,11 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
           .where(eq(profilesTable.uid, uid))
           .limit(1);
         const callerInterests = (callerRow?.interests ?? []) as string[];
+        // Normalize to lower-case for comparison so casing differences in
+        // legacy stored data never prevent a valid overlap from being found.
+        const callerLower = new Set(callerInterests.map((i) => i.toLowerCase()));
         const shared = otherInterests.filter((i) =>
-          callerInterests.includes(i),
+          callerLower.has(i.toLowerCase()),
         );
         if (shared.length > 0) {
           pushBody = `Someone nearby also likes ${shared[0]}!`;

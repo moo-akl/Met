@@ -19,14 +19,18 @@ const dbMocks = vi.hoisted(() => {
   return { chain };
 });
 
-vi.mock("@workspace/db", () => ({
-  db: dbMocks.chain,
-  profilesTable: {},
-  encountersTable: {},
-  revealRequestsTable: {},
+// Hoisted push mock refs — captured before vi.mock runs so the factory can
+// reference them AND tests can call mockReturnValueOnce directly without a
+// dynamic import (which can have subtle ordering issues in Vitest).
+const pushMocks = vi.hoisted(() => ({
+  sendPush: vi.fn().mockResolvedValue(undefined),
+  checkNearbyPushAllowed: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock("../lib/firestoreMirror", () => ({
+// Hoisted Firestore mirror mock refs — needed so resetAllMocks() in beforeEach
+// doesn't wipe the implementations (recordSymmetricEncounter result is used in
+// the route response, so a lost impl causes a try/catch 502 before push runs).
+const firestoreMirrorMocks = vi.hoisted(() => ({
   mirrorProfileToFirestore: vi.fn().mockResolvedValue(undefined),
   recordSymmetricEncounter: vi.fn().mockResolvedValue({
     otherUid: "bob",
@@ -37,11 +41,25 @@ vi.mock("../lib/firestoreMirror", () => ({
   mirrorRevealStatus: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@workspace/db", () => ({
+  db: dbMocks.chain,
+  profilesTable: {},
+  encountersTable: {},
+  revealRequestsTable: {},
+}));
+
+vi.mock("../lib/firestoreMirror", () => ({
+  mirrorProfileToFirestore: firestoreMirrorMocks.mirrorProfileToFirestore,
+  recordSymmetricEncounter: firestoreMirrorMocks.recordSymmetricEncounter,
+  mirrorRevealRequest: firestoreMirrorMocks.mirrorRevealRequest,
+  mirrorRevealStatus: firestoreMirrorMocks.mirrorRevealStatus,
+}));
+
 // Suppress outbound push notifications — sendPush calls the Expo Push API
 // over the network, which is irrelevant to route logic tests.
 vi.mock("../lib/push", () => ({
-  sendPush: vi.fn().mockResolvedValue(undefined),
-  checkNearbyPushAllowed: vi.fn().mockReturnValue(false),
+  sendPush: pushMocks.sendPush,
+  checkNearbyPushAllowed: pushMocks.checkNearbyPushAllowed,
 }));
 
 vi.mock("../lib/firebaseAdmin", () => ({
@@ -81,8 +99,11 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  // Restore chainable returns after clearAllMocks resets them.
+  // resetAllMocks clears both call history AND the once-queue so no
+  // unconsumed mockResolvedValueOnce/mockReturnValueOnce calls bleed
+  // across tests (clearAllMocks only clears call history, not the queue).
+  vi.resetAllMocks();
+  // Restore chainable returns after resetAllMocks wipes them.
   dbMocks.chain.select.mockReturnThis();
   dbMocks.chain.from.mockReturnThis();
   dbMocks.chain.where.mockReturnThis();
@@ -90,6 +111,19 @@ beforeEach(() => {
   dbMocks.chain.values.mockReturnThis();
   dbMocks.chain.update.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
+  // Default push behaviour: no-op send, rate-limit always denies.
+  pushMocks.sendPush.mockResolvedValue(undefined);
+  pushMocks.checkNearbyPushAllowed.mockReturnValue(false);
+  // Restore Firestore mirror impls wiped by resetAllMocks so routes that
+  // call recordSymmetricEncounter don't hit the try/catch 502 path.
+  firestoreMirrorMocks.mirrorProfileToFirestore.mockResolvedValue(undefined);
+  firestoreMirrorMocks.recordSymmetricEncounter.mockResolvedValue({
+    otherUid: "bob",
+    metCount: 1,
+    lastMet: new Date("2024-01-01T00:00:00Z"),
+  });
+  firestoreMirrorMocks.mirrorRevealRequest.mockResolvedValue(undefined);
+  firestoreMirrorMocks.mirrorRevealStatus.mockResolvedValue(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -99,6 +133,13 @@ beforeEach(() => {
 function postEncounterAs(uid: string, body: Record<string, unknown>) {
   return request(app)
     .post("/api/encounters")
+    .set("x-met-uid", uid)
+    .send(body);
+}
+
+function postRecordEncounterAs(uid: string, body: Record<string, unknown>) {
+  return request(app)
+    .post("/api/encounters/record")
     .set("x-met-uid", uid)
     .send(body);
 }
@@ -186,6 +227,63 @@ describe("POST /api/encounters", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.encounterCount).toBe(3);
+    });
+  });
+
+  describe("interest-aware push notifications (POST /encounters/record)", () => {
+    // The push logic lives on the /record endpoint which uses Firestore for the
+    // encounter write (recordSymmetricEncounter) then pushes to the other user.
+    // DB limit calls on this route:
+    //   1. profilesTable lookup for other user (isVisible + pushToken + interests)
+    //   2. profilesTable lookup for caller interests (only when other has interests)
+
+    it("sends a generic push body when there are no shared interests", async () => {
+      pushMocks.checkNearbyPushAllowed.mockReturnValueOnce(true);
+
+      // limit call 1: other profile with interests
+      // limit call 2: caller profile — no interests → no overlap
+      dbMocks.chain.limit
+        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music"] }])
+        .mockResolvedValueOnce([{ interests: [] }]);
+
+      await postRecordEncounterAs("alice", { otherUid: "bob" });
+
+      expect(pushMocks.sendPush).toHaveBeenCalledWith(
+        "tok-bob",
+        expect.objectContaining({ body: "You've crossed paths with someone." }),
+      );
+    });
+
+    it("sends a shared-interest push body when interests overlap", async () => {
+      pushMocks.checkNearbyPushAllowed.mockReturnValueOnce(true);
+
+      dbMocks.chain.limit
+        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"] }])
+        .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]); // "Travel" is shared
+
+      await postRecordEncounterAs("alice", { otherUid: "bob" });
+
+      expect(pushMocks.sendPush).toHaveBeenCalledWith(
+        "tok-bob",
+        expect.objectContaining({ body: expect.stringContaining("Travel") }),
+      );
+    });
+
+    it("matches interests case-insensitively", async () => {
+      pushMocks.checkNearbyPushAllowed.mockReturnValueOnce(true);
+
+      // Other user stores "music" in lower-case (legacy); caller has "Music" (title-case).
+      // The normalised comparison should still detect the overlap.
+      dbMocks.chain.limit
+        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["music"] }])
+        .mockResolvedValueOnce([{ interests: ["Music"] }]);
+
+      await postRecordEncounterAs("alice", { otherUid: "bob" });
+
+      expect(pushMocks.sendPush).toHaveBeenCalledWith(
+        "tok-bob",
+        expect.objectContaining({ body: expect.stringMatching(/also likes/i) }),
+      );
     });
   });
 

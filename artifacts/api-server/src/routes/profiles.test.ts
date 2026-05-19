@@ -57,6 +57,7 @@ const profileFixture = {
   photoUrl: null,
   bio: null,
   socials: {},
+  interests: [],
   isVisible: true,
   createdAt: new Date("2024-01-01T00:00:00Z"),
   updatedAt: new Date("2024-01-01T00:00:00Z"),
@@ -192,5 +193,79 @@ describe("PUT /api/profiles/me", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).not.toHaveProperty("uidHash");
+  });
+
+  it("accepts valid interests from the canonical list and returns them in the response", async () => {
+    const withInterests = { ...profileFixture, interests: ["Music", "Travel"] };
+    dbMocks.chain.returning.mockResolvedValueOnce([withInterests]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice Wonderland", interests: ["Music", "Travel"] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.interests).toEqual(["Music", "Travel"]);
+  });
+
+  it("silently strips interests not in the canonical whitelist", async () => {
+    // Only "Music" is in the allowed list; "Hacking" and "Unknown" are not.
+    const withKnownOnly = { ...profileFixture, interests: ["Music"] };
+    dbMocks.chain.returning.mockResolvedValueOnce([withKnownOnly]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice", interests: ["Music", "Hacking", "Unknown"] });
+
+    expect(res.status).toBe(200);
+    // The fixture has only "Music" (what the mock DB returns).
+    expect(res.body.interests).toEqual(["Music"]);
+  });
+
+  it("deduplicates interests — duplicate entries count only once", async () => {
+    // Send 8 items including two duplicates (≤10 so Zod passes); after
+    // server-side dedup the 6 unique tags are stored.
+    const tags = ["Music", "Travel", "Music", "Art", "Travel", "Food", "Gaming", "Tech"];
+    const withDedupedInterests = {
+      ...profileFixture,
+      interests: ["Music", "Travel", "Art", "Food", "Gaming", "Tech"],
+    };
+    dbMocks.chain.returning.mockResolvedValueOnce([withDedupedInterests]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice", interests: tags });
+
+    expect(res.status).toBe(200);
+    // Response reflects what the DB returned — 6 unique entries.
+    expect(res.body.interests).toEqual(["Music", "Travel", "Art", "Food", "Gaming", "Tech"]);
+  });
+
+  it("preserves existing interests when interests field is omitted from the request", async () => {
+    const withInterests = { ...profileFixture, interests: ["Yoga", "Coffee"] };
+    dbMocks.chain.returning.mockResolvedValueOnce([withInterests]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice Wonderland" }); // no interests key
+
+    expect(res.status).toBe(200);
+    // DB returned the pre-existing interests — confirm they flow through serialize().
+    expect(res.body.interests).toEqual(["Yoga", "Coffee"]);
+  });
+
+  it("includes interests in the GET /profiles/me response", async () => {
+    const withInterests = { ...profileFixture, interests: ["Hiking", "Dogs"] };
+    dbMocks.chain.limit.mockResolvedValueOnce([withInterests]);
+
+    const res = await request(app)
+      .get("/api/profiles/me")
+      .set("x-met-uid", "alice");
+
+    expect(res.status).toBe(200);
+    expect(res.body.interests).toEqual(["Hiking", "Dogs"]);
   });
 });
