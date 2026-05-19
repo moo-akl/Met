@@ -771,6 +771,7 @@ export const vi: LocaleTree = {
     statusRequestReceived: "Muốn chia sẻ mạng xã hội",
     statusConnected: "Đã kết nối",
     crossedAgainPill: "Đi ngang qua nhau lại · {{count}}x",
+    sharedInterest: "Cả hai cùng thích {{interest}}",
     remove: "Xoá",
     block: "Chặn",
     timeMomentAgo: "một khoảnh khắc trước",

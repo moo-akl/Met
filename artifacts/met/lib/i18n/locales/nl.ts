@@ -771,6 +771,7 @@ export const nl: LocaleTree = {
     statusRequestReceived: "Wil socials delen",
     statusConnected: "Verbonden",
     crossedAgainPill: "Opnieuw tegengekomen · {{count}}x",
+    sharedInterest: "Allebei fan van {{interest}}",
     remove: "Verwijderen",
     block: "Blokkeren",
     timeMomentAgo: "een moment geleden",

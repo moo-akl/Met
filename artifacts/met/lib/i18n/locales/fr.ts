@@ -778,6 +778,7 @@ export const fr: LocaleTree = {
     statusRequestReceived: "Veut partager ses réseaux",
     statusConnected: "Connecté",
     crossedAgainPill: "Recroisés · {{count}}x",
+    sharedInterest: "Tous deux fans de {{interest}}",
     remove: "Retirer",
     block: "Bloquer",
     timeMomentAgo: "il y a un instant",

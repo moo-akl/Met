@@ -768,6 +768,7 @@ export const pt: LocaleTree = {
     statusRequestReceived: "Quer compartilhar redes",
     statusConnected: "Conectado",
     crossedAgainPill: "Cruzaram de novo · {{count}}x",
+    sharedInterest: "Ambos curtem {{interest}}",
     remove: "Remover",
     block: "Bloquear",
     timeMomentAgo: "há um momento",

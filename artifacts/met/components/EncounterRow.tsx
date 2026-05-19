@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ActionSheet } from "@/components/ActionSheet";
@@ -34,9 +34,17 @@ export function EncounterRow({ encounter }: Props) {
   const colors = useColors();
   const router = useRouter();
   const { t } = useT();
-  const { removeEncounter, setBlocked } = useApp();
+  const { removeEncounter, setBlocked, profile } = useApp();
 
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const sharedInterest = useMemo(() => {
+    const myInterests = profile?.interests;
+    const theirInterests = encounter.interests;
+    if (!myInterests?.length || !theirInterests?.length) return null;
+    const mySet = new Set(myInterests);
+    return theirInterests.find((i) => mySet.has(i)) ?? null;
+  }, [profile?.interests, encounter.interests]);
 
   const statusBadge = (() => {
     switch (encounter.status) {
@@ -94,6 +102,13 @@ export function EncounterRow({ encounter }: Props) {
             <Text style={[styles.status, { color: statusBadge.color }]}>
               {statusBadge.label}
             </Text>
+          ) : sharedInterest ? (
+            <View style={[styles.repeatPill, { backgroundColor: "#EDE9FE" }]}>
+              <Feather name="heart" size={10} color="#7C3AED" />
+              <Text style={[styles.repeatText, { color: "#7C3AED" }]}>
+                {t("encounterRow.sharedInterest", { interest: sharedInterest })}
+              </Text>
+            </View>
           ) : encounter.status === "encounter" && encounter.encounterCount > 1 ? (
             <View
               style={[styles.repeatPill, { backgroundColor: "#DCFCE7" }]}

@@ -827,6 +827,7 @@ export const en = {
     statusRequestReceived: "Wants to share socials",
     statusConnected: "Connected",
     crossedAgainPill: "Crossed paths again · {{count}}x",
+    sharedInterest: "Both into {{interest}}",
     remove: "Remove",
     block: "Block",
     timeMomentAgo: "a moment ago",

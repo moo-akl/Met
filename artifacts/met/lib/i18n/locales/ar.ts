@@ -774,6 +774,7 @@ export const ar: LocaleTree = {
     statusRequestReceived: "يريد مشاركة الشبكات",
     statusConnected: "على اتصال",
     crossedAgainPill: "تقاطعت دروبكما مجددًا · {{count}} مرات",
+    sharedInterest: "كلاكما يحبان {{interest}}",
     remove: "إزالة",
     block: "حظر",
     timeMomentAgo: "قبل لحظة",

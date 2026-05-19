@@ -775,6 +775,7 @@ export const ru: LocaleTree = {
     statusRequestReceived: "Хочет поделиться соцсетями",
     statusConnected: "Знакомы",
     crossedAgainPill: "Снова пересеклись · {{count}}x",
+    sharedInterest: "Оба увлекаются {{interest}}",
     remove: "Удалить",
     block: "Заблокировать",
     timeMomentAgo: "только что",

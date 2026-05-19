@@ -729,6 +729,7 @@ export const zh: LocaleTree = {
     statusRequestReceived: "想分享社交账号",
     statusConnected: "已连接",
     crossedAgainPill: "再次擦肩 · {{count}} 次",
+    sharedInterest: "都喜欢{{interest}}",
     remove: "移除",
     block: "屏蔽",
     timeMomentAgo: "片刻前",
