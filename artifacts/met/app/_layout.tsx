@@ -20,6 +20,8 @@ import { initializeFirestore } from "@/lib/firestore/client";
 import { initI18n } from "@/lib/i18n";
 import {
   configureNotifications,
+  getNotificationPermissionGranted,
+  registerAndUploadPushToken,
   setupNotificationListeners,
 } from "@/lib/notifications";
 import { initReferrals } from "@/lib/referrals";
@@ -85,6 +87,33 @@ function parseReferralFromUrl(url: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Runs once per profile load to re-register the Expo push token with the
+ * server. Handles users who already granted notification permission before
+ * the token upload endpoint existed, and catches token rotations that happen
+ * silently (e.g. after app updates or OS reinstalls).
+ *
+ * Must live inside AppProvider so it can read profile from context.
+ */
+function PushTokenRegistrar() {
+  const { profile } = useApp();
+  const registeredUid = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    const uid = profile?.id;
+    if (!uid || registeredUid.current === uid) return;
+    registeredUid.current = uid;
+
+    getNotificationPermissionGranted()
+      .then((granted) => {
+        if (granted) return registerAndUploadPushToken(uid);
+      })
+      .catch(() => {});
+  }, [profile?.id]);
+
+  return null;
 }
 
 function ProfileGate() {
@@ -207,6 +236,7 @@ export default function RootLayout() {
             <KeyboardProvider>
               <SubscriptionProvider>
                 <AppProvider>
+                  <PushTokenRegistrar />
                   <ProfileGate />
                   <RootLayoutNav />
                 </AppProvider>

@@ -37,6 +37,13 @@ vi.mock("../lib/firestoreMirror", () => ({
   mirrorRevealStatus: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Suppress outbound push notifications — sendPush calls the Expo Push API
+// over the network, which is irrelevant to route logic tests.
+vi.mock("../lib/push", () => ({
+  sendPush: vi.fn().mockResolvedValue(undefined),
+  checkNearbyPushAllowed: vi.fn().mockReturnValue(false),
+}));
+
 vi.mock("../lib/firebaseAdmin", () => ({
   adminStorage: vi.fn(),
   adminAuth: vi.fn(),

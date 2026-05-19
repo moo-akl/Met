@@ -109,10 +109,17 @@ router.post("/profiles/me/push-token", requireUid, async (req, res) => {
     res.status(400).json({ message: "token must be a non-empty string" });
     return;
   }
-  await db
+  const updated = await db
     .update(profilesTable)
     .set({ pushToken: token, updatedAt: new Date() })
-    .where(eq(profilesTable.uid, uid));
+    .where(eq(profilesTable.uid, uid))
+    .returning({ uid: profilesTable.uid });
+  if (updated.length === 0) {
+    // Profile row doesn't exist yet (onboarding race). Client should retry
+    // after the profile has been created via PUT /api/profiles/me.
+    res.status(404).json({ message: "Profile not found" });
+    return;
+  }
   res.json({ success: true });
 });
 

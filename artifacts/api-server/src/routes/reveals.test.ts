@@ -42,6 +42,14 @@ vi.mock("../lib/firestoreMirror", () => ({
   recordSymmetricEncounter: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Suppress outbound push notifications in tests — sendPush calls the Expo
+// Push API over the network, which is irrelevant to unit/integration testing
+// of the route logic and would flake on network issues.
+vi.mock("../lib/push", () => ({
+  sendPush: vi.fn().mockResolvedValue(undefined),
+  checkNearbyPushAllowed: vi.fn().mockReturnValue(false),
+}));
+
 vi.mock("../lib/firebaseAdmin", () => ({
   adminStorage: vi.fn(),
   adminAuth: vi.fn(),
@@ -108,6 +116,10 @@ beforeEach(() => {
   dbMocks.txChain.update.mockReturnThis();
   dbMocks.txChain.set.mockReturnThis();
   dbMocks.txChain.where.mockReturnThis();
+  // Default: limit returns an empty array so extra select queries (e.g.
+  // sender profile lookups for push copy) don't throw when no specific
+  // Once mock was set for them.
+  dbMocks.chain.limit.mockResolvedValue([]);
 });
 
 // ---------------------------------------------------------------------------
