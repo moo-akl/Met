@@ -444,6 +444,39 @@ export default function EncounterDetail() {
             </Text>
           </View>
 
+          {encounter.interests && encounter.interests.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                {t("encounter.interestsLabel")}
+              </Text>
+              <View style={styles.chipsRow}>
+                {encounter.interests.map((tag) => {
+                  const isShared = profile?.interests?.includes(tag) ?? false;
+                  return (
+                    <View
+                      key={tag}
+                      style={[
+                        styles.interestChip,
+                        isShared
+                          ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                          : { backgroundColor: colors.muted, borderColor: colors.border },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.interestChipText,
+                          { color: isShared ? "#FFFFFF" : colors.foreground },
+                        ]}
+                      >
+                        {tag}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
           {encounter.lastLocation ? (
             <View style={styles.section}>
               <Text
@@ -899,6 +932,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontStyle: "italic",
+  },
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  interestChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  interestChipText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
   },
   mapCard: {
     flexDirection: "row",

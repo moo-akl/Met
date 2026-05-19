@@ -419,6 +419,7 @@ export const ar: LocaleTree = {
     firstMetOn: "اللقاء الأول في {{date}}",
     bioLabel: "نبذة",
     bioEmpty: "—",
+    interestsLabel: "الاهتمامات",
     meetingSpot: "مكان اللقاء",
     tapToViewOnMaps: "اضغط للعرض على الخرائط",
     lockReceivedTitle: "يريد مشاركة الشبكات",

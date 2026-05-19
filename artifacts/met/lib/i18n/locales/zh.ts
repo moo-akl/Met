@@ -392,6 +392,7 @@ export const zh: LocaleTree = {
     firstMetOn: "首次相遇于 {{date}}",
     bioLabel: "简介",
     bioEmpty: "—",
+    interestsLabel: "兴趣爱好",
     meetingSpot: "相遇地点",
     tapToViewOnMaps: "点按在地图中查看",
     lockReceivedTitle: "想分享社交账号",

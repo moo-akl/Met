@@ -415,6 +415,7 @@ export const vi: LocaleTree = {
     firstMetOn: "Gặp lần đầu vào {{date}}",
     bioLabel: "Giới thiệu",
     bioEmpty: "—",
+    interestsLabel: "Sở thích",
     meetingSpot: "Nơi gặp",
     tapToViewOnMaps: "Chạm để xem trên Maps",
     lockReceivedTitle: "Muốn chia sẻ mạng xã hội",

@@ -419,6 +419,7 @@ export const fr: LocaleTree = {
     firstMetOn: "Première rencontre le {{date}}",
     bioLabel: "Bio",
     bioEmpty: "—",
+    interestsLabel: "Centres d'intérêt",
     meetingSpot: "Lieu de rencontre",
     tapToViewOnMaps: "Touchez pour voir sur Maps",
     lockReceivedTitle: "Veut partager ses réseaux",

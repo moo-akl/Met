@@ -415,6 +415,7 @@ export const ru: LocaleTree = {
     firstMetOn: "Первая встреча {{date}}",
     bioLabel: "О себе",
     bioEmpty: "—",
+    interestsLabel: "Интересы",
     meetingSpot: "Место встречи",
     tapToViewOnMaps: "Нажмите, чтобы открыть в Картах",
     lockReceivedTitle: "Хочет поделиться соцсетями",

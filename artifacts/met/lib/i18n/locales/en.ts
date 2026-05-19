@@ -454,6 +454,7 @@ export const en = {
     firstMetOn: "First met on {{date}}",
     bioLabel: "Bio",
     bioEmpty: "—",
+    interestsLabel: "Interests",
     meetingSpot: "Meeting Spot",
     tapToViewOnMaps: "Tap to view on Maps",
     lockReceivedTitle: "Wants to share socials",

@@ -415,6 +415,7 @@ export const nl: LocaleTree = {
     firstMetOn: "Eerst ontmoet op {{date}}",
     bioLabel: "Bio",
     bioEmpty: "—",
+    interestsLabel: "Interesses",
     meetingSpot: "Ontmoetingsplek",
     tapToViewOnMaps: "Tik om in Maps te bekijken",
     lockReceivedTitle: "Wil socials delen",
