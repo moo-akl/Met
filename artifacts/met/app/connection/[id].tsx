@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
 import { Avatar } from "@/components/Avatar";
+import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { SocialChip } from "@/components/SocialChip";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -48,6 +49,7 @@ export default function ConnectionScreen() {
   // a user is never stranded with an abusive contact and no way to act.
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [reportConfirmation, setReportConfirmation] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -199,11 +201,17 @@ export default function ConnectionScreen() {
         >
           <View style={styles.detailsHeroRow}>
             {encounter.photoUri ? (
-              <Image
-                source={{ uri: encounter.photoUri }}
-                style={styles.detailsAvatar}
-                contentFit="cover"
-              />
+              <Pressable
+                onPress={() => setLightboxOpen(true)}
+                accessibilityLabel="View full-screen photo"
+                accessibilityRole="button"
+              >
+                <Image
+                  source={{ uri: encounter.photoUri }}
+                  style={styles.detailsAvatar}
+                  contentFit="cover"
+                />
+              </Pressable>
             ) : (
               // Same fallback as the encounter screen: when the peer
               // has no profile photo (or the URL hasn't been enriched
@@ -381,6 +389,14 @@ export default function ConnectionScreen() {
             </Text>
           </View>
         </View>
+      ) : null}
+
+      {encounter.photoUri ? (
+        <PhotoLightbox
+          uri={encounter.photoUri}
+          visible={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+        />
       ) : null}
     </View>
   );
