@@ -17,6 +17,7 @@ import {
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { recordSymmetricEncounter } from "../lib/firestoreMirror";
+import { sendPush, checkNearbyPushAllowed } from "../lib/push";
 
 const router: IRouter = Router();
 
@@ -157,7 +158,11 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
   // BLE resolve cache miss never poisons the met_people subcollection
   // with an unresolvable doc id.
   const [other] = await db
-    .select({ uid: profilesTable.uid, isVisible: profilesTable.isVisible })
+    .select({
+      uid: profilesTable.uid,
+      isVisible: profilesTable.isVisible,
+      pushToken: profilesTable.pushToken,
+    })
     .from(profilesTable)
     .where(eq(profilesTable.uid, body.otherUid))
     .limit(1);
@@ -179,6 +184,19 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
       uidB: body.otherUid,
       location: body.location ?? null,
     });
+
+    // Best-effort push to the other user — rate-limited to once per 15 min
+    // per (observer, observed) pair so repeated BLE/GPS detections don't
+    // spam. `encounterId` carries the observer's uid so the recipient's
+    // tap-handler routes to /encounter/{observerUid}.
+    if (other.pushToken && checkNearbyPushAllowed(uid, body.otherUid)) {
+      await sendPush(other.pushToken, {
+        title: "Someone nearby is using Met!",
+        body: "You've crossed paths with someone.",
+        data: { type: "encounter", encounterId: uid },
+      });
+    }
+
     res.json(
       RecordEncounterResponse.parse({
         otherUid: result.otherUid,

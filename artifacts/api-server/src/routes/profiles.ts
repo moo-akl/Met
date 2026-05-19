@@ -97,6 +97,25 @@ router.put("/profiles/me", requireUid, async (req, res) => {
   res.json(UpsertMyProfileResponse.parse(serialize(row!)));
 });
 
+// POST /api/profiles/me/push-token — store (or refresh) the caller's Expo
+// push token so the server can target this device with remote notifications.
+// Silently overwrites any previously stored token — the client always sends
+// the freshest token it receives from Expo.
+router.post("/profiles/me/push-token", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const token =
+    typeof req.body?.token === "string" ? req.body.token.trim() : null;
+  if (!token || token.length > 1024) {
+    res.status(400).json({ message: "token must be a non-empty string" });
+    return;
+  }
+  await db
+    .update(profilesTable)
+    .set({ pushToken: token, updatedAt: new Date() })
+    .where(eq(profilesTable.uid, uid));
+  res.json({ success: true });
+});
+
 router.get("/profiles/:uid", requireUid, async (req, res) => {
   const params = GetProfileParams.parse({ uid: req.params.uid });
   const [row] = await db

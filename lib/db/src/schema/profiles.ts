@@ -27,6 +27,9 @@ export const profilesTable = pgTable(
     // queries (Firestore mirror sets isVisible to the same value). Default
     // true so existing rows are visible without an explicit migration.
     isVisible: boolean("is_visible").notNull().default(true),
+    // Expo push token for remote notifications. Null until the device
+    // registers via POST /api/profiles/me/push-token.
+    pushToken: text("push_token"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

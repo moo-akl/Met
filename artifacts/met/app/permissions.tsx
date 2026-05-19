@@ -26,7 +26,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import {
-  registerForPushTokenAsync,
+  registerAndUploadPushToken,
   requestNotificationPermission,
 } from "@/lib/notifications";
 import { saveDisclosureAccepted } from "@/lib/storage";
@@ -50,7 +50,7 @@ export default function PermissionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useT();
-  const { setPermissionsCompleted, permissionsCompleted } = useApp();
+  const { setPermissionsCompleted, permissionsCompleted, profile } = useApp();
 
   const [statuses, setStatuses] = useState<Record<PermKey, Status>>({
     location: "idle",
@@ -183,10 +183,11 @@ export default function PermissionsScreen() {
       } else {
         const granted = await requestNotificationPermission();
         setOne("notifications", granted ? "granted" : "denied");
-        // Best-effort token fetch — stashed locally; api-server upload
-        // is wired in a follow-up task. No-op on simulator / Expo Go.
+        // Fetch Expo push token, save locally, and upload to api-server
+        // so the backend can send remote push notifications.
+        // No-op on simulator / Expo Go.
         if (granted) {
-          void registerForPushTokenAsync();
+          void registerAndUploadPushToken(profile?.id ?? "");
         }
       }
     } catch {

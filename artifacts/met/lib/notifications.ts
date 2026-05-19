@@ -120,6 +120,33 @@ export async function getCachedPushToken(): Promise<string | null> {
 }
 
 /**
+ * Fetches an Expo push token (or returns the cached one), saves it locally,
+ * and uploads it to the api-server so the backend can send remote push
+ * notifications to this device.
+ *
+ * Requires the caller's Firebase UID so the api-server can associate the
+ * token with the right profile row. Best-effort — upload failures are
+ * swallowed so the app continues to work even if the server is unreachable.
+ */
+export async function registerAndUploadPushToken(
+  uid: string,
+): Promise<string | null> {
+  const token = await registerForPushTokenAsync();
+  if (!token || !uid) return token;
+
+  // Lazy-import the API client to avoid a circular dependency: notifications
+  // is loaded early at module level, and api/client has no dependency on us.
+  try {
+    const { api } = await import("./api/client");
+    await api.registerPushToken({ uid }, token);
+  } catch (err) {
+    console.warn("[notifications] failed to upload push token to server", err);
+  }
+
+  return token;
+}
+
+/**
  * Tap-handler payload. Notifications carry data of this shape so the
  * tap-handler can deep-link to the right place.
  */

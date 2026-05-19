@@ -20,6 +20,7 @@ import {
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { mirrorRevealRequest, mirrorRevealStatus } from "../lib/firestoreMirror";
+import { sendPush } from "../lib/push";
 
 const router: IRouter = Router();
 
@@ -115,6 +116,18 @@ router.post("/reveals", requireUid, revealWriteLimit, async (req, res) => {
     recipientUid: body.recipientUid,
     status: "pending",
     message: body.message ?? null,
+  });
+
+  // Best-effort push to recipient — fetch sender display name for copy.
+  const [senderRow] = await db
+    .select({ displayName: profilesTable.displayName })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, senderUid))
+    .limit(1);
+  await sendPush(recipient.pushToken, {
+    title: `${senderRow?.displayName ?? "Someone"} wants to reveal to you`,
+    body: "Tap to view their request.",
+    data: { type: "reveal_request", fromUid: senderUid },
   });
 
   res.json(
@@ -246,6 +259,26 @@ router.post("/reveals/accept", requireUid, revealWriteLimit, async (req, res) =>
     senderUid: recipientUid,
     recipientUid: body.senderUid,
     status: "accepted",
+  });
+
+  // Best-effort push to the original sender letting them know their
+  // reveal was accepted. Fetch both profiles in a single round-trip.
+  const [[recipientRow], [originalSenderRow]] = await Promise.all([
+    db
+      .select({ displayName: profilesTable.displayName })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, recipientUid))
+      .limit(1),
+    db
+      .select({ pushToken: profilesTable.pushToken })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, body.senderUid))
+      .limit(1),
+  ]);
+  await sendPush(originalSenderRow?.pushToken, {
+    title: `${recipientRow?.displayName ?? "Someone"} accepted your reveal!`,
+    body: "You're now connected — tap to say hi.",
+    data: { type: "reveal_accepted", fromUid: recipientUid },
   });
 
   res.json(AcceptRevealRequestResponse.parse(serializeReveal(updated)));

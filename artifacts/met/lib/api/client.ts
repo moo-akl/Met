@@ -344,6 +344,18 @@ export const api = {
       peerUid,
     }),
   /**
+   * Register (or refresh) the device's Expo push token with the server so
+   * it can deliver remote notifications for reveals and nearby encounters.
+   * Best-effort — call fire-and-forget; the app works fine without it.
+   */
+  registerPushToken: (opts: ApiOptions, token: string) =>
+    request<{ success: boolean }>(
+      "POST",
+      "/api/profiles/me/push-token",
+      opts,
+      { token },
+    ),
+  /**
    * Submit a content / abuse report. Server persists to Firestore
    * `reports` collection so the team can action within 24h per Apple
    * Guideline 1.2. Best-effort from the client side — we always also
