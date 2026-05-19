@@ -19,6 +19,14 @@ export const ALL_INTERESTS = [
   "Coffee",
   "Dogs",
   "Cats",
+  "Movies",
+  "Cycling",
+  "Wine",
+  "Volunteering",
+  "Podcasts",
+  "Wellness",
+  "Running",
+  "Board Games",
 ] as const;
 
 export const MAX_INTERESTS = 10;

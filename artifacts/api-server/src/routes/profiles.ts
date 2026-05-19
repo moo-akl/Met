@@ -62,6 +62,8 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     "Gaming", "Tech", "Fitness", "Photography",
     "Reading", "Film", "Nature", "Cooking", "Fashion",
     "Hiking", "Yoga", "Dancing", "Coffee", "Dogs", "Cats",
+    "Movies", "Cycling", "Wine", "Volunteering",
+    "Podcasts", "Wellness", "Running", "Board Games",
   ]);
   const ALLOWED_LOCALES = new Set([
     "en", "es", "ar", "zh", "ru", "fr", "vi", "pt", "nl",
