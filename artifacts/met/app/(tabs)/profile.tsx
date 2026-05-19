@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
+import { SortableChips } from "@/components/SortableChips";
 import { MyQrSheet } from "@/components/MyQrSheet";
 import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -536,29 +537,39 @@ export default function ProfileScreen() {
               </Text>
             </View>
             {interests.length > 0 ? (
-              <View style={styles.interestsGrid}>
-                {interests.map((tag) => (
+              <SortableChips
+                items={interests}
+                onReorder={setInterests}
+                renderChip={(tag, isPlaceholder) => (
                   <Pressable
-                    key={tag}
-                    onPress={() =>
-                      setInterests((prev) => prev.filter((i) => i !== tag))
+                    onPress={
+                      isPlaceholder
+                        ? undefined
+                        : () => setInterests((prev) => prev.filter((i) => i !== tag))
                     }
                     style={({ pressed }) => [
                       styles.interestChip,
                       {
                         backgroundColor: colors.primary,
                         borderColor: colors.primary,
-                        opacity: pressed ? 0.75 : 1,
+                        opacity: isPlaceholder ? 0.3 : pressed ? 0.75 : 1,
                       },
                     ]}
                   >
-                    <Text style={[styles.interestChipText, { color: "#FFFFFF" }]}>
+                    <Text
+                      style={[
+                        styles.interestChipText,
+                        { color: isPlaceholder ? "transparent" : "#FFFFFF" },
+                      ]}
+                    >
                       {t(`interestLabels.${tag.toLowerCase()}`)}
                     </Text>
-                    <Feather name="x" size={12} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                    {!isPlaceholder && (
+                      <Feather name="x" size={12} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                    )}
                   </Pressable>
-                ))}
-              </View>
+                )}
+              />
             ) : null}
             <TextInput
               value={interestSearch}
