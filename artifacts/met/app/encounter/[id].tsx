@@ -468,7 +468,7 @@ export default function EncounterDetail() {
                           { color: isShared ? "#FFFFFF" : colors.foreground },
                         ]}
                       >
-                        {tag}
+                        {t(`interestLabels.${tag.toLowerCase()}`)}
                       </Text>
                     </View>
                   );

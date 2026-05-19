@@ -830,4 +830,27 @@ export const fr: LocaleTree = {
     simulateHint:
       "Prototype uniquement — en production, l'attribution se fait côté serveur.",
   },
+
+  interestLabels: {
+    sport: "Sport",
+    music: "Musique",
+    art: "Art",
+    travel: "Voyages",
+    food: "Gastronomie",
+    gaming: "Jeux vidéo",
+    tech: "Technologie",
+    fitness: "Fitness",
+    photography: "Photographie",
+    reading: "Lecture",
+    film: "Cinéma",
+    nature: "Nature",
+    cooking: "Cuisine",
+    fashion: "Mode",
+    hiking: "Randonnée",
+    yoga: "Yoga",
+    dancing: "Danse",
+    coffee: "Café",
+    dogs: "Chiens",
+    cats: "Chats",
+  },
 };

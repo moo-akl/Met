@@ -106,7 +106,7 @@ export function EncounterRow({ encounter }: Props) {
             <View style={[styles.repeatPill, { backgroundColor: "#EDE9FE" }]}>
               <Feather name="heart" size={10} color="#7C3AED" />
               <Text style={[styles.repeatText, { color: "#7C3AED" }]}>
-                {t("encounterRow.sharedInterest", { interest: sharedInterest })}
+                {t("encounterRow.sharedInterest", { interest: t(`interestLabels.${sharedInterest.toLowerCase()}`) })}
               </Text>
             </View>
           ) : encounter.status === "encounter" && encounter.encounterCount > 1 ? (

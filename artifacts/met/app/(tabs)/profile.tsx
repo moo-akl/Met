@@ -527,7 +527,7 @@ export default function ProfileScreen() {
           <View style={{ gap: 12 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-                Interests
+                {t("encounter.interestsLabel")}
               </Text>
               <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>
                 {interests.length}/{MAX_INTERESTS}
@@ -561,7 +561,7 @@ export default function ProfileScreen() {
                         { color: selected ? "#FFFFFF" : colors.foreground },
                       ]}
                     >
-                      {tag}
+                      {t(`interestLabels.${tag.toLowerCase()}`)}
                     </Text>
                   </Pressable>
                 );
@@ -571,7 +571,7 @@ export default function ProfileScreen() {
         ) : interests.length > 0 ? (
           <View style={{ gap: 10 }}>
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-              Interests
+              {t("encounter.interestsLabel")}
             </Text>
             <View style={styles.interestsGrid}>
               {interests.map((tag) => (
@@ -584,7 +584,7 @@ export default function ProfileScreen() {
                   ]}
                 >
                   <Text style={[styles.interestChipText, { color: colors.foreground }]}>
-                    {tag}
+                    {t(`interestLabels.${tag.toLowerCase()}`)}
                   </Text>
                 </View>
               ))}

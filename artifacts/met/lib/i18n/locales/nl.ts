@@ -822,4 +822,27 @@ export const nl: LocaleTree = {
     simulateHint:
       "Alleen prototype — in productie gebeurt attributie aan de serverkant.",
   },
+
+  interestLabels: {
+    sport: "Sport",
+    music: "Muziek",
+    art: "Kunst",
+    travel: "Reizen",
+    food: "Eten",
+    gaming: "Gaming",
+    tech: "Technologie",
+    fitness: "Fitness",
+    photography: "Fotografie",
+    reading: "Lezen",
+    film: "Film",
+    nature: "Natuur",
+    cooking: "Koken",
+    fashion: "Mode",
+    hiking: "Wandelen",
+    yoga: "Yoga",
+    dancing: "Dansen",
+    coffee: "Koffie",
+    dogs: "Honden",
+    cats: "Katten",
+  },
 };

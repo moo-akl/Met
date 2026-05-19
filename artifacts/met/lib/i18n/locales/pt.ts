@@ -820,4 +820,27 @@ export const pt: LocaleTree = {
     simulateHint:
       "Só prototipo — em produção, a atribuição acontece no servidor.",
   },
+
+  interestLabels: {
+    sport: "Esporte",
+    music: "Música",
+    art: "Arte",
+    travel: "Viagens",
+    food: "Gastronomia",
+    gaming: "Jogos",
+    tech: "Tecnologia",
+    fitness: "Fitness",
+    photography: "Fotografia",
+    reading: "Leitura",
+    film: "Cinema",
+    nature: "Natureza",
+    cooking: "Culinária",
+    fashion: "Moda",
+    hiking: "Trilhas",
+    yoga: "Yoga",
+    dancing: "Dança",
+    coffee: "Café",
+    dogs: "Cachorros",
+    cats: "Gatos",
+  },
 };

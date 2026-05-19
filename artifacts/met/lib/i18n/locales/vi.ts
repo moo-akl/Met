@@ -822,4 +822,27 @@ export const vi: LocaleTree = {
     simulateHint:
       "Chỉ là nguyên mẫu — trong sản phẩm thật, ghi nhận diễn ra ở máy chủ.",
   },
+
+  interestLabels: {
+    sport: "Thể thao",
+    music: "Âm nhạc",
+    art: "Nghệ thuật",
+    travel: "Du lịch",
+    food: "Ẩm thực",
+    gaming: "Trò chơi",
+    tech: "Công nghệ",
+    fitness: "Thể dục",
+    photography: "Nhiếp ảnh",
+    reading: "Đọc sách",
+    film: "Phim ảnh",
+    nature: "Thiên nhiên",
+    cooking: "Nấu ăn",
+    fashion: "Thời trang",
+    hiking: "Leo núi",
+    yoga: "Yoga",
+    dancing: "Khiêu vũ",
+    coffee: "Cà phê",
+    dogs: "Chó",
+    cats: "Mèo",
+  },
 };

@@ -264,7 +264,7 @@ export default function ConnectionScreen() {
                     ]}
                   >
                     <Text style={[styles.interestChipText, { color: colors.foreground }]}>
-                      {tag}
+                      {t(`interestLabels.${tag.toLowerCase()}`)}
                     </Text>
                   </View>
                 ))}

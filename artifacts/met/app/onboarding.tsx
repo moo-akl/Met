@@ -1307,7 +1307,7 @@ export default function OnboardingScreen() {
                         { color: selected ? "#FFFFFF" : colors.foreground },
                       ]}
                     >
-                      {tag}
+                      {t(`interestLabels.${tag.toLowerCase()}`)}
                     </Text>
                   </Pressable>
                 );
