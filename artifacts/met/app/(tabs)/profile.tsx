@@ -26,6 +26,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { findBlockedTerm } from "@/lib/contentFilter";
+import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
 import { MAX_EXTRA_PHOTOS_BY_TIER } from "@/lib/storage";
@@ -58,6 +59,7 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [photoUri, setPhotoUri] = useState<string | null>(profile?.photoUri ?? null);
   const [socials, setSocials] = useState<SocialLinks>(profile?.socials ?? {});
+  const [interests, setInterests] = useState<string[]>(profile?.interests ?? []);
   const [saving, setSaving] = useState(false);
 
   // Photo verification overlay state. `pendingIntent` distinguishes a
@@ -79,6 +81,7 @@ export default function ProfileScreen() {
       setBio(profile.bio);
       setPhotoUri(profile.photoUri);
       setSocials(profile.socials ?? {});
+      setInterests(profile.interests ?? []);
     }
   }, [profile, editing]);
 
@@ -196,6 +199,7 @@ export default function ProfileScreen() {
       bio: bio.trim(),
       photoUri,
       socials,
+      interests,
       // A new main photo is only set after passing the verifier so it counts
       // as freshly verified. Otherwise leave the existing stamps alone.
       ...(photoChanged
@@ -515,6 +519,79 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* Interests section */}
+        <View
+          style={[styles.divider, { backgroundColor: colors.border }]}
+        />
+        {editing ? (
+          <View style={{ gap: 12 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                Interests
+              </Text>
+              <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>
+                {interests.length}/{MAX_INTERESTS}
+              </Text>
+            </View>
+            <View style={styles.interestsGrid}>
+              {ALL_INTERESTS.map((tag) => {
+                const selected = interests.includes(tag);
+                return (
+                  <Pressable
+                    key={tag}
+                    onPress={() => {
+                      if (selected) {
+                        setInterests((prev) => prev.filter((i) => i !== tag));
+                      } else if (interests.length < MAX_INTERESTS) {
+                        setInterests((prev) => [...prev, tag]);
+                      }
+                    }}
+                    style={({ pressed }) => [
+                      styles.interestChip,
+                      {
+                        backgroundColor: selected ? colors.primary : colors.card,
+                        borderColor: selected ? colors.primary : colors.border,
+                        opacity: pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.interestChipText,
+                        { color: selected ? "#FFFFFF" : colors.foreground },
+                      ]}
+                    >
+                      {tag}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : interests.length > 0 ? (
+          <View style={{ gap: 10 }}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+              Interests
+            </Text>
+            <View style={styles.interestsGrid}>
+              {interests.map((tag) => (
+                <View
+                  key={tag}
+                  style={[
+                    styles.interestChip,
+                    styles.interestChipReadOnly,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={[styles.interestChipText, { color: colors.foreground }]}>
+                    {tag}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <View style={{ gap: 12, marginTop: 12 }}>
           {editing ? (
             <>
@@ -700,6 +777,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     paddingVertical: 16,
+  },
+  interestsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  interestChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  interestChipReadOnly: {
+    borderWidth: 1,
+  },
+  interestChipText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
   },
   field: { gap: 6 },
   subLabel: { fontFamily: "Inter_400Regular", fontSize: 12 },

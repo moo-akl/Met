@@ -36,6 +36,7 @@ import {
 import { api, ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
+import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
 import { consumePendingReferral } from "./_layout";
@@ -90,6 +91,7 @@ type Phase =
   | "photo"
   | "info"
   | "socials"
+  | "interests"
   | "invite";
 
 // Resend cooldown after sending a verification email — Firebase will
@@ -129,6 +131,7 @@ export default function OnboardingScreen() {
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [socials, setSocials] = useState<SocialLinks>({});
+  const [interests, setInterests] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   // Referral code the user is redeeming. Pre-filled from any deep-link
   // (`met://r/CODE`) the system captured before onboarding mounted.
@@ -197,6 +200,7 @@ export default function OnboardingScreen() {
         bio: remote.bio ?? "",
         photoUri: remote.photoUrl ?? "",
         socials: (remote.socials ?? {}) as SocialLinks,
+        interests: (remote.interests ?? []) as string[],
         verified: true,
         isVisible: remote.isVisible ?? false,
         photoVerifiedAt: Date.now(),
@@ -479,6 +483,7 @@ export default function OnboardingScreen() {
       bio: bio.trim(),
       photoUri,
       socials,
+      interests,
       verified: true,
       isVisible: false,
       photoVerifiedAt: Date.now(),
@@ -515,6 +520,7 @@ export default function OnboardingScreen() {
             photoUrl: remotePhotoUrl,
             bio: newProfile.bio || null,
             socials: newProfile.socials as Record<string, string>,
+            interests: newProfile.interests ?? [],
             isVisible: false,
           },
         );
@@ -715,7 +721,8 @@ export default function OnboardingScreen() {
                 if (phase === "auth") setPhase("intro");
                 else if (phase === "info") setPhase("photo");
                 else if (phase === "socials") setPhase("info");
-                else if (phase === "invite") setPhase("socials");
+                else if (phase === "interests") setPhase("socials");
+                else if (phase === "invite") setPhase("interests");
               }}
               hitSlop={12}
             >
@@ -726,8 +733,8 @@ export default function OnboardingScreen() {
             <View style={{ flex: 1 }} />
           ) : (
             <View style={styles.stepDots}>
-              {(["photo", "info", "socials", "invite"] as Phase[]).map((p, i) => {
-                const order = ["photo", "info", "socials", "invite"];
+              {(["photo", "info", "socials", "interests", "invite"] as Phase[]).map((p, i) => {
+                const order = ["photo", "info", "socials", "interests", "invite"];
                 const currentIndex = order.indexOf(phase);
                 const active = i <= currentIndex;
                 return (
@@ -1258,6 +1265,61 @@ export default function OnboardingScreen() {
                   ? t("common.continue")
                   : t("common.skip")
               }
+              onPress={() => setPhase("interests")}
+            />
+          </View>
+        ) : null}
+
+        {phase === "interests" ? (
+          <View style={styles.step}>
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>
+              What are you into?
+            </Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              Pick up to {MAX_INTERESTS} interests. People nearby who share them get a personalised notification.
+            </Text>
+
+            <View style={styles.interestsGrid}>
+              {ALL_INTERESTS.map((tag) => {
+                const selected = interests.includes(tag);
+                return (
+                  <Pressable
+                    key={tag}
+                    onPress={() => {
+                      if (selected) {
+                        setInterests((prev) => prev.filter((i) => i !== tag));
+                      } else if (interests.length < MAX_INTERESTS) {
+                        setInterests((prev) => [...prev, tag]);
+                      }
+                    }}
+                    style={({ pressed }) => [
+                      styles.interestChip,
+                      {
+                        backgroundColor: selected ? colors.primary : colors.card,
+                        borderColor: selected ? colors.primary : colors.border,
+                        opacity: pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.interestChipText,
+                        { color: selected ? "#FFFFFF" : colors.foreground },
+                      ]}
+                    >
+                      {tag}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.interestsCount, { color: colors.mutedForeground }]}>
+              {interests.length}/{MAX_INTERESTS} selected
+            </Text>
+
+            <PrimaryButton
+              label={interests.length > 0 ? t("common.continue") : t("common.skip")}
               onPress={() => setPhase("invite")}
             />
           </View>
@@ -1433,6 +1495,27 @@ const styles = StyleSheet.create({
   photoHint: {
     fontFamily: "Inter_500Medium",
     fontSize: 14,
+  },
+  interestsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  interestChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  interestChipText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+  },
+  interestsCount: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: -8,
   },
   field: { gap: 6 },
   fieldLabel: {

@@ -252,6 +252,25 @@ export default function ConnectionScreen() {
               {encounter.bio}
             </Text>
           ) : null}
+          {encounter.interests && encounter.interests.length > 0 ? (
+            <View style={styles.interestsBlock}>
+              <View style={styles.chipsRow}>
+                {encounter.interests.map((tag) => (
+                  <View
+                    key={tag}
+                    style={[
+                      styles.interestChip,
+                      { backgroundColor: colors.muted, borderColor: colors.border },
+                    ]}
+                  >
+                    <Text style={[styles.interestChipText, { color: colors.foreground }]}>
+                      {tag}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
           {encounter.lastLocation ? (
             <Pressable
               onPress={openMap}
@@ -727,6 +746,17 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,
+  },
+  interestsBlock: { gap: 6 },
+  interestChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  interestChipText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
   },
   socialsBlock: { gap: 8 },
   sectionLabel: {

@@ -17,6 +17,11 @@ export interface UpsertProfile {
   /** @maxLength 500 */
   bio?: string | null;
   socials?: UpsertProfileSocials;
+  /**
+   * Selected interest tags. Optional on upsert; null preserves existing.
+   * @maxItems 10
+   */
+  interests?: string[] | null;
   /** Ghost Mode flag. Optional on upsert; preserved when omitted. */
   isVisible?: boolean;
 }

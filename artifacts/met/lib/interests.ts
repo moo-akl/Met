@@ -1,0 +1,24 @@
+export const ALL_INTERESTS = [
+  "Sport",
+  "Music",
+  "Art",
+  "Travel",
+  "Food",
+  "Gaming",
+  "Tech",
+  "Fitness",
+  "Photography",
+  "Reading",
+  "Film",
+  "Nature",
+  "Cooking",
+  "Fashion",
+  "Hiking",
+  "Yoga",
+  "Dancing",
+  "Coffee",
+  "Dogs",
+  "Cats",
+] as const;
+
+export const MAX_INTERESTS = 10;

@@ -30,6 +30,10 @@ export const profilesTable = pgTable(
     // Expo push token for remote notifications. Null until the device
     // registers via POST /api/profiles/me/push-token.
     pushToken: text("push_token"),
+    // User-selected interest tags (predefined list, up to 10). Stored as a
+    // native Postgres text array so queries can use the `&&` overlap operator
+    // for interest-based matching in the future.
+    interests: text("interests").array().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

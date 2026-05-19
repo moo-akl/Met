@@ -16,6 +16,8 @@ export type Profile = {
   socials: SocialLinks;
   verified: boolean;
   isVisible: boolean;
+  // Selected interest tags from the predefined list (up to MAX_INTERESTS).
+  interests?: string[];
   // Last time the user re-ran face verification (ML Kit equivalent on the
   // Flutter side). `undefined` = never verified.
   photoVerifiedAt?: number;
@@ -60,4 +62,6 @@ export type Encounter = {
   // encounter so the receiver can read it on their lock card. Cleared when
   // the request transitions away from `request_sent` / `request_received`.
   revealMessage?: string;
+  // Peer's selected interests, synced from server during encounter enrichment.
+  interests?: string[];
 };

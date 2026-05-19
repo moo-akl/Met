@@ -21,6 +21,7 @@ function serialize(p: Profile) {
     photoUrl: p.photoUrl ?? null,
     bio: p.bio ?? null,
     socials: (p.socials ?? {}) as Record<string, string>,
+    interests: (p.interests ?? []) as string[],
     isVisible: p.isVisible,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
@@ -52,6 +53,19 @@ router.put("/profiles/me", requireUid, async (req, res) => {
   // isVisible is optional on upsert: if the client omits it we want to
   // PRESERVE the existing value (and default to true on create), not
   // silently flip the user out of Ghost Mode.
+  // Validate interests: trim, dedupe, limit to MAX_INTERESTS, strip blanks.
+  const MAX_INTERESTS = 10;
+  const cleanInterests =
+    body.interests != null
+      ? Array.from(
+          new Set(
+            (body.interests as string[])
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0 && s.length <= 32),
+          ),
+        ).slice(0, MAX_INTERESTS)
+      : undefined;
+
   const insertValues: typeof profilesTable.$inferInsert = {
     uid,
     uidHash,
@@ -59,6 +73,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     photoUrl: body.photoUrl ?? null,
     bio: body.bio ?? null,
     socials: body.socials ?? {},
+    interests: cleanInterests ?? [],
     isVisible: body.isVisible ?? true,
   };
   const updateValues: Partial<typeof profilesTable.$inferInsert> = {
@@ -70,6 +85,9 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     updatedAt: now,
   };
   if (body.isVisible !== undefined) updateValues.isVisible = body.isVisible;
+  // Only update interests when the client explicitly sent a value (null = omit,
+  // which preserves the existing selection).
+  if (cleanInterests !== undefined) updateValues.interests = cleanInterests;
 
   const [row] = await db
     .insert(profilesTable)

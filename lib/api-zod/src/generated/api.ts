@@ -24,6 +24,10 @@ export const GetMyProfileResponse = zod.object({
   photoUrl: zod.string().nullish(),
   bio: zod.string().nullish(),
   socials: zod.record(zod.string(), zod.string()).optional(),
+  interests: zod
+    .array(zod.string())
+    .nullish()
+    .describe("User-selected interest tags (predefined list, up to 10)."),
   isVisible: zod
     .boolean()
     .describe(
@@ -40,11 +44,22 @@ export const upsertMyProfileBodyDisplayNameMax = 80;
 
 export const upsertMyProfileBodyBioMax = 500;
 
+export const upsertMyProfileBodyInterestsItemMax = 32;
+
+export const upsertMyProfileBodyInterestsMax = 10;
+
 export const UpsertMyProfileBody = zod.object({
   displayName: zod.string().min(1).max(upsertMyProfileBodyDisplayNameMax),
   photoUrl: zod.string().nullish(),
   bio: zod.string().max(upsertMyProfileBodyBioMax).nullish(),
   socials: zod.record(zod.string(), zod.string()).optional(),
+  interests: zod
+    .array(zod.string().max(upsertMyProfileBodyInterestsItemMax))
+    .max(upsertMyProfileBodyInterestsMax)
+    .nullish()
+    .describe(
+      "Selected interest tags. Optional on upsert; null preserves existing.",
+    ),
   isVisible: zod
     .boolean()
     .optional()
@@ -57,6 +72,10 @@ export const UpsertMyProfileResponse = zod.object({
   photoUrl: zod.string().nullish(),
   bio: zod.string().nullish(),
   socials: zod.record(zod.string(), zod.string()).optional(),
+  interests: zod
+    .array(zod.string())
+    .nullish()
+    .describe("User-selected interest tags (predefined list, up to 10)."),
   isVisible: zod
     .boolean()
     .describe(
@@ -79,6 +98,10 @@ export const GetProfileResponse = zod.object({
   photoUrl: zod.string().nullish(),
   bio: zod.string().nullish(),
   socials: zod.record(zod.string(), zod.string()).optional(),
+  interests: zod
+    .array(zod.string())
+    .nullish()
+    .describe("User-selected interest tags (predefined list, up to 10)."),
   isVisible: zod
     .boolean()
     .describe(
@@ -128,6 +151,10 @@ export const ListMyEncountersResponseItem = zod
         photoUrl: zod.string().nullish(),
         bio: zod.string().nullish(),
         socials: zod.record(zod.string(), zod.string()).optional(),
+        interests: zod
+          .array(zod.string())
+          .nullish()
+          .describe("User-selected interest tags (predefined list, up to 10)."),
         isVisible: zod
           .boolean()
           .describe(
@@ -238,6 +265,10 @@ export const CreateRevealRequestResponse = zod
         photoUrl: zod.string().nullish(),
         bio: zod.string().nullish(),
         socials: zod.record(zod.string(), zod.string()).optional(),
+        interests: zod
+          .array(zod.string())
+          .nullish()
+          .describe("User-selected interest tags (predefined list, up to 10)."),
         isVisible: zod
           .boolean()
           .describe(
@@ -276,6 +307,10 @@ export const ListInboundRevealsResponseItem = zod
         photoUrl: zod.string().nullish(),
         bio: zod.string().nullish(),
         socials: zod.record(zod.string(), zod.string()).optional(),
+        interests: zod
+          .array(zod.string())
+          .nullish()
+          .describe("User-selected interest tags (predefined list, up to 10)."),
         isVisible: zod
           .boolean()
           .describe(
@@ -316,6 +351,10 @@ export const ListOutboundRevealsResponseItem = zod
         photoUrl: zod.string().nullish(),
         bio: zod.string().nullish(),
         socials: zod.record(zod.string(), zod.string()).optional(),
+        interests: zod
+          .array(zod.string())
+          .nullish()
+          .describe("User-selected interest tags (predefined list, up to 10)."),
         isVisible: zod
           .boolean()
           .describe(
@@ -402,6 +441,10 @@ export const BleResolveResponseItem = zod.object({
     photoUrl: zod.string().nullish(),
     bio: zod.string().nullish(),
     socials: zod.record(zod.string(), zod.string()).optional(),
+    interests: zod
+      .array(zod.string())
+      .nullish()
+      .describe("User-selected interest tags (predefined list, up to 10)."),
     isVisible: zod
       .boolean()
       .describe(

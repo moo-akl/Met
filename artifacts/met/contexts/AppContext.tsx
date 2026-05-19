@@ -557,6 +557,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               photoUri: event.profile.photoUrl ?? e.photoUri,
               bio: event.profile.bio ?? e.bio,
               socials: (event.profile.socials ?? e.socials) as typeof e.socials,
+              interests: (event.profile.interests ?? e.interests) as string[] | undefined,
               lastSeenAt: now,
               lastDistanceM: distance,
               encounterCount: e.encounterCount + 1,
@@ -570,6 +571,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           photoUri: event.profile.photoUrl ?? "",
           bio: event.profile.bio ?? "",
           socials: (event.profile.socials ?? {}) as Encounter["socials"],
+          interests: (event.profile.interests ?? undefined) as string[] | undefined,
           encounterCount: 1,
           firstSeenAt: now,
           lastSeenAt: now,
@@ -675,6 +677,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             photoUrl,
             bio: profile.bio || null,
             socials: profile.socials as Record<string, string>,
+            interests: profile.interests ?? [],
           },
         );
         if (!uploadFailed) lastSyncedPhotoUrlRef.current = photoUrl;
@@ -859,6 +862,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               bio: r.profile.bio ?? existing.bio,
               socials: (r.profile.socials ??
                 existing.socials) as Encounter["socials"],
+              interests: (r.profile.interests ?? existing.interests) as string[] | undefined,
             };
             if (targetStatus === "request_received" && message)
               next.revealMessage = message;
@@ -875,6 +879,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               photoUri: r.profile.photoUrl ?? "",
               bio: r.profile.bio ?? "",
               socials: (r.profile.socials ?? {}) as Encounter["socials"],
+              interests: (r.profile.interests ?? undefined) as string[] | undefined,
               encounterCount: 1,
               firstSeenAt: createdTs,
               lastSeenAt: createdTs,

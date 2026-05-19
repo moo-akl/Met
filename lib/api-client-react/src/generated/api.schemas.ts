@@ -21,6 +21,8 @@ export interface Profile {
   photoUrl?: string | null;
   bio?: string | null;
   socials?: ProfileSocials;
+  /** User-selected interest tags (predefined list, up to 10). */
+  interests?: string[] | null;
   /** Ghost Mode flag. When false, this user is hidden from other
 devices' nearby queries. Defaults to true on creation.
  */
@@ -41,6 +43,11 @@ export interface UpsertProfile {
   /** @maxLength 500 */
   bio?: string | null;
   socials?: UpsertProfileSocials;
+  /**
+   * Selected interest tags. Optional on upsert; null preserves existing.
+   * @maxItems 10
+   */
+  interests?: string[] | null;
   /** Ghost Mode flag. Optional on upsert; preserved when omitted. */
   isVisible?: boolean;
 }

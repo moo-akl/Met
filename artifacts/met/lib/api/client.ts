@@ -158,6 +158,8 @@ export interface RemoteProfile {
   photoUrl: string | null;
   bio: string | null;
   socials: Record<string, string>;
+  /** User-selected interest tags, may be null/absent for older server responses. */
+  interests?: string[] | null;
   isVisible: boolean;
   createdAt: string;
   updatedAt: string;
@@ -168,6 +170,8 @@ export interface UpsertProfileInput {
   photoUrl?: string | null;
   bio?: string | null;
   socials?: Record<string, string>;
+  /** Selected interest tags (predefined list, up to 10). */
+  interests?: string[] | null;
   /**
    * Ghost Mode flag. Optional on upsert — when omitted the server
    * preserves the existing value (and defaults to true on first

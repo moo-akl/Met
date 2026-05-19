@@ -49,6 +49,7 @@ function serializeProfile(p: Profile) {
     photoUrl: p.photoUrl ?? null,
     bio: p.bio ?? null,
     socials: (p.socials ?? {}) as Record<string, string>,
+    interests: (p.interests ?? []) as string[],
     isVisible: p.isVisible,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
@@ -162,6 +163,7 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
       uid: profilesTable.uid,
       isVisible: profilesTable.isVisible,
       pushToken: profilesTable.pushToken,
+      interests: profilesTable.interests,
     })
     .from(profilesTable)
     .where(eq(profilesTable.uid, body.otherUid))
@@ -190,9 +192,28 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
     // spam. `encounterId` carries the observer's uid so the recipient's
     // tap-handler routes to /encounter/{observerUid}.
     if (other.pushToken && checkNearbyPushAllowed(uid, body.otherUid)) {
+      // Build an interest-aware body: if the two users share at least one
+      // interest, mention it so the notification is more enticing to tap.
+      let pushBody = "You've crossed paths with someone.";
+      const otherInterests = (other.interests ?? []) as string[];
+      if (otherInterests.length > 0) {
+        // Look up the observer's interests to find a shared one.
+        const [callerRow] = await db
+          .select({ interests: profilesTable.interests })
+          .from(profilesTable)
+          .where(eq(profilesTable.uid, uid))
+          .limit(1);
+        const callerInterests = (callerRow?.interests ?? []) as string[];
+        const shared = otherInterests.filter((i) =>
+          callerInterests.includes(i),
+        );
+        if (shared.length > 0) {
+          pushBody = `Someone nearby also likes ${shared[0]}!`;
+        }
+      }
       await sendPush(other.pushToken, {
         title: "Someone nearby is using Met!",
-        body: "You've crossed paths with someone.",
+        body: pushBody,
         data: { type: "encounter", encounterId: uid },
       });
     }
