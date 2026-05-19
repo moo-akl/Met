@@ -14,6 +14,7 @@ import {
   signOut as firebaseSignOut,
   subscribeToAuthState,
 } from "@/lib/auth";
+import { getLanguage } from "@/lib/i18n";
 import { clearReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
 import { api, type RemoteRevealRequestWithProfile } from "@/lib/api/client";
@@ -678,6 +679,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             bio: profile.bio || null,
             socials: profile.socials as Record<string, string>,
             interests: profile.interests ?? [],
+            preferredLocale: getLanguage(),
           },
         );
         if (!uploadFailed) lastSyncedPhotoUrlRef.current = photoUrl;

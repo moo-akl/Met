@@ -500,6 +500,10 @@ components:
         isVisible:
           type: boolean
           description: Ghost Mode flag. Optional on upsert; preserved when omitted.
+        preferredLocale:
+          type: string
+          nullable: true
+          description: BCP-47 language code selected in the app. Optional on upsert; null preserves existing.
       required:
         - displayName
     LogEncounter:

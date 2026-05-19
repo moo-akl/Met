@@ -34,6 +34,10 @@ export const profilesTable = pgTable(
     // native Postgres text array so queries can use the `&&` overlap operator
     // for interest-based matching in the future.
     interests: text("interests").array().notNull().default([]),
+    // BCP-47 language code the user selected in the app (e.g. "en", "es").
+    // Used server-side to localise push notification copy (e.g. interest names).
+    // Null for rows created before this column was added; treated as "en".
+    preferredLocale: text("preferred_locale"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

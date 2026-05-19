@@ -18,6 +18,7 @@ import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { recordSymmetricEncounter } from "../lib/firestoreMirror";
 import { sendPush, checkNearbyPushAllowed } from "../lib/push";
+import { localiseInterest } from "../lib/interestLabels";
 
 const router: IRouter = Router();
 
@@ -164,6 +165,7 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
       isVisible: profilesTable.isVisible,
       pushToken: profilesTable.pushToken,
       interests: profilesTable.interests,
+      preferredLocale: profilesTable.preferredLocale,
     })
     .from(profilesTable)
     .where(eq(profilesTable.uid, body.otherUid))
@@ -211,7 +213,10 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
           callerLower.has(i.toLowerCase()),
         );
         if (shared.length > 0) {
-          pushBody = `Someone nearby also likes ${shared[0]}!`;
+          // Translate the interest label into the recipient's language so the
+          // notification copy reads naturally for non-English speakers.
+          const label = localiseInterest(shared[0], other.preferredLocale);
+          pushBody = `Someone nearby also likes ${label}!`;
         }
       }
       await sendPush(other.pushToken, {

@@ -254,11 +254,11 @@ describe("POST /api/encounters", () => {
       );
     });
 
-    it("sends a shared-interest push body when interests overlap", async () => {
+    it("sends a shared-interest push body when interests overlap (English recipient)", async () => {
       pushMocks.checkNearbyPushAllowed.mockReturnValueOnce(true);
 
       dbMocks.chain.limit
-        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"] }])
+        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"], preferredLocale: null }])
         .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]); // "Travel" is shared
 
       await postRecordEncounterAs("alice", { otherUid: "bob" });
@@ -266,6 +266,22 @@ describe("POST /api/encounters", () => {
       expect(pushMocks.sendPush).toHaveBeenCalledWith(
         "tok-bob",
         expect.objectContaining({ body: expect.stringContaining("Travel") }),
+      );
+    });
+
+    it("sends the shared-interest label in the recipient's language", async () => {
+      pushMocks.checkNearbyPushAllowed.mockReturnValueOnce(true);
+
+      // Bob prefers Spanish — "Travel" should appear as "Viajes" in the notification.
+      dbMocks.chain.limit
+        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"], preferredLocale: "es" }])
+        .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]);
+
+      await postRecordEncounterAs("alice", { otherUid: "bob" });
+
+      expect(pushMocks.sendPush).toHaveBeenCalledWith(
+        "tok-bob",
+        expect.objectContaining({ body: expect.stringContaining("Viajes") }),
       );
     });
 

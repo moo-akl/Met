@@ -24,4 +24,6 @@ export interface UpsertProfile {
   interests?: string[] | null;
   /** Ghost Mode flag. Optional on upsert; preserved when omitted. */
   isVisible?: boolean;
+  /** BCP-47 language code selected in the app. Optional on upsert; null preserves existing. */
+  preferredLocale?: string | null;
 }

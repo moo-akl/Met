@@ -34,7 +34,7 @@ import {
   signUpWithEmail,
 } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api/client";
-import { useT } from "@/lib/i18n";
+import { getLanguage, useT } from "@/lib/i18n";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
@@ -522,6 +522,7 @@ export default function OnboardingScreen() {
             socials: newProfile.socials as Record<string, string>,
             interests: newProfile.interests ?? [],
             isVisible: false,
+            preferredLocale: getLanguage(),
           },
         );
       } catch {

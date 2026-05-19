@@ -64,6 +64,12 @@ export const UpsertMyProfileBody = zod.object({
     .boolean()
     .optional()
     .describe("Ghost Mode flag. Optional on upsert; preserved when omitted."),
+  preferredLocale: zod
+    .string()
+    .nullish()
+    .describe(
+      "BCP-47 language code selected in the app. Optional on upsert; null preserves existing.",
+    ),
 });
 
 export const UpsertMyProfileResponse = zod.object({

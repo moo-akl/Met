@@ -63,6 +63,9 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     "Reading", "Film", "Nature", "Cooking", "Fashion",
     "Hiking", "Yoga", "Dancing", "Coffee", "Dogs", "Cats",
   ]);
+  const ALLOWED_LOCALES = new Set([
+    "en", "es", "ar", "zh", "ru", "fr", "vi", "pt", "nl",
+  ]);
   const MAX_INTERESTS = 10;
   const cleanInterests =
     body.interests != null
@@ -75,6 +78,13 @@ router.put("/profiles/me", requireUid, async (req, res) => {
         ).slice(0, MAX_INTERESTS)
       : undefined;
 
+  // Validate the locale against the supported set; ignore unknown values so a
+  // future app version can't store arbitrary strings via direct API calls.
+  const cleanLocale =
+    typeof body.preferredLocale === "string" && ALLOWED_LOCALES.has(body.preferredLocale)
+      ? body.preferredLocale
+      : undefined;
+
   const insertValues: typeof profilesTable.$inferInsert = {
     uid,
     uidHash,
@@ -84,6 +94,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     socials: body.socials ?? {},
     interests: cleanInterests ?? [],
     isVisible: body.isVisible ?? true,
+    preferredLocale: cleanLocale ?? null,
   };
   const updateValues: Partial<typeof profilesTable.$inferInsert> = {
     uidHash,
@@ -97,6 +108,8 @@ router.put("/profiles/me", requireUid, async (req, res) => {
   // Only update interests when the client explicitly sent a value (null = omit,
   // which preserves the existing selection).
   if (cleanInterests !== undefined) updateValues.interests = cleanInterests;
+  // Only update locale when the client explicitly sent a recognised value.
+  if (cleanLocale !== undefined) updateValues.preferredLocale = cleanLocale;
 
   const [row] = await db
     .insert(profilesTable)

@@ -59,6 +59,7 @@ const profileFixture = {
   socials: {},
   interests: [],
   isVisible: true,
+  preferredLocale: null,
   createdAt: new Date("2024-01-01T00:00:00Z"),
   updatedAt: new Date("2024-01-01T00:00:00Z"),
 };
@@ -267,5 +268,34 @@ describe("PUT /api/profiles/me", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.interests).toEqual(["Hiking", "Dogs"]);
+  });
+
+  describe("preferredLocale upsert behaviour", () => {
+    it("stores a valid locale code and does not expose it in the response", async () => {
+      const withLocale = { ...profileFixture, preferredLocale: "es" };
+      dbMocks.chain.returning.mockResolvedValueOnce([withLocale]);
+
+      const res = await request(app)
+        .put("/api/profiles/me")
+        .set("x-met-uid", "alice")
+        .send({ displayName: "Alice Wonderland", preferredLocale: "es" });
+
+      expect(res.status).toBe(200);
+      // preferredLocale is stored server-side only and must not appear in the response.
+      expect(res.body).not.toHaveProperty("preferredLocale");
+    });
+
+    it("silently ignores an unrecognised locale and leaves the existing value intact", async () => {
+      dbMocks.chain.returning.mockResolvedValueOnce([profileFixture]);
+
+      const res = await request(app)
+        .put("/api/profiles/me")
+        .set("x-met-uid", "alice")
+        .send({ displayName: "Alice Wonderland", preferredLocale: "xx-INVALID" });
+
+      expect(res.status).toBe(200);
+      // An unknown locale is dropped; response still succeeds.
+      expect(res.body).not.toHaveProperty("preferredLocale");
+    });
   });
 });
