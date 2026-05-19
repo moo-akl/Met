@@ -535,6 +535,31 @@ export default function ProfileScreen() {
                 {interests.length}/{MAX_INTERESTS}
               </Text>
             </View>
+            {interests.length > 0 ? (
+              <View style={styles.interestsGrid}>
+                {interests.map((tag) => (
+                  <Pressable
+                    key={tag}
+                    onPress={() =>
+                      setInterests((prev) => prev.filter((i) => i !== tag))
+                    }
+                    style={({ pressed }) => [
+                      styles.interestChip,
+                      {
+                        backgroundColor: colors.primary,
+                        borderColor: colors.primary,
+                        opacity: pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.interestChipText, { color: "#FFFFFF" }]}>
+                      {t(`interestLabels.${tag.toLowerCase()}`)}
+                    </Text>
+                    <Feather name="x" size={12} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             <TextInput
               value={interestSearch}
               onChangeText={setInterestSearch}
@@ -554,44 +579,40 @@ export default function ProfileScreen() {
             />
             <View style={styles.interestsGrid}>
               {ALL_INTERESTS.filter((tag) => {
+                if (interests.includes(tag)) return false;
                 const query = interestSearch.trim().toLocaleLowerCase(lang);
                 if (!query) return true;
                 return (
                   tag.toLocaleLowerCase(lang).includes(query) ||
                   t(`interestLabels.${tag.toLowerCase()}`).toLocaleLowerCase(lang).includes(query)
                 );
-              }).map((tag) => {
-                const selected = interests.includes(tag);
-                return (
-                  <Pressable
-                    key={tag}
-                    onPress={() => {
-                      if (selected) {
-                        setInterests((prev) => prev.filter((i) => i !== tag));
-                      } else if (interests.length < MAX_INTERESTS) {
-                        setInterests((prev) => [...prev, tag]);
-                      }
-                    }}
-                    style={({ pressed }) => [
-                      styles.interestChip,
-                      {
-                        backgroundColor: selected ? colors.primary : colors.card,
-                        borderColor: selected ? colors.primary : colors.border,
-                        opacity: pressed ? 0.75 : 1,
-                      },
+              }).map((tag) => (
+                <Pressable
+                  key={tag}
+                  onPress={() => {
+                    if (interests.length < MAX_INTERESTS) {
+                      setInterests((prev) => [...prev, tag]);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.interestChip,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.interestChipText,
+                      { color: colors.foreground },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.interestChipText,
-                        { color: selected ? "#FFFFFF" : colors.foreground },
-                      ]}
-                    >
-                      {t(`interestLabels.${tag.toLowerCase()}`)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                    {t(`interestLabels.${tag.toLowerCase()}`)}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
           </View>
         ) : interests.length > 0 ? (
@@ -822,6 +843,8 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 16,
     borderWidth: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
   },
   interestChipReadOnly: {
     borderWidth: 1,

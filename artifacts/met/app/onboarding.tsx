@@ -1281,6 +1281,34 @@ export default function OnboardingScreen() {
               {t("onboarding.interestsSub", { count: MAX_INTERESTS })}
             </Text>
 
+            {interests.length > 0 ? (
+              <View style={styles.interestsGrid}>
+                {interests.map((tag) => (
+                  <Pressable
+                    key={tag}
+                    onPress={() =>
+                      setInterests((prev) => prev.filter((i) => i !== tag))
+                    }
+                    style={({ pressed }) => [
+                      styles.interestChip,
+                      {
+                        backgroundColor: colors.primary,
+                        borderColor: colors.primary,
+                        opacity: pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.interestChipText, { color: "#FFFFFF" }]}
+                    >
+                      {t(`interestLabels.${tag.toLowerCase()}`)}
+                    </Text>
+                    <Feather name="x" size={12} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
             <TextInput
               value={interestSearch}
               onChangeText={setInterestSearch}
@@ -1301,44 +1329,40 @@ export default function OnboardingScreen() {
 
             <View style={styles.interestsGrid}>
               {ALL_INTERESTS.filter((tag) => {
+                if (interests.includes(tag)) return false;
                 const query = interestSearch.trim().toLocaleLowerCase(lang);
                 if (!query) return true;
                 return (
                   tag.toLocaleLowerCase(lang).includes(query) ||
                   t(`interestLabels.${tag.toLowerCase()}`).toLocaleLowerCase(lang).includes(query)
                 );
-              }).map((tag) => {
-                const selected = interests.includes(tag);
-                return (
-                  <Pressable
-                    key={tag}
-                    onPress={() => {
-                      if (selected) {
-                        setInterests((prev) => prev.filter((i) => i !== tag));
-                      } else if (interests.length < MAX_INTERESTS) {
-                        setInterests((prev) => [...prev, tag]);
-                      }
-                    }}
-                    style={({ pressed }) => [
-                      styles.interestChip,
-                      {
-                        backgroundColor: selected ? colors.primary : colors.card,
-                        borderColor: selected ? colors.primary : colors.border,
-                        opacity: pressed ? 0.75 : 1,
-                      },
+              }).map((tag) => (
+                <Pressable
+                  key={tag}
+                  onPress={() => {
+                    if (interests.length < MAX_INTERESTS) {
+                      setInterests((prev) => [...prev, tag]);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.interestChip,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.interestChipText,
+                      { color: colors.foreground },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.interestChipText,
-                        { color: selected ? "#FFFFFF" : colors.foreground },
-                      ]}
-                    >
-                      {t(`interestLabels.${tag.toLowerCase()}`)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                    {t(`interestLabels.${tag.toLowerCase()}`)}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
 
             <Text style={[styles.interestsCount, { color: colors.mutedForeground }]}>
@@ -1536,6 +1560,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
   },
   interestChipText: {
     fontFamily: "Inter_500Medium",
