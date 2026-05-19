@@ -1,5 +1,5 @@
 import { Image } from "@/components/MetImage";
-import React, { useCallback } from "react";
+import React, { useEffect } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -27,23 +27,25 @@ export function PhotoLightbox({ uri, visible, onClose }: Props) {
   const savedOffsetX = useSharedValue(0);
   const savedOffsetY = useSharedValue(0);
 
-  const resetTransform = useCallback(() => {
-    "worklet";
-    scale.value = withSpring(1, SPRING_CONFIG);
-    offsetX.value = withSpring(0, SPRING_CONFIG);
-    offsetY.value = withSpring(0, SPRING_CONFIG);
-    savedScale.value = 1;
-    savedOffsetX.value = 0;
-    savedOffsetY.value = 0;
-  }, [scale, offsetX, offsetY, savedScale, savedOffsetX, savedOffsetY]);
+  // Reset all transforms whenever the modal closes so the next open always
+  // starts from a clean state (no residual zoom or pan from the last session).
+  useEffect(() => {
+    if (!visible) {
+      scale.value = 1;
+      savedScale.value = 1;
+      offsetX.value = 0;
+      offsetY.value = 0;
+      savedOffsetX.value = 0;
+      savedOffsetY.value = 0;
+    }
+  }, [visible, scale, savedScale, offsetX, offsetY, savedOffsetX, savedOffsetY]);
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
-      const next = Math.min(
+      scale.value = Math.min(
         MAX_SCALE,
         Math.max(MIN_SCALE, savedScale.value * e.scale)
       );
-      scale.value = next;
     })
     .onEnd(() => {
       if (scale.value < MIN_SCALE) {
@@ -65,14 +67,12 @@ export function PhotoLightbox({ uri, visible, onClose }: Props) {
       savedOffsetY.value = offsetY.value;
     });
 
+  // Single tap always dismisses — per task spec "tap anywhere to dismiss".
+  // Users can use pinch-out / pinch-in to control zoom independently.
   const tapToDismiss = Gesture.Tap()
     .maxDuration(250)
     .onEnd(() => {
-      if (scale.value > 1.05) {
-        resetTransform();
-      } else {
-        runOnJS(onClose)();
-      }
+      runOnJS(onClose)();
     });
 
   const composed = Gesture.Simultaneous(
