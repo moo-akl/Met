@@ -492,7 +492,20 @@ export const nl: LocaleTree = {
     editNoteA11y: "Notitie bewerken",
     addNoteA11y: "Notitie toevoegen",
     removeTagA11y: "Tag {{tag}} verwijderen",
+    chatPlaceholder: "Message {{name}}…",
+    chatEmptyTitle: "Start the conversation",
+    chatEmptySub: "Say something to break the ice.",
+    chatSendA11y: "Send message",
   },
+
+  shareCard: {
+    title: "Share your profile",
+    sub: "Anyone can scan this to find you on Met.",
+    shareAction: "Share as image",
+    tagline: "Find me on Met",
+    shareError: "Couldn't share. Try again.",
+  },
+
   paywall: {
     title: "Met Plus & Pro",
     sub: "Ontgrendel onbeperkte ontmoetingen, openers en geverifieerde extra's.",

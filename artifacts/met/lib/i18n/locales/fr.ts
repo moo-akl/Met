@@ -497,7 +497,20 @@ export const fr: LocaleTree = {
     editNoteA11y: "Modifier la note",
     addNoteA11y: "Ajouter une note",
     removeTagA11y: "Retirer l'étiquette {{tag}}",
+    chatPlaceholder: "Message {{name}}…",
+    chatEmptyTitle: "Start the conversation",
+    chatEmptySub: "Say something to break the ice.",
+    chatSendA11y: "Send message",
   },
+
+  shareCard: {
+    title: "Share your profile",
+    sub: "Anyone can scan this to find you on Met.",
+    shareAction: "Share as image",
+    tagline: "Find me on Met",
+    shareError: "Couldn't share. Try again.",
+  },
+
   paywall: {
     title: "Met Plus & Pro",
     sub: "Débloquez rencontres illimitées, ouvertures et extras vérifiés.",

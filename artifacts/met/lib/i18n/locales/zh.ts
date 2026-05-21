@@ -464,7 +464,20 @@ export const zh: LocaleTree = {
     editNoteA11y: "编辑备注",
     addNoteA11y: "添加备注",
     removeTagA11y: "移除标签 {{tag}}",
+    chatPlaceholder: "Message {{name}}…",
+    chatEmptyTitle: "Start the conversation",
+    chatEmptySub: "Say something to break the ice.",
+    chatSendA11y: "Send message",
   },
+
+  shareCard: {
+    title: "Share your profile",
+    sub: "Anyone can scan this to find you on Met.",
+    shareAction: "Share as image",
+    tagline: "Find me on Met",
+    shareError: "Couldn't share. Try again.",
+  },
+
   paywall: {
     title: "Met Plus 与 Pro",
     sub: "解锁无限相遇、开场白和已验证的额外内容。",

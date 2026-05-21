@@ -493,7 +493,20 @@ export const ru: LocaleTree = {
     editNoteA11y: "Редактировать заметку",
     addNoteA11y: "Добавить заметку",
     removeTagA11y: "Удалить тег {{tag}}",
+    chatPlaceholder: "Message {{name}}…",
+    chatEmptyTitle: "Start the conversation",
+    chatEmptySub: "Say something to break the ice.",
+    chatSendA11y: "Send message",
   },
+
+  shareCard: {
+    title: "Share your profile",
+    sub: "Anyone can scan this to find you on Met.",
+    shareAction: "Share as image",
+    tagline: "Find me on Met",
+    shareError: "Couldn't share. Try again.",
+  },
+
   paywall: {
     title: "Met Plus и Pro",
     sub: "Откройте безлимитные встречи, первые сообщения и проверенные дополнения.",

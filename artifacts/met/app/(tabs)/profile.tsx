@@ -19,6 +19,7 @@ import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
 import { SortableChips } from "@/components/SortableChips";
 import { MyQrSheet } from "@/components/MyQrSheet";
+import { ShareCardSheet } from "@/components/ShareCardSheet";
 import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SettingsSheet } from "@/components/SettingsSheet";
@@ -55,6 +56,7 @@ export default function ProfileScreen() {
 
   const [editing, setEditing] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [shareCardOpen, setShareCardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [name, setName] = useState(profile?.name ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
@@ -253,6 +255,7 @@ export default function ProfileScreen() {
         title={t("appHeader.titleProfile")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[
+          { icon: "share-2", onPress: () => setShareCardOpen(true) },
           { icon: "grid", onPress: () => setQrOpen(true) },
           { icon: "settings", onPress: handleSettings },
         ]}
@@ -261,6 +264,13 @@ export default function ProfileScreen() {
         <MyQrSheet
           visible={qrOpen}
           onClose={() => setQrOpen(false)}
+          profile={profile}
+        />
+      ) : null}
+      {profile ? (
+        <ShareCardSheet
+          visible={shareCardOpen}
+          onClose={() => setShareCardOpen(false)}
           profile={profile}
         />
       ) : null}

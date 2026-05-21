@@ -491,7 +491,20 @@ export const vi: LocaleTree = {
     editNoteA11y: "Sửa ghi chú",
     addNoteA11y: "Thêm ghi chú",
     removeTagA11y: "Xoá thẻ {{tag}}",
+    chatPlaceholder: "Message {{name}}…",
+    chatEmptyTitle: "Start the conversation",
+    chatEmptySub: "Say something to break the ice.",
+    chatSendA11y: "Send message",
   },
+
+  shareCard: {
+    title: "Share your profile",
+    sub: "Anyone can scan this to find you on Met.",
+    shareAction: "Share as image",
+    tagline: "Find me on Met",
+    shareError: "Couldn't share. Try again.",
+  },
+
   paywall: {
     title: "Met Plus & Pro",
     sub: "Mở khoá gặp gỡ, lời mở đầu và phụ kiện đã xác minh không giới hạn.",

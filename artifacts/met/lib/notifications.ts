@@ -151,9 +151,10 @@ export async function registerAndUploadPushToken(
  * tap-handler can deep-link to the right place.
  */
 export type NotifData = {
-  type?: "reveal_request" | "reveal_accepted" | "encounter";
+  type?: "reveal_request" | "reveal_accepted" | "encounter" | "chat_message";
   fromUid?: string;
   encounterId?: string;
+  chatPeerUid?: string;
 };
 
 /**
@@ -304,5 +305,34 @@ export async function presentRevealAcceptedNotification(opts: {
     });
   } catch (err) {
     console.warn("[notifications] presentRevealAcceptedNotification failed", err);
+  }
+}
+
+/**
+ * Local notification for an incoming chat message.
+ * Fires when the app is in the foreground and a new message arrives
+ * from a connected peer. Used as a heads-up so the user can tap through
+ * to the conversation even if they're on another screen.
+ */
+export async function presentChatMessageNotification(opts: {
+  peerUid: string;
+  peerName?: string;
+  text: string;
+}): Promise<void> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: opts.peerName ?? "New message",
+        body: opts.text.length > 100 ? opts.text.slice(0, 97) + "…" : opts.text,
+        data: {
+          type: "chat_message",
+          chatPeerUid: opts.peerUid,
+        } satisfies NotifData,
+        sound: "default",
+      },
+      trigger: null,
+    });
+  } catch (err) {
+    console.warn("[notifications] presentChatMessageNotification failed", err);
   }
 }
