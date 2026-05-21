@@ -110,6 +110,43 @@ router.post("/encounters", requireUid, encounterWriteLimit, async (req, res) => 
     row = updated!;
   }
 
+  // Best-effort push to the observed user — same rate-limit as
+  // /encounters/record so GPS and Firestore detections don't double-notify.
+  const [other] = await db
+    .select({
+      pushToken: profilesTable.pushToken,
+      isVisible: profilesTable.isVisible,
+      interests: profilesTable.interests,
+      preferredLocale: profilesTable.preferredLocale,
+    })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, body.observedUid))
+    .limit(1);
+
+  if (other?.pushToken && other.isVisible && checkNearbyPushAllowed(uid, body.observedUid)) {
+    let pushBody = "You've crossed paths with someone.";
+    const otherInterests = (other.interests ?? []) as string[];
+    if (otherInterests.length > 0) {
+      const [callerRow] = await db
+        .select({ interests: profilesTable.interests })
+        .from(profilesTable)
+        .where(eq(profilesTable.uid, uid))
+        .limit(1);
+      const callerInterests = (callerRow?.interests ?? []) as string[];
+      const callerLower = new Set(callerInterests.map((i) => i.toLowerCase()));
+      const shared = otherInterests.filter((i) => callerLower.has(i.toLowerCase()));
+      if (shared.length > 0) {
+        const label = localiseInterest(shared[0], other.preferredLocale);
+        pushBody = `Someone nearby also likes ${label}!`;
+      }
+    }
+    await sendPush(other.pushToken, {
+      title: "Someone nearby is using Met!",
+      body: pushBody,
+      data: { type: "encounter", encounterId: uid },
+    });
+  }
+
   res.json(LogEncounterResponse.parse(serializeEncounter(row)));
 });
 

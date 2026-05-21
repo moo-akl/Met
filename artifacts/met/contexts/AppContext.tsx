@@ -41,6 +41,7 @@ import {
   type MetPersonDoc,
 } from "@/lib/firestore/encounters";
 import {
+  presentEncounterNotification,
   presentRevealAcceptedNotification,
   presentRevealRequestNotification,
 } from "@/lib/notifications";
@@ -581,6 +582,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           status: "encounter",
         };
         next = [fresh, ...prev];
+        // Schedule a local notification so the observer is notified even
+        // when the app is backgrounded. Fire-and-forget — never block state.
+        void presentEncounterNotification({
+          peerUid: event.uid,
+          peerName: event.profile.displayName || undefined,
+        });
         return next;
       });
       await saveEncounters(next);

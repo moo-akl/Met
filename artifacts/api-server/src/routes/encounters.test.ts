@@ -114,6 +114,10 @@ beforeEach(() => {
   // Default push behaviour: no-op send, rate-limit always denies.
   pushMocks.sendPush.mockResolvedValue(undefined);
   pushMocks.checkNearbyPushAllowed.mockReturnValue(false);
+  // Default limit response: empty array so any unmatched DB lookup (e.g.
+  // the push-token profile fetch added to POST /encounters) returns []
+  // instead of undefined and causing a 500.
+  dbMocks.chain.limit.mockResolvedValue([]);
   // Restore Firestore mirror impls wiped by resetAllMocks so routes that
   // call recordSymmetricEncounter don't hit the try/catch 502 path.
   firestoreMirrorMocks.mirrorProfileToFirestore.mockResolvedValue(undefined);

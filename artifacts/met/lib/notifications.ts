@@ -252,6 +252,35 @@ export async function presentRevealRequestNotification(opts: {
 }
 
 /**
+ * Local notification for the observer when they detect a new nearby user.
+ * Fires immediately so the user knows they crossed paths with someone even
+ * if the app is backgrounded.
+ */
+export async function presentEncounterNotification(opts: {
+  peerUid: string;
+  peerName?: string;
+}): Promise<void> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: opts.peerName
+          ? `You crossed paths with ${opts.peerName}`
+          : "You crossed paths with someone!",
+        body: "Open Met to see who's nearby.",
+        data: {
+          type: "encounter",
+          encounterId: opts.peerUid,
+        } satisfies NotifData,
+        sound: "default",
+      },
+      trigger: null,
+    });
+  } catch (err) {
+    console.warn("[notifications] presentEncounterNotification failed", err);
+  }
+}
+
+/**
  * Local notif when an outbound request is accepted by the recipient.
  */
 export async function presentRevealAcceptedNotification(opts: {
