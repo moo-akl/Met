@@ -68,59 +68,22 @@ I prefer to use functional components and hooks in React Native.
 Ensure all UI changes are responsive and adhere to the established theme.
 Prioritize performance and user experience in all development tasks.
 
-## Firebase Credential Injection
+## Firebase Credentials
 
-`google-services.json` (Android) and `GoogleService-Info.plist` (iOS) are **not committed to git**. They are injected automatically at EAS build time via `artifacts/met/plugins/with-firebase-credentials.js`, which reads two EAS secrets and writes the files before the native build starts.
-
-### How it works
-
-The plugin reads the env vars as **string content** (raw JSON / XML) and writes them directly to disk. This means the EAS secrets must be stored as `--type string` (the full file content), **not** `--type file` (which only stores a path).
-
-### First-time setup (or after rotating credentials)
-
-Run these two commands once from the `artifacts/met/` directory (you need the EAS CLI and must be logged in):
-
-```bash
-# Android — stores the full JSON content of google-services.json as a string secret
-eas secret:create --scope project --name GOOGLE_SERVICES_JSON --type string --value "$(cat google-services.json)"
-
-# iOS — stores the full XML content of GoogleService-Info.plist as a string secret
-eas secret:create --scope project --name GOOGLE_SERVICE_INFO_PLIST --type string --value "$(cat GoogleService-Info.plist)"
-```
-
-After uploading, **delete the local copies** — they should never be committed:
-
-```bash
-rm google-services.json GoogleService-Info.plist
-```
+`google-services.json` (Android) and `GoogleService-Info.plist` (iOS) are committed directly to `artifacts/met/`. Firebase mobile credentials are client-side identifiers — they tell the app which Firebase project to connect to. The actual security is enforced server-side via Firestore rules and Firebase Auth; committing these files is standard practice for React Native / Expo projects.
 
 ### Rotating credentials
 
 When Firebase credentials change (e.g. new Firebase project, regenerated config):
 
-1. Download the new `google-services.json` from the Firebase Console → Project Settings → Android app.
-2. Download the new `GoogleService-Info.plist` from the Firebase Console → Project Settings → iOS app.
-3. Delete the old secrets in the EAS dashboard (expo.dev → your project → Secrets), or use:
-   ```bash
-   eas secret:delete --name GOOGLE_SERVICES_JSON
-   eas secret:delete --name GOOGLE_SERVICE_INFO_PLIST
-   ```
-4. Re-run the `eas secret:create` commands above with the new files.
-5. Trigger a new EAS build — no code changes are needed.
-
-### Local native builds
-
-For local prebuild (`expo prebuild`) without EAS, export the env vars in your shell before running:
-
-```bash
-export GOOGLE_SERVICES_JSON="$(cat google-services.json)"
-export GOOGLE_SERVICE_INFO_PLIST="$(cat GoogleService-Info.plist)"
-npx expo prebuild
-```
+1. Download the new `google-services.json` from Firebase Console → Project Settings → Android app.
+2. Download the new `GoogleService-Info.plist` from Firebase Console → Project Settings → iOS app.
+3. Replace the files in `artifacts/met/` and commit.
+4. Trigger a new EAS build.
 
 ## Gotchas
 
-- **Firebase Credentials**: `google-services.json` and `GoogleService-Info.plist` are injected from EAS secrets at build time — see *Firebase Credential Injection* above. Never commit these files to git.
+- **Firebase Credentials**: `google-services.json` and `GoogleService-Info.plist` are committed to `artifacts/met/`. To rotate them, replace the files and commit — see *Firebase Credentials* above.
 - **API Server Deployment**: Any changes to `artifacts/api-server/` require republishing the API server (`https://metapp.replit.app`) *before* shipping new mobile builds. Failure to do so causes "server unreachable" errors or 404s.
 - **Android `versionCode`**: Must be incremented by 1 for *every* new Android build uploaded to Play Store, regardless of `expo.version`.
 - **iOS `buildNumber`**: Must be incremented by 1 for *every* new iOS build uploaded to TestFlight/App Store.
