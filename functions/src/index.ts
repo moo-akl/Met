@@ -39,10 +39,16 @@
  * same sender, we flip that reverse row to "accepted" too.
  */
 
-import { onDocumentWrittenWithAuthContext } from "firebase-functions/v2/firestore";
+import {
+  onDocumentWrittenWithAuthContext,
+  onDocumentCreated,
+} from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { Pool } from "pg";
+import * as admin from "firebase-admin";
+
+admin.initializeApp();
 
 // DATABASE_URL is provided to the function as a Firebase Secret. Set it
 // with `firebase functions:secrets:set DATABASE_URL` before deploying.
@@ -137,12 +143,16 @@ export const mirrorRevealStatusToPostgres = onDocumentWrittenWithAuthContext(
     // `requireUid` middleware.
     const authType = event.authType;
     const writerUid = event.authId;
-    const writerIsRecipient = authType === "user" && writerUid === recipientUid;
+    // In firebase-functions v6 the "user" AuthType was removed. Authenticated
+    // user writes now surface as "unknown" with authId set to the user's UID.
+    // We identify the recipient by checking authId directly rather than
+    // relying on the now-absent "user" string.
+    const writerIsRecipient =
+      writerUid !== undefined && writerUid === recipientUid;
     // Trusted contexts: only Admin SDK writes from the api-server. We
-    // intentionally do NOT treat "unauthenticated" or unknown auth
-    // types as trusted — writes through the client must come from a
-    // signed-in user, and the only legitimate non-user writer in this
-    // path is the api-server's Admin SDK.
+    // intentionally do NOT treat "unauthenticated" auth as trusted —
+    // the only legitimate non-user writer in this path is the api-server
+    // Admin SDK (service_account) or a Cloud Platform system action.
     const writerIsAdmin =
       authType === "system" || authType === "service_account";
     if (!writerIsRecipient && !writerIsAdmin) {
@@ -223,5 +233,150 @@ export const mirrorRevealStatusToPostgres = onDocumentWrittenWithAuthContext(
     } finally {
       client.release();
     }
+  },
+);
+
+/**
+ * sendChatMessageNotification
+ *
+ * Fires when a new message document is created in `chats/{chatId}/messages`.
+ * Looks up the recipient's Expo push token in Postgres and sends a push
+ * notification via the Expo Push API so the recipient is alerted even when
+ * the app is in the background or closed.
+ *
+ * The notification payload carries `{ type: "chat_message", chatPeerUid }`
+ * so the client tap-handler can deep-link straight to the correct connection
+ * screen without any additional network round-trips.
+ *
+ * Idempotency
+ * -----------
+ * onCreate triggers fire exactly once per document. If the function is
+ * retried (transient error), the Expo Push API is idempotent for duplicate
+ * deliveries — the user may see a second notification, but no data is
+ * corrupted. This is acceptable given how rarely retries occur.
+ *
+ * Skips
+ * -----
+ * - Recipient has no push token stored → skip silently (not yet registered).
+ * - Sender == recipient (self-chat edge case) → skip.
+ * - Expo API non-OK response → log warning, do not retry (Expo errors on
+ *   invalid tokens are permanent; retrying would not help).
+ */
+export const sendChatMessageNotification = onDocumentCreated(
+  {
+    document: "chats/{chatId}/messages/{msgId}",
+    secrets: [DATABASE_URL],
+    // Push notifications are latency-sensitive but not write-heavy; cap
+    // instances to avoid overwhelming the Postgres connection pool.
+    maxInstances: 10,
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+
+    const msgData = snap.data() as Record<string, unknown>;
+    const senderUid =
+      typeof msgData["from"] === "string" ? msgData["from"] : null;
+    const text = typeof msgData["text"] === "string" ? msgData["text"] : "";
+
+    if (!senderUid || !text.trim()) return;
+
+    const { chatId } = event.params as { chatId: string; msgId: string };
+
+    // Read the parent chat document to get the participants array. This is
+    // more reliable than string-splitting chatId, and future-proofs us if
+    // the ID scheme ever changes.
+    const chatSnap = await admin
+      .firestore()
+      .collection("chats")
+      .doc(chatId)
+      .get();
+    if (!chatSnap.exists) return;
+
+    const chatData = chatSnap.data() as Record<string, unknown> | undefined;
+    const participants = chatData?.["participants"];
+    if (!Array.isArray(participants) || participants.length !== 2) return;
+
+    const recipientUid = participants.find(
+      (p: unknown): p is string => typeof p === "string" && p !== senderUid,
+    );
+    if (!recipientUid) return;
+
+    // Fetch both profiles in one query: we need the recipient's push token
+    // and the sender's display name for the notification title.
+    const db = getPool();
+    const result = await db.query<{
+      uid: string;
+      display_name: string;
+      push_token: string | null;
+    }>(
+      `SELECT uid, display_name, push_token
+         FROM profiles
+        WHERE uid = ANY($1)`,
+      [[senderUid, recipientUid]],
+    );
+
+    const rows = result.rows;
+    const senderRow = rows.find((r) => r.uid === senderUid);
+    const recipientRow = rows.find((r) => r.uid === recipientUid);
+
+    const pushToken = recipientRow?.push_token ?? null;
+    if (!pushToken) {
+      logger.info(
+        { recipientUid },
+        "sendChatMessageNotification: no push token for recipient, skipping",
+      );
+      return;
+    }
+
+    const senderName = senderRow?.display_name ?? "Someone";
+    const preview = text.length > 100 ? text.slice(0, 97) + "…" : text;
+
+    const payload = {
+      to: pushToken,
+      title: senderName,
+      body: preview,
+      data: { type: "chat_message", chatPeerUid: senderUid },
+      sound: "default",
+      // Android notification channel — matches the channel created in
+      // configureNotifications() on the client.
+      channelId: "default",
+    };
+
+    let resp: Response;
+    try {
+      resp = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      // Network failure — re-throw so Cloud Functions retries.
+      logger.error(
+        { err, recipientUid },
+        "sendChatMessageNotification: network error calling Expo Push API",
+      );
+      throw err;
+    }
+
+    if (!resp.ok) {
+      // 4xx errors from Expo (e.g. invalid token format) are permanent;
+      // logging a warning without rethrowing avoids infinite retry loops.
+      const body = await resp.text().catch(() => "");
+      logger.warn(
+        { status: resp.status, body, recipientUid },
+        "sendChatMessageNotification: Expo Push API returned non-OK status",
+      );
+      return;
+    }
+
+    const responseData = (await resp.json()) as unknown;
+    logger.info(
+      { recipientUid, senderUid, responseData },
+      "sendChatMessageNotification: push notification sent",
+    );
   },
 );

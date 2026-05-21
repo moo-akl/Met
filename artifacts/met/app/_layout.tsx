@@ -207,15 +207,20 @@ export default function RootLayout() {
   // Cold-start taps are also picked up here via getLastNotificationResponseAsync.
   useEffect(() => {
     const unsubscribe = setupNotificationListeners((data) => {
-      const peerUid = data.encounterId ?? data.fromUid;
-      if (!peerUid) return;
       // Slight defer so the router is mounted before we navigate when
       // the notification was a cold-start tap.
       setTimeout(() => {
         try {
-          if (data.type === "reveal_accepted") {
+          if (data.type === "chat_message") {
+            if (!data.chatPeerUid) return;
+            router.push(`/connection/${data.chatPeerUid}` as never);
+          } else if (data.type === "reveal_accepted") {
+            const peerUid = data.fromUid;
+            if (!peerUid) return;
             router.push(`/connection/${peerUid}` as never);
           } else {
+            const peerUid = data.encounterId ?? data.fromUid;
+            if (!peerUid) return;
             router.push(`/encounter/${peerUid}` as never);
           }
         } catch (err) {
