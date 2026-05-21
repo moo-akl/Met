@@ -140,6 +140,10 @@ export const es: LocaleTree = {
     interestsNudgeBody:
       "Descubre qué tienes en común con las personas que conoces.",
     interestsNudgeBtn: "Añadir intereses",
+    welcomeTitle: "Aquí aparecerán tus encuentros",
+    welcomeDesc:
+      "Abre Met cuando estés en un lugar nuevo — un café, un gimnasio, un festival, un espacio de trabajo. Los miembros que eligieron ser visibles en ese lugar aparecerán aquí.",
+    welcomeHint: "Consejo: activa la visibilidad desde tu perfil para empezar a conocer gente",
   },
   connections: {
     title: "Conexiones",
@@ -151,6 +155,10 @@ export const es: LocaleTree = {
     tagAll: "Todas",
     emptyTitle: "Aún no hay conexiones",
     emptySub: "Cuando alguien también se revele, aparecerá aquí.",
+    welcomeTitle: "Tus conexiones vivirán aquí",
+    welcomeDesc:
+      "Cuando tú y otro miembro os reveláis mutuamente, la conexión aterriza aquí — tuya para siempre, con notas privadas, etiquetas y lugares de encuentro.",
+    welcomeHint: "Envía tu primera solicitud de revelación desde la pestaña Recientes",
     noMatchesTitle: "Sin coincidencias",
     noMatchesByTag: "Ninguna conexión etiquetada como #{{tag}}{{andQuery}}.",
     noMatchesByQuery: "Ninguna conexión coincide con \"{{query}}\".",
@@ -280,6 +288,28 @@ export const es: LocaleTree = {
     tooManyAttempts: "Demasiados intentos. Espera un momento y vuelve a intentar.",
     networkError: "Sin conexión a internet. Verifica tu red e inténtalo de nuevo.",
     emailAuthDisabled: "El inicio con correo no está habilitado. Usa Google o Apple.",
+    termsAgreementCheckbox: "Tengo 18 años o más y acepto los",
+    termsAgreementTerms: "Términos de servicio",
+    termsAgreementAnd: "y la",
+    termsAgreementPrivacy: "Política de privacidad",
+    termsAgreementSafety:
+      "Met tiene tolerancia cero ante contenido inapropiado o comportamiento abusivo. Los informes se revisan en 24 horas.",
+    termsRequiredTitle: "Acepta para continuar",
+    termsRequiredBody:
+      "Toca la casilla de arriba para confirmar que tienes 18 años o más y aceptas nuestros Términos de servicio y Política de privacidad.",
+    verifyTitle: "Verifica tu correo",
+    verifyBody:
+      "Enviamos un enlace de verificación a %{email}. Ábrelo en este dispositivo, toca el enlace y luego vuelve y toca Continuar.",
+    verifyContinue: "Ya verifiqué mi correo",
+    verifyResend: "Reenviar correo de verificación",
+    verifyResendCooldown: "Reenviar en %{seconds}s",
+    verifyResentTitle: "Correo enviado",
+    verifyResentBody:
+      "Enviamos un nuevo enlace de verificación. Revisa tu bandeja de entrada y la carpeta de spam.",
+    verifyNotYetTitle: "Aún no verificado",
+    verifyNotYetBody: "Abre el enlace del correo que te enviamos y luego toca Continuar.",
+    verifyChangeEmail: "Usar otro correo",
+    verifyCheckingEmail: "Verificando…",
     welcomeTitle: "Bienvenido a Met",
     welcomeSub: "Recuerda a la persona, no el número de seguidores.",
     getStarted: "Empezar",
@@ -390,6 +420,11 @@ export const es: LocaleTree = {
       "Apunta al código QR de otro usuario de Met para añadirlo al instante como encuentro y enviarle una solicitud de revelación.",
     simulateScan: "Simular un escaneo",
     defaultPersonName: "Sam de la cafetería",
+    captureHint: "Escanea un código QR de Met",
+    captureBtn: "Abrir cámara",
+    libraryBtn: "Elegir de fotos",
+    scanningPhoto: "Leyendo código QR…",
+    noQrFound: "No se encontró ningún código QR en esa foto. Inténtalo de nuevo.",
   },
   myQr: {
     title: "Mi QR",
@@ -441,6 +476,18 @@ export const es: LocaleTree = {
       "Límite gratis alcanzado — Met Plus desbloquea revelaciones ilimitadas",
     removeEncounterAction: "Quitar encuentro",
     blockAction: "Bloquear",
+    reportAction: "Denunciar",
+    reportSheet: {
+      title: "Denunciar a esta persona",
+      subtitle:
+        "Los informes se revisan en 24 horas. La persona también será bloqueada.",
+      reasonInappropriate: "Contenido inapropiado",
+      reasonHarassment: "Acoso o intimidación",
+      reasonSpam: "Spam o estafa",
+      reasonUnderage: "Creo que es menor de edad",
+      reasonOther: "Otro",
+    },
+    reported: "Denuncia enviada — han sido bloqueados.",
     revealSheet: {
       title: "Enviar solicitud de revelación",
       advisory:
@@ -662,6 +709,14 @@ export const es: LocaleTree = {
     providerApple: "Apple",
     providerGoogle: "Google",
     providerEmail: "Correo",
+    diagnostics: "Diagnósticos",
+    diagnosticsEmpty: "No hay errores nativos registrados",
+    diagnosticsCount: "{{count}} registrado en esta sesión",
+    diagnosticsHeader: "Errores nativos registrados en esta sesión",
+    diagnosticsClear: "Limpiar",
+    diagnosticsNoneTitle: "Nada que reportar",
+    diagnosticsNoneBody:
+      "Si una foto aparece en gris o la cámara dice «no disponible», vuelve aquí — el error subyacente aparecerá.",
     signOut: "Cerrar sesión",
     signOutSub: "Cierra sesión en este dispositivo",
     signOutConfirmTitle: "¿Cerrar sesión?",

@@ -144,6 +144,10 @@ export const ar: LocaleTree = {
     interestsNudgeBody:
       "اكتشف ما بينك وبين من تلتقيهم من قواسم مشتركة.",
     interestsNudgeBtn: "إضافة الاهتمامات",
+    welcomeTitle: "ستظهر لقاءاتك هنا",
+    welcomeDesc:
+      "افتح Met حين تكون في مكان جديد — مقهى أو صالة رياضية أو مهرجان أو مساحة عمل مشتركة. الأعضاء الذين اختاروا الظهور في ذلك المكان سيظهرون هنا.",
+    welcomeHint: "نصيحة: فعّل الظهور من ملفك الشخصي لتبدأ التعرف على الناس",
   },
   connections: {
     title: "المعارف",
@@ -156,6 +160,10 @@ export const ar: LocaleTree = {
     emptyTitle: "لا معارف بعد",
     emptySub:
       "عندما يكشف أحدٌ بدوره، سيظهر هنا.",
+    welcomeTitle: "ستعيش معارفك هنا",
+    welcomeDesc:
+      "حين تكشفان عن بعضكما البعض، يُحفظ الاتصال هنا — ملكك للأبد، مع ملاحظات خاصة ووسوم وأماكن لقاء.",
+    welcomeHint: "أرسل أول طلب كشف من تبويب الأخيرة",
     noMatchesTitle: "لا نتائج",
     noMatchesByTag:
       "لا أحد بوسم #{{tag}}{{andQuery}}.",
@@ -287,6 +295,28 @@ export const ar: LocaleTree = {
     tooManyAttempts: "محاولات كثيرة جداً. انتظر قليلاً ثم حاول مجدداً.",
     networkError: "لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مجدداً.",
     emailAuthDisabled: "تسجيل الدخول بالبريد غير مفعّل. استخدم Google أو Apple.",
+    termsAgreementCheckbox: "عمري 18 عامًا أو أكبر وأوافق على",
+    termsAgreementTerms: "شروط الخدمة",
+    termsAgreementAnd: "و",
+    termsAgreementPrivacy: "سياسة الخصوصية",
+    termsAgreementSafety:
+      "لدى Met سياسة صفر تسامح تجاه المحتوى غير اللائق أو السلوك المسيء. تُراجع البلاغات خلال 24 ساعة.",
+    termsRequiredTitle: "يرجى الموافقة للمتابعة",
+    termsRequiredBody:
+      "اضغط على مربع الاختيار أعلاه لتأكيد أن عمرك 18 عامًا أو أكبر وأنك توافق على شروط الخدمة وسياسة الخصوصية.",
+    verifyTitle: "تحقق من بريدك الإلكتروني",
+    verifyBody:
+      "أرسلنا رابط تحقق إلى %{email}. افتح البريد على هذا الجهاز، اضغط على الرابط، ثم عد واضغط «تحققت من بريدي».",
+    verifyContinue: "تحققت من بريدي",
+    verifyResend: "إعادة إرسال بريد التحقق",
+    verifyResendCooldown: "إعادة الإرسال خلال %{seconds} ث",
+    verifyResentTitle: "تم إرسال البريد",
+    verifyResentBody:
+      "أرسلنا رابط تحقق جديدًا. تحقق من بريدك الوارد ومجلد الرسائل غير المرغوب فيها.",
+    verifyNotYetTitle: "لم يتم التحقق بعد",
+    verifyNotYetBody: "افتح الرابط في البريد الذي أرسلناه، ثم اضغط «متابعة».",
+    verifyChangeEmail: "استخدم بريدًا مختلفًا",
+    verifyCheckingEmail: "جارٍ التحقق…",
     welcomeTitle: "مرحبًا بك في Met",
     welcomeSub: "تذكّر الإنسان لا عدد المتابعين.",
     getStarted: "ابدأ",
@@ -399,6 +429,11 @@ export const ar: LocaleTree = {
       "وجّه إلى رمز QR لمستخدم Met آخر لإضافته فورًا كلقاء وإرسال طلب كشف.",
     simulateScan: "محاكاة مسح",
     defaultPersonName: "سام من المقهى",
+    captureHint: "امسح رمز Met QR",
+    captureBtn: "فتح الكاميرا",
+    libraryBtn: "اختر من الصور",
+    scanningPhoto: "جارٍ قراءة رمز QR…",
+    noQrFound: "لم يُعثر على رمز QR في تلك الصورة. حاول مجددًا.",
   },
   myQr: {
     title: "رمز QR الخاص بي",
@@ -450,6 +485,17 @@ export const ar: LocaleTree = {
       "بلغت الحد المجاني — Met Plus يفتح كشفًا غير محدود",
     removeEncounterAction: "إزالة اللقاء",
     blockAction: "حظر",
+    reportAction: "الإبلاغ",
+    reportSheet: {
+      title: "الإبلاغ عن هذا الشخص",
+      subtitle: "تُراجع البلاغات خلال 24 ساعة. سيُحظر الشخص أيضًا.",
+      reasonInappropriate: "محتوى غير لائق",
+      reasonHarassment: "تحرش أو تنمر",
+      reasonSpam: "بريد مزعج أو احتيال",
+      reasonUnderage: "أعتقد أنه قاصر",
+      reasonOther: "أخرى",
+    },
+    reported: "تم تقديم البلاغ — تم حظره.",
     revealSheet: {
       title: "إرسال طلب كشف",
       advisory:
@@ -671,6 +717,14 @@ export const ar: LocaleTree = {
     providerApple: "Apple",
     providerGoogle: "Google",
     providerEmail: "بريد إلكتروني",
+    diagnostics: "التشخيصات",
+    diagnosticsEmpty: "لا أخطاء أصلية مُسجَّلة",
+    diagnosticsCount: "{{count}} مُسجَّل في هذه الجلسة",
+    diagnosticsHeader: "الأخطاء الأصلية المُسجَّلة في هذه الجلسة",
+    diagnosticsClear: "مسح",
+    diagnosticsNoneTitle: "لا شيء للإبلاغ عنه",
+    diagnosticsNoneBody:
+      "إذا ظهرت صورة باللون الرمادي أو أفادت الكاميرا بأنها «غير متاحة»، عد إلى هنا — سيُدرج الخطأ الأساسي.",
     signOut: "تسجيل الخروج",
     signOutSub: "تسجيل الخروج من حسابك على هذا الجهاز",
     signOutConfirmTitle: "تسجيل الخروج؟",

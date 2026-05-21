@@ -132,6 +132,10 @@ export const zh: LocaleTree = {
     interestsNudgeTitle: "添加你的兴趣爱好",
     interestsNudgeBody: "发现你与遇到的人之间的共同点。",
     interestsNudgeBtn: "添加兴趣",
+    welcomeTitle: "你的相遇将显示在这里",
+    welcomeDesc:
+      "在新地方打开 Met——咖啡馆、健身房、音乐节、联合办公空间。选择在那里可见的会员将显示在这里。",
+    welcomeHint: "提示：在个人资料中开启可见性，开始认识新朋友",
   },
   connections: {
     title: "联系人",
@@ -143,6 +147,10 @@ export const zh: LocaleTree = {
     tagAll: "全部",
     emptyTitle: "还没有联系人",
     emptySub: "当对方也公开身份时,他们会出现在这里。",
+    welcomeTitle: "你的联系人将保存在这里",
+    welcomeDesc:
+      "当你和另一位会员互相公开身份后，联系人会出现在这里——永久保存，附有私人备注、标签和见面地点。",
+    welcomeHint: "从「最近」标签发送你的第一个公开身份请求",
     noMatchesTitle: "无匹配",
     noMatchesByTag: "没有标记 #{{tag}}{{andQuery}} 的联系人。",
     noMatchesByQuery: "没有联系人匹配 \"{{query}}\"。",
@@ -268,6 +276,28 @@ export const zh: LocaleTree = {
     tooManyAttempts: "尝试次数过多，请稍后再试。",
     networkError: "无网络连接，请检查网络后重试。",
     emailAuthDisabled: "邮箱登录未启用，请使用 Google 或 Apple 登录。",
+    termsAgreementCheckbox: "我已年满 18 岁，同意",
+    termsAgreementTerms: "服务条款",
+    termsAgreementAnd: "和",
+    termsAgreementPrivacy: "隐私政策",
+    termsAgreementSafety:
+      "Met 对不当内容或滥用行为零容忍。举报将在 24 小时内审核。",
+    termsRequiredTitle: "请同意后继续",
+    termsRequiredBody:
+      "请点击上方复选框，确认您已年满 18 岁，并同意我们的服务条款和隐私政策。",
+    verifyTitle: "验证您的邮箱",
+    verifyBody:
+      "我们已向 %{email} 发送了验证链接。在此设备上打开邮件，点击链接，然后返回并点击「继续」。",
+    verifyContinue: "我已验证邮箱",
+    verifyResend: "重新发送验证邮件",
+    verifyResendCooldown: "%{seconds}s 后可重新发送",
+    verifyResentTitle: "邮件已发送",
+    verifyResentBody:
+      "我们已发送新的验证链接。请检查您的收件箱和垃圾邮件文件夹。",
+    verifyNotYetTitle: "尚未验证",
+    verifyNotYetBody: "请打开我们发送的邮件中的链接，然后点击「继续」。",
+    verifyChangeEmail: "使用其他邮箱",
+    verifyCheckingEmail: "验证中…",
     welcomeTitle: "欢迎来到 Met",
     welcomeSub: "记住这个人,而不是粉丝数。",
     getStarted: "开始",
@@ -371,6 +401,11 @@ export const zh: LocaleTree = {
       "对准另一位 Met 用户的二维码,即可立即将其加为相遇并发送公开身份请求。",
     simulateScan: "模拟扫描",
     defaultPersonName: "咖啡馆的 Sam",
+    captureHint: "扫描 Met 二维码",
+    captureBtn: "打开相机",
+    libraryBtn: "从照片中选择",
+    scanningPhoto: "正在读取二维码…",
+    noQrFound: "该照片中未找到二维码。请重试。",
   },
   myQr: {
     title: "我的二维码",
@@ -422,6 +457,18 @@ export const zh: LocaleTree = {
       "已达免费上限 — Met Plus 解锁无限次公开",
     removeEncounterAction: "移除相遇",
     blockAction: "屏蔽",
+    reportAction: "举报",
+    reportSheet: {
+      title: "举报此用户",
+      subtitle:
+        "举报将在 24 小时内审核。该用户也将被屏蔽。",
+      reasonInappropriate: "不当内容",
+      reasonHarassment: "骚扰或欺凌",
+      reasonSpam: "垃圾信息或诈骗",
+      reasonUnderage: "我认为他们未成年",
+      reasonOther: "其他",
+    },
+    reported: "举报已提交 — 他们已被屏蔽。",
     revealSheet: {
       title: "发送公开身份请求",
       advisory:
@@ -630,6 +677,14 @@ export const zh: LocaleTree = {
     providerApple: "Apple",
     providerGoogle: "Google",
     providerEmail: "邮箱",
+    diagnostics: "诊断",
+    diagnosticsEmpty: "没有记录到原生错误",
+    diagnosticsCount: "本次会话记录了 {{count}} 个",
+    diagnosticsHeader: "本次会话记录的原生错误",
+    diagnosticsClear: "清除",
+    diagnosticsNoneTitle: "没有需要报告的内容",
+    diagnosticsNoneBody:
+      "如果照片显示为灰色或相机提示「不可用」，请返回此处——底层错误将列在这里。",
     signOut: "退出登录",
     signOutSub: "在此设备上退出账户",
     signOutConfirmTitle: "退出登录?",

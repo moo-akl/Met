@@ -142,6 +142,10 @@ export const pt: LocaleTree = {
     interestsNudgeBody:
       "Descubra o que você tem em comum com as pessoas que encontra.",
     interestsNudgeBtn: "Adicionar interesses",
+    welcomeTitle: "Seus encontros vão aparecer aqui",
+    welcomeDesc:
+      "Abra o Met quando estiver em um lugar novo — um café, uma academia, um festival, um coworking. Os membros que escolheram ser visíveis naquele lugar vão aparecer aqui.",
+    welcomeHint: "Dica: ative a visibilidade no seu perfil para começar a conhecer pessoas",
   },
   connections: {
     title: "Conexões",
@@ -153,6 +157,10 @@ export const pt: LocaleTree = {
     tagAll: "Todas",
     emptyTitle: "Ainda sem conexões",
     emptySub: "Quando alguém também se revelar, aparece aqui.",
+    welcomeTitle: "Suas conexões ficarão aqui",
+    welcomeDesc:
+      "Quando você e outro membro se revelam mutuamente, a conexão cai aqui — sua para guardar, com notas privadas, etiquetas e locais de encontro.",
+    welcomeHint: "Envie seu primeiro pedido de revelação pela aba Recentes",
     noMatchesTitle: "Sem resultados",
     noMatchesByTag: "Nenhuma conexão com a tag #{{tag}}{{andQuery}}.",
     noMatchesByQuery: "Nenhuma conexão corresponde a \"{{query}}\".",
@@ -282,6 +290,28 @@ export const pt: LocaleTree = {
     tooManyAttempts: "Muitas tentativas. Aguarde um momento e tente novamente.",
     networkError: "Sem conexão com a internet. Verifique sua rede e tente novamente.",
     emailAuthDisabled: "Login por e-mail não está ativado. Use Google ou Apple.",
+    termsAgreementCheckbox: "Tenho 18 anos ou mais e aceito os",
+    termsAgreementTerms: "Termos de Serviço",
+    termsAgreementAnd: "e a",
+    termsAgreementPrivacy: "Política de Privacidade",
+    termsAgreementSafety:
+      "O Met tem tolerância zero para conteúdo inapropriado ou comportamento abusivo. Denúncias são analisadas em até 24 horas.",
+    termsRequiredTitle: "Aceite para continuar",
+    termsRequiredBody:
+      "Toque na caixa acima para confirmar que você tem 18 anos ou mais e concorda com nossos Termos de Serviço e Política de Privacidade.",
+    verifyTitle: "Verifique seu e-mail",
+    verifyBody:
+      "Enviamos um link de verificação para %{email}. Abra o e-mail neste dispositivo, toque no link e volte aqui para tocar em Continuar.",
+    verifyContinue: "Já verifiquei meu e-mail",
+    verifyResend: "Reenviar e-mail de verificação",
+    verifyResendCooldown: "Reenviar em %{seconds}s",
+    verifyResentTitle: "E-mail enviado",
+    verifyResentBody:
+      "Enviamos um novo link de verificação. Verifique sua caixa de entrada e a pasta de spam.",
+    verifyNotYetTitle: "Ainda não verificado",
+    verifyNotYetBody: "Abra o link no e-mail que enviamos e depois toque em Continuar.",
+    verifyChangeEmail: "Usar um e-mail diferente",
+    verifyCheckingEmail: "Verificando…",
     welcomeTitle: "Bem-vindo ao Met",
     welcomeSub: "Lembre da pessoa, não do número de seguidores.",
     getStarted: "Começar",
@@ -393,6 +423,11 @@ export const pt: LocaleTree = {
       "Aponte para o QR de outro usuário do Met para adicioná-lo na hora e enviar uma solicitação de revelação.",
     simulateScan: "Simular um escaneamento",
     defaultPersonName: "Sam do café",
+    captureHint: "Escaneie um QR do Met",
+    captureBtn: "Abrir câmera",
+    libraryBtn: "Escolher das fotos",
+    scanningPhoto: "Lendo QR code…",
+    noQrFound: "Nenhum QR code encontrado nessa foto. Tente novamente.",
   },
   myQr: {
     title: "Meu QR",
@@ -444,6 +479,18 @@ export const pt: LocaleTree = {
       "Limite grátis atingido — Met Plus libera revelações ilimitadas",
     removeEncounterAction: "Remover encontro",
     blockAction: "Bloquear",
+    reportAction: "Denunciar",
+    reportSheet: {
+      title: "Denunciar esta pessoa",
+      subtitle:
+        "Denúncias são analisadas em até 24 horas. A pessoa também será bloqueada.",
+      reasonInappropriate: "Conteúdo inapropriado",
+      reasonHarassment: "Assédio ou intimidação",
+      reasonSpam: "Spam ou golpe",
+      reasonUnderage: "Acho que é menor de idade",
+      reasonOther: "Outro",
+    },
+    reported: "Denúncia enviada — eles foram bloqueados.",
     revealSheet: {
       title: "Enviar solicitação de revelação",
       advisory:
@@ -667,6 +714,14 @@ export const pt: LocaleTree = {
     providerApple: "Apple",
     providerGoogle: "Google",
     providerEmail: "Email",
+    diagnostics: "Diagnósticos",
+    diagnosticsEmpty: "Nenhum erro nativo registrado",
+    diagnosticsCount: "{{count}} registrado nesta sessão",
+    diagnosticsHeader: "Erros nativos registrados nesta sessão",
+    diagnosticsClear: "Limpar",
+    diagnosticsNoneTitle: "Nada a relatar",
+    diagnosticsNoneBody:
+      "Se uma foto aparecer cinza ou a câmera disser 'não disponível', volte aqui — o erro subjacente será listado.",
     signOut: "Sair",
     signOutSub: "Sair desta conta neste aparelho",
     signOutConfirmTitle: "Sair?",

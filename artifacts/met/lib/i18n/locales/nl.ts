@@ -142,6 +142,10 @@ export const nl: LocaleTree = {
     interestsNudgeBody:
       "Ontdek wat je gemeen hebt met de mensen die je ontmoet.",
     interestsNudgeBtn: "Interesses toevoegen",
+    welcomeTitle: "Je ontmoetingen verschijnen hier",
+    welcomeDesc:
+      "Open Met wanneer je ergens nieuws bent — een café, een sportschool, een festival, een werkruimte. Leden die kozen om zichtbaar te zijn op die plek verschijnen hier.",
+    welcomeHint: "Tip: schakel zichtbaarheid in via je profiel om mensen te leren kennen",
   },
   connections: {
     title: "Connecties",
@@ -153,6 +157,10 @@ export const nl: LocaleTree = {
     tagAll: "Alle",
     emptyTitle: "Nog geen connecties",
     emptySub: "Zodra iemand zich ook onthult, verschijnen ze hier.",
+    welcomeTitle: "Je connecties wonen hier",
+    welcomeDesc:
+      "Wanneer jij en een ander lid elkaar beiden onthullen, landen de connecties hier — van jou om te bewaren, met privénotities, tags en ontmoetingsplaatsen.",
+    welcomeHint: "Stuur je eerste onthullingsverzoek vanuit het tabblad Recent",
     noMatchesTitle: "Geen resultaten",
     noMatchesByTag: "Geen connectie met tag #{{tag}}{{andQuery}}.",
     noMatchesByQuery: "Geen connectie matcht \"{{query}}\".",
@@ -282,6 +290,28 @@ export const nl: LocaleTree = {
     tooManyAttempts: "Te veel pogingen. Wacht even en probeer het opnieuw.",
     networkError: "Geen internetverbinding. Controleer je netwerk en probeer het opnieuw.",
     emailAuthDisabled: "Inloggen met e-mail is niet ingeschakeld. Gebruik Google of Apple.",
+    termsAgreementCheckbox: "Ik ben 18 jaar of ouder en ga akkoord met de",
+    termsAgreementTerms: "Servicevoorwaarden",
+    termsAgreementAnd: "en het",
+    termsAgreementPrivacy: "Privacybeleid",
+    termsAgreementSafety:
+      "Met heeft nultolerantie voor ongepaste inhoud of misbruik. Meldingen worden binnen 24 uur beoordeeld.",
+    termsRequiredTitle: "Ga akkoord om door te gaan",
+    termsRequiredBody:
+      "Tik op het selectievakje hierboven om te bevestigen dat je 18 jaar of ouder bent en akkoord gaat met onze Servicevoorwaarden en ons Privacybeleid.",
+    verifyTitle: "Verifieer je e-mail",
+    verifyBody:
+      "We hebben een verificatielink gestuurd naar %{email}. Open de e-mail op dit apparaat, tik op de link en kom dan terug en tik op Doorgaan.",
+    verifyContinue: "Ik heb mijn e-mail geverifieerd",
+    verifyResend: "Verificatiemail opnieuw verzenden",
+    verifyResendCooldown: "Opnieuw verzenden over %{seconds}s",
+    verifyResentTitle: "E-mail verzonden",
+    verifyResentBody:
+      "We hebben een nieuwe verificatielink gestuurd. Controleer je inbox en spammap.",
+    verifyNotYetTitle: "Nog niet geverifieerd",
+    verifyNotYetBody: "Open de link in de e-mail die we je hebben gestuurd en tik dan op Doorgaan.",
+    verifyChangeEmail: "Ander e-mailadres gebruiken",
+    verifyCheckingEmail: "Controleren…",
     welcomeTitle: "Welkom bij Met",
     welcomeSub: "Onthoud de mens, niet het aantal volgers.",
     getStarted: "Beginnen",
@@ -395,6 +425,11 @@ export const nl: LocaleTree = {
       "Richt op de QR van een andere Met-gebruiker om hem direct als ontmoeting toe te voegen en een onthullingsverzoek te sturen.",
     simulateScan: "Scan simuleren",
     defaultPersonName: "Sam uit het café",
+    captureHint: "Scan een Met QR-code",
+    captureBtn: "Camera openen",
+    libraryBtn: "Kiezen uit foto's",
+    scanningPhoto: "QR-code lezen…",
+    noQrFound: "Geen QR-code gevonden in die foto. Probeer het opnieuw.",
   },
   myQr: {
     title: "Mijn QR",
@@ -446,6 +481,18 @@ export const nl: LocaleTree = {
       "Gratis limiet bereikt — Met Plus ontgrendelt onbeperkte onthullingen",
     removeEncounterAction: "Ontmoeting verwijderen",
     blockAction: "Blokkeren",
+    reportAction: "Melden",
+    reportSheet: {
+      title: "Deze persoon melden",
+      subtitle:
+        "Meldingen worden binnen 24 uur beoordeeld. De persoon wordt ook geblokkeerd.",
+      reasonInappropriate: "Ongepaste inhoud",
+      reasonHarassment: "Pesterij of intimidatie",
+      reasonSpam: "Spam of oplichting",
+      reasonUnderage: "Ik denk dat ze minderjarig zijn",
+      reasonOther: "Anders",
+    },
+    reported: "Melding ingediend — ze zijn geblokkeerd.",
     revealSheet: {
       title: "Een onthullingsverzoek sturen",
       advisory:
@@ -669,6 +716,14 @@ export const nl: LocaleTree = {
     providerApple: "Apple",
     providerGoogle: "Google",
     providerEmail: "E-mail",
+    diagnostics: "Diagnostiek",
+    diagnosticsEmpty: "Geen native fouten geregistreerd",
+    diagnosticsCount: "{{count}} geregistreerd in deze sessie",
+    diagnosticsHeader: "Native fouten geregistreerd in deze sessie",
+    diagnosticsClear: "Wissen",
+    diagnosticsNoneTitle: "Niets te melden",
+    diagnosticsNoneBody:
+      "Als een foto grijs verschijnt of de camera zegt 'niet beschikbaar', kom dan hier terug — de onderliggende fout wordt hier vermeld.",
     signOut: "Uitloggen",
     signOutSub: "Log uit op dit apparaat",
     signOutConfirmTitle: "Uitloggen?",

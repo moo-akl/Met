@@ -142,6 +142,10 @@ export const vi: LocaleTree = {
     interestsNudgeBody:
       "Khám phá điểm chung với những người bạn gặp.",
     interestsNudgeBtn: "Thêm sở thích",
+    welcomeTitle: "Các cuộc gặp gỡ của bạn sẽ hiện ở đây",
+    welcomeDesc:
+      "Mở Met khi bạn ở một nơi mới — quán cà phê, phòng gym, lễ hội, không gian làm việc chung. Những thành viên chọn hiển thị tại đó sẽ xuất hiện ở đây.",
+    welcomeHint: "Mẹo: bật hiển thị từ hồ sơ của bạn để bắt đầu gặp gỡ mọi người",
   },
   connections: {
     title: "Kết nối",
@@ -153,6 +157,10 @@ export const vi: LocaleTree = {
     tagAll: "Tất cả",
     emptyTitle: "Chưa có kết nối nào",
     emptySub: "Khi ai đó cũng lộ diện, họ sẽ xuất hiện ở đây.",
+    welcomeTitle: "Các kết nối của bạn sẽ ở đây",
+    welcomeDesc:
+      "Khi bạn và một thành viên khác cùng lộ diện với nhau, kết nối đó sẽ xuất hiện ở đây — của bạn để giữ, với ghi chú riêng tư, thẻ và địa điểm gặp gỡ.",
+    welcomeHint: "Gửi yêu cầu lộ diện đầu tiên từ tab Gần đây",
     noMatchesTitle: "Không có kết quả",
     noMatchesByTag: "Không có kết nối với thẻ #{{tag}}{{andQuery}}.",
     noMatchesByQuery: "Không có kết nối khớp với \"{{query}}\".",
@@ -282,6 +290,28 @@ export const vi: LocaleTree = {
     tooManyAttempts: "Quá nhiều lần thử. Vui lòng đợi một lát rồi thử lại.",
     networkError: "Không có kết nối internet. Kiểm tra mạng và thử lại.",
     emailAuthDisabled: "Đăng nhập bằng email chưa được bật. Hãy dùng Google hoặc Apple.",
+    termsAgreementCheckbox: "Tôi đủ 18 tuổi trở lên và đồng ý với",
+    termsAgreementTerms: "Điều khoản Dịch vụ",
+    termsAgreementAnd: "và",
+    termsAgreementPrivacy: "Chính sách Quyền riêng tư",
+    termsAgreementSafety:
+      "Met có chính sách không khoan nhượng đối với nội dung không phù hợp hoặc hành vi lạm dụng. Báo cáo được xem xét trong vòng 24 giờ.",
+    termsRequiredTitle: "Vui lòng đồng ý để tiếp tục",
+    termsRequiredBody:
+      "Chạm vào ô kiểm ở trên để xác nhận bạn đủ 18 tuổi trở lên và đồng ý với Điều khoản Dịch vụ và Chính sách Quyền riêng tư của chúng tôi.",
+    verifyTitle: "Xác minh email của bạn",
+    verifyBody:
+      "Chúng tôi đã gửi liên kết xác minh đến %{email}. Mở email trên thiết bị này, chạm vào liên kết, sau đó quay lại và chạm Tiếp tục.",
+    verifyContinue: "Tôi đã xác minh email",
+    verifyResend: "Gửi lại email xác minh",
+    verifyResendCooldown: "Gửi lại sau %{seconds}s",
+    verifyResentTitle: "Đã gửi email",
+    verifyResentBody:
+      "Chúng tôi đã gửi liên kết xác minh mới. Kiểm tra hộp thư đến và thư mục spam của bạn.",
+    verifyNotYetTitle: "Chưa xác minh",
+    verifyNotYetBody: "Mở liên kết trong email chúng tôi đã gửi, sau đó chạm Tiếp tục.",
+    verifyChangeEmail: "Dùng email khác",
+    verifyCheckingEmail: "Đang kiểm tra…",
     welcomeTitle: "Chào mừng đến Met",
     welcomeSub: "Hãy nhớ về con người, không phải số người theo dõi.",
     getStarted: "Bắt đầu",
@@ -395,6 +425,11 @@ export const vi: LocaleTree = {
       "Hướng vào mã QR của người dùng Met khác để thêm ngay làm cuộc gặp và gửi yêu cầu lộ diện.",
     simulateScan: "Mô phỏng quét",
     defaultPersonName: "Sam ở quán cà phê",
+    captureHint: "Quét mã QR của Met",
+    captureBtn: "Mở camera",
+    libraryBtn: "Chọn từ ảnh",
+    scanningPhoto: "Đang đọc mã QR…",
+    noQrFound: "Không tìm thấy mã QR trong ảnh đó. Thử lại.",
   },
   myQr: {
     title: "QR của tôi",
@@ -446,6 +481,18 @@ export const vi: LocaleTree = {
       "Đã đạt giới hạn miễn phí — Met Plus mở khoá lộ diện không giới hạn",
     removeEncounterAction: "Xoá cuộc gặp",
     blockAction: "Chặn",
+    reportAction: "Báo cáo",
+    reportSheet: {
+      title: "Báo cáo người này",
+      subtitle:
+        "Báo cáo được xem xét trong vòng 24 giờ. Người đó cũng sẽ bị chặn.",
+      reasonInappropriate: "Nội dung không phù hợp",
+      reasonHarassment: "Quấy rối hoặc bắt nạt",
+      reasonSpam: "Spam hoặc lừa đảo",
+      reasonUnderage: "Tôi nghĩ họ chưa đủ tuổi",
+      reasonOther: "Khác",
+    },
+    reported: "Đã gửi báo cáo — họ đã bị chặn.",
     revealSheet: {
       title: "Gửi yêu cầu lộ diện",
       advisory:
@@ -668,6 +715,14 @@ export const vi: LocaleTree = {
     providerApple: "Apple",
     providerGoogle: "Google",
     providerEmail: "Email",
+    diagnostics: "Chẩn đoán",
+    diagnosticsEmpty: "Không có lỗi native nào được ghi lại",
+    diagnosticsCount: "{{count}} được ghi trong phiên này",
+    diagnosticsHeader: "Lỗi native được ghi lại trong phiên này",
+    diagnosticsClear: "Xoá",
+    diagnosticsNoneTitle: "Không có gì để báo cáo",
+    diagnosticsNoneBody:
+      "Nếu ảnh hiển thị màu xám hoặc camera báo 'không khả dụng', hãy quay lại đây — lỗi cơ bản sẽ được liệt kê.",
     signOut: "Đăng xuất",
     signOutSub: "Đăng xuất tài khoản trên thiết bị này",
     signOutConfirmTitle: "Đăng xuất?",
