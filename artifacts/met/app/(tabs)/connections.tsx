@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -21,12 +21,47 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useT } from "@/lib/i18n";
+import { subscribeToChatMeta, type ChatMeta } from "@/lib/firestore/chat";
 import {
   loadConnectionsSort,
   saveConnectionsSort,
   type ConnectionsSort,
 } from "@/lib/storage";
 import type { Encounter } from "@/lib/types";
+
+/**
+ * Subscribes to the Firestore chat meta doc for a single connection and
+ * returns true when the peer has sent a message that the current user has
+ * not yet read.
+ */
+function useChatUnread(myUid: string | undefined, peerUid: string): boolean {
+  const [meta, setMeta] = useState<ChatMeta | null>(null);
+  const unsubRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!myUid) return;
+    let cancelled = false;
+    subscribeToChatMeta(myUid, peerUid, (m) => {
+      if (!cancelled) setMeta(m);
+    }).then((unsub) => {
+      if (cancelled) {
+        unsub();
+      } else {
+        unsubRef.current = unsub;
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsubRef.current?.();
+      unsubRef.current = null;
+    };
+  }, [myUid, peerUid]);
+
+  if (!meta?.lastMessage) return false;
+  if (meta.lastMessage.from === myUid) return false;
+  const myLastRead = meta.lastReadAt[myUid ?? ""] ?? 0;
+  return meta.lastMessage.sentAt > myLastRead;
+}
 
 function timeAgo(ts: number, t: (k: string, opts?: Record<string, unknown>) => string) {
   const diff = Math.max(1, Math.floor((Date.now() - ts) / 1000));
@@ -58,7 +93,7 @@ export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
-  const { encounters } = useApp();
+  const { encounters, profile } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const webBot = Platform.OS === "web" ? 34 : 0;
 
@@ -301,125 +336,17 @@ export default function ConnectionsScreen() {
                     {group.label}
                   </Text>
                 ) : null}
-                {group.items.map((c, idx) => {
-                  const om = c.openingMessage;
-                  let preview: string;
-                  let previewColor = colors.mutedForeground;
-                  let timestamp = c.lastSeenAt;
-                  let unread = false;
-
-                  if (om?.reply) {
-                    preview = om.reply.text;
-                    previewColor = colors.foreground;
-                    timestamp = om.reply.receivedAt;
-                    unread = Date.now() - om.reply.receivedAt < 60_000;
-                  } else if (om) {
-                    preview = t("connections.youColon", { text: om.text });
-                    timestamp = om.sentAt;
-                  } else if (c.note) {
-                    preview = t("connections.notePrefix", { note: c.note });
-                  } else if (c.lastLocation) {
-                    preview = c.lastLocation;
-                  } else {
-                    preview = t(
-                      c.encounterCount === 1
-                        ? "connections.metTimes_one"
-                        : "connections.metTimes_other",
-                      { count: c.encounterCount },
-                    );
-                  }
-
-                  return (
-                    <View key={c.id}>
-                      <Pressable
-                        onPress={() => router.push(`/connection/${c.id}`)}
-                        style={({ pressed }) => [
-                          styles.row,
-                          { opacity: pressed ? 0.7 : 1 },
-                        ]}
-                      >
-                        <Avatar uri={c.photoUri} size={54} ring={unread} />
-                        <View style={styles.body}>
-                          <View style={styles.topLine}>
-                            <Text
-                              style={[styles.name, { color: colors.foreground }]}
-                              numberOfLines={1}
-                            >
-                              {c.realName}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.timestamp,
-                                {
-                                  color: unread
-                                    ? colors.primary
-                                    : colors.mutedForeground,
-                                },
-                              ]}
-                            >
-                              {timeAgo(timestamp, t)}
-                            </Text>
-                          </View>
-                          <View style={styles.previewLine}>
-                            <Text
-                              style={[
-                                styles.preview,
-                                {
-                                  color: previewColor,
-                                  fontFamily: unread
-                                    ? "Inter_600SemiBold"
-                                    : "Inter_400Regular",
-                                },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {preview}
-                            </Text>
-                            {unread ? (
-                              <View
-                                style={[
-                                  styles.unreadDot,
-                                  { backgroundColor: colors.primary },
-                                ]}
-                              />
-                            ) : null}
-                          </View>
-                          {(c.tags?.length ?? 0) > 0 ? (
-                            <View style={styles.rowTags}>
-                              {(c.tags ?? []).slice(0, 3).map((t) => (
-                                <Text
-                                  key={t}
-                                  style={[
-                                    styles.rowTag,
-                                    {
-                                      color: colors.primary,
-                                      backgroundColor: "#DCFCE7",
-                                    },
-                                  ]}
-                                >
-                                  #{t}
-                                </Text>
-                              ))}
-                            </View>
-                          ) : null}
-                        </View>
-                        <Feather
-                          name="chevron-right"
-                          size={20}
-                          color={colors.mutedForeground}
-                        />
-                      </Pressable>
-                      {idx < group.items.length - 1 ? (
-                        <View
-                          style={[
-                            styles.separator,
-                            { backgroundColor: colors.border },
-                          ]}
-                        />
-                      ) : null}
-                    </View>
-                  );
-                })}
+                {group.items.map((c, idx) => (
+                  <ConnectionRow
+                    key={c.id}
+                    connection={c}
+                    myUid={profile?.id}
+                    isLast={idx === group.items.length - 1}
+                    colors={colors}
+                    t={t}
+                    onPress={() => router.push(`/connection/${c.id}`)}
+                  />
+                ))}
               </View>
             ))}
           </View>
@@ -443,6 +370,144 @@ export default function ConnectionsScreen() {
           onPress: () => updateSort(opt),
         }))}
       />
+    </View>
+  );
+}
+
+function ConnectionRow({
+  connection: c,
+  myUid,
+  isLast,
+  colors,
+  t,
+  onPress,
+}: {
+  connection: Encounter;
+  myUid: string | undefined;
+  isLast: boolean;
+  colors: ReturnType<typeof useColors>;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+  onPress: () => void;
+}) {
+  const chatUnread = useChatUnread(myUid, c.id);
+
+  const om = c.openingMessage;
+  let preview: string;
+  let previewColor = colors.mutedForeground;
+  let timestamp = c.lastSeenAt;
+  let openingUnread = false;
+
+  if (om?.reply) {
+    preview = om.reply.text;
+    previewColor = colors.foreground;
+    timestamp = om.reply.receivedAt;
+    openingUnread = Date.now() - om.reply.receivedAt < 60_000;
+  } else if (om) {
+    preview = t("connections.youColon", { text: om.text });
+    timestamp = om.sentAt;
+  } else if (c.note) {
+    preview = t("connections.notePrefix", { note: c.note });
+  } else if (c.lastLocation) {
+    preview = c.lastLocation;
+  } else {
+    preview = t(
+      c.encounterCount === 1
+        ? "connections.metTimes_one"
+        : "connections.metTimes_other",
+      { count: c.encounterCount },
+    );
+  }
+
+  const unread = openingUnread || chatUnread;
+
+  return (
+    <View>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.row,
+          { opacity: pressed ? 0.7 : 1 },
+        ]}
+      >
+        <Avatar uri={c.photoUri} size={54} ring={unread} />
+        <View style={styles.body}>
+          <View style={styles.topLine}>
+            <Text
+              style={[styles.name, { color: colors.foreground }]}
+              numberOfLines={1}
+            >
+              {c.realName}
+            </Text>
+            <Text
+              style={[
+                styles.timestamp,
+                {
+                  color: unread
+                    ? colors.primary
+                    : colors.mutedForeground,
+                },
+              ]}
+            >
+              {timeAgo(timestamp, t)}
+            </Text>
+          </View>
+          <View style={styles.previewLine}>
+            <Text
+              style={[
+                styles.preview,
+                {
+                  color: unread ? colors.foreground : previewColor,
+                  fontFamily: unread
+                    ? "Inter_600SemiBold"
+                    : "Inter_400Regular",
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {preview}
+            </Text>
+            {unread ? (
+              <View
+                style={[
+                  styles.unreadDot,
+                  { backgroundColor: colors.primary },
+                ]}
+              />
+            ) : null}
+          </View>
+          {(c.tags?.length ?? 0) > 0 ? (
+            <View style={styles.rowTags}>
+              {(c.tags ?? []).slice(0, 3).map((tag) => (
+                <Text
+                  key={tag}
+                  style={[
+                    styles.rowTag,
+                    {
+                      color: colors.primary,
+                      backgroundColor: "#DCFCE7",
+                    },
+                  ]}
+                >
+                  #{tag}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+        <Feather
+          name="chevron-right"
+          size={20}
+          color={colors.mutedForeground}
+        />
+      </Pressable>
+      {!isLast ? (
+        <View
+          style={[
+            styles.separator,
+            { backgroundColor: colors.border },
+          ]}
+        />
+      ) : null}
     </View>
   );
 }
