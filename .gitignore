@@ -55,10 +55,15 @@ Thumbs.db
 *.key
 .secrets/
 
-# Firebase credentials — must never be committed; use env vars / EAS secrets instead
+# Firebase credentials — server-side credentials must never be committed
 firebase-sa.json
+# Mobile Firebase configs (google-services.json / GoogleService-Info.plist) are
+# client-side identifiers safe to commit; security is enforced by Firestore rules.
+# Ignore everywhere EXCEPT the Expo app where they are required at build time.
 google-services.json
 GoogleService-Info.plist
+!artifacts/met/google-services.json
+!artifacts/met/GoogleService-Info.plist
 
 # attached_assets — user-pasted files including credentials and build artefacts
 # Individual screenshots under attached_assets/screenshots/ are safe but the
