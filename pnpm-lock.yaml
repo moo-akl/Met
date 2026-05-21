@@ -692,6 +692,9 @@ importers:
       '@replit/revenuecat-sdk':
         specifier: 4.0.0
         version: 4.0.0(typescript@5.9.3)
+      '@workspace/interests':
+        specifier: workspace:*
+        version: link:../lib/interests
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
