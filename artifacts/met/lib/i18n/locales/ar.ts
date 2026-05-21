@@ -495,18 +495,18 @@ export const ar: LocaleTree = {
     editNoteA11y: "تعديل الملاحظة",
     addNoteA11y: "إضافة ملاحظة",
     removeTagA11y: "إزالة الوسم {{tag}}",
-    chatPlaceholder: "Message {{name}}…",
-    chatEmptyTitle: "Start the conversation",
-    chatEmptySub: "Say something to break the ice.",
-    chatSendA11y: "Send message",
+    chatPlaceholder: "رسالة إلى {{name}}…",
+    chatEmptyTitle: "ابدأ المحادثة",
+    chatEmptySub: "قل شيئًا لكسر الجمود.",
+    chatSendA11y: "إرسال رسالة",
   },
 
   shareCard: {
-    title: "Share your profile",
-    sub: "Anyone can scan this to find you on Met.",
-    shareAction: "Share as image",
-    tagline: "Find me on Met",
-    shareError: "Couldn't share. Try again.",
+    title: "شارك ملفك الشخصي",
+    sub: "يمكن لأي شخص مسح هذا للعثور عليك في Met.",
+    shareAction: "مشاركة كصورة",
+    tagline: "ابحث عني في Met",
+    shareError: "تعذّرت المشاركة. حاول مرة أخرى.",
   },
 
   paywall: {

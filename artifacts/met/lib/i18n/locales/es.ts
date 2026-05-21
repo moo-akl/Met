@@ -486,18 +486,18 @@ export const es: LocaleTree = {
     editNoteA11y: "Editar nota",
     addNoteA11y: "Añadir nota",
     removeTagA11y: "Quitar etiqueta {{tag}}",
-    chatPlaceholder: "Message {{name}}…",
-    chatEmptyTitle: "Start the conversation",
-    chatEmptySub: "Say something to break the ice.",
-    chatSendA11y: "Send message",
+    chatPlaceholder: "Mensaje a {{name}}…",
+    chatEmptyTitle: "Empieza la conversación",
+    chatEmptySub: "Di algo para romper el hielo.",
+    chatSendA11y: "Enviar mensaje",
   },
 
   shareCard: {
-    title: "Share your profile",
-    sub: "Anyone can scan this to find you on Met.",
-    shareAction: "Share as image",
-    tagline: "Find me on Met",
-    shareError: "Couldn't share. Try again.",
+    title: "Comparte tu perfil",
+    sub: "Cualquiera puede escanear esto para encontrarte en Met.",
+    shareAction: "Compartir como imagen",
+    tagline: "Encuéntrame en Met",
+    shareError: "No se pudo compartir. Inténtalo de nuevo.",
   },
 
   paywall: {

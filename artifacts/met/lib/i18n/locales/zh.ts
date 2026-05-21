@@ -464,18 +464,18 @@ export const zh: LocaleTree = {
     editNoteA11y: "编辑备注",
     addNoteA11y: "添加备注",
     removeTagA11y: "移除标签 {{tag}}",
-    chatPlaceholder: "Message {{name}}…",
-    chatEmptyTitle: "Start the conversation",
-    chatEmptySub: "Say something to break the ice.",
-    chatSendA11y: "Send message",
+    chatPlaceholder: "给 {{name}} 发消息…",
+    chatEmptyTitle: "开始对话",
+    chatEmptySub: "说点什么来打破僵局。",
+    chatSendA11y: "发送消息",
   },
 
   shareCard: {
-    title: "Share your profile",
-    sub: "Anyone can scan this to find you on Met.",
-    shareAction: "Share as image",
-    tagline: "Find me on Met",
-    shareError: "Couldn't share. Try again.",
+    title: "分享你的资料",
+    sub: "任何人都可以扫描此码在 Met 上找到你。",
+    shareAction: "以图片分享",
+    tagline: "在 Met 上找到我",
+    shareError: "无法分享，请重试。",
   },
 
   paywall: {

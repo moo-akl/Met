@@ -492,18 +492,18 @@ export const nl: LocaleTree = {
     editNoteA11y: "Notitie bewerken",
     addNoteA11y: "Notitie toevoegen",
     removeTagA11y: "Tag {{tag}} verwijderen",
-    chatPlaceholder: "Message {{name}}…",
-    chatEmptyTitle: "Start the conversation",
-    chatEmptySub: "Say something to break the ice.",
-    chatSendA11y: "Send message",
+    chatPlaceholder: "Bericht aan {{name}}…",
+    chatEmptyTitle: "Start het gesprek",
+    chatEmptySub: "Zeg iets om het ijs te breken.",
+    chatSendA11y: "Bericht sturen",
   },
 
   shareCard: {
-    title: "Share your profile",
-    sub: "Anyone can scan this to find you on Met.",
-    shareAction: "Share as image",
-    tagline: "Find me on Met",
-    shareError: "Couldn't share. Try again.",
+    title: "Deel je profiel",
+    sub: "Iedereen kan dit scannen om je op Met te vinden.",
+    shareAction: "Delen als afbeelding",
+    tagline: "Vind mij op Met",
+    shareError: "Kan niet delen. Probeer opnieuw.",
   },
 
   paywall: {

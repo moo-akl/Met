@@ -493,18 +493,18 @@ export const ru: LocaleTree = {
     editNoteA11y: "Редактировать заметку",
     addNoteA11y: "Добавить заметку",
     removeTagA11y: "Удалить тег {{tag}}",
-    chatPlaceholder: "Message {{name}}…",
-    chatEmptyTitle: "Start the conversation",
-    chatEmptySub: "Say something to break the ice.",
-    chatSendA11y: "Send message",
+    chatPlaceholder: "Сообщение {{name}}…",
+    chatEmptyTitle: "Начните разговор",
+    chatEmptySub: "Скажите что-нибудь, чтобы растопить лёд.",
+    chatSendA11y: "Отправить сообщение",
   },
 
   shareCard: {
-    title: "Share your profile",
-    sub: "Anyone can scan this to find you on Met.",
-    shareAction: "Share as image",
-    tagline: "Find me on Met",
-    shareError: "Couldn't share. Try again.",
+    title: "Поделитесь профилем",
+    sub: "Любой может отсканировать это, чтобы найти вас в Met.",
+    shareAction: "Поделиться как изображение",
+    tagline: "Найди меня в Met",
+    shareError: "Не удалось поделиться. Попробуйте снова.",
   },
 
   paywall: {

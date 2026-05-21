@@ -491,18 +491,18 @@ export const vi: LocaleTree = {
     editNoteA11y: "Sửa ghi chú",
     addNoteA11y: "Thêm ghi chú",
     removeTagA11y: "Xoá thẻ {{tag}}",
-    chatPlaceholder: "Message {{name}}…",
-    chatEmptyTitle: "Start the conversation",
-    chatEmptySub: "Say something to break the ice.",
-    chatSendA11y: "Send message",
+    chatPlaceholder: "Nhắn tin cho {{name}}…",
+    chatEmptyTitle: "Bắt đầu cuộc trò chuyện",
+    chatEmptySub: "Nói gì đó để phá vỡ rào cản.",
+    chatSendA11y: "Gửi tin nhắn",
   },
 
   shareCard: {
-    title: "Share your profile",
-    sub: "Anyone can scan this to find you on Met.",
-    shareAction: "Share as image",
-    tagline: "Find me on Met",
-    shareError: "Couldn't share. Try again.",
+    title: "Chia sẻ hồ sơ của bạn",
+    sub: "Bất kỳ ai cũng có thể quét để tìm bạn trên Met.",
+    shareAction: "Chia sẻ dưới dạng ảnh",
+    tagline: "Tìm tôi trên Met",
+    shareError: "Không thể chia sẻ. Hãy thử lại.",
   },
 
   paywall: {
