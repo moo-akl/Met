@@ -12,6 +12,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
       "buildNumber": "61",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -26,6 +27,7 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#92C977"
       },
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -44,6 +46,7 @@
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
+      "./plugins/with-firebase-credentials.js",
       [
         "expo-router",
         {
@@ -109,7 +112,6 @@
       "./plugins/with-rnfb-firestore-header-fix.js",
       "./plugins/with-met-ble.js",
       "./plugins/with-android-build-fixes.js",
-      "./plugins/with-firebase-credentials.js",
       "expo-apple-authentication",
       [
         "@react-native-google-signin/google-signin",
