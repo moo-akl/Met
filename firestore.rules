@@ -119,6 +119,51 @@ service cloud.firestore {
       }
     }
 
+    // ------------------------------------------------------------
+    //  chats/{chatId}
+    // ------------------------------------------------------------
+    // Real-time chat between two mutually-revealed (connected) users.
+    // chatId = [uidA, uidB].sort().join("_").
+    //
+    // Security model: both participants have already completed a mutual
+    // identity reveal, so reading/writing each other's messages carries
+    // no additional information risk beyond what the reveal already exposed.
+    match /chats/{chatId} {
+
+      // Is the caller one of the two participants encoded in the chatId?
+      // Firebase UIDs are alphanumeric-only so no regex escaping is needed.
+      function callerInChatId() {
+        return isAuthed() && isVerifiedApp() && (
+          chatId.matches(request.auth.uid + '_.*') ||
+          chatId.matches('.*_' + request.auth.uid)
+        );
+      }
+
+      // Read chat meta doc (lastMessage, lastReadAt).
+      allow read: if callerInChatId();
+
+      // Create (first-ever message: batch-creates the chat doc with
+      // a `participants` array). Verify the caller is in that list.
+      allow create: if isAuthed() && isVerifiedApp() &&
+        request.auth.uid in request.resource.data.participants;
+
+      // Update (subsequent messages update lastMessage / lastReadAt).
+      // Verify the caller is already a participant on the existing doc.
+      allow update: if isAuthed() && isVerifiedApp() &&
+        request.auth.uid in resource.data.participants;
+
+      // Delete: never from client.
+      allow delete: if false;
+
+      // Individual chat messages — immutable once written.
+      match /messages/{msgId} {
+        allow read: if callerInChatId();
+        allow create: if callerInChatId() &&
+          request.resource.data.from == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
     // Default deny everything else.
     match /{document=**} {
       allow read, write: if false;
