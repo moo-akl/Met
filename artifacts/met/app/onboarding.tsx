@@ -132,6 +132,10 @@ export default function OnboardingScreen() {
   const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
+  // True when the name was provided directly by Apple Sign-In.
+  // In that case we skip the info (name/bio) step so users aren't asked
+  // to re-enter information Apple already supplied (App Store Guideline 4).
+  const [nameFromApple, setNameFromApple] = useState(false);
   const [socials, setSocials] = useState<SocialLinks>({});
   const [interests, setInterests] = useState<string[]>([]);
   const [interestSearch, setInterestSearch] = useState("");
@@ -280,7 +284,10 @@ export default function OnboardingScreen() {
         // Apple provides the full name only on the very first sign-in.
         // Pre-populate the name field so the user doesn't have to retype
         // information Apple already supplied (Guideline 4 compliance).
-        if (result.fullName) setName(result.fullName);
+        if (result.fullName) {
+          setName(result.fullName);
+          setNameFromApple(true);
+        }
         await goToProfileSetup();
       }
     } catch {
@@ -748,7 +755,7 @@ export default function OnboardingScreen() {
                 if (permissionsOnly) { router.back(); return; }
                 if (phase === "auth") setPhase("intro");
                 else if (phase === "info") setPhase("photo");
-                else if (phase === "socials") setPhase("info");
+                else if (phase === "socials") setPhase(nameFromApple ? "photo" : "info");
                 else if (phase === "interests") setPhase("socials");
                 else if (phase === "invite") setPhase("interests");
               }}
@@ -1171,7 +1178,7 @@ export default function OnboardingScreen() {
 
             <PrimaryButton
               label={t("common.continue")}
-              onPress={() => setPhase("info")}
+              onPress={() => setPhase(nameFromApple ? "socials" : "info")}
               disabled={!photoUri}
             />
           </View>
