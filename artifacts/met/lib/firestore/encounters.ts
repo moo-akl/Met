@@ -137,20 +137,18 @@ export async function subscribeToRequestsChange(
   // metadata.hasPendingWrites is true for our own optimistic writes;
   // we don't filter on that here because the server is the only writer
   // (Admin SDK), so pending writes shouldn't appear from this client.
-  let firstSnapshot = true;
+  //
+  // NOTE: We intentionally do NOT skip the first snapshot. If the sender
+  // opens the app after the recipient already accepted, the first snapshot
+  // is the only chance to see the "accepted" state — there will be no
+  // subsequent change to the doc. Skipping it caused the sender to stay
+  // stuck on "request_sent" forever when they weren't online at accept time.
   real = fs
     .collection("users")
     .doc(uid)
     .collection("requests")
     .onSnapshot(
       (snap) => {
-        // Skip the initial snapshot — AppContext already runs an
-        // immediate poll on mount, so re-triggering it here would just
-        // duplicate that work.
-        if (firstSnapshot) {
-          firstSnapshot = false;
-          return;
-        }
         const docChanges = snap.docChanges();
         if (snap.empty && docChanges.length === 0) return;
         const changes: RequestSnapshotDoc[] = [];

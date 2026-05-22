@@ -1373,11 +1373,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!authedUid) throw new Error("Not signed in");
       // Primary path: Firestore batch writes "accepted" into both parties'
       // requests/ docs. The sender's subscribeToRequestsChange listener
-      // flips their encounter to "connected" in real time. Postgres is
-      // kept in sync by the mirrorRevealStatusToPostgres Cloud Function —
-      // no api-server call needed here.
+      // flips their encounter to "connected" in real time.
       await writeRevealResponse(authedUid, senderUid, "accepted");
       await updateEncounterStatus(senderUid, "connected");
+      // Also update Postgres via api-server (fire-and-forget) so the 5 s
+      // REST poll safety net sees "accepted" immediately instead of waiting
+      // for the Cloud Function to mirror it. Critical for the sender's
+      // transition: if the Cloud Function is delayed or the Firestore
+      // subscription missed the change (e.g. sender opened the app after
+      // accepting already happened), the REST poll is the only fallback.
+      if (api.isConfigured()) {
+        api.acceptReveal({ uid: authedUid }, senderUid).catch(() => {});
+      }
     },
     [authedUid, updateEncounterStatus],
   );
