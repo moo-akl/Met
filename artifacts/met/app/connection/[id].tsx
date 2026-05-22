@@ -105,6 +105,22 @@ export default function ConnectionScreen() {
     }
   }, [messages.length]);
 
+  // ⚠️ All hooks must be declared before any early return — keep useCallback here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleSend = useCallback(async () => {
+    const text = chatInput.trim();
+    if (!text || chatSending || !profile?.id || !encounter?.id) return;
+    setChatInput("");
+    setChatSending(true);
+    try {
+      await sendMessage(profile.id, encounter.id, text);
+    } catch {
+      setChatInput(text); // restore on failure so user doesn't lose their message
+    } finally {
+      setChatSending(false);
+    }
+  }, [chatInput, chatSending, profile?.id, encounter?.id]);
+
   const webTop = Platform.OS === "web" ? 67 : 0;
   const webBot = Platform.OS === "web" ? 34 : 0;
 
@@ -157,21 +173,6 @@ export default function ConnectionScreen() {
       `https://www.google.com/maps/search/?api=1&query=${q}`,
     ).catch(() => {});
   };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const handleSend = useCallback(async () => {
-    const text = chatInput.trim();
-    if (!text || chatSending || !profile?.id) return;
-    setChatInput("");
-    setChatSending(true);
-    try {
-      await sendMessage(profile.id, encounter.id, text);
-    } catch {
-      setChatInput(text); // restore on failure so user doesn't lose their message
-    } finally {
-      setChatSending(false);
-    }
-  }, [chatInput, chatSending, profile?.id, encounter?.id]);
 
   const socialEntries = (
     Object.entries(encounter.socials) as [SocialPlatform, string][]
