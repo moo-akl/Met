@@ -113,9 +113,14 @@ export default function ConnectionScreen() {
     setChatInput("");
     setChatSending(true);
     try {
-      await sendMessage(profile.id, encounter.id, text);
+      const ok = await sendMessage(profile.id, encounter.id, text);
+      if (!ok) {
+        // sendMessage returns false on failure (it catches its own errors).
+        // Restore the text so the user doesn't lose what they typed.
+        setChatInput(text);
+      }
     } catch {
-      setChatInput(text); // restore on failure so user doesn't lose their message
+      setChatInput(text);
     } finally {
       setChatSending(false);
     }

@@ -151,14 +151,17 @@ service cloud.firestore {
       allow read: if callerInChatId();
 
       // Create (first-ever message: batch-creates the chat doc with
-      // a `participants` array). Verify the caller is in that list.
-      allow create: if isAuthed() &&
+      // a `participants` array). Verify the caller is in the list.
+      allow create: if callerInChatId() &&
         request.auth.uid in request.resource.data.participants;
 
       // Update (subsequent messages update lastMessage / lastReadAt).
-      // Verify the caller is already a participant on the existing doc.
-      allow update: if isAuthed() &&
-        request.auth.uid in resource.data.participants;
+      // Use callerInChatId() instead of resource.data.participants — the
+      // simpler check avoids a failure edge case where markChatRead writes
+      // a "ghost" doc via offline persistence before a participants field
+      // exists, which would make resource.data.participants undefined and
+      // cause the real sendMessage batch to fail as an UPDATE.
+      allow update: if callerInChatId();
 
       // Delete: never from client.
       allow delete: if false;

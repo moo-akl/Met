@@ -53,16 +53,17 @@ export async function sendMessage(
     const chatRef = fs.collection("chats").doc(chatId);
     const msgRef = chatRef.collection("messages").doc();
 
-    const fsMod = await import("@react-native-firebase/firestore");
-    const serverNow = fsMod.default.FieldValue.serverTimestamp();
-
+    // Use Date.now() for sentAt — avoids FieldValue.serverTimestamp()
+    // import complexity and ensures the value is immediately a number,
+    // so orderBy("sentAt") ordering works correctly for local pending writes
+    // before the server timestamp resolves.
     const batch = fs.batch();
-    batch.set(msgRef, { from: fromUid, text: trimmed, sentAt: serverNow });
+    batch.set(msgRef, { from: fromUid, text: trimmed, sentAt: now });
     batch.set(
       chatRef,
       {
         participants: [fromUid, toUid].sort(),
-        lastMessage: { text: trimmed, from: fromUid, sentAt: serverNow },
+        lastMessage: { text: trimmed, from: fromUid, sentAt: now },
         [`lastReadAt.${fromUid}`]: now,
       },
       { merge: true },
@@ -92,33 +93,54 @@ export async function subscribeToMessages(
   if (cancelled) return () => {};
 
   const chatId = getChatId(myUid, peerUid);
-  real = fs
-    .collection("chats")
-    .doc(chatId)
-    .collection("messages")
-    .orderBy("sentAt", "asc")
-    .limitToLast(200)
-    .onSnapshot(
-      (snap) => {
-        const msgs: ChatMessage[] = [];
-        snap.forEach((doc) => {
-          const d = doc.data() as Record<string, unknown>;
-          msgs.push({
-            id: doc.id,
-            from: typeof d["from"] === "string" ? d["from"] : "",
-            text: typeof d["text"] === "string" ? d["text"] : "",
-            sentAt: toEpochMs(d["sentAt"] as MaybeTimestamp),
+
+  // Auto-retry helper: if the onSnapshot listener dies with an error
+  // (e.g. PERMISSION_DENIED from a stale rule set), re-subscribe after
+  // a short back-off so the UI recovers without needing an app restart.
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  const RETRY_DELAYS = [2000, 5000, 15000]; // ms
+  let retryCount = 0;
+
+  function attach() {
+    if (cancelled) return;
+    if (real) { real(); real = null; }
+
+    real = fs
+      .collection("chats")
+      .doc(chatId)
+      .collection("messages")
+      .orderBy("sentAt", "asc")
+      .limitToLast(200)
+      .onSnapshot(
+        (snap) => {
+          retryCount = 0; // reset back-off on any successful snapshot
+          const msgs: ChatMessage[] = [];
+          snap.forEach((doc) => {
+            const d = doc.data() as Record<string, unknown>;
+            msgs.push({
+              id: doc.id,
+              from: typeof d["from"] === "string" ? d["from"] : "",
+              text: typeof d["text"] === "string" ? d["text"] : "",
+              sentAt: toEpochMs(d["sentAt"] as MaybeTimestamp),
+            });
           });
-        });
-        listener(msgs);
-      },
-      (err) => {
-        console.warn("[chat] messages snapshot error", err);
-      },
-    );
+          listener(msgs);
+        },
+        (err) => {
+          console.warn("[chat] messages snapshot error — will retry", err);
+          if (cancelled) return;
+          const delay = RETRY_DELAYS[Math.min(retryCount, RETRY_DELAYS.length - 1)];
+          retryCount++;
+          retryTimer = setTimeout(attach, delay);
+        },
+      );
+  }
+
+  attach();
 
   return () => {
     cancelled = true;
+    if (retryTimer) clearTimeout(retryTimer);
     if (real) real();
   };
 }
