@@ -85,8 +85,8 @@ When Firebase credentials change (e.g. new Firebase project, regenerated config)
 
 - **Firebase Credentials**: `google-services.json` and `GoogleService-Info.plist` are committed to `artifacts/met/`. To rotate them, replace the files and commit — see *Firebase Credentials* above.
 - **API Server Deployment**: Any changes to `artifacts/api-server/` require republishing the API server (`https://metapp.replit.app`) *before* shipping new mobile builds. Failure to do so causes "server unreachable" errors or 404s.
-- **Android `versionCode`**: Must be incremented by 1 for *every* new Android build uploaded to Play Store, regardless of `expo.version`. Current: 54. **Always bump this before triggering a new build.**
-- **iOS `buildNumber`**: Must be incremented by 1 for *every* new iOS build uploaded to TestFlight/App Store. Current: 62. **Always bump this before triggering a new build.**
+- **Android `versionCode`**: Must be incremented by 1 for *every* new Android build uploaded to Play Store, regardless of `expo.version`. Current: 55. **Always bump this before triggering a new build.**
+- **iOS `buildNumber`**: Must be incremented by 1 for *every* new iOS build uploaded to TestFlight/App Store. Current: 63. **Always bump this before triggering a new build.**
 - **Native Module Changes**: Updates to `artifacts/met/modules/expo-met-ble/` require a fresh `eas build` (cannot be OTA updated).
 - **BLE Testing**: Requires physical devices and EAS dev/production builds (not supported in Expo Go, simulator, or emulator).
 
