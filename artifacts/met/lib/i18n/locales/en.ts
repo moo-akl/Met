@@ -543,6 +543,7 @@ export const en = {
     addNoteA11y: "Add note",
     removeTagA11y: "Remove tag {{tag}}",
     chatPlaceholder: "Message {{name}}…",
+    tapForProfile: "Tap to view profile",
     chatEmptyTitle: "Start the conversation",
     chatEmptySub: "Say something to break the ice.",
     chatSendA11y: "Send message",

@@ -542,6 +542,7 @@ export const ar: LocaleTree = {
     addNoteA11y: "إضافة ملاحظة",
     removeTagA11y: "إزالة الوسم {{tag}}",
     chatPlaceholder: "رسالة إلى {{name}}…",
+    tapForProfile: "اضغط لعرض الملف الشخصي",
     chatEmptyTitle: "ابدأ المحادثة",
     chatEmptySub: "قل شيئًا لكسر الجمود.",
     chatSendA11y: "إرسال رسالة",

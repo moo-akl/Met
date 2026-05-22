@@ -541,6 +541,7 @@ export const ru: LocaleTree = {
     addNoteA11y: "Добавить заметку",
     removeTagA11y: "Удалить тег {{tag}}",
     chatPlaceholder: "Сообщение {{name}}…",
+    tapForProfile: "Нажмите для просмотра профиля",
     chatEmptyTitle: "Начните разговор",
     chatEmptySub: "Скажите что-нибудь, чтобы растопить лёд.",
     chatSendA11y: "Отправить сообщение",

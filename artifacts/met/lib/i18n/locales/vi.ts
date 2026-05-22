@@ -539,6 +539,7 @@ export const vi: LocaleTree = {
     addNoteA11y: "Thêm ghi chú",
     removeTagA11y: "Xoá thẻ {{tag}}",
     chatPlaceholder: "Nhắn tin cho {{name}}…",
+    tapForProfile: "Nhấn để xem hồ sơ",
     chatEmptyTitle: "Bắt đầu cuộc trò chuyện",
     chatEmptySub: "Nói gì đó để phá vỡ rào cản.",
     chatSendA11y: "Gửi tin nhắn",

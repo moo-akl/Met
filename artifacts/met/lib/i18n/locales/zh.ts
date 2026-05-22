@@ -512,6 +512,7 @@ export const zh: LocaleTree = {
     addNoteA11y: "添加备注",
     removeTagA11y: "移除标签 {{tag}}",
     chatPlaceholder: "给 {{name}} 发消息…",
+    tapForProfile: "点击查看资料",
     chatEmptyTitle: "开始对话",
     chatEmptySub: "说点什么来打破僵局。",
     chatSendA11y: "发送消息",

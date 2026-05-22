@@ -540,6 +540,7 @@ export const nl: LocaleTree = {
     addNoteA11y: "Notitie toevoegen",
     removeTagA11y: "Tag {{tag}} verwijderen",
     chatPlaceholder: "Bericht aan {{name}}…",
+    tapForProfile: "Tik om profiel te bekijken",
     chatEmptyTitle: "Start het gesprek",
     chatEmptySub: "Zeg iets om het ijs te breken.",
     chatSendA11y: "Bericht sturen",

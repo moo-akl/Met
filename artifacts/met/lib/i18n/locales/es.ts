@@ -534,6 +534,7 @@ export const es: LocaleTree = {
     addNoteA11y: "Añadir nota",
     removeTagA11y: "Quitar etiqueta {{tag}}",
     chatPlaceholder: "Mensaje a {{name}}…",
+    tapForProfile: "Toca para ver el perfil",
     chatEmptyTitle: "Empieza la conversación",
     chatEmptySub: "Di algo para romper el hielo.",
     chatSendA11y: "Enviar mensaje",
