@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import { useRouter } from "expo-router";
 import * as Updates from "expo-updates";
 import React, { useEffect, useState } from "react";
@@ -266,7 +267,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
     (Constants.expoConfig?.version as string | undefined) ?? "1.0.0";
 
   const openLink = (url: string) => {
-    Linking.openURL(url).catch(() => {});
+    WebBrowser.openBrowserAsync(url).catch(() => {});
   };
 
   const headerTitle = (() => {
