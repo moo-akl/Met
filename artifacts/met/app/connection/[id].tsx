@@ -1,11 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { Image } from "@/components/MetImage";
-import { LinearGradient } from "@/components/MetGradient";
+
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -175,14 +174,6 @@ export default function ConnectionScreen() {
     setTimeout(() => {
       router.back();
     }, 1500);
-  };
-
-  const openMap = () => {
-    if (!encounter.lastLocation) return;
-    const q = encodeURIComponent(encounter.lastLocation);
-    Linking.openURL(
-      `https://www.google.com/maps/search/?api=1&query=${q}`,
-    ).catch(() => {});
   };
 
   const socialEntries = (
@@ -361,23 +352,15 @@ export default function ConnectionScreen() {
           ) : null}
 
           {encounter.lastLocation ? (
-            <Pressable
-              onPress={openMap}
-              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-            >
-              <LinearGradient
-                colors={[colors.primary, "#2BA535"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.mapCard}
+            <View style={styles.metAtRow}>
+              <Feather name="map-pin" size={15} color={colors.primary} />
+              <Text
+                style={[styles.metAtText, { color: colors.mutedForeground }]}
+                numberOfLines={2}
               >
-                <Feather name="map-pin" size={18} color="#FFFFFF" />
-                <Text style={styles.mapText} numberOfLines={1}>
-                  {encounter.lastLocation}
-                </Text>
-                <Feather name="external-link" size={16} color="#FFFFFF" />
-              </LinearGradient>
-            </Pressable>
+                {encounter.lastLocation}
+              </Text>
+            </View>
           ) : null}
 
           {socialEntries.length > 0 ? (
@@ -956,19 +939,16 @@ const styles = StyleSheet.create({
   detailsMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   detailsMeta: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   bio: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20 },
-  mapCard: {
+  metAtRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    gap: 8,
   },
-  mapText: {
+  metAtText: {
     flex: 1,
-    color: "#FFFFFF",
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 18,
   },
   interestsBlock: { gap: 6 },
   interestChip: {
