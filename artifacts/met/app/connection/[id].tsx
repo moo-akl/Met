@@ -58,10 +58,11 @@ export default function ConnectionScreen() {
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [reportConfirmation, setReportConfirmation] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
-  // Chat state
+  // Chat state — subscribe in the background so unread count is always fresh
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [lastReadAt, setLastReadAt] = useState<number>(Date.now());
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -80,7 +81,7 @@ export default function ConnectionScreen() {
     }
   }, [encounter, router]);
 
-  // Subscribe to real-time chat messages; mark as read on open
+  // Subscribe to real-time chat messages in the background
   useEffect(() => {
     if (!profile?.id || !encounter?.id) return;
     const myUid = profile.id;
@@ -93,22 +94,27 @@ export default function ConnectionScreen() {
       unsub = fn;
     });
 
-    markChatRead(myUid, peerUid).catch(() => {});
-
     return () => {
       unsub?.();
     };
   }, [profile?.id, encounter?.id]);
 
-  // Auto-scroll to newest message whenever the list grows
+  // Mark as read and scroll when the chat panel opens
   useEffect(() => {
-    if (messages.length > 0) {
+    if (!chatOpen || !profile?.id || !encounter?.id) return;
+    setLastReadAt(Date.now());
+    markChatRead(profile.id, encounter.id).catch(() => {});
+    // Scroll to bottom
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);
+  }, [chatOpen, profile?.id, encounter?.id]);
+
+  // Auto-scroll to newest message while chat is open
+  useEffect(() => {
+    if (chatOpen && messages.length > 0) {
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
     }
-  }, [messages.length]);
+  }, [chatOpen, messages.length]);
 
-  // ⚠️ All hooks must be declared before any early return — keep useCallback here.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleSend = useCallback(async () => {
     const text = chatInput.trim();
     if (!text || chatSending || !profile?.id || !encounter?.id) return;
@@ -192,207 +198,239 @@ export default function ConnectionScreen() {
 
   const myUid = profile?.id ?? "";
 
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Stack.Screen options={{ headerShown: false }} />
+  // Count messages received since the chat was last opened
+  const unreadCount = messages.filter(
+    (m) => m.from !== myUid && m.sentAt > lastReadAt,
+  ).length;
 
-        {/* Header bar */}
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Header bar */}
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: colors.card,
+            borderBottomColor: colors.border,
+            paddingTop: insets.top + webTop + 10,
+          },
+        ]}
+      >
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={styles.headerBtn}
+          accessibilityLabel={t("common.back")}
+        >
+          <Feather name="arrow-left" size={22} color={colors.foreground} />
+        </Pressable>
+        <View style={styles.headerCenter}>
+          <Avatar uri={encounter.photoUri} size={36} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              style={[styles.headerName, { color: colors.foreground }]}
+              numberOfLines={1}
+            >
+              {encounter.realName}
+            </Text>
+            <Text
+              style={[styles.headerSub, { color: colors.mutedForeground }]}
+              numberOfLines={1}
+            >
+              {metTimesText}
+            </Text>
+          </View>
+        </View>
+        {/* Chat icon — badge shows unread count */}
+        <Pressable
+          onPress={() => setChatOpen(true)}
+          hitSlop={12}
+          style={styles.headerBtn}
+          accessibilityLabel={t("connection.chatSendA11y")}
+        >
+          <View>
+            <Feather name="message-circle" size={22} color={colors.foreground} />
+            {unreadCount > 0 ? (
+              <View
+                style={[styles.badge, { backgroundColor: colors.primary }]}
+              >
+                <Text style={styles.badgeText}>
+                  {unreadCount > 9 ? "9+" : String(unreadCount)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={() => setMenuOpen(true)}
+          hitSlop={12}
+          style={styles.headerBtn}
+        >
+          <Feather name="more-vertical" size={22} color={colors.foreground} />
+        </Pressable>
+      </View>
+
+      {/* Scrollable content: profile info */}
+      <ScrollView
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + webBot + 24,
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Profile / info */}
         <View
           style={[
-            styles.header,
+            styles.detailsPanel,
             {
               backgroundColor: colors.card,
               borderBottomColor: colors.border,
-              paddingTop: insets.top + webTop + 10,
             },
           ]}
         >
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            style={styles.headerBtn}
-            accessibilityLabel={t("common.back")}
-          >
-            <Feather name="arrow-left" size={22} color={colors.foreground} />
-          </Pressable>
-
-          {/* Tapping the center opens the profile panel */}
-          <Pressable
-            onPress={() => setProfileOpen(true)}
-            style={styles.headerCenter}
-            accessibilityLabel="View profile"
-            accessibilityRole="button"
-          >
-            <Avatar uri={encounter.photoUri} size={36} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text
-                style={[styles.headerName, { color: colors.foreground }]}
-                numberOfLines={1}
+          <View style={styles.detailsHeroRow}>
+            {encounter.photoUri ? (
+              <Pressable
+                onPress={() => setLightboxOpen(true)}
+                accessibilityLabel="View full-screen photo"
+                accessibilityRole="button"
               >
+                <Image
+                  source={{ uri: encounter.photoUri }}
+                  style={styles.detailsAvatar}
+                  contentFit="cover"
+                />
+              </Pressable>
+            ) : (
+              <View
+                style={[
+                  styles.detailsAvatar,
+                  styles.detailsAvatarPlaceholder,
+                  { backgroundColor: colors.muted },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.detailsAvatarInitial,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  {encounter.realName?.trim().charAt(0).toUpperCase() || "?"}
+                </Text>
+              </View>
+            )}
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.detailsName, { color: colors.foreground }]}>
                 {encounter.realName}
               </Text>
-              <Text
-                style={[styles.headerSub, { color: colors.mutedForeground }]}
-                numberOfLines={1}
-              >
-                {metTimesText} · {t("connection.tapForProfile")}
-              </Text>
+              <View style={styles.detailsMetaRow}>
+                <Feather name="repeat" size={14} color={colors.primary} />
+                <Text style={[styles.detailsMeta, { color: colors.primary }]}>
+                  {metTimesText}
+                </Text>
+              </View>
             </View>
-          </Pressable>
+          </View>
 
-          <Pressable
-            onPress={() => setMenuOpen(true)}
-            hitSlop={12}
-            style={styles.headerBtn}
-          >
-            <Feather name="more-vertical" size={22} color={colors.foreground} />
-          </Pressable>
-        </View>
+          {encounter.bio ? (
+            <Text style={[styles.bio, { color: colors.foreground }]}>
+              {encounter.bio}
+            </Text>
+          ) : null}
 
-        {/* Chat messages — full height, this is the primary screen content */}
-        <ScrollView
-          ref={scrollRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={[
-            styles.messagesContent,
-            { paddingBottom: insets.bottom + webBot + 16 },
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {messages.length === 0 ? (
-            <View style={styles.chatEmpty}>
-              <Feather
-                name="message-circle"
-                size={40}
-                color={colors.mutedForeground}
-                style={{ opacity: 0.4 }}
-              />
-              <Text style={[styles.chatEmptyTitle, { color: colors.foreground }]}>
-                {t("connection.chatEmptyTitle")}
-              </Text>
-              <Text style={[styles.chatEmptySub, { color: colors.mutedForeground }]}>
-                {t("connection.chatEmptySub")}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.chatMessages}>
-              {messages.map((msg) => {
-                const isMe = msg.from === myUid;
-                return (
+          {encounter.interests && encounter.interests.length > 0 ? (
+            <View style={styles.interestsBlock}>
+              <View style={styles.chipsRow}>
+                {encounter.interests.map((tag) => (
                   <View
-                    key={msg.id}
+                    key={tag}
                     style={[
-                      styles.bubbleRow,
-                      isMe ? styles.bubbleRowMe : styles.bubbleRowThem,
+                      styles.interestChip,
+                      { backgroundColor: colors.muted, borderColor: colors.border },
                     ]}
                   >
-                    {!isMe ? <Avatar uri={encounter.photoUri} size={28} /> : null}
-                    <View style={[styles.bubbleGroup, isMe && { alignItems: "flex-end" }]}>
-                      <View
-                        style={[
-                          styles.bubble,
-                          isMe
-                            ? [styles.bubbleMe, { backgroundColor: colors.primary }]
-                            : [
-                                styles.bubbleThem,
-                                {
-                                  backgroundColor: colors.muted,
-                                  borderColor: colors.border,
-                                },
-                              ],
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.bubbleText,
-                            { color: isMe ? "#FFFFFF" : colors.foreground },
-                          ]}
-                        >
-                          {msg.text}
-                        </Text>
-                      </View>
-                      <Text
-                        style={[styles.bubbleTime, { color: colors.mutedForeground }]}
-                      >
-                        {formatTime(msg.sentAt)}
-                      </Text>
-                    </View>
+                    <Text style={[styles.interestChipText, { color: colors.foreground }]}>
+                      {t(`interestLabels.${tag.toLowerCase()}`)}
+                    </Text>
                   </View>
-                );
-              })}
+                ))}
+              </View>
             </View>
-          )}
-        </ScrollView>
+          ) : null}
 
-        {/* Chat input — pinned above the keyboard */}
-        <View
-          style={[
-            styles.inputBar,
-            {
-              backgroundColor: colors.card,
-              borderTopColor: colors.border,
-              paddingBottom: insets.bottom + webBot + 8,
-            },
-          ]}
-        >
-          <TextInput
-            value={chatInput}
-            onChangeText={setChatInput}
-            placeholder={t("connection.chatPlaceholder", { name: encounter.realName })}
-            placeholderTextColor={colors.mutedForeground}
-            style={[
-              styles.inputField,
-              {
-                backgroundColor: colors.muted,
-                borderColor: colors.border,
-                color: colors.foreground,
-              },
-            ]}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-            blurOnSubmit={false}
-            maxLength={1000}
-            multiline
+          {encounter.lastLocation ? (
+            <Pressable
+              onPress={openMap}
+              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+            >
+              <LinearGradient
+                colors={[colors.primary, "#2BA535"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.mapCard}
+              >
+                <Feather name="map-pin" size={18} color="#FFFFFF" />
+                <Text style={styles.mapText} numberOfLines={1}>
+                  {encounter.lastLocation}
+                </Text>
+                <Feather name="external-link" size={16} color="#FFFFFF" />
+              </LinearGradient>
+            </Pressable>
+          ) : null}
+
+          {socialEntries.length > 0 ? (
+            <View style={styles.socialsBlock}>
+              <Text
+                style={[styles.sectionLabel, { color: colors.mutedForeground }]}
+              >
+                {t("connection.socialsLabel")}
+              </Text>
+              <View style={styles.chipsRow}>
+                {socialEntries.map(([platform, handle]) => (
+                  <SocialChip
+                    key={platform}
+                    platform={platform}
+                    handle={handle}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          <NoteEditor
+            colors={colors}
+            value={encounter.note ?? ""}
+            onSave={(next) => setNote(encounter.id, next)}
           />
-          <Pressable
-            onPress={handleSend}
-            disabled={chatSending || !chatInput.trim()}
-            accessibilityLabel={t("connection.chatSendA11y")}
-            style={({ pressed }) => [
-              styles.sendBtn,
-              {
-                backgroundColor: colors.primary,
-                opacity:
-                  pressed || chatSending || !chatInput.trim() ? 0.45 : 1,
-              },
-            ]}
-          >
-            <Feather name="send" size={18} color="#FFFFFF" />
-          </Pressable>
-        </View>
 
-        {/* ─── Profile modal ──────────────────────────────────────────── */}
-        <Modal
-          visible={profileOpen}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setProfileOpen(false)}
+          <TagsEditor
+            colors={colors}
+            tags={encounter.tags ?? []}
+            onChange={(next) => setTags(encounter.id, next)}
+          />
+        </View>
+      </ScrollView>
+
+      {/* ─── Chat slide-up modal ─────────────────────────────────────── */}
+      <Modal
+        visible={chatOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setChatOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View
-            style={[
-              styles.modalContainer,
-              { backgroundColor: colors.background },
-            ]}
+            style={[styles.chatModal, { backgroundColor: colors.background }]}
           >
-            {/* Modal header */}
+            {/* Chat header */}
             <View
               style={[
-                styles.modalHeader,
+                styles.chatModalHeader,
                 {
                   backgroundColor: colors.card,
                   borderBottomColor: colors.border,
@@ -400,248 +438,254 @@ export default function ConnectionScreen() {
                 },
               ]}
             >
-              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              <Avatar uri={encounter.photoUri} size={32} />
+              <Text
+                style={[styles.chatModalTitle, { color: colors.foreground }]}
+                numberOfLines={1}
+              >
                 {encounter.realName}
               </Text>
               <Pressable
-                onPress={() => setProfileOpen(false)}
+                onPress={() => setChatOpen(false)}
                 hitSlop={12}
-                style={styles.modalClose}
+                style={styles.chatModalClose}
               >
                 <Feather name="x" size={22} color={colors.foreground} />
               </Pressable>
             </View>
 
+            {/* Messages */}
             <ScrollView
+              ref={scrollRef}
+              style={{ flex: 1 }}
               contentContainerStyle={[
-                styles.modalContent,
-                { paddingBottom: insets.bottom + 40 },
+                styles.messagesContent,
+                { paddingBottom: insets.bottom + webBot + 8 },
               ]}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
-              {/* Profile hero */}
-              <View
+              {messages.length === 0 ? (
+                <View style={styles.chatEmpty}>
+                  <Feather
+                    name="message-circle"
+                    size={40}
+                    color={colors.mutedForeground}
+                    style={{ opacity: 0.4 }}
+                  />
+                  <Text
+                    style={[styles.chatEmptyTitle, { color: colors.foreground }]}
+                  >
+                    {t("connection.chatEmptyTitle")}
+                  </Text>
+                  <Text
+                    style={[styles.chatEmptySub, { color: colors.mutedForeground }]}
+                  >
+                    {t("connection.chatEmptySub")}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.chatMessages}>
+                  {messages.map((msg) => {
+                    const isMe = msg.from === myUid;
+                    return (
+                      <View
+                        key={msg.id}
+                        style={[
+                          styles.bubbleRow,
+                          isMe ? styles.bubbleRowMe : styles.bubbleRowThem,
+                        ]}
+                      >
+                        {!isMe ? (
+                          <Avatar uri={encounter.photoUri} size={28} />
+                        ) : null}
+                        <View
+                          style={[
+                            styles.bubbleGroup,
+                            isMe && { alignItems: "flex-end" },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.bubble,
+                              isMe
+                                ? [
+                                    styles.bubbleMe,
+                                    { backgroundColor: colors.primary },
+                                  ]
+                                : [
+                                    styles.bubbleThem,
+                                    {
+                                      backgroundColor: colors.muted,
+                                      borderColor: colors.border,
+                                    },
+                                  ],
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.bubbleText,
+                                {
+                                  color: isMe ? "#FFFFFF" : colors.foreground,
+                                },
+                              ]}
+                            >
+                              {msg.text}
+                            </Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.bubbleTime,
+                              { color: colors.mutedForeground },
+                            ]}
+                          >
+                            {formatTime(msg.sentAt)}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Input bar */}
+            <View
+              style={[
+                styles.inputBar,
+                {
+                  backgroundColor: colors.card,
+                  borderTopColor: colors.border,
+                  paddingBottom: insets.bottom + webBot + 8,
+                },
+              ]}
+            >
+              <TextInput
+                value={chatInput}
+                onChangeText={setChatInput}
+                placeholder={t("connection.chatPlaceholder", {
+                  name: encounter.realName,
+                })}
+                placeholderTextColor={colors.mutedForeground}
                 style={[
-                  styles.detailsPanel,
+                  styles.inputField,
                   {
-                    backgroundColor: colors.card,
-                    borderBottomColor: colors.border,
+                    backgroundColor: colors.muted,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+                onSubmitEditing={handleSend}
+                returnKeyType="send"
+                blurOnSubmit={false}
+                maxLength={1000}
+                multiline
+                autoFocus
+              />
+              <Pressable
+                onPress={handleSend}
+                disabled={chatSending || !chatInput.trim()}
+                accessibilityLabel={t("connection.chatSendA11y")}
+                style={({ pressed }) => [
+                  styles.sendBtn,
+                  {
+                    backgroundColor: colors.primary,
+                    opacity:
+                      pressed || chatSending || !chatInput.trim() ? 0.45 : 1,
                   },
                 ]}
               >
-                <View style={styles.detailsHeroRow}>
-                  {encounter.photoUri ? (
-                    <Pressable
-                      onPress={() => {
-                        setProfileOpen(false);
-                        setTimeout(() => setLightboxOpen(true), 300);
-                      }}
-                      accessibilityLabel="View full-screen photo"
-                      accessibilityRole="button"
-                    >
-                      <Image
-                        source={{ uri: encounter.photoUri }}
-                        style={styles.detailsAvatar}
-                        contentFit="cover"
-                      />
-                    </Pressable>
-                  ) : (
-                    <View
-                      style={[
-                        styles.detailsAvatar,
-                        styles.detailsAvatarPlaceholder,
-                        { backgroundColor: colors.muted },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.detailsAvatarInitial,
-                          { color: colors.mutedForeground },
-                        ]}
-                      >
-                        {encounter.realName?.trim().charAt(0).toUpperCase() || "?"}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={[styles.detailsName, { color: colors.foreground }]}>
-                      {encounter.realName}
-                    </Text>
-                    <View style={styles.detailsMetaRow}>
-                      <Feather name="repeat" size={14} color={colors.primary} />
-                      <Text style={[styles.detailsMeta, { color: colors.primary }]}>
-                        {metTimesText}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {encounter.bio ? (
-                  <Text style={[styles.bio, { color: colors.foreground }]}>
-                    {encounter.bio}
-                  </Text>
-                ) : null}
-
-                {encounter.interests && encounter.interests.length > 0 ? (
-                  <View style={styles.interestsBlock}>
-                    <View style={styles.chipsRow}>
-                      {encounter.interests.map((tag) => (
-                        <View
-                          key={tag}
-                          style={[
-                            styles.interestChip,
-                            { backgroundColor: colors.muted, borderColor: colors.border },
-                          ]}
-                        >
-                          <Text style={[styles.interestChipText, { color: colors.foreground }]}>
-                            {t(`interestLabels.${tag.toLowerCase()}`)}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-
-                {encounter.lastLocation ? (
-                  <Pressable
-                    onPress={openMap}
-                    style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-                  >
-                    <LinearGradient
-                      colors={[colors.primary, "#2BA535"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.mapCard}
-                    >
-                      <Feather name="map-pin" size={18} color="#FFFFFF" />
-                      <Text style={styles.mapText} numberOfLines={1}>
-                        {encounter.lastLocation}
-                      </Text>
-                      <Feather name="external-link" size={16} color="#FFFFFF" />
-                    </LinearGradient>
-                  </Pressable>
-                ) : null}
-
-                {socialEntries.length > 0 ? (
-                  <View style={styles.socialsBlock}>
-                    <Text
-                      style={[styles.sectionLabel, { color: colors.mutedForeground }]}
-                    >
-                      {t("connection.socialsLabel")}
-                    </Text>
-                    <View style={styles.chipsRow}>
-                      {socialEntries.map(([platform, handle]) => (
-                        <SocialChip
-                          key={platform}
-                          platform={platform}
-                          handle={handle}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-
-                <NoteEditor
-                  colors={colors}
-                  value={encounter.note ?? ""}
-                  onSave={(next) => setNote(encounter.id, next)}
-                />
-
-                <TagsEditor
-                  colors={colors}
-                  tags={encounter.tags ?? []}
-                  onChange={(next) => setTags(encounter.id, next)}
-                />
-              </View>
-            </ScrollView>
-          </View>
-        </Modal>
-
-        <ActionSheet
-          visible={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          title={encounter.realName}
-          actions={[
-            {
-              label: t("encounter.reportAction"),
-              icon: "flag",
-              destructive: true,
-              onPress: () => {
-                setMenuOpen(false);
-                setTimeout(() => setReportSheetOpen(true), 250);
-              },
-            },
-            {
-              label: t("connection.blockAction"),
-              icon: "slash",
-              destructive: true,
-              onPress: handleBlock,
-            },
-            {
-              label: t("connection.removeConnectionAction"),
-              icon: "trash-2",
-              destructive: true,
-              onPress: handleRemove,
-            },
-          ]}
-        />
-
-        <ActionSheet
-          visible={reportSheetOpen}
-          onClose={() => setReportSheetOpen(false)}
-          title={t("encounter.reportSheet.title")}
-          message={t("encounter.reportSheet.subtitle")}
-          actions={[
-            {
-              label: t("encounter.reportSheet.reasonInappropriate"),
-              icon: "alert-octagon",
-              onPress: () => handleReport("inappropriate"),
-            },
-            {
-              label: t("encounter.reportSheet.reasonHarassment"),
-              icon: "user-x",
-              onPress: () => handleReport("harassment"),
-            },
-            {
-              label: t("encounter.reportSheet.reasonSpam"),
-              icon: "shield-off",
-              onPress: () => handleReport("spam"),
-            },
-            {
-              label: t("encounter.reportSheet.reasonUnderage"),
-              icon: "alert-triangle",
-              onPress: () => handleReport("underage"),
-            },
-            {
-              label: t("encounter.reportSheet.reasonOther"),
-              icon: "more-horizontal",
-              onPress: () => handleReport("other"),
-            },
-          ]}
-        />
-
-        {reportConfirmation ? (
-          <View style={styles.reportToastWrap} pointerEvents="none">
-            <View
-              style={[styles.reportToast, { backgroundColor: colors.foreground }]}
-            >
-              <Feather name="check-circle" size={18} color={colors.card} />
-              <Text style={[styles.reportToastText, { color: colors.card }]}>
-                {t("encounter.reported")}
-              </Text>
+                <Feather name="send" size={18} color="#FFFFFF" />
+              </Pressable>
             </View>
           </View>
-        ) : null}
+        </KeyboardAvoidingView>
+      </Modal>
 
-        {encounter.photoUri ? (
-          <PhotoLightbox
-            uri={encounter.photoUri}
-            visible={lightboxOpen}
-            onClose={() => setLightboxOpen(false)}
-          />
-        ) : null}
-      </View>
-    </KeyboardAvoidingView>
+      <ActionSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title={encounter.realName}
+        actions={[
+          {
+            label: t("encounter.reportAction"),
+            icon: "flag",
+            destructive: true,
+            onPress: () => {
+              setMenuOpen(false);
+              setTimeout(() => setReportSheetOpen(true), 250);
+            },
+          },
+          {
+            label: t("connection.blockAction"),
+            icon: "slash",
+            destructive: true,
+            onPress: handleBlock,
+          },
+          {
+            label: t("connection.removeConnectionAction"),
+            icon: "trash-2",
+            destructive: true,
+            onPress: handleRemove,
+          },
+        ]}
+      />
+
+      <ActionSheet
+        visible={reportSheetOpen}
+        onClose={() => setReportSheetOpen(false)}
+        title={t("encounter.reportSheet.title")}
+        message={t("encounter.reportSheet.subtitle")}
+        actions={[
+          {
+            label: t("encounter.reportSheet.reasonInappropriate"),
+            icon: "alert-octagon",
+            onPress: () => handleReport("inappropriate"),
+          },
+          {
+            label: t("encounter.reportSheet.reasonHarassment"),
+            icon: "user-x",
+            onPress: () => handleReport("harassment"),
+          },
+          {
+            label: t("encounter.reportSheet.reasonSpam"),
+            icon: "shield-off",
+            onPress: () => handleReport("spam"),
+          },
+          {
+            label: t("encounter.reportSheet.reasonUnderage"),
+            icon: "alert-triangle",
+            onPress: () => handleReport("underage"),
+          },
+          {
+            label: t("encounter.reportSheet.reasonOther"),
+            icon: "more-horizontal",
+            onPress: () => handleReport("other"),
+          },
+        ]}
+      />
+
+      {reportConfirmation ? (
+        <View style={styles.reportToastWrap} pointerEvents="none">
+          <View
+            style={[styles.reportToast, { backgroundColor: colors.foreground }]}
+          >
+            <Feather name="check-circle" size={18} color={colors.card} />
+            <Text style={[styles.reportToastText, { color: colors.card }]}>
+              {t("encounter.reported")}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {encounter.photoUri ? (
+        <PhotoLightbox
+          uri={encounter.photoUri}
+          visible={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -876,123 +920,28 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   headerName: { fontFamily: "Inter_700Bold", fontSize: 16 },
-  headerSub: { fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 1 },
+  headerSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 1 },
 
-  // Chat messages list
-  messagesContent: {
-    flexGrow: 1,
-    justifyContent: "flex-end",
-  },
-  chatEmpty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 64,
-    gap: 10,
-    paddingHorizontal: 40,
-  },
-  chatEmptyTitle: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 17,
-    textAlign: "center",
-  },
-  chatEmptySub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  chatMessages: {
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    gap: 4,
-  },
-  bubbleRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-    marginBottom: 2,
-  },
-  bubbleRowMe: { justifyContent: "flex-end" },
-  bubbleRowThem: { justifyContent: "flex-start" },
-  bubbleGroup: { maxWidth: "72%", gap: 3 },
-  bubble: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-  },
-  bubbleMe: { borderBottomRightRadius: 4 },
-  bubbleThem: {
-    borderBottomLeftRadius: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  bubbleText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  bubbleTime: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    opacity: 0.55,
-    paddingHorizontal: 2,
-  },
-
-  // Input bar
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    gap: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  inputField: {
-    flex: 1,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === "ios" ? 10 : 8,
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-    maxHeight: 100,
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Profile modal
-  modalContainer: { flex: 1 },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  modalTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 17,
-    flex: 1,
-    textAlign: "center",
-  },
-  modalClose: {
+  // Unread badge on chat icon
+  badge: {
     position: "absolute",
-    right: 16,
-    bottom: 12,
-    width: 38,
-    height: 38,
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 3,
   },
-  modalContent: { flexGrow: 1 },
+  badgeText: {
+    color: "#FFFFFF",
+    fontFamily: "Inter_700Bold",
+    fontSize: 9,
+    lineHeight: 12,
+  },
 
-  // Profile details (inside modal)
+  // Profile details
   detailsPanel: {
     paddingHorizontal: 22,
     paddingVertical: 18,
@@ -1098,6 +1047,115 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   suggestChipText: { fontFamily: "Inter_500Medium", fontSize: 12 },
+
+  // Chat modal
+  chatModal: { flex: 1 },
+  chatModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+  },
+  chatModalTitle: {
+    flex: 1,
+    fontFamily: "Inter_700Bold",
+    fontSize: 16,
+  },
+  chatModalClose: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Messages
+  messagesContent: {
+    flexGrow: 1,
+    justifyContent: "flex-end",
+  },
+  chatEmpty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 64,
+    gap: 10,
+    paddingHorizontal: 40,
+  },
+  chatEmptyTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 17,
+    textAlign: "center",
+  },
+  chatEmptySub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  chatMessages: {
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    gap: 4,
+  },
+  bubbleRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    marginBottom: 2,
+  },
+  bubbleRowMe: { justifyContent: "flex-end" },
+  bubbleRowThem: { justifyContent: "flex-start" },
+  bubbleGroup: { maxWidth: "72%", gap: 3 },
+  bubble: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+  },
+  bubbleMe: { borderBottomRightRadius: 4 },
+  bubbleThem: {
+    borderBottomLeftRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  bubbleText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  bubbleTime: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    opacity: 0.55,
+    paddingHorizontal: 2,
+  },
+
+  // Input bar
+  inputBar: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  inputField: {
+    flex: 1,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    fontFamily: "Inter_400Regular",
+    fontSize: 15,
+    maxHeight: 100,
+  },
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   // Report toast
   reportToastWrap: {
