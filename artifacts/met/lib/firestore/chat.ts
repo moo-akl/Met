@@ -35,7 +35,20 @@ function toEpochMs(v: MaybeTimestamp): number {
 
 /**
  * Send a message from `fromUid` to the chat shared with `toUid`.
- * Also updates the top-level chat doc's lastMessage + lastReadAt for sender.
+ *
+ * Strategy (no batch):
+ *  1. Write the message document to the sub-collection (always a CREATE).
+ *  2. Try to UPDATE the top-level chat meta doc (faster path, no participants check).
+ *     If the doc doesn't exist yet, UPDATE fails → fall back to SET (CREATE) with
+ *     the full participants array so the CREATE rule is satisfied.
+ *
+ * Why no batch?
+ *  Batches with set(..., { merge:true }) on a non-existent doc are evaluated as
+ *  CREATE, requiring the participants check. But the dot-notation key
+ *  `lastReadAt.${uid}` inside a native-SDK set() is treated as a literal field
+ *  name (not a nested path), which can confuse the rules evaluation.
+ *  Separating the writes and using update() (which correctly interprets dot
+ *  notation as field paths) is simpler and more predictable.
  */
 export async function sendMessage(
   fromUid: string,
@@ -53,22 +66,26 @@ export async function sendMessage(
     const chatRef = fs.collection("chats").doc(chatId);
     const msgRef = chatRef.collection("messages").doc();
 
-    // Use Date.now() for sentAt — avoids FieldValue.serverTimestamp()
-    // import complexity and ensures the value is immediately a number,
-    // so orderBy("sentAt") ordering works correctly for local pending writes
-    // before the server timestamp resolves.
-    const batch = fs.batch();
-    batch.set(msgRef, { from: fromUid, text: trimmed, sentAt: now });
-    batch.set(
-      chatRef,
-      {
-        participants: [fromUid, toUid].sort(),
+    // Step 1 — write the message (always a CREATE, rule: callerInChatId + from==uid)
+    await msgRef.set({ from: fromUid, text: trimmed, sentAt: now });
+
+    // Step 2 — update chat meta.
+    // update() interprets dot-notation as nested field paths (correct for lastReadAt).
+    // update() fires the UPDATE rule: allow update: if callerInChatId() — simple.
+    try {
+      await chatRef.update({
         lastMessage: { text: trimmed, from: fromUid, sentAt: now },
         [`lastReadAt.${fromUid}`]: now,
-      },
-      { merge: true },
-    );
-    await batch.commit();
+      });
+    } catch {
+      // Doc doesn't exist yet → CREATE with participants so the CREATE rule passes.
+      await chatRef.set({
+        participants: [fromUid, toUid].sort(),
+        lastMessage: { text: trimmed, from: fromUid, sentAt: now },
+        lastReadAt: { [fromUid]: now },
+      });
+    }
+
     return true;
   } catch (err) {
     console.warn("[chat] sendMessage failed", err);
@@ -94,7 +111,7 @@ export async function subscribeToMessages(
 
   const chatId = getChatId(myUid, peerUid);
 
-  // Auto-retry helper: if the onSnapshot listener dies with an error
+  // Auto-retry: if the onSnapshot listener dies with an error
   // (e.g. PERMISSION_DENIED from a stale rule set), re-subscribe after
   // a short back-off so the UI recovers without needing an app restart.
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -147,6 +164,8 @@ export async function subscribeToMessages(
 
 /**
  * Mark messages as read by updating lastReadAt for myUid on the chat doc.
+ * Uses update() so dot-notation correctly sets the nested field.
+ * Silently ignores errors (doc may not exist yet if no messages have been sent).
  */
 export async function markChatRead(
   myUid: string,
@@ -159,9 +178,9 @@ export async function markChatRead(
     await fs
       .collection("chats")
       .doc(chatId)
-      .set({ [`lastReadAt.${myUid}`]: Date.now() }, { merge: true });
-  } catch (err) {
-    console.warn("[chat] markChatRead failed", err);
+      .update({ [`lastReadAt.${myUid}`]: Date.now() });
+  } catch {
+    // Doc doesn't exist yet (no messages sent) — nothing to mark as read.
   }
 }
 
