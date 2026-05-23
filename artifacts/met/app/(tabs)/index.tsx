@@ -73,14 +73,28 @@ export default function HomeScreen() {
 
   const stats = useMemo(() => {
     const todayCutoff = now - 24 * 60 * 60 * 1000;
+    const cleanupCutoff =
+      preferences.autoCleanupDays > 0
+        ? now - preferences.autoCleanupDays * 24 * 60 * 60 * 1000
+        : 0;
+    // Mirror the same filter the Recent tab applies so tapping "today"
+    // leads to a list whose length matches the displayed count.
+    const todayEncounters = encounters.filter((e) => {
+      if (e.status === "connected") return false;
+      if (e.status === "encounter") {
+        if (e.lastDistanceM > rangeM) return false;
+        if (cleanupCutoff > 0 && e.lastSeenAt < cleanupCutoff) return false;
+      }
+      return e.lastSeenAt >= todayCutoff;
+    });
     return {
-      today: encounters.filter((e) => e.lastSeenAt >= todayCutoff).length,
+      today: todayEncounters.length,
       connections: encounters.filter((e) => e.status === "connected").length,
       pending: encounters.filter(
         (e) => e.status === "request_sent" || e.status === "request_received",
       ).length,
     };
-  }, [encounters, now]);
+  }, [encounters, now, rangeM, preferences.autoCleanupDays]);
 
   // Lightweight weekly recap so the home screen reinforces the "people, not
   // followers" thesis. `newPeople` are first-seen this week; `repeats` are

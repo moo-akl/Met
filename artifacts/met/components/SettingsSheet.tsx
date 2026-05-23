@@ -56,10 +56,123 @@ type SheetView =
 // External "About Met" links. Leave empty to hide the row entirely so we
 // don't ship a broken link. Fill RATE_URL_* in once you have the real
 // App Store / Play Store listings.
-const TERMS_URL =
-  "https://doc-hosting.flycricket.io/met-terms-conditions/de6cbb09-1b5f-4203-aba7-c70fe3fa4932/terms";
 const RATE_URL_IOS = "";
 const RATE_URL_ANDROID = "";
+
+const PRIVACY_POLICY = `Privacy Policy for Met
+Last Updated: March 2026
+
+At Met, we respect your privacy and are committed to protecting the personal data of our users. This Privacy Policy explains how we collect, use, and safeguard your information when you use our mobile application.
+
+1. Information We Collect
+To provide our core "Nearby Encounter" services, we collect the following:
+
+Account Information: Display name, profile photo, bio, and social media links you choose to provide.
+
+Location Data: Precise GPS coordinates.
+
+Bluetooth Data: Unique, non-identifiable numeric hashes (UID Hashes) used for device-to-device recognition via Bluetooth Low Energy (BLE).
+
+Authentication Data: Email addresses and login credentials managed securely via Google Firebase.
+
+2. Use of Background Location & Bluetooth (Core Disclosure)
+Met's primary purpose is to help you discover people you have physically crossed paths with. To function correctly, Met collects location data and performs Bluetooth scanning even when the app is closed or not in use.
+
+Why we need this: Without background access, the app cannot "detect" an encounter unless you have the app open in your hand at the exact moment you pass someone.
+
+Proximity vs. History: We do not build a permanent map of your movements. Location data is used transiently to calculate proximity to other users and is only recorded as a static "Encounter" event (Time + Approximate Location) when a match is found.
+
+User Control: You can disable background tracking at any time in your device settings, though this will prevent the app from recording new encounters.
+
+3. How We Use Your Information
+Facilitating Encounters: Matching your UID Hash with others in physical proximity.
+
+Profile Display: Showing your chosen profile details to users you have "Met."
+
+Safety & Blocking: Maintaining your "Blocked Users" list to ensure you remain invisible to specific individuals.
+
+4. Data Sharing & Third-Party Services
+We do not sell your personal or location data. We use the following secure sub-processors:
+
+Google Play Services: For core Android functionality.
+
+Google Firebase: For encrypted data storage, real-time database, and authentication.
+
+5. Data Retention & Account Deletion
+We only store data for as long as your account is active.
+
+In-App Deletion: You may delete your account via the Profile Settings. This action permanently deletes your profile, location breadcrumbs, and encounter history from our active databases.
+
+Web-Based Deletion: In compliance with Google Play requirements, if you have deleted the app and wish to request data removal, you may do so via our Data Deletion Request Form.
+
+6. Security
+Your data is encrypted in transit (SSL/TLS) and at rest using Google's enterprise-grade security infrastructure. We implement strict access controls to ensure your location data remains private.
+
+7. Contact Us
+For questions regarding this policy or your data, contact us at: metapp.contact@gmail.com`;
+
+const TERMS_AND_CONDITIONS = `Terms & Conditions for Met
+Last Updated: April 27, 2026
+
+1. Introduction & Acceptance
+By downloading or using the Met mobile application ("the App"), you agree to be bound by these Terms & Conditions. If you do not agree, do not use the App. These terms constitute a legally binding agreement between you and MetApp Founders.
+
+2. Eligibility
+Age: You must be at least 18 years old to use Met. By using the App, you represent and warrant that you meet this age requirement.
+
+Verification: You agree to provide accurate information and may be required to complete AI-powered face verification to maintain account standing.
+
+3. Description of Service: The "Social Radar"
+Met is a social discovery platform that uses Background Location and Bluetooth Low Energy (BLE) to detect when users "cross paths" in the real world.
+
+Encounters: An "Encounter" is recorded when two users are within a specific proximity.
+
+Visibility: You can toggle your visibility at any time. When "Ghost Mode" is active, your location will not be broadcast to others.
+
+4. Location & Background Data Usage
+To provide the core "Social Radar" value, Met requires Always-On Location Access.
+
+Purpose: We collect your location data even when the app is closed or not in use to facilitate proximity alerts and record encounters.
+
+Privacy: We do not share your live, exact GPS coordinates with other users. We only notify users that an "Encounter" has occurred within a general proximity.
+
+5. User Conduct & Safety
+You agree NOT to use Met for:
+
+Stalking, harassing, or intimidating any individual.
+
+Impersonating others or creating "bot" accounts.
+
+Scraping data or reverse-engineering the App's radar technology.
+
+Real-World Safety: You are solely responsible for your interactions with other users. Met facilitates digital discovery but does not vet the physical safety of every user. Always meet in public, well-lit places.
+
+6. Objectionable Content & Reporting
+Met has a Zero-Tolerance Policy for objectionable content or abusive users.
+
+UGC: You own the content you post, but you grant Met a license to display it.
+
+Reporting: Users can report any profile for inappropriate behavior.
+
+24-Hour Action: We commit to reviewing and taking action on reported content within 24 hours. We reserve the right to terminate accounts immediately for safety violations.
+
+7. Limitation of Liability
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, MET SHALL NOT BE LIABLE FOR ANY DAMAGES RESULTING FROM:
+
+Physical or emotional harm arising from real-world meetings between users.
+
+Unauthorized access to your location data resulting from device theft.
+
+Any technical failure of the "Social Radar" to accurately detect proximity.
+
+8. Account Termination
+We reserve the right to suspend or delete your account at our sole discretion, without notice, if we believe you have violated these Terms or pose a safety risk to the community.
+
+9. Changes to Terms
+We may update these terms in 2026 to reflect new technology or regulations. Continued use of the App after changes constitutes acceptance of the new terms.
+
+10. Contact Us
+For support or to report a violation, contact: metapp.contact@gmail.com`;
 
 function cleanupLabel(t: (k: string) => string, days: AutoCleanupDays): string {
   switch (days) {
@@ -1180,7 +1293,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
               showsVerticalScrollIndicator={false}
             >
               <Text style={[styles.legalText, { color: colors.foreground }]}>
-                {t("settings.privacyBody")}
+                {PRIVACY_POLICY}
               </Text>
             </ScrollView>
           ) : view === "terms" ? (
@@ -1190,7 +1303,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
               showsVerticalScrollIndicator={false}
             >
               <Text style={[styles.legalText, { color: colors.foreground }]}>
-                {t("settings.termsBody")}
+                {TERMS_AND_CONDITIONS}
               </Text>
             </ScrollView>
           ) : null}
