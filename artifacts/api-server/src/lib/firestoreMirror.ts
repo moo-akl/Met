@@ -23,6 +23,7 @@ export type ProfileMirrorFields = {
   photoUrl: string | null;
   bio: string | null;
   socials: Record<string, string>;
+  interests: string[];
   isVisible: boolean;
 };
 
@@ -44,6 +45,7 @@ export async function mirrorProfileToFirestore(
         photoUrl: fields.photoUrl,
         bio: fields.bio,
         socials: fields.socials,
+        interests: fields.interests,
         isVisible: fields.isVisible,
         updatedAt: FieldValue.serverTimestamp(),
       },

@@ -133,6 +133,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     photoUrl: row!.photoUrl ?? null,
     bio: row!.bio ?? null,
     socials: (row!.socials ?? {}) as Record<string, string>,
+    interests: (row!.interests ?? []) as string[],
     isVisible: row!.isVisible,
   });
 

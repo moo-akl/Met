@@ -66,25 +66,36 @@ export async function sendMessage(
     const chatRef = fs.collection("chats").doc(chatId);
     const msgRef = chatRef.collection("messages").doc();
 
-    // Step 1 — write the message (always a CREATE, rule: callerInChatId + from==uid)
+    // Step 1 — write the message (always a CREATE, rule: callerInChatId + from==uid).
+    // This is the only critical write: if it fails we return false so the caller
+    // can restore the draft. Everything after this is best-effort.
     await msgRef.set({ from: fromUid, text: trimmed, sentAt: now });
 
-    // Step 2 — update chat meta.
-    // update() interprets dot-notation as nested field paths (correct for lastReadAt).
-    // update() fires the UPDATE rule: allow update: if callerInChatId() — simple.
-    try {
-      await chatRef.update({
-        lastMessage: { text: trimmed, from: fromUid, sentAt: now },
-        [`lastReadAt.${fromUid}`]: now,
-      });
-    } catch {
-      // Doc doesn't exist yet → CREATE with participants so the CREATE rule passes.
-      await chatRef.set({
-        participants: [fromUid, toUid].sort(),
-        lastMessage: { text: trimmed, from: fromUid, sentAt: now },
-        lastReadAt: { [fromUid]: now },
-      });
-    }
+    // Step 2 — update chat meta doc (best-effort, fire-and-forget).
+    // We deliberately do NOT await this: a meta-write failure must never make
+    // sendMessage return false when the message itself was successfully stored.
+    void (async () => {
+      try {
+        // update() interprets dot-notation as nested field paths (correct for
+        // lastReadAt.{uid}). Fires the UPDATE rule: allow update: if callerInChatId().
+        await chatRef.update({
+          lastMessage: { text: trimmed, from: fromUid, sentAt: now },
+          [`lastReadAt.${fromUid}`]: now,
+        });
+      } catch {
+        // Doc doesn't exist yet → CREATE it with the participants array so the
+        // Firestore CREATE rule (requires participants field) passes.
+        try {
+          await chatRef.set({
+            participants: [fromUid, toUid].sort(),
+            lastMessage: { text: trimmed, from: fromUid, sentAt: now },
+            lastReadAt: { [fromUid]: now },
+          });
+        } catch (metaErr) {
+          console.warn("[chat] meta update failed (non-critical)", metaErr);
+        }
+      }
+    })();
 
     return true;
   } catch (err) {
