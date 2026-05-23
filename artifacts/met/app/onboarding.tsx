@@ -38,7 +38,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { getLanguage, useT } from "@/lib/i18n";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
-import { loadDragHintDismissed, saveDragHintDismissed } from "@/lib/storage";
+import { loadDragHintDismissed, loadProfile, saveDragHintDismissed } from "@/lib/storage";
 import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
 import { consumePendingReferral } from "./_layout";
@@ -225,13 +225,20 @@ export default function OnboardingScreen() {
       if (!api.isConfigured()) return false;
       const remote = await api.getMyProfile({ uid });
       if (!remote || !remote.displayName) return false;
+      // Load locally stored profile so we can fall back to its interests if
+      // the server returns an empty array (e.g. column just added, first sync
+      // after migration). Server interests win when non-empty.
+      const local = await loadProfile();
       const restored: Profile = {
         id: remote.uid,
         name: remote.displayName,
         bio: remote.bio ?? "",
         photoUri: remote.photoUrl ?? "",
         socials: (remote.socials ?? {}) as SocialLinks,
-        interests: (remote.interests ?? []) as string[],
+        interests:
+          remote.interests && remote.interests.length > 0
+            ? (remote.interests as string[])
+            : (local?.interests ?? []),
         verified: true,
         isVisible: remote.isVisible ?? false,
         photoVerifiedAt: Date.now(),
