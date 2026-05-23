@@ -411,9 +411,9 @@ export function SettingsSheet({ visible, onClose }: Props) {
       animationType="fade"
       onRequestClose={close}
     >
-      <Pressable style={styles.backdrop} onPress={close}>
+      <View style={styles.backdrop}>
+        <Pressable style={{ flex: 1 }} onPress={close} />
         <View
-          onStartShouldSetResponder={() => true}
           style={[
             styles.sheet,
             {
@@ -1310,7 +1310,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
             </ScrollView>
           ) : null}
         </View>
-      </Pressable>
+      </View>
 
       <ActionSheet
         visible={rangeMenuOpen}
