@@ -38,6 +38,14 @@ export default function HomeScreen() {
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
+
+  // Tick every 60 s so the "today" window slides forward without needing a
+  // new encounter to trigger a useMemo re-run.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const { locationOk, bluetoothOk, checked } = usePermissionStatus();
   const permsMissing = checked && (!locationOk || !bluetoothOk);
   const {
@@ -64,15 +72,15 @@ export default function HomeScreen() {
   );
 
   const stats = useMemo(() => {
-    const today = Date.now() - 24 * 60 * 60 * 1000;
+    const todayCutoff = now - 24 * 60 * 60 * 1000;
     return {
-      today: encounters.filter((e) => e.lastSeenAt >= today).length,
+      today: encounters.filter((e) => e.lastSeenAt >= todayCutoff).length,
       connections: encounters.filter((e) => e.status === "connected").length,
       pending: encounters.filter(
         (e) => e.status === "request_sent" || e.status === "request_received",
       ).length,
     };
-  }, [encounters]);
+  }, [encounters, now]);
 
   // Lightweight weekly recap so the home screen reinforces the "people, not
   // followers" thesis. `newPeople` are first-seen this week; `repeats` are

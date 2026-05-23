@@ -533,11 +533,9 @@ export const es: LocaleTree = {
     editNoteA11y: "Editar nota",
     addNoteA11y: "Añadir nota",
     removeTagA11y: "Quitar etiqueta {{tag}}",
-    chatPlaceholder: "Mensaje a {{name}}…",
+    interestsLabel: "Intereses",
+    socialHint: "Contáctales a través de sus redes sociales para conectar directamente.",
     tapForProfile: "Toca para ver el perfil",
-    chatEmptyTitle: "Empieza la conversación",
-    chatEmptySub: "Di algo para romper el hielo.",
-    chatSendA11y: "Enviar mensaje",
   },
 
   shareCard: {
@@ -661,6 +659,10 @@ export const es: LocaleTree = {
     aboutTagline: "Recuerda a la persona, no el número de seguidores.",
     aboutPrivacy: "Política de privacidad",
     aboutTerms: "Términos del servicio",
+    privacyBody:
+      "Met recopila solo la información necesaria para el funcionamiento de la app: detalles de tu perfil, datos de proximidad de encuentros y credenciales de autenticación. Tu ubicación se usa localmente en tu dispositivo para la detección de proximidad y nunca se almacena en nuestros servidores. Los datos de encuentros se almacenan de forma segura y solo son visibles para ti y las personas con las que te conectas mutuamente. No vendemos tus datos a terceros. Puedes eliminar tu cuenta y todos los datos asociados en cualquier momento desde la pantalla de Ajustes. Para consultas, contáctanos en metapp.contact@gmail.com.",
+    termsBody:
+      "Al usar Met aceptas utilizar la aplicación de forma respetuosa y legal. Debes tener 18 años o más para usar Met. Eres responsable del contenido que compartes en tu perfil y en los mensajes iniciales. Met se reserva el derecho de suspender cuentas que violen los estándares de la comunidad. La aplicación se proporciona tal cual, sin garantías. Met no se hace responsable de los daños derivados del uso del servicio.",
     aboutContact: "Contactar con soporte",
     aboutRate: "Valorar Met",
     notifications: "Notificaciones",

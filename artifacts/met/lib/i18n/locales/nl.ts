@@ -539,11 +539,9 @@ export const nl: LocaleTree = {
     editNoteA11y: "Notitie bewerken",
     addNoteA11y: "Notitie toevoegen",
     removeTagA11y: "Tag {{tag}} verwijderen",
-    chatPlaceholder: "Bericht aan {{name}}…",
+    interestsLabel: "Interesses",
+    socialHint: "Neem contact op via hun socials hierboven om direct te verbinden.",
     tapForProfile: "Tik om profiel te bekijken",
-    chatEmptyTitle: "Start het gesprek",
-    chatEmptySub: "Zeg iets om het ijs te breken.",
-    chatSendA11y: "Bericht sturen",
   },
 
   shareCard: {
@@ -668,6 +666,10 @@ export const nl: LocaleTree = {
     aboutTagline: "Onthoud de mens, niet het aantal volgers.",
     aboutPrivacy: "Privacybeleid",
     aboutTerms: "Servicevoorwaarden",
+    privacyBody:
+      "Met verzamelt alleen de informatie die nodig is om de app te laten werken — je profielgegevens, nabijheidsdata van ontmoetingen en authenticatiegegevens. Je locatie wordt lokaal op je apparaat gebruikt voor nabijheidsdetectie en wordt nooit opgeslagen op onze servers. Ontmoetingsdata wordt veilig opgeslagen en is alleen zichtbaar voor jou en de mensen met wie je wederzijds verbinding maakt. We verkopen je gegevens niet aan derden. Je kunt je account en alle bijbehorende gegevens op elk moment verwijderen via het scherm Instellingen. Voor vragen kun je contact opnemen via metapp.contact@gmail.com.",
+    termsBody:
+      "Door gebruik te maken van Met ga je ermee akkoord de app respectvol en wettelijk te gebruiken. Je moet 18 jaar of ouder zijn om Met te gebruiken. Je bent verantwoordelijk voor de inhoud die je deelt op je profiel en in openingsberichten. Met behoudt zich het recht voor accounts te schorsen die de gemeenschapsstandaarden schenden. De app wordt geleverd zoals hij is, zonder garantie. Met is niet aansprakelijk voor schade die voortvloeit uit je gebruik van de dienst.",
     aboutContact: "Contact opnemen met support",
     aboutRate: "Met beoordelen",
     notifications: "Meldingen",

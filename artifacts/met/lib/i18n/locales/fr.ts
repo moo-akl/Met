@@ -544,11 +544,9 @@ export const fr: LocaleTree = {
     editNoteA11y: "Modifier la note",
     addNoteA11y: "Ajouter une note",
     removeTagA11y: "Retirer l'étiquette {{tag}}",
-    chatPlaceholder: "Message à {{name}}…",
+    interestsLabel: "Centres d'intérêt",
+    socialHint: "Contactez-les via leurs réseaux sociaux ci-dessus pour vous connecter directement.",
     tapForProfile: "Appuyer pour voir le profil",
-    chatEmptyTitle: "Lancez la conversation",
-    chatEmptySub: "Dites quelque chose pour briser la glace.",
-    chatSendA11y: "Envoyer le message",
   },
 
   shareCard: {
@@ -674,6 +672,10 @@ export const fr: LocaleTree = {
       "Souvenez-vous de la personne, pas du nombre d'abonnés.",
     aboutPrivacy: "Politique de confidentialité",
     aboutTerms: "Conditions d'utilisation",
+    privacyBody:
+      "Met collecte uniquement les informations nécessaires au fonctionnement de l'application — les détails de votre profil, les données de proximité des rencontres et les identifiants d'authentification. Votre position est utilisée localement sur votre appareil pour la détection de proximité et n'est jamais stockée sur nos serveurs. Les données de rencontre sont stockées de manière sécurisée et ne sont visibles que par vous et les personnes avec lesquelles vous vous connectez mutuellement. Nous ne vendons pas vos données à des tiers. Vous pouvez supprimer votre compte et toutes les données associées à tout moment depuis l'écran Paramètres. Pour toute question, contactez-nous à metapp.contact@gmail.com.",
+    termsBody:
+      "En utilisant Met, vous acceptez d'utiliser l'application de manière respectueuse et légale. Vous devez avoir 18 ans ou plus pour utiliser Met. Vous êtes responsable du contenu que vous partagez sur votre profil et dans les messages d'ouverture. Met se réserve le droit de suspendre les comptes qui enfreignent les normes de la communauté. L'application est fournie telle quelle, sans garantie. Met n'est pas responsable des dommages résultant de votre utilisation du service.",
     aboutContact: "Contacter le support",
     aboutRate: "Noter Met",
     notifications: "Notifications",

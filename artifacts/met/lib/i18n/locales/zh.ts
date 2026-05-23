@@ -511,11 +511,9 @@ export const zh: LocaleTree = {
     editNoteA11y: "编辑备注",
     addNoteA11y: "添加备注",
     removeTagA11y: "移除标签 {{tag}}",
-    chatPlaceholder: "给 {{name}} 发消息…",
+    interestsLabel: "兴趣爱好",
+    socialHint: "通过上方的社交账号直接联系对方。",
     tapForProfile: "点击查看资料",
-    chatEmptyTitle: "开始对话",
-    chatEmptySub: "说点什么来打破僵局。",
-    chatSendA11y: "发送消息",
   },
 
   shareCard: {
@@ -633,6 +631,10 @@ export const zh: LocaleTree = {
     aboutTagline: "记住这个人,而不是粉丝数。",
     aboutPrivacy: "隐私政策",
     aboutTerms: "服务条款",
+    privacyBody:
+      "Met 仅收集运行应用所需的信息——您的个人资料详情、相遇邻近数据和身份验证凭据。您的位置仅在您的设备本地用于邻近检测，从不存储在我们的服务器上。相遇数据安全存储，仅对您和您相互连接的人可见。我们不会将您的数据出售给第三方。您可以随时通过设置页面删除您的账户及所有相关数据。如有疑问请联系 metapp.contact@gmail.com。",
+    termsBody:
+      "使用 Met 即表示您同意以尊重和合法的方式使用该应用。您必须年满 18 岁才能使用 Met。您对在个人资料和开场消息中分享的内容负责。Met 保留暂停违反社区准则账户的权利。该应用按原样提供，不作任何保证。Met 对因使用本服务而产生的任何损失不承担责任。",
     aboutContact: "联系支持",
     aboutRate: "为 Met 评分",
     notifications: "通知",

@@ -538,11 +538,9 @@ export const vi: LocaleTree = {
     editNoteA11y: "Sửa ghi chú",
     addNoteA11y: "Thêm ghi chú",
     removeTagA11y: "Xoá thẻ {{tag}}",
-    chatPlaceholder: "Nhắn tin cho {{name}}…",
+    interestsLabel: "Sở thích",
+    socialHint: "Liên hệ qua mạng xã hội của họ ở trên để kết nối trực tiếp.",
     tapForProfile: "Nhấn để xem hồ sơ",
-    chatEmptyTitle: "Bắt đầu cuộc trò chuyện",
-    chatEmptySub: "Nói gì đó để phá vỡ rào cản.",
-    chatSendA11y: "Gửi tin nhắn",
   },
 
   shareCard: {
@@ -667,6 +665,10 @@ export const vi: LocaleTree = {
     aboutTagline: "Hãy nhớ về con người, không phải số người theo dõi.",
     aboutPrivacy: "Chính sách quyền riêng tư",
     aboutTerms: "Điều khoản dịch vụ",
+    privacyBody:
+      "Met chỉ thu thập thông tin cần thiết để vận hành ứng dụng — thông tin hồ sơ, dữ liệu khoảng cách gặp gỡ và thông tin xác thực. Vị trí của bạn được sử dụng cục bộ trên thiết bị để phát hiện gần kề và không bao giờ được lưu trữ trên máy chủ của chúng tôi. Dữ liệu gặp gỡ được lưu trữ an toàn và chỉ hiển thị cho bạn và những người bạn kết nối qua lại. Chúng tôi không bán dữ liệu của bạn cho bên thứ ba. Bạn có thể xóa tài khoản và tất cả dữ liệu liên quan bất kỳ lúc nào từ màn hình Cài đặt. Liên hệ metapp.contact@gmail.com nếu có thắc mắc.",
+    termsBody:
+      "Khi sử dụng Met bạn đồng ý sử dụng ứng dụng một cách tôn trọng và hợp pháp. Bạn phải đủ 18 tuổi để sử dụng Met. Bạn chịu trách nhiệm về nội dung bạn chia sẻ trên hồ sơ và trong tin nhắn mở đầu. Met có quyền đình chỉ các tài khoản vi phạm tiêu chuẩn cộng đồng. Ứng dụng được cung cấp nguyên trạng, không có bảo hành. Met không chịu trách nhiệm về bất kỳ thiệt hại nào phát sinh từ việc sử dụng dịch vụ.",
     aboutContact: "Liên hệ hỗ trợ",
     aboutRate: "Đánh giá Met",
     notifications: "Thông báo",

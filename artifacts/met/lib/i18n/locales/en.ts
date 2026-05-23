@@ -542,11 +542,9 @@ export const en = {
     editNoteA11y: "Edit note",
     addNoteA11y: "Add note",
     removeTagA11y: "Remove tag {{tag}}",
-    chatPlaceholder: "Message {{name}}…",
+    interestsLabel: "Interests",
+    socialHint: "Reach out via their socials above to connect directly.",
     tapForProfile: "Tap to view profile",
-    chatEmptyTitle: "Start the conversation",
-    chatEmptySub: "Say something to break the ice.",
-    chatSendA11y: "Send message",
   },
 
   shareCard: {
@@ -667,6 +665,10 @@ export const en = {
     aboutTagline: "Remember the human, not the follower count.",
     aboutPrivacy: "Privacy policy",
     aboutTerms: "Terms of service",
+    privacyBody:
+      "Met collects only the information needed to run the app — your profile details, encounter proximity data, and authentication credentials. Your location is used locally on your device for proximity detection and is never stored on our servers. Encounter data is stored securely and only visible to you and the people you mutually connect with. We do not sell your data to third parties. You can delete your account and all associated data at any time from the Settings screen. For questions, contact us at metapp.contact@gmail.com.",
+    termsBody:
+      "By using Met you agree to use the app respectfully and lawfully. You must be 18 or older to use Met. You are responsible for the content you share on your profile and in opening messages. Met reserves the right to suspend accounts that violate community standards, including harassment, impersonation, or sharing inappropriate content. The app is provided as-is without warranty. Met is not liable for any damages arising from your use of the service. These terms may be updated from time to time — continued use of the app constitutes acceptance of any changes.",
     aboutContact: "Contact support",
     aboutRate: "Rate Met",
     notifications: "Notifications",

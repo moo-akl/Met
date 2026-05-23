@@ -21,47 +21,12 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useT } from "@/lib/i18n";
-import { subscribeToChatMeta, type ChatMeta } from "@/lib/firestore/chat";
 import {
   loadConnectionsSort,
   saveConnectionsSort,
   type ConnectionsSort,
 } from "@/lib/storage";
 import type { Encounter } from "@/lib/types";
-
-/**
- * Subscribes to the Firestore chat meta doc for a single connection and
- * returns true when the peer has sent a message that the current user has
- * not yet read.
- */
-function useChatUnread(myUid: string | undefined, peerUid: string): boolean {
-  const [meta, setMeta] = useState<ChatMeta | null>(null);
-  const unsubRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    if (!myUid) return;
-    let cancelled = false;
-    subscribeToChatMeta(myUid, peerUid, (m) => {
-      if (!cancelled) setMeta(m);
-    }).then((unsub) => {
-      if (cancelled) {
-        unsub();
-      } else {
-        unsubRef.current = unsub;
-      }
-    });
-    return () => {
-      cancelled = true;
-      unsubRef.current?.();
-      unsubRef.current = null;
-    };
-  }, [myUid, peerUid]);
-
-  if (!meta?.lastMessage) return false;
-  if (meta.lastMessage.from === myUid) return false;
-  const myLastRead = meta.lastReadAt[myUid ?? ""] ?? 0;
-  return meta.lastMessage.sentAt > myLastRead;
-}
 
 function timeAgo(ts: number, t: (k: string, opts?: Record<string, unknown>) => string) {
   const diff = Math.max(1, Math.floor((Date.now() - ts) / 1000));
@@ -389,8 +354,6 @@ function ConnectionRow({
   t: (k: string, opts?: Record<string, unknown>) => string;
   onPress: () => void;
 }) {
-  const chatUnread = useChatUnread(myUid, c.id);
-
   const om = c.openingMessage;
   let preview: string;
   let previewColor = colors.mutedForeground;
@@ -418,7 +381,7 @@ function ConnectionRow({
     );
   }
 
-  const unread = openingUnread || chatUnread;
+  const unread = openingUnread;
 
   return (
     <View>

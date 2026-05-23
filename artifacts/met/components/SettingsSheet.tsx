@@ -49,7 +49,9 @@ type SheetView =
   | "blocked"
   | "notifications"
   | "about"
-  | "language";
+  | "language"
+  | "privacy"
+  | "terms";
 
 // External "About Met" links. Leave empty to hide the row entirely so we
 // don't ship a broken link. Fill RATE_URL_* in once you have the real
@@ -282,6 +284,10 @@ export function SettingsSheet({ visible, onClose }: Props) {
         return t("settings.aboutTitle");
       case "language":
         return t("language.title");
+      case "privacy":
+        return t("settings.aboutPrivacy");
+      case "terms":
+        return t("settings.aboutTerms");
     }
   })();
 
@@ -1124,21 +1130,15 @@ export function SettingsSheet({ visible, onClose }: Props) {
               <AboutLink
                 icon="shield"
                 label={t("settings.aboutPrivacy")}
-                onPress={() =>
-                  openLink(
-                    "https://doc-hosting.flycricket.io/met-privacy-policy/fdc825e1-4bde-43aa-9e6f-cd4b9860f90d/privacy",
-                  )
-                }
+                onPress={() => setView("privacy")}
                 colors={colors}
               />
-              {TERMS_URL ? (
-                <AboutLink
-                  icon="file-text"
-                  label={t("settings.aboutTerms")}
-                  onPress={() => openLink(TERMS_URL)}
-                  colors={colors}
-                />
-              ) : null}
+              <AboutLink
+                icon="file-text"
+                label={t("settings.aboutTerms")}
+                onPress={() => setView("terms")}
+                colors={colors}
+              />
               <View
                 style={[
                   styles.contactCard,
@@ -1172,6 +1172,26 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   colors={colors}
                 />
               ) : null}
+            </ScrollView>
+          ) : view === "privacy" ? (
+            <ScrollView
+              style={{ maxHeight: 420 }}
+              contentContainerStyle={{ padding: 4, paddingBottom: 16 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[styles.legalText, { color: colors.foreground }]}>
+                {t("settings.privacyBody")}
+              </Text>
+            </ScrollView>
+          ) : view === "terms" ? (
+            <ScrollView
+              style={{ maxHeight: 420 }}
+              contentContainerStyle={{ padding: 4, paddingBottom: 16 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[styles.legalText, { color: colors.foreground }]}>
+                {t("settings.termsBody")}
+              </Text>
             </ScrollView>
           ) : null}
         </Pressable>
@@ -1667,6 +1687,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: "italic",
     lineHeight: 18,
+  },
+  legalText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 20,
   },
   contactCard: {
     flexDirection: "row",

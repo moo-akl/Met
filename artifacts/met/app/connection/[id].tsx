@@ -2,16 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "@/components/MetImage";
 
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,17 +22,6 @@ import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { type ReportReason, submitReport } from "@/lib/reports";
 import type { SocialPlatform } from "@/lib/types";
-import {
-  type ChatMessage,
-  subscribeToMessages,
-  sendMessage,
-  markChatRead,
-} from "@/lib/firestore/chat";
-
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-}
 
 export default function ConnectionScreen() {
   const colors = useColors();
@@ -57,14 +43,6 @@ export default function ConnectionScreen() {
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [reportConfirmation, setReportConfirmation] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-
-  // Chat state — subscribe in the background so unread count is always fresh
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [lastReadAt, setLastReadAt] = useState<number>(Date.now());
-  const [chatInput, setChatInput] = useState("");
-  const [chatSending, setChatSending] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -79,60 +57,6 @@ export default function ConnectionScreen() {
       router.replace(`/encounter/${encounter.id}`);
     }
   }, [encounter, router]);
-
-  // Subscribe to real-time chat messages in the background
-  useEffect(() => {
-    if (!profile?.id || !encounter?.id) return;
-    const myUid = profile.id;
-    const peerUid = encounter.id;
-    let unsub: (() => void) | null = null;
-
-    subscribeToMessages(myUid, peerUid, (msgs) => {
-      setMessages(msgs);
-    }).then((fn) => {
-      unsub = fn;
-    });
-
-    return () => {
-      unsub?.();
-    };
-  }, [profile?.id, encounter?.id]);
-
-  // Mark as read and scroll when the chat panel opens
-  useEffect(() => {
-    if (!chatOpen || !profile?.id || !encounter?.id) return;
-    setLastReadAt(Date.now());
-    markChatRead(profile.id, encounter.id).catch(() => {});
-    // Scroll to bottom
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);
-  }, [chatOpen, profile?.id, encounter?.id]);
-
-  // Auto-scroll to newest message while chat is open
-  useEffect(() => {
-    if (chatOpen && messages.length > 0) {
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
-    }
-  }, [chatOpen, messages.length]);
-
-  const handleSend = useCallback(async () => {
-    const text = chatInput.trim();
-    if (!text || chatSending || !profile?.id || !encounter?.id) return;
-    setChatInput("");
-    setChatSending(true);
-    try {
-      const ok = await sendMessage(profile.id, encounter.id, text);
-      if (!ok) {
-        setChatInput(text);
-      }
-    } catch {
-      setChatInput(text);
-    } finally {
-      setChatSending(false);
-    }
-  }, [chatInput, chatSending, profile?.id, encounter?.id]);
-
-  const webTop = Platform.OS === "web" ? 67 : 0;
-  const webBot = Platform.OS === "web" ? 34 : 0;
 
   if (!encounter) {
     return (
@@ -187,13 +111,6 @@ export default function ConnectionScreen() {
     { count: encounter.encounterCount },
   );
 
-  const myUid = profile?.id ?? "";
-
-  // Count messages received since the chat was last opened
-  const unreadCount = messages.filter(
-    (m) => m.from !== myUid && m.sentAt > lastReadAt,
-  ).length;
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -205,7 +122,7 @@ export default function ConnectionScreen() {
           {
             backgroundColor: colors.card,
             borderBottomColor: colors.border,
-            paddingTop: insets.top + webTop + 10,
+            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 10,
           },
         ]}
       >
@@ -234,26 +151,6 @@ export default function ConnectionScreen() {
             </Text>
           </View>
         </View>
-        {/* Chat icon — badge shows unread count */}
-        <Pressable
-          onPress={() => setChatOpen(true)}
-          hitSlop={12}
-          style={styles.headerBtn}
-          accessibilityLabel={t("connection.chatSendA11y")}
-        >
-          <View>
-            <Feather name="message-circle" size={22} color={colors.foreground} />
-            {unreadCount > 0 ? (
-              <View
-                style={[styles.badge, { backgroundColor: colors.primary }]}
-              >
-                <Text style={styles.badgeText}>
-                  {unreadCount > 9 ? "9+" : String(unreadCount)}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        </Pressable>
         <Pressable
           onPress={() => setMenuOpen(true)}
           hitSlop={12}
@@ -266,7 +163,7 @@ export default function ConnectionScreen() {
       {/* Scrollable content: profile info */}
       <ScrollView
         contentContainerStyle={{
-          paddingBottom: insets.bottom + webBot + 24,
+          paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 24,
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -333,6 +230,9 @@ export default function ConnectionScreen() {
 
           {encounter.interests && encounter.interests.length > 0 ? (
             <View style={styles.interestsBlock}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                {t("connection.interestsLabel")}
+              </Text>
               <View style={styles.chipsRow}>
                 {encounter.interests.map((tag) => (
                   <View
@@ -379,6 +279,12 @@ export default function ConnectionScreen() {
                   />
                 ))}
               </View>
+              <View style={[styles.socialHint, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Feather name="send" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.socialHintText, { color: colors.mutedForeground }]}>
+                  {t("connection.socialHint")}
+                </Text>
+              </View>
             </View>
           ) : null}
 
@@ -395,195 +301,6 @@ export default function ConnectionScreen() {
           />
         </View>
       </ScrollView>
-
-      {/* ─── Chat slide-up modal ─────────────────────────────────────── */}
-      <Modal
-        visible={chatOpen}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setChatOpen(false)}
-      >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <View
-            style={[styles.chatModal, { backgroundColor: colors.background }]}
-          >
-            {/* Chat header */}
-            <View
-              style={[
-                styles.chatModalHeader,
-                {
-                  backgroundColor: colors.card,
-                  borderBottomColor: colors.border,
-                  paddingTop: insets.top + 12,
-                },
-              ]}
-            >
-              <Avatar uri={encounter.photoUri} size={32} />
-              <Text
-                style={[styles.chatModalTitle, { color: colors.foreground }]}
-                numberOfLines={1}
-              >
-                {encounter.realName}
-              </Text>
-              <Pressable
-                onPress={() => setChatOpen(false)}
-                hitSlop={12}
-                style={styles.chatModalClose}
-              >
-                <Feather name="x" size={22} color={colors.foreground} />
-              </Pressable>
-            </View>
-
-            {/* Messages */}
-            <ScrollView
-              ref={scrollRef}
-              style={{ flex: 1 }}
-              contentContainerStyle={[
-                styles.messagesContent,
-                { paddingBottom: insets.bottom + webBot + 8 },
-              ]}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {messages.length === 0 ? (
-                <View style={styles.chatEmpty}>
-                  <Feather
-                    name="message-circle"
-                    size={40}
-                    color={colors.mutedForeground}
-                    style={{ opacity: 0.4 }}
-                  />
-                  <Text
-                    style={[styles.chatEmptyTitle, { color: colors.foreground }]}
-                  >
-                    {t("connection.chatEmptyTitle")}
-                  </Text>
-                  <Text
-                    style={[styles.chatEmptySub, { color: colors.mutedForeground }]}
-                  >
-                    {t("connection.chatEmptySub")}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.chatMessages}>
-                  {messages.map((msg) => {
-                    const isMe = msg.from === myUid;
-                    return (
-                      <View
-                        key={msg.id}
-                        style={[
-                          styles.bubbleRow,
-                          isMe ? styles.bubbleRowMe : styles.bubbleRowThem,
-                        ]}
-                      >
-                        {!isMe ? (
-                          <Avatar uri={encounter.photoUri} size={28} />
-                        ) : null}
-                        <View
-                          style={[
-                            styles.bubbleGroup,
-                            isMe && { alignItems: "flex-end" },
-                          ]}
-                        >
-                          <View
-                            style={[
-                              styles.bubble,
-                              isMe
-                                ? [
-                                    styles.bubbleMe,
-                                    { backgroundColor: colors.primary },
-                                  ]
-                                : [
-                                    styles.bubbleThem,
-                                    {
-                                      backgroundColor: colors.muted,
-                                      borderColor: colors.border,
-                                    },
-                                  ],
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.bubbleText,
-                                {
-                                  color: isMe ? "#FFFFFF" : colors.foreground,
-                                },
-                              ]}
-                            >
-                              {msg.text}
-                            </Text>
-                          </View>
-                          <Text
-                            style={[
-                              styles.bubbleTime,
-                              { color: colors.mutedForeground },
-                            ]}
-                          >
-                            {formatTime(msg.sentAt)}
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </ScrollView>
-
-            {/* Input bar */}
-            <View
-              style={[
-                styles.inputBar,
-                {
-                  backgroundColor: colors.card,
-                  borderTopColor: colors.border,
-                  paddingBottom: insets.bottom + webBot + 8,
-                },
-              ]}
-            >
-              <TextInput
-                value={chatInput}
-                onChangeText={setChatInput}
-                placeholder={t("connection.chatPlaceholder", {
-                  name: encounter.realName,
-                })}
-                placeholderTextColor={colors.mutedForeground}
-                style={[
-                  styles.inputField,
-                  {
-                    backgroundColor: colors.muted,
-                    borderColor: colors.border,
-                    color: colors.foreground,
-                  },
-                ]}
-                onSubmitEditing={handleSend}
-                returnKeyType="send"
-                blurOnSubmit={false}
-                maxLength={1000}
-                multiline
-                autoFocus
-              />
-              <Pressable
-                onPress={handleSend}
-                disabled={chatSending || !chatInput.trim()}
-                accessibilityLabel={t("connection.chatSendA11y")}
-                style={({ pressed }) => [
-                  styles.sendBtn,
-                  {
-                    backgroundColor: colors.primary,
-                    opacity:
-                      pressed || chatSending || !chatInput.trim() ? 0.45 : 1,
-                  },
-                ]}
-              >
-                <Feather name="send" size={18} color="#FFFFFF" />
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       <ActionSheet
         visible={menuOpen}
@@ -905,25 +622,6 @@ const styles = StyleSheet.create({
   headerName: { fontFamily: "Inter_700Bold", fontSize: 16 },
   headerSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 1 },
 
-  // Unread badge on chat icon
-  badge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-  },
-  badgeText: {
-    color: "#FFFFFF",
-    fontFamily: "Inter_700Bold",
-    fontSize: 9,
-    lineHeight: 12,
-  },
-
   // Profile details
   detailsPanel: {
     paddingHorizontal: 22,
@@ -950,7 +648,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  interestsBlock: { gap: 6 },
+  interestsBlock: { gap: 8 },
+  socialHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  socialHintText: {
+    flex: 1,
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    lineHeight: 17,
+    fontStyle: "italic",
+  },
   interestChip: {
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -1027,115 +741,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   suggestChipText: { fontFamily: "Inter_500Medium", fontSize: 12 },
-
-  // Chat modal
-  chatModal: { flex: 1 },
-  chatModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 10,
-  },
-  chatModalTitle: {
-    flex: 1,
-    fontFamily: "Inter_700Bold",
-    fontSize: 16,
-  },
-  chatModalClose: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Messages
-  messagesContent: {
-    flexGrow: 1,
-    justifyContent: "flex-end",
-  },
-  chatEmpty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 64,
-    gap: 10,
-    paddingHorizontal: 40,
-  },
-  chatEmptyTitle: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 17,
-    textAlign: "center",
-  },
-  chatEmptySub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  chatMessages: {
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    gap: 4,
-  },
-  bubbleRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-    marginBottom: 2,
-  },
-  bubbleRowMe: { justifyContent: "flex-end" },
-  bubbleRowThem: { justifyContent: "flex-start" },
-  bubbleGroup: { maxWidth: "72%", gap: 3 },
-  bubble: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-  },
-  bubbleMe: { borderBottomRightRadius: 4 },
-  bubbleThem: {
-    borderBottomLeftRadius: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  bubbleText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  bubbleTime: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    opacity: 0.55,
-    paddingHorizontal: 2,
-  },
-
-  // Input bar
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    gap: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  inputField: {
-    flex: 1,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === "ios" ? 10 : 8,
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-    maxHeight: 100,
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 
   // Report toast
   reportToastWrap: {
