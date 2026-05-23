@@ -412,8 +412,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
       onRequestClose={close}
     >
       <Pressable style={styles.backdrop} onPress={close}>
-        <Pressable
-          onPress={(e) => e.stopPropagation()}
+        <View
+          onStartShouldSetResponder={() => true}
           style={[
             styles.sheet,
             {
@@ -1309,7 +1309,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
               </Text>
             </ScrollView>
           ) : null}
-        </Pressable>
+        </View>
       </Pressable>
 
       <ActionSheet
