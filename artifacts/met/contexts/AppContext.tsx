@@ -685,7 +685,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             photoUrl,
             bio: profile.bio || null,
             socials: profile.socials as Record<string, string>,
-            interests: profile.interests ?? [],
+            interests: profile.interests ?? null,
             preferredLocale: getLanguage(),
           },
         );

@@ -1290,7 +1290,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
             <ScrollView
               style={{ maxHeight: 420 }}
               contentContainerStyle={{ padding: 4, paddingBottom: 16 }}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
             >
               <Text style={[styles.legalText, { color: colors.foreground }]}>
                 {PRIVACY_POLICY}
@@ -1300,7 +1301,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
             <ScrollView
               style={{ maxHeight: 420 }}
               contentContainerStyle={{ padding: 4, paddingBottom: 16 }}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
             >
               <Text style={[styles.legalText, { color: colors.foreground }]}>
                 {TERMS_AND_CONDITIONS}

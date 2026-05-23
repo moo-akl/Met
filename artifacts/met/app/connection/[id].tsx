@@ -21,6 +21,7 @@ import { SocialChip } from "@/components/SocialChip";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { api } from "@/lib/api/client";
 import { type ReportReason, submitReport } from "@/lib/reports";
 import type { SocialPlatform } from "@/lib/types";
 
@@ -44,6 +45,7 @@ export default function ConnectionScreen() {
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [reportConfirmation, setReportConfirmation] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [liveInterests, setLiveInterests] = useState<string[] | undefined>(undefined);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -58,6 +60,22 @@ export default function ConnectionScreen() {
       router.replace(`/encounter/${encounter.id}`);
     }
   }, [encounter, router]);
+
+  // Fetch the peer's live profile so interests are always up-to-date,
+  // even if the cached encounter pre-dates the peer adding interests.
+  useEffect(() => {
+    if (!encounter || !profile?.id) return;
+    const ctrl = new AbortController();
+    api
+      .getProfile({ uid: profile.id, signal: ctrl.signal }, encounter.id)
+      .then((p) => {
+        if (p.interests && p.interests.length > 0) {
+          setLiveInterests(p.interests);
+        }
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [encounter?.id, profile?.id]);
 
   if (!encounter) {
     return (
@@ -229,13 +247,13 @@ export default function ConnectionScreen() {
             </Text>
           ) : null}
 
-          {encounter.interests && encounter.interests.length > 0 ? (
+          {(liveInterests ?? encounter.interests)?.length ? (
             <View style={styles.interestsBlock}>
               <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
                 {t("connection.interestsLabel")}
               </Text>
               <View style={styles.chipsRow}>
-                {encounter.interests.map((tag) => (
+                {(liveInterests ?? encounter.interests)!.map((tag) => (
                   <View
                     key={tag}
                     style={[
