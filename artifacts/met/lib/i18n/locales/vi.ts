@@ -416,7 +416,7 @@ export const vi: LocaleTree = {
     cameraNeededTitle: "Cần quyền máy ảnh",
     cameraNeededSub:
       "Met cần máy ảnh để bạn có thể quét QR của người khác và thêm họ làm cuộc gặp tức thì.",
-    allowCameraBtn: "Cho phép máy ảnh",
+    allowCameraBtn: "Tiếp tục",
     useDemoQRBtn: "Dùng QR demo thay thế",
     closeBtn: "Đóng",
     notMetQRError: "Trông không giống mã QR Met.",

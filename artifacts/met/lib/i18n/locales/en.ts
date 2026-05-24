@@ -419,7 +419,7 @@ export const en = {
     cameraNeededTitle: "Camera access needed",
     cameraNeededSub:
       "Met needs your camera so you can scan another person's QR code and add them as an instant encounter.",
-    allowCameraBtn: "Allow camera",
+    allowCameraBtn: "Continue",
     useDemoQRBtn: "Use a demo QR instead",
     closeBtn: "Close",
     notMetQRError: "That doesn't look like a Met QR code.",

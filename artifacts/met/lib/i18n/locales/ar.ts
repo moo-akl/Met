@@ -420,7 +420,7 @@ export const ar: LocaleTree = {
     cameraNeededTitle: "يلزم وصول الكاميرا",
     cameraNeededSub:
       "يحتاج Met كاميرتك لتمسح رمز QR لشخص آخر وتضيفه كلقاء فوري.",
-    allowCameraBtn: "السماح بالكاميرا",
+    allowCameraBtn: "متابعة",
     useDemoQRBtn: "استخدم رمز تجريبي بدلًا من ذلك",
     closeBtn: "إغلاق",
     notMetQRError: "هذا لا يبدو رمز Met QR.",

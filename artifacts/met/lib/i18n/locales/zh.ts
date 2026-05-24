@@ -392,7 +392,7 @@ export const zh: LocaleTree = {
     cameraNeededTitle: "需要相机权限",
     cameraNeededSub:
       "Met 需要相机以便你扫描他人的二维码,立即将其加为即时相遇。",
-    allowCameraBtn: "允许相机",
+    allowCameraBtn: "继续",
     useDemoQRBtn: "改用演示二维码",
     closeBtn: "关闭",
     notMetQRError: "这看起来不像 Met 的二维码。",

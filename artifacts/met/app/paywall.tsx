@@ -3,6 +3,7 @@ import { LinearGradient } from "@/components/MetGradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -20,6 +21,11 @@ import {
   isRevenueCatTestMode,
   useSubscription,
 } from "@/lib/revenuecat";
+
+const PRIVACY_URL =
+  "https://doc-hosting.flycricket.io/met-privacy-policy/fdc825e1-e02f-4a47-8169-e8bb9c4f54c9/privacy";
+const TERMS_URL =
+  "https://doc-hosting.flycricket.io/met-terms-conditions/de6cbb09-1b5f-4203-aba7-c70fe3fa4932/terms";
 
 type PaidTier = "plus" | "pro";
 type Billing = "monthly" | "yearly";
@@ -461,6 +467,16 @@ export default function PaywallScreen() {
             ? "Sandbox mode — no real charge. On a real device the purchase goes through Apple or Google."
             : "Subscriptions auto-renew until cancelled. Manage anytime in your store account."}
         </Text>
+
+        <View style={styles.legalLinks}>
+          <Pressable onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}>
+            <Text style={[styles.legalLink, { color: colors.primary }]}>Privacy Policy</Text>
+          </Pressable>
+          <Text style={[styles.legal, { color: colors.mutedForeground }]}>·</Text>
+          <Pressable onPress={() => Linking.openURL(TERMS_URL).catch(() => {})}>
+            <Text style={[styles.legalLink, { color: colors.primary }]}>Terms of Use</Text>
+          </Pressable>
+        </View>
       </ScrollView>
 
       <View
@@ -771,6 +787,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 4,
     lineHeight: 16,
+  },
+  legalLinks: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  legalLink: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    textDecorationLine: "underline",
   },
   errorText: {
     fontFamily: "Inter_500Medium",

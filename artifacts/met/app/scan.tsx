@@ -234,11 +234,6 @@ export default function ScanScreen() {
                 onPress={handleSimulate}
               />
             ) : null}
-            <PrimaryButton
-              label={t("scan.closeBtn")}
-              variant="ghost"
-              onPress={() => router.back()}
-            />
           </View>
         </View>
       </View>

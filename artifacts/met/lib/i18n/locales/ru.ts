@@ -416,7 +416,7 @@ export const ru: LocaleTree = {
     cameraNeededTitle: "Нужен доступ к камере",
     cameraNeededSub:
       "Met нужна камера, чтобы вы могли сканировать чужой QR и добавить его как мгновенную встречу.",
-    allowCameraBtn: "Разрешить камеру",
+    allowCameraBtn: "Продолжить",
     useDemoQRBtn: "Использовать демо-QR",
     closeBtn: "Закрыть",
     notMetQRError: "Это не похоже на QR-код Met.",

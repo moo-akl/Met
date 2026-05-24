@@ -416,7 +416,7 @@ export const nl: LocaleTree = {
     cameraNeededTitle: "Cameratoegang nodig",
     cameraNeededSub:
       "Met heeft je camera nodig om iemands QR-code te scannen en hem als directe ontmoeting toe te voegen.",
-    allowCameraBtn: "Camera toestaan",
+    allowCameraBtn: "Doorgaan",
     useDemoQRBtn: "Gebruik in plaats daarvan een demo-QR",
     closeBtn: "Sluiten",
     notMetQRError: "Dat lijkt geen Met-QR.",

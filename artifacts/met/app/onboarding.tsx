@@ -288,12 +288,13 @@ export default function OnboardingScreen() {
       // Returns null when the user cancels the Apple sheet — silent.
       const result = await signInWithApple();
       if (result) {
-        // Apple provides the full name only on the very first sign-in.
-        // Pre-populate the name field so the user doesn't have to retype
-        // information Apple already supplied (Guideline 4 compliance).
+        // Always skip the manual name step for Apple sign-in (Guideline 4).
+        // Apple already provides this information. Pre-populate from fullName
+        // when available (first sign-in only); on re-authentication Apple
+        // omits it but tryRestoreExistingProfile restores the saved name.
+        setNameFromApple(true);
         if (result.fullName) {
           setName(result.fullName);
-          setNameFromApple(true);
         }
         await goToProfileSetup();
       }
@@ -491,7 +492,13 @@ export default function OnboardingScreen() {
       router.back();
       return;
     }
-    if (!photoUri || !name.trim()) return;
+    if (!photoUri) return;
+    // Apple sign-in users skip the name step — Apple already supplies this
+    // info (Guideline 4). If Apple didn't share a name on this session
+    // (re-auth or user declined), fall back to a placeholder they can
+    // update any time from the Profile tab.
+    if (!name.trim() && !nameFromApple) return;
+    if (!name.trim() && nameFromApple) setName("Apple User");
     setSaving(true);
     // Generate this user's own referral code on the way in.
     await ensureMyCode();

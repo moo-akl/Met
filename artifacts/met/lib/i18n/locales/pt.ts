@@ -414,7 +414,7 @@ export const pt: LocaleTree = {
     cameraNeededTitle: "Acesso à câmera necessário",
     cameraNeededSub:
       "Met precisa da sua câmera para você escanear o QR de outra pessoa e adicioná-la como encontro instantâneo.",
-    allowCameraBtn: "Permitir câmera",
+    allowCameraBtn: "Continuar",
     useDemoQRBtn: "Usar um QR de demonstração",
     closeBtn: "Fechar",
     notMetQRError: "Isso não parece um QR do Met.",
