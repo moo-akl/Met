@@ -326,10 +326,14 @@ export default function OnboardingScreen() {
         // Either way we use whatever we got and never show the "enter name"
         // step to Apple users.
         setFromAppleSignIn(true);
-        setNameFromApple(true);
         if (result.fullName) {
+          // Name available (first sign-in, or cached by updateProfile in
+          // auth.ts on first sign-in). Pre-fill and skip the name step.
           setName(result.fullName);
+          setNameFromApple(true);
         }
+        // If fullName is null, nameFromApple stays false so the info step
+        // is shown and the user can enter their name manually.
         await goToProfileSetup();
       }
     } catch {
@@ -526,8 +530,24 @@ export default function OnboardingScreen() {
       router.back();
       return;
     }
-    const finalName = name.trim();
-    if (!photoUri || !finalName) return;
+    let finalName = name.trim();
+    // Safety net: if the name is still empty for an Apple sign-in user
+    // (e.g. first build before updateProfile was added), try Firebase Auth
+    // as a last resort rather than silently doing nothing.
+    if (!finalName && fromAppleSignIn) {
+      try {
+        const authMod = await import("@react-native-firebase/auth");
+        const fbName = authMod.default().currentUser?.displayName ?? null;
+        if (fbName && fbName !== "Apple User") finalName = fbName;
+      } catch {
+        // Firebase not available — fall through to the guard below.
+      }
+    }
+    if (!photoUri || !finalName) {
+      // Still no name — route back to the info step so the user can enter one.
+      if (fromAppleSignIn && !finalName) setPhase("info");
+      return;
+    }
     setSaving(true);
     // Generate this user's own referral code on the way in.
     await ensureMyCode();

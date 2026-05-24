@@ -227,6 +227,16 @@ export async function signInWithApple(): Promise<{ uid: string; fullName: string
     .filter(Boolean)
     .join(" ")
     .trim() || null;
+  // Apple only sends fullName on the very first sign-in. Persist it to
+  // Firebase Auth so that userCred.user.displayName returns the real name
+  // on every subsequent login — otherwise it stays null forever.
+  if (appleFullName) {
+    try {
+      await userCred.user.updateProfile({ displayName: appleFullName });
+    } catch {
+      // Best-effort. The name is still available from appleFullName below.
+    }
+  }
   const fullName = appleFullName || userCred.user.displayName || null;
   return { uid: userCred.user.uid, fullName };
 }
