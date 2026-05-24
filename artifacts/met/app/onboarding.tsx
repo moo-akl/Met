@@ -137,8 +137,8 @@ export default function OnboardingScreen() {
   // to re-enter information Apple already supplied (App Store Guideline 4).
   const [nameFromApple, setNameFromApple] = useState(false);
   // True whenever the user authenticated via Apple Sign-In, regardless of
-  // whether Apple supplied a name. Used only to (a) unblock the info-step
-  // Continue button and (b) substitute "Apple User" when name is empty.
+  // whether Apple supplied a name. Used to unblock the info-step Continue
+  // button in the rare edge case the name field is still empty.
   const [fromAppleSignIn, setFromAppleSignIn] = useState(false);
   const [socials, setSocials] = useState<SocialLinks>({});
   const [interests, setInterests] = useState<string[]>([]);
@@ -238,7 +238,7 @@ export default function OnboardingScreen() {
       const local = await loadProfile();
       const restored: Profile = {
         id: remote.uid,
-        name: remote.displayName || "Apple User",
+        name: remote.displayName || "",
         bio: remote.bio ?? "",
         photoUri: remote.photoUrl ?? "",
         socials: (remote.socials ?? {}) as SocialLinks,
