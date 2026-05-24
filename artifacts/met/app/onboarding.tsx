@@ -251,7 +251,11 @@ export default function OnboardingScreen() {
         photoVerifiedAt: Date.now(),
         extraPhotos: [],
       };
-      if (!restored.photoUri) return false;
+      // Do NOT gate on photoUri — the photo upload in handleFinish is
+      // best-effort and can silently fail. A profile that exists on the
+      // server (confirmed by the 200 above) is valid and must be restored.
+      // The user can update their photo from Profile settings if it is
+      // missing; forcing them through full re-onboarding wipes everything.
       await setProfile(restored);
       await setPermissionsCompleted(true);
       await ensureMyCode();
