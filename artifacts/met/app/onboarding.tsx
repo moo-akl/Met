@@ -224,19 +224,14 @@ export default function OnboardingScreen() {
       if (!uid) return false;
       if (!api.isConfigured()) return false;
       const remote = await api.getMyProfile({ uid });
-      // A 404 (no profile yet) throws ApiError and is caught below → false.
-      // We only gate on `remote` being present here; a missing displayName
-      // means the user signed up with Apple and the name was not saved
-      // (a now-fixed bug). We restore them with a placeholder so they land
-      // on the home screen rather than being re-sent through full onboarding.
-      if (!remote) return false;
+      if (!remote || !remote.displayName) return false;
       // Load locally stored profile so we can fall back to its interests if
       // the server returns an empty array (e.g. column just added, first sync
       // after migration). Server interests win when non-empty.
       const local = await loadProfile();
       const restored: Profile = {
         id: remote.uid,
-        name: remote.displayName || "Apple User",
+        name: remote.displayName,
         bio: remote.bio ?? "",
         photoUri: remote.photoUrl ?? "",
         socials: (remote.socials ?? {}) as SocialLinks,
@@ -293,14 +288,12 @@ export default function OnboardingScreen() {
       // Returns null when the user cancels the Apple sheet — silent.
       const result = await signInWithApple();
       if (result) {
-        // Only skip the name step when Apple actually provides fullName
-        // (first sign-in where the user chose to share it). If Apple omits
-        // the name (user declined, or re-auth), the user enters it in the
-        // normal "info" step. Returning users are restored by
-        // tryRestoreExistingProfile before handleFinish is ever reached.
+        // Apple provides the full name only on the very first sign-in.
+        // Pre-populate the name field so the user doesn't have to retype
+        // information Apple already supplied (Guideline 4 compliance).
         if (result.fullName) {
-          setNameFromApple(true);
           setName(result.fullName);
+          setNameFromApple(true);
         }
         await goToProfileSetup();
       }
@@ -498,13 +491,7 @@ export default function OnboardingScreen() {
       router.back();
       return;
     }
-    if (!photoUri) return;
-    // Compute the final name synchronously — do not rely on the async
-    // state setter (setName) updating `name` before newProfile is built.
-    // Apple users who shared their name have nameFromApple=true and a
-    // pre-filled name; all other users must have typed one in the info step.
-    const finalName = name.trim() || (nameFromApple ? "Apple User" : "");
-    if (!finalName) return;
+    if (!photoUri || !name.trim()) return;
     setSaving(true);
     // Generate this user's own referral code on the way in.
     await ensureMyCode();
@@ -533,7 +520,7 @@ export default function OnboardingScreen() {
     }
     const newProfile: Profile = {
       id: userId,
-      name: finalName,
+      name: name.trim(),
       bio: bio.trim(),
       photoUri,
       socials,
