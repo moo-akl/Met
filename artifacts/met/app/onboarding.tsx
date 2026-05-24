@@ -302,10 +302,15 @@ export default function OnboardingScreen() {
         // Apple provides the full name only on the very first sign-in.
         // Pre-populate the name field so the user doesn't have to retype
         // information Apple already supplied (Guideline 4 compliance).
+        // Always skip the name-entry step for Apple sign-in.
+        // Apple provides the full name on first sign-in; on subsequent
+        // logins the name comes from the Firebase user's cached displayName.
+        // Either way we use whatever we got and never show the "enter name"
+        // step to Apple users.
         setFromAppleSignIn(true);
+        setNameFromApple(true);
         if (result.fullName) {
           setName(result.fullName);
-          setNameFromApple(true);
         }
         await goToProfileSetup();
       }
@@ -503,10 +508,7 @@ export default function OnboardingScreen() {
       router.back();
       return;
     }
-    // Compute the final name synchronously. Apple sign-in users who did not
-    // share their name (re-auth / declined) get a placeholder they can update
-    // later in Profile settings — do NOT use setName() here as it is async.
-    const finalName = name.trim() || (fromAppleSignIn ? "Apple User" : "");
+    const finalName = name.trim();
     if (!photoUri || !finalName) return;
     setSaving(true);
     // Generate this user's own referral code on the way in.
