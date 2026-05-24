@@ -136,6 +136,10 @@ export default function OnboardingScreen() {
   // In that case we skip the info (name/bio) step so users aren't asked
   // to re-enter information Apple already supplied (App Store Guideline 4).
   const [nameFromApple, setNameFromApple] = useState(false);
+  // True whenever the user authenticated via Apple Sign-In, regardless of
+  // whether Apple supplied a name. Used only to (a) unblock the info-step
+  // Continue button and (b) substitute "Apple User" when name is empty.
+  const [fromAppleSignIn, setFromAppleSignIn] = useState(false);
   const [socials, setSocials] = useState<SocialLinks>({});
   const [interests, setInterests] = useState<string[]>([]);
   const [interestSearch, setInterestSearch] = useState("");
@@ -224,14 +228,17 @@ export default function OnboardingScreen() {
       if (!uid) return false;
       if (!api.isConfigured()) return false;
       const remote = await api.getMyProfile({ uid });
-      if (!remote || !remote.displayName) return false;
+      // A 404 throws ApiError and is caught below → false (new user).
+      // A missing displayName means a prior sign-in bug left the record
+      // blank; restore with a placeholder rather than re-running onboarding.
+      if (!remote) return false;
       // Load locally stored profile so we can fall back to its interests if
       // the server returns an empty array (e.g. column just added, first sync
       // after migration). Server interests win when non-empty.
       const local = await loadProfile();
       const restored: Profile = {
         id: remote.uid,
-        name: remote.displayName,
+        name: remote.displayName || "Apple User",
         bio: remote.bio ?? "",
         photoUri: remote.photoUrl ?? "",
         socials: (remote.socials ?? {}) as SocialLinks,
@@ -291,6 +298,7 @@ export default function OnboardingScreen() {
         // Apple provides the full name only on the very first sign-in.
         // Pre-populate the name field so the user doesn't have to retype
         // information Apple already supplied (Guideline 4 compliance).
+        setFromAppleSignIn(true);
         if (result.fullName) {
           setName(result.fullName);
           setNameFromApple(true);
@@ -491,7 +499,11 @@ export default function OnboardingScreen() {
       router.back();
       return;
     }
-    if (!photoUri || !name.trim()) return;
+    // Compute the final name synchronously. Apple sign-in users who did not
+    // share their name (re-auth / declined) get a placeholder they can update
+    // later in Profile settings — do NOT use setName() here as it is async.
+    const finalName = name.trim() || (fromAppleSignIn ? "Apple User" : "");
+    if (!photoUri || !finalName) return;
     setSaving(true);
     // Generate this user's own referral code on the way in.
     await ensureMyCode();
@@ -520,7 +532,7 @@ export default function OnboardingScreen() {
     }
     const newProfile: Profile = {
       id: userId,
-      name: name.trim(),
+      name: finalName,
       bio: bio.trim(),
       photoUri,
       socials,
@@ -1249,7 +1261,7 @@ export default function OnboardingScreen() {
             <PrimaryButton
               label={t("common.continue")}
               onPress={() => setPhase("socials")}
-              disabled={!name.trim()}
+              disabled={!name.trim() && !fromAppleSignIn}
             />
           </View>
         ) : null}
