@@ -232,13 +232,31 @@ export default function OnboardingScreen() {
       // A missing displayName means a prior sign-in bug left the record
       // blank; restore with a placeholder rather than re-running onboarding.
       if (!remote) return false;
+      // Resolve the best available display name.
+      // Priority: real server name > Firebase Auth displayName > empty string.
+      // "Apple User" is a stale placeholder written by earlier buggy builds —
+      // treat it the same as blank and overwrite it with the real Firebase name.
+      const STALE_NAMES = ["Apple User"];
+      let resolvedName = remote.displayName || "";
+      if (!resolvedName || STALE_NAMES.includes(resolvedName)) {
+        try {
+          const authMod = await import("@react-native-firebase/auth");
+          const firebaseName =
+            authMod.default().currentUser?.displayName ?? null;
+          if (firebaseName && !STALE_NAMES.includes(firebaseName)) {
+            resolvedName = firebaseName;
+          }
+        } catch {
+          // Firebase not available on this platform — keep whatever we have.
+        }
+      }
       // Load locally stored profile so we can fall back to its interests if
       // the server returns an empty array (e.g. column just added, first sync
       // after migration). Server interests win when non-empty.
       const local = await loadProfile();
       const restored: Profile = {
         id: remote.uid,
-        name: remote.displayName || "",
+        name: resolvedName,
         bio: remote.bio ?? "",
         photoUri: remote.photoUrl ?? "",
         socials: (remote.socials ?? {}) as SocialLinks,
