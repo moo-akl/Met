@@ -113,7 +113,7 @@ const PRIVACY_URL =
 export default function OnboardingScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { setProfile, setPermissionsCompleted } = useApp();
+  const { setProfile, setPermissionsCompleted, permissionsCompleted } = useApp();
   const insets = useSafeAreaInsets();
   const { t, lang } = useT();
   // When opened from the home-page permissions banner with
@@ -532,8 +532,8 @@ export default function OnboardingScreen() {
     }
     let finalName = name.trim();
     // Safety net: if the name is still empty for an Apple sign-in user
-    // (e.g. first build before updateProfile was added), try Firebase Auth
-    // as a last resort rather than silently doing nothing.
+    // (e.g. Apple didn't provide it on this sign-in), try Firebase Auth
+    // cached displayName as a last resort.
     if (!finalName && fromAppleSignIn) {
       try {
         const authMod = await import("@react-native-firebase/auth");
@@ -543,90 +543,101 @@ export default function OnboardingScreen() {
         // Firebase not available — fall through to the guard below.
       }
     }
-    if (!photoUri || !finalName) {
-      // Still no name — route back to the info step so the user can enter one.
-      if (fromAppleSignIn && !finalName) setPhase("info");
+    if (!photoUri) {
+      Alert.alert(t("onboarding.missingPhotoTitle"), t("onboarding.missingPhotoBody"));
+      return;
+    }
+    if (!finalName) {
+      setPhase("info");
       return;
     }
     setSaving(true);
-    // Generate this user's own referral code on the way in.
-    await ensureMyCode();
-    // Optional: redeem an invite code if the user typed/deep-linked one.
-    const code = inviteCode.trim().toUpperCase();
-    if (code) {
-      const result = await recordReferral(code);
-      setInviteApplied(result === "accepted");
-    }
-    let userId = await getCurrentUserId();
-    if (!userId) {
-      if (Platform.OS === "web") {
-        // Web preview only — no native sign-in available, so the dev
-        // "Skip sign-in" button drops us here. Issue a local- ID so the
-        // rest of onboarding can be exercised in the browser. Real
-        // builds always come in with a Firebase UID.
-        userId = "local-" + Math.random().toString(36).slice(2, 10);
-      } else {
-        setSaving(false);
-        Alert.alert(
-          t("common.signInFailedTitle"),
-          t("common.signInFailedBody"),
-        );
-        return;
+    try {
+      // Generate this user's own referral code on the way in.
+      await ensureMyCode();
+      // Optional: redeem an invite code if the user typed/deep-linked one.
+      const code = inviteCode.trim().toUpperCase();
+      if (code) {
+        const result = await recordReferral(code);
+        setInviteApplied(result === "accepted");
       }
-    }
-    const newProfile: Profile = {
-      id: userId,
-      name: finalName,
-      bio: bio.trim(),
-      photoUri,
-      socials,
-      interests,
-      verified: true,
-      isVisible: false,
-      photoVerifiedAt: Date.now(),
-      extraPhotos: [],
-    };
-    await setProfile(newProfile);
-    if (api.isConfigured() && !/^local-/.test(userId)) {
-      try {
-        let remotePhotoUrl: string | null = null;
-        if (photoUri && !/^https?:\/\//i.test(photoUri)) {
-          const FileSystem = await import("expo-file-system/legacy");
-          const base64 = await FileSystem.readAsStringAsync(photoUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          const lower = photoUri.toLowerCase();
-          const contentType = lower.endsWith(".png")
-            ? "image/png"
-            : lower.endsWith(".webp")
-              ? "image/webp"
-              : "image/jpeg";
-          const uploaded = await api.uploadProfilePhoto(
-            { uid: userId },
-            { base64, contentType },
-          );
-          remotePhotoUrl = uploaded.photoUrl;
-          await setProfile({ ...newProfile, photoUri: remotePhotoUrl });
+      let userId = await getCurrentUserId();
+      if (!userId) {
+        if (Platform.OS === "web") {
+          // Web preview only — no native sign-in available, so the dev
+          // "Skip sign-in" button drops us here. Issue a local- ID so the
+          // rest of onboarding can be exercised in the browser. Real
+          // builds always come in with a Firebase UID.
+          userId = "local-" + Math.random().toString(36).slice(2, 10);
         } else {
-          remotePhotoUrl = photoUri;
+          Alert.alert(
+            t("common.signInFailedTitle"),
+            t("common.signInFailedBody"),
+          );
+          return;
         }
-        await api.upsertMyProfile(
-          { uid: userId },
-          {
-            displayName: newProfile.name,
-            photoUrl: remotePhotoUrl,
-            bio: newProfile.bio || null,
-            socials: newProfile.socials as Record<string, string>,
-            interests: newProfile.interests ?? [],
-            isVisible: false,
-            preferredLocale: getLanguage(),
-          },
-        );
-      } catch {
-        // Best-effort — the background effect in AppContext will retry.
       }
+      const newProfile: Profile = {
+        id: userId,
+        name: finalName,
+        bio: bio.trim(),
+        photoUri,
+        socials,
+        interests,
+        verified: true,
+        isVisible: false,
+        photoVerifiedAt: Date.now(),
+        extraPhotos: [],
+      };
+      await setProfile(newProfile);
+      if (api.isConfigured() && !/^local-/.test(userId)) {
+        try {
+          let remotePhotoUrl: string | null = null;
+          if (photoUri && !/^https?:\/\//i.test(photoUri)) {
+            const FileSystem = await import("expo-file-system/legacy");
+            const base64 = await FileSystem.readAsStringAsync(photoUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            const lower = photoUri.toLowerCase();
+            const contentType = lower.endsWith(".png")
+              ? "image/png"
+              : lower.endsWith(".webp")
+                ? "image/webp"
+                : "image/jpeg";
+            const uploaded = await api.uploadProfilePhoto(
+              { uid: userId },
+              { base64, contentType },
+            );
+            remotePhotoUrl = uploaded.photoUrl;
+            await setProfile({ ...newProfile, photoUri: remotePhotoUrl });
+          } else {
+            remotePhotoUrl = photoUri;
+          }
+          await api.upsertMyProfile(
+            { uid: userId },
+            {
+              displayName: newProfile.name,
+              photoUrl: remotePhotoUrl,
+              bio: newProfile.bio || null,
+              socials: newProfile.socials as Record<string, string>,
+              interests: newProfile.interests ?? [],
+              isVisible: false,
+              preferredLocale: getLanguage(),
+            },
+          );
+        } catch {
+          // Best-effort — the background effect in AppContext will retry.
+        }
+      }
+      // Navigate directly to the correct screen rather than relying on
+      // ProfileGate to redirect — avoids the race where ProfileGate and
+      // handleFinish both call router.replace in the same render cycle.
+      router.replace(permissionsCompleted ? "/(tabs)" : "/permissions");
+    } catch (err) {
+      Alert.alert(t("common.error"), t("common.tryAgain"));
+    } finally {
+      setSaving(false);
     }
-    router.replace("/(tabs)");
   };
 
   // ------------------------------------------------------------------
@@ -1305,7 +1316,7 @@ export default function OnboardingScreen() {
             <PrimaryButton
               label={t("common.continue")}
               onPress={() => setPhase("socials")}
-              disabled={!name.trim() && !fromAppleSignIn}
+              disabled={!name.trim()}
             />
           </View>
         ) : null}

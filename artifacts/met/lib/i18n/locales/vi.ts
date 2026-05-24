@@ -330,6 +330,8 @@ export const vi: LocaleTree = {
     nameLabel: "Tên",
     bioLabel: "Giới thiệu",
     activateBeacon: "Kích hoạt đèn hiệu",
+    missingPhotoTitle: "Cần ảnh đại diện",
+    missingPhotoBody: "Vui lòng thêm ảnh đại diện để tiếp tục.",
     inviteTitle: "Có mã mời không?",
     inviteSub:
       "Tuỳ chọn. Nếu một người bạn mời bạn, hãy nhập mã 6 ký tự của họ để họ được ghi nhận.",

@@ -330,6 +330,8 @@ export const ru: LocaleTree = {
     nameLabel: "Имя",
     bioLabel: "О себе",
     activateBeacon: "Включить маяк",
+    missingPhotoTitle: "Требуется фото",
+    missingPhotoBody: "Пожалуйста, добавьте фото профиля, чтобы продолжить.",
     inviteTitle: "Есть код приглашения?",
     inviteSub:
       "Необязательно. Если друг пригласил вас, введите его 6-значный код, чтобы он получил награду.",

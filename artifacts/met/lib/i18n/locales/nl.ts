@@ -330,6 +330,8 @@ export const nl: LocaleTree = {
     nameLabel: "Naam",
     bioLabel: "Bio",
     activateBeacon: "Baken activeren",
+    missingPhotoTitle: "Foto vereist",
+    missingPhotoBody: "Voeg een profielfoto toe om verder te gaan.",
     inviteTitle: "Heb je een uitnodigingscode?",
     inviteSub:
       "Optioneel. Als een vriend je heeft uitgenodigd, voer dan zijn 6-tekencode in zodat hij credit krijgt.",

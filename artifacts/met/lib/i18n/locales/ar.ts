@@ -335,6 +335,8 @@ export const ar: LocaleTree = {
     nameLabel: "الاسم",
     bioLabel: "نبذة",
     activateBeacon: "تفعيل الإشارة",
+    missingPhotoTitle: "الصورة مطلوبة",
+    missingPhotoBody: "يرجى إضافة صورة شخصية للمتابعة.",
     inviteTitle: "هل لديك رمز دعوة؟",
     inviteSub:
       "اختياري. إن دعاك صديق، أدخل رمزه المكوّن من 6 أحرف ليُحتسب له.",

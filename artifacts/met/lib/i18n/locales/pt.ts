@@ -330,6 +330,8 @@ export const pt: LocaleTree = {
     nameLabel: "Nome",
     bioLabel: "Bio",
     activateBeacon: "Ativar sinal",
+    missingPhotoTitle: "Foto obrigatória",
+    missingPhotoBody: "Adicione uma foto de perfil para continuar.",
     inviteTitle: "Tem código de convite?",
     inviteSub:
       "Opcional. Se um amigo te convidou, digite o código de 6 caracteres dele para ele receber o crédito.",
