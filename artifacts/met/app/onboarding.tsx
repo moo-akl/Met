@@ -288,12 +288,13 @@ export default function OnboardingScreen() {
       // Returns null when the user cancels the Apple sheet — silent.
       const result = await signInWithApple();
       if (result) {
-        // Always skip the manual name step for Apple sign-in (Guideline 4).
-        // Apple already provides this information. Pre-populate from fullName
-        // when available (first sign-in only); on re-authentication Apple
-        // omits it but tryRestoreExistingProfile restores the saved name.
-        setNameFromApple(true);
+        // Only skip the name step when Apple actually provides fullName
+        // (first sign-in where the user chose to share it). If Apple omits
+        // the name (user declined, or re-auth), the user enters it in the
+        // normal "info" step. Returning users are restored by
+        // tryRestoreExistingProfile before handleFinish is ever reached.
         if (result.fullName) {
+          setNameFromApple(true);
           setName(result.fullName);
         }
         await goToProfileSetup();
@@ -493,12 +494,12 @@ export default function OnboardingScreen() {
       return;
     }
     if (!photoUri) return;
-    // Apple sign-in users skip the name step — Apple already supplies this
-    // info (Guideline 4). If Apple didn't share a name on this session
-    // (re-auth or user declined), fall back to a placeholder they can
-    // update any time from the Profile tab.
-    if (!name.trim() && !nameFromApple) return;
-    if (!name.trim() && nameFromApple) setName("Apple User");
+    // Compute the final name synchronously — do not rely on the async
+    // state setter (setName) updating `name` before newProfile is built.
+    // Apple users who shared their name have nameFromApple=true and a
+    // pre-filled name; all other users must have typed one in the info step.
+    const finalName = name.trim() || (nameFromApple ? "Apple User" : "");
+    if (!finalName) return;
     setSaving(true);
     // Generate this user's own referral code on the way in.
     await ensureMyCode();
@@ -527,7 +528,7 @@ export default function OnboardingScreen() {
     }
     const newProfile: Profile = {
       id: userId,
-      name: name.trim(),
+      name: finalName,
       bio: bio.trim(),
       photoUri,
       socials,
