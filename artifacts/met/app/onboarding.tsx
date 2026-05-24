@@ -224,14 +224,19 @@ export default function OnboardingScreen() {
       if (!uid) return false;
       if (!api.isConfigured()) return false;
       const remote = await api.getMyProfile({ uid });
-      if (!remote || !remote.displayName) return false;
+      // A 404 (no profile yet) throws ApiError and is caught below → false.
+      // We only gate on `remote` being present here; a missing displayName
+      // means the user signed up with Apple and the name was not saved
+      // (a now-fixed bug). We restore them with a placeholder so they land
+      // on the home screen rather than being re-sent through full onboarding.
+      if (!remote) return false;
       // Load locally stored profile so we can fall back to its interests if
       // the server returns an empty array (e.g. column just added, first sync
       // after migration). Server interests win when non-empty.
       const local = await loadProfile();
       const restored: Profile = {
         id: remote.uid,
-        name: remote.displayName,
+        name: remote.displayName || "Apple User",
         bio: remote.bio ?? "",
         photoUri: remote.photoUrl ?? "",
         socials: (remote.socials ?? {}) as SocialLinks,
