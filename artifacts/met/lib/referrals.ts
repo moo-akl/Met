@@ -1,15 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSyncExternalStore } from "react";
+import { api } from "@/lib/api/client";
 
-// Local-only referral attribution for the prototype. In production this would
-// live on a backend that resolves install-time deferred deep links and grants
-// RevenueCat promotional entitlements. Here we mirror that flow with on-device
-// state so the full UX (code, share, progress, reward) is fully testable.
+// Server-backed referral system.
+// - The canonical state lives in the server (Postgres + RevenueCat).
+// - We sync to AsyncStorage so the UI works instantly on relaunch without a
+//   network round-trip and so isPromoPlusActive() (called by useSubscription)
+//   can read locally.
 
 const MY_CODE_KEY = "met:referrals:myCode:v1";
-const COUNTS_KEY = "met:referrals:counts:v1"; // { [code]: number }
 const REWARD_KEY = "met:referrals:reward:v1"; // { unlockedAt, expiresAt }
-const USED_KEY = "met:referrals:codeUsed:v1"; // string — set when the user accepts a code in onboarding
+const USED_KEY = "met:referrals:codeUsed:v1"; // code used by this device
 
 export const REQUIRED_INVITES = 3;
 export const REWARD_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -25,7 +26,7 @@ export type ReferralState = {
   reward: ReferralReward;
 };
 
-// Tiny external store so screens can subscribe to changes without prop drilling.
+// Tiny external store so screens can subscribe without prop drilling.
 const subs = new Set<() => void>();
 function notify() {
   for (const s of subs) s();
@@ -42,7 +43,6 @@ function getSnapshot(): ReferralState {
 }
 
 function generateCode(): string {
-  // 6 chars, no ambiguous 0/O/1/I.
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
   for (let i = 0; i < 6; i++) {
@@ -51,21 +51,18 @@ function generateCode(): string {
   return out;
 }
 
-async function readCounts(): Promise<Record<string, number>> {
-  const raw = await AsyncStorage.getItem(COUNTS_KEY);
-  if (!raw) return {};
+async function getAuthOpts(): Promise<{ uid: string } | null> {
   try {
-    return JSON.parse(raw) as Record<string, number>;
+    const authMod = await import("@react-native-firebase/auth");
+    const user = authMod.default().currentUser;
+    if (!user) return null;
+    return { uid: user.uid };
   } catch {
-    return {};
+    return null;
   }
 }
 
-async function writeCounts(counts: Record<string, number>): Promise<void> {
-  await AsyncStorage.setItem(COUNTS_KEY, JSON.stringify(counts));
-}
-
-async function readReward(): Promise<ReferralReward> {
+async function readLocalReward(): Promise<ReferralReward> {
   const raw = await AsyncStorage.getItem(REWARD_KEY);
   if (!raw) return null;
   try {
@@ -75,7 +72,7 @@ async function readReward(): Promise<ReferralReward> {
   }
 }
 
-async function writeReward(r: ReferralReward): Promise<void> {
+async function writeLocalReward(r: ReferralReward): Promise<void> {
   if (!r) {
     await AsyncStorage.removeItem(REWARD_KEY);
   } else {
@@ -83,30 +80,79 @@ async function writeReward(r: ReferralReward): Promise<void> {
   }
 }
 
-// Refreshes the in-memory cache from disk and notifies subscribers.
-async function refresh(): Promise<void> {
-  const [myCode, counts, reward] = await Promise.all([
+async function refreshFromLocal(): Promise<void> {
+  const [myCode, reward] = await Promise.all([
     AsyncStorage.getItem(MY_CODE_KEY),
-    readCounts(),
-    readReward(),
+    readLocalReward(),
   ]);
-  const count = myCode ? (counts[myCode] ?? 0) : 0;
-  cache = { myCode, count, reward };
+  cache = { myCode, count: cache.count, reward };
   notify();
 }
 
-// Called once at app start.
+// Sync state from the server and update local cache + AsyncStorage.
+async function syncFromServer(opts: { uid: string }): Promise<void> {
+  try {
+    const stats = await api.getReferralStats(opts);
+    const now = Date.now();
+    let reward: ReferralReward = null;
+    if (stats.rewardActive && stats.rewardExpiresAt && stats.rewardExpiresAt > now) {
+      reward = { unlockedAt: stats.rewardExpiresAt - REWARD_DURATION_MS, expiresAt: stats.rewardExpiresAt };
+    }
+    await writeLocalReward(reward);
+    if (stats.code) {
+      await AsyncStorage.setItem(MY_CODE_KEY, stats.code);
+    }
+    cache = {
+      myCode: stats.code ?? cache.myCode,
+      count: stats.count,
+      reward,
+    };
+    notify();
+  } catch {
+    // Network unavailable — use local cache; will retry next launch.
+  }
+}
+
+// Called once at app start. Loads from local cache immediately, then syncs
+// from server in the background (non-blocking).
 export async function initReferrals(): Promise<void> {
-  await ensureMyCode();
-  await refresh();
+  await refreshFromLocal();
+  const opts = await getAuthOpts();
+  if (opts) {
+    void syncFromServer(opts);
+  }
 }
 
 // Make sure we have a code for this device. Idempotent.
+// When a uid is available it also registers the code server-side.
 export async function ensureMyCode(): Promise<string> {
   const existing = await AsyncStorage.getItem(MY_CODE_KEY);
-  if (existing) return existing;
+  if (existing) {
+    // Best-effort: re-register in case the server lost this code
+    // (e.g. fresh deployment, DB wipe). Fire-and-forget.
+    const opts = await getAuthOpts();
+    if (opts) {
+      void api.registerReferralCode(opts, existing).catch(() => undefined);
+    }
+    return existing;
+  }
   const code = generateCode();
   await AsyncStorage.setItem(MY_CODE_KEY, code);
+  // Register with server
+  const opts = await getAuthOpts();
+  if (opts) {
+    try {
+      const res = await api.registerReferralCode(opts, code);
+      // Use server-confirmed code in case of race (e.g. two devices)
+      if (res.code && res.code !== code) {
+        await AsyncStorage.setItem(MY_CODE_KEY, res.code);
+      }
+    } catch {
+      // Server unavailable — local code will be registered on next launch.
+    }
+  }
+  cache = { ...cache, myCode: code };
+  notify();
   return code;
 }
 
@@ -114,80 +160,67 @@ export type RecordReferralResult =
   | "accepted"
   | "invalid_format"
   | "self_referral"
-  | "already_used";
+  | "already_used"
+  | "code_not_found"
+  | "server_error";
 
-// Mark a code as used by THIS device (during onboarding). Increments the
-// owner's count and unlocks their reward if they cross the threshold.
-//
-// PROTOTYPE NOTE: in production, attribution must be verified server-side
-// against a real registry of issued codes (and de-duplicated by a trusted
-// install identifier) — otherwise random/typo codes would award rewards.
-// Here we do best-effort local validation so the UX flow is fully testable.
-// The function returns a structured result so the caller can surface the
-// specific reason for rejection (instead of silently consuming the user's
-// one-and-only redemption on a typo).
+// Redeem another user's referral code during onboarding.
+// Delegates entirely to the server — no local counter manipulation.
 export async function recordReferral(
   rawCode: string,
 ): Promise<RecordReferralResult> {
   const code = rawCode.trim().toUpperCase();
   if (!/^[A-Z2-9]{6}$/.test(code)) return "invalid_format";
-  const myCode = await AsyncStorage.getItem(MY_CODE_KEY);
-  if (myCode && code === myCode) return "self_referral";
+
+  // Prevent re-submission if already used (local guard for fast feedback)
   const used = await AsyncStorage.getItem(USED_KEY);
-  if (used) return "already_used"; // each device may use only one code, ever
+  if (used) return "already_used";
 
-  const counts = await readCounts();
-  counts[code] = (counts[code] ?? 0) + 1;
-  await writeCounts(counts);
-  await AsyncStorage.setItem(USED_KEY, code);
+  const opts = await getAuthOpts();
+  if (!opts) return "server_error";
 
-  // If we (this device) own the code that was just used, also unlock the
-  // reward locally — useful for the demo "simulate a friend joining" path.
-  if (myCode && myCode === code && counts[code] >= REQUIRED_INVITES) {
-    await unlockReward();
+  try {
+    const { result } = await api.redeemReferralCode(opts, code);
+    if (result === "accepted") {
+      await AsyncStorage.setItem(USED_KEY, code);
+    }
+    return result;
+  } catch {
+    return "server_error";
   }
-  await refresh();
-  return "accepted";
 }
 
-// Bump our own count by 1 (demo-only path so users can see the reward flow).
-// Guarded by `__DEV__` at the call site so this never fires in release builds.
+// Dev-only simulate helper — kept for testing the UI flow.
 export async function simulateInvite(): Promise<void> {
-  if (!__DEV__) return; // belt-and-suspenders: never unlock rewards in prod
-  const myCode = await ensureMyCode();
-  const counts = await readCounts();
-  counts[myCode] = (counts[myCode] ?? 0) + 1;
-  await writeCounts(counts);
-  if (counts[myCode] >= REQUIRED_INVITES) {
-    await unlockReward();
+  if (!__DEV__) return;
+  cache = { ...cache, count: cache.count + 1 };
+  if (cache.count >= REQUIRED_INVITES && !cache.reward) {
+    const now = Date.now();
+    const reward: ReferralReward = { unlockedAt: now, expiresAt: now + REWARD_DURATION_MS };
+    cache = { ...cache, reward };
+    await writeLocalReward(reward);
   }
-  await refresh();
+  notify();
 }
 
-async function unlockReward(): Promise<void> {
-  const existing = await readReward();
-  if (existing && existing.expiresAt > Date.now()) return; // already active
-  const now = Date.now();
-  await writeReward({ unlockedAt: now, expiresAt: now + REWARD_DURATION_MS });
-}
-
-// True if the local promotional Plus is currently active. Used by
-// useSubscription to OR with RevenueCat's entitlement.
+// True if the local promotional Plus is currently active.
+// Used by useSubscription to OR with RevenueCat's entitlement.
+// NOTE: the server also grants a real RevenueCat entitlement so this
+// is the fallback for when the SDK hasn't refreshed yet.
 export async function isPromoPlusActive(): Promise<boolean> {
-  const r = await readReward();
+  const r = await readLocalReward();
   return !!r && r.expiresAt > Date.now();
 }
 
 export async function getPromoPlusUntil(): Promise<number | null> {
-  const r = await readReward();
+  const r = await readLocalReward();
   return r && r.expiresAt > Date.now() ? r.expiresAt : null;
 }
 
-// Wipe everything — invoked from the existing `resetAll` flow.
+// Wipe everything — invoked from the existing resetAll flow.
 export async function clearReferrals(): Promise<void> {
   await Promise.all([
     AsyncStorage.removeItem(MY_CODE_KEY),
-    AsyncStorage.removeItem(COUNTS_KEY),
     AsyncStorage.removeItem(REWARD_KEY),
     AsyncStorage.removeItem(USED_KEY),
   ]);

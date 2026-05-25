@@ -184,6 +184,29 @@ export type RevealRequestWithProfile = RevealRequest & {
   profile: Profile;
 };
 
+export interface RegisterReferralCode {
+  /**
+   * @minLength 6
+   * @maxLength 6
+   */
+  code: string;
+}
+
+export interface RedeemReferralCode {
+  /**
+   * @minLength 6
+   * @maxLength 6
+   */
+  code: string;
+}
+
+export interface ReferralStatsResponse {
+  code: string | null;
+  count: number;
+  rewardActive: boolean;
+  rewardExpiresAt: number | null;
+}
+
 export type NearbyPresenceParams = {
   lat: number;
   lng: number;
@@ -197,4 +220,23 @@ export type NearbyPresenceParams = {
    * @maximum 1440
    */
   maxAgeMin?: number;
+};
+
+export type RegisterReferralCode200 = {
+  code: string;
+};
+
+export type RedeemReferralCode200Result =
+  (typeof RedeemReferralCode200Result)[keyof typeof RedeemReferralCode200Result];
+
+export const RedeemReferralCode200Result = {
+  accepted: "accepted",
+  invalid_format: "invalid_format",
+  self_referral: "self_referral",
+  already_used: "already_used",
+  code_not_found: "code_not_found",
+} as const;
+
+export type RedeemReferralCode200 = {
+  result: RedeemReferralCode200Result;
 };

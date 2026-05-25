@@ -361,6 +361,43 @@ export const api = {
       opts,
       { token },
     ),
+  // ----- Referrals -----
+  /**
+   * Register (or update) the caller's referral code on the server.
+   * Call once after generating the code during onboarding.
+   */
+  registerReferralCode: (opts: ApiOptions, code: string) =>
+    request<{ code: string }>("POST", "/api/referrals/register", opts, {
+      code,
+    }),
+  /**
+   * Redeem another user's referral code. The server validates, records the
+   * redemption, and grants the inviter a 30-day Plus entitlement when they
+   * reach 3 invites.
+   */
+  redeemReferralCode: (
+    opts: ApiOptions,
+    code: string,
+  ) =>
+    request<{
+      result:
+        | "accepted"
+        | "invalid_format"
+        | "self_referral"
+        | "already_used"
+        | "code_not_found";
+    }>("POST", "/api/referrals/redeem", opts, { code }),
+  /**
+   * Fetch the caller's referral stats: their code, invite count, and whether
+   * the reward is currently active (30-day Plus from RevenueCat).
+   */
+  getReferralStats: (opts: ApiOptions) =>
+    request<{
+      code: string | null;
+      count: number;
+      rewardActive: boolean;
+      rewardExpiresAt: number | null;
+    }>("GET", "/api/referrals/stats", opts),
   /**
    * Submit a content / abuse report. Server persists to Firestore
    * `reports` collection so the team can action within 24h per Apple

@@ -18,6 +18,8 @@ tags:
     description: Location-based proximity
   - name: reveals
     description: Mutual-reveal request lifecycle
+  - name: referrals
+    description: Referral / invite-a-friend operations
 paths:
   /healthz:
     get:
@@ -409,6 +411,88 @@ paths:
                 items:
                   $ref: "#/components/schemas/NearbyEntry"
 
+  /referrals/register:
+    post:
+      operationId: registerReferralCode
+      tags: [referrals]
+      summary: Register your referral code
+      description: Stores the caller's referral code server-side. Call once after generating the code locally.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterReferralCode"
+      responses:
+        "200":
+          description: Code registered
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                properties:
+                  code:
+                    type: string
+        "401":
+          description: Unauthorized
+
+  /referrals/redeem:
+    post:
+      operationId: redeemReferralCode
+      tags: [referrals]
+      summary: Redeem someone else's referral code
+      description: Validates the code, records the redemption, and grants the inviter a Plus month when they hit 3 invites.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedeemReferralCode"
+      responses:
+        "200":
+          description: Redemption result
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    type: string
+                    enum:
+                      - accepted
+                      - invalid_format
+                      - self_referral
+                      - already_used
+                      - code_not_found
+        "401":
+          description: Unauthorized
+
+  /referrals/stats:
+    get:
+      operationId: getReferralStats
+      tags: [referrals]
+      summary: Get my referral stats
+      description: Returns the caller's referral code, invite count, and reward status.
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Referral stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralStatsResponse"
+        "401":
+          description: Unauthorized
+
 components:
   securitySchemes:
     MetUid:
@@ -735,3 +819,39 @@ components:
               $ref: "#/components/schemas/Profile"
           required:
             - profile
+    RegisterReferralCode:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+    RedeemReferralCode:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+    ReferralStatsResponse:
+      type: object
+      required:
+        - code
+        - count
+        - rewardActive
+        - rewardExpiresAt
+      properties:
+        code:
+          type: string
+          nullable: true
+        count:
+          type: integer
+        rewardActive:
+          type: boolean
+        rewardExpiresAt:
+          type: number
+          nullable: true

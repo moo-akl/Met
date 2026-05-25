@@ -8,6 +8,7 @@ import bleRouter from "./ble";
 import revealsRouter from "./reveals";
 import connectionsRouter from "./connections";
 import reportsRouter from "./reports";
+import referralsRouter from "./referrals";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(bleRouter);
 router.use(revealsRouter);
 router.use(connectionsRouter);
 router.use(reportsRouter);
+router.use(referralsRouter);
 
 export default router;

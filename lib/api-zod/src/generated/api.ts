@@ -493,3 +493,56 @@ export const NearbyPresenceResponseItem = zod.object({
   updatedAt: zod.coerce.date(),
 });
 export const NearbyPresenceResponse = zod.array(NearbyPresenceResponseItem);
+
+/**
+ * Stores the caller's referral code server-side. Call once after generating the code locally.
+ * @summary Register your referral code
+ */
+export const registerReferralCodeBodyCodeMin = 6;
+export const registerReferralCodeBodyCodeMax = 6;
+
+export const RegisterReferralCodeBody = zod.object({
+  code: zod
+    .string()
+    .min(registerReferralCodeBodyCodeMin)
+    .max(registerReferralCodeBodyCodeMax),
+});
+
+export const RegisterReferralCodeResponse = zod.object({
+  code: zod.string(),
+});
+
+/**
+ * Validates the code, records the redemption, and grants the inviter a Plus month when they hit 3 invites.
+ * @summary Redeem someone else's referral code
+ */
+export const redeemReferralCodeBodyCodeMin = 6;
+export const redeemReferralCodeBodyCodeMax = 6;
+
+export const RedeemReferralCodeBody = zod.object({
+  code: zod
+    .string()
+    .min(redeemReferralCodeBodyCodeMin)
+    .max(redeemReferralCodeBodyCodeMax),
+});
+
+export const RedeemReferralCodeResponse = zod.object({
+  result: zod.enum([
+    "accepted",
+    "invalid_format",
+    "self_referral",
+    "already_used",
+    "code_not_found",
+  ]),
+});
+
+/**
+ * Returns the caller's referral code, invite count, and reward status.
+ * @summary Get my referral stats
+ */
+export const GetReferralStatsResponse = zod.object({
+  code: zod.string().nullable(),
+  count: zod.number(),
+  rewardActive: zod.boolean(),
+  rewardExpiresAt: zod.number().nullable(),
+});
