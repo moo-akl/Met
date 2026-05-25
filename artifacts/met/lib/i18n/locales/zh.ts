@@ -315,6 +315,7 @@ export const zh: LocaleTree = {
     activateBeacon: "启用信标",
     missingPhotoTitle: "需要照片",
     missingPhotoBody: "请添加头像以继续。",
+    missingNameBody: "请输入您的姓名以继续。",
     inviteTitle: "有邀请码吗?",
     inviteSub:
       "可选。如果是朋友邀请你,请输入他们的 6 位代码以便记入贡献。",

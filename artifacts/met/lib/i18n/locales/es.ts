@@ -330,6 +330,7 @@ export const es: LocaleTree = {
     activateBeacon: "Activar baliza",
     missingPhotoTitle: "Foto requerida",
     missingPhotoBody: "Por favor añade una foto de perfil para continuar.",
+    missingNameBody: "Por favor introduce tu nombre para continuar.",
     inviteTitle: "¿Tienes un código de invitación?",
     inviteSub:
       "Opcional. Si te invitó un amigo, introduce su código de 6 caracteres para que reciba el crédito.",

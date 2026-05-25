@@ -339,6 +339,7 @@ export const en = {
     activateBeacon: "Activate beacon",
     missingPhotoTitle: "Photo required",
     missingPhotoBody: "Please add a profile photo to continue.",
+    missingNameBody: "Please enter your name to continue.",
     inviteTitle: "Got an invite code?",
     inviteSub:
       "Optional. If a friend invited you, enter their 6-character code so they get credit.",

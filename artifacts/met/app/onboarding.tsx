@@ -554,7 +554,10 @@ export default function OnboardingScreen() {
       return;
     }
     if (!finalName) {
-      setPhase("info");
+      // This should never fire in the normal flow — the photo step's
+      // Continue button now routes to the info step when name is empty.
+      // Guard here only as a true last resort.
+      Alert.alert(t("onboarding.infoTitle"), t("onboarding.missingNameBody"));
       return;
     }
     setSaving(true);
@@ -1281,7 +1284,20 @@ export default function OnboardingScreen() {
 
             <PrimaryButton
               label={t("common.continue")}
-              onPress={() => setPhase(nameFromApple ? "socials" : "info")}
+              onPress={() => {
+                // If we have a name (from Apple, Firebase cache, or manual
+                // entry on a prior pass through the info step) AND the user
+                // came from Apple, skip directly to socials.
+                // Otherwise always show the info step so the user can enter
+                // their name. This handles the common case where Apple doesn't
+                // resend the name on subsequent sign-ins (Apple's one-shot
+                // policy) and we have no Firebase cached displayName yet.
+                if (name.trim() && nameFromApple) {
+                  setPhase("socials");
+                } else {
+                  setPhase("info");
+                }
+              }}
               disabled={!photoUri}
             />
           </View>
