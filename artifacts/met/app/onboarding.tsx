@@ -317,23 +317,29 @@ export default function OnboardingScreen() {
       // Returns null when the user cancels the Apple sheet — silent.
       const result = await signInWithApple();
       if (result) {
-        // Apple provides the full name only on the very first sign-in.
-        // Pre-populate the name field so the user doesn't have to retype
-        // information Apple already supplied (Guideline 4 compliance).
-        // Always skip the name-entry step for Apple sign-in.
-        // Apple provides the full name on first sign-in; on subsequent
-        // logins the name comes from the Firebase user's cached displayName.
-        // Either way we use whatever we got and never show the "enter name"
-        // step to Apple users.
         setFromAppleSignIn(true);
+        // Always skip the info/name step for Apple users — we either have
+        // the name from Apple or from the Firebase cache; if neither is
+        // available the user will be redirected there from handleFinish.
+        setNameFromApple(true);
         if (result.fullName) {
-          // Name available (first sign-in, or cached by updateProfile in
-          // auth.ts on first sign-in). Pre-fill and skip the name step.
+          // First sign-in: Apple sent the name directly.
           setName(result.fullName);
-          setNameFromApple(true);
+        } else {
+          // Subsequent sign-in: Apple doesn't resend the name, but
+          // auth.ts persists it to Firebase on first sign-in via
+          // updateProfile. Read it back from the cached user object.
+          try {
+            const authMod = await import("@react-native-firebase/auth");
+            const fbName =
+              authMod.default().currentUser?.displayName ?? null;
+            const firstName = fbName?.split(" ")[0]?.trim() ?? null;
+            if (firstName) setName(firstName);
+          } catch {
+            // Firebase module unavailable — name stays empty and
+            // handleFinish will redirect to the info step as a fallback.
+          }
         }
-        // If fullName is null, nameFromApple stays false so the info step
-        // is shown and the user can enter their name manually.
         await goToProfileSetup();
       }
     } catch {
@@ -656,6 +662,29 @@ export default function OnboardingScreen() {
     (async () => {
       const uid = await getCurrentUserId();
       if (cancelled || !uid) return;
+      // If the persisted Firebase session belongs to an Apple sign-in
+      // user, pre-populate the name and skip the info step — exactly
+      // as handleApple does on a live sign-in.  This handles the case
+      // where the user was already signed in (e.g. after a local-profile
+      // wipe) and the resume effect re-runs goToProfileSetup directly.
+      try {
+        const authMod = await import("@react-native-firebase/auth");
+        const fbUser = authMod.default().currentUser;
+        if (fbUser) {
+          const isApple = fbUser.providerData?.some(
+            (p) => p.providerId === "apple.com",
+          );
+          if (isApple) {
+            setFromAppleSignIn(true);
+            setNameFromApple(true);
+            const firstName =
+              fbUser.displayName?.split(" ")[0]?.trim() ?? null;
+            if (firstName) setName(firstName);
+          }
+        }
+      } catch {
+        // Firebase module unavailable on this platform — no-op.
+      }
       const email = await getCurrentUserEmail();
       // Reload from server in case verification happened on another
       // device since the cached user was last touched.
