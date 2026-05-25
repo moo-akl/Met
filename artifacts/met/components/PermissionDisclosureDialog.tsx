@@ -99,20 +99,25 @@ export function PermissionDisclosureDialog({
             {body}
           </Text>
           <View style={styles.actions}>
-            <Pressable
-              onPress={onDismiss}
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.btnGhost,
-                { opacity: pressed ? 0.6 : 1 },
-              ]}
-            >
-              <Text
-                style={[styles.btnGhostText, { color: colors.mutedForeground }]}
+            {mode === "reminder" ? (
+              <Pressable
+                onPress={onDismiss}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.btnGhost,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
               >
-                Not Now
-              </Text>
-            </Pressable>
+                <Text
+                  style={[
+                    styles.btnGhostText,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  Not Now
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={onAccept}
               hitSlop={8}
