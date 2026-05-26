@@ -27,12 +27,15 @@ router.post("/referrals/register", requireUid, async (req, res) => {
   await db
     .insert(referralCodesTable)
     .values({ uid, code })
-    .onConflictDoUpdate({
-      target: referralCodesTable.uid,
-      set: { code },
-    });
+    .onConflictDoNothing({ target: referralCodesTable.uid });
 
-  res.json({ code });
+  const [existing] = await db
+    .select({ code: referralCodesTable.code })
+    .from(referralCodesTable)
+    .where(eq(referralCodesTable.uid, uid))
+    .limit(1);
+
+  res.json({ code: existing?.code ?? code });
 });
 
 router.post("/referrals/redeem", requireUid, async (req, res) => {
