@@ -139,21 +139,25 @@ export async function ensureMyCode(): Promise<string> {
   const code = generateCode();
   await AsyncStorage.setItem(MY_CODE_KEY, code);
   // Register with server
+  let confirmedCode = code;
   const opts = await getAuthOpts();
   if (opts) {
     try {
       const res = await api.registerReferralCode(opts, code);
-      // Use server-confirmed code in case of race (e.g. two devices)
-      if (res.code && res.code !== code) {
-        await AsyncStorage.setItem(MY_CODE_KEY, res.code);
+      // Server may return the pre-existing code (e.g. after sign-out cleared
+      // local storage but the server still had the original code). Always use
+      // the server-confirmed value so the UI shows the stable code.
+      if (res.code) {
+        confirmedCode = res.code;
+        await AsyncStorage.setItem(MY_CODE_KEY, confirmedCode);
       }
     } catch {
       // Server unavailable — local code will be registered on next launch.
     }
   }
-  cache = { ...cache, myCode: code };
+  cache = { ...cache, myCode: confirmedCode };
   notify();
-  return code;
+  return confirmedCode;
 }
 
 export type RecordReferralResult =

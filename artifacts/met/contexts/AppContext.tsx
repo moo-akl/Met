@@ -15,7 +15,7 @@ import {
   subscribeToAuthState,
 } from "@/lib/auth";
 import { getLanguage } from "@/lib/i18n";
-import { clearReferrals } from "@/lib/referrals";
+import { clearReferrals, initReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
 import { api, type RemoteRevealRequestWithProfile } from "@/lib/api/client";
 import {
@@ -607,6 +607,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const unsub = subscribeToAuthState((uid) => setAuthedUid(uid));
     return () => unsub();
   }, []);
+
+  // Re-sync referral state from the server whenever the user signs in.
+  // initReferrals() is called once at app start in _layout.tsx, but that
+  // fires before auth is resolved. This ensures the stable server-side code
+  // is restored every time authedUid becomes available (e.g. after sign-out
+  // + sign-in within the same session without relaunching the app).
+  useEffect(() => {
+    if (!authedUid) return;
+    void initReferrals();
+  }, [authedUid]);
 
   // Push profile -> backend whenever it changes (and we have an auth
   // session). Best-effort: never blocks UI, never throws.
