@@ -128,7 +128,7 @@ export async function initReferrals(): Promise<void> {
 export async function ensureMyCode(): Promise<string> {
   const existing = await AsyncStorage.getItem(MY_CODE_KEY);
   if (existing) {
-    // Best-effort: re-register in case the server lost this code
+    // Already have a code locally — re-register in case the server lost it
     // (e.g. fresh deployment, DB wipe). Fire-and-forget.
     const opts = await getAuthOpts();
     if (opts) {
@@ -136,17 +136,34 @@ export async function ensureMyCode(): Promise<string> {
     }
     return existing;
   }
-  const code = generateCode();
-  await AsyncStorage.setItem(MY_CODE_KEY, code);
-  // Register with server
-  let confirmedCode = code;
+
+  // No local code. Always ask the server first — this is the normal path
+  // after sign-out, where clearReferrals() wiped the local copy but the
+  // server still holds the user's original code. Generating a new random
+  // code before checking the server would overwrite a perfectly valid one.
   const opts = await getAuthOpts();
   if (opts) {
     try {
+      const stats = await api.getReferralStats(opts);
+      if (stats.code) {
+        // Server has the user's existing code — restore it locally.
+        await AsyncStorage.setItem(MY_CODE_KEY, stats.code);
+        cache = { ...cache, myCode: stats.code };
+        notify();
+        return stats.code;
+      }
+    } catch {
+      // Network unavailable — fall through to generating a new code.
+    }
+  }
+
+  // Truly new user (no server-side code yet) — generate one and register it.
+  const code = generateCode();
+  await AsyncStorage.setItem(MY_CODE_KEY, code);
+  let confirmedCode = code;
+  if (opts) {
+    try {
       const res = await api.registerReferralCode(opts, code);
-      // Server may return the pre-existing code (e.g. after sign-out cleared
-      // local storage but the server still had the original code). Always use
-      // the server-confirmed value so the UI shows the stable code.
       if (res.code) {
         confirmedCode = res.code;
         await AsyncStorage.setItem(MY_CODE_KEY, confirmedCode);

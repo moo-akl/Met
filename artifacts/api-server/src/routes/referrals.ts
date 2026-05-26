@@ -35,7 +35,12 @@ router.post("/referrals/register", requireUid, async (req, res) => {
     .where(eq(referralCodesTable.uid, uid))
     .limit(1);
 
-  res.json({ code: existing?.code ?? code });
+  const returnedCode = existing?.code ?? code;
+  req.log.info(
+    { sentCode: code, returnedCode, preserved: returnedCode !== code },
+    "referral register",
+  );
+  res.json({ code: returnedCode });
 });
 
 router.post("/referrals/redeem", requireUid, async (req, res) => {
@@ -106,6 +111,9 @@ router.post("/referrals/redeem", requireUid, async (req, res) => {
 
 router.get("/referrals/stats", requireUid, async (req, res) => {
   const uid = req.uid!;
+
+  // Prevent HTTP caching so clients always see the current code.
+  res.setHeader("Cache-Control", "no-store");
 
   const [row] = await db
     .select()
