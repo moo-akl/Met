@@ -1406,10 +1406,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // updatedAt <= watermark, and the existing request's updatedAt is
       // always older than Date.now() at the moment the user taps.
       revealWatermarks.current.inbound.set(senderUid, Date.now());
-      // Primary path: Firestore batch writes "accepted" into both parties'
-      // requests/ docs. The sender's subscribeToRequestsChange listener
-      // flips their encounter to "connected" in real time.
-      await writeRevealResponse(authedUid, senderUid, "accepted");
+      // Fire the Firestore write in the background — do NOT await it.
+      // On Android, batch.commit() can hang indefinitely when Play Integrity
+      // (App Check) is slow to initialize or fails to obtain a token,
+      // which would block updateEncounterStatus and leave the UI stuck in
+      // the "accepting" loading state forever. The Firestore write is a
+      // real-time signal for the sender's device only; it is best-effort
+      // and the REST api.acceptReveal call below is the authoritative path.
+      void writeRevealResponse(authedUid, senderUid, "accepted");
       await updateEncounterStatus(senderUid, "connected");
       // Also update Postgres via api-server (fire-and-forget) so the 5 s
       // REST poll safety net sees "accepted" immediately instead of waiting
@@ -1435,10 +1439,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // have triggered the Cloud Function yet) and reverts the decline —
       // exactly why the card reappeared after tapping "Not Now".
       revealWatermarks.current.inbound.set(senderUid, Date.now());
-      // Primary path: same symmetric Firestore batch as accept, with
-      // "declined" status. The Cloud Function mirrors the declined state
-      // to Postgres; the api-server call below is a direct fast-path.
-      await writeRevealResponse(authedUid, senderUid, "declined");
+      // Same as accept — fire the Firestore write in the background to avoid
+      // blocking the UI on Android (Play Integrity / App Check hangs).
+      void writeRevealResponse(authedUid, senderUid, "declined");
       await updateEncounterStatus(senderUid, "encounter");
       // Mirror decline to Postgres immediately via api-server so the next
       // REST poll sees "declined" (or no row) instead of "pending".
