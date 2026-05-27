@@ -20,6 +20,7 @@ import {
   startAdvertising,
   stopAdvertising,
   isAdvertisingAvailable,
+  setBackgroundMode,
 } from "../../modules/expo-met-ble/src";
 import { recordSelf, recordAdvertiserStart } from "./debug";
 
@@ -66,6 +67,15 @@ export async function startBleProximity(
   const generation = nextGeneration++;
   session = { uid: opts.uid, generation, advertising: false };
   recordSelf(opts.uid, null);
+
+  // Android: start the foreground service NOW so the process stays in
+  // the foreground-service tier for the entire BLE proximity session.
+  // This guarantees background BLE scanning works even on devices where
+  // GATT advertising is unavailable (the previous fallback was to start
+  // the service only when advertising succeeded, leaving those devices
+  // with no background protection for the react-native-ble-plx scan).
+  // No-op on iOS and Expo Go.
+  void setBackgroundMode(true);
 
   const adapter: BleListener = (ev: BleDetection) => {
     // Live-session check before forwarding.
@@ -119,6 +129,10 @@ export async function stopBleProximity(): Promise<void> {
   if (s?.advertising) {
     await stopAdvertising();
   }
+  // Release the explicit background-mode hold. The native side is
+  // reference-counted — it stops the foreground service only when
+  // advertising and iBeacon scanning have also released it.
+  void setBackgroundMode(false);
 }
 
 export { isAdvertisingAvailable };

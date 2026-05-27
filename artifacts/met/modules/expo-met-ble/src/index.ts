@@ -19,6 +19,7 @@ interface NativeMetBle {
   startAdvertising(uid: string, hashHex: string): Promise<boolean>;
   stopAdvertising(): Promise<void>;
   isAvailable(): Promise<boolean>;
+  setBackgroundMode(active: boolean): Promise<void>;
 }
 
 let nativeMod: NativeMetBle | null | undefined;
@@ -105,5 +106,28 @@ export async function isAdvertisingAvailable(): Promise<boolean> {
     return await mod.isAvailable();
   } catch {
     return false;
+  }
+}
+
+/**
+ * Android only. Starts (`active=true`) or stops (`active=false`) the
+ * foreground service that keeps the process in the foreground-service
+ * tier so BLE scanning continues while the app is backgrounded.
+ *
+ * Call with `true` as soon as BLE proximity starts and `false` when
+ * it stops. The foreground service is reference-counted against
+ * advertising and iBeacon scan activity — it only stops when ALL
+ * sources have released it.
+ *
+ * No-op on iOS (background BLE is handled via UIBackgroundModes) and
+ * in Expo Go (no native module).
+ */
+export async function setBackgroundMode(active: boolean): Promise<void> {
+  const mod = getNative();
+  if (!mod) return;
+  try {
+    await mod.setBackgroundMode(active);
+  } catch (err) {
+    console.warn("[ble] setBackgroundMode failed", err);
   }
 }
