@@ -21,6 +21,7 @@ import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { mirrorRevealRequest, mirrorRevealStatus } from "../lib/firestoreMirror";
 import { sendPush } from "../lib/push";
+import { recordRevealOutcome } from "../lib/revealMonitor";
 
 const router: IRouter = Router();
 
@@ -206,6 +207,7 @@ router.get("/reveals/outbox", requireUid, async (req, res) => {
 // to. We never auto-create a reverse request — only accept one that the
 // other party already initiated.
 router.post("/reveals/accept", requireUid, revealWriteLimit, async (req, res) => {
+  res.on("finish", () => recordRevealOutcome("accept", res.statusCode));
   const recipientUid = req.uid!;
   const body = AcceptRevealRequestBody.parse(req.body);
   const now = new Date();
@@ -323,6 +325,7 @@ router.post("/reveals/cancel", requireUid, revealWriteLimit, async (req, res) =>
 // Does NOT touch any reverse request: declining is a per-direction
 // statement, not a mutual block.
 router.post("/reveals/decline", requireUid, revealWriteLimit, async (req, res) => {
+  res.on("finish", () => recordRevealOutcome("decline", res.statusCode));
   const recipientUid = req.uid!;
   const body = DeclineRevealRequestBody.parse(req.body);
   const now = new Date();

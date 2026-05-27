@@ -212,21 +212,50 @@ export const mirrorRevealStatusToPostgres = onDocumentWrittenWithAuthContext(
 
       await client.query("COMMIT");
 
-      logger.info(
-        {
-          senderUid,
-          recipientUid,
-          status,
-          rowsUpdated: forward.rowCount ?? 0,
-        },
-        "Mirrored reveal status to Postgres",
-      );
+      const rowsUpdated = forward.rowCount ?? 0;
+
+      // A rowCount of 0 means no matching pending row existed in Postgres
+      // at the time of the mirror — Postgres and Firestore have diverged.
+      // This can happen when a previous mirror succeeded (idempotent path)
+      // but may also indicate a genuine consistency gap if the api-server
+      // never wrote the original pending row. Log it distinctly so a
+      // Cloud Logging alert on `alert = "reveal_mirror_no_row"` can surface
+      // these divergence events before a user reports "nothing happened".
+      if (rowsUpdated === 0) {
+        logger.warn(
+          {
+            alert: "reveal_mirror_no_row",
+            senderUid,
+            recipientUid,
+            status,
+          },
+          "Mirror reveal status: no pending row found in Postgres (possible divergence or duplicate delivery)",
+        );
+      } else {
+        logger.info(
+          {
+            senderUid,
+            recipientUid,
+            status,
+            rowsUpdated,
+          },
+          "Mirrored reveal status to Postgres",
+        );
+      }
     } catch (err) {
       await client.query("ROLLBACK").catch(() => undefined);
       // Re-throw so Cloud Functions retries per its policy. The Postgres
       // gating clause makes retries safe.
+      // The `alert` field makes this line filterable as a Cloud Logging
+      // log-based alert: severity=ERROR AND jsonPayload.alert="reveal_mirror_failed".
       logger.error(
-        { err, senderUid, recipientUid, status },
+        {
+          alert: "reveal_mirror_failed",
+          err,
+          senderUid,
+          recipientUid,
+          status,
+        },
         "Failed to mirror reveal status to Postgres",
       );
       throw err;
