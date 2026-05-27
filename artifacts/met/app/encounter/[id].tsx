@@ -65,6 +65,7 @@ export default function EncounterDetail() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [revealsRemaining, setRevealsRemaining] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
+  const [accepting, setAccepting] = useState(false);
   // Reveal-request confirmation sheet — gives the sender one last chance to
   // attach a personal note before the request fires. Empty draft = no note.
   const [revealSheetOpen, setRevealSheetOpen] = useState(false);
@@ -250,13 +251,18 @@ export default function EncounterDetail() {
   };
 
   const handleAccept = async () => {
+    if (accepting) return;
+    setAccepting(true);
     try {
       await acceptRevealRequest(encounter.id);
     } catch (err) {
       const msg =
         err instanceof Error && err.message ? err.message : "Please try again.";
       Alert.alert(t("encounter.acceptReveal"), msg);
+      setAccepting(false);
     }
+    // Don't clear accepting on success — the useEffect will navigate to
+    // /connection which unmounts this screen.
   };
   const handleCancel = async () => {
     if (cancelling) return;
@@ -561,11 +567,14 @@ export default function EncounterDetail() {
                     <PrimaryButton
                       label={t("encounter.acceptReveal")}
                       onPress={handleAccept}
+                      loading={accepting}
+                      disabled={accepting}
                     />
                     <PrimaryButton
                       label={t("encounter.notNow")}
                       variant="ghost"
                       onPress={handleDecline}
+                      disabled={accepting}
                     />
                   </View>
                 </>

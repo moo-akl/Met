@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -42,6 +43,9 @@ export function RequestsSheet({ visible, onClose }: Props) {
   const { t } = useT();
   const webBot = Platform.OS === "web" ? 34 : 0;
   const { encounters, acceptRevealRequest, declineRevealRequest } = useApp();
+  // Track which card is currently loading so buttons disable during async work.
+  // null = idle, string = the encounter id whose action is in flight.
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const incoming = encounters
     .filter((e) => e.status === "request_received")
@@ -53,31 +57,30 @@ export function RequestsSheet({ visible, onClose }: Props) {
   };
 
   const accept = async (id: string) => {
-    // CRITICAL: must go through acceptRevealRequest, which hits
-    // POST /api/reveals/accept on the server. The server then mirrors
-    // the accepted state back into Firestore on BOTH sides so the
-    // sender's listener flips their encounter to "connected" too.
-    // A local-only updateEncounterStatus would leave the sender stuck.
+    if (loadingId) return;
+    setLoadingId(id);
     try {
       await acceptRevealRequest(id);
     } catch (err) {
       console.warn("[requestsSheet] accept failed", err);
+      setLoadingId(null);
       return;
     }
+    // Don't clear loadingId here — the modal closes and navigates, so
+    // we stay "loading" until the component unmounts.
     onClose();
     router.push(`/connection/${id}`);
   };
 
   const decline = async (id: string) => {
-    // Same reason as accept: declines must round-trip through the
-    // server so the sender's outbox poll / listener picks up the
-    // declined state, otherwise the sender stays in "request_sent"
-    // forever.
+    if (loadingId) return;
+    setLoadingId(id);
     try {
       await declineRevealRequest(id);
     } catch (err) {
       console.warn("[requestsSheet] decline failed", err);
     }
+    setLoadingId(null);
   };
 
   return (
@@ -198,42 +201,54 @@ export function RequestsSheet({ visible, onClose }: Props) {
                   <View style={styles.actionRow}>
                     <Pressable
                       onPress={() => decline(e.id)}
+                      disabled={!!loadingId}
                       style={({ pressed }) => [
                         styles.actionBtn,
                         styles.declineBtn,
                         {
                           backgroundColor: colors.card,
                           borderColor: colors.border,
-                          opacity: pressed ? 0.7 : 1,
+                          opacity: loadingId === e.id || pressed ? 0.5 : 1,
                         },
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.actionText,
-                          { color: colors.foreground },
-                        ]}
-                      >
-                        {t("requestsSheet.notNow")}
-                      </Text>
+                      {loadingId === e.id ? (
+                        <ActivityIndicator size="small" color={colors.foreground} />
+                      ) : (
+                        <Text
+                          style={[
+                            styles.actionText,
+                            { color: colors.foreground },
+                          ]}
+                        >
+                          {t("requestsSheet.notNow")}
+                        </Text>
+                      )}
                     </Pressable>
                     <Pressable
                       onPress={() => accept(e.id)}
+                      disabled={!!loadingId}
                       style={({ pressed }) => [
                         styles.actionBtn,
                         {
                           backgroundColor: colors.primary,
                           borderColor: colors.primary,
-                          opacity: pressed ? 0.85 : 1,
+                          opacity: loadingId === e.id || pressed ? 0.6 : 1,
                         },
                       ]}
                     >
-                      <Feather name="check" size={16} color="#FFFFFF" />
-                      <Text
-                        style={[styles.actionText, { color: "#FFFFFF" }]}
-                      >
-                        {t("requestsSheet.acceptReveal")}
-                      </Text>
+                      {loadingId === e.id ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Feather name="check" size={16} color="#FFFFFF" />
+                          <Text
+                            style={[styles.actionText, { color: "#FFFFFF" }]}
+                          >
+                            {t("requestsSheet.acceptReveal")}
+                          </Text>
+                        </>
+                      )}
                     </Pressable>
                   </View>
                 </View>

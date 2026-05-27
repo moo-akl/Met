@@ -133,7 +133,7 @@ export async function subscribeToMessages(
     if (cancelled) return;
     if (real) { real(); real = null; }
 
-    real = fs
+    real = fs!
       .collection("chats")
       .doc(chatId)
       .collection("messages")

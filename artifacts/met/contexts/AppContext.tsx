@@ -1381,6 +1381,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const acceptRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
+      // Stamp the inbound watermark NOW (before async work) so the 5 s
+      // REST poll cannot revert the encounter back to "request_received"
+      // during the window between local update and the server confirming
+      // the accept. The inbound poll skips any server entry whose
+      // updatedAt <= watermark, and the existing request's updatedAt is
+      // always older than Date.now() at the moment the user taps.
+      revealWatermarks.current.inbound.set(senderUid, Date.now());
       // Primary path: Firestore batch writes "accepted" into both parties'
       // requests/ docs. The sender's subscribeToRequestsChange listener
       // flips their encounter to "connected" in real time.
@@ -1402,10 +1409,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const declineRevealRequest = useCallback(
     async (senderUid: string) => {
       if (!authedUid) throw new Error("Not signed in");
+      // Stamp the inbound watermark NOW so the 5 s REST poll cannot
+      // flip the encounter back to "request_received" during the window
+      // between the local state update and the server (Postgres) being
+      // told about the decline. Without this stamp the poll sees the
+      // request still "pending" in Postgres (the Firestore write may not
+      // have triggered the Cloud Function yet) and reverts the decline —
+      // exactly why the card reappeared after tapping "Not Now".
+      revealWatermarks.current.inbound.set(senderUid, Date.now());
       // Primary path: same symmetric Firestore batch as accept, with
-      // "declined" status. No api-server call needed.
+      // "declined" status. The Cloud Function mirrors the declined state
+      // to Postgres; the api-server call below is a direct fast-path.
       await writeRevealResponse(authedUid, senderUid, "declined");
       await updateEncounterStatus(senderUid, "encounter");
+      // Mirror decline to Postgres immediately via api-server so the next
+      // REST poll sees "declined" (or no row) instead of "pending".
+      // Previously this call was missing, which caused the encounter to
+      // bounce back to "request_received" within 5 s on every decline.
+      if (api.isConfigured()) {
+        api.declineReveal({ uid: authedUid }, senderUid).catch(() => {});
+      }
     },
     [authedUid, updateEncounterStatus],
   );
