@@ -119,7 +119,7 @@ router.post(
     // never expires and needs no token.
     try {
       await file.makePublic();
-      const photoUrl = `https://storage.googleapis.com/${bucket.name}/${objectPath}`;
+      const photoUrl = `https://storage.googleapis.com/${bucket.name}/${objectPath}?v=${Date.now()}`;
       req.log?.info?.({ uid, photoUrl }, "profile photo made public");
       res.json({ photoUrl });
       return;
