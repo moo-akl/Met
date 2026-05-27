@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "572463722097-mvb759shopka9juguj1d2trg4pa1p6l2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "app.met.founders",
+            "certificate_hash": "b3e5ca69eb58e0e2a0122baf0a3e389f9acc9754"
+          }
+        },
+        {
           "client_id": "572463722097-uq551sook9t92tpps960uti2bkcrrs54.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
