@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { AppState, Platform } from "react-native";
+import { Alert, AppState, Platform } from "react-native";
 
 import {
   deleteUserAccount,
@@ -17,7 +17,7 @@ import {
 import { getLanguage } from "@/lib/i18n";
 import { clearReferrals, initReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
-import { api, type RemoteRevealRequestWithProfile } from "@/lib/api/client";
+import { api, ApiError, type RemoteRevealRequestWithProfile } from "@/lib/api/client";
 import {
   startProximity,
   stopProximity,
@@ -679,11 +679,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch (err) {
           if ((err as { name?: string }).name === "AbortError") return;
           // 422 = content moderation rejection — show a clear message.
-          // Other errors are transient (network, storage) — fail silently
-          // and preserve the last known remote URL.
-          const { ApiError } = await import("@/lib/api/client");
+          // Other errors are transient (network, storage) — fail silently.
           if (err instanceof ApiError && err.status === 422) {
-            const { Alert } = await import("react-native");
             Alert.alert(
               "Photo not accepted",
               (err.body as { message?: string })?.message ??
