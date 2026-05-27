@@ -15,8 +15,17 @@ const mocks = vi.hoisted(() => {
   }));
   const mockBucket = vi.fn(() => ({ name: "test-bucket", file: mockFile }));
   const mockAdminStorage = vi.fn(() => ({ bucket: mockBucket }));
+  const mockModerateImage = vi.fn().mockResolvedValue({ safe: true });
 
-  return { mockSave, mockMakePublic, mockSetMetadata, mockFile, mockBucket, mockAdminStorage };
+  return {
+    mockSave,
+    mockMakePublic,
+    mockSetMetadata,
+    mockFile,
+    mockBucket,
+    mockAdminStorage,
+    mockModerateImage,
+  };
 });
 
 vi.mock("../lib/firebaseAdmin", () => ({
@@ -24,6 +33,10 @@ vi.mock("../lib/firebaseAdmin", () => ({
   adminAuth: vi.fn(),
   adminDb: vi.fn(),
   tryInitAdmin: vi.fn(() => null),
+}));
+
+vi.mock("../lib/contentModeration", () => ({
+  moderateImage: mocks.mockModerateImage,
 }));
 
 // ---------------------------------------------------------------------------
@@ -96,6 +109,55 @@ describe("POST /api/profiles/me/photo", () => {
       expect(res.status).toBe(415);
       expect(res.body).toHaveProperty("message");
       expect(res.body.message).toMatch(/unsupported media type/i);
+    });
+  });
+
+  describe("content moderation", () => {
+    it("returns 200 when moderateImage returns safe:true", async () => {
+      mocks.mockModerateImage.mockResolvedValueOnce({ safe: true });
+      const res = await uploadAs("uid-mod-safe", JPEG_B64);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("photoUrl");
+    });
+
+    it("returns 422 when moderateImage returns safe:false (adult content)", async () => {
+      mocks.mockModerateImage.mockResolvedValueOnce({
+        safe: false,
+        reason: "This photo contains adult content and can't be used as a profile photo. Please choose a different photo.",
+      });
+      const res = await uploadAs("uid-mod-adult", JPEG_B64);
+      expect(res.status).toBe(422);
+      expect(res.body).toHaveProperty("message");
+      expect(res.body.message).toMatch(/adult content/i);
+    });
+
+    it("returns 422 when moderateImage returns safe:false (violence)", async () => {
+      mocks.mockModerateImage.mockResolvedValueOnce({
+        safe: false,
+        reason: "This photo contains violent content and can't be used as a profile photo. Please choose a different photo.",
+      });
+      const res = await uploadAs("uid-mod-violence", JPEG_B64);
+      expect(res.status).toBe(422);
+      expect(res.body.message).toMatch(/violent content/i);
+    });
+
+    it("does NOT call adminStorage when moderation rejects the image", async () => {
+      mocks.mockModerateImage.mockResolvedValueOnce({
+        safe: false,
+        reason: "Community guidelines.",
+      });
+      mocks.mockSave.mockClear();
+      await uploadAs("uid-mod-no-storage", JPEG_B64);
+      expect(mocks.mockSave).not.toHaveBeenCalled();
+    });
+
+    it("allows upload when moderateImage throws unexpectedly (fail-open)", async () => {
+      // Simulates an unexpected throw from the moderation module itself.
+      // The route catches this and treats it as safe so uploads are never blocked.
+      mocks.mockModerateImage.mockRejectedValueOnce(new Error("Vision API down"));
+      const res = await uploadAs("uid-mod-failopen", JPEG_B64);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("photoUrl");
     });
   });
 

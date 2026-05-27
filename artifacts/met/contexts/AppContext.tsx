@@ -678,7 +678,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
         } catch (err) {
           if ((err as { name?: string }).name === "AbortError") return;
-          console.warn("[appcontext] profile photo upload failed", err);
+          // 422 = content moderation rejection — show a clear message.
+          // Other errors are transient (network, storage) — fail silently
+          // and preserve the last known remote URL.
+          const { ApiError } = await import("@/lib/api/client");
+          if (err instanceof ApiError && err.status === 422) {
+            const { Alert } = await import("react-native");
+            Alert.alert(
+              "Photo not accepted",
+              (err.body as { message?: string })?.message ??
+                "This photo doesn't meet our community guidelines. Please choose a different photo.",
+            );
+          } else {
+            console.warn("[appcontext] profile photo upload failed", err);
+          }
           uploadFailed = true;
           // Preserve the previously-synced remote URL so a transient
           // upload failure doesn't blank out the photo other users are

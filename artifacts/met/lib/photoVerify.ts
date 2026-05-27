@@ -33,8 +33,9 @@ export async function runFaceCheck(uri: string): Promise<boolean> {
 }
 
 export async function runContentCheck(_uri: string): Promise<boolean> {
-  // TODO: not yet wired to a real moderation provider. Currently a no-op
-  // pass-through — keep the visible stage timing for UX consistency.
+  // Content moderation is enforced server-side by the Vision API at
+  // POST /api/profiles/me/photo. This client stage is a UX timing placeholder
+  // so the progress animation feels consistent — the real gate is the server.
   await delay(PHOTO_VERIFY_STAGE_MS);
   return true;
 }

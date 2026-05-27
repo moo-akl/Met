@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { adminStorage } from "../lib/firebaseAdmin";
+import { moderateImage } from "../lib/contentModeration";
 
 const router: IRouter = Router();
 
@@ -76,6 +77,23 @@ router.post(
         message:
           "Unsupported media type: only JPEG and PNG images are accepted.",
       });
+      return;
+    }
+
+    // Content moderation: check for adult/violent/racy content before storing.
+    // Double fail-open: contentModeration.ts catches Vision API errors internally,
+    // but we also catch here in case of an unexpected throw so a moderation bug
+    // never blocks a legitimate upload.
+    let moderation: Awaited<ReturnType<typeof moderateImage>>;
+    try {
+      moderation = await moderateImage(body.base64);
+    } catch (err) {
+      req.log?.error?.({ err }, "content moderation threw unexpectedly — allowing upload");
+      moderation = { safe: true };
+    }
+    if (!moderation.safe) {
+      req.log?.warn?.({ uid }, "profile photo rejected by content moderation");
+      res.status(422).json({ message: moderation.reason });
       return;
     }
 
