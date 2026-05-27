@@ -690,11 +690,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             console.warn("[appcontext] profile photo upload failed", err);
           }
           uploadFailed = true;
-          // Preserve the previously-synced remote URL so a transient
-          // upload failure doesn't blank out the photo other users are
-          // already seeing on their encounter cards. The user will get
-          // another chance on their next profile save.
-          photoUrl = lastSyncedPhotoUrlRef.current;
+          // Revert profile.photoUri to the last known good remote URL.
+          // Without this, the stale file:// URI stays in AppContext AND
+          // AsyncStorage. On the next launch the file no longer exists,
+          // readAsStringAsync throws, and upsertMyProfile is called with
+          // photoUrl=null — silently wiping the user's photo on the server.
+          const revertTo = lastSyncedPhotoUrlRef.current ?? "";
+          photoUrl = revertTo || null;
+          setProfileState((current) => {
+            if (!current) return current;
+            const next: Profile = { ...current, photoUri: revertTo };
+            void saveProfile(next);
+            return next;
+          });
         }
       }
       try {

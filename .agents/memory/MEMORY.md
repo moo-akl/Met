@@ -1,0 +1,2 @@
+- [Photo upload CDN cache](photo-upload-cdn-cache.md) — Firebase Storage always uses the same path per user; append ?v=timestamp to bust CDN cache on each upload
+- [Photo upload failure revert](photo-upload-failure-revert.md) — on any upload failure the stale file:// URI must be reverted in AppContext + AsyncStorage or the profile breaks on next launch
