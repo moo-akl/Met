@@ -6,6 +6,12 @@ uri = "file://artifacts/met/assets/images/icon.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "QOvFrjIjkST1IEr99oog8"
+uri = "file://attached_assets/met_facebook_cover.png"
+type = "image"
+title = "met app facebook cover"
+
 [[outputs]]
 id = "77slVHvtkAaNWSn3JKhny"
 uri = "file://docs/MET_BUSINESS.md"
@@ -167,3 +173,9 @@ id = "xq_x9DgJgyw8zqazMk5GL"
 uri = "file://attached_assets/screenshots/6.5in/pro_view.png"
 type = "image"
 title = "Pro — 6.5\" iPhone XS Max/11 Pro Max (1242×2688)"
+
+[[outputs]]
+id = "aoPHGrS-s_7ahaJU9ILOB"
+uri = "file://attached_assets/met_facebook_cover.png"
+type = "image"
+title = "Met — Facebook Cover Photo"
