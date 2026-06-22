@@ -175,6 +175,31 @@ service cloud.firestore {
       }
     }
 
+    // ------------------------------------------------------------
+    //  ble_detections/{id}
+    // ------------------------------------------------------------
+    // Written by the native BLE scanner (MetBleModule.kt / .swift)
+    // when a peer hash is detected in the background. The Cloud
+    // Function `onBleDetectionCreated` resolves the hashes to UIDs,
+    // records the encounter in Postgres, mirrors to met_people, and
+    // sends push notifications to both users.
+    //
+    // Security model:
+    //   - Only an authenticated user may create a doc.
+    //   - The doc's observerUid MUST match the writer's auth UID so
+    //     a malicious client cannot spoof another user as the observer.
+    //   - No client reads, updates, or deletes — the Cloud Function
+    //     updates `processed:true` via the Admin SDK (bypasses rules).
+    //
+    // App Check is intentionally omitted here (same reasoning as
+    // /chats/): the write originates from background native code where
+    // an App Check token may not be available on every device/OS.
+    match /ble_detections/{id} {
+      allow create: if isAuthed() &&
+        request.resource.data.observerUid == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+
     // Default deny everything else.
     match /{document=**} {
       allow read, write: if false;
