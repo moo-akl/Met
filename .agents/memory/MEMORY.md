@@ -1,4 +1,2 @@
-- [Photo upload CDN cache](photo-upload-cdn-cache.md) — Firebase Storage always uses the same path per user; append ?v=timestamp to bust CDN cache on each upload
-- [Photo upload failure revert](photo-upload-failure-revert.md) — on any upload failure the stale file:// URI must be reverted in AppContext + AsyncStorage or the profile breaks on next launch
-- [Android Firestore batch hang](android-firestore-batch-hang.md) — batch.commit() can hang on Android (Play Integrity/App Check delay); never await writeRevealResponse — fire it void/background
-- [Android BLE foreground service](android-ble-foreground-service.md) — MetBleService only starts when advertising succeeds; use setBackgroundMode() to start it before advertising so background scanning works on all devices
+- [ExpoMetBle podspec Firebase deps](expo-met-ble-podspec.md) — podspec must declare FirebaseFirestore + FirebaseAuth or iOS builds fail with "No such module".
+- [Android GATT read API 33+](android-gatt-api33.md) — with compileSdk≥33, only the 4-arg onCharacteristicRead(gatt,ch,value,status) fires; override both for compatibility.
