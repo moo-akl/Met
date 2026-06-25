@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql, ilike, desc } from "drizzle-orm";
+import { eq, and, sql, ilike, desc, inArray } from "drizzle-orm";
 import {
   db,
   networksTable,
@@ -177,7 +177,7 @@ router.get("/networks/mine", requireUid, async (req, res) => {
   const networks = await db
     .select()
     .from(networksTable)
-    .where(sql`${networksTable.id} = ANY(${ids})`);
+    .where(inArray(networksTable.id, ids));
   const membershipByNetworkId = new Map(memberships.map((m) => [m.networkId, m]));
   res.json(networks.map((n) => serializeNetwork(n, membershipByNetworkId.get(n.id) ?? null)));
 });
@@ -279,7 +279,7 @@ router.get("/networks", requireUid, async (req, res) => {
           .where(
             and(
               eq(networkMembersTable.uid, uid),
-              sql`${networkMembersTable.networkId} = ANY(${ids})`,
+              inArray(networkMembersTable.networkId, ids),
             ),
           )
       : [];
@@ -417,7 +417,7 @@ router.get("/networks/:id/members", requireUid, async (req, res) => {
   const profiles = await db
     .select()
     .from(profilesTable)
-    .where(sql`${profilesTable.uid} = ANY(${uids})`);
+    .where(inArray(profilesTable.uid, uids));
   const profileMap = new Map(profiles.map((p) => [p.uid, p]));
 
   const result = members

@@ -1,2 +1,1 @@
-- [ExpoMetBle podspec Firebase deps](expo-met-ble-podspec.md) — podspec must declare FirebaseFirestore + FirebaseAuth or iOS builds fail with "No such module".
-- [Android GATT read API 33+](android-gatt-api33.md) — with compileSdk≥33, only the 4-arg onCharacteristicRead(gatt,ch,value,status) fires; override both for compatibility.
+- [inArray vs sql ANY](inarray-vs-sql-any.md) — always use Drizzle inArray() for IN-list queries, not sql`col = ANY(arr)`
