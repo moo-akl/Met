@@ -68,6 +68,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="networks"
+        options={{
+          title: t("tabs.networks"),
+          tabBarIcon: ({ color }) => (
+            <Feather name="globe" size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: t("tabs.profile"),

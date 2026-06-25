@@ -9,6 +9,7 @@ import revealsRouter from "./reveals";
 import connectionsRouter from "./connections";
 import reportsRouter from "./reports";
 import referralsRouter from "./referrals";
+import networksRouter from "./networks";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(revealsRouter);
 router.use(connectionsRouter);
 router.use(reportsRouter);
 router.use(referralsRouter);
+router.use(networksRouter);
 
 export default router;

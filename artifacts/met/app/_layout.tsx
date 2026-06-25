@@ -168,6 +168,14 @@ function RootLayoutNav() {
         name="referrals"
         options={{ presentation: "card", animation: "slide_from_right" }}
       />
+      <Stack.Screen
+        name="network/[id]"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
+      <Stack.Screen
+        name="network/create"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
     </Stack>
   );
 }

@@ -546,3 +546,276 @@ export const GetReferralStatsResponse = zod.object({
   rewardActive: zod.boolean(),
   rewardExpiresAt: zod.number().nullable(),
 });
+
+/**
+ * Calls Nominatim to resolve lat/lng to a human-readable neighborhood name for pre-filling the network creation form.
+ * @summary Reverse-geocode coordinates to a neighborhood name
+ */
+export const ResolveNeighborhoodQueryParams = zod.object({
+  lat: zod.coerce.number(),
+  lng: zod.coerce.number(),
+});
+
+export const ResolveNeighborhoodResponse = zod.object({
+  name: zod.string(),
+  city: zod.string().nullish(),
+  country: zod.string().nullish(),
+  lat: zod.number(),
+  lng: zod.number(),
+});
+
+/**
+ * @summary List networks I have joined
+ */
+export const GetMyNetworksResponseItem = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullish(),
+    category: zod.enum(["university", "work", "neighborhood", "custom"]),
+    createdByUid: zod.string(),
+    isPublic: zod.boolean(),
+    requiresApproval: zod.boolean(),
+    locationLat: zod.number().nullish(),
+    locationLng: zod.number().nullish(),
+    locationRadiusKm: zod.number().nullish(),
+    neighborhoodName: zod.string().nullish(),
+    memberCount: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      myMembership: zod
+        .object({
+          networkId: zod.number(),
+          uid: zod.string(),
+          role: zod.enum(["admin", "member"]),
+          status: zod.enum(["active", "pending", "banned"]),
+          joinedAt: zod.coerce.date(),
+          invitedByUid: zod.string().nullish(),
+        })
+        .nullish(),
+    }),
+  );
+export const GetMyNetworksResponse = zod.array(GetMyNetworksResponseItem);
+
+/**
+ * Creator is automatically added as admin. For neighborhood networks, pass lat/lng and the API will reverse-geocode the neighborhood name.
+ * @summary Create a new network
+ */
+export const createNetworkBodyNameMin = 2;
+export const createNetworkBodyNameMax = 80;
+
+export const createNetworkBodyDescriptionMax = 300;
+
+export const createNetworkBodyIsPublicDefault = true;
+export const createNetworkBodyRequiresApprovalDefault = false;
+export const createNetworkBodyLocationRadiusKmDefault = 2;
+
+export const CreateNetworkBody = zod.object({
+  name: zod
+    .string()
+    .min(createNetworkBodyNameMin)
+    .max(createNetworkBodyNameMax),
+  description: zod.string().max(createNetworkBodyDescriptionMax).nullish(),
+  category: zod.enum(["university", "work", "neighborhood", "custom"]),
+  isPublic: zod.boolean().default(createNetworkBodyIsPublicDefault),
+  requiresApproval: zod
+    .boolean()
+    .default(createNetworkBodyRequiresApprovalDefault),
+  locationLat: zod.number().nullish(),
+  locationLng: zod.number().nullish(),
+  locationRadiusKm: zod
+    .number()
+    .nullish()
+    .default(createNetworkBodyLocationRadiusKmDefault),
+});
+
+/**
+ * Returns public networks, optionally filtered by category or proximity (for neighborhood networks).
+ * @summary Browse / search networks
+ */
+export const listNetworksQueryQMax = 100;
+
+export const listNetworksQueryLimitDefault = 20;
+export const listNetworksQueryLimitMax = 100;
+
+export const listNetworksQueryOffsetDefault = 0;
+export const listNetworksQueryOffsetMin = 0;
+
+export const ListNetworksQueryParams = zod.object({
+  category: zod
+    .enum(["university", "work", "neighborhood", "custom"])
+    .optional(),
+  q: zod.coerce
+    .string()
+    .max(listNetworksQueryQMax)
+    .optional()
+    .describe("Free-text search on network name"),
+  lat: zod.coerce.number().optional(),
+  lng: zod.coerce.number().optional(),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(listNetworksQueryLimitMax)
+    .default(listNetworksQueryLimitDefault),
+  offset: zod.coerce
+    .number()
+    .min(listNetworksQueryOffsetMin)
+    .default(listNetworksQueryOffsetDefault),
+});
+
+export const ListNetworksResponseItem = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullish(),
+    category: zod.enum(["university", "work", "neighborhood", "custom"]),
+    createdByUid: zod.string(),
+    isPublic: zod.boolean(),
+    requiresApproval: zod.boolean(),
+    locationLat: zod.number().nullish(),
+    locationLng: zod.number().nullish(),
+    locationRadiusKm: zod.number().nullish(),
+    neighborhoodName: zod.string().nullish(),
+    memberCount: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      myMembership: zod
+        .object({
+          networkId: zod.number(),
+          uid: zod.string(),
+          role: zod.enum(["admin", "member"]),
+          status: zod.enum(["active", "pending", "banned"]),
+          joinedAt: zod.coerce.date(),
+          invitedByUid: zod.string().nullish(),
+        })
+        .nullish(),
+    }),
+  );
+export const ListNetworksResponse = zod.array(ListNetworksResponseItem);
+
+/**
+ * @summary Get a network by ID
+ */
+export const GetNetworkParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetNetworkResponse = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullish(),
+    category: zod.enum(["university", "work", "neighborhood", "custom"]),
+    createdByUid: zod.string(),
+    isPublic: zod.boolean(),
+    requiresApproval: zod.boolean(),
+    locationLat: zod.number().nullish(),
+    locationLng: zod.number().nullish(),
+    locationRadiusKm: zod.number().nullish(),
+    neighborhoodName: zod.string().nullish(),
+    memberCount: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      myMembership: zod
+        .object({
+          networkId: zod.number(),
+          uid: zod.string(),
+          role: zod.enum(["admin", "member"]),
+          status: zod.enum(["active", "pending", "banned"]),
+          joinedAt: zod.coerce.date(),
+          invitedByUid: zod.string().nullish(),
+        })
+        .nullish(),
+    }),
+  );
+
+/**
+ * For public networks the member is immediately active. For approval-required networks the status is pending.
+ * @summary Join a network
+ */
+export const JoinNetworkParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const JoinNetworkResponse = zod.object({
+  status: zod.enum(["active", "pending"]),
+});
+
+/**
+ * @summary Leave a network
+ */
+export const LeaveNetworkParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const LeaveNetworkResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List active members of a network with their profiles
+ */
+export const ListNetworkMembersParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListNetworkMembersResponseItem = zod
+  .object({
+    networkId: zod.number(),
+    uid: zod.string(),
+    role: zod.enum(["admin", "member"]),
+    status: zod.enum(["active", "pending", "banned"]),
+    joinedAt: zod.coerce.date(),
+    invitedByUid: zod.string().nullish(),
+  })
+  .and(
+    zod.object({
+      profile: zod.object({
+        uid: zod.string(),
+        displayName: zod.string(),
+        photoUrl: zod.string().nullish(),
+        bio: zod.string().nullish(),
+        socials: zod.record(zod.string(), zod.string()).optional(),
+        interests: zod
+          .array(zod.string())
+          .nullish()
+          .describe("User-selected interest tags (predefined list, up to 10)."),
+        isVisible: zod
+          .boolean()
+          .describe(
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+          ),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      }),
+    }),
+  );
+export const ListNetworkMembersResponse = zod.array(
+  ListNetworkMembersResponseItem,
+);
+
+/**
+ * @summary Invite a connection to a network
+ */
+export const InviteToNetworkParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const inviteToNetworkBodyUidMax = 128;
+
+export const InviteToNetworkBody = zod.object({
+  uid: zod.string().min(1).max(inviteToNetworkBodyUidMax),
+});
+
+export const InviteToNetworkResponse = zod.object({
+  success: zod.boolean(),
+});

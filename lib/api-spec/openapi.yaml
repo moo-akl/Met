@@ -20,6 +20,8 @@ tags:
     description: Mutual-reveal request lifecycle
   - name: referrals
     description: Referral / invite-a-friend operations
+  - name: networks
+    description: Community networks (university, work, neighborhood, custom)
 paths:
   /healthz:
     get:
@@ -493,6 +495,326 @@ paths:
         "401":
           description: Unauthorized
 
+  /networks/resolve-neighborhood:
+    get:
+      operationId: resolveNeighborhood
+      tags: [networks]
+      summary: Reverse-geocode coordinates to a neighborhood name
+      description: Calls Nominatim to resolve lat/lng to a human-readable neighborhood name for pre-filling the network creation form.
+      security:
+        - MetUid: []
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+        - name: lng
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+      responses:
+        "200":
+          description: Resolved neighborhood info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NeighborhoodInfo"
+        "401":
+          description: Unauthorized
+
+  /networks/mine:
+    get:
+      operationId: getMyNetworks
+      tags: [networks]
+      summary: List networks I have joined
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: My networks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NetworkListEntry"
+        "401":
+          description: Unauthorized
+
+  /networks:
+    post:
+      operationId: createNetwork
+      tags: [networks]
+      summary: Create a new network
+      description: Creator is automatically added as admin. For neighborhood networks, pass lat/lng and the API will reverse-geocode the neighborhood name.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNetwork"
+      responses:
+        "201":
+          description: Created network
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkListEntry"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+    get:
+      operationId: listNetworks
+      tags: [networks]
+      summary: Browse / search networks
+      description: Returns public networks, optionally filtered by category or proximity (for neighborhood networks).
+      security:
+        - MetUid: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/NetworkCategory"
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+          description: Free-text search on network name
+        - name: lat
+          in: query
+          required: false
+          schema:
+            type: number
+            format: double
+        - name: lng
+          in: query
+          required: false
+          schema:
+            type: number
+            format: double
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: List of networks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NetworkListEntry"
+        "401":
+          description: Unauthorized
+
+  /networks/{id}:
+    get:
+      operationId: getNetwork
+      tags: [networks]
+      summary: Get a network by ID
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Network detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkListEntry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /networks/{id}/join:
+    post:
+      operationId: joinNetwork
+      tags: [networks]
+      summary: Join a network
+      description: For public networks the member is immediately active. For approval-required networks the status is pending.
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Membership result
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum: [active, pending]
+        "404":
+          description: Network not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Already a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /networks/{id}/members/me:
+    delete:
+      operationId: leaveNetwork
+      tags: [networks]
+      summary: Leave a network
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Left successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                properties:
+                  success:
+                    type: boolean
+        "404":
+          description: Network or membership not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /networks/{id}/members:
+    get:
+      operationId: listNetworkMembers
+      tags: [networks]
+      summary: List active members of a network with their profiles
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Members list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NetworkMemberWithProfile"
+        "404":
+          description: Network not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /networks/{id}/invite:
+    post:
+      operationId: inviteToNetwork
+      tags: [networks]
+      summary: Invite a connection to a network
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteToNetworkRequest"
+      responses:
+        "200":
+          description: Invite sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                properties:
+                  success:
+                    type: boolean
+        "404":
+          description: Network or user not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Already a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
 components:
   securitySchemes:
     MetUid:
@@ -855,3 +1177,164 @@ components:
         rewardExpiresAt:
           type: number
           nullable: true
+    NetworkCategory:
+      type: string
+      enum: [university, work, neighborhood, custom]
+    Network:
+      type: object
+      required:
+        - id
+        - name
+        - category
+        - createdByUid
+        - isPublic
+        - requiresApproval
+        - memberCount
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          $ref: "#/components/schemas/NetworkCategory"
+        createdByUid:
+          type: string
+        isPublic:
+          type: boolean
+        requiresApproval:
+          type: boolean
+        locationLat:
+          type: number
+          format: double
+          nullable: true
+        locationLng:
+          type: number
+          format: double
+          nullable: true
+        locationRadiusKm:
+          type: number
+          format: double
+          nullable: true
+        neighborhoodName:
+          type: string
+          nullable: true
+        memberCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NetworkMemberEntry:
+      type: object
+      required:
+        - networkId
+        - uid
+        - role
+        - status
+        - joinedAt
+      properties:
+        networkId:
+          type: integer
+        uid:
+          type: string
+        role:
+          type: string
+          enum: [admin, member]
+        status:
+          type: string
+          enum: [active, pending, banned]
+        joinedAt:
+          type: string
+          format: date-time
+        invitedByUid:
+          type: string
+          nullable: true
+    NetworkMemberWithProfile:
+      allOf:
+        - $ref: "#/components/schemas/NetworkMemberEntry"
+        - type: object
+          required:
+            - profile
+          properties:
+            profile:
+              $ref: "#/components/schemas/Profile"
+    NetworkListEntry:
+      allOf:
+        - $ref: "#/components/schemas/Network"
+        - type: object
+          properties:
+            myMembership:
+              $ref: "#/components/schemas/NetworkMemberEntry"
+              nullable: true
+    CreateNetwork:
+      type: object
+      required:
+        - name
+        - category
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        description:
+          type: string
+          nullable: true
+          maxLength: 300
+        category:
+          $ref: "#/components/schemas/NetworkCategory"
+        isPublic:
+          type: boolean
+          default: true
+        requiresApproval:
+          type: boolean
+          default: false
+        locationLat:
+          type: number
+          format: double
+          nullable: true
+        locationLng:
+          type: number
+          format: double
+          nullable: true
+        locationRadiusKm:
+          type: number
+          format: double
+          nullable: true
+          default: 2
+    InviteToNetworkRequest:
+      type: object
+      required:
+        - uid
+      properties:
+        uid:
+          type: string
+          minLength: 1
+          maxLength: 128
+    NeighborhoodInfo:
+      type: object
+      required:
+        - name
+        - lat
+        - lng
+      properties:
+        name:
+          type: string
+        city:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double

@@ -19,14 +19,23 @@ import type {
 import type {
   BleResolveEntry,
   BleResolveRequest,
+  CreateNetwork,
   CreateRevealRequest,
   Encounter,
   EncounterWithProfile,
   Error,
   HealthStatus,
+  InviteToNetwork200,
+  InviteToNetworkRequest,
+  JoinNetwork200,
+  LeaveNetwork200,
+  ListNetworksParams,
   LogEncounter,
   NearbyEntry,
   NearbyPresenceParams,
+  NeighborhoodInfo,
+  NetworkListEntry,
+  NetworkMemberWithProfile,
   PresenceRecord,
   Profile,
   RecordEncounter,
@@ -36,6 +45,7 @@ import type {
   ReferralStatsResponse,
   RegisterReferralCode,
   RegisterReferralCode200,
+  ResolveNeighborhoodParams,
   RespondToReveal,
   RevealRequest,
   RevealRequestWithProfile,
@@ -1573,3 +1583,794 @@ export function useGetReferralStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Calls Nominatim to resolve lat/lng to a human-readable neighborhood name for pre-filling the network creation form.
+ * @summary Reverse-geocode coordinates to a neighborhood name
+ */
+export const getResolveNeighborhoodUrl = (
+  params: ResolveNeighborhoodParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/networks/resolve-neighborhood?${stringifiedParams}`
+    : `/api/networks/resolve-neighborhood`;
+};
+
+export const resolveNeighborhood = async (
+  params: ResolveNeighborhoodParams,
+  options?: RequestInit,
+): Promise<NeighborhoodInfo> => {
+  return customFetch<NeighborhoodInfo>(getResolveNeighborhoodUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getResolveNeighborhoodQueryKey = (
+  params?: ResolveNeighborhoodParams,
+) => {
+  return [
+    `/api/networks/resolve-neighborhood`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getResolveNeighborhoodQueryOptions = <
+  TData = Awaited<ReturnType<typeof resolveNeighborhood>>,
+  TError = ErrorType<void>,
+>(
+  params: ResolveNeighborhoodParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof resolveNeighborhood>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getResolveNeighborhoodQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof resolveNeighborhood>>
+  > = ({ signal }) =>
+    resolveNeighborhood(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof resolveNeighborhood>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ResolveNeighborhoodQueryResult = NonNullable<
+  Awaited<ReturnType<typeof resolveNeighborhood>>
+>;
+export type ResolveNeighborhoodQueryError = ErrorType<void>;
+
+/**
+ * @summary Reverse-geocode coordinates to a neighborhood name
+ */
+
+export function useResolveNeighborhood<
+  TData = Awaited<ReturnType<typeof resolveNeighborhood>>,
+  TError = ErrorType<void>,
+>(
+  params: ResolveNeighborhoodParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof resolveNeighborhood>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getResolveNeighborhoodQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List networks I have joined
+ */
+export const getGetMyNetworksUrl = () => {
+  return `/api/networks/mine`;
+};
+
+export const getMyNetworks = async (
+  options?: RequestInit,
+): Promise<NetworkListEntry[]> => {
+  return customFetch<NetworkListEntry[]>(getGetMyNetworksUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyNetworksQueryKey = () => {
+  return [`/api/networks/mine`] as const;
+};
+
+export const getGetMyNetworksQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyNetworks>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyNetworks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyNetworksQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyNetworks>>> = ({
+    signal,
+  }) => getMyNetworks({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyNetworks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyNetworksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyNetworks>>
+>;
+export type GetMyNetworksQueryError = ErrorType<void>;
+
+/**
+ * @summary List networks I have joined
+ */
+
+export function useGetMyNetworks<
+  TData = Awaited<ReturnType<typeof getMyNetworks>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyNetworks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyNetworksQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Creator is automatically added as admin. For neighborhood networks, pass lat/lng and the API will reverse-geocode the neighborhood name.
+ * @summary Create a new network
+ */
+export const getCreateNetworkUrl = () => {
+  return `/api/networks`;
+};
+
+export const createNetwork = async (
+  createNetwork: CreateNetwork,
+  options?: RequestInit,
+): Promise<NetworkListEntry> => {
+  return customFetch<NetworkListEntry>(getCreateNetworkUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createNetwork),
+  });
+};
+
+export const getCreateNetworkMutationOptions = <
+  TError = ErrorType<Error | void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createNetwork>>,
+    TError,
+    { data: BodyType<CreateNetwork> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createNetwork>>,
+  TError,
+  { data: BodyType<CreateNetwork> },
+  TContext
+> => {
+  const mutationKey = ["createNetwork"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createNetwork>>,
+    { data: BodyType<CreateNetwork> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createNetwork(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateNetworkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createNetwork>>
+>;
+export type CreateNetworkMutationBody = BodyType<CreateNetwork>;
+export type CreateNetworkMutationError = ErrorType<Error | void>;
+
+/**
+ * @summary Create a new network
+ */
+export const useCreateNetwork = <
+  TError = ErrorType<Error | void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createNetwork>>,
+    TError,
+    { data: BodyType<CreateNetwork> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createNetwork>>,
+  TError,
+  { data: BodyType<CreateNetwork> },
+  TContext
+> => {
+  return useMutation(getCreateNetworkMutationOptions(options));
+};
+
+/**
+ * Returns public networks, optionally filtered by category or proximity (for neighborhood networks).
+ * @summary Browse / search networks
+ */
+export const getListNetworksUrl = (params?: ListNetworksParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/networks?${stringifiedParams}`
+    : `/api/networks`;
+};
+
+export const listNetworks = async (
+  params?: ListNetworksParams,
+  options?: RequestInit,
+): Promise<NetworkListEntry[]> => {
+  return customFetch<NetworkListEntry[]>(getListNetworksUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListNetworksQueryKey = (params?: ListNetworksParams) => {
+  return [`/api/networks`, ...(params ? [params] : [])] as const;
+};
+
+export const getListNetworksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listNetworks>>,
+  TError = ErrorType<void>,
+>(
+  params?: ListNetworksParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNetworks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListNetworksQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listNetworks>>> = ({
+    signal,
+  }) => listNetworks(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listNetworks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListNetworksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listNetworks>>
+>;
+export type ListNetworksQueryError = ErrorType<void>;
+
+/**
+ * @summary Browse / search networks
+ */
+
+export function useListNetworks<
+  TData = Awaited<ReturnType<typeof listNetworks>>,
+  TError = ErrorType<void>,
+>(
+  params?: ListNetworksParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNetworks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListNetworksQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a network by ID
+ */
+export const getGetNetworkUrl = (id: number) => {
+  return `/api/networks/${id}`;
+};
+
+export const getNetwork = async (
+  id: number,
+  options?: RequestInit,
+): Promise<NetworkListEntry> => {
+  return customFetch<NetworkListEntry>(getGetNetworkUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetNetworkQueryKey = (id: number) => {
+  return [`/api/networks/${id}`] as const;
+};
+
+export const getGetNetworkQueryOptions = <
+  TData = Awaited<ReturnType<typeof getNetwork>>,
+  TError = ErrorType<void | Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getNetwork>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetNetworkQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getNetwork>>> = ({
+    signal,
+  }) => getNetwork(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getNetwork>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetNetworkQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getNetwork>>
+>;
+export type GetNetworkQueryError = ErrorType<void | Error>;
+
+/**
+ * @summary Get a network by ID
+ */
+
+export function useGetNetwork<
+  TData = Awaited<ReturnType<typeof getNetwork>>,
+  TError = ErrorType<void | Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getNetwork>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetNetworkQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * For public networks the member is immediately active. For approval-required networks the status is pending.
+ * @summary Join a network
+ */
+export const getJoinNetworkUrl = (id: number) => {
+  return `/api/networks/${id}/join`;
+};
+
+export const joinNetwork = async (
+  id: number,
+  options?: RequestInit,
+): Promise<JoinNetwork200> => {
+  return customFetch<JoinNetwork200>(getJoinNetworkUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getJoinNetworkMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinNetwork>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof joinNetwork>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["joinNetwork"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof joinNetwork>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return joinNetwork(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type JoinNetworkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof joinNetwork>>
+>;
+
+export type JoinNetworkMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Join a network
+ */
+export const useJoinNetwork = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinNetwork>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof joinNetwork>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getJoinNetworkMutationOptions(options));
+};
+
+/**
+ * @summary Leave a network
+ */
+export const getLeaveNetworkUrl = (id: number) => {
+  return `/api/networks/${id}/members/me`;
+};
+
+export const leaveNetwork = async (
+  id: number,
+  options?: RequestInit,
+): Promise<LeaveNetwork200> => {
+  return customFetch<LeaveNetwork200>(getLeaveNetworkUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getLeaveNetworkMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof leaveNetwork>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof leaveNetwork>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["leaveNetwork"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof leaveNetwork>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return leaveNetwork(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LeaveNetworkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof leaveNetwork>>
+>;
+
+export type LeaveNetworkMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Leave a network
+ */
+export const useLeaveNetwork = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof leaveNetwork>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof leaveNetwork>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getLeaveNetworkMutationOptions(options));
+};
+
+/**
+ * @summary List active members of a network with their profiles
+ */
+export const getListNetworkMembersUrl = (id: number) => {
+  return `/api/networks/${id}/members`;
+};
+
+export const listNetworkMembers = async (
+  id: number,
+  options?: RequestInit,
+): Promise<NetworkMemberWithProfile[]> => {
+  return customFetch<NetworkMemberWithProfile[]>(getListNetworkMembersUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListNetworkMembersQueryKey = (id: number) => {
+  return [`/api/networks/${id}/members`] as const;
+};
+
+export const getListNetworkMembersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listNetworkMembers>>,
+  TError = ErrorType<void | Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNetworkMembers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListNetworkMembersQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listNetworkMembers>>
+  > = ({ signal }) => listNetworkMembers(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listNetworkMembers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListNetworkMembersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listNetworkMembers>>
+>;
+export type ListNetworkMembersQueryError = ErrorType<void | Error>;
+
+/**
+ * @summary List active members of a network with their profiles
+ */
+
+export function useListNetworkMembers<
+  TData = Awaited<ReturnType<typeof listNetworkMembers>>,
+  TError = ErrorType<void | Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNetworkMembers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListNetworkMembersQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Invite a connection to a network
+ */
+export const getInviteToNetworkUrl = (id: number) => {
+  return `/api/networks/${id}/invite`;
+};
+
+export const inviteToNetwork = async (
+  id: number,
+  inviteToNetworkRequest: InviteToNetworkRequest,
+  options?: RequestInit,
+): Promise<InviteToNetwork200> => {
+  return customFetch<InviteToNetwork200>(getInviteToNetworkUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(inviteToNetworkRequest),
+  });
+};
+
+export const getInviteToNetworkMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteToNetwork>>,
+    TError,
+    { id: number; data: BodyType<InviteToNetworkRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof inviteToNetwork>>,
+  TError,
+  { id: number; data: BodyType<InviteToNetworkRequest> },
+  TContext
+> => {
+  const mutationKey = ["inviteToNetwork"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof inviteToNetwork>>,
+    { id: number; data: BodyType<InviteToNetworkRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return inviteToNetwork(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InviteToNetworkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof inviteToNetwork>>
+>;
+export type InviteToNetworkMutationBody = BodyType<InviteToNetworkRequest>;
+export type InviteToNetworkMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Invite a connection to a network
+ */
+export const useInviteToNetwork = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteToNetwork>>,
+    TError,
+    { id: number; data: BodyType<InviteToNetworkRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof inviteToNetwork>>,
+  TError,
+  { id: number; data: BodyType<InviteToNetworkRequest> },
+  TContext
+> => {
+  return useMutation(getInviteToNetworkMutationOptions(options));
+};

@@ -207,6 +207,99 @@ export interface ReferralStatsResponse {
   rewardExpiresAt: number | null;
 }
 
+export type NetworkCategory =
+  (typeof NetworkCategory)[keyof typeof NetworkCategory];
+
+export const NetworkCategory = {
+  university: "university",
+  work: "work",
+  neighborhood: "neighborhood",
+  custom: "custom",
+} as const;
+
+export interface Network {
+  id: number;
+  name: string;
+  description?: string | null;
+  category: NetworkCategory;
+  createdByUid: string;
+  isPublic: boolean;
+  requiresApproval: boolean;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationRadiusKm?: number | null;
+  neighborhoodName?: string | null;
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NetworkMemberEntryRole =
+  (typeof NetworkMemberEntryRole)[keyof typeof NetworkMemberEntryRole];
+
+export const NetworkMemberEntryRole = {
+  admin: "admin",
+  member: "member",
+} as const;
+
+export type NetworkMemberEntryStatus =
+  (typeof NetworkMemberEntryStatus)[keyof typeof NetworkMemberEntryStatus];
+
+export const NetworkMemberEntryStatus = {
+  active: "active",
+  pending: "pending",
+  banned: "banned",
+} as const;
+
+export interface NetworkMemberEntry {
+  networkId: number;
+  uid: string;
+  role: NetworkMemberEntryRole;
+  status: NetworkMemberEntryStatus;
+  joinedAt: string;
+  invitedByUid?: string | null;
+}
+
+export type NetworkMemberWithProfile = NetworkMemberEntry & {
+  profile: Profile;
+};
+
+export type NetworkListEntry = Network & {
+  myMembership?: NetworkMemberEntry | null;
+};
+
+export interface CreateNetwork {
+  /**
+   * @minLength 2
+   * @maxLength 80
+   */
+  name: string;
+  /** @maxLength 300 */
+  description?: string | null;
+  category: NetworkCategory;
+  isPublic?: boolean;
+  requiresApproval?: boolean;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationRadiusKm?: number | null;
+}
+
+export interface InviteToNetworkRequest {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  uid: string;
+}
+
+export interface NeighborhoodInfo {
+  name: string;
+  city?: string | null;
+  country?: string | null;
+  lat: number;
+  lng: number;
+}
+
 export type NearbyPresenceParams = {
   lat: number;
   lng: number;
@@ -239,4 +332,49 @@ export const RedeemReferralCode200Result = {
 
 export type RedeemReferralCode200 = {
   result: RedeemReferralCode200Result;
+};
+
+export type ResolveNeighborhoodParams = {
+  lat: number;
+  lng: number;
+};
+
+export type ListNetworksParams = {
+  category?: NetworkCategory;
+  /**
+   * Free-text search on network name
+   * @maxLength 100
+   */
+  q?: string;
+  lat?: number;
+  lng?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+};
+
+export type JoinNetwork200Status =
+  (typeof JoinNetwork200Status)[keyof typeof JoinNetwork200Status];
+
+export const JoinNetwork200Status = {
+  active: "active",
+  pending: "pending",
+} as const;
+
+export type JoinNetwork200 = {
+  status: JoinNetwork200Status;
+};
+
+export type LeaveNetwork200 = {
+  success: boolean;
+};
+
+export type InviteToNetwork200 = {
+  success: boolean;
 };
