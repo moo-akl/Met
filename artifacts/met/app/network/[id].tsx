@@ -7,6 +7,7 @@ import {
   Alert,
   Animated,
   Clipboard,
+  I18nManager,
   Pressable,
   ScrollView,
   Share,
@@ -21,6 +22,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import {
+  deleteNetwork,
   useApproveNetworkMember,
   useGetNetwork,
   useJoinNetwork,
@@ -66,8 +68,9 @@ function NetworkTabs({
   React.useEffect(() => {
     if (tabWidth === 0) return;
     const idx = tabs.findIndex((tab) => tab.key === active);
+    const visualIdx = I18nManager.isRTL ? tabs.length - 1 - idx : idx;
     Animated.spring(indicatorX, {
-      toValue: idx * tabWidth,
+      toValue: visualIdx * tabWidth,
       useNativeDriver: true,
       friction: 8,
       tension: 100,
@@ -287,6 +290,26 @@ export default function NetworkDetailScreen() {
     );
   }
 
+  function handleDelete() {
+    Alert.alert(
+      t("networks.deleteConfirmTitle"),
+      t("networks.deleteConfirmBody"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("networks.deleteConfirmOk"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteNetwork(networkId);
+              router.back();
+            } catch {}
+          },
+        },
+      ],
+    );
+  }
+
   function showMemberMenu(uid: string, displayName: string, role: "admin" | "member") {
     Alert.alert(displayName, undefined, [
       {
@@ -429,7 +452,11 @@ export default function NetworkDetailScreen() {
               style={styles.heroNavBtn}
               hitSlop={8}
             >
-              <Feather name="arrow-left" size={22} color={colors.foreground} />
+              <Feather
+                name={I18nManager.isRTL ? "arrow-right" : "arrow-left"}
+                size={22}
+                color={colors.foreground}
+              />
             </Pressable>
             {isAdmin && (
               <Pressable
@@ -477,6 +504,49 @@ export default function NetworkDetailScreen() {
               {t("networks.members_other", { count: network.memberCount })}
             </Text>
           </View>
+
+          {/* Inline join / leave CTA */}
+          {!isAdmin && (
+            <View style={styles.heroCta}>
+              {isActive ? (
+                <Pressable
+                  style={[styles.heroCtaBtn, { borderColor: colors.border }]}
+                  onPress={handleLeave}
+                  disabled={leaving}
+                >
+                  {leaving ? (
+                    <ActivityIndicator size="small" color={colors.mutedForeground} />
+                  ) : (
+                    <Text style={[styles.heroCtaBtnText, { color: colors.mutedForeground }]}>
+                      {t("networks.leaveButton")}
+                    </Text>
+                  )}
+                </Pressable>
+              ) : isPending ? (
+                <View style={[styles.heroCtaBtn, { backgroundColor: "#f59e0b20", borderColor: "#f59e0b40" }]}>
+                  <Text style={[styles.heroCtaBtnText, { color: "#f59e0b" }]}>
+                    {t("networks.pendingBadge")}
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  style={[styles.heroCtaBtn, { backgroundColor: catColor, borderColor: catColor }]}
+                  onPress={handleJoin}
+                  disabled={joining}
+                >
+                  {joining ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={[styles.heroCtaBtnText, { color: "#fff" }]}>
+                      {network.requiresApproval
+                        ? t("networks.requestToJoin")
+                        : t("networks.joinButton")}
+                    </Text>
+                  )}
+                </Pressable>
+              )}
+            </View>
+          )}
         </View>
 
         {/* ── Tab bar ──────────────────────────────────────────────────────── */}
@@ -857,6 +927,41 @@ export default function NetworkDetailScreen() {
                   </Pressable>
                 ))}
 
+              {/* Admin edit / delete */}
+              {isAdmin && (
+                <View style={styles.adminActions}>
+                  <Pressable
+                    style={[
+                      styles.adminActionBtn,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/network/edit/[id]",
+                        params: { id: String(networkId) },
+                      } as never)
+                    }
+                  >
+                    <Feather name="edit-2" size={16} color={colors.foreground} />
+                    <Text style={[styles.adminActionText, { color: colors.foreground }]}>
+                      {t("networks.editTitle")}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.adminActionBtn,
+                      { backgroundColor: "#ef444412", borderColor: "#ef444430" },
+                    ]}
+                    onPress={handleDelete}
+                  >
+                    <Feather name="trash-2" size={16} color="#ef4444" />
+                    <Text style={[styles.adminActionText, { color: "#ef4444" }]}>
+                      {t("networks.deleteButton")}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+
               {/* Invite code */}
               {network.inviteCode && (isAdmin || isActive) && (
                 <View
@@ -1001,6 +1106,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   heroCountText: { fontFamily: "Inter_500Medium", fontSize: 13 },
+  heroCta: { marginTop: 14, paddingHorizontal: 24, width: "100%" },
+  heroCtaBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 42,
+  },
+  heroCtaBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
 
   // ── Tab bar ───────────────────────────────────────────────────────────────
   tabBar: {
@@ -1117,6 +1232,19 @@ const styles = StyleSheet.create({
   },
   leaveBtn: { borderWidth: 1 },
   actionBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 16 },
+
+  // ── Admin actions ────────────────────────────────────────────────────────
+  adminActions: { gap: 8 },
+  adminActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  adminActionText: { fontFamily: "Inter_500Medium", fontSize: 15 },
 
   // ── Invite code ───────────────────────────────────────────────────────────
   inviteSection: {
