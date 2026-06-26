@@ -420,4 +420,20 @@ export const api = {
       reason: input.reason,
       revealMessage: input.revealMessage ?? null,
     }),
+  /**
+   * Upload a photo for a network announcement. Stored in Firebase Storage
+   * at `network-announcement-photos/{networkId}/{timestamp}.{ext}`.
+   * Returns a public URL to embed in the announcement's `photoUrl`.
+   */
+  uploadAnnouncementPhoto: (
+    opts: ApiOptions,
+    networkId: number,
+    input: { base64: string; contentType?: string },
+  ) =>
+    request<{ photoUrl: string }>(
+      "POST",
+      `/api/networks/${networkId}/announcements/photo`,
+      opts,
+      { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
+    ),
 };

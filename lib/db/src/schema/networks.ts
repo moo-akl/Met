@@ -31,6 +31,12 @@ export const networkMemberStatusEnum = pgEnum("network_member_status", [
   "banned",
 ]);
 
+export const announcementTypeEnum = pgEnum("announcement_type", [
+  "post",
+  "poll",
+  "questionnaire",
+]);
+
 export const networksTable = pgTable(
   "networks",
   {
@@ -82,6 +88,90 @@ export const networkMembersTable = pgTable(
   }),
 );
 
+export const networkAnnouncementsTable = pgTable(
+  "network_announcements",
+  {
+    id: serial("id").primaryKey(),
+    networkId: integer("network_id").notNull(),
+    authorUid: text("author_uid").notNull(),
+    body: text("body").notNull(),
+    photoUrl: text("photo_url"),
+    type: announcementTypeEnum("type").notNull().default("post"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    networkIdx: index("network_announcements_network_idx").on(t.networkId),
+    createdAtIdx: index("network_announcements_created_at_idx").on(t.createdAt),
+  }),
+);
+
+export const networkPollOptionsTable = pgTable(
+  "network_poll_options",
+  {
+    id: serial("id").primaryKey(),
+    announcementId: integer("announcement_id").notNull(),
+    label: text("label").notNull(),
+    displayOrder: integer("display_order").notNull().default(0),
+  },
+  (t) => ({
+    announcementIdx: index("network_poll_options_ann_idx").on(t.announcementId),
+  }),
+);
+
+export const networkPollVotesTable = pgTable(
+  "network_poll_votes",
+  {
+    announcementId: integer("announcement_id").notNull(),
+    optionId: integer("option_id").notNull(),
+    uid: text("uid").notNull(),
+  },
+  (t) => ({
+    voteUnique: uniqueIndex("network_poll_votes_ann_uid_uniq").on(
+      t.announcementId,
+      t.uid,
+    ),
+    announcementIdx: index("network_poll_votes_ann_idx").on(t.announcementId),
+  }),
+);
+
+export const networkQuestionnaireQuestionsTable = pgTable(
+  "network_questionnaire_questions",
+  {
+    id: serial("id").primaryKey(),
+    announcementId: integer("announcement_id").notNull(),
+    prompt: text("prompt").notNull(),
+    displayOrder: integer("display_order").notNull().default(0),
+  },
+  (t) => ({
+    announcementIdx: index("network_questionnaire_questions_ann_idx").on(
+      t.announcementId,
+    ),
+  }),
+);
+
+export const networkQuestionnaireAnswersTable = pgTable(
+  "network_questionnaire_answers",
+  {
+    id: serial("id").primaryKey(),
+    questionId: integer("question_id").notNull(),
+    uid: text("uid").notNull(),
+    answerText: text("answer_text").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    questionUidUniq: uniqueIndex(
+      "network_questionnaire_answers_q_uid_uniq",
+    ).on(t.questionId, t.uid),
+    questionIdx: index("network_questionnaire_answers_question_idx").on(
+      t.questionId,
+    ),
+  }),
+);
+
 export const insertNetworkSchema = createInsertSchema(networksTable).omit({
   id: true,
   memberCount: true,
@@ -92,3 +182,10 @@ export const insertNetworkSchema = createInsertSchema(networksTable).omit({
 export type InsertNetwork = z.infer<typeof insertNetworkSchema>;
 export type Network = typeof networksTable.$inferSelect;
 export type NetworkMember = typeof networkMembersTable.$inferSelect;
+export type NetworkAnnouncement = typeof networkAnnouncementsTable.$inferSelect;
+export type NetworkPollOption = typeof networkPollOptionsTable.$inferSelect;
+export type NetworkPollVote = typeof networkPollVotesTable.$inferSelect;
+export type NetworkQuestionnaireQuestion =
+  typeof networkQuestionnaireQuestionsTable.$inferSelect;
+export type NetworkQuestionnaireAnswer =
+  typeof networkQuestionnaireAnswersTable.$inferSelect;

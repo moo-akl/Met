@@ -17,13 +17,18 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AnnouncementCard } from "@/components/AnnouncementCard";
+import { ComposeSheet } from "@/components/ComposeSheet";
 import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import {
   deleteNetwork,
+  getListAnnouncementsQueryOptions,
   useApproveNetworkMember,
+  useCastAnnouncementVote,
+  useDeleteAnnouncement,
   useGetNetwork,
   useJoinNetwork,
   useLeaveNetwork,
@@ -31,8 +36,10 @@ import {
   useListPendingMembers,
   useRegenerateNetworkCode,
   useRemoveNetworkMember,
+  useSubmitAnnouncementAnswers,
   useUpdateNetworkMemberRole,
 } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 
 type Tab = "feed" | "members" | "info";
 
@@ -161,12 +168,29 @@ export default function NetworkDetailScreen() {
   const roleMutation = useUpdateNetworkMemberRole();
   const regenerateCodeMutation = useRegenerateNetworkCode();
 
+  const [composeVisible, setComposeVisible] = useState(false);
+  const isActiveMember = network?.myMembership?.status === "active";
+
+  const {
+    data: announcements,
+    isLoading: announcementsLoading,
+    refetch: refetchAnnouncements,
+  } = useQuery({
+    ...getListAnnouncementsQueryOptions(networkId),
+    enabled: isActiveMember,
+  });
+
+  const deleteMutation = useDeleteAnnouncement();
+  const voteMutation = useCastAnnouncementVote();
+  const answersMutation = useSubmitAnnouncementAnswers();
+
   useFocusEffect(
     useCallback(() => {
       refetch();
       refetchMembers();
       if (isAdmin) refetchPending();
-    }, [refetch, refetchMembers, refetchPending, isAdmin]),
+      void refetchAnnouncements();
+    }, [refetch, refetchMembers, refetchPending, isAdmin, refetchAnnouncements]),
   );
 
   async function handleJoin() {
@@ -413,6 +437,30 @@ export default function NetworkDetailScreen() {
     );
   }
 
+  function handleDeleteAnnouncement(annId: number) {
+    deleteMutation.mutate(
+      { id: networkId, annId },
+      { onSuccess: () => { void refetchAnnouncements(); } },
+    );
+  }
+
+  function handleVoteAnnouncement(annId: number, optionId: number) {
+    voteMutation.mutate(
+      { id: networkId, annId, data: { optionId } },
+      { onSuccess: () => { void refetchAnnouncements(); } },
+    );
+  }
+
+  function handleAnswerAnnouncement(
+    annId: number,
+    answers: { questionId: number; text: string }[],
+  ) {
+    answersMutation.mutate(
+      { id: networkId, annId, data: { answers } },
+      { onSuccess: () => { void refetchAnnouncements(); } },
+    );
+  }
+
   // ── Derived values ──────────────────────────────────────────────────────────
 
   const membership = network.myMembership;
@@ -560,22 +608,50 @@ export default function NetworkDetailScreen() {
         {/* ── Tab content ──────────────────────────────────────────────────── */}
         <View style={styles.tabContent}>
 
-          {/* Feed tab ─ announcement placeholder */}
+          {/* Feed tab */}
           {activeTab === "feed" && (
-            <View
-              style={[
-                styles.feedEmptyCard,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              <Feather name="bell" size={32} color={colors.mutedForeground} />
-              <Text style={[styles.feedEmptyTitle, { color: colors.foreground }]}>
-                {t("networks.noAnnouncementsTitle")}
-              </Text>
-              <Text style={[styles.feedEmptyBody, { color: colors.mutedForeground }]}>
-                {t("networks.noAnnouncementsBody")}
-              </Text>
-            </View>
+            <>
+              {announcementsLoading && (
+                <ActivityIndicator
+                  style={{ marginTop: 32, marginBottom: 8 }}
+                  color={colors.primary}
+                />
+              )}
+              {!announcementsLoading &&
+                (!announcements || announcements.length === 0) && (
+                  <View
+                    style={[
+                      styles.feedEmptyCard,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
+                    <Feather name="bell" size={32} color={colors.mutedForeground} />
+                    <Text
+                      style={[styles.feedEmptyTitle, { color: colors.foreground }]}
+                    >
+                      {t("networks.noAnnouncementsTitle")}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.feedEmptyBody,
+                        { color: colors.mutedForeground },
+                      ]}
+                    >
+                      {t("networks.noAnnouncementsBody")}
+                    </Text>
+                  </View>
+                )}
+              {announcements?.map((item) => (
+                <AnnouncementCard
+                  key={item.id}
+                  item={item}
+                  isAdmin={isAdmin}
+                  onDelete={handleDeleteAnnouncement}
+                  onVote={handleVoteAnnouncement}
+                  onAnswer={handleAnswerAnnouncement}
+                />
+              ))}
+            </>
           )}
 
           {/* Members tab */}
@@ -1053,6 +1129,29 @@ export default function NetworkDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Floating compose button — admin only, Feed tab */}
+      {isAdmin && isActive && activeTab === "feed" && (
+        <Pressable
+          onPress={() => setComposeVisible(true)}
+          style={[
+            styles.fab,
+            { backgroundColor: colors.primary, bottom: insets.bottom + 20 },
+          ]}
+        >
+          <Feather name="plus" size={26} color="#fff" />
+        </Pressable>
+      )}
+
+      <ComposeSheet
+        networkId={networkId}
+        visible={composeVisible}
+        onClose={() => setComposeVisible(false)}
+        onCreated={() => {
+          setComposeVisible(false);
+          void refetchAnnouncements();
+        }}
+      />
     </View>
   );
 }
@@ -1060,6 +1159,20 @@ export default function NetworkDetailScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  fab: {
+    position: "absolute",
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
 
   // ── Skeleton ─────────────────────────────────────────────────────────────
   skeletonHero: { overflow: "hidden" },

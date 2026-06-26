@@ -333,6 +333,81 @@ export interface NeighborhoodInfo {
   lng: number;
 }
 
+export type AnnouncementType =
+  (typeof AnnouncementType)[keyof typeof AnnouncementType];
+
+export const AnnouncementType = {
+  post: "post",
+  poll: "poll",
+  questionnaire: "questionnaire",
+} as const;
+
+export interface PollOption {
+  id: number;
+  label: string;
+  displayOrder: number;
+  voteCount: number;
+}
+
+export interface QuestionnaireQuestion {
+  id: number;
+  prompt: string;
+  displayOrder: number;
+  myAnswer?: string | null;
+}
+
+export interface Announcement {
+  id: number;
+  networkId: number;
+  authorUid: string;
+  body: string;
+  photoUrl?: string | null;
+  type: AnnouncementType;
+  createdAt: string;
+  options?: PollOption[] | null;
+  myVoteOptionId?: number | null;
+  questions?: QuestionnaireQuestion[] | null;
+  hasAnswered?: boolean | null;
+}
+
+export interface CreateAnnouncementRequest {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  body: string;
+  photoUrl?: string | null;
+  type: AnnouncementType;
+  /**
+   * @minItems 2
+   * @maxItems 6
+   */
+  options?: string[] | null;
+  /**
+   * @minItems 1
+   * @maxItems 5
+   */
+  questions?: string[] | null;
+}
+
+export interface CastVoteRequest {
+  optionId: number;
+}
+
+export type SubmitAnswersRequestAnswersItem = {
+  questionId: number;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  text: string;
+};
+
+export interface SubmitAnswersRequest {
+  /** @minItems 1 */
+  answers: SubmitAnswersRequestAnswersItem[];
+}
+
 export type NearbyPresenceParams = {
   lat: number;
   lng: number;
@@ -441,5 +516,9 @@ export type UpdateNetworkMemberRole200 = {
 };
 
 export type InviteToNetwork200 = {
+  success: boolean;
+};
+
+export type DeleteAnnouncement200 = {
   success: boolean;
 };

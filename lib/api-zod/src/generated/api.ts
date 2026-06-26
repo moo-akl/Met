@@ -1055,3 +1055,191 @@ export const InviteToNetworkBody = zod.object({
 export const InviteToNetworkResponse = zod.object({
   success: zod.boolean(),
 });
+
+/**
+ * @summary List announcements for a network (reverse-chronological, newest first)
+ */
+export const ListAnnouncementsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListAnnouncementsResponseItem = zod.object({
+  id: zod.number(),
+  networkId: zod.number(),
+  authorUid: zod.string(),
+  body: zod.string(),
+  photoUrl: zod.string().nullish(),
+  type: zod.enum(["post", "poll", "questionnaire"]),
+  createdAt: zod.coerce.date(),
+  options: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        label: zod.string(),
+        displayOrder: zod.number(),
+        voteCount: zod.number(),
+      }),
+    )
+    .nullish(),
+  myVoteOptionId: zod.number().nullish(),
+  questions: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        prompt: zod.string(),
+        displayOrder: zod.number(),
+        myAnswer: zod.string().nullish(),
+      }),
+    )
+    .nullish(),
+  hasAnswered: zod.boolean().nullish(),
+});
+export const ListAnnouncementsResponse = zod.array(
+  ListAnnouncementsResponseItem,
+);
+
+/**
+ * @summary Create an announcement (admin only)
+ */
+export const CreateAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createAnnouncementBodyBodyMax = 2000;
+
+export const createAnnouncementBodyOptionsItemMax = 120;
+
+export const createAnnouncementBodyOptionsMin = 2;
+export const createAnnouncementBodyOptionsMax = 6;
+
+export const createAnnouncementBodyQuestionsItemMax = 200;
+
+export const createAnnouncementBodyQuestionsMax = 5;
+
+export const CreateAnnouncementBody = zod.object({
+  body: zod.string().min(1).max(createAnnouncementBodyBodyMax),
+  photoUrl: zod.string().nullish(),
+  type: zod.enum(["post", "poll", "questionnaire"]),
+  options: zod
+    .array(zod.string().min(1).max(createAnnouncementBodyOptionsItemMax))
+    .min(createAnnouncementBodyOptionsMin)
+    .max(createAnnouncementBodyOptionsMax)
+    .nullish(),
+  questions: zod
+    .array(zod.string().min(1).max(createAnnouncementBodyQuestionsItemMax))
+    .min(1)
+    .max(createAnnouncementBodyQuestionsMax)
+    .nullish(),
+});
+
+/**
+ * @summary Delete an announcement (admin only)
+ */
+export const DeleteAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
+  annId: zod.coerce.number(),
+});
+
+export const DeleteAnnouncementResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Cast or change a poll vote
+ */
+export const CastAnnouncementVoteParams = zod.object({
+  id: zod.coerce.number(),
+  annId: zod.coerce.number(),
+});
+
+export const CastAnnouncementVoteBody = zod.object({
+  optionId: zod.number(),
+});
+
+export const CastAnnouncementVoteResponse = zod.object({
+  id: zod.number(),
+  networkId: zod.number(),
+  authorUid: zod.string(),
+  body: zod.string(),
+  photoUrl: zod.string().nullish(),
+  type: zod.enum(["post", "poll", "questionnaire"]),
+  createdAt: zod.coerce.date(),
+  options: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        label: zod.string(),
+        displayOrder: zod.number(),
+        voteCount: zod.number(),
+      }),
+    )
+    .nullish(),
+  myVoteOptionId: zod.number().nullish(),
+  questions: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        prompt: zod.string(),
+        displayOrder: zod.number(),
+        myAnswer: zod.string().nullish(),
+      }),
+    )
+    .nullish(),
+  hasAnswered: zod.boolean().nullish(),
+});
+
+/**
+ * @summary Submit answers to a questionnaire
+ */
+export const SubmitAnnouncementAnswersParams = zod.object({
+  id: zod.coerce.number(),
+  annId: zod.coerce.number(),
+});
+
+export const submitAnnouncementAnswersBodyAnswersItemTextMax = 1000;
+
+export const SubmitAnnouncementAnswersBody = zod.object({
+  answers: zod
+    .array(
+      zod.object({
+        questionId: zod.number(),
+        text: zod
+          .string()
+          .min(1)
+          .max(submitAnnouncementAnswersBodyAnswersItemTextMax),
+      }),
+    )
+    .min(1),
+});
+
+export const SubmitAnnouncementAnswersResponse = zod.object({
+  id: zod.number(),
+  networkId: zod.number(),
+  authorUid: zod.string(),
+  body: zod.string(),
+  photoUrl: zod.string().nullish(),
+  type: zod.enum(["post", "poll", "questionnaire"]),
+  createdAt: zod.coerce.date(),
+  options: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        label: zod.string(),
+        displayOrder: zod.number(),
+        voteCount: zod.number(),
+      }),
+    )
+    .nullish(),
+  myVoteOptionId: zod.number().nullish(),
+  questions: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        prompt: zod.string(),
+        displayOrder: zod.number(),
+        myAnswer: zod.string().nullish(),
+      }),
+    )
+    .nullish(),
+  hasAnswered: zod.boolean().nullish(),
+});

@@ -5,6 +5,11 @@ import {
   networksTable,
   networkMembersTable,
   profilesTable,
+  networkAnnouncementsTable,
+  networkPollOptionsTable,
+  networkPollVotesTable,
+  networkQuestionnaireQuestionsTable,
+  networkQuestionnaireAnswersTable,
   type Network,
   type NetworkMember,
   type Profile,
@@ -26,8 +31,17 @@ import {
   UpdateNetworkMemberRoleBody,
   InviteToNetworkParams,
   InviteToNetworkBody,
+  ListAnnouncementsParams,
+  CreateAnnouncementParams,
+  CreateAnnouncementBody,
+  DeleteAnnouncementParams,
+  CastAnnouncementVoteParams,
+  CastAnnouncementVoteBody,
+  SubmitAnnouncementAnswersParams,
+  SubmitAnnouncementAnswersBody,
 } from "@workspace/api-zod";
 import { z } from "zod/v4";
+import { adminStorage } from "../lib/firebaseAdmin";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
 
@@ -794,6 +808,326 @@ router.post("/networks/:id/invite", requireUid, networkWriteLimit, async (req, r
     .set({ memberCount: sql`${networksTable.memberCount} + 1`, updatedAt: new Date() })
     .where(eq(networksTable.id, id));
 
+  res.json({ success: true });
+});
+
+// ── Announcement photo upload helpers ────────────────────────────────────────
+
+const ALLOWED_ANN_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+type AnnPhotoContentType = (typeof ALLOWED_ANN_PHOTO_TYPES)[number];
+
+function extForAnnPhoto(ct: AnnPhotoContentType): string {
+  if (ct === "image/png") return "png";
+  if (ct === "image/webp") return "webp";
+  return "jpg";
+}
+
+// ── POST /networks/:id/announcements/photo ────────────────────────────────────
+
+router.post("/networks/:id/announcements/photo", requireUid, networkWriteLimit, async (req, res) => {
+  const uid = req.uid!;
+  const networkId = parseInt(String(req.params.id), 10);
+  if (isNaN(networkId)) {
+    res.status(404).json({ message: "Network not found" });
+    return;
+  }
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can upload announcement photos" });
+    return;
+  }
+  const { base64, contentType = "image/jpeg" } = req.body as { base64?: string; contentType?: string };
+  if (!base64 || typeof base64 !== "string") {
+    res.status(400).json({ message: "base64 image data required" });
+    return;
+  }
+  if (!ALLOWED_ANN_PHOTO_TYPES.includes(contentType as AnnPhotoContentType)) {
+    res.status(400).json({ message: "Unsupported image type" });
+    return;
+  }
+  const ct = contentType as AnnPhotoContentType;
+  const ext = extForAnnPhoto(ct);
+  const buf = Buffer.from(base64, "base64");
+  const objectPath = `network-announcement-photos/${networkId}/${Date.now()}-${uid.slice(0, 8)}.${ext}`;
+  const bucket = adminStorage().bucket();
+  const file = bucket.file(objectPath);
+  try {
+    await file.save(buf, { contentType: ct, resumable: false });
+  } catch (err) {
+    req.log?.error?.({ err }, "announcement photo upload failed");
+    res.status(500).json({ message: "Photo upload failed" });
+    return;
+  }
+  try {
+    await file.makePublic();
+    res.json({ photoUrl: `https://storage.googleapis.com/${bucket.name}/${objectPath}?v=${Date.now()}` });
+    return;
+  } catch { /* fall through to token path */ }
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
+  } catch (err) {
+    req.log?.error?.({ err }, "setMetadata failed for announcement photo");
+    res.status(500).json({ message: "Photo upload failed" });
+    return;
+  }
+  res.json({
+    photoUrl: `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectPath)}?alt=media&token=${token}`,
+  });
+});
+
+// ── GET /networks/:id/announcements ──────────────────────────────────────────
+
+router.get("/networks/:id/announcements", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const { id: networkId } = ListAnnouncementsParams.parse({ id: parseInt(String(req.params.id), 10) });
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.status !== "active") {
+    res.status(403).json({ message: "Not a member" });
+    return;
+  }
+  const announcements = await db
+    .select()
+    .from(networkAnnouncementsTable)
+    .where(eq(networkAnnouncementsTable.networkId, networkId))
+    .orderBy(desc(networkAnnouncementsTable.createdAt))
+    .limit(50);
+  if (announcements.length === 0) {
+    res.json([]);
+    return;
+  }
+  const annIds = announcements.map((a) => a.id);
+  const [options, votes, questions] = await Promise.all([
+    db
+      .select()
+      .from(networkPollOptionsTable)
+      .where(inArray(networkPollOptionsTable.announcementId, annIds))
+      .orderBy(networkPollOptionsTable.displayOrder),
+    db
+      .select()
+      .from(networkPollVotesTable)
+      .where(inArray(networkPollVotesTable.announcementId, annIds)),
+    db
+      .select()
+      .from(networkQuestionnaireQuestionsTable)
+      .where(inArray(networkQuestionnaireQuestionsTable.announcementId, annIds))
+      .orderBy(networkQuestionnaireQuestionsTable.displayOrder),
+  ]);
+  const qIds = questions.map((q) => q.id);
+  const answers =
+    qIds.length > 0
+      ? await db
+          .select()
+          .from(networkQuestionnaireAnswersTable)
+          .where(inArray(networkQuestionnaireAnswersTable.questionId, qIds))
+      : [];
+  const result = announcements.map((ann) => {
+    const annOptions = options.filter((o) => o.announcementId === ann.id);
+    const annVotes = votes.filter((v) => v.announcementId === ann.id);
+    const annQuestions = questions.filter((q) => q.announcementId === ann.id);
+    const myVote = annVotes.find((v) => v.uid === uid);
+    const myAnsweredQIds = new Set(
+      answers.filter((a) => a.uid === uid && annQuestions.some((q) => q.id === a.questionId)).map((a) => a.questionId),
+    );
+    return {
+      id: ann.id,
+      networkId: ann.networkId,
+      authorUid: ann.authorUid,
+      body: ann.body,
+      photoUrl: ann.photoUrl ?? null,
+      type: ann.type,
+      createdAt: ann.createdAt.toISOString(),
+      options:
+        ann.type === "poll"
+          ? annOptions.map((o) => ({
+              id: o.id,
+              label: o.label,
+              displayOrder: o.displayOrder,
+              voteCount: annVotes.filter((v) => v.optionId === o.id).length,
+            }))
+          : null,
+      myVoteOptionId: myVote?.optionId ?? null,
+      questions:
+        ann.type === "questionnaire"
+          ? annQuestions.map((q) => ({
+              id: q.id,
+              prompt: q.prompt,
+              displayOrder: q.displayOrder,
+              myAnswer: answers.find((a) => a.questionId === q.id && a.uid === uid)?.answerText ?? null,
+            }))
+          : null,
+      hasAnswered:
+        ann.type === "questionnaire"
+          ? annQuestions.length > 0 && annQuestions.every((q) => myAnsweredQIds.has(q.id))
+          : null,
+    };
+  });
+  res.json(result);
+});
+
+// ── POST /networks/:id/announcements ─────────────────────────────────────────
+
+router.post("/networks/:id/announcements", requireUid, networkWriteLimit, async (req, res) => {
+  const uid = req.uid!;
+  const { id: networkId } = CreateAnnouncementParams.parse({ id: parseInt(String(req.params.id), 10) });
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can post announcements" });
+    return;
+  }
+  const body = CreateAnnouncementBody.parse(req.body);
+  if (body.type === "poll" && (!body.options || body.options.length < 2)) {
+    res.status(400).json({ message: "Polls require at least 2 options" });
+    return;
+  }
+  if (body.type === "questionnaire" && (!body.questions || body.questions.length < 1)) {
+    res.status(400).json({ message: "Questionnaires require at least 1 question" });
+    return;
+  }
+  const [announcement] = await db
+    .insert(networkAnnouncementsTable)
+    .values({ networkId, authorUid: uid, body: body.body, photoUrl: body.photoUrl ?? null, type: body.type })
+    .returning();
+  if (body.type === "poll" && body.options && body.options.length > 0) {
+    await db.insert(networkPollOptionsTable).values(
+      body.options.map((label, i) => ({ announcementId: announcement.id, label, displayOrder: i })),
+    );
+  }
+  if (body.type === "questionnaire" && body.questions && body.questions.length > 0) {
+    await db.insert(networkQuestionnaireQuestionsTable).values(
+      body.questions.map((prompt, i) => ({ announcementId: announcement.id, prompt, displayOrder: i })),
+    );
+  }
+  res.status(201).json({ id: announcement.id });
+});
+
+// ── DELETE /networks/:id/announcements/:annId ─────────────────────────────────
+
+router.delete("/networks/:id/announcements/:annId", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const { id: networkId, annId } = DeleteAnnouncementParams.parse({
+    id: parseInt(String(req.params.id), 10),
+    annId: parseInt(String(req.params.annId), 10),
+  });
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can delete announcements" });
+    return;
+  }
+  const [ann] = await db
+    .select()
+    .from(networkAnnouncementsTable)
+    .where(and(eq(networkAnnouncementsTable.id, annId), eq(networkAnnouncementsTable.networkId, networkId)))
+    .limit(1);
+  if (!ann) {
+    res.status(404).json({ message: "Announcement not found" });
+    return;
+  }
+  if (ann.type === "questionnaire") {
+    const qs = await db
+      .select({ id: networkQuestionnaireQuestionsTable.id })
+      .from(networkQuestionnaireQuestionsTable)
+      .where(eq(networkQuestionnaireQuestionsTable.announcementId, annId));
+    if (qs.length > 0) {
+      await db
+        .delete(networkQuestionnaireAnswersTable)
+        .where(inArray(networkQuestionnaireAnswersTable.questionId, qs.map((q) => q.id)));
+    }
+    await db.delete(networkQuestionnaireQuestionsTable).where(eq(networkQuestionnaireQuestionsTable.announcementId, annId));
+  }
+  if (ann.type === "poll") {
+    await db.delete(networkPollVotesTable).where(eq(networkPollVotesTable.announcementId, annId));
+    await db.delete(networkPollOptionsTable).where(eq(networkPollOptionsTable.announcementId, annId));
+  }
+  await db.delete(networkAnnouncementsTable).where(eq(networkAnnouncementsTable.id, annId));
+  res.json({ success: true });
+});
+
+// ── POST /networks/:id/announcements/:annId/vote ──────────────────────────────
+
+router.post("/networks/:id/announcements/:annId/vote", requireUid, networkWriteLimit, async (req, res) => {
+  const uid = req.uid!;
+  const { id: networkId, annId } = CastAnnouncementVoteParams.parse({
+    id: parseInt(String(req.params.id), 10),
+    annId: parseInt(String(req.params.annId), 10),
+  });
+  const { optionId } = CastAnnouncementVoteBody.parse(req.body);
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.status !== "active") {
+    res.status(403).json({ message: "Not a member" });
+    return;
+  }
+  const [ann] = await db
+    .select()
+    .from(networkAnnouncementsTable)
+    .where(and(eq(networkAnnouncementsTable.id, annId), eq(networkAnnouncementsTable.networkId, networkId)))
+    .limit(1);
+  if (!ann || ann.type !== "poll") {
+    res.status(404).json({ message: "Poll not found" });
+    return;
+  }
+  const [option] = await db
+    .select()
+    .from(networkPollOptionsTable)
+    .where(and(eq(networkPollOptionsTable.id, optionId), eq(networkPollOptionsTable.announcementId, annId)))
+    .limit(1);
+  if (!option) {
+    res.status(400).json({ message: "Invalid option" });
+    return;
+  }
+  await db
+    .insert(networkPollVotesTable)
+    .values({ announcementId: annId, optionId, uid })
+    .onConflictDoUpdate({
+      target: [networkPollVotesTable.announcementId, networkPollVotesTable.uid],
+      set: { optionId },
+    });
+  res.json({ success: true });
+});
+
+// ── POST /networks/:id/announcements/:annId/answers ───────────────────────────
+
+router.post("/networks/:id/announcements/:annId/answers", requireUid, networkWriteLimit, async (req, res) => {
+  const uid = req.uid!;
+  const { id: networkId, annId } = SubmitAnnouncementAnswersParams.parse({
+    id: parseInt(String(req.params.id), 10),
+    annId: parseInt(String(req.params.annId), 10),
+  });
+  const { answers } = SubmitAnnouncementAnswersBody.parse(req.body);
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.status !== "active") {
+    res.status(403).json({ message: "Not a member" });
+    return;
+  }
+  const [ann] = await db
+    .select()
+    .from(networkAnnouncementsTable)
+    .where(and(eq(networkAnnouncementsTable.id, annId), eq(networkAnnouncementsTable.networkId, networkId)))
+    .limit(1);
+  if (!ann || ann.type !== "questionnaire") {
+    res.status(404).json({ message: "Questionnaire not found" });
+    return;
+  }
+  const questions = await db
+    .select()
+    .from(networkQuestionnaireQuestionsTable)
+    .where(eq(networkQuestionnaireQuestionsTable.announcementId, annId));
+  const validQIds = new Set(questions.map((q) => q.id));
+  for (const ans of answers) {
+    if (!validQIds.has(ans.questionId)) {
+      res.status(400).json({ message: "Invalid question ID" });
+      return;
+    }
+  }
+  if (answers.length > 0) {
+    await db
+      .insert(networkQuestionnaireAnswersTable)
+      .values(answers.map((a) => ({ questionId: a.questionId, uid, answerText: a.text })))
+      .onConflictDoUpdate({
+        target: [networkQuestionnaireAnswersTable.questionId, networkQuestionnaireAnswersTable.uid],
+        set: { answerText: sql`excluded.answer_text` },
+      });
+  }
   res.json({ success: true });
 });
 
