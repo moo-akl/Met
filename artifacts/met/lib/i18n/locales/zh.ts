@@ -930,6 +930,7 @@ export const zh: LocaleTree = {
     deleteConfirmOk: "删除",
     isPublicLabel: "公开网络",
     isPublicHint: "任何人都可以发现并加入该网络。",
+    youLabel: "你",
   },
   interestLabels: interestLocales.zh,
 };

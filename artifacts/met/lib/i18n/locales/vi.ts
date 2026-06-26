@@ -976,6 +976,7 @@ export const vi: LocaleTree = {
     deleteConfirmOk: "Xóa",
     isPublicLabel: "Mạng công khai",
     isPublicHint: "Bất kỳ ai cũng có thể khám phá và tham gia mạng này.",
+    youLabel: "Bạn",
   },
   interestLabels: interestLocales.vi,
 };

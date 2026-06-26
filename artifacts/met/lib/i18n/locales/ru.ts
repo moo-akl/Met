@@ -981,6 +981,7 @@ export const ru: LocaleTree = {
     deleteConfirmOk: "Удалить",
     isPublicLabel: "Публичная сеть",
     isPublicHint: "Любой пользователь может найти и вступить в эту сеть.",
+    youLabel: "Вы",
   },
   interestLabels: interestLocales.ru,
 };

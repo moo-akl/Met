@@ -976,6 +976,7 @@ export const nl: LocaleTree = {
     deleteConfirmOk: "Verwijderen",
     isPublicLabel: "Openbaar netwerk",
     isPublicHint: "Iedereen kan dit netwerk ontdekken en eraan deelnemen.",
+    youLabel: "Jij",
   },
   interestLabels: interestLocales.nl,
 };

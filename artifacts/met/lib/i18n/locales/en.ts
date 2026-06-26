@@ -977,6 +977,7 @@ export const en = {
     deleteConfirmOk: "Delete",
     isPublicLabel: "Public network",
     isPublicHint: "Anyone can discover and join this network.",
+    youLabel: "You",
   },
 };
 

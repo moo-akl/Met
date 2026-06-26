@@ -984,6 +984,7 @@ export const fr: LocaleTree = {
     deleteConfirmOk: "Supprimer",
     isPublicLabel: "Réseau public",
     isPublicHint: "N'importe qui peut découvrir et rejoindre ce réseau.",
+    youLabel: "Vous",
   },
   interestLabels: interestLocales.fr,
 };

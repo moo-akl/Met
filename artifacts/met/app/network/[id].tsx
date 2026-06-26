@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
+import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import {
@@ -33,6 +34,7 @@ export default function NetworkDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
+  const { allEncounters, profile } = useApp();
   const [joining, setJoining] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
@@ -132,6 +134,16 @@ export default function NetworkDetailScreen() {
         },
       ],
     );
+  }
+
+  function handleMemberTap(uid: string) {
+    if (uid === profile?.id) return;
+    const encounter = allEncounters.find((e) => e.id === uid);
+    if (encounter?.status === "connected") {
+      router.push(`/connection/${uid}` as never);
+    } else {
+      router.push(`/encounter/${uid}` as never);
+    }
   }
 
   function handleChangeRole(
@@ -463,79 +475,108 @@ export default function NetworkDetailScreen() {
           <View
             style={[styles.membersList, { borderColor: colors.border }]}
           >
-            {members.map((m, i) => (
-              <View
-                key={m.uid}
-                style={[
-                  styles.memberRow,
-                  {
-                    borderBottomColor: colors.border,
-                    borderBottomWidth: i < members.length - 1 ? 1 : 0,
-                  },
-                ]}
-              >
-                <Avatar
-                  uri={m.profile.photoUrl ?? undefined}
-                  size={40}
-                  fallbackText={m.profile.displayName}
-                />
-                <View style={styles.memberInfo}>
-                  <Text
-                    style={[styles.memberName, { color: colors.foreground }]}
-                  >
-                    {m.profile.displayName}
-                  </Text>
-                  {m.role === "admin" && (
+            {members.map((m, i) => {
+              const isSelf = m.uid === profile?.id;
+              const rowContent = (
+                <>
+                  <Avatar
+                    uri={m.profile.photoUrl ?? undefined}
+                    size={40}
+                    fallbackText={m.profile.displayName}
+                  />
+                  <View style={styles.memberInfo}>
                     <Text
-                      style={[styles.memberRole, { color: colors.primary }]}
+                      style={[styles.memberName, { color: colors.foreground }]}
                     >
-                      {t("networks.adminBadge")}
+                      {m.profile.displayName}
                     </Text>
-                  )}
-                </View>
-                {isAdmin && m.uid !== network.createdByUid && (
-                  <Pressable
-                    onPress={() =>
-                      Alert.alert(
-                        m.profile.displayName,
-                        undefined,
-                        [
-                          {
-                            text: t(
-                              m.role === "admin"
-                                ? "networks.demoteButton"
-                                : "networks.promoteButton",
-                            ),
-                            onPress: () =>
-                              handleChangeRole(
-                                m.uid,
-                                m.role as "admin" | "member",
+                    {m.role === "admin" && (
+                      <Text
+                        style={[styles.memberRole, { color: colors.primary }]}
+                      >
+                        {t("networks.adminBadge")}
+                      </Text>
+                    )}
+                  </View>
+                  {isSelf ? (
+                    <Text style={[styles.youLabel, { color: colors.mutedForeground }]}>
+                      {t("networks.youLabel")}
+                    </Text>
+                  ) : isAdmin && m.uid !== network.createdByUid ? (
+                    <Pressable
+                      onPress={() =>
+                        Alert.alert(
+                          m.profile.displayName,
+                          undefined,
+                          [
+                            {
+                              text: t(
+                                m.role === "admin"
+                                  ? "networks.demoteButton"
+                                  : "networks.promoteButton",
                               ),
-                          },
-                          {
-                            text: t("networks.removeButton"),
-                            style: "destructive",
-                            onPress: () =>
-                              handleRemoveMember(
-                                m.uid,
-                                m.profile.displayName,
-                              ),
-                          },
-                          { text: t("common.cancel"), style: "cancel" },
-                        ],
-                      )
-                    }
-                    style={styles.moreBtn}
-                  >
+                              onPress: () =>
+                                handleChangeRole(
+                                  m.uid,
+                                  m.role as "admin" | "member",
+                                ),
+                            },
+                            {
+                              text: t("networks.removeButton"),
+                              style: "destructive",
+                              onPress: () =>
+                                handleRemoveMember(
+                                  m.uid,
+                                  m.profile.displayName,
+                                ),
+                            },
+                            { text: t("common.cancel"), style: "cancel" },
+                          ],
+                        )
+                      }
+                      style={styles.moreBtn}
+                    >
+                      <Feather
+                        name="more-vertical"
+                        size={18}
+                        color={colors.mutedForeground}
+                      />
+                    </Pressable>
+                  ) : (
                     <Feather
-                      name="more-vertical"
-                      size={18}
+                      name="chevron-right"
+                      size={16}
                       color={colors.mutedForeground}
                     />
-                  </Pressable>
-                )}
-              </View>
-            ))}
+                  )}
+                </>
+              );
+
+              const rowStyle = [
+                styles.memberRow,
+                {
+                  borderBottomColor: colors.border,
+                  borderBottomWidth: i < members.length - 1 ? 1 : 0,
+                },
+              ];
+
+              return isSelf ? (
+                <View key={m.uid} style={rowStyle}>
+                  {rowContent}
+                </View>
+              ) : (
+                <Pressable
+                  key={m.uid}
+                  style={({ pressed }) => [
+                    ...rowStyle,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  onPress={() => handleMemberTap(m.uid)}
+                >
+                  {rowContent}
+                </Pressable>
+              );
+            })}
           </View>
         )}
       </View>
@@ -625,5 +666,9 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 13,
     color: "#fff",
+  },
+  youLabel: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
   },
 });

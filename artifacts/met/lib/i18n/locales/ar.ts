@@ -978,6 +978,7 @@ export const ar: LocaleTree = {
     deleteConfirmOk: "حذف",
     isPublicLabel: "شبكة عامة",
     isPublicHint: "يمكن لأي شخص اكتشاف هذه الشبكة والانضمام إليها.",
+    youLabel: "أنت",
   },
   interestLabels: interestLocales.ar,
 };
