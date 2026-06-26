@@ -3,6 +3,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -149,6 +151,70 @@ function NetworkCard({
   );
 }
 
+function JoinByCodeModal({
+  visible,
+  onClose,
+  colors,
+  t,
+  router,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  colors: ReturnType<typeof useColors>;
+  t: (k: string) => string;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const [code, setCode] = useState("");
+
+  function handleSubmit() {
+    const upper = code.trim().toUpperCase();
+    if (upper.length !== 8) {
+      Alert.alert(t("networks.joinByCodeTitle"), t("networks.joinByCodePlaceholder"));
+      return;
+    }
+    onClose();
+    setCode("");
+    router.push({
+      pathname: "/network/join/[code]",
+      params: { code: upper },
+    } as never);
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable
+          style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => {}}
+        >
+          <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+            {t("networks.joinByCodeTitle")}
+          </Text>
+          <TextInput
+            style={[styles.codeInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+            placeholder={t("networks.joinByCodePlaceholder")}
+            placeholderTextColor={colors.mutedForeground}
+            value={code}
+            onChangeText={(v) => setCode(v.toUpperCase())}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={8}
+            returnKeyType="go"
+            onSubmitEditing={handleSubmit}
+          />
+          <Pressable
+            style={[styles.modalJoinBtn, { backgroundColor: colors.primary, opacity: code.trim().length === 8 ? 1 : 0.5 }]}
+            onPress={handleSubmit}
+            disabled={code.trim().length !== 8}
+          >
+            <Text style={styles.modalJoinBtnText}>{t("networks.joinByCodeButton")}</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export default function NetworksScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -159,6 +225,7 @@ export default function NetworksScreen() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [category, setCategory] = useState<Category | null>(null);
+  const [showJoinModal, setShowJoinModal] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -210,9 +277,20 @@ export default function NetworksScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <JoinByCodeModal
+        visible={showJoinModal}
+        onClose={() => setShowJoinModal(false)}
+        colors={colors}
+        t={t}
+        router={router}
+      />
       <AppHeader
         title={t("networks.headerTitle")}
         actions={[
+          {
+            icon: "hash",
+            onPress: () => setShowJoinModal(true),
+          },
           {
             icon: "plus",
             onPress: () => router.push("/network/create" as never),
@@ -469,6 +547,45 @@ const styles = StyleSheet.create({
   },
   createBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   createBtnText: {
+    color: "#fff",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+    gap: 16,
+  },
+  modalTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 17,
+    textAlign: "center",
+  },
+  codeInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontFamily: "Inter_500Medium",
+    fontSize: 20,
+    letterSpacing: 4,
+    textAlign: "center",
+  },
+  modalJoinBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  modalJoinBtnText: {
     color: "#fff",
     fontFamily: "Inter_600SemiBold",
     fontSize: 15,

@@ -19,6 +19,7 @@ export interface Network {
   locationLng?: number | null;
   locationRadiusKm?: number | null;
   neighborhoodName?: string | null;
+  inviteCode?: string | null;
   memberCount: number;
   createdAt: Date;
   updatedAt: Date;

@@ -548,6 +548,69 @@ export const GetReferralStatsResponse = zod.object({
 });
 
 /**
+ * @summary Look up a network by invite code
+ */
+export const getNetworkByCodePathCodeMin = 8;
+export const getNetworkByCodePathCodeMax = 8;
+
+export const GetNetworkByCodeParams = zod.object({
+  code: zod.coerce
+    .string()
+    .min(getNetworkByCodePathCodeMin)
+    .max(getNetworkByCodePathCodeMax),
+});
+
+export const GetNetworkByCodeResponse = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullish(),
+    category: zod.enum(["university", "work", "neighborhood", "custom"]),
+    createdByUid: zod.string(),
+    isPublic: zod.boolean(),
+    requiresApproval: zod.boolean(),
+    locationLat: zod.number().nullish(),
+    locationLng: zod.number().nullish(),
+    locationRadiusKm: zod.number().nullish(),
+    neighborhoodName: zod.string().nullish(),
+    inviteCode: zod.string().nullish(),
+    memberCount: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      myMembership: zod
+        .object({
+          networkId: zod.number(),
+          uid: zod.string(),
+          role: zod.enum(["admin", "member"]),
+          status: zod.enum(["active", "pending", "banned"]),
+          joinedAt: zod.coerce.date(),
+          invitedByUid: zod.string().nullish(),
+        })
+        .nullish(),
+    }),
+  );
+
+/**
+ * @summary Join a network using its invite code
+ */
+export const joinNetworkByCodePathCodeMin = 8;
+export const joinNetworkByCodePathCodeMax = 8;
+
+export const JoinNetworkByCodeParams = zod.object({
+  code: zod.coerce
+    .string()
+    .min(joinNetworkByCodePathCodeMin)
+    .max(joinNetworkByCodePathCodeMax),
+});
+
+export const JoinNetworkByCodeResponse = zod.object({
+  status: zod.enum(["active", "pending"]),
+});
+
+/**
  * Calls Nominatim to resolve lat/lng to a human-readable neighborhood name for pre-filling the network creation form.
  * @summary Reverse-geocode coordinates to a neighborhood name
  */
@@ -580,6 +643,7 @@ export const GetMyNetworksResponseItem = zod
     locationLng: zod.number().nullish(),
     locationRadiusKm: zod.number().nullish(),
     neighborhoodName: zod.string().nullish(),
+    inviteCode: zod.string().nullish(),
     memberCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -679,6 +743,7 @@ export const ListNetworksResponseItem = zod
     locationLng: zod.number().nullish(),
     locationRadiusKm: zod.number().nullish(),
     neighborhoodName: zod.string().nullish(),
+    inviteCode: zod.string().nullish(),
     memberCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -719,6 +784,7 @@ export const GetNetworkResponse = zod
     locationLng: zod.number().nullish(),
     locationRadiusKm: zod.number().nullish(),
     neighborhoodName: zod.string().nullish(),
+    inviteCode: zod.string().nullish(),
     memberCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -780,6 +846,7 @@ export const UpdateNetworkResponse = zod
     locationLng: zod.number().nullish(),
     locationRadiusKm: zod.number().nullish(),
     neighborhoodName: zod.string().nullish(),
+    inviteCode: zod.string().nullish(),
     memberCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),

@@ -4,8 +4,10 @@ import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Clipboard,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -134,6 +136,19 @@ export default function NetworkDetailScreen() {
         },
       ],
     );
+  }
+
+  function handleShareInvite() {
+    if (!network?.inviteCode) return;
+    const code = network.inviteCode;
+    const message = `Join "${network.name}" on Met — use invite code ${code} or open: met://n/${code}`;
+    Share.share({ message, title: `Join ${network.name}` }).catch(() => {});
+  }
+
+  function handleCopyCode() {
+    if (!network?.inviteCode) return;
+    Clipboard.setString(network.inviteCode);
+    Alert.alert(t("common.copied"), network.inviteCode);
   }
 
   function handleMemberTap(uid: string) {
@@ -360,6 +375,39 @@ export default function NetworkDetailScreen() {
               )}
             </Pressable>
           )}
+        </View>
+      )}
+
+      {/* Invite code (admin only) */}
+      {isAdmin && network.inviteCode && (
+        <View style={[styles.inviteSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.inviteHeader}>
+            <Feather name="link" size={16} color={colors.primary} />
+            <Text style={[styles.inviteTitle, { color: colors.foreground }]}>
+              {t("networks.inviteCodeTitle")}
+            </Text>
+          </View>
+          <Text style={[styles.inviteSub, { color: colors.mutedForeground }]}>
+            {t("networks.inviteCodeSub")}
+          </Text>
+          <Pressable
+            style={[styles.codeBox, { backgroundColor: colors.background, borderColor: colors.border }]}
+            onPress={handleCopyCode}
+          >
+            <Text style={[styles.codeText, { color: colors.foreground }]}>
+              {network.inviteCode}
+            </Text>
+            <Feather name="copy" size={16} color={colors.mutedForeground} />
+          </Pressable>
+          <Pressable
+            style={[styles.shareCodeBtn, { backgroundColor: colors.primary }]}
+            onPress={handleShareInvite}
+          >
+            <Feather name="share-2" size={16} color="#fff" />
+            <Text style={styles.shareCodeBtnText}>
+              {t("networks.shareInviteLink")}
+            </Text>
+          </Pressable>
         </View>
       )}
 
@@ -670,5 +718,52 @@ const styles = StyleSheet.create({
   youLabel: {
     fontFamily: "Inter_400Regular",
     fontSize: 13,
+  },
+  inviteSection: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 10,
+  },
+  inviteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  inviteTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+  },
+  inviteSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  codeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  codeText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 20,
+    letterSpacing: 4,
+  },
+  shareCodeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  shareCodeBtnText: {
+    color: "#fff",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
   },
 });

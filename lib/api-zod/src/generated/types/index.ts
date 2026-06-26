@@ -21,6 +21,8 @@ export * from "./inviteToNetwork200";
 export * from "./inviteToNetworkRequest";
 export * from "./joinNetwork200";
 export * from "./joinNetwork200Status";
+export * from "./joinNetworkByCode200";
+export * from "./joinNetworkByCode200Status";
 export * from "./leaveNetwork200";
 export * from "./listNetworksParams";
 export * from "./logEncounter";

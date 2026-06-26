@@ -27,10 +27,35 @@ import {
   InviteToNetworkParams,
   InviteToNetworkBody,
 } from "@workspace/api-zod";
+import { z } from "zod/v4";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
 
 const router: IRouter = Router();
+
+const NetworkByCodeParams = z.object({ code: z.string().min(8).max(8) });
+
+const INVITE_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function generateInviteCode(): string {
+  let code = "";
+  for (let i = 0; i < 8; i++) {
+    code += INVITE_CODE_CHARS[Math.floor(Math.random() * INVITE_CODE_CHARS.length)];
+  }
+  return code;
+}
+
+async function ensureUniqueInviteCode(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const code = generateInviteCode();
+    const [existing] = await db
+      .select({ id: networksTable.id })
+      .from(networksTable)
+      .where(eq(networksTable.inviteCode, code))
+      .limit(1);
+    if (!existing) return code;
+  }
+  throw new Error("Could not generate unique invite code");
+}
 
 const networkWriteLimit = createUserRateLimiter({
   windowMs: 60_000,
@@ -64,6 +89,7 @@ function serializeNetwork(n: Network, membership?: NetworkMember | null) {
     locationLng: n.locationLng ?? null,
     locationRadiusKm: n.locationRadiusKm ?? null,
     neighborhoodName: n.neighborhoodName ?? null,
+    inviteCode: n.inviteCode ?? null,
     memberCount: n.memberCount,
     createdAt: n.createdAt.toISOString(),
     updatedAt: n.updatedAt.toISOString(),
@@ -205,6 +231,8 @@ router.post("/networks", requireUid, networkWriteLimit, async (req, res) => {
     }
   }
 
+  const inviteCode = await ensureUniqueInviteCode();
+
   const [network] = await db
     .insert(networksTable)
     .values({
@@ -218,6 +246,7 @@ router.post("/networks", requireUid, networkWriteLimit, async (req, res) => {
       locationLng: body.locationLng ?? null,
       locationRadiusKm: body.locationRadiusKm ?? 2,
       neighborhoodName,
+      inviteCode,
       memberCount: 1,
     })
     .returning();
@@ -766,6 +795,67 @@ router.post("/networks/:id/invite", requireUid, networkWriteLimit, async (req, r
     .where(eq(networksTable.id, id));
 
   res.json({ success: true });
+});
+
+// ── GET /networks/by-code/:code ───────────────────────────────────────────────
+
+router.get("/networks/by-code/:code", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const { code } = NetworkByCodeParams.parse({ code: req.params.code });
+
+  const [network] = await db
+    .select()
+    .from(networksTable)
+    .where(eq(networksTable.inviteCode, code))
+    .limit(1);
+  if (!network) {
+    res.status(404).json({ message: "No network with that invite code" });
+    return;
+  }
+  const membership = await getMembership(network.id, uid);
+  res.json(serializeNetwork(network, membership));
+});
+
+// ── POST /networks/by-code/:code/join ────────────────────────────────────────
+
+router.post("/networks/by-code/:code/join", requireUid, networkWriteLimit, async (req, res) => {
+  const uid = req.uid!;
+  const { code } = NetworkByCodeParams.parse({ code: req.params.code });
+
+  const [network] = await db
+    .select()
+    .from(networksTable)
+    .where(eq(networksTable.inviteCode, code))
+    .limit(1);
+  if (!network) {
+    res.status(404).json({ message: "No network with that invite code" });
+    return;
+  }
+
+  const existing = await getMembership(network.id, uid);
+  if (existing && (existing.status === "active" || existing.status === "pending")) {
+    res.status(409).json({ message: "Already a member" });
+    return;
+  }
+
+  const status = network.requiresApproval ? "pending" : "active";
+
+  await db
+    .insert(networkMembersTable)
+    .values({ networkId: network.id, uid, role: "member", status })
+    .onConflictDoUpdate({
+      target: [networkMembersTable.networkId, networkMembersTable.uid],
+      set: { status, role: "member" },
+    });
+
+  if (status === "active") {
+    await db
+      .update(networksTable)
+      .set({ memberCount: sql`${networksTable.memberCount} + 1`, updatedAt: new Date() })
+      .where(eq(networksTable.id, network.id));
+  }
+
+  res.json({ status });
 });
 
 export default router;

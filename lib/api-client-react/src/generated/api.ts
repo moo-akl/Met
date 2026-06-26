@@ -31,6 +31,7 @@ import type {
   InviteToNetwork200,
   InviteToNetworkRequest,
   JoinNetwork200,
+  JoinNetworkByCode200,
   LeaveNetwork200,
   ListNetworksParams,
   LogEncounter,
@@ -1590,6 +1591,177 @@ export function useGetReferralStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Look up a network by invite code
+ */
+export const getGetNetworkByCodeUrl = (code: string) => {
+  return `/api/networks/by-code/${code}`;
+};
+
+export const getNetworkByCode = async (
+  code: string,
+  options?: RequestInit,
+): Promise<NetworkListEntry> => {
+  return customFetch<NetworkListEntry>(getGetNetworkByCodeUrl(code), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetNetworkByCodeQueryKey = (code: string) => {
+  return [`/api/networks/by-code/${code}`] as const;
+};
+
+export const getGetNetworkByCodeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getNetworkByCode>>,
+  TError = ErrorType<void | Error>,
+>(
+  code: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getNetworkByCode>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetNetworkByCodeQueryKey(code);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getNetworkByCode>>
+  > = ({ signal }) => getNetworkByCode(code, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!code,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getNetworkByCode>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetNetworkByCodeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getNetworkByCode>>
+>;
+export type GetNetworkByCodeQueryError = ErrorType<void | Error>;
+
+/**
+ * @summary Look up a network by invite code
+ */
+
+export function useGetNetworkByCode<
+  TData = Awaited<ReturnType<typeof getNetworkByCode>>,
+  TError = ErrorType<void | Error>,
+>(
+  code: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getNetworkByCode>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetNetworkByCodeQueryOptions(code, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Join a network using its invite code
+ */
+export const getJoinNetworkByCodeUrl = (code: string) => {
+  return `/api/networks/by-code/${code}/join`;
+};
+
+export const joinNetworkByCode = async (
+  code: string,
+  options?: RequestInit,
+): Promise<JoinNetworkByCode200> => {
+  return customFetch<JoinNetworkByCode200>(getJoinNetworkByCodeUrl(code), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getJoinNetworkByCodeMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinNetworkByCode>>,
+    TError,
+    { code: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof joinNetworkByCode>>,
+  TError,
+  { code: string },
+  TContext
+> => {
+  const mutationKey = ["joinNetworkByCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof joinNetworkByCode>>,
+    { code: string }
+  > = (props) => {
+    const { code } = props ?? {};
+
+    return joinNetworkByCode(code, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type JoinNetworkByCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof joinNetworkByCode>>
+>;
+
+export type JoinNetworkByCodeMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Join a network using its invite code
+ */
+export const useJoinNetworkByCode = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinNetworkByCode>>,
+    TError,
+    { code: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof joinNetworkByCode>>,
+  TError,
+  { code: string },
+  TContext
+> => {
+  return useMutation(getJoinNetworkByCodeMutationOptions(options));
+};
 
 /**
  * Calls Nominatim to resolve lat/lng to a human-readable neighborhood name for pre-filling the network creation form.

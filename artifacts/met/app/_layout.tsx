@@ -105,6 +105,16 @@ function parseReferralFromUrl(url: string | null): string | null {
   }
 }
 
+function parseNetworkInviteFromUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const m = url.match(/\/n\/([A-Za-z2-9]{8})(?:[/?#]|$)/);
+    return m ? m[1].toUpperCase() : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Runs once per profile load to re-register the Expo push token with the
  * server. Handles users who already granted notification permission before
@@ -192,6 +202,10 @@ function RootLayoutNav() {
         name="network/create"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
+      <Stack.Screen
+        name="network/join/[code]"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
     </Stack>
   );
 }
@@ -207,19 +221,42 @@ export default function RootLayout() {
 
   // Capture initial / live deep link → stash any embedded referral code so
   // onboarding (and the referrals screen) can pre-fill it on cold or warm start.
+  // Also handles met://n/CODE invite links → navigate to join screen.
   useEffect(() => {
     Linking.getInitialURL()
       .then((url) => {
-        const code = parseReferralFromUrl(url);
-        if (code) pendingDeepLinkReferral = code;
+        const referral = parseReferralFromUrl(url);
+        if (referral) pendingDeepLinkReferral = referral;
+        const networkCode = parseNetworkInviteFromUrl(url);
+        if (networkCode) {
+          setTimeout(() => {
+            try {
+              router.push({
+                pathname: "/network/join/[code]",
+                params: { code: networkCode },
+              } as never);
+            } catch {}
+          }, 100);
+        }
       })
       .catch(() => {});
     const sub = Linking.addEventListener("url", (e) => {
-      const code = parseReferralFromUrl(e.url);
-      if (code) pendingDeepLinkReferral = code;
+      const referral = parseReferralFromUrl(e.url);
+      if (referral) pendingDeepLinkReferral = referral;
+      const networkCode = parseNetworkInviteFromUrl(e.url);
+      if (networkCode) {
+        setTimeout(() => {
+          try {
+            router.push({
+              pathname: "/network/join/[code]",
+              params: { code: networkCode },
+            } as never);
+          } catch {}
+        }, 50);
+      }
     });
     return () => sub.remove();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {

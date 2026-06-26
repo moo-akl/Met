@@ -495,6 +495,80 @@ paths:
         "401":
           description: Unauthorized
 
+  /networks/by-code/{code}:
+    get:
+      operationId: getNetworkByCode
+      tags: [networks]
+      summary: Look up a network by invite code
+      security:
+        - MetUid: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 8
+      responses:
+        "200":
+          description: Network detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkListEntry"
+        "404":
+          description: No network with that invite code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /networks/by-code/{code}/join:
+    post:
+      operationId: joinNetworkByCode
+      tags: [networks]
+      summary: Join a network using its invite code
+      security:
+        - MetUid: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 8
+      responses:
+        "200":
+          description: Membership result
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum: [active, pending]
+        "404":
+          description: No network with that invite code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Already a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
   /networks/resolve-neighborhood:
     get:
       operationId: resolveNeighborhood
@@ -1476,6 +1550,9 @@ components:
           format: double
           nullable: true
         neighborhoodName:
+          type: string
+          nullable: true
+        inviteCode:
           type: string
           nullable: true
         memberCount:

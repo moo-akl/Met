@@ -978,6 +978,17 @@ export const en = {
     isPublicLabel: "Public network",
     isPublicHint: "Anyone can discover and join this network.",
     youLabel: "You",
+    inviteCodeTitle: "Invite code",
+    inviteCodeSub: "Share this code with anyone you want to invite",
+    shareInviteLink: "Share invite link",
+    copyInviteCode: "Copy code",
+    joinByCode: "Join by code",
+    joinByCodeTitle: "Join by invite code",
+    joinByCodePlaceholder: "Enter 8-character code",
+    joinByCodeButton: "Join network",
+    joinByCodeError: "That code doesn't match any network.",
+    joinByCodeSuccess: "You've joined {{name}}!",
+    joinByCodePending: "Request sent — waiting for admin approval",
   },
 };
 

@@ -229,6 +229,7 @@ export interface Network {
   locationLng?: number | null;
   locationRadiusKm?: number | null;
   neighborhoodName?: string | null;
+  inviteCode?: string | null;
   memberCount: number;
   createdAt: string;
   updatedAt: string;
@@ -364,6 +365,18 @@ export const RedeemReferralCode200Result = {
 
 export type RedeemReferralCode200 = {
   result: RedeemReferralCode200Result;
+};
+
+export type JoinNetworkByCode200Status =
+  (typeof JoinNetworkByCode200Status)[keyof typeof JoinNetworkByCode200Status];
+
+export const JoinNetworkByCode200Status = {
+  active: "active",
+  pending: "pending",
+} as const;
+
+export type JoinNetworkByCode200 = {
+  status: JoinNetworkByCode200Status;
 };
 
 export type ResolveNeighborhoodParams = {
