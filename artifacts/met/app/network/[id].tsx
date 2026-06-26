@@ -401,7 +401,7 @@ export default function NetworkDetailScreen() {
         </View>
       )}
 
-      {/* Invite code — admins see code + regenerate; all members see Share */}
+      {/* Invite code — all active members see code + share; admins also get copy + regenerate */}
       {network.inviteCode && (isAdmin || membership?.status === "active") && (
         <View style={[styles.inviteSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.inviteHeader}>
@@ -410,22 +410,18 @@ export default function NetworkDetailScreen() {
               {t("networks.inviteCodeTitle")}
             </Text>
           </View>
-          {isAdmin && (
-            <>
-              <Text style={[styles.inviteSub, { color: colors.mutedForeground }]}>
-                {t("networks.inviteCodeSub")}
-              </Text>
-              <Pressable
-                style={[styles.codeBox, { backgroundColor: colors.background, borderColor: colors.border }]}
-                onPress={handleCopyCode}
-              >
-                <Text style={[styles.codeText, { color: colors.foreground }]}>
-                  {network.inviteCode}
-                </Text>
-                <Feather name="copy" size={16} color={colors.mutedForeground} />
-              </Pressable>
-            </>
-          )}
+          <Text style={[styles.inviteSub, { color: colors.mutedForeground }]}>
+            {t("networks.inviteCodeSub")}
+          </Text>
+          <Pressable
+            style={[styles.codeBox, { backgroundColor: colors.background, borderColor: colors.border }]}
+            onPress={handleCopyCode}
+          >
+            <Text style={[styles.codeText, { color: colors.foreground }]}>
+              {network.inviteCode}
+            </Text>
+            <Feather name="copy" size={16} color={colors.mutedForeground} />
+          </Pressable>
           <Pressable
             style={[styles.shareCodeBtn, { backgroundColor: colors.primary }]}
             onPress={handleShareInvite}
