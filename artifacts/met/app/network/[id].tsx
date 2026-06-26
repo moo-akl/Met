@@ -118,7 +118,7 @@ export default function NetworkDetailScreen() {
 
   function handleRemoveMember(uid: string, displayName: string) {
     Alert.alert(
-      t("networks.removeMemberConfirmTitle"),
+      displayName,
       t("networks.removeMemberConfirmBody"),
       [
         { text: t("common.cancel"), style: "cancel" },
