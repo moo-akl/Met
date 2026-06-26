@@ -27,6 +27,13 @@ import {
 
 type Category = "university" | "work" | "neighborhood" | "custom";
 
+const CAT_COLORS: Record<string, string> = {
+  university: "#3b82f6",
+  work: "#8b5cf6",
+  neighborhood: "#22c55e",
+  custom: "#f59e0b",
+};
+
 const CATEGORIES: Array<{ key: Category | null; labelKey: string }> = [
   { key: null, labelKey: "networks.categoryAll" },
   { key: "university", labelKey: "networks.categoryUniversity" },
@@ -73,13 +80,7 @@ function NetworkCard({
   colors: ReturnType<typeof useColors>;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }) {
-  const catIcons: Record<Category, string> = {
-    university: "book",
-    work: "briefcase",
-    neighborhood: "map-pin",
-    custom: "users",
-  };
-  const icon = catIcons[network.category as Category] ?? "users";
+  const accentColor = CAT_COLORS[network.category] ?? colors.primary;
 
   return (
     <Pressable
@@ -93,11 +94,9 @@ function NetworkCard({
       ]}
       onPress={onPress}
     >
-      <View
-        style={[styles.cardIcon, { backgroundColor: colors.primary + "18" }]}
-      >
-        <Feather name={icon as never} size={20} color={colors.primary} />
-      </View>
+      {/* Left category accent bar */}
+      <View style={[styles.cardAccent, { backgroundColor: accentColor }]} />
+
       <View style={styles.cardBody}>
         <View style={styles.cardTitleRow}>
           <Text
@@ -121,32 +120,37 @@ function NetworkCard({
           </Text>
         )}
         <View style={styles.cardMetaRow}>
+          <Feather name="users" size={12} color={colors.mutedForeground} />
           <Text style={[styles.cardMeta, { color: colors.mutedForeground }]}>
             {t("networks.members_other", { count: network.memberCount })}
-            {network.neighborhoodName ? `  ·  ${network.neighborhoodName}` : ""}
           </Text>
+          {!!network.neighborhoodName && (
+            <>
+              <Text style={[styles.cardMetaDot, { color: colors.mutedForeground }]}>·</Text>
+              <Feather name="map-pin" size={12} color={colors.mutedForeground} />
+              <Text style={[styles.cardMeta, { color: colors.mutedForeground }]}>
+                {network.neighborhoodName}
+              </Text>
+            </>
+          )}
           {network.requiresApproval && !network.myMembership && (
             <View
-              style={[
-                styles.approvalBadge,
-                { backgroundColor: colors.muted },
-              ]}
+              style={[styles.approvalBadge, { backgroundColor: colors.muted }]}
             >
-              <Feather
-                name="lock"
-                size={10}
-                color={colors.mutedForeground}
-              />
-              <Text
-                style={[styles.approvalText, { color: colors.mutedForeground }]}
-              >
+              <Feather name="lock" size={10} color={colors.mutedForeground} />
+              <Text style={[styles.approvalText, { color: colors.mutedForeground }]}>
                 {t("networks.approvalRequiredBadge")}
               </Text>
             </View>
           )}
         </View>
       </View>
-      <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      <Feather
+        name="chevron-right"
+        size={18}
+        color={colors.mutedForeground}
+        style={{ marginRight: 14 }}
+      />
     </Pressable>
   );
 }
@@ -507,25 +511,21 @@ const styles = StyleSheet.create({
   list: { paddingTop: 8, paddingHorizontal: 16, gap: 10 },
   card: {
     flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
+    alignItems: "stretch",
     borderRadius: 14,
     borderWidth: 1,
-    gap: 12,
+    overflow: "hidden",
   },
-  cardIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+  cardAccent: {
+    width: 4,
   },
-  cardBody: { flex: 1, gap: 3 },
+  cardBody: { flex: 1, paddingVertical: 14, paddingHorizontal: 12, gap: 5 },
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   cardName: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 15 },
   cardDesc: { fontFamily: "Inter_400Regular", fontSize: 13, lineHeight: 18 },
-  cardMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  cardMetaRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   cardMeta: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  cardMetaDot: { fontFamily: "Inter_400Regular", fontSize: 12 },
   approvalBadge: {
     flexDirection: "row",
     alignItems: "center",

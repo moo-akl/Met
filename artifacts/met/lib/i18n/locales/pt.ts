@@ -989,6 +989,11 @@ export const pt: LocaleTree = {
     regenerateCodeTitle: "Regenerar código de convite",
     regenerateCodeConfirm: "O código antigo deixará de funcionar imediatamente. Ninguém com o link anterior poderá entrar.",
     regenerateCodeOk: "Regenerar",
+    feedTab: "Feed",
+    membersTab: "Membros",
+    infoTab: "Informações",
+    noAnnouncementsTitle: "Sem anúncios ainda",
+    noAnnouncementsBody: "Os administradores podem publicar atualizações aqui.",
   },
   interestLabels: interestLocales.pt,
 };

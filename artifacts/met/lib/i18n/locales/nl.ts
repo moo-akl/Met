@@ -991,6 +991,11 @@ export const nl: LocaleTree = {
     regenerateCodeTitle: "Uitnodigingscode vernieuwen",
     regenerateCodeConfirm: "De oude code werkt onmiddellijk niet meer. Niemand met de vorige link kan meer deelnemen.",
     regenerateCodeOk: "Vernieuwen",
+    feedTab: "Feed",
+    membersTab: "Leden",
+    infoTab: "Info",
+    noAnnouncementsTitle: "Nog geen aankondigingen",
+    noAnnouncementsBody: "Beheerders kunnen hier updates plaatsen.",
   },
   interestLabels: interestLocales.nl,
 };

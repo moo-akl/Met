@@ -945,6 +945,11 @@ export const zh: LocaleTree = {
     regenerateCodeTitle: "重新生成邀请码",
     regenerateCodeConfirm: "旧邀请码将立即失效，持有旧链接的人将无法加入。",
     regenerateCodeOk: "重新生成",
+    feedTab: "动态",
+    membersTab: "成员",
+    infoTab: "信息",
+    noAnnouncementsTitle: "暂无公告",
+    noAnnouncementsBody: "管理员可以在此处发布更新。",
   },
   interestLabels: interestLocales.zh,
 };

@@ -983,6 +983,11 @@ export const es: LocaleTree = {
     regenerateCodeTitle: "Regenerar código de invitación",
     regenerateCodeConfirm: "El código antiguo dejará de funcionar de inmediato. Nadie con el enlace anterior podrá unirse.",
     regenerateCodeOk: "Regenerar",
+    feedTab: "Noticias",
+    membersTab: "Miembros",
+    infoTab: "Información",
+    noAnnouncementsTitle: "Aún no hay anuncios",
+    noAnnouncementsBody: "Los administradores pueden publicar actualizaciones aquí.",
   },
   interestLabels: interestLocales.es,
 };

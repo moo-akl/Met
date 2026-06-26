@@ -999,6 +999,11 @@ export const fr: LocaleTree = {
     regenerateCodeTitle: "Régénérer le code d'invitation",
     regenerateCodeConfirm: "L'ancien code cessera de fonctionner immédiatement. Personne avec le lien précédent ne pourra rejoindre.",
     regenerateCodeOk: "Régénérer",
+    feedTab: "Fil",
+    membersTab: "Membres",
+    infoTab: "Infos",
+    noAnnouncementsTitle: "Aucune annonce pour l'instant",
+    noAnnouncementsBody: "Les administrateurs peuvent publier des mises à jour ici.",
   },
   interestLabels: interestLocales.fr,
 };

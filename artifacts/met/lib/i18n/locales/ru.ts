@@ -996,6 +996,11 @@ export const ru: LocaleTree = {
     regenerateCodeTitle: "Обновить код приглашения",
     regenerateCodeConfirm: "Старый код перестанет работать немедленно. Никто со старой ссылкой не сможет вступить.",
     regenerateCodeOk: "Обновить",
+    feedTab: "Лента",
+    membersTab: "Участники",
+    infoTab: "Информация",
+    noAnnouncementsTitle: "Пока нет объявлений",
+    noAnnouncementsBody: "Администраторы могут публиковать обновления здесь.",
   },
   interestLabels: interestLocales.ru,
 };

@@ -992,6 +992,11 @@ export const en = {
     regenerateCodeTitle: "Regenerate invite code",
     regenerateCodeConfirm: "The old code will stop working immediately. Anyone with the previous link won't be able to join.",
     regenerateCodeOk: "Regenerate",
+    feedTab: "Feed",
+    membersTab: "Members",
+    infoTab: "Info",
+    noAnnouncementsTitle: "No announcements yet",
+    noAnnouncementsBody: "Admins can post updates here.",
   },
 };
 

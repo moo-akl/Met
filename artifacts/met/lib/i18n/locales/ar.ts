@@ -993,6 +993,11 @@ export const ar: LocaleTree = {
     regenerateCodeTitle: "إعادة إنشاء رمز الدعوة",
     regenerateCodeConfirm: "سيتوقف الرمز القديم عن العمل فوراً. لن يتمكن أي شخص لديه الرابط السابق من الانضمام.",
     regenerateCodeOk: "إعادة إنشاء",
+    feedTab: "المنشورات",
+    membersTab: "الأعضاء",
+    infoTab: "المعلومات",
+    noAnnouncementsTitle: "لا توجد إعلانات بعد",
+    noAnnouncementsBody: "يمكن للمسؤولين نشر التحديثات هنا.",
   },
   interestLabels: interestLocales.ar,
 };

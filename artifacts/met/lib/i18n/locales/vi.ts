@@ -991,6 +991,11 @@ export const vi: LocaleTree = {
     regenerateCodeTitle: "Tạo lại mã mời",
     regenerateCodeConfirm: "Mã cũ sẽ ngừng hoạt động ngay lập tức. Không ai có thể tham gia bằng liên kết cũ.",
     regenerateCodeOk: "Tạo lại",
+    feedTab: "Bảng tin",
+    membersTab: "Thành viên",
+    infoTab: "Thông tin",
+    noAnnouncementsTitle: "Chưa có thông báo nào",
+    noAnnouncementsBody: "Quản trị viên có thể đăng cập nhật tại đây.",
   },
   interestLabels: interestLocales.vi,
 };
