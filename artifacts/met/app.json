@@ -14,7 +14,6 @@
       "buildNumber": "103",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
-      "associatedDomains": ["applinks:metapp.replit.app"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSBluetoothAlwaysUsageDescription": "Met uses Bluetooth to detect nearby Met users you cross paths with, including while the app is in the background.",
