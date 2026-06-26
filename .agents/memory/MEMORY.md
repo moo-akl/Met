@@ -1,1 +1,2 @@
 - [inArray vs sql ANY](inarray-vs-sql-any.md) — always use Drizzle inArray() for IN-list queries, not sql`col = ANY(arr)`
+- [api-client-react initialization](api-client-react-init.md) — setBaseUrl/setAuthTokenGetter must be called at app startup; omitting them silently breaks all hooks/functions from that package.

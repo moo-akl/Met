@@ -14,6 +14,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { initializeFirestore } from "@/lib/firestore/client";
@@ -53,6 +55,20 @@ try {
     err instanceof Error ? err.message : err,
   );
 }
+
+// Initialize @workspace/api-client-react so network-screen hooks can reach
+// the API server with the correct base URL and a live Firebase ID token.
+setBaseUrl(process.env.EXPO_PUBLIC_API_URL ?? "");
+setAuthTokenGetter(async () => {
+  try {
+    const authMod = await import("@react-native-firebase/auth");
+    const user = authMod.default().currentUser;
+    if (!user) return null;
+    return user.getIdToken(false).catch(() => user.getIdToken(true));
+  } catch {
+    return null;
+  }
+});
 
 // Kick off i18n + referrals state load before the first paint we care about.
 // They're idempotent and resolve quickly; failures fall back to defaults.
