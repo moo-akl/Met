@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -118,10 +118,31 @@ function NetworkCard({
             {network.description}
           </Text>
         )}
-        <Text style={[styles.cardMeta, { color: colors.mutedForeground }]}>
-          {t("networks.members_other", { count: network.memberCount })}
-          {network.neighborhoodName ? `  ·  ${network.neighborhoodName}` : ""}
-        </Text>
+        <View style={styles.cardMetaRow}>
+          <Text style={[styles.cardMeta, { color: colors.mutedForeground }]}>
+            {t("networks.members_other", { count: network.memberCount })}
+            {network.neighborhoodName ? `  ·  ${network.neighborhoodName}` : ""}
+          </Text>
+          {network.requiresApproval && !network.myMembership && (
+            <View
+              style={[
+                styles.approvalBadge,
+                { backgroundColor: colors.muted },
+              ]}
+            >
+              <Feather
+                name="lock"
+                size={10}
+                color={colors.mutedForeground}
+              />
+              <Text
+                style={[styles.approvalText, { color: colors.mutedForeground }]}
+              >
+                {t("networks.approvalRequiredBadge")}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
       <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
     </Pressable>
@@ -136,7 +157,20 @@ export default function NetworksScreen() {
 
   const [tab, setTab] = useState<"mine" | "discover">("mine");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [category, setCategory] = useState<Category | null>(null);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query]);
 
   const {
     data: myNetworks,
@@ -150,16 +184,29 @@ export default function NetworksScreen() {
     isLoading: discoverLoading,
     refetch: discoverRefetch,
     isRefetching: discoverRefetching,
-  } = useListNetworks({ category: category ?? undefined, q: query.trim() || undefined });
+  } = useListNetworks({
+    category: category ?? undefined,
+    q: debouncedQuery.trim() || undefined,
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (tab === "mine") {
+        myRefetch();
+      } else {
+        discoverRefetch();
+      }
+    }, [tab, myRefetch, discoverRefetch]),
+  );
 
   const isLoading = tab === "mine" ? myLoading : discoverLoading;
   const isRefreshing = tab === "mine" ? myRefetching : discoverRefetching;
   const networks = (tab === "mine" ? myNetworks : discoverNetworks) ?? [];
 
-  function handleRefresh() {
+  const handleRefresh = useCallback(() => {
     if (tab === "mine") myRefetch();
     else discoverRefetch();
-  }
+  }, [tab, myRefetch, discoverRefetch]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -399,7 +446,17 @@ const styles = StyleSheet.create({
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   cardName: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 15 },
   cardDesc: { fontFamily: "Inter_400Regular", fontSize: 13, lineHeight: 18 },
+  cardMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   cardMeta: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  approvalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  approvalText: { fontFamily: "Inter_400Regular", fontSize: 10 },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   badgeText: { fontFamily: "Inter_500Medium", fontSize: 11 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },

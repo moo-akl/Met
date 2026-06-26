@@ -6,10 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./approveMemberRequest";
+export * from "./approveNetworkMember200";
 export * from "./bleResolveEntry";
 export * from "./bleResolveRequest";
 export * from "./createNetwork";
 export * from "./createRevealRequest";
+export * from "./deleteNetwork200";
 export * from "./encounter";
 export * from "./encounterWithProfile";
 export * from "./error";
@@ -43,11 +46,16 @@ export * from "./redeemReferralCode200Result";
 export * from "./referralStatsResponse";
 export * from "./registerReferralCode";
 export * from "./registerReferralCode200";
+export * from "./removeNetworkMember200";
 export * from "./resolveNeighborhoodParams";
 export * from "./respondToReveal";
 export * from "./revealRequest";
 export * from "./revealRequestStatus";
 export * from "./revealRequestWithProfile";
+export * from "./updateMemberRoleRequest";
+export * from "./updateMemberRoleRequestRole";
+export * from "./updateNetwork";
+export * from "./updateNetworkMemberRole200";
 export * from "./updatePresence";
 export * from "./upsertProfile";
 export * from "./upsertProfileSocials";

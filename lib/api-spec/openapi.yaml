@@ -661,6 +661,82 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description: Unauthorized
+    patch:
+      operationId: updateNetwork
+      tags: [networks]
+      summary: Update a network (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNetwork"
+      responses:
+        "200":
+          description: Updated network
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkListEntry"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+    delete:
+      operationId: deleteNetwork
+      tags: [networks]
+      summary: Delete a network (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
 
   /networks/{id}/join:
     post:
@@ -762,6 +838,185 @@ paths:
                   $ref: "#/components/schemas/NetworkMemberWithProfile"
         "404":
           description: Network not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /networks/{id}/pending:
+    get:
+      operationId: listPendingMembers
+      tags: [networks]
+      summary: List pending join requests (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pending members with profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NetworkMemberWithProfile"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Network not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /networks/{id}/members/{uid}/approve:
+    post:
+      operationId: approveNetworkMember
+      tags: [networks]
+      summary: Approve or decline a pending join request (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveMemberRequest"
+      responses:
+        "200":
+          description: Approval result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [approved]
+                properties:
+                  approved:
+                    type: boolean
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Pending request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /networks/{id}/members/{uid}:
+    delete:
+      operationId: removeNetworkMember
+      tags: [networks]
+      summary: Remove a member from a network (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+    patch:
+      operationId: updateNetworkMemberRole
+      tags: [networks]
+      summary: Change a member's role (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRoleRequest"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Active member not found
           content:
             application/json:
               schema:
@@ -1308,6 +1563,50 @@ components:
           format: double
           nullable: true
           default: 2
+    UpdateNetwork:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        description:
+          type: string
+          nullable: true
+          maxLength: 300
+        category:
+          $ref: "#/components/schemas/NetworkCategory"
+        isPublic:
+          type: boolean
+        requiresApproval:
+          type: boolean
+        locationLat:
+          type: number
+          format: double
+          nullable: true
+        locationLng:
+          type: number
+          format: double
+          nullable: true
+        locationRadiusKm:
+          type: number
+          format: double
+          nullable: true
+    ApproveMemberRequest:
+      type: object
+      required:
+        - approve
+      properties:
+        approve:
+          type: boolean
+    UpdateMemberRoleRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          enum: [admin, member]
     InviteToNetworkRequest:
       type: object
       required:

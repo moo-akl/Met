@@ -12,11 +12,18 @@ import {
 import {
   ResolveNeighborhoodQueryParams,
   CreateNetworkBody,
+  UpdateNetworkBody,
   ListNetworksQueryParams,
   GetNetworkParams,
   JoinNetworkParams,
   LeaveNetworkParams,
   ListNetworkMembersParams,
+  ListPendingMembersParams,
+  ApproveNetworkMemberParams,
+  ApproveNetworkMemberBody,
+  RemoveNetworkMemberParams,
+  UpdateNetworkMemberRoleParams,
+  UpdateNetworkMemberRoleBody,
   InviteToNetworkParams,
   InviteToNetworkBody,
 } from "@workspace/api-zod";
@@ -428,6 +435,285 @@ router.get("/networks/:id/members", requireUid, async (req, res) => {
     }));
 
   res.json(result);
+});
+
+// ── PATCH /networks/:id ───────────────────────────────────────────────────────
+
+router.patch("/networks/:id", requireUid, networkWriteLimit, async (req, res) => {
+  const uid = req.uid!;
+  const { id } = GetNetworkParams.parse({ id: req.params.id });
+
+  const [network] = await db
+    .select()
+    .from(networksTable)
+    .where(eq(networksTable.id, id))
+    .limit(1);
+  if (!network) {
+    res.status(404).json({ message: "Network not found" });
+    return;
+  }
+
+  const membership = await getMembership(id, uid);
+  if (!membership || membership.role !== "admin" || membership.status !== "active") {
+    res.status(403).json({ message: "Admin access required" });
+    return;
+  }
+
+  const body = UpdateNetworkBody.parse(req.body);
+
+  let neighborhoodName = network.neighborhoodName;
+  if (
+    (body.category === "neighborhood" || network.category === "neighborhood") &&
+    body.locationLat != null && body.locationLng != null &&
+    (body.locationLat !== network.locationLat || body.locationLng !== network.locationLng)
+  ) {
+    try {
+      const geo = await nominatimReverse(body.locationLat, body.locationLng);
+      neighborhoodName = geo.name;
+    } catch { /* non-fatal */ }
+  }
+
+  const [updated] = await db
+    .update(networksTable)
+    .set({
+      ...(body.name != null && { name: body.name.trim() }),
+      ...(body.description !== undefined && {
+        description: body.description?.trim() ?? null,
+      }),
+      ...(body.category != null && { category: body.category }),
+      ...(body.isPublic != null && { isPublic: body.isPublic }),
+      ...(body.requiresApproval != null && {
+        requiresApproval: body.requiresApproval,
+      }),
+      ...(body.locationLat !== undefined && {
+        locationLat: body.locationLat ?? null,
+      }),
+      ...(body.locationLng !== undefined && {
+        locationLng: body.locationLng ?? null,
+      }),
+      ...(body.locationRadiusKm !== undefined && {
+        locationRadiusKm: body.locationRadiusKm ?? null,
+      }),
+      ...((body.category === "neighborhood" ||
+        (body.locationLat != null && body.locationLng != null)) && {
+        neighborhoodName,
+      }),
+      updatedAt: new Date(),
+    })
+    .where(eq(networksTable.id, id))
+    .returning();
+
+  res.json(serializeNetwork(updated!, membership));
+});
+
+// ── DELETE /networks/:id ──────────────────────────────────────────────────────
+
+router.delete("/networks/:id", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const { id } = GetNetworkParams.parse({ id: req.params.id });
+
+  const [network] = await db
+    .select()
+    .from(networksTable)
+    .where(eq(networksTable.id, id))
+    .limit(1);
+  if (!network) {
+    res.status(404).json({ message: "Network not found" });
+    return;
+  }
+
+  const membership = await getMembership(id, uid);
+  if (!membership || membership.role !== "admin" || membership.status !== "active") {
+    res.status(403).json({ message: "Admin access required" });
+    return;
+  }
+
+  await db.delete(networkMembersTable).where(eq(networkMembersTable.networkId, id));
+  await db.delete(networksTable).where(eq(networksTable.id, id));
+
+  res.json({ success: true });
+});
+
+// ── GET /networks/:id/pending ─────────────────────────────────────────────────
+
+router.get("/networks/:id/pending", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const { id } = ListPendingMembersParams.parse({ id: req.params.id });
+
+  const [network] = await db
+    .select({ id: networksTable.id })
+    .from(networksTable)
+    .where(eq(networksTable.id, id))
+    .limit(1);
+  if (!network) {
+    res.status(404).json({ message: "Network not found" });
+    return;
+  }
+
+  const membership = await getMembership(id, uid);
+  if (!membership || membership.role !== "admin" || membership.status !== "active") {
+    res.status(403).json({ message: "Admin access required" });
+    return;
+  }
+
+  const pending = await db
+    .select()
+    .from(networkMembersTable)
+    .where(
+      and(
+        eq(networkMembersTable.networkId, id),
+        eq(networkMembersTable.status, "pending"),
+      ),
+    )
+    .limit(100);
+
+  if (pending.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const uids = pending.map((m) => m.uid);
+  const profiles = await db
+    .select()
+    .from(profilesTable)
+    .where(inArray(profilesTable.uid, uids));
+  const profileMap = new Map(profiles.map((p) => [p.uid, p]));
+
+  const result = pending
+    .filter((m) => profileMap.has(m.uid))
+    .map((m) => ({
+      ...serializeMembership(m),
+      profile: serializeProfile(profileMap.get(m.uid)!),
+    }));
+
+  res.json(result);
+});
+
+// ── POST /networks/:id/members/:uid/approve ───────────────────────────────────
+
+router.post("/networks/:id/members/:uid/approve", requireUid, async (req, res) => {
+  const callerUid = req.uid!;
+  const { id, uid: targetUid } = ApproveNetworkMemberParams.parse({ id: req.params.id, uid: req.params.uid });
+  const body = ApproveNetworkMemberBody.parse(req.body);
+
+  const callerMembership = await getMembership(id, callerUid);
+  if (!callerMembership || callerMembership.role !== "admin" || callerMembership.status !== "active") {
+    res.status(403).json({ message: "Admin access required" });
+    return;
+  }
+
+  const targetMembership = await getMembership(id, targetUid);
+  if (!targetMembership || targetMembership.status !== "pending") {
+    res.status(404).json({ message: "Pending request not found" });
+    return;
+  }
+
+  if (body.approve) {
+    await db
+      .update(networkMembersTable)
+      .set({ status: "active" })
+      .where(
+        and(
+          eq(networkMembersTable.networkId, id),
+          eq(networkMembersTable.uid, targetUid),
+        ),
+      );
+    await db
+      .update(networksTable)
+      .set({
+        memberCount: sql`${networksTable.memberCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(networksTable.id, id));
+  } else {
+    await db
+      .delete(networkMembersTable)
+      .where(
+        and(
+          eq(networkMembersTable.networkId, id),
+          eq(networkMembersTable.uid, targetUid),
+        ),
+      );
+  }
+
+  res.json({ approved: body.approve });
+});
+
+// ── DELETE /networks/:id/members/:uid ────────────────────────────────────────
+
+router.delete("/networks/:id/members/:uid", requireUid, async (req, res) => {
+  const callerUid = req.uid!;
+  const { id, uid: targetUid } = RemoveNetworkMemberParams.parse({ id: req.params.id, uid: req.params.uid });
+
+  if (targetUid === callerUid) {
+    res.status(400).json({ message: "Use leave to remove yourself" });
+    return;
+  }
+
+  const callerMembership = await getMembership(id, callerUid);
+  if (!callerMembership || callerMembership.role !== "admin" || callerMembership.status !== "active") {
+    res.status(403).json({ message: "Admin access required" });
+    return;
+  }
+
+  const targetMembership = await getMembership(id, targetUid);
+  if (!targetMembership) {
+    res.status(404).json({ message: "Member not found" });
+    return;
+  }
+
+  await db
+    .delete(networkMembersTable)
+    .where(
+      and(
+        eq(networkMembersTable.networkId, id),
+        eq(networkMembersTable.uid, targetUid),
+      ),
+    );
+
+  if (targetMembership.status === "active") {
+    await db
+      .update(networksTable)
+      .set({
+        memberCount: sql`GREATEST(${networksTable.memberCount} - 1, 0)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(networksTable.id, id));
+  }
+
+  res.json({ success: true });
+});
+
+// ── PATCH /networks/:id/members/:uid ─────────────────────────────────────────
+
+router.patch("/networks/:id/members/:uid", requireUid, async (req, res) => {
+  const callerUid = req.uid!;
+  const { id, uid: targetUid } = UpdateNetworkMemberRoleParams.parse({ id: req.params.id, uid: req.params.uid });
+  const body = UpdateNetworkMemberRoleBody.parse(req.body);
+
+  const callerMembership = await getMembership(id, callerUid);
+  if (!callerMembership || callerMembership.role !== "admin" || callerMembership.status !== "active") {
+    res.status(403).json({ message: "Admin access required" });
+    return;
+  }
+
+  const targetMembership = await getMembership(id, targetUid);
+  if (!targetMembership || targetMembership.status !== "active") {
+    res.status(404).json({ message: "Active member not found" });
+    return;
+  }
+
+  await db
+    .update(networkMembersTable)
+    .set({ role: body.role })
+    .where(
+      and(
+        eq(networkMembersTable.networkId, id),
+        eq(networkMembersTable.uid, targetUid),
+      ),
+    );
+
+  res.json({ success: true });
 });
 
 // ── POST /networks/:id/invite ─────────────────────────────────────────────────

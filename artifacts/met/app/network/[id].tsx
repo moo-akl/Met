@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,10 +16,14 @@ import { Avatar } from "@/components/Avatar";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import {
+  useApproveNetworkMember,
   useGetNetwork,
   useJoinNetwork,
   useLeaveNetwork,
   useListNetworkMembers,
+  useListPendingMembers,
+  useRemoveNetworkMember,
+  useUpdateNetworkMemberRole,
 } from "@workspace/api-client-react";
 
 export default function NetworkDetailScreen() {
@@ -32,13 +36,41 @@ export default function NetworkDetailScreen() {
   const [joining, setJoining] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
-  const { data: network, isLoading, refetch } = useGetNetwork(networkId);
+  const {
+    data: network,
+    isLoading,
+    refetch,
+  } = useGetNetwork(networkId);
 
-  const { data: members, isLoading: membersLoading } =
-    useListNetworkMembers(networkId);
+  const {
+    data: members,
+    isLoading: membersLoading,
+    refetch: refetchMembers,
+  } = useListNetworkMembers(networkId);
+
+  const isAdmin =
+    network?.myMembership?.role === "admin" &&
+    network?.myMembership?.status === "active";
+
+  const {
+    data: pendingMembers,
+    isLoading: pendingLoading,
+    refetch: refetchPending,
+  } = useListPendingMembers(networkId);
 
   const joinMutation = useJoinNetwork();
   const leaveMutation = useLeaveNetwork();
+  const approveMutation = useApproveNetworkMember();
+  const removeMutation = useRemoveNetworkMember();
+  const roleMutation = useUpdateNetworkMemberRole();
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      refetchMembers();
+      if (isAdmin) refetchPending();
+    }, [refetch, refetchMembers, refetchPending, isAdmin]),
+  );
 
   async function handleJoin() {
     if (!network) return;
@@ -69,6 +101,57 @@ export default function NetworkDetailScreen() {
             } finally {
               setLeaving(false);
             }
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleApprove(uid: string, approve: boolean) {
+    await approveMutation.mutateAsync({
+      id: networkId,
+      uid,
+      data: { approve },
+    });
+    await Promise.all([refetch(), refetchPending(), refetchMembers()]);
+  }
+
+  function handleRemoveMember(uid: string, displayName: string) {
+    Alert.alert(
+      t("networks.removeMemberConfirmTitle"),
+      t("networks.removeMemberConfirmBody"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("networks.removeMemberConfirmOk"),
+          style: "destructive",
+          onPress: async () => {
+            await removeMutation.mutateAsync({ id: networkId, uid });
+            await Promise.all([refetch(), refetchMembers()]);
+          },
+        },
+      ],
+    );
+  }
+
+  function handleChangeRole(
+    uid: string,
+    currentRole: "admin" | "member",
+  ) {
+    const newRole = currentRole === "admin" ? "member" : "admin";
+    const isPromoting = newRole === "admin";
+    Alert.alert(
+      t(isPromoting ? "networks.promoteConfirmTitle" : "networks.demoteConfirmTitle"),
+      t(isPromoting ? "networks.promoteConfirmBody" : "networks.demoteConfirmBody"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t(
+            isPromoting ? "networks.promoteConfirmOk" : "networks.demoteConfirmOk",
+          ),
+          onPress: async () => {
+            await roleMutation.mutateAsync({ id: networkId, uid, data: { role: newRole } });
+            await refetchMembers();
           },
         },
       ],
@@ -106,7 +189,6 @@ export default function NetworkDetailScreen() {
   const membership = network.myMembership;
   const isActive = membership?.status === "active";
   const isPending = membership?.status === "pending";
-  const isAdmin = membership?.role === "admin";
 
   const catIcons: Record<string, string> = {
     university: "book",
@@ -119,6 +201,8 @@ export default function NetworkDetailScreen() {
     `networks.category${network.category.charAt(0).toUpperCase()}${network.category.slice(1)}` as never;
   const catLabel = t(catKey);
 
+  const pendingCount = pendingMembers?.length ?? 0;
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
@@ -127,6 +211,26 @@ export default function NetworkDetailScreen() {
         { paddingBottom: insets.bottom + 24 },
       ]}
     >
+      {/* Header row with back + edit buttons */}
+      <View style={[styles.headerRow, { paddingTop: insets.top }]}>
+        <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+          <Feather name="arrow-left" size={22} color={colors.foreground} />
+        </Pressable>
+        {isAdmin && (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/network/edit/[id]",
+                params: { id: String(networkId) },
+              } as never)
+            }
+            style={styles.headerBtn}
+          >
+            <Feather name="settings" size={20} color={colors.foreground} />
+          </Pressable>
+        )}
+      </View>
+
       {/* Hero card */}
       <View
         style={[
@@ -162,6 +266,16 @@ export default function NetworkDetailScreen() {
               style={[styles.locationText, { color: colors.mutedForeground }]}
             >
               {network.neighborhoodName}
+            </Text>
+          </View>
+        )}
+        {network.requiresApproval && (
+          <View style={styles.locationRow}>
+            <Feather name="lock" size={13} color={colors.mutedForeground} />
+            <Text
+              style={[styles.locationText, { color: colors.mutedForeground }]}
+            >
+              {t("networks.approvalRequiredBadge")}
             </Text>
           </View>
         )}
@@ -227,10 +341,106 @@ export default function NetworkDetailScreen() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={[styles.actionBtnText, { color: "#fff" }]}>
-                  {t("networks.joinButton")}
+                  {network.requiresApproval
+                    ? t("networks.requestToJoin")
+                    : t("networks.joinButton")}
                 </Text>
               )}
             </Pressable>
+          )}
+        </View>
+      )}
+
+      {/* Pending join requests (admin only) */}
+      {isAdmin && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+              {t("networks.pendingRequestsTitle")}
+            </Text>
+            {pendingCount > 0 && (
+              <View
+                style={[
+                  styles.countBadge,
+                  { backgroundColor: "#f59e0b22" },
+                ]}
+              >
+                <Text style={[styles.countBadgeText, { color: "#f59e0b" }]}>
+                  {pendingCount}
+                </Text>
+              </View>
+            )}
+          </View>
+          {pendingLoading ? (
+            <ActivityIndicator
+              color={colors.primary}
+              style={{ marginTop: 8 }}
+            />
+          ) : !pendingMembers || pendingMembers.length === 0 ? (
+            <Text
+              style={[styles.emptyText, { color: colors.mutedForeground }]}
+            >
+              {t("networks.noPendingRequests")}
+            </Text>
+          ) : (
+            <View
+              style={[styles.membersList, { borderColor: colors.border }]}
+            >
+              {pendingMembers.map((m, i) => (
+                <View
+                  key={m.uid}
+                  style={[
+                    styles.memberRow,
+                    {
+                      borderBottomColor: colors.border,
+                      borderBottomWidth:
+                        i < pendingMembers.length - 1 ? 1 : 0,
+                    },
+                  ]}
+                >
+                  <Avatar
+                    uri={m.profile.photoUrl ?? undefined}
+                    size={40}
+                    fallbackText={m.profile.displayName}
+                  />
+                  <Text
+                    style={[
+                      styles.memberName,
+                      { flex: 1, color: colors.foreground },
+                    ]}
+                  >
+                    {m.profile.displayName}
+                  </Text>
+                  <Pressable
+                    style={[
+                      styles.adminActionBtn,
+                      { backgroundColor: colors.primary },
+                    ]}
+                    onPress={() => handleApprove(m.uid, true)}
+                  >
+                    <Text style={styles.adminActionBtnText}>
+                      {t("networks.approveButton")}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.adminActionBtn,
+                      { backgroundColor: colors.muted, marginLeft: 6 },
+                    ]}
+                    onPress={() => handleApprove(m.uid, false)}
+                  >
+                    <Text
+                      style={[
+                        styles.adminActionBtnText,
+                        { color: colors.mutedForeground },
+                      ]}
+                    >
+                      {t("networks.declineButton")}
+                    </Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
           )}
         </View>
       )}
@@ -283,6 +493,47 @@ export default function NetworkDetailScreen() {
                     </Text>
                   )}
                 </View>
+                {isAdmin && m.uid !== network.createdByUid && (
+                  <Pressable
+                    onPress={() =>
+                      Alert.alert(
+                        m.profile.displayName,
+                        undefined,
+                        [
+                          {
+                            text: t(
+                              m.role === "admin"
+                                ? "networks.demoteButton"
+                                : "networks.promoteButton",
+                            ),
+                            onPress: () =>
+                              handleChangeRole(
+                                m.uid,
+                                m.role as "admin" | "member",
+                              ),
+                          },
+                          {
+                            text: t("networks.removeButton"),
+                            style: "destructive",
+                            onPress: () =>
+                              handleRemoveMember(
+                                m.uid,
+                                m.profile.displayName,
+                              ),
+                          },
+                          { text: t("common.cancel"), style: "cancel" },
+                        ],
+                      )
+                    }
+                    style={styles.moreBtn}
+                  >
+                    <Feather
+                      name="more-vertical"
+                      size={18}
+                      color={colors.mutedForeground}
+                    />
+                  </Pressable>
+                )}
               </View>
             ))}
           </View>
@@ -295,6 +546,13 @@ export default function NetworkDetailScreen() {
 const styles = StyleSheet.create({
   container: { padding: 16, gap: 16 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  headerBtn: { padding: 4 },
   hero: {
     borderRadius: 16,
     borderWidth: 1,
@@ -332,7 +590,14 @@ const styles = StyleSheet.create({
   leaveBtn: { borderWidth: 1 },
   actionBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 16 },
   section: { gap: 10 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   sectionTitle: { fontFamily: "Inter_600SemiBold", fontSize: 16 },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  countBadgeText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
   emptyText: {
     fontFamily: "Inter_400Regular",
     fontSize: 14,
@@ -350,4 +615,15 @@ const styles = StyleSheet.create({
   memberInfo: { flex: 1 },
   memberName: { fontFamily: "Inter_500Medium", fontSize: 15 },
   memberRole: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  moreBtn: { padding: 4 },
+  adminActionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  adminActionBtnText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+    color: "#fff",
+  },
 });

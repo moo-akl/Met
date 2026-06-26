@@ -284,6 +284,38 @@ export interface CreateNetwork {
   locationRadiusKm?: number | null;
 }
 
+export interface UpdateNetwork {
+  /**
+   * @minLength 2
+   * @maxLength 80
+   */
+  name?: string;
+  /** @maxLength 300 */
+  description?: string | null;
+  category?: NetworkCategory;
+  isPublic?: boolean;
+  requiresApproval?: boolean;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationRadiusKm?: number | null;
+}
+
+export interface ApproveMemberRequest {
+  approve: boolean;
+}
+
+export type UpdateMemberRoleRequestRole =
+  (typeof UpdateMemberRoleRequestRole)[keyof typeof UpdateMemberRoleRequestRole];
+
+export const UpdateMemberRoleRequestRole = {
+  admin: "admin",
+  member: "member",
+} as const;
+
+export interface UpdateMemberRoleRequest {
+  role: UpdateMemberRoleRequestRole;
+}
+
 export interface InviteToNetworkRequest {
   /**
    * @minLength 1
@@ -359,6 +391,10 @@ export type ListNetworksParams = {
   offset?: number;
 };
 
+export type DeleteNetwork200 = {
+  success: boolean;
+};
+
 export type JoinNetwork200Status =
   (typeof JoinNetwork200Status)[keyof typeof JoinNetwork200Status];
 
@@ -372,6 +408,18 @@ export type JoinNetwork200 = {
 };
 
 export type LeaveNetwork200 = {
+  success: boolean;
+};
+
+export type ApproveNetworkMember200 = {
+  approved: boolean;
+};
+
+export type RemoveNetworkMember200 = {
+  success: boolean;
+};
+
+export type UpdateNetworkMemberRole200 = {
   success: boolean;
 };
 

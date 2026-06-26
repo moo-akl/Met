@@ -739,6 +739,78 @@ export const GetNetworkResponse = zod
   );
 
 /**
+ * @summary Update a network (admin only)
+ */
+export const UpdateNetworkParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updateNetworkBodyNameMin = 2;
+export const updateNetworkBodyNameMax = 80;
+
+export const updateNetworkBodyDescriptionMax = 300;
+
+export const UpdateNetworkBody = zod.object({
+  name: zod
+    .string()
+    .min(updateNetworkBodyNameMin)
+    .max(updateNetworkBodyNameMax)
+    .optional(),
+  description: zod.string().max(updateNetworkBodyDescriptionMax).nullish(),
+  category: zod
+    .enum(["university", "work", "neighborhood", "custom"])
+    .optional(),
+  isPublic: zod.boolean().optional(),
+  requiresApproval: zod.boolean().optional(),
+  locationLat: zod.number().nullish(),
+  locationLng: zod.number().nullish(),
+  locationRadiusKm: zod.number().nullish(),
+});
+
+export const UpdateNetworkResponse = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullish(),
+    category: zod.enum(["university", "work", "neighborhood", "custom"]),
+    createdByUid: zod.string(),
+    isPublic: zod.boolean(),
+    requiresApproval: zod.boolean(),
+    locationLat: zod.number().nullish(),
+    locationLng: zod.number().nullish(),
+    locationRadiusKm: zod.number().nullish(),
+    neighborhoodName: zod.string().nullish(),
+    memberCount: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      myMembership: zod
+        .object({
+          networkId: zod.number(),
+          uid: zod.string(),
+          role: zod.enum(["admin", "member"]),
+          status: zod.enum(["active", "pending", "banned"]),
+          joinedAt: zod.coerce.date(),
+          invitedByUid: zod.string().nullish(),
+        })
+        .nullish(),
+    }),
+  );
+
+/**
+ * @summary Delete a network (admin only)
+ */
+export const DeleteNetworkParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteNetworkResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
  * For public networks the member is immediately active. For approval-required networks the status is pending.
  * @summary Join a network
  */
@@ -802,6 +874,92 @@ export const ListNetworkMembersResponseItem = zod
 export const ListNetworkMembersResponse = zod.array(
   ListNetworkMembersResponseItem,
 );
+
+/**
+ * @summary List pending join requests (admin only)
+ */
+export const ListPendingMembersParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListPendingMembersResponseItem = zod
+  .object({
+    networkId: zod.number(),
+    uid: zod.string(),
+    role: zod.enum(["admin", "member"]),
+    status: zod.enum(["active", "pending", "banned"]),
+    joinedAt: zod.coerce.date(),
+    invitedByUid: zod.string().nullish(),
+  })
+  .and(
+    zod.object({
+      profile: zod.object({
+        uid: zod.string(),
+        displayName: zod.string(),
+        photoUrl: zod.string().nullish(),
+        bio: zod.string().nullish(),
+        socials: zod.record(zod.string(), zod.string()).optional(),
+        interests: zod
+          .array(zod.string())
+          .nullish()
+          .describe("User-selected interest tags (predefined list, up to 10)."),
+        isVisible: zod
+          .boolean()
+          .describe(
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+          ),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      }),
+    }),
+  );
+export const ListPendingMembersResponse = zod.array(
+  ListPendingMembersResponseItem,
+);
+
+/**
+ * @summary Approve or decline a pending join request (admin only)
+ */
+export const ApproveNetworkMemberParams = zod.object({
+  id: zod.coerce.number(),
+  uid: zod.coerce.string(),
+});
+
+export const ApproveNetworkMemberBody = zod.object({
+  approve: zod.boolean(),
+});
+
+export const ApproveNetworkMemberResponse = zod.object({
+  approved: zod.boolean(),
+});
+
+/**
+ * @summary Remove a member from a network (admin only)
+ */
+export const RemoveNetworkMemberParams = zod.object({
+  id: zod.coerce.number(),
+  uid: zod.coerce.string(),
+});
+
+export const RemoveNetworkMemberResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Change a member's role (admin only)
+ */
+export const UpdateNetworkMemberRoleParams = zod.object({
+  id: zod.coerce.number(),
+  uid: zod.coerce.string(),
+});
+
+export const UpdateNetworkMemberRoleBody = zod.object({
+  role: zod.enum(["admin", "member"]),
+});
+
+export const UpdateNetworkMemberRoleResponse = zod.object({
+  success: zod.boolean(),
+});
 
 /**
  * @summary Invite a connection to a network

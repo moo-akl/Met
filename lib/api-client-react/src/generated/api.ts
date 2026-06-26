@@ -17,10 +17,13 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ApproveMemberRequest,
+  ApproveNetworkMember200,
   BleResolveEntry,
   BleResolveRequest,
   CreateNetwork,
   CreateRevealRequest,
+  DeleteNetwork200,
   Encounter,
   EncounterWithProfile,
   Error,
@@ -45,10 +48,14 @@ import type {
   ReferralStatsResponse,
   RegisterReferralCode,
   RegisterReferralCode200,
+  RemoveNetworkMember200,
   ResolveNeighborhoodParams,
   RespondToReveal,
   RevealRequest,
   RevealRequestWithProfile,
+  UpdateMemberRoleRequest,
+  UpdateNetwork,
+  UpdateNetworkMemberRole200,
   UpdatePresence,
   UpsertProfile,
 } from "./api.schemas";
@@ -2033,6 +2040,177 @@ export function useGetNetwork<
 }
 
 /**
+ * @summary Update a network (admin only)
+ */
+export const getUpdateNetworkUrl = (id: number) => {
+  return `/api/networks/${id}`;
+};
+
+export const updateNetwork = async (
+  id: number,
+  updateNetwork: UpdateNetwork,
+  options?: RequestInit,
+): Promise<NetworkListEntry> => {
+  return customFetch<NetworkListEntry>(getUpdateNetworkUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateNetwork),
+  });
+};
+
+export const getUpdateNetworkMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateNetwork>>,
+    TError,
+    { id: number; data: BodyType<UpdateNetwork> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateNetwork>>,
+  TError,
+  { id: number; data: BodyType<UpdateNetwork> },
+  TContext
+> => {
+  const mutationKey = ["updateNetwork"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateNetwork>>,
+    { id: number; data: BodyType<UpdateNetwork> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateNetwork(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateNetworkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateNetwork>>
+>;
+export type UpdateNetworkMutationBody = BodyType<UpdateNetwork>;
+export type UpdateNetworkMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Update a network (admin only)
+ */
+export const useUpdateNetwork = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateNetwork>>,
+    TError,
+    { id: number; data: BodyType<UpdateNetwork> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateNetwork>>,
+  TError,
+  { id: number; data: BodyType<UpdateNetwork> },
+  TContext
+> => {
+  return useMutation(getUpdateNetworkMutationOptions(options));
+};
+
+/**
+ * @summary Delete a network (admin only)
+ */
+export const getDeleteNetworkUrl = (id: number) => {
+  return `/api/networks/${id}`;
+};
+
+export const deleteNetwork = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteNetwork200> => {
+  return customFetch<DeleteNetwork200>(getDeleteNetworkUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteNetworkMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteNetwork>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteNetwork>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteNetwork"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteNetwork>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteNetwork(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteNetworkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteNetwork>>
+>;
+
+export type DeleteNetworkMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Delete a network (admin only)
+ */
+export const useDeleteNetwork = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteNetwork>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteNetwork>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteNetworkMutationOptions(options));
+};
+
+/**
  * For public networks the member is immediately active. For approval-required networks the status is pending.
  * @summary Join a network
  */
@@ -2287,6 +2465,364 @@ export function useListNetworkMembers<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List pending join requests (admin only)
+ */
+export const getListPendingMembersUrl = (id: number) => {
+  return `/api/networks/${id}/pending`;
+};
+
+export const listPendingMembers = async (
+  id: number,
+  options?: RequestInit,
+): Promise<NetworkMemberWithProfile[]> => {
+  return customFetch<NetworkMemberWithProfile[]>(getListPendingMembersUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPendingMembersQueryKey = (id: number) => {
+  return [`/api/networks/${id}/pending`] as const;
+};
+
+export const getListPendingMembersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPendingMembers>>,
+  TError = ErrorType<void | Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPendingMembers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPendingMembersQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPendingMembers>>
+  > = ({ signal }) => listPendingMembers(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPendingMembers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPendingMembersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPendingMembers>>
+>;
+export type ListPendingMembersQueryError = ErrorType<void | Error>;
+
+/**
+ * @summary List pending join requests (admin only)
+ */
+
+export function useListPendingMembers<
+  TData = Awaited<ReturnType<typeof listPendingMembers>>,
+  TError = ErrorType<void | Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPendingMembers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPendingMembersQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Approve or decline a pending join request (admin only)
+ */
+export const getApproveNetworkMemberUrl = (id: number, uid: string) => {
+  return `/api/networks/${id}/members/${uid}/approve`;
+};
+
+export const approveNetworkMember = async (
+  id: number,
+  uid: string,
+  approveMemberRequest: ApproveMemberRequest,
+  options?: RequestInit,
+): Promise<ApproveNetworkMember200> => {
+  return customFetch<ApproveNetworkMember200>(
+    getApproveNetworkMemberUrl(id, uid),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(approveMemberRequest),
+    },
+  );
+};
+
+export const getApproveNetworkMemberMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveNetworkMember>>,
+    TError,
+    { id: number; uid: string; data: BodyType<ApproveMemberRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveNetworkMember>>,
+  TError,
+  { id: number; uid: string; data: BodyType<ApproveMemberRequest> },
+  TContext
+> => {
+  const mutationKey = ["approveNetworkMember"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveNetworkMember>>,
+    { id: number; uid: string; data: BodyType<ApproveMemberRequest> }
+  > = (props) => {
+    const { id, uid, data } = props ?? {};
+
+    return approveNetworkMember(id, uid, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveNetworkMemberMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveNetworkMember>>
+>;
+export type ApproveNetworkMemberMutationBody = BodyType<ApproveMemberRequest>;
+export type ApproveNetworkMemberMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Approve or decline a pending join request (admin only)
+ */
+export const useApproveNetworkMember = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveNetworkMember>>,
+    TError,
+    { id: number; uid: string; data: BodyType<ApproveMemberRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveNetworkMember>>,
+  TError,
+  { id: number; uid: string; data: BodyType<ApproveMemberRequest> },
+  TContext
+> => {
+  return useMutation(getApproveNetworkMemberMutationOptions(options));
+};
+
+/**
+ * @summary Remove a member from a network (admin only)
+ */
+export const getRemoveNetworkMemberUrl = (id: number, uid: string) => {
+  return `/api/networks/${id}/members/${uid}`;
+};
+
+export const removeNetworkMember = async (
+  id: number,
+  uid: string,
+  options?: RequestInit,
+): Promise<RemoveNetworkMember200> => {
+  return customFetch<RemoveNetworkMember200>(
+    getRemoveNetworkMemberUrl(id, uid),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getRemoveNetworkMemberMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeNetworkMember>>,
+    TError,
+    { id: number; uid: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeNetworkMember>>,
+  TError,
+  { id: number; uid: string },
+  TContext
+> => {
+  const mutationKey = ["removeNetworkMember"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeNetworkMember>>,
+    { id: number; uid: string }
+  > = (props) => {
+    const { id, uid } = props ?? {};
+
+    return removeNetworkMember(id, uid, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveNetworkMemberMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeNetworkMember>>
+>;
+
+export type RemoveNetworkMemberMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Remove a member from a network (admin only)
+ */
+export const useRemoveNetworkMember = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeNetworkMember>>,
+    TError,
+    { id: number; uid: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeNetworkMember>>,
+  TError,
+  { id: number; uid: string },
+  TContext
+> => {
+  return useMutation(getRemoveNetworkMemberMutationOptions(options));
+};
+
+/**
+ * @summary Change a member's role (admin only)
+ */
+export const getUpdateNetworkMemberRoleUrl = (id: number, uid: string) => {
+  return `/api/networks/${id}/members/${uid}`;
+};
+
+export const updateNetworkMemberRole = async (
+  id: number,
+  uid: string,
+  updateMemberRoleRequest: UpdateMemberRoleRequest,
+  options?: RequestInit,
+): Promise<UpdateNetworkMemberRole200> => {
+  return customFetch<UpdateNetworkMemberRole200>(
+    getUpdateNetworkMemberRoleUrl(id, uid),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateMemberRoleRequest),
+    },
+  );
+};
+
+export const getUpdateNetworkMemberRoleMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateNetworkMemberRole>>,
+    TError,
+    { id: number; uid: string; data: BodyType<UpdateMemberRoleRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateNetworkMemberRole>>,
+  TError,
+  { id: number; uid: string; data: BodyType<UpdateMemberRoleRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateNetworkMemberRole"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateNetworkMemberRole>>,
+    { id: number; uid: string; data: BodyType<UpdateMemberRoleRequest> }
+  > = (props) => {
+    const { id, uid, data } = props ?? {};
+
+    return updateNetworkMemberRole(id, uid, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateNetworkMemberRoleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateNetworkMemberRole>>
+>;
+export type UpdateNetworkMemberRoleMutationBody =
+  BodyType<UpdateMemberRoleRequest>;
+export type UpdateNetworkMemberRoleMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Change a member's role (admin only)
+ */
+export const useUpdateNetworkMemberRole = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateNetworkMemberRole>>,
+    TError,
+    { id: number; uid: string; data: BodyType<UpdateMemberRoleRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateNetworkMemberRole>>,
+  TError,
+  { id: number; uid: string; data: BodyType<UpdateMemberRoleRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateNetworkMemberRoleMutationOptions(options));
+};
 
 /**
  * @summary Invite a connection to a network
