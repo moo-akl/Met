@@ -175,21 +175,36 @@ interface PollSectionProps {
 function PollSection({ item, onVote }: PollSectionProps) {
   const colors = useColors();
   const { t } = useT();
-  const options = item.options ?? [];
+  const baseOptions = item.options ?? [];
+  const serverVote = item.myVoteOptionId ?? null;
+  const [optimisticVoteId, setOptimisticVoteId] = useState<number | null>(null);
+
+  const effectiveVoteId = optimisticVoteId ?? serverVote;
+
+  const options = baseOptions.map((o) => {
+    if (optimisticVoteId === null || optimisticVoteId === serverVote) return o;
+    let voteCount = o.voteCount;
+    if (o.id === optimisticVoteId) voteCount += 1;
+    if (o.id === serverVote) voteCount = Math.max(0, voteCount - 1);
+    return { ...o, voteCount };
+  });
+
   const totalVotes = options.reduce((s, o) => s + o.voteCount, 0);
-  const myVote = item.myVoteOptionId ?? null;
 
   return (
     <View style={pollStyles.container}>
       {options.map((option) => {
         const pct = totalVotes > 0 ? option.voteCount / totalVotes : 0;
-        const isMyVote = myVote === option.id;
+        const isMyVote = effectiveVoteId === option.id;
         const pctStr = `${Math.round(pct * 100)}%` as const;
 
         return (
           <Pressable
             key={option.id}
-            onPress={() => onVote(option.id)}
+            onPress={() => {
+              setOptimisticVoteId(option.id);
+              onVote(option.id);
+            }}
             style={[
               pollStyles.option,
               {
@@ -446,10 +461,7 @@ export function AnnouncementCard({
         )}
       </View>
 
-      {/* Body */}
-      <Text style={[cardStyles.body, { color: colors.foreground }]}>{item.body}</Text>
-
-      {/* Photo */}
+      {/* Photo above body */}
       {item.photoUrl ? (
         <Pressable
           onPress={() => setLightboxVisible(true)}
@@ -462,6 +474,9 @@ export function AnnouncementCard({
           />
         </Pressable>
       ) : null}
+
+      {/* Body */}
+      <Text style={[cardStyles.body, { color: colors.foreground }]}>{item.body}</Text>
 
       {/* Poll */}
       {item.type === "poll" ? (

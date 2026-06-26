@@ -9,6 +9,7 @@ import {
   Clipboard,
   I18nManager,
   Pressable,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -169,6 +170,7 @@ export default function NetworkDetailScreen() {
   const regenerateCodeMutation = useRegenerateNetworkCode();
 
   const [composeVisible, setComposeVisible] = useState(false);
+  const [feedRefreshing, setFeedRefreshing] = useState(false);
   const isActiveMember = network?.myMembership?.status === "active";
 
   const {
@@ -437,6 +439,15 @@ export default function NetworkDetailScreen() {
     );
   }
 
+  async function handleFeedRefresh() {
+    setFeedRefreshing(true);
+    try {
+      await Promise.all([refetch(), refetchMembers(), refetchAnnouncements()]);
+    } finally {
+      setFeedRefreshing(false);
+    }
+  }
+
   function handleDeleteAnnouncement(annId: number) {
     deleteMutation.mutate(
       { id: networkId, annId },
@@ -484,6 +495,13 @@ export default function NetworkDetailScreen() {
       <ScrollView
         style={styles.flex}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={feedRefreshing}
+            onRefresh={handleFeedRefresh}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* ── Hero banner ──────────────────────────────────────────────────── */}
         <View style={[styles.hero, { backgroundColor: colors.card }]}>
@@ -612,10 +630,21 @@ export default function NetworkDetailScreen() {
           {activeTab === "feed" && (
             <>
               {announcementsLoading && (
-                <ActivityIndicator
-                  style={{ marginTop: 32, marginBottom: 8 }}
-                  color={colors.primary}
-                />
+                <>
+                  {[0, 1, 2].map((i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.feedSkeletonCard,
+                        { backgroundColor: colors.card, borderColor: colors.border },
+                      ]}
+                    >
+                      <View style={[styles.skeletonLine, { backgroundColor: colors.border, width: "30%", marginBottom: 14 }]} />
+                      <View style={[styles.skeletonLine, { backgroundColor: colors.border, width: "100%", marginBottom: 8 }]} />
+                      <View style={[styles.skeletonLine, { backgroundColor: colors.border, width: "75%" }]} />
+                    </View>
+                  ))}
+                </>
               )}
               {!announcementsLoading &&
                 (!announcements || announcements.length === 0) && (
@@ -1159,6 +1188,12 @@ export default function NetworkDetailScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  feedSkeletonCard: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    marginBottom: 12,
+  },
   fab: {
     position: "absolute",
     right: 20,

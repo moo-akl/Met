@@ -876,6 +876,81 @@ router.post("/networks/:id/announcements/photo", requireUid, networkWriteLimit, 
   });
 });
 
+// ── Announcement response builder ─────────────────────────────────────────────
+// Fetches all related data for a single announcement and returns a shaped object
+// that matches the Announcement OpenAPI schema.
+
+async function buildAnnouncementResponse(annId: number, uid: string) {
+  const [ann] = await db
+    .select()
+    .from(networkAnnouncementsTable)
+    .where(eq(networkAnnouncementsTable.id, annId))
+    .limit(1);
+  if (!ann) return null;
+  const [options, votes, questions] = await Promise.all([
+    db
+      .select()
+      .from(networkPollOptionsTable)
+      .where(eq(networkPollOptionsTable.announcementId, annId))
+      .orderBy(networkPollOptionsTable.displayOrder),
+    db
+      .select()
+      .from(networkPollVotesTable)
+      .where(eq(networkPollVotesTable.announcementId, annId)),
+    db
+      .select()
+      .from(networkQuestionnaireQuestionsTable)
+      .where(eq(networkQuestionnaireQuestionsTable.announcementId, annId))
+      .orderBy(networkQuestionnaireQuestionsTable.displayOrder),
+  ]);
+  const qIds = questions.map((q) => q.id);
+  const answers =
+    qIds.length > 0
+      ? await db
+          .select()
+          .from(networkQuestionnaireAnswersTable)
+          .where(inArray(networkQuestionnaireAnswersTable.questionId, qIds))
+      : [];
+  const myVote = votes.find((v) => v.uid === uid);
+  const myAnsweredQIds = new Set(
+    answers
+      .filter((a) => a.uid === uid && questions.some((q) => q.id === a.questionId))
+      .map((a) => a.questionId),
+  );
+  return {
+    id: ann.id,
+    networkId: ann.networkId,
+    authorUid: ann.authorUid,
+    body: ann.body,
+    photoUrl: ann.photoUrl ?? null,
+    type: ann.type,
+    createdAt: ann.createdAt.toISOString(),
+    options:
+      ann.type === "poll"
+        ? options.map((o) => ({
+            id: o.id,
+            label: o.label,
+            displayOrder: o.displayOrder,
+            voteCount: votes.filter((v) => v.optionId === o.id).length,
+          }))
+        : null,
+    myVoteOptionId: myVote?.optionId ?? null,
+    questions:
+      ann.type === "questionnaire"
+        ? questions.map((q) => ({
+            id: q.id,
+            prompt: q.prompt,
+            displayOrder: q.displayOrder,
+            myAnswer: answers.find((a) => a.questionId === q.id && a.uid === uid)?.answerText ?? null,
+          }))
+        : null,
+    hasAnswered:
+      ann.type === "questionnaire"
+        ? questions.length > 0 && questions.every((q) => myAnsweredQIds.has(q.id))
+        : null,
+  };
+}
+
 // ── GET /networks/:id/announcements ──────────────────────────────────────────
 
 router.get("/networks/:id/announcements", requireUid, async (req, res) => {
@@ -998,7 +1073,8 @@ router.post("/networks/:id/announcements", requireUid, networkWriteLimit, async 
       body.questions.map((prompt, i) => ({ announcementId: announcement.id, prompt, displayOrder: i })),
     );
   }
-  res.status(201).json({ id: announcement.id });
+  const response = await buildAnnouncementResponse(announcement.id, uid);
+  res.status(201).json(response);
 });
 
 // ── DELETE /networks/:id/announcements/:annId ─────────────────────────────────
@@ -1082,7 +1158,8 @@ router.post("/networks/:id/announcements/:annId/vote", requireUid, networkWriteL
       target: [networkPollVotesTable.announcementId, networkPollVotesTable.uid],
       set: { optionId },
     });
-  res.json({ success: true });
+  const response = await buildAnnouncementResponse(annId, uid);
+  res.json(response);
 });
 
 // ── POST /networks/:id/announcements/:annId/answers ───────────────────────────
@@ -1128,7 +1205,8 @@ router.post("/networks/:id/announcements/:annId/answers", requireUid, networkWri
         set: { answerText: sql`excluded.answer_text` },
       });
   }
-  res.json({ success: true });
+  const response = await buildAnnouncementResponse(annId, uid);
+  res.json(response);
 });
 
 // ── GET /networks/join/:code (public preview) ────────────────────────────────
