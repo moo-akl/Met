@@ -988,6 +988,9 @@ export const nl: LocaleTree = {
     joinByCodeError: "Deze code komt niet overeen met een netwerk.",
     joinByCodeSuccess: "Je bent lid geworden van {{name}}!",
     joinByCodePending: "Verzoek verzonden — wachten op goedkeuring van de beheerder",
+    regenerateCodeTitle: "Uitnodigingscode vernieuwen",
+    regenerateCodeConfirm: "De oude code werkt onmiddellijk niet meer. Niemand met de vorige link kan meer deelnemen.",
+    regenerateCodeOk: "Vernieuwen",
   },
   interestLabels: interestLocales.nl,
 };

@@ -942,6 +942,9 @@ export const zh: LocaleTree = {
     joinByCodeError: "该邀请码不对应任何网络。",
     joinByCodeSuccess: "您已加入 {{name}}！",
     joinByCodePending: "请求已发送 — 等待管理员批准",
+    regenerateCodeTitle: "重新生成邀请码",
+    regenerateCodeConfirm: "旧邀请码将立即失效，持有旧链接的人将无法加入。",
+    regenerateCodeOk: "重新生成",
   },
   interestLabels: interestLocales.zh,
 };

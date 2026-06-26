@@ -495,13 +495,11 @@ paths:
         "401":
           description: Unauthorized
 
-  /networks/by-code/{code}:
+  /networks/join/{code}:
     get:
       operationId: getNetworkByCode
       tags: [networks]
-      summary: Look up a network by invite code
-      security:
-        - MetUid: []
+      summary: Look up a network by invite code (public preview)
       parameters:
         - name: code
           in: path
@@ -523,10 +521,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        "401":
-          description: Unauthorized
-
-  /networks/by-code/{code}/join:
     post:
       operationId: joinNetworkByCode
       tags: [networks]
@@ -562,6 +556,46 @@ paths:
                 $ref: "#/components/schemas/Error"
         "409":
           description: Already a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /networks/{id}/regenerate-code:
+    post:
+      operationId: regenerateNetworkCode
+      tags: [networks]
+      summary: Regenerate invite code for a network (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: New invite code
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - inviteCode
+                properties:
+                  inviteCode:
+                    type: string
+        "403":
+          description: Forbidden — not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Network not found
           content:
             application/json:
               schema:

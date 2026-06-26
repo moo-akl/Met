@@ -797,10 +797,9 @@ router.post("/networks/:id/invite", requireUid, networkWriteLimit, async (req, r
   res.json({ success: true });
 });
 
-// ── GET /networks/by-code/:code ───────────────────────────────────────────────
+// ── GET /networks/join/:code (public preview) ────────────────────────────────
 
-router.get("/networks/by-code/:code", requireUid, async (req, res) => {
-  const uid = req.uid!;
+router.get("/networks/join/:code", async (req, res) => {
   const { code } = NetworkByCodeParams.parse({ code: req.params.code });
 
   const [network] = await db
@@ -812,13 +811,13 @@ router.get("/networks/by-code/:code", requireUid, async (req, res) => {
     res.status(404).json({ message: "No network with that invite code" });
     return;
   }
-  const membership = await getMembership(network.id, uid);
-  res.json(serializeNetwork(network, membership));
+  // Return public view — no membership context needed
+  res.json(serializeNetwork(network, null));
 });
 
-// ── POST /networks/by-code/:code/join ────────────────────────────────────────
+// ── POST /networks/join/:code (auth-required join) ───────────────────────────
 
-router.post("/networks/by-code/:code/join", requireUid, networkWriteLimit, async (req, res) => {
+router.post("/networks/join/:code", requireUid, networkWriteLimit, async (req, res) => {
   const uid = req.uid!;
   const { code } = NetworkByCodeParams.parse({ code: req.params.code });
 
@@ -856,6 +855,41 @@ router.post("/networks/by-code/:code/join", requireUid, networkWriteLimit, async
   }
 
   res.json({ status });
+});
+
+// ── POST /networks/:id/regenerate-code (admin only) ──────────────────────────
+
+router.post("/networks/:id/regenerate-code", requireUid, networkWriteLimit, async (req, res) => {
+  const uid = req.uid!;
+  const networkId = parseInt(String(req.params.id), 10);
+  if (isNaN(networkId)) {
+    res.status(404).json({ message: "Network not found" });
+    return;
+  }
+
+  const [network] = await db
+    .select()
+    .from(networksTable)
+    .where(eq(networksTable.id, networkId))
+    .limit(1);
+  if (!network) {
+    res.status(404).json({ message: "Network not found" });
+    return;
+  }
+
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can regenerate the invite code" });
+    return;
+  }
+
+  const newCode = await ensureUniqueInviteCode();
+  await db
+    .update(networksTable)
+    .set({ inviteCode: newCode, updatedAt: new Date() })
+    .where(eq(networksTable.id, networkId));
+
+  res.json({ inviteCode: newCode });
 });
 
 export default router;

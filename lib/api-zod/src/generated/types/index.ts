@@ -46,6 +46,7 @@ export * from "./redeemReferralCode";
 export * from "./redeemReferralCode200";
 export * from "./redeemReferralCode200Result";
 export * from "./referralStatsResponse";
+export * from "./regenerateNetworkCode200";
 export * from "./registerReferralCode";
 export * from "./registerReferralCode200";
 export * from "./removeNetworkMember200";

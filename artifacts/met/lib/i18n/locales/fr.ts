@@ -996,6 +996,9 @@ export const fr: LocaleTree = {
     joinByCodeError: "Ce code ne correspond à aucun réseau.",
     joinByCodeSuccess: "Vous avez rejoint {{name}} !",
     joinByCodePending: "Demande envoyée — en attente de l'approbation de l'administrateur",
+    regenerateCodeTitle: "Régénérer le code d'invitation",
+    regenerateCodeConfirm: "L'ancien code cessera de fonctionner immédiatement. Personne avec le lien précédent ne pourra rejoindre.",
+    regenerateCodeOk: "Régénérer",
   },
   interestLabels: interestLocales.fr,
 };

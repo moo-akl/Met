@@ -548,7 +548,7 @@ export const GetReferralStatsResponse = zod.object({
 });
 
 /**
- * @summary Look up a network by invite code
+ * @summary Look up a network by invite code (public preview)
  */
 export const getNetworkByCodePathCodeMin = 8;
 export const getNetworkByCodePathCodeMax = 8;
@@ -608,6 +608,17 @@ export const JoinNetworkByCodeParams = zod.object({
 
 export const JoinNetworkByCodeResponse = zod.object({
   status: zod.enum(["active", "pending"]),
+});
+
+/**
+ * @summary Regenerate invite code for a network (admin only)
+ */
+export const RegenerateNetworkCodeParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const RegenerateNetworkCodeResponse = zod.object({
+  inviteCode: zod.string(),
 });
 
 /**

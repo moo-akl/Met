@@ -986,6 +986,9 @@ export const pt: LocaleTree = {
     joinByCodeError: "Esse código não corresponde a nenhuma rede.",
     joinByCodeSuccess: "Você entrou em {{name}}!",
     joinByCodePending: "Pedido enviado — aguardando aprovação do administrador",
+    regenerateCodeTitle: "Regenerar código de convite",
+    regenerateCodeConfirm: "O código antigo deixará de funcionar imediatamente. Ninguém com o link anterior poderá entrar.",
+    regenerateCodeOk: "Regenerar",
   },
   interestLabels: interestLocales.pt,
 };

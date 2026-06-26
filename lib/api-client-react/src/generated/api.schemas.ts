@@ -379,6 +379,10 @@ export type JoinNetworkByCode200 = {
   status: JoinNetworkByCode200Status;
 };
 
+export type RegenerateNetworkCode200 = {
+  inviteCode: string;
+};
+
 export type ResolveNeighborhoodParams = {
   lat: number;
   lng: number;

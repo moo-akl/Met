@@ -988,6 +988,9 @@ export const vi: LocaleTree = {
     joinByCodeError: "Mã đó không khớp với bất kỳ mạng nào.",
     joinByCodeSuccess: "Bạn đã tham gia {{name}}!",
     joinByCodePending: "Đã gửi yêu cầu — chờ quản trị viên phê duyệt",
+    regenerateCodeTitle: "Tạo lại mã mời",
+    regenerateCodeConfirm: "Mã cũ sẽ ngừng hoạt động ngay lập tức. Không ai có thể tham gia bằng liên kết cũ.",
+    regenerateCodeOk: "Tạo lại",
   },
   interestLabels: interestLocales.vi,
 };

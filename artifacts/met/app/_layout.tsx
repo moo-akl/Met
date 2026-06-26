@@ -108,7 +108,7 @@ function parseReferralFromUrl(url: string | null): string | null {
 function parseNetworkInviteFromUrl(url: string | null): string | null {
   if (!url) return null;
   try {
-    const m = url.match(/\/n\/([A-Za-z2-9]{8})(?:[/?#]|$)/);
+    const m = url.match(/\/join\/([A-Za-z2-9]{8})(?:[/?#]|$)/);
     return m ? m[1].toUpperCase() : null;
   } catch {
     return null;

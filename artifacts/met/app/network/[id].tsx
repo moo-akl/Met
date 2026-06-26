@@ -25,6 +25,7 @@ import {
   useLeaveNetwork,
   useListNetworkMembers,
   useListPendingMembers,
+  useRegenerateNetworkCode,
   useRemoveNetworkMember,
   useUpdateNetworkMemberRole,
 } from "@workspace/api-client-react";
@@ -67,6 +68,7 @@ export default function NetworkDetailScreen() {
   const approveMutation = useApproveNetworkMember();
   const removeMutation = useRemoveNetworkMember();
   const roleMutation = useUpdateNetworkMemberRole();
+  const regenerateCodeMutation = useRegenerateNetworkCode();
 
   useFocusEffect(
     useCallback(() => {
@@ -141,14 +143,35 @@ export default function NetworkDetailScreen() {
   function handleShareInvite() {
     if (!network?.inviteCode) return;
     const code = network.inviteCode;
-    const message = `Join "${network.name}" on Met — use invite code ${code} or open: met://n/${code}`;
-    Share.share({ message, title: `Join ${network.name}` }).catch(() => {});
+    const url = `https://metapp.replit.app/join/${code}`;
+    const message = `Join "${network.name}" on Met — tap the link or use invite code ${code}\n${url}`;
+    Share.share({ message, url, title: `Join ${network.name}` }).catch(() => {});
   }
 
   function handleCopyCode() {
     if (!network?.inviteCode) return;
     Clipboard.setString(network.inviteCode);
     Alert.alert(t("common.copied"), network.inviteCode);
+  }
+
+  function handleRegenerateCode() {
+    Alert.alert(
+      t("networks.regenerateCodeTitle"),
+      t("networks.regenerateCodeConfirm"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("networks.regenerateCodeOk"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await regenerateCodeMutation.mutateAsync({ id: String(networkId) });
+              refetch();
+            } catch {}
+          },
+        },
+      ],
+    );
   }
 
   function handleMemberTap(uid: string) {
@@ -378,8 +401,8 @@ export default function NetworkDetailScreen() {
         </View>
       )}
 
-      {/* Invite code (admin only) */}
-      {isAdmin && network.inviteCode && (
+      {/* Invite code — admins see code + regenerate; all members see Share */}
+      {network.inviteCode && (isAdmin || membership?.status === "active") && (
         <View style={[styles.inviteSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.inviteHeader}>
             <Feather name="link" size={16} color={colors.primary} />
@@ -387,18 +410,22 @@ export default function NetworkDetailScreen() {
               {t("networks.inviteCodeTitle")}
             </Text>
           </View>
-          <Text style={[styles.inviteSub, { color: colors.mutedForeground }]}>
-            {t("networks.inviteCodeSub")}
-          </Text>
-          <Pressable
-            style={[styles.codeBox, { backgroundColor: colors.background, borderColor: colors.border }]}
-            onPress={handleCopyCode}
-          >
-            <Text style={[styles.codeText, { color: colors.foreground }]}>
-              {network.inviteCode}
-            </Text>
-            <Feather name="copy" size={16} color={colors.mutedForeground} />
-          </Pressable>
+          {isAdmin && (
+            <>
+              <Text style={[styles.inviteSub, { color: colors.mutedForeground }]}>
+                {t("networks.inviteCodeSub")}
+              </Text>
+              <Pressable
+                style={[styles.codeBox, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={handleCopyCode}
+              >
+                <Text style={[styles.codeText, { color: colors.foreground }]}>
+                  {network.inviteCode}
+                </Text>
+                <Feather name="copy" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            </>
+          )}
           <Pressable
             style={[styles.shareCodeBtn, { backgroundColor: colors.primary }]}
             onPress={handleShareInvite}
@@ -408,6 +435,18 @@ export default function NetworkDetailScreen() {
               {t("networks.shareInviteLink")}
             </Text>
           </Pressable>
+          {isAdmin && (
+            <Pressable
+              style={[styles.regenerateBtn, { borderColor: colors.border }]}
+              onPress={handleRegenerateCode}
+              disabled={regenerateCodeMutation.isPending}
+            >
+              <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.regenerateBtnText, { color: colors.mutedForeground }]}>
+                {t("networks.regenerateCodeTitle")}
+              </Text>
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -765,5 +804,18 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,
+  },
+  regenerateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  regenerateBtnText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
   },
 });

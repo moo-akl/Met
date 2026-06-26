@@ -47,6 +47,7 @@ import type {
   RedeemReferralCode,
   RedeemReferralCode200,
   ReferralStatsResponse,
+  RegenerateNetworkCode200,
   RegisterReferralCode,
   RegisterReferralCode200,
   RemoveNetworkMember200,
@@ -1593,10 +1594,10 @@ export function useGetReferralStats<
 }
 
 /**
- * @summary Look up a network by invite code
+ * @summary Look up a network by invite code (public preview)
  */
 export const getGetNetworkByCodeUrl = (code: string) => {
-  return `/api/networks/by-code/${code}`;
+  return `/api/networks/join/${code}`;
 };
 
 export const getNetworkByCode = async (
@@ -1610,12 +1611,12 @@ export const getNetworkByCode = async (
 };
 
 export const getGetNetworkByCodeQueryKey = (code: string) => {
-  return [`/api/networks/by-code/${code}`] as const;
+  return [`/api/networks/join/${code}`] as const;
 };
 
 export const getGetNetworkByCodeQueryOptions = <
   TData = Awaited<ReturnType<typeof getNetworkByCode>>,
-  TError = ErrorType<void | Error>,
+  TError = ErrorType<Error>,
 >(
   code: string,
   options?: {
@@ -1650,15 +1651,15 @@ export const getGetNetworkByCodeQueryOptions = <
 export type GetNetworkByCodeQueryResult = NonNullable<
   Awaited<ReturnType<typeof getNetworkByCode>>
 >;
-export type GetNetworkByCodeQueryError = ErrorType<void | Error>;
+export type GetNetworkByCodeQueryError = ErrorType<Error>;
 
 /**
- * @summary Look up a network by invite code
+ * @summary Look up a network by invite code (public preview)
  */
 
 export function useGetNetworkByCode<
   TData = Awaited<ReturnType<typeof getNetworkByCode>>,
-  TError = ErrorType<void | Error>,
+  TError = ErrorType<Error>,
 >(
   code: string,
   options?: {
@@ -1683,7 +1684,7 @@ export function useGetNetworkByCode<
  * @summary Join a network using its invite code
  */
 export const getJoinNetworkByCodeUrl = (code: string) => {
-  return `/api/networks/by-code/${code}/join`;
+  return `/api/networks/join/${code}`;
 };
 
 export const joinNetworkByCode = async (
@@ -1761,6 +1762,93 @@ export const useJoinNetworkByCode = <
   TContext
 > => {
   return useMutation(getJoinNetworkByCodeMutationOptions(options));
+};
+
+/**
+ * @summary Regenerate invite code for a network (admin only)
+ */
+export const getRegenerateNetworkCodeUrl = (id: string) => {
+  return `/api/networks/${id}/regenerate-code`;
+};
+
+export const regenerateNetworkCode = async (
+  id: string,
+  options?: RequestInit,
+): Promise<RegenerateNetworkCode200> => {
+  return customFetch<RegenerateNetworkCode200>(
+    getRegenerateNetworkCodeUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRegenerateNetworkCodeMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateNetworkCode>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateNetworkCode>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["regenerateNetworkCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateNetworkCode>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return regenerateNetworkCode(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateNetworkCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateNetworkCode>>
+>;
+
+export type RegenerateNetworkCodeMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Regenerate invite code for a network (admin only)
+ */
+export const useRegenerateNetworkCode = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateNetworkCode>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateNetworkCode>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getRegenerateNetworkCodeMutationOptions(options));
 };
 
 /**

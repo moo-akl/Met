@@ -993,6 +993,9 @@ export const ru: LocaleTree = {
     joinByCodeError: "Этот код не соответствует ни одной сети.",
     joinByCodeSuccess: "Вы вступили в {{name}}!",
     joinByCodePending: "Запрос отправлен — ожидание одобрения администратора",
+    regenerateCodeTitle: "Обновить код приглашения",
+    regenerateCodeConfirm: "Старый код перестанет работать немедленно. Никто со старой ссылкой не сможет вступить.",
+    regenerateCodeOk: "Обновить",
   },
   interestLabels: interestLocales.ru,
 };

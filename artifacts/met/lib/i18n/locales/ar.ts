@@ -990,6 +990,9 @@ export const ar: LocaleTree = {
     joinByCodeError: "هذا الرمز لا يتطابق مع أي شبكة.",
     joinByCodeSuccess: "لقد انضممت إلى {{name}}!",
     joinByCodePending: "تم إرسال الطلب — في انتظار موافقة المسؤول",
+    regenerateCodeTitle: "إعادة إنشاء رمز الدعوة",
+    regenerateCodeConfirm: "سيتوقف الرمز القديم عن العمل فوراً. لن يتمكن أي شخص لديه الرابط السابق من الانضمام.",
+    regenerateCodeOk: "إعادة إنشاء",
   },
   interestLabels: interestLocales.ar,
 };

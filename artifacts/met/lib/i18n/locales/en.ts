@@ -989,6 +989,9 @@ export const en = {
     joinByCodeError: "That code doesn't match any network.",
     joinByCodeSuccess: "You've joined {{name}}!",
     joinByCodePending: "Request sent — waiting for admin approval",
+    regenerateCodeTitle: "Regenerate invite code",
+    regenerateCodeConfirm: "The old code will stop working immediately. Anyone with the previous link won't be able to join.",
+    regenerateCodeOk: "Regenerate",
   },
 };
 
