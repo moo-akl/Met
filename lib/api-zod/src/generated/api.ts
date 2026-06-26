@@ -1070,6 +1070,7 @@ export const ListAnnouncementsResponseItem = zod.object({
   authorDisplayName: zod.string().nullish(),
   authorPhotoUrl: zod.string().nullish(),
   body: zod.string(),
+  isPinned: zod.boolean(),
   photoUrl: zod.string().nullish(),
   type: zod.enum(["post", "poll", "questionnaire"]),
   createdAt: zod.coerce.date(),
@@ -1147,6 +1148,92 @@ export const DeleteAnnouncementResponse = zod.object({
 });
 
 /**
+ * @summary Pin an announcement to the top of the feed (admin only)
+ */
+export const PinAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
+  annId: zod.coerce.number(),
+});
+
+export const PinAnnouncementResponse = zod.object({
+  id: zod.number(),
+  networkId: zod.number(),
+  authorUid: zod.string(),
+  authorDisplayName: zod.string().nullish(),
+  authorPhotoUrl: zod.string().nullish(),
+  body: zod.string(),
+  isPinned: zod.boolean(),
+  photoUrl: zod.string().nullish(),
+  type: zod.enum(["post", "poll", "questionnaire"]),
+  createdAt: zod.coerce.date(),
+  options: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        label: zod.string(),
+        displayOrder: zod.number(),
+        voteCount: zod.number(),
+      }),
+    )
+    .nullish(),
+  myVoteOptionId: zod.number().nullish(),
+  questions: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        prompt: zod.string(),
+        displayOrder: zod.number(),
+        myAnswer: zod.string().nullish(),
+      }),
+    )
+    .nullish(),
+  hasAnswered: zod.boolean().nullish(),
+});
+
+/**
+ * @summary Unpin an announcement (admin only)
+ */
+export const UnpinAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
+  annId: zod.coerce.number(),
+});
+
+export const UnpinAnnouncementResponse = zod.object({
+  id: zod.number(),
+  networkId: zod.number(),
+  authorUid: zod.string(),
+  authorDisplayName: zod.string().nullish(),
+  authorPhotoUrl: zod.string().nullish(),
+  body: zod.string(),
+  isPinned: zod.boolean(),
+  photoUrl: zod.string().nullish(),
+  type: zod.enum(["post", "poll", "questionnaire"]),
+  createdAt: zod.coerce.date(),
+  options: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        label: zod.string(),
+        displayOrder: zod.number(),
+        voteCount: zod.number(),
+      }),
+    )
+    .nullish(),
+  myVoteOptionId: zod.number().nullish(),
+  questions: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        prompt: zod.string(),
+        displayOrder: zod.number(),
+        myAnswer: zod.string().nullish(),
+      }),
+    )
+    .nullish(),
+  hasAnswered: zod.boolean().nullish(),
+});
+
+/**
  * @summary Cast or change a poll vote
  */
 export const CastAnnouncementVoteParams = zod.object({
@@ -1165,6 +1252,7 @@ export const CastAnnouncementVoteResponse = zod.object({
   authorDisplayName: zod.string().nullish(),
   authorPhotoUrl: zod.string().nullish(),
   body: zod.string(),
+  isPinned: zod.boolean(),
   photoUrl: zod.string().nullish(),
   type: zod.enum(["post", "poll", "questionnaire"]),
   createdAt: zod.coerce.date(),
@@ -1223,6 +1311,7 @@ export const SubmitAnnouncementAnswersResponse = zod.object({
   authorDisplayName: zod.string().nullish(),
   authorPhotoUrl: zod.string().nullish(),
   body: zod.string(),
+  isPinned: zod.boolean(),
   photoUrl: zod.string().nullish(),
   type: zod.enum(["post", "poll", "questionnaire"]),
   createdAt: zod.coerce.date(),

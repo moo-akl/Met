@@ -1012,6 +1012,8 @@ export const en = {
     feedAnswerBtn: "Answer questions",
     feedSubmitAnswers: "Submit",
     feedAnsweredLabel: "Answered",
+    feedPin: "Pin announcement",
+    feedUnpin: "Unpin announcement",
     feedDeleteTitle: "Delete announcement",
     feedDeleteBody: "This announcement will be permanently removed.",
     feedDeleteOk: "Delete",

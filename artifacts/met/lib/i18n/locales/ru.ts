@@ -1016,6 +1016,8 @@ export const ru: LocaleTree = {
     feedAnswerBtn: "Ответить на вопросы",
     feedSubmitAnswers: "Отправить",
     feedAnsweredLabel: "Отвечено",
+    feedPin: "Закрепить объявление",
+    feedUnpin: "Открепить объявление",
     feedDeleteTitle: "Удалить объявление",
     feedDeleteBody: "Это объявление будет удалено безвозвратно.",
     feedDeleteOk: "Удалить",

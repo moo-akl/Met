@@ -97,6 +97,7 @@ export const networkAnnouncementsTable = pgTable(
     body: text("body").notNull(),
     photoUrl: text("photo_url"),
     type: announcementTypeEnum("type").notNull().default("post"),
+    isPinned: boolean("is_pinned").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -104,6 +105,7 @@ export const networkAnnouncementsTable = pgTable(
   (t) => ({
     networkIdx: index("network_announcements_network_idx").on(t.networkId),
     createdAtIdx: index("network_announcements_created_at_idx").on(t.createdAt),
+    pinnedIdx: index("network_announcements_pinned_idx").on(t.isPinned),
   }),
 );
 

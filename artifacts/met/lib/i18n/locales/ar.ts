@@ -1013,6 +1013,8 @@ export const ar: LocaleTree = {
     feedAnswerBtn: "الإجابة على الأسئلة",
     feedSubmitAnswers: "إرسال",
     feedAnsweredLabel: "تمت الإجابة",
+    feedPin: "تثبيت الإعلان",
+    feedUnpin: "إلغاء تثبيت الإعلان",
     feedDeleteTitle: "حذف الإعلان",
     feedDeleteBody: "سيتم حذف هذا الإعلان نهائيًا.",
     feedDeleteOk: "حذف",

@@ -3440,6 +3440,176 @@ export const useDeleteAnnouncement = <
 };
 
 /**
+ * @summary Pin an announcement to the top of the feed (admin only)
+ */
+export const getPinAnnouncementUrl = (id: number, annId: number) => {
+  return `/api/networks/${id}/announcements/${annId}/pin`;
+};
+
+export const pinAnnouncement = async (
+  id: number,
+  annId: number,
+  options?: RequestInit,
+): Promise<Announcement> => {
+  return customFetch<Announcement>(getPinAnnouncementUrl(id, annId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPinAnnouncementMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof pinAnnouncement>>,
+    TError,
+    { id: number; annId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof pinAnnouncement>>,
+  TError,
+  { id: number; annId: number },
+  TContext
+> => {
+  const mutationKey = ["pinAnnouncement"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof pinAnnouncement>>,
+    { id: number; annId: number }
+  > = (props) => {
+    const { id, annId } = props ?? {};
+
+    return pinAnnouncement(id, annId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PinAnnouncementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof pinAnnouncement>>
+>;
+
+export type PinAnnouncementMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Pin an announcement to the top of the feed (admin only)
+ */
+export const usePinAnnouncement = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof pinAnnouncement>>,
+    TError,
+    { id: number; annId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof pinAnnouncement>>,
+  TError,
+  { id: number; annId: number },
+  TContext
+> => {
+  return useMutation(getPinAnnouncementMutationOptions(options));
+};
+
+/**
+ * @summary Unpin an announcement (admin only)
+ */
+export const getUnpinAnnouncementUrl = (id: number, annId: number) => {
+  return `/api/networks/${id}/announcements/${annId}/pin`;
+};
+
+export const unpinAnnouncement = async (
+  id: number,
+  annId: number,
+  options?: RequestInit,
+): Promise<Announcement> => {
+  return customFetch<Announcement>(getUnpinAnnouncementUrl(id, annId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getUnpinAnnouncementMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unpinAnnouncement>>,
+    TError,
+    { id: number; annId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unpinAnnouncement>>,
+  TError,
+  { id: number; annId: number },
+  TContext
+> => {
+  const mutationKey = ["unpinAnnouncement"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unpinAnnouncement>>,
+    { id: number; annId: number }
+  > = (props) => {
+    const { id, annId } = props ?? {};
+
+    return unpinAnnouncement(id, annId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnpinAnnouncementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unpinAnnouncement>>
+>;
+
+export type UnpinAnnouncementMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Unpin an announcement (admin only)
+ */
+export const useUnpinAnnouncement = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unpinAnnouncement>>,
+    TError,
+    { id: number; annId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unpinAnnouncement>>,
+  TError,
+  { id: number; annId: number },
+  TContext
+> => {
+  return useMutation(getUnpinAnnouncementMutationOptions(options));
+};
+
+/**
  * @summary Cast or change a poll vote
  */
 export const getCastAnnouncementVoteUrl = (id: number, annId: number) => {

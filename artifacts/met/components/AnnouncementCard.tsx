@@ -401,6 +401,8 @@ export interface AnnouncementCardProps {
   item: Announcement;
   isAdmin: boolean;
   onDelete: (id: number) => void;
+  onPin: (id: number) => void;
+  onUnpin: (id: number) => void;
   onVote: (annId: number, optionId: number) => void;
   onAnswer: (
     annId: number,
@@ -412,6 +414,8 @@ export function AnnouncementCard({
   item,
   isAdmin,
   onDelete,
+  onPin,
+  onUnpin,
   onVote,
   onAnswer,
 }: AnnouncementCardProps) {
@@ -422,10 +426,14 @@ export function AnnouncementCard({
   function handleLongPress() {
     if (!isAdmin) return;
     Alert.alert(
-      t("networks.feedDeleteTitle"),
-      t("networks.feedDeleteBody"),
+      item.isPinned ? t("networks.feedUnpin") : t("networks.feedPin"),
+      undefined,
       [
         { text: t("common.cancel"), style: "cancel" },
+        {
+          text: item.isPinned ? t("networks.feedUnpin") : t("networks.feedPin"),
+          onPress: () => item.isPinned ? onUnpin(item.id) : onPin(item.id),
+        },
         {
           text: t("networks.feedDeleteOk"),
           style: "destructive",
@@ -451,7 +459,11 @@ export function AnnouncementCard({
       {/* Header */}
       <View style={cardStyles.header}>
         <View style={cardStyles.headerLeft}>
-          <Feather name={icon} size={13} color={colors.mutedForeground} />
+          {item.isPinned ? (
+            <Feather name="bookmark" size={13} color={colors.primary} />
+          ) : (
+            <Feather name={icon} size={13} color={colors.mutedForeground} />
+          )}
           <Text style={[cardStyles.timestamp, { color: colors.mutedForeground }]}>
             {timeAgo(item.createdAt)}
           </Text>

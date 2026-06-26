@@ -30,6 +30,8 @@ import {
   useApproveNetworkMember,
   useCastAnnouncementVote,
   useDeleteAnnouncement,
+  usePinAnnouncement,
+  useUnpinAnnouncement,
   useGetNetwork,
   useJoinNetwork,
   useLeaveNetwork,
@@ -183,6 +185,8 @@ export default function NetworkDetailScreen() {
   });
 
   const deleteMutation = useDeleteAnnouncement();
+  const pinMutation = usePinAnnouncement();
+  const unpinMutation = useUnpinAnnouncement();
   const voteMutation = useCastAnnouncementVote();
   const answersMutation = useSubmitAnnouncementAnswers();
 
@@ -448,6 +452,20 @@ export default function NetworkDetailScreen() {
     }
   }
 
+  function handlePinAnnouncement(annId: number) {
+    pinMutation.mutate(
+      { id: networkId, annId },
+      { onSuccess: () => { void refetchAnnouncements(); } },
+    );
+  }
+
+  function handleUnpinAnnouncement(annId: number) {
+    unpinMutation.mutate(
+      { id: networkId, annId },
+      { onSuccess: () => { void refetchAnnouncements(); } },
+    );
+  }
+
   function handleDeleteAnnouncement(annId: number) {
     deleteMutation.mutate(
       { id: networkId, annId },
@@ -676,6 +694,8 @@ export default function NetworkDetailScreen() {
                   item={item}
                   isAdmin={isAdmin}
                   onDelete={handleDeleteAnnouncement}
+                  onPin={handlePinAnnouncement}
+                  onUnpin={handleUnpinAnnouncement}
                   onVote={handleVoteAnnouncement}
                   onAnswer={handleAnswerAnnouncement}
                 />

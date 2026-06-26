@@ -1011,6 +1011,8 @@ export const nl: LocaleTree = {
     feedAnswerBtn: "Vragen beantwoorden",
     feedSubmitAnswers: "Verzenden",
     feedAnsweredLabel: "Beantwoord",
+    feedPin: "Aankondiging vastmaken",
+    feedUnpin: "Aankondiging losmaken",
     feedDeleteTitle: "Aankondiging verwijderen",
     feedDeleteBody: "Deze aankondiging wordt permanent verwijderd.",
     feedDeleteOk: "Verwijderen",

@@ -16,6 +16,7 @@ export interface Announcement {
   authorDisplayName?: string | null;
   authorPhotoUrl?: string | null;
   body: string;
+  isPinned: boolean;
   photoUrl?: string | null;
   type: AnnouncementType;
   createdAt: Date;

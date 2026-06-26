@@ -932,6 +932,7 @@ async function buildAnnouncementResponse(annId: number, uid: string) {
     body: ann.body,
     photoUrl: ann.photoUrl ?? null,
     type: ann.type,
+    isPinned: ann.isPinned,
     createdAt: ann.createdAt.toISOString(),
     options:
       ann.type === "poll"
@@ -973,14 +974,15 @@ router.get("/networks/:id/announcements", requireUid, async (req, res) => {
     .select()
     .from(networkAnnouncementsTable)
     .where(eq(networkAnnouncementsTable.networkId, networkId))
-    .orderBy(desc(networkAnnouncementsTable.createdAt))
+    .orderBy(desc(networkAnnouncementsTable.isPinned), desc(networkAnnouncementsTable.createdAt))
     .limit(50);
   if (announcements.length === 0) {
     res.json([]);
     return;
   }
   const annIds = announcements.map((a) => a.id);
-  const [options, votes, questions] = await Promise.all([
+  const authorUids = [...new Set(announcements.map((a) => a.authorUid))];
+  const [options, votes, questions, authorProfileRows] = await Promise.all([
     db
       .select()
       .from(networkPollOptionsTable)
@@ -995,7 +997,12 @@ router.get("/networks/:id/announcements", requireUid, async (req, res) => {
       .from(networkQuestionnaireQuestionsTable)
       .where(inArray(networkQuestionnaireQuestionsTable.announcementId, annIds))
       .orderBy(networkQuestionnaireQuestionsTable.displayOrder),
+    db
+      .select({ uid: profilesTable.uid, displayName: profilesTable.displayName, photoUrl: profilesTable.photoUrl })
+      .from(profilesTable)
+      .where(inArray(profilesTable.uid, authorUids)),
   ]);
+  const profileMap = new Map(authorProfileRows.map((p) => [p.uid, p]));
   const qIds = questions.map((q) => q.id);
   const answers =
     qIds.length > 0
@@ -1012,13 +1019,17 @@ router.get("/networks/:id/announcements", requireUid, async (req, res) => {
     const myAnsweredQIds = new Set(
       answers.filter((a) => a.uid === uid && annQuestions.some((q) => q.id === a.questionId)).map((a) => a.questionId),
     );
+    const authorProfile = profileMap.get(ann.authorUid);
     return {
       id: ann.id,
       networkId: ann.networkId,
       authorUid: ann.authorUid,
+      authorDisplayName: authorProfile?.displayName ?? null,
+      authorPhotoUrl: authorProfile?.photoUrl ?? null,
       body: ann.body,
       photoUrl: ann.photoUrl ?? null,
       type: ann.type,
+      isPinned: ann.isPinned,
       createdAt: ann.createdAt.toISOString(),
       options:
         ann.type === "poll"
@@ -1125,6 +1136,66 @@ router.delete("/networks/:id/announcements/:annId", requireUid, async (req, res)
   }
   await db.delete(networkAnnouncementsTable).where(eq(networkAnnouncementsTable.id, annId));
   res.json({ success: true });
+});
+
+// ── POST /networks/:id/announcements/:annId/pin ───────────────────────────────
+
+router.post("/networks/:id/announcements/:annId/pin", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const { id: networkId, annId } = DeleteAnnouncementParams.parse({
+    id: parseInt(String(req.params.id), 10),
+    annId: parseInt(String(req.params.annId), 10),
+  });
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can pin announcements" });
+    return;
+  }
+  const [ann] = await db
+    .select()
+    .from(networkAnnouncementsTable)
+    .where(and(eq(networkAnnouncementsTable.id, annId), eq(networkAnnouncementsTable.networkId, networkId)))
+    .limit(1);
+  if (!ann) {
+    res.status(404).json({ message: "Announcement not found" });
+    return;
+  }
+  await db
+    .update(networkAnnouncementsTable)
+    .set({ isPinned: true })
+    .where(eq(networkAnnouncementsTable.id, annId));
+  const response = await buildAnnouncementResponse(annId, uid);
+  res.json(response);
+});
+
+// ── DELETE /networks/:id/announcements/:annId/pin ─────────────────────────────
+
+router.delete("/networks/:id/announcements/:annId/pin", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const { id: networkId, annId } = DeleteAnnouncementParams.parse({
+    id: parseInt(String(req.params.id), 10),
+    annId: parseInt(String(req.params.annId), 10),
+  });
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can unpin announcements" });
+    return;
+  }
+  const [ann] = await db
+    .select()
+    .from(networkAnnouncementsTable)
+    .where(and(eq(networkAnnouncementsTable.id, annId), eq(networkAnnouncementsTable.networkId, networkId)))
+    .limit(1);
+  if (!ann) {
+    res.status(404).json({ message: "Announcement not found" });
+    return;
+  }
+  await db
+    .update(networkAnnouncementsTable)
+    .set({ isPinned: false })
+    .where(eq(networkAnnouncementsTable.id, annId));
+  const response = await buildAnnouncementResponse(annId, uid);
+  res.json(response);
 });
 
 // ── POST /networks/:id/announcements/:annId/vote ──────────────────────────────

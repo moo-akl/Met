@@ -965,6 +965,8 @@ export const zh: LocaleTree = {
     feedAnswerBtn: "回答问题",
     feedSubmitAnswers: "提交",
     feedAnsweredLabel: "已回答",
+    feedPin: "置顶公告",
+    feedUnpin: "取消置顶",
     feedDeleteTitle: "删除公告",
     feedDeleteBody: "此公告将被永久删除。",
     feedDeleteOk: "删除",

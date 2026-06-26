@@ -1003,6 +1003,8 @@ export const es: LocaleTree = {
     feedAnswerBtn: "Responder preguntas",
     feedSubmitAnswers: "Enviar",
     feedAnsweredLabel: "Respondido",
+    feedPin: "Fijar anuncio",
+    feedUnpin: "Desfijar anuncio",
     feedDeleteTitle: "Eliminar anuncio",
     feedDeleteBody: "Este anuncio se eliminará permanentemente.",
     feedDeleteOk: "Eliminar",

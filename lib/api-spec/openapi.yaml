@@ -1304,6 +1304,84 @@ paths:
         "401":
           description: Unauthorized
 
+  /networks/{id}/announcements/{annId}/pin:
+    post:
+      operationId: pinAnnouncement
+      tags: [networks]
+      summary: Pin an announcement to the top of the feed (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: annId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pinned; returns updated announcement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Announcement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+    delete:
+      operationId: unpinAnnouncement
+      tags: [networks]
+      summary: Unpin an announcement (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: annId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unpinned; returns updated announcement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Announcement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
   /networks/{id}/announcements/{annId}/vote:
     post:
       operationId: castAnnouncementVote
@@ -2021,6 +2099,7 @@ components:
         - authorUid
         - body
         - type
+        - isPinned
         - createdAt
       properties:
         id:
@@ -2037,6 +2116,8 @@ components:
           nullable: true
         body:
           type: string
+        isPinned:
+          type: boolean
         photoUrl:
           type: string
           nullable: true

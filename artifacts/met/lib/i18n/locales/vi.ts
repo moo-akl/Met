@@ -1011,6 +1011,8 @@ export const vi: LocaleTree = {
     feedAnswerBtn: "Trả lời câu hỏi",
     feedSubmitAnswers: "Gửi",
     feedAnsweredLabel: "Đã trả lời",
+    feedPin: "Ghim thông báo",
+    feedUnpin: "Bỏ ghim thông báo",
     feedDeleteTitle: "Xóa thông báo",
     feedDeleteBody: "Thông báo này sẽ bị xóa vĩnh viễn.",
     feedDeleteOk: "Xóa",
