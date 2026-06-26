@@ -14,6 +14,7 @@
       "buildNumber": "103",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
+      "associatedDomains": ["applinks:metapp.replit.app"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSBluetoothAlwaysUsageDescription": "Met uses Bluetooth to detect nearby Met users you cross paths with, including while the app is in the background.",
@@ -40,6 +41,20 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
         "android.permission.POST_NOTIFICATIONS"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "metapp.replit.app",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "web": {
