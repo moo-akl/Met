@@ -360,6 +360,8 @@ export interface Announcement {
   id: number;
   networkId: number;
   authorUid: string;
+  authorDisplayName?: string | null;
+  authorPhotoUrl?: string | null;
   body: string;
   photoUrl?: string | null;
   type: AnnouncementType;

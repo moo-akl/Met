@@ -887,7 +887,7 @@ async function buildAnnouncementResponse(annId: number, uid: string) {
     .where(eq(networkAnnouncementsTable.id, annId))
     .limit(1);
   if (!ann) return null;
-  const [options, votes, questions] = await Promise.all([
+  const [options, votes, questions, authorProfiles] = await Promise.all([
     db
       .select()
       .from(networkPollOptionsTable)
@@ -902,7 +902,13 @@ async function buildAnnouncementResponse(annId: number, uid: string) {
       .from(networkQuestionnaireQuestionsTable)
       .where(eq(networkQuestionnaireQuestionsTable.announcementId, annId))
       .orderBy(networkQuestionnaireQuestionsTable.displayOrder),
+    db
+      .select({ displayName: profilesTable.displayName, photoUrl: profilesTable.photoUrl })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, ann.authorUid))
+      .limit(1),
   ]);
+  const authorProfile = authorProfiles[0];
   const qIds = questions.map((q) => q.id);
   const answers =
     qIds.length > 0
@@ -921,6 +927,8 @@ async function buildAnnouncementResponse(annId: number, uid: string) {
     id: ann.id,
     networkId: ann.networkId,
     authorUid: ann.authorUid,
+    authorDisplayName: authorProfile?.displayName ?? null,
+    authorPhotoUrl: authorProfile?.photoUrl ?? null,
     body: ann.body,
     photoUrl: ann.photoUrl ?? null,
     type: ann.type,

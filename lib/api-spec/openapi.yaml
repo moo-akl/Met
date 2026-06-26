@@ -2029,6 +2029,12 @@ components:
           type: integer
         authorUid:
           type: string
+        authorDisplayName:
+          type: string
+          nullable: true
+        authorPhotoUrl:
+          type: string
+          nullable: true
         body:
           type: string
         photoUrl:

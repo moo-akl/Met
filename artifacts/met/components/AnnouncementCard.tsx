@@ -461,6 +461,32 @@ export function AnnouncementCard({
         )}
       </View>
 
+      {/* Author */}
+      {item.authorDisplayName ? (
+        <View style={cardStyles.authorRow}>
+          {item.authorPhotoUrl ? (
+            <Image
+              source={{ uri: item.authorPhotoUrl }}
+              style={cardStyles.authorAvatar}
+            />
+          ) : (
+            <View
+              style={[
+                cardStyles.authorAvatarFallback,
+                { backgroundColor: colors.border },
+              ]}
+            >
+              <Feather name="user" size={10} color={colors.mutedForeground} />
+            </View>
+          )}
+          <Text
+            style={[cardStyles.authorName, { color: colors.mutedForeground }]}
+          >
+            {item.authorDisplayName}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Photo above body */}
       {item.photoUrl ? (
         <Pressable
@@ -525,4 +551,23 @@ const cardStyles = StyleSheet.create({
     overflow: "hidden",
   },
   photo: { width: "100%", height: 200 },
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  authorAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+  },
+  authorAvatarFallback: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authorName: { fontSize: 12, fontWeight: "500" },
 });
