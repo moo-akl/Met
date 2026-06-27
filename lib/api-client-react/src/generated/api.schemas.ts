@@ -230,6 +230,8 @@ export interface Network {
   locationRadiusKm?: number | null;
   neighborhoodName?: string | null;
   inviteCode?: string | null;
+  photoUrl?: string | null;
+  coverPhotoUrl?: string | null;
   memberCount: number;
   createdAt: string;
   updatedAt: string;
@@ -299,6 +301,30 @@ export interface UpdateNetwork {
   locationLat?: number | null;
   locationLng?: number | null;
   locationRadiusKm?: number | null;
+  photoUrl?: string | null;
+  coverPhotoUrl?: string | null;
+}
+
+export interface EditAnnouncementBody {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  body?: string;
+  photoUrl?: string | null;
+}
+
+export interface AnnouncementQuestionAnswer {
+  uid: string;
+  displayName?: string | null;
+  photoUrl?: string | null;
+  answerText: string;
+}
+
+export interface AnnouncementQuestionWithAnswers {
+  questionId: number;
+  prompt: string;
+  answers: AnnouncementQuestionAnswer[];
 }
 
 export interface ApproveMemberRequest {

@@ -7,6 +7,8 @@
  */
 
 export * from "./announcement";
+export * from "./announcementQuestionAnswer";
+export * from "./announcementQuestionWithAnswers";
 export * from "./announcementType";
 export * from "./approveMemberRequest";
 export * from "./approveNetworkMember200";
@@ -18,6 +20,7 @@ export * from "./createNetwork";
 export * from "./createRevealRequest";
 export * from "./deleteAnnouncement200";
 export * from "./deleteNetwork200";
+export * from "./editAnnouncementBody";
 export * from "./encounter";
 export * from "./encounterWithProfile";
 export * from "./error";

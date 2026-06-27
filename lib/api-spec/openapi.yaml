@@ -1261,6 +1261,50 @@ paths:
           description: Unauthorized
 
   /networks/{id}/announcements/{annId}:
+    patch:
+      operationId: updateAnnouncement
+      tags: [networks]
+      summary: Edit an announcement body or photo (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: annId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditAnnouncementBody"
+      responses:
+        "200":
+          description: Updated announcement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Announcement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
     delete:
       operationId: deleteAnnouncement
       tags: [networks]
@@ -1435,6 +1479,46 @@ paths:
           description: Unauthorized
 
   /networks/{id}/announcements/{annId}/answers:
+    get:
+      operationId: getAnnouncementAnswers
+      tags: [networks]
+      summary: Get all member answers to a questionnaire (admin only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: annId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of questions with all member answers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnnouncementQuestionWithAnswers"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Announcement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
     post:
       operationId: submitAnnouncementAnswers
       tags: [networks]
@@ -1897,6 +1981,12 @@ components:
         inviteCode:
           type: string
           nullable: true
+        photoUrl:
+          type: string
+          nullable: true
+        coverPhotoUrl:
+          type: string
+          nullable: true
         memberCount:
           type: integer
         createdAt:
@@ -2011,6 +2101,53 @@ components:
           type: number
           format: double
           nullable: true
+        photoUrl:
+          type: string
+          nullable: true
+        coverPhotoUrl:
+          type: string
+          nullable: true
+    EditAnnouncementBody:
+      type: object
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        photoUrl:
+          type: string
+          nullable: true
+    AnnouncementQuestionAnswer:
+      type: object
+      required:
+        - uid
+        - answerText
+      properties:
+        uid:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        photoUrl:
+          type: string
+          nullable: true
+        answerText:
+          type: string
+    AnnouncementQuestionWithAnswers:
+      type: object
+      required:
+        - questionId
+        - prompt
+        - answers
+      properties:
+        questionId:
+          type: integer
+        prompt:
+          type: string
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementQuestionAnswer"
     ApproveMemberRequest:
       type: object
       required:

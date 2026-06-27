@@ -20,6 +20,8 @@ export interface Network {
   locationRadiusKm?: number | null;
   neighborhoodName?: string | null;
   inviteCode?: string | null;
+  photoUrl?: string | null;
+  coverPhotoUrl?: string | null;
   memberCount: number;
   createdAt: Date;
   updatedAt: Date;

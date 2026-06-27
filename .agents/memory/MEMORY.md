@@ -1,2 +1,5 @@
 - [inArray vs sql ANY](inarray-vs-sql-any.md) — always use Drizzle inArray() for IN-list queries, not sql`col = ANY(arr)`
 - [api-client-react initialization](api-client-react-init.md) — setBaseUrl/setAuthTokenGetter must be called at app startup; omitting them silently breaks all hooks/functions from that package.
+- [ApiOptions and auth pattern](api-options-auth.md) — ApiOptions is {uid: string, signal?}; no token field. The client auto-fetches Firebase ID token via getCurrentIdToken(). Pass {uid: profile?.id ?? ""}. AppContext exposes `profile` not `user`; profile.id is the UID.
+- [Orval hook options — enabled flag](orval-enabled-flag.md) — generated hooks pass UseQueryOptions with required queryKey; to add `enabled` without providing queryKey, spread the helper: useQuery({...getXxxQueryOptions(id), enabled: flag}).
+- [regenerateNetworkCode id type](regen-network-code-id.md) — useRegenerateNetworkCode mutation expects id as string, not number. Use String(networkId).

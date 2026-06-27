@@ -436,4 +436,26 @@ export const api = {
       opts,
       { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
     ),
+  uploadNetworkPhoto: (
+    opts: ApiOptions,
+    networkId: number,
+    input: { base64: string; contentType?: string },
+  ) =>
+    request<{ photoUrl: string }>(
+      "POST",
+      `/api/networks/${networkId}/photo`,
+      opts,
+      { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
+    ),
+  uploadNetworkCoverPhoto: (
+    opts: ApiOptions,
+    networkId: number,
+    input: { base64: string; contentType?: string },
+  ) =>
+    request<{ coverPhotoUrl: string }>(
+      "POST",
+      `/api/networks/${networkId}/cover-photo`,
+      opts,
+      { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
+    ),
 };

@@ -52,6 +52,8 @@ export const networksTable = pgTable(
     locationRadiusKm: doublePrecision("location_radius_km").default(2),
     neighborhoodName: text("neighborhood_name"),
     inviteCode: text("invite_code").unique(),
+    photoUrl: text("photo_url"),
+    coverPhotoUrl: text("cover_photo_url"),
     memberCount: integer("member_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

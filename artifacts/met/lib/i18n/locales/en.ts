@@ -1021,6 +1021,18 @@ export const en = {
     feedVotes_other: "{{count}} votes",
     feedAnswerPlaceholder: "Your answer…",
     feedAnswerModalTitle: "Answer questions",
+    feedEditPost: "Edit post",
+    feedViewResponses_one: "View {{count}} response",
+    feedViewResponses_other: "View {{count}} responses",
+    feedResponsesModalTitle: "Responses",
+    feedResponsesEmpty: "No responses yet",
+    editPhotoLabel: "Network photo",
+    editCoverLabel: "Cover photo",
+    editRadiusLabel: "Radius (km)",
+    editRegenCode: "Regenerate invite code",
+    editRegenCodeConfirmTitle: "Regenerate code?",
+    editRegenCodeConfirmBody: "The current code will stop working.",
+    editRegenCodeConfirmOk: "Regenerate",
   },
 };
 

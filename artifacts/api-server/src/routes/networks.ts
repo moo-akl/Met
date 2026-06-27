@@ -35,6 +35,9 @@ import {
   CreateAnnouncementParams,
   CreateAnnouncementBody,
   DeleteAnnouncementParams,
+  UpdateAnnouncementParams,
+  UpdateAnnouncementBody,
+  GetAnnouncementAnswersParams,
   CastAnnouncementVoteParams,
   CastAnnouncementVoteBody,
   SubmitAnnouncementAnswersParams,
@@ -105,6 +108,8 @@ function serializeNetwork(n: Network, membership?: NetworkMember | null) {
     neighborhoodName: n.neighborhoodName ?? null,
     inviteCode: n.inviteCode ?? null,
     memberCount: n.memberCount,
+    photoUrl: n.photoUrl ?? null,
+    coverPhotoUrl: n.coverPhotoUrl ?? null,
     createdAt: n.createdAt.toISOString(),
     updatedAt: n.updatedAt.toISOString(),
     myMembership: membership !== undefined ? (membership ? serializeMembership(membership) : null) : null,
@@ -537,6 +542,8 @@ router.patch("/networks/:id", requireUid, networkWriteLimit, async (req, res) =>
       ...(body.locationRadiusKm !== undefined && {
         locationRadiusKm: body.locationRadiusKm ?? null,
       }),
+      ...(body.photoUrl !== undefined && { photoUrl: body.photoUrl ?? null }),
+      ...(body.coverPhotoUrl !== undefined && { coverPhotoUrl: body.coverPhotoUrl ?? null }),
       ...((body.category === "neighborhood" ||
         (body.locationLat != null && body.locationLng != null)) && {
         neighborhoodName,
@@ -876,6 +883,80 @@ router.post("/networks/:id/announcements/photo", requireUid, networkWriteLimit, 
   });
 });
 
+// ── POST /networks/:id/photo ──────────────────────────────────────────────────
+
+router.post("/networks/:id/photo", requireUid, networkWriteLimit, async (req, res) => {
+  const uid = req.uid!;
+  const networkId = parseInt(String(req.params.id), 10);
+  if (isNaN(networkId)) { res.status(404).json({ message: "Network not found" }); return; }
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can upload network photos" });
+    return;
+  }
+  const { base64, contentType = "image/jpeg" } = req.body as { base64?: string; contentType?: string };
+  if (!base64 || typeof base64 !== "string") { res.status(400).json({ message: "base64 image data required" }); return; }
+  if (!ALLOWED_ANN_PHOTO_TYPES.includes(contentType as AnnPhotoContentType)) { res.status(400).json({ message: "Unsupported image type" }); return; }
+  const ct = contentType as AnnPhotoContentType;
+  const ext = extForAnnPhoto(ct);
+  const buf = Buffer.from(base64, "base64");
+  const objectPath = `network-photos/${networkId}/profile-${Date.now()}.${ext}`;
+  const bucket = adminStorage().bucket();
+  const file = bucket.file(objectPath);
+  try { await file.save(buf, { contentType: ct, resumable: false }); }
+  catch (err) { req.log?.error?.({ err }, "network photo upload failed"); res.status(500).json({ message: "Photo upload failed" }); return; }
+  try {
+    await file.makePublic();
+    const photoUrl = `https://storage.googleapis.com/${bucket.name}/${objectPath}?v=${Date.now()}`;
+    await db.update(networksTable).set({ photoUrl }).where(eq(networksTable.id, networkId));
+    res.json({ photoUrl });
+    return;
+  } catch { /* fall through to token path */ }
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  try { await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } }); }
+  catch (err) { req.log?.error?.({ err }, "setMetadata failed for network photo"); res.status(500).json({ message: "Photo upload failed" }); return; }
+  const photoUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectPath)}?alt=media&token=${token}`;
+  await db.update(networksTable).set({ photoUrl }).where(eq(networksTable.id, networkId));
+  res.json({ photoUrl });
+});
+
+// ── POST /networks/:id/cover-photo ────────────────────────────────────────────
+
+router.post("/networks/:id/cover-photo", requireUid, networkWriteLimit, async (req, res) => {
+  const uid = req.uid!;
+  const networkId = parseInt(String(req.params.id), 10);
+  if (isNaN(networkId)) { res.status(404).json({ message: "Network not found" }); return; }
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can upload network cover photos" });
+    return;
+  }
+  const { base64, contentType = "image/jpeg" } = req.body as { base64?: string; contentType?: string };
+  if (!base64 || typeof base64 !== "string") { res.status(400).json({ message: "base64 image data required" }); return; }
+  if (!ALLOWED_ANN_PHOTO_TYPES.includes(contentType as AnnPhotoContentType)) { res.status(400).json({ message: "Unsupported image type" }); return; }
+  const ct = contentType as AnnPhotoContentType;
+  const ext = extForAnnPhoto(ct);
+  const buf = Buffer.from(base64, "base64");
+  const objectPath = `network-photos/${networkId}/cover-${Date.now()}.${ext}`;
+  const bucket = adminStorage().bucket();
+  const file = bucket.file(objectPath);
+  try { await file.save(buf, { contentType: ct, resumable: false }); }
+  catch (err) { req.log?.error?.({ err }, "network cover photo upload failed"); res.status(500).json({ message: "Photo upload failed" }); return; }
+  try {
+    await file.makePublic();
+    const coverPhotoUrl = `https://storage.googleapis.com/${bucket.name}/${objectPath}?v=${Date.now()}`;
+    await db.update(networksTable).set({ coverPhotoUrl }).where(eq(networksTable.id, networkId));
+    res.json({ coverPhotoUrl });
+    return;
+  } catch { /* fall through to token path */ }
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  try { await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } }); }
+  catch (err) { req.log?.error?.({ err }, "setMetadata failed for network cover photo"); res.status(500).json({ message: "Photo upload failed" }); return; }
+  const coverPhotoUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectPath)}?alt=media&token=${token}`;
+  await db.update(networksTable).set({ coverPhotoUrl }).where(eq(networksTable.id, networkId));
+  res.json({ coverPhotoUrl });
+});
+
 // ── Announcement response builder ─────────────────────────────────────────────
 // Fetches all related data for a single announcement and returns a shaped object
 // that matches the Announcement OpenAPI schema.
@@ -1096,6 +1177,40 @@ router.post("/networks/:id/announcements", requireUid, networkWriteLimit, async 
   res.status(201).json(response);
 });
 
+// ── PATCH /networks/:id/announcements/:annId ──────────────────────────────────
+
+router.patch("/networks/:id/announcements/:annId", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const { id: networkId, annId } = UpdateAnnouncementParams.parse({
+    id: parseInt(String(req.params.id), 10),
+    annId: parseInt(String(req.params.annId), 10),
+  });
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can edit announcements" });
+    return;
+  }
+  const [ann] = await db
+    .select()
+    .from(networkAnnouncementsTable)
+    .where(and(eq(networkAnnouncementsTable.id, annId), eq(networkAnnouncementsTable.networkId, networkId)))
+    .limit(1);
+  if (!ann) {
+    res.status(404).json({ message: "Announcement not found" });
+    return;
+  }
+  const body = UpdateAnnouncementBody.parse(req.body);
+  await db
+    .update(networkAnnouncementsTable)
+    .set({
+      ...(body.body != null && { body: body.body }),
+      ...(body.photoUrl !== undefined && { photoUrl: body.photoUrl ?? null }),
+    })
+    .where(eq(networkAnnouncementsTable.id, annId));
+  const response = await buildAnnouncementResponse(annId, uid);
+  res.json(response);
+});
+
 // ── DELETE /networks/:id/announcements/:annId ─────────────────────────────────
 
 router.delete("/networks/:id/announcements/:annId", requireUid, async (req, res) => {
@@ -1239,6 +1354,58 @@ router.post("/networks/:id/announcements/:annId/vote", requireUid, networkWriteL
     });
   const response = await buildAnnouncementResponse(annId, uid);
   res.json(response);
+});
+
+// ── GET /networks/:id/announcements/:annId/answers ────────────────────────────
+
+router.get("/networks/:id/announcements/:annId/answers", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const { id: networkId, annId } = GetAnnouncementAnswersParams.parse({
+    id: parseInt(String(req.params.id), 10),
+    annId: parseInt(String(req.params.annId), 10),
+  });
+  const membership = await getMembership(networkId, uid);
+  if (!membership || membership.role !== "admin") {
+    res.status(403).json({ message: "Only admins can view all answers" });
+    return;
+  }
+  const [ann] = await db
+    .select()
+    .from(networkAnnouncementsTable)
+    .where(and(eq(networkAnnouncementsTable.id, annId), eq(networkAnnouncementsTable.networkId, networkId)))
+    .limit(1);
+  if (!ann) { res.status(404).json({ message: "Announcement not found" }); return; }
+  const questions = await db
+    .select()
+    .from(networkQuestionnaireQuestionsTable)
+    .where(eq(networkQuestionnaireQuestionsTable.announcementId, annId))
+    .orderBy(networkQuestionnaireQuestionsTable.displayOrder);
+  if (questions.length === 0) { res.json([]); return; }
+  const qIds = questions.map((q) => q.id);
+  const answers = await db
+    .select()
+    .from(networkQuestionnaireAnswersTable)
+    .where(inArray(networkQuestionnaireAnswersTable.questionId, qIds));
+  const uids = [...new Set(answers.map((a) => a.uid))];
+  const profiles = uids.length > 0
+    ? await db
+        .select({ uid: profilesTable.uid, displayName: profilesTable.displayName, photoUrl: profilesTable.photoUrl })
+        .from(profilesTable)
+        .where(inArray(profilesTable.uid, uids))
+    : [];
+  const profileMap = new Map(profiles.map((p) => [p.uid, p]));
+  res.json(
+    questions.map((q) => ({
+      questionId: q.id,
+      prompt: q.prompt,
+      answers: answers
+        .filter((a) => a.questionId === q.id)
+        .map((a) => {
+          const p = profileMap.get(a.uid);
+          return { uid: a.uid, displayName: p?.displayName ?? null, photoUrl: p?.photoUrl ?? null, answerText: a.answerText };
+        }),
+    })),
+  );
 });
 
 // ── POST /networks/:id/announcements/:annId/answers ───────────────────────────

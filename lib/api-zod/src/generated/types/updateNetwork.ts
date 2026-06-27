@@ -21,4 +21,6 @@ export interface UpdateNetwork {
   locationLat?: number | null;
   locationLng?: number | null;
   locationRadiusKm?: number | null;
+  photoUrl?: string | null;
+  coverPhotoUrl?: string | null;
 }

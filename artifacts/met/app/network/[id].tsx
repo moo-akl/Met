@@ -8,6 +8,7 @@ import {
   Animated,
   Clipboard,
   I18nManager,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -42,7 +43,7 @@ import {
   useSubmitAnnouncementAnswers,
   useUpdateNetworkMemberRole,
 } from "@workspace/api-client-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 type Tab = "feed" | "members" | "info";
 
@@ -136,6 +137,7 @@ export default function NetworkDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { t } = useT();
   const { allEncounters, profile } = useApp();
   const [joining, setJoining] = useState(false);
@@ -523,8 +525,20 @@ export default function NetworkDetailScreen() {
       >
         {/* ── Hero banner ──────────────────────────────────────────────────── */}
         <View style={[styles.hero, { backgroundColor: colors.card }]}>
+          {/* Cover photo (when set) */}
+          {network.coverPhotoUrl ? (
+            <Image
+              source={{ uri: network.coverPhotoUrl }}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
+            />
+          ) : null}
           <LinearGradient
-            colors={[catColor + "38", catColor + "14", "transparent"]}
+            colors={
+              network.coverPhotoUrl
+                ? ["rgba(0,0,0,0.25)", "rgba(0,0,0,0.45)"]
+                : [catColor + "38", catColor + "14", "transparent"]
+            }
             style={StyleSheet.absoluteFillObject}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
@@ -533,13 +547,13 @@ export default function NetworkDetailScreen() {
           <View style={[styles.heroNav, { paddingTop: insets.top + 8 }]}>
             <Pressable
               onPress={() => router.back()}
-              style={styles.heroNavBtn}
+              style={[styles.heroNavBtn, network.coverPhotoUrl ? styles.heroNavBtnOverlay : null]}
               hitSlop={8}
             >
               <Feather
                 name={I18nManager.isRTL ? "arrow-right" : "arrow-left"}
                 size={22}
-                color={colors.foreground}
+                color={network.coverPhotoUrl ? "#fff" : colors.foreground}
               />
             </Pressable>
             {isAdmin && (
@@ -550,24 +564,28 @@ export default function NetworkDetailScreen() {
                     params: { id: String(networkId) },
                   } as never)
                 }
-                style={styles.heroNavBtn}
+                style={[styles.heroNavBtn, network.coverPhotoUrl ? styles.heroNavBtnOverlay : null]}
                 hitSlop={8}
               >
-                <Feather name="settings" size={20} color={colors.foreground} />
+                <Feather name="settings" size={20} color={network.coverPhotoUrl ? "#fff" : colors.foreground} />
               </Pressable>
             )}
           </View>
-          {/* Icon (72px) */}
+          {/* Network avatar / icon (72px) */}
           <View
             style={[
               styles.heroIconWrap,
               {
-                backgroundColor: catColor + "20",
-                borderColor: catColor + "40",
+                backgroundColor: network.photoUrl ? "transparent" : catColor + "20",
+                borderColor: network.photoUrl ? "rgba(255,255,255,0.5)" : catColor + "40",
               },
             ]}
           >
-            <Feather name={catIcon as never} size={36} color={catColor} />
+            {network.photoUrl ? (
+              <Image source={{ uri: network.photoUrl }} style={styles.heroAvatarImage} />
+            ) : (
+              <Feather name={catIcon as never} size={36} color={catColor} />
+            )}
           </View>
           {/* Name */}
           <Text style={[styles.heroName, { color: colors.foreground }]}>
@@ -698,6 +716,7 @@ export default function NetworkDetailScreen() {
                   onUnpin={handleUnpinAnnouncement}
                   onVote={handleVoteAnnouncement}
                   onAnswer={handleAnswerAnnouncement}
+                  onEdited={() => queryClient.invalidateQueries({ queryKey: getListAnnouncementsQueryOptions(networkId).queryKey })}
                 />
               ))}
             </>
@@ -1246,6 +1265,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   heroNavBtn: { padding: 6, borderRadius: 20 },
+  heroNavBtnOverlay: { backgroundColor: "rgba(0,0,0,0.30)" },
+  heroAvatarImage: { width: 80, height: 80, borderRadius: 22 },
   heroIconWrap: {
     width: 80,
     height: 80,

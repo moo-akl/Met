@@ -18,6 +18,7 @@ import type {
 
 import type {
   Announcement,
+  AnnouncementQuestionWithAnswers,
   ApproveMemberRequest,
   ApproveNetworkMember200,
   BleResolveEntry,
@@ -28,6 +29,7 @@ import type {
   CreateRevealRequest,
   DeleteAnnouncement200,
   DeleteNetwork200,
+  EditAnnouncementBody,
   Encounter,
   EncounterWithProfile,
   Error,
@@ -3352,6 +3354,94 @@ export const useCreateAnnouncement = <
 };
 
 /**
+ * @summary Edit an announcement body or photo (admin only)
+ */
+export const getUpdateAnnouncementUrl = (id: number, annId: number) => {
+  return `/api/networks/${id}/announcements/${annId}`;
+};
+
+export const updateAnnouncement = async (
+  id: number,
+  annId: number,
+  editAnnouncementBody: EditAnnouncementBody,
+  options?: RequestInit,
+): Promise<Announcement> => {
+  return customFetch<Announcement>(getUpdateAnnouncementUrl(id, annId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(editAnnouncementBody),
+  });
+};
+
+export const getUpdateAnnouncementMutationOptions = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAnnouncement>>,
+    TError,
+    { id: number; annId: number; data: BodyType<EditAnnouncementBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAnnouncement>>,
+  TError,
+  { id: number; annId: number; data: BodyType<EditAnnouncementBody> },
+  TContext
+> => {
+  const mutationKey = ["updateAnnouncement"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAnnouncement>>,
+    { id: number; annId: number; data: BodyType<EditAnnouncementBody> }
+  > = (props) => {
+    const { id, annId, data } = props ?? {};
+
+    return updateAnnouncement(id, annId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAnnouncementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAnnouncement>>
+>;
+export type UpdateAnnouncementMutationBody = BodyType<EditAnnouncementBody>;
+export type UpdateAnnouncementMutationError = ErrorType<void | Error>;
+
+/**
+ * @summary Edit an announcement body or photo (admin only)
+ */
+export const useUpdateAnnouncement = <
+  TError = ErrorType<void | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAnnouncement>>,
+    TError,
+    { id: number; annId: number; data: BodyType<EditAnnouncementBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAnnouncement>>,
+  TError,
+  { id: number; annId: number; data: BodyType<EditAnnouncementBody> },
+  TContext
+> => {
+  return useMutation(getUpdateAnnouncementMutationOptions(options));
+};
+
+/**
  * @summary Delete an announcement (admin only)
  */
 export const getDeleteAnnouncementUrl = (id: number, annId: number) => {
@@ -3696,6 +3786,108 @@ export const useCastAnnouncementVote = <
 > => {
   return useMutation(getCastAnnouncementVoteMutationOptions(options));
 };
+
+/**
+ * @summary Get all member answers to a questionnaire (admin only)
+ */
+export const getGetAnnouncementAnswersUrl = (id: number, annId: number) => {
+  return `/api/networks/${id}/announcements/${annId}/answers`;
+};
+
+export const getAnnouncementAnswers = async (
+  id: number,
+  annId: number,
+  options?: RequestInit,
+): Promise<AnnouncementQuestionWithAnswers[]> => {
+  return customFetch<AnnouncementQuestionWithAnswers[]>(
+    getGetAnnouncementAnswersUrl(id, annId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAnnouncementAnswersQueryKey = (
+  id: number,
+  annId: number,
+) => {
+  return [`/api/networks/${id}/announcements/${annId}/answers`] as const;
+};
+
+export const getGetAnnouncementAnswersQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAnnouncementAnswers>>,
+  TError = ErrorType<void | Error>,
+>(
+  id: number,
+  annId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAnnouncementAnswers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAnnouncementAnswersQueryKey(id, annId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAnnouncementAnswers>>
+  > = ({ signal }) =>
+    getAnnouncementAnswers(id, annId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(id && annId),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAnnouncementAnswers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAnnouncementAnswersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAnnouncementAnswers>>
+>;
+export type GetAnnouncementAnswersQueryError = ErrorType<void | Error>;
+
+/**
+ * @summary Get all member answers to a questionnaire (admin only)
+ */
+
+export function useGetAnnouncementAnswers<
+  TData = Awaited<ReturnType<typeof getAnnouncementAnswers>>,
+  TError = ErrorType<void | Error>,
+>(
+  id: number,
+  annId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAnnouncementAnswers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAnnouncementAnswersQueryOptions(
+    id,
+    annId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Submit answers to a questionnaire

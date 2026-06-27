@@ -574,6 +574,8 @@ export const GetNetworkByCodeResponse = zod
     locationRadiusKm: zod.number().nullish(),
     neighborhoodName: zod.string().nullish(),
     inviteCode: zod.string().nullish(),
+    photoUrl: zod.string().nullish(),
+    coverPhotoUrl: zod.string().nullish(),
     memberCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -655,6 +657,8 @@ export const GetMyNetworksResponseItem = zod
     locationRadiusKm: zod.number().nullish(),
     neighborhoodName: zod.string().nullish(),
     inviteCode: zod.string().nullish(),
+    photoUrl: zod.string().nullish(),
+    coverPhotoUrl: zod.string().nullish(),
     memberCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -755,6 +759,8 @@ export const ListNetworksResponseItem = zod
     locationRadiusKm: zod.number().nullish(),
     neighborhoodName: zod.string().nullish(),
     inviteCode: zod.string().nullish(),
+    photoUrl: zod.string().nullish(),
+    coverPhotoUrl: zod.string().nullish(),
     memberCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -796,6 +802,8 @@ export const GetNetworkResponse = zod
     locationRadiusKm: zod.number().nullish(),
     neighborhoodName: zod.string().nullish(),
     inviteCode: zod.string().nullish(),
+    photoUrl: zod.string().nullish(),
+    coverPhotoUrl: zod.string().nullish(),
     memberCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -842,6 +850,8 @@ export const UpdateNetworkBody = zod.object({
   locationLat: zod.number().nullish(),
   locationLng: zod.number().nullish(),
   locationRadiusKm: zod.number().nullish(),
+  photoUrl: zod.string().nullish(),
+  coverPhotoUrl: zod.string().nullish(),
 });
 
 export const UpdateNetworkResponse = zod
@@ -858,6 +868,8 @@ export const UpdateNetworkResponse = zod
     locationRadiusKm: zod.number().nullish(),
     neighborhoodName: zod.string().nullish(),
     inviteCode: zod.string().nullish(),
+    photoUrl: zod.string().nullish(),
+    coverPhotoUrl: zod.string().nullish(),
     memberCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -1136,6 +1148,56 @@ export const CreateAnnouncementBody = zod.object({
 });
 
 /**
+ * @summary Edit an announcement body or photo (admin only)
+ */
+export const UpdateAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
+  annId: zod.coerce.number(),
+});
+
+export const updateAnnouncementBodyBodyMax = 2000;
+
+export const UpdateAnnouncementBody = zod.object({
+  body: zod.string().min(1).max(updateAnnouncementBodyBodyMax).optional(),
+  photoUrl: zod.string().nullish(),
+});
+
+export const UpdateAnnouncementResponse = zod.object({
+  id: zod.number(),
+  networkId: zod.number(),
+  authorUid: zod.string(),
+  authorDisplayName: zod.string().nullish(),
+  authorPhotoUrl: zod.string().nullish(),
+  body: zod.string(),
+  isPinned: zod.boolean(),
+  photoUrl: zod.string().nullish(),
+  type: zod.enum(["post", "poll", "questionnaire"]),
+  createdAt: zod.coerce.date(),
+  options: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        label: zod.string(),
+        displayOrder: zod.number(),
+        voteCount: zod.number(),
+      }),
+    )
+    .nullish(),
+  myVoteOptionId: zod.number().nullish(),
+  questions: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        prompt: zod.string(),
+        displayOrder: zod.number(),
+        myAnswer: zod.string().nullish(),
+      }),
+    )
+    .nullish(),
+  hasAnswered: zod.boolean().nullish(),
+});
+
+/**
  * @summary Delete an announcement (admin only)
  */
 export const DeleteAnnouncementParams = zod.object({
@@ -1279,6 +1341,30 @@ export const CastAnnouncementVoteResponse = zod.object({
     .nullish(),
   hasAnswered: zod.boolean().nullish(),
 });
+
+/**
+ * @summary Get all member answers to a questionnaire (admin only)
+ */
+export const GetAnnouncementAnswersParams = zod.object({
+  id: zod.coerce.number(),
+  annId: zod.coerce.number(),
+});
+
+export const GetAnnouncementAnswersResponseItem = zod.object({
+  questionId: zod.number(),
+  prompt: zod.string(),
+  answers: zod.array(
+    zod.object({
+      uid: zod.string(),
+      displayName: zod.string().nullish(),
+      photoUrl: zod.string().nullish(),
+      answerText: zod.string(),
+    }),
+  ),
+});
+export const GetAnnouncementAnswersResponse = zod.array(
+  GetAnnouncementAnswersResponseItem,
+);
 
 /**
  * @summary Submit answers to a questionnaire
