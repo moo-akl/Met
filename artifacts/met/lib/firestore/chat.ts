@@ -245,6 +245,8 @@ export async function subscribeToChatMeta(
       },
       (err) => {
         console.warn("[chat] meta snapshot error", err);
+        // Always resolve loading state on error so the UI never hangs.
+        listener(null);
       },
     );
 
