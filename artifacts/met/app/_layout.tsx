@@ -30,6 +30,7 @@ import {
   getNotificationPermissionGranted,
   NotifData,
   registerAndUploadPushToken,
+  routeNotifTap,
   setupNotificationListeners,
 } from "@/lib/notifications";
 import { initReferrals } from "@/lib/referrals";
@@ -377,18 +378,7 @@ export default function RootLayout() {
       // the notification was a cold-start tap.
       setTimeout(() => {
         try {
-          if (data.type === "chat_message") {
-            if (!data.chatPeerUid) return;
-            router.push(`/chat/${data.chatPeerUid}` as never);
-          } else if (data.type === "reveal_accepted") {
-            const peerUid = data.fromUid;
-            if (!peerUid) return;
-            router.push(`/connection/${peerUid}` as never);
-          } else {
-            const peerUid = data.encounterId ?? data.fromUid;
-            if (!peerUid) return;
-            router.push(`/encounter/${peerUid}` as never);
-          }
+          routeNotifTap(data, router);
         } catch (err) {
           console.warn("[notifications] nav failed", err);
         }

@@ -158,6 +158,43 @@ export type NotifData = {
 };
 
 /**
+ * Minimal router interface required by routeNotifTap. Matches the subset of
+ * expo-router's Router that we actually call so the function is easy to test
+ * without importing the full router.
+ */
+export interface NotifRouter {
+  push: (path: string) => void;
+}
+
+/**
+ * Pure routing function: given a notification data payload and a router,
+ * pushes to the correct screen.
+ *
+ * - chat_message   → /chat/<chatPeerUid>
+ * - reveal_accepted → /connection/<fromUid>
+ * - reveal_request / encounter / unknown → /encounter/<encounterId ?? fromUid>
+ *
+ * Returns false (and does nothing) when the payload lacks the required uid.
+ */
+export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
+  if (data.type === "chat_message") {
+    if (!data.chatPeerUid) return false;
+    router.push(`/chat/${data.chatPeerUid}`);
+    return true;
+  }
+  if (data.type === "reveal_accepted") {
+    if (!data.fromUid) return false;
+    router.push(`/connection/${data.fromUid}`);
+    return true;
+  }
+  // reveal_request, encounter, or unknown type → encounter screen
+  const peerUid = data.encounterId ?? data.fromUid;
+  if (!peerUid) return false;
+  router.push(`/encounter/${peerUid}`);
+  return true;
+}
+
+/**
  * Wires the foreground + tap listeners. Returns an unsubscribe.
  *
  * `onTap` is called whenever the user taps a notification (cold start
