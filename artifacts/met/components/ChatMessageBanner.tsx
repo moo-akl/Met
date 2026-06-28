@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Avatar } from "@/components/Avatar";
 import { useColors } from "@/hooks/useColors";
 
 const BANNER_DURATION_MS = 4000;
@@ -18,6 +19,7 @@ export type ChatBannerPayload = {
   chatPeerUid: string;
   senderName: string;
   messagePreview: string;
+  avatarUrl?: string | null;
 };
 
 type Props = {
@@ -102,11 +104,15 @@ export function ChatMessageBanner({ payload, onNavigate, onDismiss }: Props) {
         ]}
         android_ripple={{ color: colors.border }}
       >
-        <View
-          style={[styles.iconContainer, { backgroundColor: colors.primary }]}
-        >
-          <Feather name="message-circle" size={18} color={colors.primaryForeground} />
-        </View>
+        {payload.avatarUrl ? (
+          <Avatar uri={payload.avatarUrl} size={36} />
+        ) : (
+          <View
+            style={[styles.iconContainer, { backgroundColor: colors.primary }]}
+          >
+            <Feather name="message-circle" size={18} color={colors.primaryForeground} />
+          </View>
+        )}
         <View style={styles.textContainer}>
           <Text
             style={[styles.senderName, { color: colors.foreground }]}

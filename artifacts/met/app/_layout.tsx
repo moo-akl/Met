@@ -122,6 +122,69 @@ function parseNetworkInviteFromUrl(url: string | null): string | null {
 }
 
 /**
+ * Manages the foreground chat notification banner. Lives inside AppProvider
+ * so it can resolve the peer's photo URL from allEncounters.
+ */
+function ChatBannerController({
+  pathnameRef,
+  onNavigate,
+}: {
+  pathnameRef: React.MutableRefObject<string>;
+  onNavigate: (chatPeerUid: string) => void;
+}) {
+  const { allEncounters } = useApp();
+  const encountersRef = useRef(allEncounters);
+  const [chatBanner, setChatBanner] = useState<ChatBannerPayload | null>(null);
+
+  useEffect(() => {
+    encountersRef.current = allEncounters;
+  }, [allEncounters]);
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener(
+      (notification) => {
+        const data = (notification.request.content.data ?? {}) as NotifData;
+        if (data.type !== "chat_message" || !data.chatPeerUid) return;
+
+        const currentPath = pathnameRef.current;
+        const chatPathPrefix = `/chat/${data.chatPeerUid}`;
+        if (
+          currentPath === chatPathPrefix ||
+          currentPath.startsWith(`${chatPathPrefix}/`)
+        ) {
+          return;
+        }
+
+        const title = notification.request.content.title ?? "New message";
+        const body = notification.request.content.body ?? "";
+        const encounter = encountersRef.current.find(
+          (e) => e.id === data.chatPeerUid,
+        );
+        const avatarUrl = encounter?.photoUri || null;
+
+        setChatBanner({
+          chatPeerUid: data.chatPeerUid,
+          senderName: title,
+          messagePreview: body,
+          avatarUrl,
+        });
+      },
+    );
+    return () => sub.remove();
+  }, [pathnameRef]);
+
+  const handleDismiss = useCallback(() => setChatBanner(null), []);
+
+  return (
+    <ChatMessageBanner
+      payload={chatBanner}
+      onNavigate={onNavigate}
+      onDismiss={handleDismiss}
+    />
+  );
+}
+
+/**
  * Runs once per profile load to re-register the Expo push token with the
  * server. Handles users who already granted notification permission before
  * the token upload endpoint existed, and catches token rotations that happen
@@ -229,7 +292,6 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
-  const [chatBanner, setChatBanner] = useState<ChatBannerPayload | null>(null);
   const pathnameRef = useRef(pathname);
 
   // Capture initial / live deep link → stash any embedded referral code so
@@ -283,38 +345,6 @@ export default function RootLayout() {
     pathnameRef.current = pathname;
   }, [pathname]);
 
-  // Foreground listener: show the in-app banner when a chat_message
-  // notification arrives and the user is NOT already in that exact chat.
-  useEffect(() => {
-    const sub = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        const data = (notification.request.content.data ?? {}) as NotifData;
-        if (data.type !== "chat_message" || !data.chatPeerUid) return;
-
-        // Suppress only when already viewing this specific peer's chat.
-        // pathname is e.g. "/chat/abc123" — extract the UID and compare.
-        const currentPath = pathnameRef.current;
-        const chatPathPrefix = `/chat/${data.chatPeerUid}`;
-        if (
-          currentPath === chatPathPrefix ||
-          currentPath.startsWith(`${chatPathPrefix}/`)
-        ) {
-          return;
-        }
-
-        const title = notification.request.content.title ?? "New message";
-        const body = notification.request.content.body ?? "";
-
-        setChatBanner({
-          chatPeerUid: data.chatPeerUid,
-          senderName: title,
-          messagePreview: body,
-        });
-      },
-    );
-    return () => sub.remove();
-  }, []);
-
   const handleBannerNavigate = useCallback(
     (chatPeerUid: string) => {
       try {
@@ -325,10 +355,6 @@ export default function RootLayout() {
     },
     [router],
   );
-
-  const handleBannerDismiss = useCallback(() => {
-    setChatBanner(null);
-  }, []);
 
   // Wire notification taps → deep-link to the matching encounter screen.
   // Cold-start taps are also picked up here via getLastNotificationResponseAsync.
@@ -371,10 +397,9 @@ export default function RootLayout() {
                   <PushTokenRegistrar />
                   <ProfileGate />
                   <RootLayoutNav />
-                  <ChatMessageBanner
-                    payload={chatBanner}
+                  <ChatBannerController
+                    pathnameRef={pathnameRef}
                     onNavigate={handleBannerNavigate}
-                    onDismiss={handleBannerDismiss}
                   />
                 </AppProvider>
               </SubscriptionProvider>
