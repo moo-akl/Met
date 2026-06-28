@@ -170,9 +170,17 @@ service cloud.firestore {
       allow delete: if false;
 
       // Individual chat messages — immutable once written.
+      //
+      // callerIsParticipant() uses `resource` which inside this subcollection
+      // refers to the MESSAGE doc (no `participants` field). Read the parent
+      // chat doc explicitly instead.
       match /messages/{msgId} {
-        allow read: if callerIsParticipant();
-        allow create: if callerIsParticipant() &&
+        function msgCallerIsParticipant() {
+          return isAuthed() && request.auth.uid in
+            get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        }
+        allow read: if msgCallerIsParticipant();
+        allow create: if msgCallerIsParticipant() &&
           request.resource.data.from == request.auth.uid;
         allow update, delete: if false;
       }
