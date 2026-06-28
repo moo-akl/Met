@@ -17,7 +17,12 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSBluetoothAlwaysUsageDescription": "Met uses Bluetooth to detect nearby Met users you cross paths with, including while the app is in the background.",
-        "UIBackgroundModes": ["bluetooth-central", "bluetooth-peripheral"]
+        "UIBackgroundModes": [
+          "bluetooth-central",
+          "bluetooth-peripheral",
+          "bluetooth-central",
+          "bluetooth-peripheral"
+        ]
       }
     },
     "android": {
@@ -39,7 +44,20 @@
         "android.permission.BLUETOOTH_ADVERTISE",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADVERTISE",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
       ],
       "intentFilters": [
         {
@@ -52,7 +70,25 @@
               "pathPrefix": "/join"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "metapp.replit.app",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -142,6 +178,12 @@
       "eas": {
         "projectId": "f9d35bdb-e890-408f-b9d9-4ca36cbeae23"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f9d35bdb-e890-408f-b9d9-4ca36cbeae23"
     }
   }
 }

@@ -52,15 +52,19 @@ function toEpochMs(v: MaybeTimestamp): number {
  *  Separating the writes and using update() (which correctly interprets dot
  *  notation as field paths) is simpler and more predictable.
  */
+/**
+ * Returns null on success, or an error string on failure.
+ * The error string is shown in the UI so we can diagnose the root cause.
+ */
 export async function sendMessage(
   fromUid: string,
   toUid: string,
   text: string,
-): Promise<boolean> {
+): Promise<string | null> {
   const fs = await getFirestoreModule();
-  if (!fs) return false;
+  if (!fs) return "Firestore unavailable (native module not loaded)";
   const trimmed = text.trim();
-  if (!trimmed) return false;
+  if (!trimmed) return "Empty message";
 
   try {
     const chatId = getChatId(fromUid, toUid);
@@ -69,13 +73,13 @@ export async function sendMessage(
     const msgRef = chatRef.collection("messages").doc();
 
     // Step 1 — write the message (always a CREATE, rule: callerInChatId + from==uid).
-    // This is the only critical write: if it fails we return false so the caller
+    // This is the only critical write: if it fails we return the error so the caller
     // can restore the draft. Everything after this is best-effort.
     await msgRef.set({ from: fromUid, text: trimmed, sentAt: now });
 
     // Step 2 — update chat meta doc (best-effort, fire-and-forget).
     // We deliberately do NOT await this: a meta-write failure must never make
-    // sendMessage return false when the message itself was successfully stored.
+    // sendMessage return an error when the message itself was successfully stored.
     void (async () => {
       try {
         // update() interprets dot-notation as nested field paths (correct for
@@ -101,10 +105,11 @@ export async function sendMessage(
       }
     })();
 
-    return true;
+    return null; // success
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.warn("[chat] sendMessage failed", err);
-    return false;
+    return msg;
   }
 }
 

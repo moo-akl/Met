@@ -190,7 +190,7 @@ export default function ChatScreen() {
   const [meta, setMeta] = useState<ChatMeta | null | undefined>(undefined);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<ListItem>>(null);
 
@@ -275,11 +275,11 @@ export default function ChatScreen() {
     const trimmed = text.trim();
     if (!trimmed) return;
     setSending(true);
-    setSendError(false);
+    setSendError(null);
     setText("");
-    const ok = await sendMessage(myUid, peerUid, trimmed);
-    if (!ok) {
-      setSendError(true);
+    const err = await sendMessage(myUid, peerUid, trimmed);
+    if (err !== null) {
+      setSendError(err);
       setText(trimmed);
     }
     setSending(false);
@@ -500,9 +500,9 @@ export default function ChatScreen() {
         </View>
 
         {/* ── Send error ── */}
-        {sendError ? (
+        {sendError !== null ? (
           <Text style={[styles.errorText, { color: "#ef4444" }]}>
-            {t("chat.sendFailed")}
+            {sendError}
           </Text>
         ) : null}
 
@@ -532,7 +532,7 @@ export default function ChatScreen() {
               value={text}
               onChangeText={(v) => {
                 setText(v.slice(0, MAX_CHARS));
-                setSendError(false);
+                setSendError(null);
               }}
               placeholder={
                 isMyTurn
