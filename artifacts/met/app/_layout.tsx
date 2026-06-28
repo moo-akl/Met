@@ -7,9 +7,10 @@ import {
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
-import { Stack, useRouter, useSegments } from "expo-router";
+import * as Notifications from "expo-notifications";
+import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -17,12 +18,17 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import {
+  ChatBannerPayload,
+  ChatMessageBanner,
+} from "@/components/ChatMessageBanner";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { initializeFirestore } from "@/lib/firestore/client";
 import { initI18n } from "@/lib/i18n";
 import {
   configureNotifications,
   getNotificationPermissionGranted,
+  NotifData,
   registerAndUploadPushToken,
   setupNotificationListeners,
 } from "@/lib/notifications";
@@ -216,12 +222,15 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const router = useRouter();
+  const pathname = usePathname();
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const [chatBanner, setChatBanner] = useState<ChatBannerPayload | null>(null);
+  const pathnameRef = useRef(pathname);
 
   // Capture initial / live deep link → stash any embedded referral code so
   // onboarding (and the referrals screen) can pre-fill it on cold or warm start.
@@ -268,6 +277,59 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  // Keep a ref so the foreground listener can read the current pathname
+  // without being recreated on every navigation change.
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  // Foreground listener: show the in-app banner when a chat_message
+  // notification arrives and the user is NOT already in that exact chat.
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener(
+      (notification) => {
+        const data = (notification.request.content.data ?? {}) as NotifData;
+        if (data.type !== "chat_message" || !data.chatPeerUid) return;
+
+        // Suppress only when already viewing this specific peer's chat.
+        // pathname is e.g. "/chat/abc123" — extract the UID and compare.
+        const currentPath = pathnameRef.current;
+        const chatPathPrefix = `/chat/${data.chatPeerUid}`;
+        if (
+          currentPath === chatPathPrefix ||
+          currentPath.startsWith(`${chatPathPrefix}/`)
+        ) {
+          return;
+        }
+
+        const title = notification.request.content.title ?? "New message";
+        const body = notification.request.content.body ?? "";
+
+        setChatBanner({
+          chatPeerUid: data.chatPeerUid,
+          senderName: title,
+          messagePreview: body,
+        });
+      },
+    );
+    return () => sub.remove();
+  }, []);
+
+  const handleBannerNavigate = useCallback(
+    (chatPeerUid: string) => {
+      try {
+        router.push(`/chat/${chatPeerUid}` as never);
+      } catch (err) {
+        console.warn("[notifications] banner nav failed", err);
+      }
+    },
+    [router],
+  );
+
+  const handleBannerDismiss = useCallback(() => {
+    setChatBanner(null);
+  }, []);
+
   // Wire notification taps → deep-link to the matching encounter screen.
   // Cold-start taps are also picked up here via getLastNotificationResponseAsync.
   useEffect(() => {
@@ -302,13 +364,18 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView>
+          <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <SubscriptionProvider>
                 <AppProvider>
                   <PushTokenRegistrar />
                   <ProfileGate />
                   <RootLayoutNav />
+                  <ChatMessageBanner
+                    payload={chatBanner}
+                    onNavigate={handleBannerNavigate}
+                    onDismiss={handleBannerDismiss}
+                  />
                 </AppProvider>
               </SubscriptionProvider>
             </KeyboardProvider>
