@@ -22,6 +22,8 @@ export interface ChatMessage {
 export interface ChatMeta {
   lastMessage: { text: string; from: string; sentAt: number } | null;
   lastReadAt: Record<string, number>; // uid → epoch ms
+  /** Whose turn it is to send next. null = either participant can go first. */
+  nextSenderUid: string | null;
 }
 
 type MaybeTimestamp = { toMillis?: () => number } | number | null | undefined;
@@ -81,6 +83,7 @@ export async function sendMessage(
         await chatRef.update({
           lastMessage: { text: trimmed, from: fromUid, sentAt: now },
           [`lastReadAt.${fromUid}`]: now,
+          nextSenderUid: toUid,
         });
       } catch {
         // Doc doesn't exist yet → CREATE it with the participants array so the
@@ -90,6 +93,7 @@ export async function sendMessage(
             participants: [fromUid, toUid].sort(),
             lastMessage: { text: trimmed, from: fromUid, sentAt: now },
             lastReadAt: { [fromUid]: now },
+            nextSenderUid: toUid,
           });
         } catch (metaErr) {
           console.warn("[chat] meta update failed (non-critical)", metaErr);
@@ -225,6 +229,8 @@ export async function subscribeToChatMeta(
         for (const [k, v] of Object.entries(lra)) {
           lastReadAt[k] = toEpochMs(v as MaybeTimestamp);
         }
+        const nextSenderUid =
+          typeof d["nextSenderUid"] === "string" ? d["nextSenderUid"] : null;
         listener({
           lastMessage: lm
             ? {
@@ -234,6 +240,7 @@ export async function subscribeToChatMeta(
               }
             : null,
           lastReadAt,
+          nextSenderUid,
         });
       },
       (err) => {

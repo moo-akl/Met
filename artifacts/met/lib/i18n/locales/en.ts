@@ -551,6 +551,25 @@ export const en = {
     tapForProfile: "Tap to view profile",
   },
 
+  chat: {
+    title: "Chat",
+    messageBtn: "Message",
+    unknownUser: "Unknown",
+    yourTurn: "Your turn",
+    yourTurnShort: "Your turn to reply",
+    theirTurnShort: "Waiting for {{name}}…",
+    waitingFor: "Waiting for {{name}} to reply…",
+    inputPlaceholder: "Write a message…",
+    inputPlaceholderLocked: "Waiting for {{name}}…",
+    emptyTitle: "No messages yet",
+    emptySubYourTurn: "Say hi to {{name}} — they'll reply when ready.",
+    emptySubTheirTurn: "{{name}} can send you the first message.",
+    sendFailed: "Couldn't send. Tap to try again.",
+    pingPongHint: "Take turns — one message at a time.",
+    today: "Today",
+    yesterday: "Yesterday",
+  },
+
   shareCard: {
     title: "Share your profile",
     sub: "Anyone can scan this to find you on Met.",

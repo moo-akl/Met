@@ -171,6 +171,14 @@ export default function ConnectionScreen() {
           </View>
         </View>
         <Pressable
+          onPress={() => router.push(`/chat/${encounter.id}`)}
+          hitSlop={12}
+          style={styles.headerBtn}
+          accessibilityLabel={t("chat.messageBtn")}
+        >
+          <Feather name="message-circle" size={22} color={colors.primary} />
+        </Pressable>
+        <Pressable
           onPress={() => setMenuOpen(true)}
           hitSlop={12}
           style={styles.headerBtn}
