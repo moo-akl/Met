@@ -1,5 +1,21 @@
 module.exports = {
   preset: 'jest-expo',
+  transform: {
+    '\\.[jt]sx?$': [
+      'babel-jest',
+      {
+        root: __dirname,
+        babelrcRoots: __dirname,
+        babelrc: true,
+        configFile: true,
+        extends: __dirname + '/babel.config.js',
+        caller: {
+          name: 'babel-jest',
+          supportsStaticESM: false,
+        },
+      },
+    ],
+  },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },

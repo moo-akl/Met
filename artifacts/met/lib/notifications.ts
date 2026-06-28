@@ -108,7 +108,7 @@ export async function registerForPushTokenAsync(): Promise<string | null> {
     if (data) {
       await savePushToken(data);
     }
-    return data ?? null;
+    return data || null;
   } catch (err) {
     console.warn("[notifications] getExpoPushTokenAsync failed", err);
     return null;
@@ -128,8 +128,14 @@ export async function getCachedPushToken(): Promise<string | null> {
  * token with the right profile row. Best-effort — upload failures are
  * swallowed so the app continues to work even if the server is unreachable.
  */
+export type PushTokenUploader = (
+  opts: { uid: string },
+  token: string,
+) => Promise<void>;
+
 export async function registerAndUploadPushToken(
   uid: string,
+  _uploadOverride?: PushTokenUploader,
 ): Promise<string | null> {
   const token = await registerForPushTokenAsync();
   if (!token || !uid) return token;
@@ -137,8 +143,12 @@ export async function registerAndUploadPushToken(
   // Lazy-import the API client to avoid a circular dependency: notifications
   // is loaded early at module level, and api/client has no dependency on us.
   try {
-    const { api } = await import("./api/client");
-    await api.registerPushToken({ uid }, token);
+    if (_uploadOverride) {
+      await _uploadOverride({ uid }, token);
+    } else {
+      const { api } = await import("./api/client");
+      await api.registerPushToken({ uid }, token);
+    }
   } catch (err) {
     console.warn("[notifications] failed to upload push token to server", err);
   }

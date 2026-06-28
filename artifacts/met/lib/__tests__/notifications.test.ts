@@ -14,6 +14,26 @@
 jest.mock("expo-notifications", () => ({
   addNotificationResponseReceivedListener: jest.fn(),
   getLastNotificationResponseAsync: jest.fn(),
+  getPermissionsAsync: jest.fn(),
+  getExpoPushTokenAsync: jest.fn(),
+}));
+
+// Variables prefixed with "mock" are allowed to be referenced inside jest.mock
+// factories even after hoisting (babel-plugin-jest-hoist exception).
+// Using a getter so Babel's _interopRequireWildcard copies the descriptor, not
+// the value, into the namespace — mutations made in tests propagate at call time.
+// eslint-disable-next-line no-var
+var mockIsDevice = true;
+
+jest.mock("expo-device", () => ({
+  get isDevice() {
+    return mockIsDevice;
+  },
+}));
+
+jest.mock("expo-constants", () => ({
+  expoConfig: { extra: { eas: { projectId: "test-project-id" } } },
+  easConfig: null,
 }));
 
 jest.mock("../storage", () => ({
@@ -21,8 +41,22 @@ jest.mock("../storage", () => ({
   savePushToken: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock("../api/client", () => ({
+  __esModule: true,
+  api: {
+    registerPushToken: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 import * as Notifications from "expo-notifications";
-import { NotifData, routeNotifTap, setupNotificationListeners } from "../notifications";
+import {
+  NotifData,
+  registerAndUploadPushToken,
+  registerForPushTokenAsync,
+  routeNotifTap,
+  setupNotificationListeners,
+} from "../notifications";
+import { savePushToken } from "../storage";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -365,5 +399,154 @@ describe("setupNotificationListeners", () => {
     unsubscribe();
 
     expect(removeMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// registerForPushTokenAsync — token registration and persistence
+// ---------------------------------------------------------------------------
+
+describe("registerForPushTokenAsync", () => {
+  beforeEach(() => {
+    mockIsDevice = true;
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
+    (Notifications.getExpoPushTokenAsync as jest.Mock).mockResolvedValue({
+      data: "ExponentPushToken[test-token-abc]",
+    });
+    (savePushToken as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    mockIsDevice = true;
+    jest.clearAllMocks();
+  });
+
+  it("returns null when not running on a physical device", async () => {
+    mockIsDevice = false;
+
+    const result = await registerForPushTokenAsync();
+
+    expect(result).toBeNull();
+    expect(Notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
+  });
+
+  it("returns null when notification permission is not granted", async () => {
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: "denied" });
+
+    const result = await registerForPushTokenAsync();
+
+    expect(result).toBeNull();
+    expect(Notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
+  });
+
+  it("returns null and does not call getExpoPushTokenAsync when projectId is missing", async () => {
+    const Constants = require("expo-constants");
+    const origExpoConfig = Constants.expoConfig;
+    const origEasConfig = Constants.easConfig;
+    Constants.expoConfig = null;
+    Constants.easConfig = null;
+
+    const result = await registerForPushTokenAsync();
+
+    Constants.expoConfig = origExpoConfig;
+    Constants.easConfig = origEasConfig;
+
+    expect(result).toBeNull();
+    expect(Notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
+  });
+
+  it("fetches token, saves it to storage, and returns it on success", async () => {
+    const result = await registerForPushTokenAsync();
+
+    expect(Notifications.getExpoPushTokenAsync).toHaveBeenCalledWith({
+      projectId: "test-project-id",
+    });
+    expect(savePushToken).toHaveBeenCalledWith("ExponentPushToken[test-token-abc]");
+    expect(result).toBe("ExponentPushToken[test-token-abc]");
+  });
+
+  it("returns null and does not throw when getExpoPushTokenAsync rejects", async () => {
+    (Notifications.getExpoPushTokenAsync as jest.Mock).mockRejectedValue(
+      new Error("network error"),
+    );
+
+    const result = await registerForPushTokenAsync();
+
+    expect(result).toBeNull();
+    expect(savePushToken).not.toHaveBeenCalled();
+  });
+
+  it("does not call savePushToken when getExpoPushTokenAsync returns empty data", async () => {
+    (Notifications.getExpoPushTokenAsync as jest.Mock).mockResolvedValue({ data: "" });
+
+    const result = await registerForPushTokenAsync();
+
+    expect(savePushToken).not.toHaveBeenCalled();
+    expect(result).toBeNull();
+  });
+
+  it("returns null and does not throw when savePushToken rejects", async () => {
+    (savePushToken as jest.Mock).mockRejectedValue(new Error("storage full"));
+
+    const result = await registerForPushTokenAsync();
+
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// registerAndUploadPushToken — token upload to api-server
+// ---------------------------------------------------------------------------
+
+describe("registerAndUploadPushToken", () => {
+  let mockUploader: jest.Mock;
+
+  beforeEach(() => {
+    mockIsDevice = true;
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
+    (Notifications.getExpoPushTokenAsync as jest.Mock).mockResolvedValue({
+      data: "ExponentPushToken[upload-token]",
+    });
+    (savePushToken as jest.Mock).mockResolvedValue(undefined);
+    mockUploader = jest.fn().mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    mockIsDevice = true;
+    jest.clearAllMocks();
+  });
+
+  it("fetches the token, calls the uploader with uid and token, and returns the token", async () => {
+    const result = await registerAndUploadPushToken("uid-123", mockUploader);
+
+    expect(result).toBe("ExponentPushToken[upload-token]");
+    expect(mockUploader).toHaveBeenCalledWith(
+      { uid: "uid-123" },
+      "ExponentPushToken[upload-token]",
+    );
+  });
+
+  it("returns null without calling the uploader when token fetch returns null (not a device)", async () => {
+    mockIsDevice = false;
+
+    const result = await registerAndUploadPushToken("uid-456", mockUploader);
+
+    expect(result).toBeNull();
+    expect(mockUploader).not.toHaveBeenCalled();
+  });
+
+  it("returns the token without calling the uploader when uid is empty", async () => {
+    const result = await registerAndUploadPushToken("", mockUploader);
+
+    expect(result).toBe("ExponentPushToken[upload-token]");
+    expect(mockUploader).not.toHaveBeenCalled();
+  });
+
+  it("returns the token even when the uploader throws (best-effort)", async () => {
+    mockUploader.mockRejectedValue(new Error("server unreachable"));
+
+    const result = await registerAndUploadPushToken("uid-789", mockUploader);
+
+    expect(result).toBe("ExponentPushToken[upload-token]");
   });
 });
