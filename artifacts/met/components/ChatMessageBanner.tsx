@@ -71,14 +71,8 @@ export function ChatMessageBanner({ payload, onNavigate, onDismiss }: Props) {
   const handlePress = () => {
     if (autoHideTimer.current) clearTimeout(autoHideTimer.current);
     visibleRef.current = false;
-    Animated.timing(translateY, {
-      toValue: -120,
-      duration: SLIDE_DURATION_MS,
-      useNativeDriver: true,
-    }).start(() => {
-      onDismiss();
-      onNavigate(payload.chatPeerUid);
-    });
+    onDismiss();
+    onNavigate(payload.chatPeerUid);
   };
 
   return (
