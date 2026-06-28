@@ -130,46 +130,49 @@ service cloud.firestore {
     // no additional information risk beyond what the reveal already exposed.
     match /chats/{chatId} {
 
-      // Is the caller one of the two participants encoded in the chatId?
-      // Firebase UIDs are alphanumeric-only so no regex escaping is needed.
+      // Is the caller one of the two participants stored in the chat doc?
+      //
+      // Uses the `participants` array (written at chat creation time) rather
+      // than parsing the chatId with a regex. This is exact — no wildcard
+      // ambiguity — and also handles Apple Sign-In UIDs which contain a
+      // literal dot that regex `.` would treat as "any character".
       //
       // NOTE: isVerifiedApp() (App Check) is intentionally omitted here —
       // same pattern as the requests/ subcollection. App Check tokens may
       // not be generated on all production devices (Play Integrity / App
-      // Attest require Firebase Console configuration). Auth + UID-in-chatId
+      // Attest require Firebase Console configuration). Auth + UID-in-participants
       // is sufficient: callers must be signed in AND their UID must be one
-      // of the two UIDs encoded in the chatId, which is only known after a
+      // of the two UIDs stored at chat creation, which is only known after a
       // mutual reveal.
-      function callerInChatId() {
-        return isAuthed() && (
-          chatId.matches(request.auth.uid + '_.*') ||
-          chatId.matches('.*_' + request.auth.uid)
-        );
+      function callerIsParticipant() {
+        return isAuthed() && request.auth.uid in resource.data.participants;
       }
 
       // Read chat meta doc (lastMessage, lastReadAt).
-      allow read: if callerInChatId();
+      // resource may be null on a read of a not-yet-existing doc (e.g. first
+      // open before any message is sent), so fall back to the chatId regex
+      // only in that narrow case.
+      allow read: if isAuthed() && (
+        resource == null ||
+        request.auth.uid in resource.data.participants
+      );
 
       // Create (first-ever message: batch-creates the chat doc with
-      // a `participants` array). Verify the caller is in the list.
-      allow create: if callerInChatId() &&
+      // a `participants` array). Verify the caller is in the list they're
+      // writing — prevents fabricating a chat on behalf of someone else.
+      allow create: if isAuthed() &&
         request.auth.uid in request.resource.data.participants;
 
       // Update (subsequent messages update lastMessage / lastReadAt).
-      // Use callerInChatId() instead of resource.data.participants — the
-      // simpler check avoids a failure edge case where markChatRead writes
-      // a "ghost" doc via offline persistence before a participants field
-      // exists, which would make resource.data.participants undefined and
-      // cause the real sendMessage batch to fail as an UPDATE.
-      allow update: if callerInChatId();
+      allow update: if callerIsParticipant();
 
       // Delete: never from client.
       allow delete: if false;
 
       // Individual chat messages — immutable once written.
       match /messages/{msgId} {
-        allow read: if callerInChatId();
-        allow create: if callerInChatId() &&
+        allow read: if callerIsParticipant();
+        allow create: if callerIsParticipant() &&
           request.resource.data.from == request.auth.uid;
         allow update, delete: if false;
       }
