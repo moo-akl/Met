@@ -173,7 +173,8 @@ export type NotifData = {
  * without importing the full router.
  */
 export interface NotifRouter {
-  push: (path: string) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  push: (path: any) => void;
 }
 
 /**
