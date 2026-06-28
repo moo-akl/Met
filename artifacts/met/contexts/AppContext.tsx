@@ -70,6 +70,8 @@ import type { Encounter, EncounterStatus, Profile } from "@/lib/types";
 
 type AppContextValue = {
   ready: boolean;
+  /** Firebase Auth UID — use this for Firestore operations, not profile.id */
+  authedUid: string | null;
   profile: Profile | null;
   encounters: Encounter[];
   blockedEncounters: Encounter[];
@@ -1604,6 +1606,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       ready,
+      authedUid,
       profile,
       encounters,
       blockedEncounters,
@@ -1630,6 +1633,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       ready,
+      authedUid,
       profile,
       encounters,
       blockedEncounters,

@@ -169,12 +169,15 @@ export default function ChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useT();
-  const { allEncounters, profile } = useApp();
+  const { allEncounters, authedUid } = useApp();
 
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const peerUid = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  const myUid = profile?.id ?? "";
+  // Use the Firebase Auth UID directly — profile.id can differ if onboarding
+  // ran offline (stored with a "local-" prefix), which would make callerInChatId()
+  // fail in Firestore rules and cause permanent loading + send errors.
+  const myUid = authedUid ?? "";
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === peerUid),
     [allEncounters, peerUid],
