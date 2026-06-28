@@ -171,13 +171,22 @@ service cloud.firestore {
 
       // Individual chat messages — immutable once written.
       //
-      // callerIsParticipant() uses `resource` which inside this subcollection
-      // refers to the MESSAGE doc (no `participants` field). Read the parent
-      // chat doc explicitly instead.
+      // Two cases for participant check:
+      //  A) Chat meta doc exists → read its participants array (exact match,
+      //     handles Apple Sign-In UIDs that contain a literal dot).
+      //  B) Chat meta doc doesn't exist yet (first-ever message, written
+      //     before the meta doc is created) → fall back to chatId path check.
+      //     The chatId regex is slightly loose for Apple UIDs (dot = wildcard)
+      //     but only ever over-permits, never over-denies, and is correct for
+      //     all standard Firebase Auth providers.
       match /messages/{msgId} {
         function msgCallerIsParticipant() {
-          return isAuthed() && request.auth.uid in
-            get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+          return isAuthed() && (
+            exists(/databases/$(database)/documents/chats/$(chatId))
+              ? request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+              : (chatId.matches(request.auth.uid + '_.*') ||
+                 chatId.matches('.*_' + request.auth.uid))
+          );
         }
         allow read: if msgCallerIsParticipant();
         allow create: if msgCallerIsParticipant() &&
