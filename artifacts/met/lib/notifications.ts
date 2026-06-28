@@ -164,15 +164,23 @@ export type NotifData = {
  * or while running). The caller is responsible for routing to the
  * matching screen — typically `/encounter/[id]` or opening the
  * Requests sheet on Home.
+ *
+ * `tappedIds` is an optional shared Set that the caller can also pass
+ * to foreground-delivery listeners so they can skip showing an in-app
+ * banner for a notification the user already tapped (e.g. Android
+ * heads-up banners that fire both listeners for the same tap).
  */
 export function setupNotificationListeners(
   onTap: (data: NotifData) => void,
+  tappedIds?: Set<string>,
 ): () => void {
   // Track which notification request identifiers we've already routed
   // for so the cold-start payload (which can be replayed by Expo on
   // subsequent launches if not cleared) doesn't double-fire alongside
   // the live tap listener for the same tap.
-  const processed = new Set<string>();
+  // If the caller passes in a shared set, use it so the foreground
+  // listener can also see which IDs have been tapped.
+  const processed = tappedIds ?? new Set<string>();
   const dispatch = (
     id: string | undefined,
     data: Record<string, unknown> | null | undefined,

@@ -127,9 +127,11 @@ function parseNetworkInviteFromUrl(url: string | null): string | null {
  */
 function ChatBannerController({
   pathnameRef,
+  tappedIdsRef,
   onNavigate,
 }: {
   pathnameRef: React.MutableRefObject<string>;
+  tappedIdsRef: React.MutableRefObject<Set<string>>;
   onNavigate: (chatPeerUid: string) => void;
 }) {
   const { allEncounters } = useApp();
@@ -143,6 +145,12 @@ function ChatBannerController({
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener(
       (notification) => {
+        // If the user already tapped this notification (tap listener fired
+        // first, e.g. Android heads-up banner tapped immediately), skip the
+        // in-app banner to avoid double-handling the same notification.
+        const notifId = notification.request.identifier;
+        if (tappedIdsRef.current.has(notifId)) return;
+
         const data = (notification.request.content.data ?? {}) as NotifData;
         if (data.type !== "chat_message" || !data.chatPeerUid) return;
 
@@ -171,7 +179,7 @@ function ChatBannerController({
       },
     );
     return () => sub.remove();
-  }, [pathnameRef]);
+  }, [pathnameRef, tappedIdsRef]);
 
   const handleDismiss = useCallback(() => setChatBanner(null), []);
 
@@ -293,6 +301,11 @@ export default function RootLayout() {
     Inter_700Bold,
   });
   const pathnameRef = useRef(pathname);
+  // Shared set of notification identifiers that the tap listener has already
+  // processed. The foreground-delivery listener checks this before showing
+  // the in-app banner so a notification that was immediately tapped (e.g.
+  // Android heads-up) doesn't also pop up as a banner.
+  const tappedIdsRef = useRef<Set<string>>(new Set());
 
   // Capture initial / live deep link → stash any embedded referral code so
   // onboarding (and the referrals screen) can pre-fill it on cold or warm start.
@@ -380,7 +393,7 @@ export default function RootLayout() {
           console.warn("[notifications] nav failed", err);
         }
       }, 50);
-    });
+    }, tappedIdsRef.current);
     return unsubscribe;
   }, [router]);
 
@@ -399,6 +412,7 @@ export default function RootLayout() {
                   <RootLayoutNav />
                   <ChatBannerController
                     pathnameRef={pathnameRef}
+                    tappedIdsRef={tappedIdsRef}
                     onNavigate={handleBannerNavigate}
                   />
                 </AppProvider>
