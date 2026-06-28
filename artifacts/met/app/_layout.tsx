@@ -183,6 +183,10 @@ function RootLayoutNav() {
         options={{ presentation: "card", animation: "slide_from_right" }}
       />
       <Stack.Screen
+        name="chat/[id]"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
+      <Stack.Screen
         name="scan"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
@@ -274,7 +278,7 @@ export default function RootLayout() {
         try {
           if (data.type === "chat_message") {
             if (!data.chatPeerUid) return;
-            router.push(`/connection/${data.chatPeerUid}` as never);
+            router.push(`/chat/${data.chatPeerUid}` as never);
           } else if (data.type === "reveal_accepted") {
             const peerUid = data.fromUid;
             if (!peerUid) return;
