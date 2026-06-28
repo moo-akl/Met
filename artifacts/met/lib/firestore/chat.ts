@@ -211,7 +211,12 @@ export async function subscribeToChatMeta(
   let cancelled = false;
   let real: (() => void) | null = null;
   const fs = await getFirestoreModule();
-  if (!fs) return () => {};
+  if (!fs) {
+    // Firestore unavailable (native module not linked or init failed).
+    // Resolve the loading state so the UI doesn't spin forever.
+    if (!cancelled) listener(null);
+    return () => {};
+  }
   if (cancelled) return () => {};
 
   const chatId = getChatId(myUid, peerUid);
