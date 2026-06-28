@@ -476,13 +476,23 @@ export const onBleDetectionCreated = onDocumentCreated(
  * sendChatMessageNotification
  *
  * Fires when a new message document is created in `chats/{chatId}/messages`.
- * Looks up the recipient's Expo push token in Postgres and sends a push
- * notification via the Expo Push API so the recipient is alerted even when
- * the app is in the background or closed.
  *
- * The notification payload carries `{ type: "chat_message", chatPeerUid }`
- * so the client tap-handler can deep-link straight to the correct connection
- * screen without any additional network round-trips.
+ * Who gets notified
+ * -----------------
+ * The function reads `nextSenderUid` from the parent `chats/{chatId}` doc.
+ * After a message is sent, `nextSenderUid` is set to the OTHER participant
+ * (i.e. the one whose turn it is to reply). That person is the recipient of
+ * this notification. Falling back to the `participants` array handles the
+ * edge case where the meta doc hasn't been written yet.
+ *
+ * Notification copy
+ * -----------------
+ * Title: "Your turn"
+ * Body:  "[SenderName] replied"
+ *
+ * The payload carries `{ type: "chat_message", chatPeerUid: senderUid }` so
+ * the client tap-handler can deep-link to `/chat/{senderUid}` without any
+ * additional network round-trips.
  *
  * Idempotency
  * -----------
@@ -493,8 +503,10 @@ export const onBleDetectionCreated = onDocumentCreated(
  *
  * Skips
  * -----
- * - Recipient has no push token stored → skip silently (not yet registered).
+ * - Recipient has no push token stored → skip silently (notifications disabled
+ *   or token not yet registered).
  * - Sender == recipient (self-chat edge case) → skip.
+ * - nextSenderUid missing and participants unavailable → skip.
  * - Expo API non-OK response → log warning, do not retry (Expo errors on
  *   invalid tokens are permanent; retrying would not help).
  */
@@ -513,15 +525,15 @@ export const sendChatMessageNotification = onDocumentCreated(
     const msgData = snap.data() as Record<string, unknown>;
     const senderUid =
       typeof msgData["from"] === "string" ? msgData["from"] : null;
-    const text = typeof msgData["text"] === "string" ? msgData["text"] : "";
 
-    if (!senderUid || !text.trim()) return;
+    if (!senderUid) return;
 
     const { chatId } = event.params as { chatId: string; msgId: string };
 
-    // Read the parent chat document to get the participants array. This is
-    // more reliable than string-splitting chatId, and future-proofs us if
-    // the ID scheme ever changes.
+    // Read the parent chat document to resolve the recipient.
+    // nextSenderUid is set to the OTHER participant when a message is written
+    // (see chat.ts → sendMessage), so it reliably identifies whose turn it is
+    // to reply — exactly the person we want to notify.
     const chatSnap = await admin
       .firestore()
       .collection("chats")
@@ -530,16 +542,38 @@ export const sendChatMessageNotification = onDocumentCreated(
     if (!chatSnap.exists) return;
 
     const chatData = chatSnap.data() as Record<string, unknown> | undefined;
-    const participants = chatData?.["participants"];
-    if (!Array.isArray(participants) || participants.length !== 2) return;
 
-    const recipientUid = participants.find(
-      (p: unknown): p is string => typeof p === "string" && p !== senderUid,
-    );
-    if (!recipientUid) return;
+    // Primary: use nextSenderUid (most reliable — set by the client on send).
+    // Fallback: derive from participants in case the meta doc is slightly
+    // behind (e.g. meta update raced the message write).
+    let recipientUid: string | null = null;
+    const nextSenderUid = chatData?.["nextSenderUid"];
+    if (typeof nextSenderUid === "string" && nextSenderUid !== senderUid) {
+      recipientUid = nextSenderUid;
+    } else {
+      const participants = chatData?.["participants"];
+      if (Array.isArray(participants)) {
+        recipientUid =
+          participants.find(
+            (p: unknown): p is string =>
+              typeof p === "string" && p !== senderUid,
+          ) ?? null;
+      }
+    }
 
-    // Fetch both profiles in one query: we need the recipient's push token
-    // and the sender's display name for the notification title.
+    if (!recipientUid) {
+      logger.warn(
+        { chatId, senderUid },
+        "sendChatMessageNotification: could not determine recipient — skipping",
+      );
+      return;
+    }
+
+    // Guard against the self-chat edge case.
+    if (recipientUid === senderUid) return;
+
+    // Fetch both profiles in one query: recipient's push token + sender's
+    // display name for the notification copy.
     const db = getPool();
     const result = await db.query<{
       uid: string;
@@ -558,6 +592,8 @@ export const sendChatMessageNotification = onDocumentCreated(
 
     const pushToken = recipientRow?.push_token ?? null;
     if (!pushToken) {
+      // Recipient has push notifications disabled or hasn't registered a
+      // token yet — skip silently.
       logger.info(
         { recipientUid },
         "sendChatMessageNotification: no push token for recipient, skipping",
@@ -566,12 +602,12 @@ export const sendChatMessageNotification = onDocumentCreated(
     }
 
     const senderName = senderRow?.display_name ?? "Someone";
-    const preview = text.length > 100 ? text.slice(0, 97) + "…" : text;
 
     const payload = {
       to: pushToken,
-      title: senderName,
-      body: preview,
+      title: "Your turn",
+      body: `${senderName} replied`,
+      // Deep-link: tap opens the chat screen for this peer.
       data: { type: "chat_message", chatPeerUid: senderUid },
       sound: "default",
       // Android notification channel — matches the channel created in
@@ -611,7 +647,7 @@ export const sendChatMessageNotification = onDocumentCreated(
 
     const responseData = (await resp.json()) as unknown;
     logger.info(
-      { recipientUid, senderUid, responseData },
+      { recipientUid, senderUid, senderName, responseData },
       "sendChatMessageNotification: push notification sent",
     );
   },
