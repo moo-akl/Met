@@ -73,14 +73,12 @@ export async function getFirestoreModule(): Promise<Firestore | null> {
   if (!isFirestoreAvailable()) return null;
   if (cached) return cached;
   try {
-    // Initialize App Check BEFORE the first Firestore call so the
-    // initial token attaches to the first request. Done in parallel
-    // with the Firestore import so we don't add latency.
-    const [, mod] = await Promise.all([
-      initAppCheck(),
-      import("@react-native-firebase/firestore"),
-    ]);
+    // Import Firestore first — App Check is best-effort and must never
+    // block or crash Firestore initialization.
+    const mod = await import("@react-native-firebase/firestore");
     cached = mod.default();
+    // Fire-and-forget App Check after Firestore is ready.
+    void initAppCheck();
     return cached;
   } catch (err) {
     console.warn("[firestore] init failed", err);
