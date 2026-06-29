@@ -182,12 +182,11 @@ service cloud.firestore {
       // Delete: never from client.
       allow delete: if false;
 
-      // Individual chat messages — immutable once written.
+      // Individual chat messages.
       // Caller must be authenticated and the message's `from` field must
       // match the caller's UID. Participant check is done at the meta-doc
       // level (create/update rules above); messages inherit the guarantee
       // that only the two participants can touch the parent chat doc.
-      // Messages are immutable once written.
       // Create enforces the ping-pong turn rule server-side: the caller
       // must be the designated next sender (or the chat is brand-new).
       // Uses get() to read the current chat meta before the batch lands.
@@ -196,7 +195,20 @@ service cloud.firestore {
         allow create: if isAuthed() &&
           request.resource.data.from == request.auth.uid &&
           isCallersTurn(chatId);
-        allow update, delete: if false;
+
+        // Soft-delete: only the original sender may set deleted=true,
+        // and ONLY that field may change (no other field mutations).
+        allow update: if isAuthed() && (
+          // Sender soft-deleting their own message
+          (resource.data.from == request.auth.uid &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted']) &&
+           request.resource.data.deleted == true) ||
+          // Any participant updating reactions only
+          (callerIsParticipant() &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
+        );
+
+        allow delete: if false;
       }
     }
 

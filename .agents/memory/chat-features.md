@@ -33,3 +33,21 @@ Use `const fsMod = await import("@react-native-firebase/firestore"); const Field
 
 ### Firebase CLI in Replit
 Firebase CLI hangs indefinitely (even on `--version`) in the Replit environment. Use `cd functions && npm run build` to compile, then deploy from local terminal or CI.
+
+## Deep analysis — why Cloud Functions failed for chat notifications (June 2026)
+
+- Cloud Functions are an untestable black box in the Replit environment
+  (Firebase CLI hangs; no access to Firebase Function logs from here)
+- Moved chat notification sending to `POST /api/chats/notify` on the API server:
+  reads FCM token from Postgres → sends via `adminMessaging().send()`
+- This pattern is more reliable: Postgres token storage is proven (200 logs),
+  Admin SDK is proven (auth works), and failures appear in deployment logs
+- `sendMessage` in chat.ts calls `api.notifyChatMessage(...)` fire-and-forget
+  after `batch.commit()` — never blocks the chat write
+
+## Firestore rules: message update permissions
+- `allow update, delete: if false` broke both `toggleReaction` AND `deleteMessage`
+- Fixed to allow:
+  - Sender: update `deleted: true` only (affectedKeys check prevents injection)
+  - Any participant: update `reactions` field only
+- After any Firestore rules change: `firebase deploy --only firestore:rules`

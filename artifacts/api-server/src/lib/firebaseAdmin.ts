@@ -1,6 +1,7 @@
 import { initializeApp, cert, getApps, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getMessaging, type Messaging } from "firebase-admin/messaging";
 import { getStorage, type Storage } from "firebase-admin/storage";
 import { logger } from "./logger";
 
@@ -87,6 +88,10 @@ export function adminAuth(): Auth {
 
 export function adminDb(): Firestore {
   return getFirestore(init());
+}
+
+export function adminMessaging(): Messaging {
+  return getMessaging(init());
 }
 
 export function adminStorage(): Storage {

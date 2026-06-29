@@ -7,6 +7,7 @@
 // chatId = [uidA, uidB].sort().join("_") so both users share one doc.
 
 import { getFirestoreModule } from "./client";
+import { api } from "../api/client";
 
 export function getChatId(uidA: string, uidB: string): string {
   return [uidA, uidB].sort().join("_");
@@ -177,6 +178,18 @@ export async function sendMessage(
     );
 
     await batch.commit();
+
+    // Best-effort server-side notification — runs after commit so it
+    // never blocks the message send. Errors are swallowed intentionally.
+    api
+      .notifyChatMessage(
+        { uid: fromUid },
+        { recipientUid: toUid, text: trimmed || "📷 Photo", chatPeerUid: fromUid },
+      )
+      .catch(() => {
+        // best-effort — ignore
+      });
+
     return null;
   } catch (err) {
     const code = (err as { code?: string })?.code ?? "unknown";

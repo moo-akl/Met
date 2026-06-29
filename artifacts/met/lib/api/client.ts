@@ -458,4 +458,20 @@ export const api = {
       opts,
       { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
     ),
+  /**
+   * Best-effort: ask the server to send an FCM push notification to a
+   * chat recipient. Call this immediately after a successful Firestore
+   * batch commit in sendMessage. Never throws — notification failure
+   * must not block the chat UX.
+   */
+  notifyChatMessage: (
+    opts: ApiOptions,
+    input: { recipientUid: string; text: string; chatPeerUid: string },
+  ) =>
+    request<{ sent: boolean; reason?: string }>(
+      "POST",
+      "/api/chats/notify",
+      opts,
+      input,
+    ),
 };
