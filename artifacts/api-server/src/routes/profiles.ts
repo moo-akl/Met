@@ -163,6 +163,19 @@ router.post("/profiles/me/push-token", requireUid, async (req, res) => {
     res.status(404).json({ message: "Profile not found" });
     return;
   }
+
+  // Mirror push token to Firestore so Cloud Functions can read it without
+  // needing a direct Postgres connection (Postgres is Replit-internal only).
+  try {
+    const { adminDb } = await import("../lib/firebaseAdmin");
+    await adminDb()
+      .collection("users")
+      .doc(uid)
+      .set({ pushToken: token }, { merge: true });
+  } catch (err) {
+    req.log.warn({ err }, "push-token: Firestore mirror failed (non-fatal)");
+  }
+
   res.json({ success: true });
 });
 

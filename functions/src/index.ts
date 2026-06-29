@@ -513,9 +513,10 @@ export const onBleDetectionCreated = onDocumentCreated(
 export const sendChatMessageNotification = onDocumentCreated(
   {
     document: "chats/{chatId}/messages/{msgId}",
-    secrets: [DATABASE_URL],
-    // Push notifications are latency-sensitive but not write-heavy; cap
-    // instances to avoid overwhelming the Postgres connection pool.
+    // No Postgres access needed — push tokens and display names are read
+    // from Firestore (users/{uid}.pushToken / .displayName), which is
+    // already accessible via the Admin SDK without extra secrets.
+    // DATABASE_URL (Replit-internal) is unreachable from Cloud Functions.
     maxInstances: 10,
   },
   async (event) => {
@@ -534,11 +535,8 @@ export const sendChatMessageNotification = onDocumentCreated(
     // nextSenderUid is set to the OTHER participant when a message is written
     // (see chat.ts → sendMessage), so it reliably identifies whose turn it is
     // to reply — exactly the person we want to notify.
-    const chatSnap = await admin
-      .firestore()
-      .collection("chats")
-      .doc(chatId)
-      .get();
+    const firestoreDb = admin.firestore();
+    const chatSnap = await firestoreDb.collection("chats").doc(chatId).get();
     if (!chatSnap.exists) return;
 
     const chatData = chatSnap.data() as Record<string, unknown> | undefined;
@@ -572,25 +570,24 @@ export const sendChatMessageNotification = onDocumentCreated(
     // Guard against the self-chat edge case.
     if (recipientUid === senderUid) return;
 
-    // Fetch both profiles in one query: recipient's push token + sender's
-    // display name for the notification copy.
-    const db = getPool();
-    const result = await db.query<{
-      uid: string;
-      display_name: string;
-      push_token: string | null;
-    }>(
-      `SELECT uid, display_name, push_token
-         FROM profiles
-        WHERE uid = ANY($1)`,
-      [[senderUid, recipientUid]],
-    );
+    // Read sender profile (for display name) and recipient profile (for push
+    // token) from Firestore. The api-server mirrors displayName on every
+    // profile upsert, and mirrors pushToken on every push-token registration,
+    // so both fields are reliably present for active users.
+    const [senderSnap, recipientSnap] = await Promise.all([
+      firestoreDb.collection("users").doc(senderUid).get(),
+      firestoreDb.collection("users").doc(recipientUid).get(),
+    ]);
 
-    const rows = result.rows;
-    const senderRow = rows.find((r) => r.uid === senderUid);
-    const recipientRow = rows.find((r) => r.uid === recipientUid);
+    const senderData = senderSnap.data() as Record<string, unknown> | undefined;
+    const recipientData = recipientSnap.data() as
+      | Record<string, unknown>
+      | undefined;
 
-    const pushToken = recipientRow?.push_token ?? null;
+    const pushToken =
+      typeof recipientData?.["pushToken"] === "string"
+        ? recipientData["pushToken"]
+        : null;
     if (!pushToken) {
       // Recipient has push notifications disabled or hasn't registered a
       // token yet — skip silently.
@@ -601,7 +598,10 @@ export const sendChatMessageNotification = onDocumentCreated(
       return;
     }
 
-    const senderName = senderRow?.display_name ?? "Someone";
+    const senderName =
+      typeof senderData?.["displayName"] === "string"
+        ? senderData["displayName"]
+        : "Someone";
 
     const payload = {
       to: pushToken,

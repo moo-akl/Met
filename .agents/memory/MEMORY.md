@@ -10,3 +10,4 @@
 - [GitHub API commit when git commit is blocked](github-api-commit.md) — use GitHub REST API (blobs→tree→commit→update ref) via curl to push uncommitted workspace changes when git commit is not available.
 - [RN Firebase new native module crash](rn-firebase-native-crash.md) — adding a new @react-native-firebase/* package (e.g. storage) requires a new EAS build; using it via OTA-only causes a native crash that bypasses JS try/catch. Prefer REST API alternatives when possible.
 - [No Expo OTA — EAS builds only](no-expo-ota.md) — user deploys exclusively via GitHub → EAS build. There is no OTA update mechanism. Every change (JS or native) requires a new EAS build. Never suggest "reopen the app" to pick up changes.
+- [Firebase CLI v1+v2 mixed functions crash](firebase-cli-mixed-functions-patch.md) — firebase-tools 14.3.0 crashes deploying to projects with extension (v1) + v2 functions. Fix: monkey-patch via node --require before running firebase.js.
