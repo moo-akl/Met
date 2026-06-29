@@ -302,6 +302,7 @@ export default function ChatScreen() {
       mediaTypes: ["images"],
       allowsEditing: false,
       quality: 1,
+      copyToCacheDirectory: true,
     });
     if (!result.canceled && result.assets[0]) {
       setPendingMedia(result.assets[0].uri);

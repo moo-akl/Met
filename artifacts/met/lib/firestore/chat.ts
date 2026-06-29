@@ -40,43 +40,31 @@ function toEpochMs(v: MaybeTimestamp): number {
 }
 
 /**
- * Compress and upload a local image URI to Firebase Storage.
- * Returns the public download URL.
+ * Upload a local image URI to Firebase Storage via REST API.
+ * Returns a token-bearing download URL (no auth headers needed for display).
  *
- * Compression strategy (for maximum space efficiency):
- *   - Resize longest edge to ≤1280 px
- *   - JPEG quality 0.75
- *   - Falls back to original URI if compression fails
+ * Does NOT compress — expo-image-manipulator is a native module that is only
+ * safe to call from a build that explicitly links it. Compression can be
+ * re-added once a new EAS build includes the module.
+ *
+ * The image picker returns a file:// URI by default (copyToCacheDirectory=true),
+ * which React Native's Hermes fetch can read as a blob directly.
  */
 export async function uploadChatMedia(
   fromUid: string,
   toUid: string,
   localUri: string,
 ): Promise<string> {
-  // ── 1. Compress (manipulateAsync also converts ph:// → file:// on iOS) ───
-  let compressedUri = localUri;
-  try {
-    const { manipulateAsync, SaveFormat } = await import("expo-image-manipulator");
-    const result = await manipulateAsync(
-      localUri,
-      [{ resize: { width: 1280 } }],
-      { compress: 0.75, format: SaveFormat.JPEG },
-    );
-    compressedUri = result.uri;
-  } catch {
-    // Compression unavailable — continue with original URI.
-  }
-
-  // ── 2. Get Firebase Auth ID token ─────────────────────────────────────────
+  // ── 1. Get Firebase Auth ID token ─────────────────────────────────────────
   const authMod = await import("@react-native-firebase/auth");
   const idToken = await authMod.default().currentUser?.getIdToken();
   if (!idToken) throw new Error("Not authenticated");
 
-  // ── 3. Upload via Firebase Storage REST API (no native storage module) ───
+  // ── 2. Read file as blob and POST to Firebase Storage REST API ───────────
   //
-  // Using fetch + blob avoids @react-native-firebase/storage entirely.
-  // React Native's Hermes fetch implementation can read local file:// URIs
-  // and ph:// asset-library URIs as blobs natively.
+  // Avoids @react-native-firebase/storage and expo-image-manipulator entirely —
+  // both are native modules that require a fresh EAS build to link.
+  // Hermes fetch natively handles file:// URIs as binary blobs.
   const BUCKET = "metapp-b4642.firebasestorage.app";
   const chatId = getChatId(fromUid, toUid);
   const storagePath = `chats/${chatId}/${Date.now()}.jpg`;
@@ -85,7 +73,8 @@ export async function uploadChatMedia(
     `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o` +
     `?uploadType=media&name=${encodedPath}`;
 
-  const fileResponse = await fetch(compressedUri);
+  const fileResponse = await fetch(localUri);
+  if (!fileResponse.ok) throw new Error(`Cannot read local file (${fileResponse.status})`);
   const blob = await fileResponse.blob();
 
   const uploadResponse = await fetch(uploadUrl, {
@@ -102,7 +91,7 @@ export async function uploadChatMedia(
     throw new Error(`Storage upload failed (${uploadResponse.status}): ${errText}`);
   }
 
-  // ── 4. Return token-bearing download URL (works without auth headers) ─────
+  // ── 3. Return token-bearing download URL (no auth headers needed) ─────────
   const meta = (await uploadResponse.json()) as { downloadTokens?: string };
   const dlToken = meta.downloadTokens;
   if (!dlToken) throw new Error("No download token in upload response");

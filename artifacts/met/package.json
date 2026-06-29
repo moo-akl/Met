@@ -81,7 +81,6 @@
     "expo-crypto": "~15.0.9",
     "expo-device": "^8.0.10",
     "expo-file-system": "^19.0.22",
-    "expo-image-manipulator": "^56.0.19",
     "expo-linear-gradient": "~15.0.8",
     "expo-localization": "^17.0.8",
     "expo-notifications": "^0.32.17",
