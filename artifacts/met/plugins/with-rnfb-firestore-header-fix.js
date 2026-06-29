@@ -12,16 +12,19 @@ const path = require("path");
  * RNFBApp must be skipped because it is the *source* of the submodule headers
  * (`RNFBAppModule.h`, `RCTConvert+FIRApp.h`) we redirect through.
  *
- * The fix is additive, not destructive: for every header that imports
- * `<React/RCTBridgeModule.h>` or `<React/RCTConvert.h>` we PREPEND a matching
- * `<RNFBApp/...>` import on the line above. Clang sees the RNFBApp submodule
- * loaded first (which satisfies the "must be imported from module
- * 'RNFBApp.RNFBAppModule' before required" diagnostic) and the original React
- * import remains in place so the .m translation units still get the
- * `RCT_EXPORT_MODULE` / `RCT_EXTERN` / `RCT_EXPORT_METHOD` macros they need
- * to compile. An earlier iteration tried REPLACING the React import — that
- * broke compilation because `RNFBAppModule.h` only declares the
- * `<RCTBridgeModule>` protocol, not the macro family.
+ * The fix is additive, not destructive: for every `.h` or `.m` file that
+ * imports `<React/RCTBridgeModule.h>` or `<React/RCTConvert.h>` we PREPEND
+ * a matching `<RNFBApp/...>` import on the line above. `.m` files are included
+ * because they can themselves import React headers directly (e.g.
+ * `RNFBMessagingSerializer.m` imports `<React/RCTConvert.h>` directly and
+ * triggers the same "must be imported from module 'RNFBApp.RCTConvert_FIRApp'"
+ * error). Clang sees the RNFBApp submodule loaded first (which satisfies the
+ * "must be imported from module 'RNFBApp.RNFBAppModule' before required"
+ * diagnostic) and the original React import remains in place so the .m
+ * translation units still get the `RCT_EXPORT_MODULE` / `RCT_EXTERN` /
+ * `RCT_EXPORT_METHOD` macros they need to compile. An earlier iteration tried
+ * REPLACING the React import — that broke compilation because `RNFBAppModule.h`
+ * only declares the `<RCTBridgeModule>` protocol, not the macro family.
  *
  * Root cause:
  *   RNFBApp ships as a static framework with a module map that exposes its
@@ -242,7 +245,7 @@ const withRnfbFirestoreHeaderFix = (config) => {
       for (const dir of dirs) {
         const headers = fs
           .readdirSync(dir)
-          .filter((f) => f.endsWith(".h"))
+          .filter((f) => f.endsWith(".h") || f.endsWith(".m"))
           .map((f) => path.join(dir, f));
         totalHeaders += headers.length;
 
