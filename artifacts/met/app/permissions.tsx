@@ -50,7 +50,7 @@ export default function PermissionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useT();
-  const { setPermissionsCompleted, permissionsCompleted, profile } = useApp();
+  const { setPermissionsCompleted, permissionsCompleted, authedUid } = useApp();
 
   const [statuses, setStatuses] = useState<Record<PermKey, Status>>({
     location: "idle",
@@ -186,8 +186,8 @@ export default function PermissionsScreen() {
         // Fetch Expo push token, save locally, and upload to api-server
         // so the backend can send remote push notifications.
         // No-op on simulator / Expo Go.
-        if (granted) {
-          void registerAndUploadPushToken(profile?.id ?? "");
+        if (granted && authedUid) {
+          void registerAndUploadPushToken(authedUid);
         }
       }
     } catch {

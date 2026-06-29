@@ -15,3 +15,21 @@ description: Fields added to ChatMessage and ChatMeta for reactions, reply-to, d
 Use `const fsMod = await import("@react-native-firebase/firestore"); const FieldValue = fsMod.default.FieldValue;` — same pattern as encounters.ts and presence.ts
 
 **Why:** The Firestore module's FieldValue is on the default export (the namespace), not on the instance returned by `getFirestoreModule()`.
+
+## FCM Push Notification Pipeline (lessons from debugging)
+
+### Full token flow
+1. App start → `PushTokenRegistrar` (inside AppProvider) calls `registerAndUploadPushToken(authedUid)`
+2. `messaging().getToken()` → FCM token → POST `/api/profiles/me/push-token`  
+3. API server saves to Postgres `profiles.push_token` AND mirrors to Firestore `users/{uid}.pushToken`
+4. Cloud Function reads `users/{recipientUid}.pushToken` from Firestore and sends via FCM Admin SDK
+
+### Critical requirements
+- **Must use `authedUid`** (not `profile?.id`) for the uid passed to `registerAndUploadPushToken`. profile.id can be "local-xxx" during onboarding.
+- **`setBackgroundMessageHandler` must be registered in `index.js`** (before React) for Android killed-state messages. Created `artifacts/met/index.js` + set `"main": "./index.js"` in package.json.
+- **Add `messaging().onTokenRefresh()`** listener to re-upload tokens when FCM rotates them.
+- **iOS requires APNs Auth Key** in Firebase Console → Project Settings → Cloud Messaging → iOS app. Without it, FCM cannot deliver to iOS regardless of code.
+- **Cloud Function `sendChatMessageNotification` reads `displayName`** from Firestore `users/{uid}` (mirrored by API server on every profile upsert) and `pushToken` from same doc.
+
+### Firebase CLI in Replit
+Firebase CLI hangs indefinitely (even on `--version`) in the Replit environment. Use `cd functions && npm run build` to compile, then deploy from local terminal or CI.

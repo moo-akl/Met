@@ -33,6 +33,7 @@ import {
   routeNotifTap,
   setupNotificationListeners,
 } from "@/lib/notifications";
+import messaging from "@react-native-firebase/messaging";
 import { initReferrals } from "@/lib/referrals";
 import {
   initializeRevenueCat,
@@ -202,20 +203,33 @@ function ChatBannerController({
  * Must live inside AppProvider so it can read profile from context.
  */
 function PushTokenRegistrar() {
-  const { profile } = useApp();
+  const { authedUid } = useApp();
   const registeredUid = React.useRef<string | null>(null);
 
+  // Initial registration: runs once per Firebase UID on app start.
   useEffect(() => {
-    const uid = profile?.id;
-    if (!uid || registeredUid.current === uid) return;
-    registeredUid.current = uid;
+    if (!authedUid || registeredUid.current === authedUid) return;
+    registeredUid.current = authedUid;
 
     getNotificationPermissionGranted()
       .then((granted) => {
-        if (granted) return registerAndUploadPushToken(uid);
+        if (granted) return registerAndUploadPushToken(authedUid);
       })
       .catch(() => {});
-  }, [profile?.id]);
+  }, [authedUid]);
+
+  // Token refresh: FCM silently rotates tokens (e.g. after app updates or
+  // OS reinstall). Re-upload whenever the token changes so the server always
+  // has a valid FCM token.
+  useEffect(() => {
+    if (!authedUid) return;
+    const unsubscribe = messaging().onTokenRefresh((newToken) => {
+      import("@/lib/api/client")
+        .then(({ api }) => api.registerPushToken({ uid: authedUid }, newToken))
+        .catch(() => {});
+    });
+    return unsubscribe;
+  }, [authedUid]);
 
   return null;
 }
