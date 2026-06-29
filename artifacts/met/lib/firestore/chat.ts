@@ -38,23 +38,12 @@ function toEpochMs(v: MaybeTimestamp): number {
 /**
  * Send a message from `fromUid` to the chat shared with `toUid`.
  *
- * Strategy (no batch):
- *  1. Write the message document to the sub-collection (always a CREATE).
- *  2. Try to UPDATE the top-level chat meta doc (faster path, no participants check).
- *     If the doc doesn't exist yet, UPDATE fails → fall back to SET (CREATE) with
- *     the full participants array so the CREATE rule is satisfied.
+ * Uses a single batched write:
+ *  - Message doc in messages subcollection (always CREATE)
+ *  - Top-level chat meta doc with set+merge (CREATE or UPDATE)
  *
- * Why no batch?
- *  Batches with set(..., { merge:true }) on a non-existent doc are evaluated as
- *  CREATE, requiring the participants check. But the dot-notation key
- *  `lastReadAt.${uid}` inside a native-SDK set() is treated as a literal field
- *  name (not a nested path), which can confuse the rules evaluation.
- *  Separating the writes and using update() (which correctly interprets dot
- *  notation as field paths) is simpler and more predictable.
- */
-/**
  * Returns null on success, or an error string on failure.
- * The error string is shown in the UI so we can diagnose the root cause.
+ * The error string is shown in the UI to aid diagnosis.
  */
 export async function sendMessage(
   fromUid: string,
@@ -66,50 +55,47 @@ export async function sendMessage(
   const trimmed = text.trim();
   if (!trimmed) return "Empty message";
 
+  // Validate inputs before touching Firestore — a blank UID would produce
+  // an invalid document path and throw immediately.
+  if (!fromUid || !toUid) {
+    return `Invalid UIDs — fromUid="${fromUid}" toUid="${toUid}"`;
+  }
+
+  const chatId = getChatId(fromUid, toUid);
+  const now = Date.now();
+  const chatRef = fs.collection("chats").doc(chatId);
+  const msgRef = chatRef.collection("messages").doc();
+
   try {
-    const chatId = getChatId(fromUid, toUid);
-    const now = Date.now();
-    const chatRef = fs.collection("chats").doc(chatId);
-    const msgRef = chatRef.collection("messages").doc();
+    // Use a WriteBatch so both the message and the meta doc are written
+    // atomically. This avoids a race where the message lands but the meta
+    // doc update fails, leaving the sender stuck on "Your turn" forever.
+    //
+    // batch.set(ref, data, { merge: true }) on the chat meta doc:
+    //  - If the doc doesn't exist → CREATE with the given fields.
+    //  - If it already exists   → UPDATE only the specified fields.
+    // The Firestore CREATE rule for chats requires participants in the
+    // data, so we always include it in the merge payload.
+    const batch = fs.batch();
+    batch.set(msgRef, { from: fromUid, text: trimmed, sentAt: now });
+    batch.set(
+      chatRef,
+      {
+        participants: [fromUid, toUid].sort(),
+        lastMessage: { text: trimmed, from: fromUid, sentAt: now },
+        lastReadAt: { [fromUid]: now },
+        nextSenderUid: toUid,
+      },
+      { merge: true },
+    );
 
-    // Step 1 — write the message (always a CREATE, rule: callerInChatId + from==uid).
-    // This is the only critical write: if it fails we return the error so the caller
-    // can restore the draft. Everything after this is best-effort.
-    await msgRef.set({ from: fromUid, text: trimmed, sentAt: now });
-
-    // Step 2 — update chat meta doc (best-effort, fire-and-forget).
-    // We deliberately do NOT await this: a meta-write failure must never make
-    // sendMessage return an error when the message itself was successfully stored.
-    void (async () => {
-      try {
-        // update() interprets dot-notation as nested field paths (correct for
-        // lastReadAt.{uid}). Fires the UPDATE rule: allow update: if callerInChatId().
-        await chatRef.update({
-          lastMessage: { text: trimmed, from: fromUid, sentAt: now },
-          [`lastReadAt.${fromUid}`]: now,
-          nextSenderUid: toUid,
-        });
-      } catch {
-        // Doc doesn't exist yet → CREATE it with the participants array so the
-        // Firestore CREATE rule (requires participants field) passes.
-        try {
-          await chatRef.set({
-            participants: [fromUid, toUid].sort(),
-            lastMessage: { text: trimmed, from: fromUid, sentAt: now },
-            lastReadAt: { [fromUid]: now },
-            nextSenderUid: toUid,
-          });
-        } catch (metaErr) {
-          console.warn("[chat] meta update failed (non-critical)", metaErr);
-        }
-      }
-    })();
-
+    await batch.commit();
     return null; // success
   } catch (err) {
+    const code = (err as { code?: string })?.code ?? "unknown";
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[chat] sendMessage failed", err);
-    return msg;
+    console.warn("[chat] sendMessage failed", { code, msg, fromUid, toUid, chatId });
+    return `[${code}] ${msg}`;
   }
 }
 

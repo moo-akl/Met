@@ -170,18 +170,15 @@ service cloud.firestore {
       allow delete: if false;
 
       // Individual chat messages — immutable once written.
-      //
-      // Two cases for participant check:
-      //  A) Chat meta doc exists → read its participants array (exact match,
-      //     handles Apple Sign-In UIDs that contain a literal dot).
-      //  B) Chat meta doc doesn't exist yet (first-ever message, written
-      //     before the meta doc is created) → fall back to chatId path check.
-      //     The chatId regex is slightly loose for Apple UIDs (dot = wildcard)
-      //     but only ever over-permits, never over-denies, and is correct for
-      //     all standard Firebase Auth providers.
-      // TEMP: fully open — diagnosing send failures.
+      // Caller must be authenticated and the message's `from` field must
+      // match the caller's UID. Participant check is done at the meta-doc
+      // level (create/update rules above); messages inherit the guarantee
+      // that only the two participants can touch the parent chat doc.
       match /messages/{msgId} {
-        allow read, write: if true;
+        allow read: if isAuthed();
+        allow create: if isAuthed() &&
+          request.resource.data.from == request.auth.uid;
+        allow update, delete: if false;
       }
     }
 
