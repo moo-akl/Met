@@ -1,11 +1,13 @@
-const { withGradleProperties, withAppBuildGradle } = require("expo/config-plugins");
+const {
+  withGradleProperties,
+  withAppBuildGradle,
+  withAndroidManifest,
+} = require("expo/config-plugins");
 
 /**
  * with-android-build-fixes
  *
- * Two production-build fixes that together turn a 1h30 OOM-and-time-out
- * into a clean ~20-25 min Android build on the free GitHub Actions Linux
- * runner (16 GB RAM):
+ * Three production-build fixes:
  *
  *   1. Bump the Gradle JVM args. The Expo template ships
  *      `org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m`, which is
@@ -23,7 +25,15 @@ const { withGradleProperties, withAppBuildGradle } = require("expo/config-plugin
  *      the build and removes the OOM trigger entirely. Crashlytics,
  *      ProGuard/R8, and runtime behavior are unaffected.
  *
- * Both changes only apply to CI/local production builds — running the
+ *   3. Fix FCM notification-color manifest merger conflict. Both
+ *      `expo-notifications` (which generates `@color/notification_icon_color`)
+ *      and `@react-native-firebase/messaging` (which ships `@color/white`)
+ *      declare `com.google.firebase.messaging.default_notification_color` in
+ *      their AndroidManifest contributions. Gradle's manifest merger rejects
+ *      the duplicate unless one side carries `tools:replace="android:resource"`.
+ *      We add that attribute to the app-level entry so our colour wins.
+ *
+ * All changes only apply to CI/local production builds — running the
  * app via `expo start` doesn't go through Gradle assembleRelease, so
  * developer DX is unchanged.
  */
@@ -62,6 +72,30 @@ const withAndroidBuildFixes = (config) => {
         abortOnError false
     }`,
     );
+    return cfg;
+  });
+
+  // Fix #3 — FCM notification-color manifest merger conflict.
+  config = withAndroidManifest(config, (cfg) => {
+    const manifest = cfg.modResults.manifest;
+
+    // Ensure the tools namespace is declared on the root <manifest> element.
+    manifest.$["xmlns:tools"] = "http://schemas.android.com/tools";
+
+    const application = manifest.application?.[0];
+    if (application) {
+      const metaDataList = application["meta-data"] ?? [];
+      const fcmColorEntry = metaDataList.find(
+        (m) =>
+          m.$?.["android:name"] ===
+          "com.google.firebase.messaging.default_notification_color",
+      );
+      if (fcmColorEntry) {
+        // Tell the merger to use our value and discard the library's.
+        fcmColorEntry.$["tools:replace"] = "android:resource";
+      }
+    }
+
     return cfg;
   });
 
