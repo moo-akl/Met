@@ -1,8 +1,10 @@
 const {
   withGradleProperties,
   withAppBuildGradle,
-  withAndroidManifest,
+  withDangerousMod,
 } = require("expo/config-plugins");
+const fs = require("fs");
+const path = require("path");
 
 /**
  * with-android-build-fixes
@@ -30,12 +32,15 @@ const {
  *      and `@react-native-firebase/messaging` (which ships `@color/white`)
  *      declare `com.google.firebase.messaging.default_notification_color` in
  *      their AndroidManifest contributions. Gradle's manifest merger rejects
- *      the duplicate unless one side carries `tools:replace="android:resource"`.
- *      We add that attribute to the app-level entry so our colour wins.
+ *      the duplicate unless the app-level entry carries
+ *      `tools:replace="android:resource"`.
  *
- * All changes only apply to CI/local production builds — running the
- * app via `expo start` doesn't go through Gradle assembleRelease, so
- * developer DX is unchanged.
+ *      We use withDangerousMod (which writes to the actual file on disk
+ *      AFTER all in-memory mods complete) so the fix is not affected by
+ *      Expo's internal mod-pipeline ordering — the entry written by
+ *      expo-notifications is already on disk when our patch runs.
+ *
+ * All changes only apply to CI/local production builds.
  */
 const withAndroidBuildFixes = (config) => {
   config = withGradleProperties(config, (cfg) => {
@@ -76,28 +81,52 @@ const withAndroidBuildFixes = (config) => {
   });
 
   // Fix #3 — FCM notification-color manifest merger conflict.
-  config = withAndroidManifest(config, (cfg) => {
-    const manifest = cfg.modResults.manifest;
-
-    // Ensure the tools namespace is declared on the root <manifest> element.
-    manifest.$["xmlns:tools"] = "http://schemas.android.com/tools";
-
-    const application = manifest.application?.[0];
-    if (application) {
-      const metaDataList = application["meta-data"] ?? [];
-      const fcmColorEntry = metaDataList.find(
-        (m) =>
-          m.$?.["android:name"] ===
-          "com.google.firebase.messaging.default_notification_color",
+  //
+  // withDangerousMod runs on the file system AFTER all withAndroidManifest
+  // callbacks have written their output to disk, so the entry added by
+  // expo-notifications is already present when we patch it.
+  config = withDangerousMod(config, [
+    "android",
+    (cfg) => {
+      const manifestPath = path.join(
+        cfg.modRequest.platformProjectRoot,
+        "app/src/main/AndroidManifest.xml",
       );
-      if (fcmColorEntry) {
-        // Tell the merger to use our value and discard the library's.
-        fcmColorEntry.$["tools:replace"] = "android:resource";
-      }
-    }
 
-    return cfg;
-  });
+      if (!fs.existsSync(manifestPath)) return cfg;
+
+      let contents = fs.readFileSync(manifestPath, "utf-8");
+
+      // 1. Ensure the tools namespace is declared on the root <manifest> element.
+      if (!contents.includes("xmlns:tools")) {
+        contents = contents.replace(
+          /<manifest /,
+          '<manifest xmlns:tools="http://schemas.android.com/tools" ',
+        );
+      }
+
+      // 2. Add tools:replace="android:resource" to the FCM colour meta-data
+      //    entry if it is present and does not already carry that attribute.
+      const FCM_COLOR_KEY =
+        "com.google.firebase.messaging.default_notification_color";
+      if (
+        contents.includes(FCM_COLOR_KEY) &&
+        !contents.includes('tools:replace="android:resource"')
+      ) {
+        // Match the opening tag of that specific <meta-data> element and
+        // insert the attribute just before the closing /> or >.
+        contents = contents.replace(
+          new RegExp(
+            `(<meta-data[^>]*${FCM_COLOR_KEY.replace(/\./g, "\\.")}[^>]*?)(\\/?>)`,
+          ),
+          '$1 tools:replace="android:resource"$2',
+        );
+      }
+
+      fs.writeFileSync(manifestPath, contents);
+      return cfg;
+    },
+  ]);
 
   return config;
 };

@@ -1,6 +1,7 @@
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import messaging from "@react-native-firebase/messaging";
+import { Platform } from "react-native";
 
 import { loadPushToken, savePushToken } from "./storage";
 
