@@ -51,3 +51,16 @@ Firebase CLI hangs indefinitely (even on `--version`) in the Replit environment.
   - Sender: update `deleted: true` only (affectedKeys check prevents injection)
   - Any participant: update `reactions` field only
 - After any Firestore rules change: `firebase deploy --only firestore:rules`
+
+## iOS FCM notifications: messaging/third-party-auth-error
+Confirmed from deployment logs: Android notifications work (FCM sent ✓),
+iOS fails with `messaging/third-party-auth-error`.
+Root cause: APNs Auth Key NOT uploaded to Firebase Console.
+Fix: Firebase Console → Project Settings → Cloud Messaging → Apple app → APNs Auth Key → upload .p8
+This is a Console-only config step — no code changes needed.
+
+## Unread chat badge (tab icon)
+`useHasUnreadChats(myUid)` in `hooks/useHasUnreadChats.ts` — subscribes to
+`chats` collection with `where("participants","array-contains", myUid)`.
+Unread = lastMessage.from ≠ myUid AND sentAt > lastReadAt[myUid] AND sentAt > clearedAt[myUid].
+Used in `(tabs)/_layout.tsx` via `ChatTabIcon` component with `useApp().authedUid`.
