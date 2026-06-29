@@ -603,52 +603,96 @@ export const sendChatMessageNotification = onDocumentCreated(
         ? senderData["displayName"]
         : "Someone";
 
-    const payload = {
-      to: pushToken,
-      title: "Your turn",
-      body: `${senderName} replied`,
-      // Deep-link: tap opens the chat screen for this peer.
-      data: { type: "chat_message", chatPeerUid: senderUid },
-      sound: "default",
-      // Android notification channel — matches the channel created in
-      // configureNotifications() on the client.
-      channelId: "default",
-    };
+    // Route by token type:
+    //   ExponentPushToken[…] → iOS, via Expo Push API (APNs relay, already works)
+    //   anything else        → Android raw FCM token, sent directly via Admin SDK
+    const isExpoToken = pushToken.startsWith("ExponentPushToken[");
 
-    let resp: Response;
-    try {
-      resp = await fetch("https://exp.host/--/api/v2/push/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-    } catch (err) {
-      // Network failure — re-throw so Cloud Functions retries.
-      logger.error(
-        { err, recipientUid },
-        "sendChatMessageNotification: network error calling Expo Push API",
+    if (isExpoToken) {
+      // iOS path — Expo push relay handles APNs delivery.
+      const payload = {
+        to: pushToken,
+        title: "Your turn",
+        body: `${senderName} replied`,
+        data: { type: "chat_message", chatPeerUid: senderUid },
+        sound: "default",
+      };
+
+      let resp: Response;
+      try {
+        resp = await fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+      } catch (err) {
+        logger.error(
+          { err, recipientUid },
+          "sendChatMessageNotification: network error calling Expo Push API",
+        );
+        throw err;
+      }
+
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        logger.warn(
+          { status: resp.status, body, recipientUid },
+          "sendChatMessageNotification: Expo Push API returned non-OK status",
+        );
+        return;
+      }
+
+      const responseData = (await resp.json()) as unknown;
+      logger.info(
+        { recipientUid, senderUid, senderName, responseData },
+        "sendChatMessageNotification: push sent via Expo (iOS)",
       );
-      throw err;
+    } else {
+      // Android path — raw FCM registration token, sent directly via Admin SDK.
+      // No Expo push relay or Expo dashboard credentials required.
+      try {
+        const fcmResponse = await admin.messaging().send({
+          token: pushToken,
+          notification: {
+            title: "Your turn",
+            body: `${senderName} replied`,
+          },
+          android: {
+            notification: {
+              // Must match the channel created in configureNotifications() on the client.
+              channelId: "default",
+              sound: "default",
+            },
+          },
+          data: { type: "chat_message", chatPeerUid: senderUid },
+        });
+        logger.info(
+          { recipientUid, senderUid, senderName, fcmResponse },
+          "sendChatMessageNotification: push sent via FCM Admin SDK (Android)",
+        );
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token"
+        ) {
+          // Stale/invalid token — permanent failure, no point retrying.
+          logger.warn(
+            { recipientUid, code },
+            "sendChatMessageNotification: stale FCM token, skipping",
+          );
+          return;
+        }
+        // Transient error — rethrow so Cloud Functions retries.
+        logger.error(
+          { err, recipientUid },
+          "sendChatMessageNotification: FCM Admin SDK error",
+        );
+        throw err;
+      }
     }
-
-    if (!resp.ok) {
-      // 4xx errors from Expo (e.g. invalid token format) are permanent;
-      // logging a warning without rethrowing avoids infinite retry loops.
-      const body = await resp.text().catch(() => "");
-      logger.warn(
-        { status: resp.status, body, recipientUid },
-        "sendChatMessageNotification: Expo Push API returned non-OK status",
-      );
-      return;
-    }
-
-    const responseData = (await resp.json()) as unknown;
-    logger.info(
-      { recipientUid, senderUid, senderName, responseData },
-      "sendChatMessageNotification: push notification sent",
-    );
   },
 );

@@ -76,12 +76,16 @@ export async function getNotificationPermissionGranted(): Promise<boolean> {
 }
 
 /**
- * Fetches an Expo push token and stashes it locally. Once we wire the
- * api-server endpoint we'll POST this token so the backend can target
- * the device with FCM/APNS pushes via Expo Push API.
+ * Fetches a push token and stashes it locally.
  *
- * Safe on simulator / Expo Go — returns null and logs a warning instead
- * of throwing.
+ * Android: returns the raw FCM registration token via getDevicePushTokenAsync()
+ * so notifications are sent directly through Firebase without routing through
+ * Expo's push relay (which requires FCM credentials uploaded to Expo's dashboard).
+ *
+ * iOS: returns an ExponentPushToken via getExpoPushTokenAsync() — APNs delivery
+ * via the Expo push relay already works on iOS without extra configuration.
+ *
+ * Safe on simulator / Expo Go — returns null instead of throwing.
  */
 export async function registerForPushTokenAsync(): Promise<string | null> {
   if (!Device.isDevice) {
@@ -90,27 +94,34 @@ export async function registerForPushTokenAsync(): Promise<string | null> {
   const granted = await getNotificationPermissionGranted();
   if (!granted) return null;
 
-  // Pull the EAS projectId from app.json's `extra.eas.projectId` so the
-  // Expo push service knows which project this token belongs to.
-  const projectId =
-    (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)
-      ?.eas?.projectId ??
-    (Constants.easConfig as { projectId?: string } | undefined)?.projectId;
-  if (!projectId) {
-    console.warn(
-      "[notifications] missing EAS projectId — cannot fetch push token",
-    );
-    return null;
-  }
-
   try {
+    if (Platform.OS === "android") {
+      // Raw FCM token — sent directly via Firebase Admin SDK, no Expo relay needed.
+      const { data } = await Notifications.getDevicePushTokenAsync();
+      if (data) {
+        await savePushToken(data);
+      }
+      return data || null;
+    }
+
+    // iOS: use Expo push token (APNs via Expo relay already works).
+    const projectId =
+      (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)
+        ?.eas?.projectId ??
+      (Constants.easConfig as { projectId?: string } | undefined)?.projectId;
+    if (!projectId) {
+      console.warn(
+        "[notifications] missing EAS projectId — cannot fetch Expo push token",
+      );
+      return null;
+    }
     const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
     if (data) {
       await savePushToken(data);
     }
     return data || null;
   } catch (err) {
-    console.warn("[notifications] getExpoPushTokenAsync failed", err);
+    console.warn("[notifications] registerForPushTokenAsync failed", err);
     return null;
   }
 }
