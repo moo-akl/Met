@@ -53,37 +53,64 @@ export async function uploadChatMedia(
   toUid: string,
   localUri: string,
 ): Promise<string> {
-  // ── 1. Compress ──────────────────────────────────────────────────────────
+  // ── 1. Compress (manipulateAsync also converts ph:// → file:// on iOS) ───
   let compressedUri = localUri;
   try {
-    const manip = await import("expo-image-manipulator");
-    // Support both legacy (manipulateAsync) and newer class-based APIs.
-    if (typeof manip.manipulateAsync === "function") {
-      const result = await manip.manipulateAsync(
-        localUri,
-        [{ resize: { width: 1280 } }],
-        { compress: 0.75, format: manip.SaveFormat.JPEG },
-      );
-      compressedUri = result.uri;
-    } else if (manip.ImageManipulator) {
-      const ctx = (manip.ImageManipulator as { manipulate: (uri: string) => {
-        resize: (opts: { width: number }) => { renderAsync: () => Promise<{ saveAsync: (opts: { compress: number; format: unknown }) => Promise<{ uri: string }> }> };
-      } }).manipulate(localUri);
-      const img = await ctx.resize({ width: 1280 }).renderAsync();
-      const saved = await img.saveAsync({ compress: 0.75, format: (manip as { SaveFormat: { JPEG: unknown } }).SaveFormat.JPEG });
-      compressedUri = saved.uri;
-    }
+    const { manipulateAsync, SaveFormat } = await import("expo-image-manipulator");
+    const result = await manipulateAsync(
+      localUri,
+      [{ resize: { width: 1280 } }],
+      { compress: 0.75, format: SaveFormat.JPEG },
+    );
+    compressedUri = result.uri;
   } catch {
-    // Compression failed — upload the original; still better than nothing.
+    // Compression unavailable — continue with original URI.
   }
 
-  // ── 2. Upload to Firebase Storage ────────────────────────────────────────
-  const storageMod = await import("@react-native-firebase/storage");
-  const storageInstance = storageMod.default();
+  // ── 2. Get Firebase Auth ID token ─────────────────────────────────────────
+  const authMod = await import("@react-native-firebase/auth");
+  const idToken = await authMod.default().currentUser?.getIdToken();
+  if (!idToken) throw new Error("Not authenticated");
+
+  // ── 3. Upload via Firebase Storage REST API (no native storage module) ───
+  //
+  // Using fetch + blob avoids @react-native-firebase/storage entirely.
+  // React Native's Hermes fetch implementation can read local file:// URIs
+  // and ph:// asset-library URIs as blobs natively.
+  const BUCKET = "metapp-b4642.firebasestorage.app";
   const chatId = getChatId(fromUid, toUid);
-  const ref = storageInstance.ref(`chats/${chatId}/${Date.now()}.jpg`);
-  await ref.putFile(compressedUri);
-  return ref.getDownloadURL();
+  const storagePath = `chats/${chatId}/${Date.now()}.jpg`;
+  const encodedPath = encodeURIComponent(storagePath);
+  const uploadUrl =
+    `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o` +
+    `?uploadType=media&name=${encodedPath}`;
+
+  const fileResponse = await fetch(compressedUri);
+  const blob = await fileResponse.blob();
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      "Content-Type": "image/jpeg",
+    },
+    body: blob,
+  });
+
+  if (!uploadResponse.ok) {
+    const errText = await uploadResponse.text().catch(() => String(uploadResponse.status));
+    throw new Error(`Storage upload failed (${uploadResponse.status}): ${errText}`);
+  }
+
+  // ── 4. Return token-bearing download URL (works without auth headers) ─────
+  const meta = (await uploadResponse.json()) as { downloadTokens?: string };
+  const dlToken = meta.downloadTokens;
+  if (!dlToken) throw new Error("No download token in upload response");
+
+  return (
+    `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodedPath}` +
+    `?alt=media&token=${dlToken}`
+  );
 }
 
 /**
