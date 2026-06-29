@@ -21,6 +21,12 @@ export interface ChatMessage {
   mediaUri?: string;
   /** Media type — currently only "image" is supported. */
   mediaType?: "image";
+  /** Reactions: emoji → array of UIDs who reacted. */
+  reactions?: Record<string, string[]>;
+  /** Message this is replying to (snapshot at send time). */
+  replyTo?: { id: string; from: string; text: string; mediaType?: "image" };
+  /** Soft-deleted flag — message content hidden, stub shown instead. */
+  deleted?: boolean;
 }
 
 export interface ChatMeta {
@@ -28,6 +34,8 @@ export interface ChatMeta {
   lastReadAt: Record<string, number>; // uid → epoch ms
   /** Whose turn it is to send next. null = either participant can go first. */
   nextSenderUid: string | null;
+  /** Per-user epoch ms — messages older than this are hidden for that user. */
+  clearedAt?: Record<string, number>;
 }
 
 type MaybeTimestamp = { toMillis?: () => number } | number | null | undefined;
@@ -105,7 +113,8 @@ export async function uploadChatMedia(
 /**
  * Send a message from `fromUid` to the chat shared with `toUid`.
  *
- * Accepts an optional `mediaUri` (Firebase Storage download URL).
+ * Accepts an optional `mediaUri` (Firebase Storage download URL) and an
+ * optional `replyTo` snapshot for threaded replies.
  * Either `text` or `mediaUri` (or both) must be present.
  *
  * Uses a WriteBatch so the message doc and the chat meta update
@@ -119,6 +128,7 @@ export async function sendMessage(
   toUid: string,
   text: string,
   mediaUri?: string,
+  replyTo?: { id: string; from: string; text: string; mediaType?: "image" },
 ): Promise<string | null> {
   const fs = await getFirestoreModule();
   if (!fs) return "Firestore unavailable (native module not loaded)";
@@ -147,6 +157,9 @@ export async function sendMessage(
       msgData["mediaUri"] = mediaUri;
       msgData["mediaType"] = "image";
     }
+    if (replyTo) {
+      msgData["replyTo"] = replyTo;
+    }
     batch.set(msgRef, msgData);
 
     // Chat meta — flip the turn to the recipient so they can reply.
@@ -170,6 +183,90 @@ export async function sendMessage(
     const msg = err instanceof Error ? err.message : String(err);
     console.warn("[chat] sendMessage batch failed", { code, fromUid, toUid, chatId });
     return `[${code}] ${msg}`;
+  }
+}
+
+/**
+ * Toggle a reaction emoji for `myUid` on a specific message.
+ * If the user has already reacted with this emoji, remove it; otherwise add it.
+ */
+export async function toggleReaction(
+  chatId: string,
+  msgId: string,
+  emoji: string,
+  myUid: string,
+): Promise<void> {
+  const fs = await getFirestoreModule();
+  if (!fs) return;
+
+  const msgRef = fs.collection("chats").doc(chatId).collection("messages").doc(msgId);
+
+  try {
+    const snap = await msgRef.get();
+    if (!snap.exists) return;
+    const data = snap.data() as Record<string, unknown> | undefined;
+    const reactions = (data?.["reactions"] ?? {}) as Record<string, string[]>;
+    const current: string[] = reactions[emoji] ?? [];
+    const alreadyReacted = current.includes(myUid);
+
+    const fsMod = await import("@react-native-firebase/firestore");
+    const FieldValue = fsMod.default.FieldValue;
+
+    await msgRef.update({
+      [`reactions.${emoji}`]: alreadyReacted
+        ? FieldValue.arrayRemove(myUid)
+        : FieldValue.arrayUnion(myUid),
+    });
+  } catch (err) {
+    console.warn("[chat] toggleReaction failed", err);
+  }
+}
+
+/**
+ * Soft-delete a message (sets deleted: true).
+ * Message content is hidden for all participants; a stub is shown instead.
+ * Only the sender should call this (Firestore rules enforce ownership).
+ */
+export async function deleteMessage(
+  chatId: string,
+  msgId: string,
+): Promise<void> {
+  const fs = await getFirestoreModule();
+  if (!fs) return;
+
+  try {
+    await fs
+      .collection("chats")
+      .doc(chatId)
+      .collection("messages")
+      .doc(msgId)
+      .update({ deleted: true });
+  } catch (err) {
+    console.warn("[chat] deleteMessage failed", err);
+    throw err;
+  }
+}
+
+/**
+ * Clear chat history for `myUid` by setting `clearedAt.[myUid]` to now.
+ * Messages older than this timestamp are filtered out client-side.
+ */
+export async function clearChatHistory(
+  myUid: string,
+  peerUid: string,
+): Promise<void> {
+  const fs = await getFirestoreModule();
+  if (!fs) return;
+
+  try {
+    const chatId = getChatId(myUid, peerUid);
+    await fs
+      .collection("chats")
+      .doc(chatId)
+      .set({ clearedAt: { [myUid]: Date.now() } }, { merge: true });
+  } catch (err) {
+    console.warn("[chat] clearChatHistory failed", err);
+    throw err;
   }
 }
 
@@ -223,6 +320,30 @@ export async function subscribeToMessages(
             if (typeof d["mediaUri"] === "string") {
               msg.mediaUri = d["mediaUri"];
               msg.mediaType = "image";
+            }
+            if (d["deleted"] === true) {
+              msg.deleted = true;
+            }
+            if (d["replyTo"] && typeof d["replyTo"] === "object") {
+              const rt = d["replyTo"] as Record<string, unknown>;
+              msg.replyTo = {
+                id: typeof rt["id"] === "string" ? rt["id"] : "",
+                from: typeof rt["from"] === "string" ? rt["from"] : "",
+                text: typeof rt["text"] === "string" ? rt["text"] : "",
+                ...(rt["mediaType"] === "image" ? { mediaType: "image" as const } : {}),
+              };
+            }
+            if (d["reactions"] && typeof d["reactions"] === "object") {
+              const rawReactions = d["reactions"] as Record<string, unknown>;
+              const reactions: Record<string, string[]> = {};
+              for (const [emoji, uids] of Object.entries(rawReactions)) {
+                if (Array.isArray(uids)) {
+                  reactions[emoji] = uids.filter((u): u is string => typeof u === "string");
+                }
+              }
+              if (Object.keys(reactions).length > 0) {
+                msg.reactions = reactions;
+              }
             }
             msgs.push(msg);
           });
@@ -306,6 +427,15 @@ export async function subscribeToChatMeta(
         }
         const nextSenderUid =
           typeof d["nextSenderUid"] === "string" ? d["nextSenderUid"] : null;
+
+        const rawClearedAt = d["clearedAt"] as Record<string, unknown> | undefined;
+        const clearedAt: Record<string, number> = {};
+        if (rawClearedAt) {
+          for (const [k, v] of Object.entries(rawClearedAt)) {
+            clearedAt[k] = toEpochMs(v as MaybeTimestamp);
+          }
+        }
+
         listener({
           lastMessage: lm
             ? {
@@ -317,6 +447,7 @@ export async function subscribeToChatMeta(
             : null,
           lastReadAt,
           nextSenderUid,
+          clearedAt,
         });
       },
       (err) => {

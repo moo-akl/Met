@@ -10,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import {
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -29,14 +30,19 @@ import { useT } from "@/lib/i18n";
 import {
   type ChatMessage,
   type ChatMeta,
+  clearChatHistory,
+  deleteMessage,
+  getChatId,
   markChatRead,
   sendMessage,
   subscribeToChatMeta,
   subscribeToMessages,
+  toggleReaction,
   uploadChatMedia,
 } from "@/lib/firestore/chat";
 
 const MAX_CHARS = 500;
+const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,23 +110,135 @@ function DatePill({
   );
 }
 
+function ReplyQuote({
+  replyTo,
+  isMine,
+  peerName,
+  myUid,
+  myName,
+  colors,
+}: {
+  replyTo: NonNullable<ChatMessage["replyTo"]>;
+  isMine: boolean;
+  peerName: string;
+  myUid: string;
+  myName: string;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const quoteText =
+    replyTo.mediaType === "image" && !replyTo.text ? "📷 Photo" : replyTo.text;
+  return (
+    <View
+      style={[
+        styles.replyQuote,
+        {
+          borderLeftColor: isMine ? "rgba(255,255,255,0.5)" : colors.primary,
+          backgroundColor: isMine
+            ? "rgba(0,0,0,0.12)"
+            : `${colors.primary}14`,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.replyQuoteAuthor,
+          { color: isMine ? "rgba(255,255,255,0.8)" : colors.primary },
+        ]}
+        numberOfLines={1}
+      >
+        {replyTo.from === myUid ? myName : peerName}
+      </Text>
+      <Text
+        style={[
+          styles.replyQuoteText,
+          { color: isMine ? "rgba(255,255,255,0.7)" : colors.mutedForeground },
+        ]}
+        numberOfLines={2}
+      >
+        {quoteText}
+      </Text>
+    </View>
+  );
+}
+
+function ReactionBadges({
+  reactions,
+  myUid,
+  chatId,
+  msgId,
+  colors,
+}: {
+  reactions: Record<string, string[]>;
+  myUid: string;
+  chatId: string;
+  msgId: string;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const entries = Object.entries(reactions).filter(([, uids]) => uids.length > 0);
+  if (entries.length === 0) return null;
+
+  return (
+    <View style={styles.reactionRow}>
+      {entries.map(([emoji, uids]) => {
+        const iMine = uids.includes(myUid);
+        return (
+          <Pressable
+            key={emoji}
+            onPress={() => void toggleReaction(chatId, msgId, emoji, myUid)}
+            style={[
+              styles.reactionBadge,
+              {
+                backgroundColor: iMine
+                  ? `${colors.primary}22`
+                  : colors.muted,
+                borderColor: iMine ? colors.primary : colors.border,
+              },
+            ]}
+          >
+            <Text style={styles.reactionEmoji}>{emoji}</Text>
+            <Text
+              style={[
+                styles.reactionCount,
+                { color: iMine ? colors.primary : colors.mutedForeground },
+              ]}
+            >
+              {uids.length}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 function MessageBubble({
   message,
   isMine,
   showAvatar,
   peerPhoto,
+  peerName,
+  myUid,
+  myName,
+  chatId,
   colors,
   onImagePress,
+  onLongPress,
 }: {
   message: ChatMessage;
   isMine: boolean;
   showAvatar: boolean;
   peerPhoto?: string;
+  peerName: string;
+  myUid: string;
+  myName: string;
+  chatId: string;
   colors: ReturnType<typeof useColors>;
   onImagePress: (uri: string) => void;
+  onLongPress: (message: ChatMessage) => void;
 }) {
   const hasMedia = !!message.mediaUri && message.mediaType === "image";
   const hasText = !!message.text;
+  const isDeleted = message.deleted === true;
 
   return (
     <View
@@ -140,37 +258,81 @@ function MessageBubble({
           isMine ? styles.bubbleContentRight : styles.bubbleContentLeft,
         ]}
       >
+        {/* Reply quote block */}
+        {!isDeleted && message.replyTo ? (
+          <ReplyQuote
+            replyTo={message.replyTo}
+            isMine={isMine}
+            peerName={peerName}
+            myUid={myUid}
+            myName={myName}
+            colors={colors}
+          />
+        ) : null}
+
         <Pressable
-          onPress={hasMedia ? () => onImagePress(message.mediaUri!) : undefined}
-          disabled={!hasMedia}
+          onPress={hasMedia && !isDeleted ? () => onImagePress(message.mediaUri!) : undefined}
+          onLongPress={() => onLongPress(message)}
+          delayLongPress={300}
+          disabled={false}
           style={[
             styles.bubble,
             isMine
               ? [styles.bubbleMine, { backgroundColor: colors.primary }]
               : [styles.bubbleTheirs, { backgroundColor: colors.muted }],
-            hasMedia && !hasText ? styles.bubbleImageOnly : null,
+            hasMedia && !hasText && !isDeleted ? styles.bubbleImageOnly : null,
+            isDeleted ? styles.bubbleDeleted : null,
           ]}
         >
-          {hasMedia ? (
-            <Image
-              source={{ uri: message.mediaUri }}
-              style={styles.bubbleImage}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-            />
-          ) : null}
-          {hasText ? (
+          {isDeleted ? (
             <Text
               style={[
-                styles.bubbleText,
-                { color: isMine ? "#ffffff" : colors.foreground },
-                hasMedia ? styles.bubbleCaption : null,
+                styles.bubbleDeletedText,
+                {
+                  color: isMine
+                    ? "rgba(255,255,255,0.55)"
+                    : colors.mutedForeground,
+                },
               ]}
             >
-              {message.text}
+              🗑 Message deleted
             </Text>
-          ) : null}
+          ) : (
+            <>
+              {hasMedia ? (
+                <Image
+                  source={{ uri: message.mediaUri }}
+                  style={styles.bubbleImage}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
+              ) : null}
+              {hasText ? (
+                <Text
+                  style={[
+                    styles.bubbleText,
+                    { color: isMine ? "#ffffff" : colors.foreground },
+                    hasMedia ? styles.bubbleCaption : null,
+                  ]}
+                >
+                  {message.text}
+                </Text>
+              ) : null}
+            </>
+          )}
         </Pressable>
+
+        {/* Reaction badges */}
+        {message.reactions && !isDeleted ? (
+          <ReactionBadges
+            reactions={message.reactions}
+            myUid={myUid}
+            chatId={chatId}
+            msgId={message.id}
+            colors={colors}
+          />
+        ) : null}
+
         <Text
           style={[
             styles.bubbleTime,
@@ -185,6 +347,180 @@ function MessageBubble({
   );
 }
 
+// ─── Action menu (long-press) ─────────────────────────────────────────────────
+
+function MessageActionMenu({
+  visible,
+  message,
+  isMine,
+  myUid,
+  chatId,
+  colors,
+  peerName,
+  onClose,
+  onReply,
+  onDeleteDone,
+}: {
+  visible: boolean;
+  message: ChatMessage | null;
+  isMine: boolean;
+  myUid: string;
+  chatId: string;
+  colors: ReturnType<typeof useColors>;
+  peerName: string;
+  onClose: () => void;
+  onReply: (msg: ChatMessage) => void;
+  onDeleteDone: () => void;
+}) {
+  const { t } = useT();
+  const [deletingMsg, setDeletingMsg] = useState(false);
+
+  if (!message) return null;
+
+  const handleReact = async (emoji: string) => {
+    onClose();
+    await toggleReaction(chatId, message.id, emoji, myUid);
+  };
+
+  const handleReply = () => {
+    onClose();
+    onReply(message);
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      t("chat.deleteMessageTitle"),
+      t("chat.deleteMessageConfirm"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("chat.deleteAction"),
+          style: "destructive",
+          onPress: async () => {
+            setDeletingMsg(true);
+            try {
+              await deleteMessage(chatId, message.id);
+              onDeleteDone();
+            } catch {
+              // silently ignore
+            } finally {
+              setDeletingMsg(false);
+              onClose();
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const isDeleted = message.deleted === true;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Pressable style={styles.menuOverlay} onPress={onClose}>
+        <Pressable
+          style={[
+            styles.menuSheet,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Reaction row */}
+          {!isDeleted ? (
+            <View style={styles.menuReactionRow}>
+              {REACTION_EMOJIS.map((emoji) => {
+                const alreadyReacted =
+                  message.reactions?.[emoji]?.includes(myUid) ?? false;
+                return (
+                  <Pressable
+                    key={emoji}
+                    onPress={() => void handleReact(emoji)}
+                    style={[
+                      styles.menuReactionBtn,
+                      alreadyReacted && {
+                        backgroundColor: `${colors.primary}20`,
+                        borderRadius: 20,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.menuReactionEmoji}>{emoji}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {/* Divider */}
+          {!isDeleted ? (
+            <View
+              style={[styles.menuDivider, { backgroundColor: colors.border }]}
+            />
+          ) : null}
+
+          {/* Reply */}
+          {!isDeleted ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && { opacity: 0.6 },
+              ]}
+              onPress={handleReply}
+            >
+              <Feather name="corner-up-left" size={18} color={colors.foreground} />
+              <Text style={[styles.menuItemText, { color: colors.foreground }]}>
+                {t("chat.replyAction")}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          {/* Delete — only own non-deleted messages */}
+          {isMine && !isDeleted ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && { opacity: 0.6 },
+              ]}
+              onPress={handleDelete}
+              disabled={deletingMsg}
+            >
+              <Feather name="trash-2" size={18} color="#ef4444" />
+              <Text style={[styles.menuItemText, { color: "#ef4444" }]}>
+                {deletingMsg ? "Deleting…" : t("chat.deleteAction")}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          {/* Cancel */}
+          <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
+          <Pressable
+            style={({ pressed }) => [
+              styles.menuItem,
+              pressed && { opacity: 0.6 },
+            ]}
+            onPress={onClose}
+          >
+            <Text
+              style={[
+                styles.menuItemText,
+                styles.menuCancelText,
+                { color: colors.mutedForeground },
+              ]}
+            >
+              {t("common.cancel")}
+            </Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function ChatScreen() {
@@ -192,15 +528,14 @@ export default function ChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useT();
-  const { allEncounters, authedUid } = useApp();
+  const { allEncounters, authedUid, profile } = useApp();
 
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const peerUid = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Use the Firebase Auth UID directly — profile.id can differ if onboarding
-  // ran offline (stored with a "local-" prefix), which would make callerInChatId()
-  // fail in Firestore rules and cause permanent loading + send errors.
   const myUid = authedUid ?? "";
+  const myName = profile?.name ?? "You";
+
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === peerUid),
     [allEncounters, peerUid],
@@ -208,14 +543,24 @@ export default function ChatScreen() {
   const peerName = encounter?.realName ?? t("chat.unknownUser");
   const peerPhoto = encounter?.photoUri;
 
+  const chatId = useMemo(
+    () => (myUid && peerUid ? getChatId(myUid, peerUid) : ""),
+    [myUid, peerUid],
+  );
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  // undefined = still loading; null = doc doesn't exist yet
   const [meta, setMeta] = useState<ChatMeta | null | undefined>(undefined);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [pendingMedia, setPendingMedia] = useState<string | null>(null);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
+
+  // Long-press action menu state
+  const [actionMessage, setActionMessage] = useState<ChatMessage | null>(null);
+
+  // Reply state
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
 
   const listRef = useRef<FlatList<ListItem>>(null);
 
@@ -232,10 +577,16 @@ export default function ChatScreen() {
   const todayLabel = t("chat.today");
   const yesterdayLabel = t("chat.yesterday");
 
+  // Filter out messages cleared by this user
+  const visibleMessages = useMemo(() => {
+    const clearedAt = meta?.clearedAt?.[myUid] ?? 0;
+    return clearedAt > 0 ? messages.filter((m) => m.sentAt > clearedAt) : messages;
+  }, [messages, meta, myUid]);
+
   const listItems = useMemo((): ListItem[] => {
     const items: ListItem[] = [];
     let lastDay = "";
-    for (const msg of messages) {
+    for (const msg of visibleMessages) {
       const dayLabel = getDayLabel(msg.sentAt, todayLabel, yesterdayLabel);
       if (dayLabel !== lastDay) {
         items.push({ type: "date", label: dayLabel, key: `date-${dayLabel}` });
@@ -244,7 +595,7 @@ export default function ChatScreen() {
       items.push({ type: "message", message: msg });
     }
     return items;
-  }, [messages, todayLabel, yesterdayLabel]);
+  }, [visibleMessages, todayLabel, yesterdayLabel]);
 
   // Subscribe to chat meta (turn state + last message)
   useEffect(() => {
@@ -292,9 +643,9 @@ export default function ChatScreen() {
 
   // Mark read when messages arrive
   useEffect(() => {
-    if (!myUid || !peerUid || messages.length === 0) return;
+    if (!myUid || !peerUid || visibleMessages.length === 0) return;
     void markChatRead(myUid, peerUid);
-  }, [myUid, peerUid, messages.length]);
+  }, [myUid, peerUid, visibleMessages.length]);
 
   const handlePickImage = useCallback(async () => {
     if (!isMyTurn || sending) return;
@@ -319,8 +670,10 @@ export default function ChatScreen() {
     setSendError(null);
 
     const capturedMedia = pendingMedia;
+    const capturedReplyTo = replyingTo;
     setText("");
     setPendingMedia(null);
+    setReplyingTo(null);
 
     let mediaUrl: string | undefined;
     if (capturedMedia) {
@@ -330,19 +683,93 @@ export default function ChatScreen() {
         setSendError(t("chat.sendFailed"));
         if (trimmed) setText(trimmed);
         setPendingMedia(capturedMedia);
+        setReplyingTo(capturedReplyTo);
         setSending(false);
         return;
       }
     }
 
-    const err = await sendMessage(myUid, peerUid, trimmed, mediaUrl);
+    const replyToPayload = capturedReplyTo
+      ? {
+          id: capturedReplyTo.id,
+          from: capturedReplyTo.from,
+          text: capturedReplyTo.text,
+          ...(capturedReplyTo.mediaType ? { mediaType: capturedReplyTo.mediaType } : {}),
+        }
+      : undefined;
+
+    const err = await sendMessage(myUid, peerUid, trimmed, mediaUrl, replyToPayload);
     if (err !== null) {
       setSendError(t("chat.sendFailed"));
       if (trimmed) setText(trimmed);
       if (capturedMedia && !mediaUrl) setPendingMedia(capturedMedia);
+      if (capturedReplyTo) setReplyingTo(capturedReplyTo);
     }
     setSending(false);
-  }, [canSend, myUid, peerUid, text, pendingMedia, t]);
+  }, [canSend, myUid, peerUid, text, pendingMedia, replyingTo, t]);
+
+  const handleClearHistory = useCallback(() => {
+    Alert.alert(
+      t("chat.clearHistoryTitle"),
+      t("chat.clearHistoryConfirm"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("chat.clearHistoryAction"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await clearChatHistory(myUid, peerUid);
+            } catch {
+              // silently ignore
+            }
+          },
+        },
+      ],
+    );
+  }, [myUid, peerUid, t]);
+
+  const handleDeleteConversation = useCallback(() => {
+    Alert.alert(
+      t("chat.deleteConversationTitle"),
+      t("chat.deleteConversationConfirm"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("chat.deleteConversationAction"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await clearChatHistory(myUid, peerUid);
+            } catch {
+              // silently ignore
+            }
+            router.back();
+          },
+        },
+      ],
+    );
+  }, [myUid, peerUid, router, t]);
+
+  const handleChatOptions = useCallback(() => {
+    Alert.alert(
+      t("chat.options"),
+      undefined,
+      [
+        {
+          text: t("chat.clearHistoryAction"),
+          style: "destructive",
+          onPress: handleClearHistory,
+        },
+        {
+          text: t("chat.deleteConversationAction"),
+          style: "destructive",
+          onPress: handleDeleteConversation,
+        },
+        { text: t("common.cancel"), style: "cancel" },
+      ],
+    );
+  }, [handleClearHistory, handleDeleteConversation, t]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: ListItem; index: number }) => {
@@ -361,12 +788,17 @@ export default function ChatScreen() {
           isMine={isMine}
           showAvatar={showAvatar}
           peerPhoto={peerPhoto}
+          peerName={peerName}
+          myUid={myUid}
+          myName={myName}
+          chatId={chatId}
           colors={colors}
           onImagePress={setViewerUri}
+          onLongPress={setActionMessage}
         />
       );
     },
-    [myUid, listItems, peerPhoto, colors],
+    [myUid, myName, listItems, peerPhoto, peerName, chatId, colors],
   );
 
   if (!encounter) {
@@ -446,8 +878,15 @@ export default function ChatScreen() {
           </View>
         </Pressable>
 
-        {/* Spacer to keep center balanced */}
-        <View style={styles.headerBtn} />
+        {/* Chat options button */}
+        <Pressable
+          onPress={handleChatOptions}
+          hitSlop={12}
+          style={styles.headerBtn}
+          accessibilityLabel={t("chat.options")}
+        >
+          <Feather name="more-vertical" size={20} color={colors.foreground} />
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView
@@ -564,6 +1003,48 @@ export default function ChatScreen() {
           <Text style={[styles.errorText, { color: "#ef4444" }]}>
             {sendError}
           </Text>
+        ) : null}
+
+        {/* ── Reply preview strip ── */}
+        {replyingTo !== null ? (
+          <View
+            style={[
+              styles.replyPreviewBar,
+              {
+                backgroundColor: colors.card,
+                borderTopColor: colors.border,
+                borderLeftColor: colors.primary,
+              },
+            ]}
+          >
+            <View style={styles.replyPreviewContent}>
+              <Text
+                style={[styles.replyPreviewLabel, { color: colors.primary }]}
+              >
+                {t("chat.replyingTo")}{" "}
+                {replyingTo.from === myUid ? myName : peerName}
+              </Text>
+              <Text
+                style={[
+                  styles.replyPreviewText,
+                  { color: colors.mutedForeground },
+                ]}
+                numberOfLines={1}
+              >
+                {replyingTo.mediaType === "image" && !replyingTo.text
+                  ? "📷 Photo"
+                  : replyingTo.text}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setReplyingTo(null)}
+              hitSlop={10}
+              style={[styles.replyPreviewClose, { backgroundColor: colors.muted }]}
+              accessibilityLabel={t("chat.cancelReply")}
+            >
+              <Feather name="x" size={14} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
         ) : null}
 
         {/* ── Pending media preview strip ── */}
@@ -710,6 +1191,23 @@ export default function ChatScreen() {
           />
         </Pressable>
       </Modal>
+
+      {/* ── Long-press action menu ── */}
+      <MessageActionMenu
+        visible={actionMessage !== null}
+        message={actionMessage}
+        isMine={actionMessage?.from === myUid}
+        myUid={myUid}
+        chatId={chatId}
+        colors={colors}
+        peerName={peerName}
+        onClose={() => setActionMessage(null)}
+        onReply={(msg) => {
+          setActionMessage(null);
+          setReplyingTo(msg);
+        }}
+        onDeleteDone={() => setActionMessage(null)}
+      />
     </View>
   );
 }
@@ -820,10 +1318,17 @@ const styles = StyleSheet.create({
   bubble: { paddingHorizontal: 14, paddingVertical: 10, marginBottom: 3 },
   bubbleMine: { borderRadius: 20, borderBottomRightRadius: 5 },
   bubbleTheirs: { borderRadius: 20, borderBottomLeftRadius: 5 },
+  bubbleDeleted: { opacity: 0.7 },
   bubbleText: {
     fontFamily: "Inter_400Regular",
     fontSize: 15,
     lineHeight: 22,
+  },
+  bubbleDeletedText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    lineHeight: 20,
+    fontStyle: "italic",
   },
   bubbleTime: {
     fontFamily: "Inter_400Regular",
@@ -831,6 +1336,46 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     marginBottom: 2,
   },
+
+  // Reply quote inside bubble
+  replyQuote: {
+    borderLeftWidth: 3,
+    paddingLeft: 8,
+    paddingVertical: 4,
+    paddingRight: 4,
+    marginBottom: 6,
+    borderRadius: 4,
+  },
+  replyQuoteAuthor: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  replyQuoteText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  // Reaction badges below bubble
+  reactionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  reactionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  reactionEmoji: { fontSize: 13 },
+  reactionCount: { fontFamily: "Inter_500Medium", fontSize: 11 },
 
   // Turn banner
   turnBanner: {
@@ -857,6 +1402,27 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 16,
     paddingBottom: 4,
+  },
+
+  // Reply preview strip (above input bar)
+  replyPreviewBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    gap: 8,
+  },
+  replyPreviewContent: { flex: 1 },
+  replyPreviewLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12, marginBottom: 1 },
+  replyPreviewText: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  replyPreviewClose: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Input bar
@@ -959,5 +1525,45 @@ const styles = StyleSheet.create({
   viewerImage: {
     width: "100%",
     height: "80%",
+  },
+
+  // Long-press action menu
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  menuSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 8,
+    overflow: "hidden",
+  },
+  menuReactionRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+  },
+  menuReactionBtn: {
+    padding: 6,
+  },
+  menuReactionEmoji: { fontSize: 28 },
+  menuDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 0 },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  menuItemText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 16,
+  },
+  menuCancelText: {
+    textAlign: "center",
+    flex: 1,
   },
 });

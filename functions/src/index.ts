@@ -605,23 +605,37 @@ export const sendChatMessageNotification = onDocumentCreated(
 
     // Both iOS and Android register raw FCM tokens via @react-native-firebase/messaging.
     // Send directly through Firebase Admin SDK — no Expo push relay involved.
+    const msgText =
+      typeof msgData["text"] === "string" && msgData["text"].trim()
+        ? String(msgData["text"]).trim().slice(0, 120)
+        : "📷 Photo";
+
     try {
       const fcmResponse = await admin.messaging().send({
         token: pushToken,
         notification: {
-          title: "Your turn",
-          body: `${senderName} replied`,
+          title: senderName,
+          body: msgText,
         },
         android: {
           notification: {
             // Must match the channel created in configureNotifications() on the client.
             channelId: "default",
             sound: "default",
+            priority: "high",
           },
+          priority: "high",
         },
         apns: {
           payload: {
-            aps: { sound: "default" },
+            aps: {
+              sound: "default",
+              badge: 1,
+              "content-available": 1,
+            },
+          },
+          headers: {
+            "apns-priority": "10",
           },
         },
         data: { type: "chat_message", chatPeerUid: senderUid },

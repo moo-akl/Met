@@ -1,3 +1,4 @@
+- [Chat features data model](chat-features.md) — reactions/replyTo/deleted on ChatMessage; clearedAt on ChatMeta; FieldValue pattern for arrayUnion/arrayRemove
 - [inArray vs sql ANY](inarray-vs-sql-any.md) — always use Drizzle inArray() for IN-list queries, not sql`col = ANY(arr)`
 - [api-client-react initialization](api-client-react-init.md) — setBaseUrl/setAuthTokenGetter must be called at app startup; omitting them silently breaks all hooks/functions from that package.
 - [ApiOptions and auth pattern](api-options-auth.md) — ApiOptions is {uid: string, signal?}; no token field. The client auto-fetches Firebase ID token via getCurrentIdToken(). Pass {uid: authedUid ?? ""}. AppContext exposes `authedUid` (Firebase Auth UID) and `profile`; use authedUid for Firestore paths, NOT profile.id.
