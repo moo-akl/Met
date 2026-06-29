@@ -64,6 +64,7 @@ export type Preferences = {
   discoveryRange: DiscoveryRange;
   notifyDailyRecap: boolean;
   notifyRecurringMeets: boolean;
+  notifyChat: boolean;
   autoCleanupDays: AutoCleanupDays;
 };
 
@@ -71,6 +72,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   discoveryRange: "nearby",
   notifyDailyRecap: true,
   notifyRecurringMeets: true,
+  notifyChat: true,
   autoCleanupDays: 0,
 };
 
@@ -180,6 +182,10 @@ export async function loadPreferences(): Promise<Preferences> {
         typeof parsed.notifyRecurringMeets === "boolean"
           ? parsed.notifyRecurringMeets
           : DEFAULT_PREFERENCES.notifyRecurringMeets,
+      notifyChat:
+        typeof parsed.notifyChat === "boolean"
+          ? parsed.notifyChat
+          : DEFAULT_PREFERENCES.notifyChat,
       autoCleanupDays: cleanup,
     };
   } catch {

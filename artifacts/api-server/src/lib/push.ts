@@ -8,7 +8,7 @@
 import { logger } from "./logger";
 
 export interface PushData {
-  type?: "reveal_request" | "reveal_accepted" | "encounter";
+  type?: "reveal_request" | "reveal_accepted" | "encounter" | "reencounter";
   fromUid?: string;
   encounterId?: string;
 }

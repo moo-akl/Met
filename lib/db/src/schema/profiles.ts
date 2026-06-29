@@ -38,6 +38,14 @@ export const profilesTable = pgTable(
     // Used server-side to localise push notification copy (e.g. interest names).
     // Null for rows created before this column was added; treated as "en".
     preferredLocale: text("preferred_locale"),
+    // Server-side notification delivery flags. Null = all enabled (default).
+    // Synced from the app's SettingsSheet so the server can skip sending
+    // notifications the user has turned off without requiring a client round-trip.
+    notificationPrefs: jsonb("notification_prefs").$type<{
+      notifyNewEncounters?: boolean;
+      notifyReencounter?: boolean;
+      notifyChat?: boolean;
+    }>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

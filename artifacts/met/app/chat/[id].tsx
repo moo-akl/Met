@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import { Audio } from "expo-av";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   useCallback,
@@ -38,6 +39,7 @@ import {
   subscribeToChatMeta,
   subscribeToMessages,
   toggleReaction,
+  uploadChatAudio,
   uploadChatMedia,
 } from "@/lib/firestore/chat";
 
@@ -211,6 +213,111 @@ function ReactionBadges({
   );
 }
 
+// ─── AudioPlayer ──────────────────────────────────────────────────────────────
+
+function AudioPlayer({
+  uri,
+  durationMs,
+  isMine,
+  colors,
+}: {
+  uri: string;
+  durationMs?: number;
+  isMine: boolean;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [posMs, setPosMs] = useState(0);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const totalMs = durationMs ?? 0;
+
+  useEffect(() => {
+    return () => {
+      soundRef.current?.unloadAsync().catch(() => {});
+    };
+  }, []);
+
+  const toggle = useCallback(async () => {
+    try {
+      if (!soundRef.current) {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri },
+          { shouldPlay: true },
+          (status) => {
+            if (!status.isLoaded) return;
+            setPosMs(status.positionMillis ?? 0);
+            if (status.didJustFinish) {
+              setIsPlaying(false);
+              setPosMs(0);
+              soundRef.current?.unloadAsync().catch(() => {});
+              soundRef.current = null;
+            }
+          },
+        );
+        soundRef.current = sound;
+        setIsPlaying(true);
+      } else if (isPlaying) {
+        await soundRef.current.pauseAsync();
+        setIsPlaying(false);
+      } else {
+        await soundRef.current.playAsync();
+        setIsPlaying(true);
+      }
+    } catch {
+      // Ignore transient playback errors
+    }
+  }, [uri, isPlaying]);
+
+  const displayMs = isPlaying ? posMs : posMs > 0 ? posMs : totalMs;
+  const seconds = Math.max(0, Math.round(displayMs / 1000));
+  const label = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  const progress = totalMs > 0 ? Math.min(posMs / totalMs, 1) : 0;
+
+  return (
+    <View style={styles.audioPlayer}>
+      <Pressable
+        onPress={toggle}
+        style={[
+          styles.audioPlayBtn,
+          {
+            backgroundColor: isMine
+              ? "rgba(255,255,255,0.25)"
+              : "#00000018",
+          },
+        ]}
+      >
+        <Feather
+          name={isPlaying ? "pause" : "play"}
+          size={15}
+          color={isMine ? "#ffffff" : colors.foreground}
+        />
+      </Pressable>
+      <View style={styles.audioTrack}>
+        <View
+          style={[
+            styles.audioTrackFill,
+            {
+              backgroundColor: isMine ? "#ffffff" : colors.primary,
+              width: `${Math.round(progress * 100)}%` as `${number}%`,
+            },
+          ]}
+        />
+      </View>
+      <Text
+        style={[
+          styles.audioDuration,
+          { color: isMine ? "rgba(255,255,255,0.8)" : colors.mutedForeground },
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// ─── MessageBubble ────────────────────────────────────────────────────────────
+
 function MessageBubble({
   message,
   isMine,
@@ -237,6 +344,7 @@ function MessageBubble({
   onLongPress: (message: ChatMessage) => void;
 }) {
   const hasMedia = !!message.mediaUri && message.mediaType === "image";
+  const hasAudio = !!message.mediaUri && message.mediaType === "audio";
   const hasText = !!message.text;
   const isDeleted = message.deleted === true;
 
@@ -271,7 +379,7 @@ function MessageBubble({
         ) : null}
 
         <Pressable
-          onPress={hasMedia && !isDeleted ? () => onImagePress(message.mediaUri!) : undefined}
+          onPress={hasMedia && !hasAudio && !isDeleted ? () => onImagePress(message.mediaUri!) : undefined}
           onLongPress={() => onLongPress(message)}
           delayLongPress={300}
           disabled={false}
@@ -280,7 +388,7 @@ function MessageBubble({
             isMine
               ? [styles.bubbleMine, { backgroundColor: colors.primary }]
               : [styles.bubbleTheirs, { backgroundColor: colors.muted }],
-            hasMedia && !hasText && !isDeleted ? styles.bubbleImageOnly : null,
+            hasMedia && !hasText && !isDeleted && !hasAudio ? styles.bubbleImageOnly : null,
             isDeleted ? styles.bubbleDeleted : null,
           ]}
         >
@@ -299,7 +407,15 @@ function MessageBubble({
             </Text>
           ) : (
             <>
-              {hasMedia ? (
+              {hasAudio && !isDeleted ? (
+                <AudioPlayer
+                  uri={message.mediaUri!}
+                  durationMs={message.audioDurationMs}
+                  isMine={isMine}
+                  colors={colors}
+                />
+              ) : null}
+              {hasMedia && !hasAudio ? (
                 <Image
                   source={{ uri: message.mediaUri }}
                   style={styles.bubbleImage}
@@ -312,7 +428,7 @@ function MessageBubble({
                   style={[
                     styles.bubbleText,
                     { color: isMine ? "#ffffff" : colors.foreground },
-                    hasMedia ? styles.bubbleCaption : null,
+                    hasMedia && !hasAudio ? styles.bubbleCaption : null,
                   ]}
                 >
                   {message.text}
@@ -562,6 +678,14 @@ export default function ChatScreen() {
   // Reply state
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
 
+  // Voice message state
+  const [pendingAudio, setPendingAudio] = useState<string | null>(null);
+  const [pendingAudioMs, setPendingAudioMs] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const listRef = useRef<FlatList<ListItem>>(null);
 
   const isLoading = meta === undefined;
@@ -571,7 +695,10 @@ export default function ChatScreen() {
     meta.nextSenderUid === null ||
     meta.nextSenderUid === myUid;
   const canSend =
-    isMyTurn && (text.trim().length > 0 || pendingMedia !== null) && !sending;
+    isMyTurn &&
+    (text.trim().length > 0 || pendingMedia !== null || pendingAudio !== null) &&
+    !sending &&
+    !isRecording;
   const charsLeft = MAX_CHARS - text.length;
 
   const todayLabel = t("chat.today");
@@ -653,7 +780,6 @@ export default function ChatScreen() {
       mediaTypes: ["images"],
       allowsEditing: false,
       quality: 1,
-      copyToCacheDirectory: true,
     });
     if (!result.canceled && result.assets[0]) {
       setPendingMedia(result.assets[0].uri);
@@ -661,18 +787,70 @@ export default function ChatScreen() {
     }
   }, [isMyTurn, sending]);
 
+  const handleToggleRecording = useCallback(async () => {
+    if (!isMyTurn || sending) return;
+    if (isRecording) {
+      setIsRecording(false);
+      if (recordTimerRef.current) {
+        clearInterval(recordTimerRef.current);
+        recordTimerRef.current = null;
+      }
+      try {
+        const rec = recordingRef.current;
+        if (!rec) return;
+        recordingRef.current = null;
+        const status = await rec.stopAndUnloadAsync();
+        const uri = rec.getURI();
+        if (uri) {
+          setPendingAudio(uri);
+          setPendingAudioMs((status as { durationMillis?: number }).durationMillis ?? recordSecs * 1000);
+          setSendError(null);
+        }
+      } catch {
+        // ignore transient recording errors
+      }
+      setRecordSecs(0);
+    } else {
+      setPendingAudio(null);
+      try {
+        const { granted } = await Audio.requestPermissionsAsync();
+        if (!granted) {
+          Alert.alert(
+            "Microphone access needed",
+            "Please allow microphone access in Settings to send voice messages.",
+          );
+          return;
+        }
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        const { recording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        );
+        recordingRef.current = recording;
+        setIsRecording(true);
+        setRecordSecs(0);
+        recordTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
+      } catch {
+        Alert.alert("Error", "Could not start recording. Please try again.");
+      }
+    }
+  }, [isMyTurn, sending, isRecording, recordSecs]);
+
   const handleSend = useCallback(async () => {
     if (!canSend || !myUid || !peerUid) return;
     const trimmed = text.trim();
-    if (!trimmed && !pendingMedia) return;
+    if (!trimmed && !pendingMedia && !pendingAudio) return;
 
     setSending(true);
     setSendError(null);
 
     const capturedMedia = pendingMedia;
+    const capturedAudio = pendingAudio;
+    const capturedAudioMs = pendingAudioMs;
     const capturedReplyTo = replyingTo;
     setText("");
     setPendingMedia(null);
+    setPendingAudio(null);
+    setPendingAudioMs(0);
     setReplyingTo(null);
 
     let mediaUrl: string | undefined;
@@ -683,6 +861,18 @@ export default function ChatScreen() {
         setSendError(t("chat.sendFailed"));
         if (trimmed) setText(trimmed);
         setPendingMedia(capturedMedia);
+        setReplyingTo(capturedReplyTo);
+        setSending(false);
+        return;
+      }
+    } else if (capturedAudio) {
+      try {
+        mediaUrl = await uploadChatAudio(myUid, peerUid, capturedAudio);
+      } catch {
+        setSendError(t("chat.sendFailed"));
+        if (trimmed) setText(trimmed);
+        setPendingAudio(capturedAudio);
+        setPendingAudioMs(capturedAudioMs);
         setReplyingTo(capturedReplyTo);
         setSending(false);
         return;
@@ -698,15 +888,24 @@ export default function ChatScreen() {
         }
       : undefined;
 
-    const err = await sendMessage(myUid, peerUid, trimmed, mediaUrl, replyToPayload);
+    const err = await sendMessage(myUid, peerUid, trimmed, {
+      mediaUri: capturedAudio ? undefined : mediaUrl,
+      audioUri: capturedAudio ? mediaUrl : undefined,
+      audioDurationMs: capturedAudio ? capturedAudioMs : undefined,
+      replyTo: replyToPayload,
+    });
     if (err !== null) {
       setSendError(t("chat.sendFailed"));
       if (trimmed) setText(trimmed);
       if (capturedMedia && !mediaUrl) setPendingMedia(capturedMedia);
+      if (capturedAudio && !mediaUrl) {
+        setPendingAudio(capturedAudio);
+        setPendingAudioMs(capturedAudioMs);
+      }
       if (capturedReplyTo) setReplyingTo(capturedReplyTo);
     }
     setSending(false);
-  }, [canSend, myUid, peerUid, text, pendingMedia, replyingTo, t]);
+  }, [canSend, myUid, peerUid, text, pendingMedia, pendingAudio, pendingAudioMs, replyingTo, t]);
 
   const handleClearHistory = useCallback(() => {
     Alert.alert(
@@ -1033,7 +1232,9 @@ export default function ChatScreen() {
               >
                 {replyingTo.mediaType === "image" && !replyingTo.text
                   ? "📷 Photo"
-                  : replyingTo.text}
+                  : replyingTo.mediaType === "audio" && !replyingTo.text
+                    ? "🎤 Voice message"
+                    : replyingTo.text}
               </Text>
             </View>
             <Pressable
@@ -1043,6 +1244,52 @@ export default function ChatScreen() {
               accessibilityLabel={t("chat.cancelReply")}
             >
               <Feather name="x" size={14} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* ── Recording indicator ── */}
+        {isRecording ? (
+          <View
+            style={[
+              styles.mediaPreviewBar,
+              { backgroundColor: colors.card, borderTopColor: colors.border },
+            ]}
+          >
+            <View style={styles.recordingRow}>
+              <View style={[styles.recordingDot, { backgroundColor: "#ef4444" }]} />
+              <Text style={[styles.recordingTimer, { color: colors.foreground }]}>
+                {`${Math.floor(recordSecs / 60)}:${String(recordSecs % 60).padStart(2, "0")}`}
+              </Text>
+            </View>
+            <Text style={[{ fontFamily: "Inter_400Regular", fontSize: 13 }, { color: colors.mutedForeground }]}>
+              Tap ■ to finish
+            </Text>
+          </View>
+        ) : null}
+
+        {/* ── Pending audio preview ── */}
+        {pendingAudio !== null && !isRecording ? (
+          <View
+            style={[
+              styles.mediaPreviewBar,
+              { backgroundColor: colors.card, borderTopColor: colors.border },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <AudioPlayer
+                uri={pendingAudio}
+                durationMs={pendingAudioMs}
+                isMine={false}
+                colors={colors}
+              />
+            </View>
+            <Pressable
+              onPress={() => { setPendingAudio(null); setPendingAudioMs(0); }}
+              style={[styles.mediaRemoveBtn, { backgroundColor: colors.muted }]}
+              hitSlop={8}
+            >
+              <Feather name="x" size={14} color={colors.foreground} />
             </Pressable>
           </View>
         ) : null}
@@ -1105,6 +1352,27 @@ export default function ChatScreen() {
             accessibilityLabel={t("chat.attachPhoto")}
           >
             <Feather name="image" size={22} color={colors.mutedForeground} />
+          </Pressable>
+
+          {/* Voice message button */}
+          <Pressable
+            onPress={handleToggleRecording}
+            disabled={!isMyTurn || sending}
+            style={({ pressed }) => [
+              styles.photoBtn,
+              {
+                backgroundColor: isRecording ? "#ef4444" : "transparent",
+                borderRadius: 22,
+                opacity: !isMyTurn || sending ? 0.35 : pressed ? 0.6 : 1,
+              },
+            ]}
+            accessibilityLabel={isRecording ? "Stop recording" : "Record voice message"}
+          >
+            <Feather
+              name={isRecording ? "square" : "mic"}
+              size={22}
+              color={isRecording ? "#ffffff" : colors.mutedForeground}
+            />
           </Pressable>
 
           <View
@@ -1565,5 +1833,55 @@ const styles = StyleSheet.create({
   menuCancelText: {
     textAlign: "center",
     flex: 1,
+  },
+
+  // Audio player in message bubble
+  audioPlayer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 160,
+    paddingVertical: 2,
+  },
+  audioPlayBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  audioTrack: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(128,128,128,0.3)",
+    overflow: "hidden",
+  },
+  audioTrackFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  audioDuration: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    minWidth: 32,
+    textAlign: "right",
+  },
+
+  // Recording indicator
+  recordingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  recordingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  recordingTimer: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
   },
 });

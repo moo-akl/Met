@@ -34,6 +34,7 @@ export default function ConnectionScreen() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const {
     allEncounters,
+    authedUid,
     removeEncounter,
     setBlocked,
     setNote,
@@ -46,6 +47,8 @@ export default function ConnectionScreen() {
   const [reportConfirmation, setReportConfirmation] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [liveInterests, setLiveInterests] = useState<string[] | undefined>(undefined);
+  const [mutualCount, setMutualCount] = useState(0);
+  const [mutualNames, setMutualNames] = useState<string[]>([]);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -76,6 +79,20 @@ export default function ConnectionScreen() {
       .catch(() => {});
     return () => ctrl.abort();
   }, [encounter?.id, profile?.id]);
+
+  // Fetch mutual connections — people both the viewer and this user know.
+  useEffect(() => {
+    if (!encounter || !authedUid) return;
+    const ctrl = new AbortController();
+    api
+      .getMutualConnections({ uid: authedUid, signal: ctrl.signal }, encounter.id)
+      .then((r) => {
+        setMutualCount(r.count);
+        setMutualNames(r.names);
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [encounter?.id, authedUid]);
 
   if (!encounter) {
     return (
@@ -274,6 +291,29 @@ export default function ConnectionScreen() {
                     </Text>
                   </View>
                 ))}
+              </View>
+            </View>
+          ) : null}
+
+          {mutualCount > 0 ? (
+            <View style={styles.mutualBlock}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                People you both know
+              </Text>
+              <View
+                style={[
+                  styles.mutualRow,
+                  { backgroundColor: colors.muted, borderColor: colors.border },
+                ]}
+              >
+                <Text style={styles.mutualEmoji}>🤝</Text>
+                <Text style={[styles.mutualText, { color: colors.foreground }]}>
+                  {mutualCount === 1 && mutualNames.length >= 1
+                    ? `${mutualNames[0]} in common`
+                    : mutualNames.length >= 2
+                      ? `${mutualNames.slice(0, 2).join(", ")}${mutualCount > 2 ? ` +${mutualCount - 2} more` : ""}`
+                      : `${mutualCount} ${mutualCount === 1 ? "person" : "people"} in common`}
+                </Text>
               </View>
             </View>
           ) : null}
@@ -708,6 +748,17 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
+  mutualBlock: { marginTop: 16, gap: 6 },
+  mutualRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  mutualEmoji: { fontSize: 18 },
+  mutualText: { fontFamily: "Inter_400Regular", fontSize: 14, flex: 1 },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
 
   // Note + tag editors

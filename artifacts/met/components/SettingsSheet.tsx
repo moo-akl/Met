@@ -23,6 +23,7 @@ import { Avatar } from "@/components/Avatar";
 import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
+import { api } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { type AccountInfo, getCurrentUserAccount } from "@/lib/auth";
@@ -226,6 +227,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const {
     profile,
     setProfile,
+    authedUid,
     blockedEncounters,
     setBlocked,
     resetAll,
@@ -234,6 +236,23 @@ export function SettingsSheet({ visible, onClose }: Props) {
     updatePreferences,
     markPhotoVerified,
   } = useApp();
+
+  // Wrapper that updates AsyncStorage preferences AND syncs them server-side
+  // so the server can suppress unwanted push notifications.
+  const updateNotifPrefs = (
+    partial: Partial<Pick<typeof preferences, "notifyRecurringMeets" | "notifyChat">>,
+  ) => {
+    updatePreferences(partial);
+    if (!authedUid) return;
+    const serverPrefs: Parameters<typeof api.syncNotificationPrefs>[1] = {};
+    if (partial.notifyRecurringMeets !== undefined)
+      serverPrefs.notifyReencounter = partial.notifyRecurringMeets;
+    if (partial.notifyChat !== undefined)
+      serverPrefs.notifyChat = partial.notifyChat;
+    if (Object.keys(serverPrefs).length > 0) {
+      api.syncNotificationPrefs({ uid: authedUid }, serverPrefs).catch(() => {});
+    }
+  };
   const { tier, promoPlusActive } = useSubscription();
   const referrals = useReferrals();
   const router = useRouter();
@@ -1089,7 +1108,17 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 sub={t("settings.reencounterNudgesSub")}
                 value={preferences.notifyRecurringMeets}
                 onValueChange={(v) =>
-                  updatePreferences({ notifyRecurringMeets: v })
+                  updateNotifPrefs({ notifyRecurringMeets: v })
+                }
+                colors={colors}
+              />
+              <ToggleRow
+                icon="message-circle"
+                label={t("settings.notifyChat")}
+                sub={t("settings.notifyChatSub")}
+                value={preferences.notifyChat}
+                onValueChange={(v) =>
+                  updateNotifPrefs({ notifyChat: v })
                 }
                 colors={colors}
               />

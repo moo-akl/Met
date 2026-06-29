@@ -685,6 +685,9 @@ export const nl: LocaleTree = {
     dailyRecapSub:
       "Ochtendsamenvatting zoals \u201CGisteren kwam je 4 mensen tegen; 1 was je tweede keer.\u201D",
     reencounterNudges: "Herontmoetingsmeldingen",
+    notifyChat: "Chatberichten",
+    notifyChatSub:
+      "Ontvang een melding als een van je connecties je een nieuw bericht stuurt.",
     reencounterNudgesSub:
       "Geef me een seintje als ik iemand voor de 3e keer of vaker tegenkom.",
     visibleOnRadar: "Zichtbaar op radar",

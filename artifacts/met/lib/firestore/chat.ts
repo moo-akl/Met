@@ -20,18 +20,25 @@ export interface ChatMessage {
   sentAt: number; // epoch ms
   /** Firebase Storage download URL for an image attachment. */
   mediaUri?: string;
-  /** Media type — currently only "image" is supported. */
-  mediaType?: "image";
+  /** Media type — "image" or "audio". */
+  mediaType?: "image" | "audio";
+  /** Duration of audio clip in milliseconds. */
+  audioDurationMs?: number;
   /** Reactions: emoji → array of UIDs who reacted. */
   reactions?: Record<string, string[]>;
   /** Message this is replying to (snapshot at send time). */
-  replyTo?: { id: string; from: string; text: string; mediaType?: "image" };
+  replyTo?: { id: string; from: string; text: string; mediaType?: "image" | "audio" };
   /** Soft-deleted flag — message content hidden, stub shown instead. */
   deleted?: boolean;
 }
 
 export interface ChatMeta {
-  lastMessage: { text: string; from: string; sentAt: number; mediaType?: "image" } | null;
+  lastMessage: {
+    text: string;
+    from: string;
+    sentAt: number;
+    mediaType?: "image" | "audio";
+  } | null;
   lastReadAt: Record<string, number>; // uid → epoch ms
   /** Whose turn it is to send next. null = either participant can go first. */
   nextSenderUid: string | null;
@@ -51,29 +58,16 @@ function toEpochMs(v: MaybeTimestamp): number {
 /**
  * Upload a local image URI to Firebase Storage via REST API.
  * Returns a token-bearing download URL (no auth headers needed for display).
- *
- * Does NOT compress — expo-image-manipulator is a native module that is only
- * safe to call from a build that explicitly links it. Compression can be
- * re-added once a new EAS build includes the module.
- *
- * The image picker returns a file:// URI by default (copyToCacheDirectory=true),
- * which React Native's Hermes fetch can read as a blob directly.
  */
 export async function uploadChatMedia(
   fromUid: string,
   toUid: string,
   localUri: string,
 ): Promise<string> {
-  // ── 1. Get Firebase Auth ID token ─────────────────────────────────────────
   const authMod = await import("@react-native-firebase/auth");
   const idToken = await authMod.default().currentUser?.getIdToken();
   if (!idToken) throw new Error("Not authenticated");
 
-  // ── 2. Read file as blob and POST to Firebase Storage REST API ───────────
-  //
-  // Avoids @react-native-firebase/storage and expo-image-manipulator entirely —
-  // both are native modules that require a fresh EAS build to link.
-  // Hermes fetch natively handles file:// URIs as binary blobs.
   const BUCKET = "metapp-b4642.firebasestorage.app";
   const chatId = getChatId(fromUid, toUid);
   const storagePath = `chats/${chatId}/${Date.now()}.jpg`;
@@ -100,7 +94,6 @@ export async function uploadChatMedia(
     throw new Error(`Storage upload failed (${uploadResponse.status}): ${errText}`);
   }
 
-  // ── 3. Return token-bearing download URL (no auth headers needed) ─────────
   const meta = (await uploadResponse.json()) as { downloadTokens?: string };
   const dlToken = meta.downloadTokens;
   if (!dlToken) throw new Error("No download token in upload response");
@@ -112,29 +105,85 @@ export async function uploadChatMedia(
 }
 
 /**
+ * Upload a local audio file URI to Firebase Storage via REST API.
+ * Returns a token-bearing download URL. Supports m4a and mp4 audio.
+ */
+export async function uploadChatAudio(
+  fromUid: string,
+  toUid: string,
+  localUri: string,
+): Promise<string> {
+  const authMod = await import("@react-native-firebase/auth");
+  const idToken = await authMod.default().currentUser?.getIdToken();
+  if (!idToken) throw new Error("Not authenticated");
+
+  const BUCKET = "metapp-b4642.firebasestorage.app";
+  const chatId = getChatId(fromUid, toUid);
+  const storagePath = `chats/${chatId}/audio_${Date.now()}.m4a`;
+  const encodedPath = encodeURIComponent(storagePath);
+  const uploadUrl =
+    `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o` +
+    `?uploadType=media&name=${encodedPath}`;
+
+  const fileResponse = await fetch(localUri);
+  if (!fileResponse.ok) throw new Error(`Cannot read audio file (${fileResponse.status})`);
+  const blob = await fileResponse.blob();
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      "Content-Type": "audio/m4a",
+    },
+    body: blob,
+  });
+
+  if (!uploadResponse.ok) {
+    const errText = await uploadResponse.text().catch(() => String(uploadResponse.status));
+    throw new Error(`Audio upload failed (${uploadResponse.status}): ${errText}`);
+  }
+
+  const meta = (await uploadResponse.json()) as { downloadTokens?: string };
+  const dlToken = meta.downloadTokens;
+  if (!dlToken) throw new Error("No download token in audio upload response");
+
+  return (
+    `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodedPath}` +
+    `?alt=media&token=${dlToken}`
+  );
+}
+
+export interface SendMessageOpts {
+  mediaUri?: string;
+  audioUri?: string;
+  audioDurationMs?: number;
+  replyTo?: { id: string; from: string; text: string; mediaType?: "image" | "audio" };
+}
+
+/**
  * Send a message from `fromUid` to the chat shared with `toUid`.
  *
- * Accepts an optional `mediaUri` (Firebase Storage download URL) and an
- * optional `replyTo` snapshot for threaded replies.
- * Either `text` or `mediaUri` (or both) must be present.
+ * Pass media via opts.mediaUri (image) or opts.audioUri (voice clip).
+ * Either text or one of the media fields (or both) must be present.
  *
- * Uses a WriteBatch so the message doc and the chat meta update
- * (which flips nextSenderUid to enforce the ping-pong turn rule)
- * are committed atomically.
- *
+ * Uses a WriteBatch so the message doc and the chat meta update are atomic.
  * Returns null on success, or an error string on failure.
  */
 export async function sendMessage(
   fromUid: string,
   toUid: string,
   text: string,
-  mediaUri?: string,
-  replyTo?: { id: string; from: string; text: string; mediaType?: "image" },
+  opts?: SendMessageOpts,
 ): Promise<string | null> {
   const fs = await getFirestoreModule();
   if (!fs) return "Firestore unavailable (native module not loaded)";
   const trimmed = text.trim();
-  if (!trimmed && !mediaUri) return "Empty message";
+  const mediaUri = opts?.mediaUri;
+  const audioUri = opts?.audioUri;
+  const audioDurationMs = opts?.audioDurationMs;
+  const replyTo = opts?.replyTo;
+
+  if (!trimmed && !mediaUri && !audioUri) return "Empty message";
 
   if (!fromUid || !toUid) {
     return `Invalid UIDs — fromUid="${fromUid}" toUid="${toUid}"`;
@@ -145,27 +194,30 @@ export async function sendMessage(
   const chatRef = fs.collection("chats").doc(chatId);
   const msgRef = chatRef.collection("messages").doc();
 
-  // For the last-message preview: use text if present, otherwise "📷" placeholder
-  const previewText = trimmed || "📷";
+  const previewText = trimmed || (audioUri ? "🎤 Voice message" : "📷");
 
   try {
     const batch = fs.batch();
 
-    // Message doc — the turn rule is enforced server-side in Firestore rules
-    // (messages create requires nextSenderUid == null || == caller).
     const msgData: Record<string, unknown> = { from: fromUid, text: trimmed, sentAt: now };
     if (mediaUri) {
       msgData["mediaUri"] = mediaUri;
       msgData["mediaType"] = "image";
+    }
+    if (audioUri) {
+      msgData["mediaUri"] = audioUri;
+      msgData["mediaType"] = "audio";
+      if (audioDurationMs) msgData["audioDurationMs"] = audioDurationMs;
     }
     if (replyTo) {
       msgData["replyTo"] = replyTo;
     }
     batch.set(msgRef, msgData);
 
-    // Chat meta — flip the turn to the recipient so they can reply.
     const lastMessage: Record<string, unknown> = { text: previewText, from: fromUid, sentAt: now };
     if (mediaUri) lastMessage["mediaType"] = "image";
+    if (audioUri) lastMessage["mediaType"] = "audio";
+
     batch.set(
       chatRef,
       {
@@ -179,16 +231,16 @@ export async function sendMessage(
 
     await batch.commit();
 
-    // Best-effort server-side notification — runs after commit so it
-    // never blocks the message send. Errors are swallowed intentionally.
     api
       .notifyChatMessage(
         { uid: fromUid },
-        { recipientUid: toUid, text: trimmed || "📷 Photo", chatPeerUid: fromUid },
+        {
+          recipientUid: toUid,
+          text: trimmed || (audioUri ? "🎤 Voice message" : "📷 Photo"),
+          chatPeerUid: fromUid,
+        },
       )
-      .catch(() => {
-        // best-effort — ignore
-      });
+      .catch(() => {});
 
     return null;
   } catch (err) {
@@ -237,7 +289,6 @@ export async function toggleReaction(
 
 /**
  * Soft-delete a message (sets deleted: true).
- * Message content is hidden for all participants; a stub is shown instead.
  * Only the sender should call this (Firestore rules enforce ownership).
  */
 export async function deleteMessage(
@@ -301,11 +352,8 @@ export async function subscribeToMessages(
 
   const chatId = getChatId(myUid, peerUid);
 
-  // Auto-retry: if the onSnapshot listener dies with an error
-  // (e.g. PERMISSION_DENIED from a stale rule set), re-subscribe after
-  // a short back-off so the UI recovers without needing an app restart.
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
-  const RETRY_DELAYS = [2000, 5000, 15000]; // ms
+  const RETRY_DELAYS = [2000, 5000, 15000];
   let retryCount = 0;
 
   function attach() {
@@ -320,10 +368,15 @@ export async function subscribeToMessages(
       .limitToLast(200)
       .onSnapshot(
         (snap) => {
-          retryCount = 0; // reset back-off on any successful snapshot
+          retryCount = 0;
           const msgs: ChatMessage[] = [];
           snap.forEach((doc) => {
             const d = doc.data() as Record<string, unknown>;
+            const mediaType = d["mediaType"] === "image"
+              ? "image" as const
+              : d["mediaType"] === "audio"
+                ? "audio" as const
+                : undefined;
             const msg: ChatMessage = {
               id: doc.id,
               from: typeof d["from"] === "string" ? d["from"] : "",
@@ -332,18 +385,26 @@ export async function subscribeToMessages(
             };
             if (typeof d["mediaUri"] === "string") {
               msg.mediaUri = d["mediaUri"];
-              msg.mediaType = "image";
+              msg.mediaType = mediaType;
+            }
+            if (typeof d["audioDurationMs"] === "number") {
+              msg.audioDurationMs = d["audioDurationMs"];
             }
             if (d["deleted"] === true) {
               msg.deleted = true;
             }
             if (d["replyTo"] && typeof d["replyTo"] === "object") {
               const rt = d["replyTo"] as Record<string, unknown>;
+              const rtMediaType = rt["mediaType"] === "image"
+                ? "image" as const
+                : rt["mediaType"] === "audio"
+                  ? "audio" as const
+                  : undefined;
               msg.replyTo = {
                 id: typeof rt["id"] === "string" ? rt["id"] : "",
                 from: typeof rt["from"] === "string" ? rt["from"] : "",
                 text: typeof rt["text"] === "string" ? rt["text"] : "",
-                ...(rt["mediaType"] === "image" ? { mediaType: "image" as const } : {}),
+                ...(rtMediaType ? { mediaType: rtMediaType } : {}),
               };
             }
             if (d["reactions"] && typeof d["reactions"] === "object") {
@@ -383,8 +444,6 @@ export async function subscribeToMessages(
 
 /**
  * Mark messages as read by updating lastReadAt for myUid on the chat doc.
- * Uses update() so dot-notation correctly sets the nested field.
- * Silently ignores errors (doc may not exist yet if no messages have been sent).
  */
 export async function markChatRead(
   myUid: string,
@@ -399,7 +458,7 @@ export async function markChatRead(
       .doc(chatId)
       .update({ [`lastReadAt.${myUid}`]: Date.now() });
   } catch {
-    // Doc doesn't exist yet (no messages sent) — nothing to mark as read.
+    // Doc doesn't exist yet — nothing to mark as read.
   }
 }
 
@@ -416,8 +475,6 @@ export async function subscribeToChatMeta(
   let real: (() => void) | null = null;
   const fs = await getFirestoreModule();
   if (!fs) {
-    // Firestore unavailable (native module not linked or init failed).
-    // Resolve the loading state so the UI doesn't spin forever.
     if (!cancelled) listener(null);
     return () => {};
   }
@@ -449,13 +506,19 @@ export async function subscribeToChatMeta(
           }
         }
 
+        const lmMediaType = lm?.["mediaType"] === "image"
+          ? "image" as const
+          : lm?.["mediaType"] === "audio"
+            ? "audio" as const
+            : undefined;
+
         listener({
           lastMessage: lm
             ? {
                 text: typeof lm["text"] === "string" ? lm["text"] : "",
                 from: typeof lm["from"] === "string" ? lm["from"] : "",
                 sentAt: toEpochMs(lm["sentAt"] as MaybeTimestamp),
-                ...(lm["mediaType"] === "image" ? { mediaType: "image" as const } : {}),
+                ...(lmMediaType ? { mediaType: lmMediaType } : {}),
               }
             : null,
           lastReadAt,
@@ -465,7 +528,6 @@ export async function subscribeToChatMeta(
       },
       (err) => {
         console.warn("[chat] meta snapshot error", err);
-        // Always resolve loading state on error so the UI never hangs.
         listener(null);
       },
     );

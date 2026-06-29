@@ -32,6 +32,7 @@ import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
 import { loadDragHintDismissed, MAX_EXTRA_PHOTOS_BY_TIER, saveDragHintDismissed } from "@/lib/storage";
+import { api } from "@/lib/api/client";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
 
 const SOCIAL_FIELDS: Array<{ key: SocialPlatform; labelKey: string }> = [
@@ -50,11 +51,16 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t, lang } = useT();
-  const { profile, setProfile } = useApp();
+  const { profile, setProfile, authedUid } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const { tier } = useSubscription();
 
   const [editing, setEditing] = useState(false);
+  const [streak, setStreak] = useState<{
+    currentStreak: number;
+    longestStreak: number;
+    totalConnections: number;
+  } | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [shareCardOpen, setShareCardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -154,6 +160,17 @@ export default function ProfileScreen() {
       { cancelable: true },
     );
   };
+
+  // Fetch connection streak stats so we can show the user their progress.
+  useEffect(() => {
+    if (!authedUid) return;
+    const ctrl = new AbortController();
+    api
+      .getStreak({ uid: authedUid, signal: ctrl.signal })
+      .then((s) => setStreak(s))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [authedUid]);
 
   const handlePhotoVerified = async (uri: string) => {
     if (pendingIntent === "main") {
@@ -503,6 +520,25 @@ export default function ProfileScreen() {
           ]}
         />
 
+        {streak && streak.currentStreak > 0 ? (
+          <View
+            style={[
+              styles.streakCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={styles.streakEmoji}>🔥</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.streakCount, { color: colors.foreground }]}>
+                {streak.currentStreak} day{streak.currentStreak !== 1 ? "s" : ""} streak
+              </Text>
+              <Text style={[styles.streakSub, { color: colors.mutedForeground }]}>
+                Best: {streak.longestStreak} · {streak.totalConnections} connections
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         {editing ? (
           <View style={{ gap: 12 }}>
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
@@ -818,6 +854,17 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
   },
+  streakCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  streakEmoji: { fontSize: 28 },
+  streakCount: { fontFamily: "Inter_600SemiBold", fontSize: 16 },
+  streakSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
   photoTile: {
     width: 78,
     height: 78,

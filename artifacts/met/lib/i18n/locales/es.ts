@@ -678,6 +678,9 @@ export const es: LocaleTree = {
     dailyRecapSub:
       "Resumen matinal estilo \u201CAyer te cruzaste con 4 personas; con 1 era tu segunda vez.\u201D",
     reencounterNudges: "Avisos de reencuentro",
+    notifyChat: "Mensajes de chat",
+    notifyChatSub:
+      "Recibe notificaciones cuando tus contactos te envíen un mensaje nuevo.",
     reencounterNudgesSub:
       "Avísame cuando me cruce con alguien por 3ª vez o más.",
     visibleOnRadar: "Visible en el radar",

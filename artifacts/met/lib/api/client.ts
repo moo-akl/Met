@@ -99,7 +99,7 @@ export interface ApiOptions {
 }
 
 async function request<T>(
-  method: "GET" | "PUT" | "POST" | "DELETE",
+  method: "GET" | "PUT" | "POST" | "DELETE" | "PATCH",
   path: string,
   opts: ApiOptions,
   body?: unknown,
@@ -181,6 +181,12 @@ export interface UpsertProfileInput {
   isVisible?: boolean;
   /** BCP-47 language code selected in the app. Optional; null preserves existing. */
   preferredLocale?: string | null;
+  /** Server-side notification delivery flags. Null = all enabled (default). */
+  notificationPrefs?: {
+    notifyNewEncounters?: boolean;
+    notifyReencounter?: boolean;
+    notifyChat?: boolean;
+  } | null;
 }
 
 export interface RemoteEncounter {
@@ -473,5 +479,44 @@ export const api = {
       "/api/chats/notify",
       opts,
       input,
+    ),
+  /**
+   * Returns users who are accepted connections of BOTH the caller and `otherUid`.
+   * Useful for showing "You both know N people" on a connection profile card.
+   */
+  getMutualConnections: (opts: ApiOptions, otherUid: string) =>
+    request<{ count: number; names: string[] }>(
+      "GET",
+      `/api/profiles/me/mutual?with=${encodeURIComponent(otherUid)}`,
+      opts,
+    ),
+  /**
+   * Returns the caller's connection streak stats computed from reveal_requests.
+   * currentStreak = consecutive days (ending today/yesterday) with ≥1 new connection.
+   */
+  getStreak: (opts: ApiOptions) =>
+    request<{ currentStreak: number; longestStreak: number; totalConnections: number }>(
+      "GET",
+      "/api/profiles/me/streak",
+      opts,
+    ),
+  /**
+   * Lightweight server-sync of notification preferences. Accepts any subset
+   * of the known keys; merges with existing values on the server.
+   * Best-effort — call fire-and-forget; the app works fine without it.
+   */
+  syncNotificationPrefs: (
+    opts: ApiOptions,
+    prefs: {
+      notifyNewEncounters?: boolean;
+      notifyReencounter?: boolean;
+      notifyChat?: boolean;
+    },
+  ) =>
+    request<{ success: boolean }>(
+      "PATCH",
+      "/api/profiles/me/notification-prefs",
+      opts,
+      prefs,
     ),
 };

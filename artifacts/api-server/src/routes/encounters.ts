@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, or } from "drizzle-orm";
 import {
   db,
   encountersTable,
   profilesTable,
+  revealRequestsTable,
   type Encounter,
   type Profile,
 } from "@workspace/db";
@@ -203,6 +204,8 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
       pushToken: profilesTable.pushToken,
       interests: profilesTable.interests,
       preferredLocale: profilesTable.preferredLocale,
+      displayName: profilesTable.displayName,
+      notificationPrefs: profilesTable.notificationPrefs,
     })
     .from(profilesTable)
     .where(eq(profilesTable.uid, body.otherUid))
@@ -226,41 +229,87 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
       location: body.location ?? null,
     });
 
+    // Check if observer and observed are already connected (mutual accepted reveal).
+    // This determines which notification type to send.
+    const [existingReveal] = await db
+      .select({ id: revealRequestsTable.id })
+      .from(revealRequestsTable)
+      .where(
+        and(
+          eq(revealRequestsTable.status, "accepted"),
+          or(
+            and(
+              eq(revealRequestsTable.senderUid, uid),
+              eq(revealRequestsTable.recipientUid, body.otherUid),
+            ),
+            and(
+              eq(revealRequestsTable.senderUid, body.otherUid),
+              eq(revealRequestsTable.recipientUid, uid),
+            ),
+          ),
+        ),
+      )
+      .limit(1);
+    const isConnected = !!existingReveal;
+
     // Best-effort push to the other user — rate-limited to once per 15 min
     // per (observer, observed) pair so repeated BLE/GPS detections don't
     // spam. `encounterId` carries the observer's uid so the recipient's
     // tap-handler routes to /encounter/{observerUid}.
     if (other.pushToken && checkNearbyPushAllowed(uid, body.otherUid)) {
-      // Build an interest-aware body: if the two users share at least one
-      // interest, mention it so the notification is more enticing to tap.
-      let pushBody = "You've crossed paths with someone.";
-      const otherInterests = (other.interests ?? []) as string[];
-      if (otherInterests.length > 0) {
-        // Look up the observer's interests to find a shared one.
-        const [callerRow] = await db
-          .select({ interests: profilesTable.interests })
-          .from(profilesTable)
-          .where(eq(profilesTable.uid, uid))
-          .limit(1);
-        const callerInterests = (callerRow?.interests ?? []) as string[];
-        // Normalize to lower-case for comparison so casing differences in
-        // legacy stored data never prevent a valid overlap from being found.
-        const callerLower = new Set(callerInterests.map((i) => i.toLowerCase()));
-        const shared = otherInterests.filter((i) =>
-          callerLower.has(i.toLowerCase()),
-        );
-        if (shared.length > 0) {
-          // Translate the interest label into the recipient's language so the
-          // notification copy reads naturally for non-English speakers.
-          const label = localiseInterest(shared[0], other.preferredLocale);
-          pushBody = `Someone nearby also likes ${label}!`;
+      const notifPrefs = other.notificationPrefs as {
+        notifyNewEncounters?: boolean;
+        notifyReencounter?: boolean;
+        notifyChat?: boolean;
+      } | null | undefined;
+
+      if (isConnected) {
+        // Re-encounter alert: user is near someone they already know.
+        // Respect the notifyReencounter preference (default enabled = null/undefined).
+        if (notifPrefs?.notifyReencounter !== false) {
+          // Fetch the observer's display name for personalised copy.
+          const [callerRow] = await db
+            .select({ displayName: profilesTable.displayName })
+            .from(profilesTable)
+            .where(eq(profilesTable.uid, uid))
+            .limit(1);
+          const callerName = callerRow?.displayName ?? "Someone you know";
+          await sendPush(other.pushToken, {
+            title: "You've crossed paths again! 👋",
+            body: `${callerName} is nearby.`,
+            data: { type: "reencounter", encounterId: uid },
+          });
+        }
+      } else {
+        // New encounter notification. Respect the notifyNewEncounters pref.
+        if (notifPrefs?.notifyNewEncounters !== false) {
+          // Build an interest-aware body: if the two users share at least one
+          // interest, mention it so the notification is more enticing to tap.
+          let pushBody = "You've crossed paths with someone.";
+          const otherInterests = (other.interests ?? []) as string[];
+          if (otherInterests.length > 0) {
+            const [callerRow] = await db
+              .select({ interests: profilesTable.interests })
+              .from(profilesTable)
+              .where(eq(profilesTable.uid, uid))
+              .limit(1);
+            const callerInterests = (callerRow?.interests ?? []) as string[];
+            const callerLower = new Set(callerInterests.map((i) => i.toLowerCase()));
+            const shared = otherInterests.filter((i) =>
+              callerLower.has(i.toLowerCase()),
+            );
+            if (shared.length > 0) {
+              const label = localiseInterest(shared[0], other.preferredLocale);
+              pushBody = `Someone nearby also likes ${label}!`;
+            }
+          }
+          await sendPush(other.pushToken, {
+            title: "Someone nearby is using Met!",
+            body: pushBody,
+            data: { type: "encounter", encounterId: uid },
+          });
         }
       }
-      await sendPush(other.pushToken, {
-        title: "Someone nearby is using Met!",
-        body: pushBody,
-        data: { type: "encounter", encounterId: uid },
-      });
     }
 
     res.json(

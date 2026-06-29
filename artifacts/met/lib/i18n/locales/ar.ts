@@ -688,6 +688,8 @@ export const ar: LocaleTree = {
     reencounterNudges: "تنبيهات إعادة اللقاء",
     reencounterNudgesSub:
       "نبّهني حين تتقاطع دروبي مع شخص للمرة الثالثة فأكثر.",
+    notifyChat: "رسائل المحادثة",
+    notifyChatSub: "تلقّ إشعاراً حين يرسل إليك أحد معارفك رسالة جديدة.",
     visibleOnRadar: "ظاهر على الرادار",
     visibleOnRadarOn: "إشارتك تبثّ بالقرب",
     visibleOnRadarOff: "أنت مخفي عن باقي مستخدمي Met",

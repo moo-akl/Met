@@ -1,6 +1,11 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, profilesTable, type Profile } from "@workspace/db";
+import { and, eq, or, inArray } from "drizzle-orm";
+import {
+  db,
+  profilesTable,
+  revealRequestsTable,
+  type Profile,
+} from "@workspace/db";
 import {
   GetMyProfileResponse,
   UpsertMyProfileBody,
@@ -23,6 +28,11 @@ function serialize(p: Profile) {
     socials: (p.socials ?? {}) as Record<string, string>,
     interests: (p.interests ?? []) as string[],
     isVisible: p.isVisible,
+    notificationPrefs: (p.notificationPrefs ?? null) as {
+      notifyNewEncounters?: boolean;
+      notifyReencounter?: boolean;
+      notifyChat?: boolean;
+    } | null,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -46,17 +56,8 @@ router.put("/profiles/me", requireUid, async (req, res) => {
   const uid = req.uid!;
   const body = UpsertMyProfileBody.parse(req.body);
   const now = new Date();
-  // Recompute on every upsert so the column self-heals if the hashing
-  // scheme is ever migrated (or the column was added after the row).
   const uidHash = uidToHash(uid);
 
-  // isVisible is optional on upsert: if the client omits it we want to
-  // PRESERVE the existing value (and default to true on create), not
-  // silently flip the user out of Ghost Mode.
-  // Canonical interest tags — must stay in sync with ALL_INTERESTS in
-  // artifacts/met/lib/interests.ts (client-side mirror). The server
-  // enforces this as a whitelist so arbitrary strings cannot be stored
-  // via direct API calls, which is an explicit v1 requirement.
   const ALLOWED_INTERESTS = new Set([
     "Sport", "Music", "Art", "Travel", "Food",
     "Gaming", "Tech", "Fitness", "Photography",
@@ -80,11 +81,27 @@ router.put("/profiles/me", requireUid, async (req, res) => {
         ).slice(0, MAX_INTERESTS)
       : undefined;
 
-  // Validate the locale against the supported set; ignore unknown values so a
-  // future app version can't store arbitrary strings via direct API calls.
   const cleanLocale =
     typeof body.preferredLocale === "string" && ALLOWED_LOCALES.has(body.preferredLocale)
       ? body.preferredLocale
+      : undefined;
+
+  // Accept notification preferences from the client. Validate only known keys
+  // to prevent arbitrary data from being stored.
+  const rawNotifPrefs = (body as Record<string, unknown>)["notificationPrefs"];
+  const cleanNotifPrefs =
+    rawNotifPrefs && typeof rawNotifPrefs === "object" && !Array.isArray(rawNotifPrefs)
+      ? {
+          ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyNewEncounters"] === "boolean"
+            ? { notifyNewEncounters: (rawNotifPrefs as Record<string, unknown>)["notifyNewEncounters"] as boolean }
+            : {}),
+          ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyReencounter"] === "boolean"
+            ? { notifyReencounter: (rawNotifPrefs as Record<string, unknown>)["notifyReencounter"] as boolean }
+            : {}),
+          ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyChat"] === "boolean"
+            ? { notifyChat: (rawNotifPrefs as Record<string, unknown>)["notifyChat"] as boolean }
+            : {}),
+        }
       : undefined;
 
   const insertValues: typeof profilesTable.$inferInsert = {
@@ -107,11 +124,9 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     updatedAt: now,
   };
   if (body.isVisible !== undefined) updateValues.isVisible = body.isVisible;
-  // Only update interests when the client explicitly sent a value (null = omit,
-  // which preserves the existing selection).
   if (cleanInterests !== undefined) updateValues.interests = cleanInterests;
-  // Only update locale when the client explicitly sent a recognised value.
   if (cleanLocale !== undefined) updateValues.preferredLocale = cleanLocale;
+  if (cleanNotifPrefs !== undefined) updateValues.notificationPrefs = cleanNotifPrefs;
 
   const [row] = await db
     .insert(profilesTable)
@@ -122,10 +137,6 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     })
     .returning();
 
-  // Best-effort Firestore mirror so other clients can read this profile
-  // for nearby/encounter rendering without going through the api-server.
-  // Failures are logged inside the helper and do not affect the response —
-  // Postgres is the source of truth for profile data.
   await mirrorProfileToFirestore({
     uid: row!.uid,
     uidHash: row!.uidHash,
@@ -140,10 +151,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
   res.json(UpsertMyProfileResponse.parse(serialize(row!)));
 });
 
-// POST /api/profiles/me/push-token — store (or refresh) the caller's Expo
-// push token so the server can target this device with remote notifications.
-// Silently overwrites any previously stored token — the client always sends
-// the freshest token it receives from Expo.
+// POST /api/profiles/me/push-token
 router.post("/profiles/me/push-token", requireUid, async (req, res) => {
   const uid = req.uid!;
   const token =
@@ -158,14 +166,10 @@ router.post("/profiles/me/push-token", requireUid, async (req, res) => {
     .where(eq(profilesTable.uid, uid))
     .returning({ uid: profilesTable.uid });
   if (updated.length === 0) {
-    // Profile row doesn't exist yet (onboarding race). Client should retry
-    // after the profile has been created via PUT /api/profiles/me.
     res.status(404).json({ message: "Profile not found" });
     return;
   }
 
-  // Mirror push token to Firestore so Cloud Functions can read it without
-  // needing a direct Postgres connection (Postgres is Replit-internal only).
   try {
     const { adminDb } = await import("../lib/firebaseAdmin");
     await adminDb()
@@ -175,6 +179,200 @@ router.post("/profiles/me/push-token", requireUid, async (req, res) => {
   } catch (err) {
     req.log.warn({ err }, "push-token: Firestore mirror failed (non-fatal)");
   }
+
+  res.json({ success: true });
+});
+
+// GET /api/profiles/me/mutual?with=otherUid
+// Returns users who are connected (accepted reveal) with BOTH the caller and otherUid.
+router.get("/profiles/me/mutual", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const otherUid = typeof req.query["with"] === "string" ? req.query["with"] : null;
+  if (!otherUid) {
+    res.status(400).json({ message: "with query param required" });
+    return;
+  }
+
+  // Fetch all accepted reveal pairs that include me
+  const myRevs = await db
+    .select({
+      senderUid: revealRequestsTable.senderUid,
+      recipientUid: revealRequestsTable.recipientUid,
+    })
+    .from(revealRequestsTable)
+    .where(
+      and(
+        eq(revealRequestsTable.status, "accepted"),
+        or(
+          eq(revealRequestsTable.senderUid, uid),
+          eq(revealRequestsTable.recipientUid, uid),
+        ),
+      ),
+    );
+
+  const myConnectionUids = new Set<string>();
+  for (const r of myRevs) {
+    const peer = r.senderUid === uid ? r.recipientUid : r.senderUid;
+    myConnectionUids.add(peer);
+  }
+
+  if (myConnectionUids.size === 0) {
+    res.json({ count: 0, names: [] });
+    return;
+  }
+
+  // Fetch all accepted reveal pairs that include otherUid
+  const otherRevs = await db
+    .select({
+      senderUid: revealRequestsTable.senderUid,
+      recipientUid: revealRequestsTable.recipientUid,
+    })
+    .from(revealRequestsTable)
+    .where(
+      and(
+        eq(revealRequestsTable.status, "accepted"),
+        or(
+          eq(revealRequestsTable.senderUid, otherUid),
+          eq(revealRequestsTable.recipientUid, otherUid),
+        ),
+      ),
+    );
+
+  const mutualUids: string[] = [];
+  for (const r of otherRevs) {
+    const peer: string = r.senderUid === otherUid ? r.recipientUid : r.senderUid;
+    if (myConnectionUids.has(peer) && peer !== uid && peer !== otherUid) {
+      mutualUids.push(peer);
+    }
+  }
+
+  if (mutualUids.length === 0) {
+    res.json({ count: 0, names: [] });
+    return;
+  }
+
+  // Fetch display names for up to first 3 mutuals
+  const sample = mutualUids.slice(0, 3);
+  const profiles = await db
+    .select({ uid: profilesTable.uid, displayName: profilesTable.displayName })
+    .from(profilesTable)
+    .where(inArray(profilesTable.uid, sample));
+
+  const names = profiles.map((p) => p.displayName);
+  res.json({ count: mutualUids.length, names });
+});
+
+// GET /api/profiles/me/streak
+// Computes how many consecutive days (ending today) the user made a new connection.
+router.get("/profiles/me/streak", requireUid, async (req, res) => {
+  const uid = req.uid!;
+
+  const rows = await db
+    .select({ respondedAt: revealRequestsTable.respondedAt })
+    .from(revealRequestsTable)
+    .where(
+      and(
+        eq(revealRequestsTable.status, "accepted"),
+        or(
+          eq(revealRequestsTable.senderUid, uid),
+          eq(revealRequestsTable.recipientUid, uid),
+        ),
+      ),
+    );
+
+  const totalConnections = rows.length;
+
+  // Group into unique calendar days (UTC date string YYYY-MM-DD)
+  const daySet = new Set<string>();
+  for (const r of rows) {
+    if (r.respondedAt) {
+      daySet.add(r.respondedAt.toISOString().slice(0, 10));
+    }
+  }
+
+  // Sort days descending (most recent first)
+  const days = Array.from(daySet).sort().reverse();
+
+  if (days.length === 0) {
+    res.json({ currentStreak: 0, longestStreak: 0, totalConnections: 0 });
+    return;
+  }
+
+  // Current streak: consecutive days going back from today or yesterday
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const yest = new Date();
+  yest.setUTCDate(yest.getUTCDate() - 1);
+  const yesterdayStr = yest.toISOString().slice(0, 10);
+
+  let currentStreak = 0;
+  if (days[0] === todayStr || days[0] === yesterdayStr) {
+    const startDate = new Date(days[0]);
+    startDate.setUTCHours(0, 0, 0, 0);
+    let checkDate = startDate;
+    currentStreak = 1;
+    for (let i = 1; i < days.length; i++) {
+      const d = new Date(days[i]);
+      d.setUTCHours(0, 0, 0, 0);
+      const diffDays = Math.round(
+        (checkDate.getTime() - d.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (diffDays === 1) {
+        currentStreak++;
+        checkDate = d;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Longest streak: scan all days
+  let longestStreak = 1;
+  let streak = 1;
+  for (let i = 1; i < days.length; i++) {
+    const prev = new Date(days[i - 1]);
+    const curr = new Date(days[i]);
+    const diffDays = Math.round(
+      (prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (diffDays === 1) {
+      streak++;
+      longestStreak = Math.max(longestStreak, streak);
+    } else {
+      streak = 1;
+    }
+  }
+
+  res.json({ currentStreak, longestStreak, totalConnections });
+});
+
+// PATCH /api/profiles/me/notification-prefs
+// Lightweight endpoint that only updates the notification_prefs JSONB column.
+// Accepts any subset of the known keys; unknown keys are ignored.
+router.patch("/profiles/me/notification-prefs", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  const body = req.body as Record<string, unknown>;
+  const prefs: Record<string, boolean> = {};
+  const knownKeys = ["notifyNewEncounters", "notifyReencounter", "notifyChat"] as const;
+  for (const key of knownKeys) {
+    if (typeof body[key] === "boolean") prefs[key] = body[key] as boolean;
+  }
+
+  const [existing] = await db
+    .select({ notificationPrefs: profilesTable.notificationPrefs })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, uid))
+    .limit(1);
+
+  if (!existing) {
+    res.status(404).json({ message: "Profile not found" });
+    return;
+  }
+
+  const merged = { ...(existing.notificationPrefs ?? {}), ...prefs };
+  await db
+    .update(profilesTable)
+    .set({ notificationPrefs: merged, updatedAt: new Date() })
+    .where(eq(profilesTable.uid, uid));
 
   res.json({ success: true });
 });

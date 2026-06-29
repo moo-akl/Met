@@ -684,6 +684,9 @@ export const vi: LocaleTree = {
     dailyRecapSub:
       "Tóm tắt buổi sáng kiểu \u201CHôm qua bạn đã đi ngang qua 4 người; 1 người là lần thứ 2.\u201D",
     reencounterNudges: "Nhắc gặp lại",
+    notifyChat: "Tin nhắn chat",
+    notifyChatSub:
+      "Nhận thông báo khi kết nối của bạn gửi tin nhắn mới.",
     reencounterNudgesSub:
       "Báo khi tôi đi ngang qua ai đó từ lần thứ 3 trở lên.",
     visibleOnRadar: "Hiển thị trên radar",

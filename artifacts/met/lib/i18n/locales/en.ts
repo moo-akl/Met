@@ -721,6 +721,8 @@ export const en = {
     reencounterNudges: "Re-encounter nudges",
     reencounterNudgesSub:
       "Notify me when I cross paths with someone for the 3rd time or more.",
+    notifyChat: "Chat messages",
+    notifyChatSub: "Get notified when your connections send you a new message.",
     visibleOnRadar: "Visible on Radar",
     visibleOnRadarOn: "Your beacon is broadcasting nearby",
     visibleOnRadarOff: "You're hidden from other Met users",
