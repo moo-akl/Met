@@ -1,7 +1,6 @@
-import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
+import messaging from "@react-native-firebase/messaging";
 
 import { loadPushToken, savePushToken } from "./storage";
 
@@ -76,16 +75,11 @@ export async function getNotificationPermissionGranted(): Promise<boolean> {
 }
 
 /**
- * Fetches a push token and stashes it locally.
+ * Fetches a raw FCM registration token via @react-native-firebase/messaging
+ * and stashes it locally. Works on both iOS and Android without routing
+ * through Expo's push relay service.
  *
- * Android: returns the raw FCM registration token via getDevicePushTokenAsync()
- * so notifications are sent directly through Firebase without routing through
- * Expo's push relay (which requires FCM credentials uploaded to Expo's dashboard).
- *
- * iOS: returns an ExponentPushToken via getExpoPushTokenAsync() — APNs delivery
- * via the Expo push relay already works on iOS without extra configuration.
- *
- * Safe on simulator / Expo Go — returns null instead of throwing.
+ * Safe on simulator — returns null instead of throwing.
  */
 export async function registerForPushTokenAsync(): Promise<string | null> {
   if (!Device.isDevice) {
@@ -95,33 +89,13 @@ export async function registerForPushTokenAsync(): Promise<string | null> {
   if (!granted) return null;
 
   try {
-    if (Platform.OS === "android") {
-      // Raw FCM token — sent directly via Firebase Admin SDK, no Expo relay needed.
-      const { data } = await Notifications.getDevicePushTokenAsync();
-      if (data) {
-        await savePushToken(data);
-      }
-      return data || null;
+    const token = await messaging().getToken();
+    if (token) {
+      await savePushToken(token);
     }
-
-    // iOS: use Expo push token (APNs via Expo relay already works).
-    const projectId =
-      (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)
-        ?.eas?.projectId ??
-      (Constants.easConfig as { projectId?: string } | undefined)?.projectId;
-    if (!projectId) {
-      console.warn(
-        "[notifications] missing EAS projectId — cannot fetch Expo push token",
-      );
-      return null;
-    }
-    const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
-    if (data) {
-      await savePushToken(data);
-    }
-    return data || null;
+    return token || null;
   } catch (err) {
-    console.warn("[notifications] registerForPushTokenAsync failed", err);
+    console.warn("[notifications] messaging().getToken() failed", err);
     return null;
   }
 }

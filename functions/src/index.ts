@@ -603,96 +603,52 @@ export const sendChatMessageNotification = onDocumentCreated(
         ? senderData["displayName"]
         : "Someone";
 
-    // Route by token type:
-    //   ExponentPushToken[…] → iOS, via Expo Push API (APNs relay, already works)
-    //   anything else        → Android raw FCM token, sent directly via Admin SDK
-    const isExpoToken = pushToken.startsWith("ExponentPushToken[");
-
-    if (isExpoToken) {
-      // iOS path — Expo push relay handles APNs delivery.
-      const payload = {
-        to: pushToken,
-        title: "Your turn",
-        body: `${senderName} replied`,
-        data: { type: "chat_message", chatPeerUid: senderUid },
-        sound: "default",
-      };
-
-      let resp: Response;
-      try {
-        resp = await fetch("https://exp.host/--/api/v2/push/send", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
+    // Both iOS and Android register raw FCM tokens via @react-native-firebase/messaging.
+    // Send directly through Firebase Admin SDK — no Expo push relay involved.
+    try {
+      const fcmResponse = await admin.messaging().send({
+        token: pushToken,
+        notification: {
+          title: "Your turn",
+          body: `${senderName} replied`,
+        },
+        android: {
+          notification: {
+            // Must match the channel created in configureNotifications() on the client.
+            channelId: "default",
+            sound: "default",
           },
-          body: JSON.stringify(payload),
-        });
-      } catch (err) {
-        logger.error(
-          { err, recipientUid },
-          "sendChatMessageNotification: network error calling Expo Push API",
-        );
-        throw err;
-      }
-
-      if (!resp.ok) {
-        const body = await resp.text().catch(() => "");
+        },
+        apns: {
+          payload: {
+            aps: { sound: "default" },
+          },
+        },
+        data: { type: "chat_message", chatPeerUid: senderUid },
+      });
+      logger.info(
+        { recipientUid, senderUid, senderName, fcmResponse },
+        "sendChatMessageNotification: push sent via FCM Admin SDK",
+      );
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (
+        code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-registration-token"
+      ) {
+        // Stale/invalid token — permanent failure, no retry.
         logger.warn(
-          { status: resp.status, body, recipientUid },
-          "sendChatMessageNotification: Expo Push API returned non-OK status",
+          { recipientUid, code },
+          "sendChatMessageNotification: stale FCM token, skipping",
         );
         return;
       }
-
-      const responseData = (await resp.json()) as unknown;
-      logger.info(
-        { recipientUid, senderUid, senderName, responseData },
-        "sendChatMessageNotification: push sent via Expo (iOS)",
+      // Transient error — rethrow so Cloud Functions retries.
+      logger.error(
+        { err, recipientUid },
+        "sendChatMessageNotification: FCM Admin SDK error",
       );
-    } else {
-      // Android path — raw FCM registration token, sent directly via Admin SDK.
-      // No Expo push relay or Expo dashboard credentials required.
-      try {
-        const fcmResponse = await admin.messaging().send({
-          token: pushToken,
-          notification: {
-            title: "Your turn",
-            body: `${senderName} replied`,
-          },
-          android: {
-            notification: {
-              // Must match the channel created in configureNotifications() on the client.
-              channelId: "default",
-              sound: "default",
-            },
-          },
-          data: { type: "chat_message", chatPeerUid: senderUid },
-        });
-        logger.info(
-          { recipientUid, senderUid, senderName, fcmResponse },
-          "sendChatMessageNotification: push sent via FCM Admin SDK (Android)",
-        );
-      } catch (err) {
-        const code = (err as { code?: string }).code;
-        if (
-          code === "messaging/registration-token-not-registered" ||
-          code === "messaging/invalid-registration-token"
-        ) {
-          // Stale/invalid token — permanent failure, no point retrying.
-          logger.warn(
-            { recipientUid, code },
-            "sendChatMessageNotification: stale FCM token, skipping",
-          );
-          return;
-        }
-        // Transient error — rethrow so Cloud Functions retries.
-        logger.error(
-          { err, recipientUid },
-          "sendChatMessageNotification: FCM Admin SDK error",
-        );
-        throw err;
-      }
+      throw err;
     }
   },
 );
