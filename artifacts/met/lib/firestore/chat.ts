@@ -38,12 +38,10 @@ function toEpochMs(v: MaybeTimestamp): number {
 /**
  * Send a message from `fromUid` to the chat shared with `toUid`.
  *
- * Uses a single batched write:
- *  - Message doc in messages subcollection (always CREATE)
- *  - Top-level chat meta doc with set+merge (CREATE or UPDATE)
+ * Writes are split into two sequential steps so the UI can report
+ * exactly which step failed (message doc vs chat meta doc).
  *
- * Returns null on success, or an error string on failure.
- * The error string is shown in the UI to aid diagnosis.
+ * Returns null on success, or a diagnostic error string on failure.
  */
 export async function sendMessage(
   fromUid: string,
@@ -55,10 +53,23 @@ export async function sendMessage(
   const trimmed = text.trim();
   if (!trimmed) return "Empty message";
 
-  // Validate inputs before touching Firestore — a blank UID would produce
-  // an invalid document path and throw immediately.
   if (!fromUid || !toUid) {
     return `Invalid UIDs — fromUid="${fromUid}" toUid="${toUid}"`;
+  }
+
+  // Cross-check: make sure the Firebase Auth current user matches the
+  // fromUid we're about to write into the document. A mismatch would
+  // cause an immediate permission-denied because the rules check
+  // request.auth.uid == request.resource.data.from.
+  let actualAuthUid: string | null = null;
+  try {
+    const authMod = await import("@react-native-firebase/auth");
+    actualAuthUid = authMod.default().currentUser?.uid ?? null;
+  } catch {
+    // Non-fatal — proceed without the check.
+  }
+  if (actualAuthUid !== null && actualAuthUid !== fromUid) {
+    return `Auth UID mismatch — fromUid="${fromUid}" but auth.uid="${actualAuthUid}"`;
   }
 
   const chatId = getChatId(fromUid, toUid);
@@ -66,20 +77,21 @@ export async function sendMessage(
   const chatRef = fs.collection("chats").doc(chatId);
   const msgRef = chatRef.collection("messages").doc();
 
+  // Step 1: write the message doc. Rule: isAuthed() && from == uid.
   try {
-    // Use a WriteBatch so both the message and the meta doc are written
-    // atomically. This avoids a race where the message lands but the meta
-    // doc update fails, leaving the sender stuck on "Your turn" forever.
-    //
-    // batch.set(ref, data, { merge: true }) on the chat meta doc:
-    //  - If the doc doesn't exist → CREATE with the given fields.
-    //  - If it already exists   → UPDATE only the specified fields.
-    // The Firestore CREATE rule for chats requires participants in the
-    // data, so we always include it in the merge payload.
-    const batch = fs.batch();
-    batch.set(msgRef, { from: fromUid, text: trimmed, sentAt: now });
-    batch.set(
-      chatRef,
+    await msgRef.set({ from: fromUid, text: trimmed, sentAt: now });
+  } catch (err) {
+    const code = (err as { code?: string })?.code ?? "unknown";
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn("[chat] step1 msgRef.set failed", { code, fromUid, toUid, chatId, actualAuthUid });
+    return `step1/msg [${code}] ${msg}`;
+  }
+
+  // Step 2: upsert the chat meta doc. Best-effort — a failure here
+  // does NOT roll back the message, but we still surface the error so
+  // the developer knows to investigate.
+  try {
+    await chatRef.set(
       {
         participants: [fromUid, toUid].sort(),
         lastMessage: { text: trimmed, from: fromUid, sentAt: now },
@@ -88,15 +100,15 @@ export async function sendMessage(
       },
       { merge: true },
     );
-
-    await batch.commit();
-    return null; // success
   } catch (err) {
     const code = (err as { code?: string })?.code ?? "unknown";
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[chat] sendMessage failed", { code, msg, fromUid, toUid, chatId });
-    return `[${code}] ${msg}`;
+    console.warn("[chat] step2 chatRef.set failed", { code, fromUid, toUid, chatId });
+    // Message was sent — don't restore draft, but report the meta failure.
+    return `step2/meta [${code}] ${msg}`;
   }
+
+  return null; // full success
 }
 
 /**
