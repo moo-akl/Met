@@ -1050,6 +1050,9 @@ export const nl: LocaleTree = {
     pingPongHint: "Om beurten — één bericht per keer.",
     today: "Vandaag",
     yesterday: "Gisteren",
+    attachPhoto: "Foto bijvoegen",
+    removePhoto: "Verwijderen",
+    photo: "📷 Foto",
   },
   interestLabels: interestLocales.nl,
 };

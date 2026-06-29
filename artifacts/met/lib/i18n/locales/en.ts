@@ -568,6 +568,9 @@ export const en = {
     pingPongHint: "Take turns — one message at a time.",
     today: "Today",
     yesterday: "Yesterday",
+    attachPhoto: "Attach photo",
+    removePhoto: "Remove",
+    photo: "📷 Photo",
   },
 
   shareCard: {

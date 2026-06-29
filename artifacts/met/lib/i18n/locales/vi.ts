@@ -1050,6 +1050,9 @@ export const vi: LocaleTree = {
     pingPongHint: "Lần lượt — mỗi lần một tin nhắn.",
     today: "Hôm nay",
     yesterday: "Hôm qua",
+    attachPhoto: "Đính kèm ảnh",
+    removePhoto: "Xóa",
+    photo: "📷 Ảnh",
   },
   interestLabels: interestLocales.vi,
 };

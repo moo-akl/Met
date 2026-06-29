@@ -1058,6 +1058,9 @@ export const fr: LocaleTree = {
     pingPongHint: "À tour de rôle — un message à la fois.",
     today: "Aujourd'hui",
     yesterday: "Hier",
+    attachPhoto: "Joindre une photo",
+    removePhoto: "Supprimer",
+    photo: "📷 Photo",
   },
   interestLabels: interestLocales.fr,
 };

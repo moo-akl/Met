@@ -1004,6 +1004,9 @@ export const zh: LocaleTree = {
     pingPongHint: "轮流发送 — 一次一条消息。",
     today: "今天",
     yesterday: "昨天",
+    attachPhoto: "附加照片",
+    removePhoto: "移除",
+    photo: "📷 照片",
   },
   interestLabels: interestLocales.zh,
 };

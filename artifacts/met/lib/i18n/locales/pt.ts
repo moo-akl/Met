@@ -1048,6 +1048,9 @@ export const pt: LocaleTree = {
     pingPongHint: "Por turnos — uma mensagem de cada vez.",
     today: "Hoje",
     yesterday: "Ontem",
+    attachPhoto: "Anexar foto",
+    removePhoto: "Remover",
+    photo: "📷 Foto",
   },
   interestLabels: interestLocales.pt,
 };

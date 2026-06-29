@@ -1,4 +1,6 @@
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   useCallback,
@@ -10,6 +12,7 @@ import React, {
 import {
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -30,6 +33,7 @@ import {
   sendMessage,
   subscribeToChatMeta,
   subscribeToMessages,
+  uploadChatMedia,
 } from "@/lib/firestore/chat";
 
 const MAX_CHARS = 500;
@@ -106,13 +110,18 @@ function MessageBubble({
   showAvatar,
   peerPhoto,
   colors,
+  onImagePress,
 }: {
   message: ChatMessage;
   isMine: boolean;
   showAvatar: boolean;
   peerPhoto?: string;
   colors: ReturnType<typeof useColors>;
+  onImagePress: (uri: string) => void;
 }) {
+  const hasMedia = !!message.mediaUri && message.mediaType === "image";
+  const hasText = !!message.text;
+
   return (
     <View
       style={[
@@ -131,23 +140,37 @@ function MessageBubble({
           isMine ? styles.bubbleContentRight : styles.bubbleContentLeft,
         ]}
       >
-        <View
+        <Pressable
+          onPress={hasMedia ? () => onImagePress(message.mediaUri!) : undefined}
+          disabled={!hasMedia}
           style={[
             styles.bubble,
             isMine
               ? [styles.bubbleMine, { backgroundColor: colors.primary }]
               : [styles.bubbleTheirs, { backgroundColor: colors.muted }],
+            hasMedia && !hasText ? styles.bubbleImageOnly : null,
           ]}
         >
-          <Text
-            style={[
-              styles.bubbleText,
-              { color: isMine ? "#ffffff" : colors.foreground },
-            ]}
-          >
-            {message.text}
-          </Text>
-        </View>
+          {hasMedia ? (
+            <Image
+              source={{ uri: message.mediaUri }}
+              style={styles.bubbleImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
+          ) : null}
+          {hasText ? (
+            <Text
+              style={[
+                styles.bubbleText,
+                { color: isMine ? "#ffffff" : colors.foreground },
+                hasMedia ? styles.bubbleCaption : null,
+              ]}
+            >
+              {message.text}
+            </Text>
+          ) : null}
+        </Pressable>
         <Text
           style={[
             styles.bubbleTime,
@@ -191,6 +214,8 @@ export default function ChatScreen() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [pendingMedia, setPendingMedia] = useState<string | null>(null);
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<ListItem>>(null);
 
@@ -200,7 +225,8 @@ export default function ChatScreen() {
     meta === null ||
     meta.nextSenderUid === null ||
     meta.nextSenderUid === myUid;
-  const canSend = isMyTurn && text.trim().length > 0 && !sending;
+  const canSend =
+    isMyTurn && (text.trim().length > 0 || pendingMedia !== null) && !sending;
   const charsLeft = MAX_CHARS - text.length;
 
   const todayLabel = t("chat.today");
@@ -270,20 +296,52 @@ export default function ChatScreen() {
     void markChatRead(myUid, peerUid);
   }, [myUid, peerUid, messages.length]);
 
+  const handlePickImage = useCallback(async () => {
+    if (!isMyTurn || sending) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPendingMedia(result.assets[0].uri);
+      setSendError(null);
+    }
+  }, [isMyTurn, sending]);
+
   const handleSend = useCallback(async () => {
     if (!canSend || !myUid || !peerUid) return;
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed && !pendingMedia) return;
+
     setSending(true);
     setSendError(null);
+
+    const capturedMedia = pendingMedia;
     setText("");
-    const err = await sendMessage(myUid, peerUid, trimmed);
+    setPendingMedia(null);
+
+    let mediaUrl: string | undefined;
+    if (capturedMedia) {
+      try {
+        mediaUrl = await uploadChatMedia(myUid, peerUid, capturedMedia);
+      } catch {
+        setSendError(t("chat.sendFailed"));
+        if (trimmed) setText(trimmed);
+        setPendingMedia(capturedMedia);
+        setSending(false);
+        return;
+      }
+    }
+
+    const err = await sendMessage(myUid, peerUid, trimmed, mediaUrl);
     if (err !== null) {
-      setSendError(err);
-      setText(trimmed);
+      setSendError(t("chat.sendFailed"));
+      if (trimmed) setText(trimmed);
+      if (capturedMedia && !mediaUrl) setPendingMedia(capturedMedia);
     }
     setSending(false);
-  }, [canSend, myUid, peerUid, text]);
+  }, [canSend, myUid, peerUid, text, pendingMedia, t]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: ListItem; index: number }) => {
@@ -303,6 +361,7 @@ export default function ChatScreen() {
           showAvatar={showAvatar}
           peerPhoto={peerPhoto}
           colors={colors}
+          onImagePress={setViewerUri}
         />
       );
     },
@@ -506,6 +565,39 @@ export default function ChatScreen() {
           </Text>
         ) : null}
 
+        {/* ── Pending media preview strip ── */}
+        {pendingMedia !== null ? (
+          <View
+            style={[
+              styles.mediaPreviewBar,
+              {
+                backgroundColor: colors.card,
+                borderTopColor: colors.border,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => setViewerUri(pendingMedia)}
+              style={styles.mediaThumbWrap}
+              accessibilityLabel={t("chat.photo")}
+            >
+              <Image
+                source={{ uri: pendingMedia }}
+                style={styles.mediaThumb}
+                contentFit="cover"
+              />
+            </Pressable>
+            <Pressable
+              onPress={() => setPendingMedia(null)}
+              style={[styles.mediaRemoveBtn, { backgroundColor: colors.muted }]}
+              accessibilityLabel={t("chat.removePhoto")}
+              hitSlop={8}
+            >
+              <Feather name="x" size={14} color={colors.foreground} />
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* ── Input bar ── */}
         <View
           style={[
@@ -518,6 +610,21 @@ export default function ChatScreen() {
             },
           ]}
         >
+          {/* Photo attach button */}
+          <Pressable
+            onPress={handlePickImage}
+            disabled={!isMyTurn || sending}
+            style={({ pressed }) => [
+              styles.photoBtn,
+              {
+                opacity: !isMyTurn || sending ? 0.35 : pressed ? 0.6 : 1,
+              },
+            ]}
+            accessibilityLabel={t("chat.attachPhoto")}
+          >
+            <Feather name="image" size={22} color={colors.mutedForeground} />
+          </Pressable>
+
           <View
             style={[
               styles.inputWrap,
@@ -581,6 +688,27 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {/* ── Fullscreen image viewer ── */}
+      <Modal
+        visible={viewerUri !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewerUri(null)}
+        statusBarTranslucent
+      >
+        <Pressable
+          style={styles.viewerOverlay}
+          onPress={() => setViewerUri(null)}
+        >
+          <Image
+            source={{ uri: viewerUri ?? "" }}
+            style={styles.viewerImage}
+            contentFit="contain"
+            cachePolicy="memory-disk"
+          />
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -771,5 +899,64 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // Photo button (left of text input)
+  photoBtn: {
+    width: 36,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Pending media preview strip (above input bar)
+  mediaPreviewBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+  },
+  mediaThumbWrap: {
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  mediaThumb: {
+    width: 64,
+    height: 64,
+  },
+  mediaRemoveBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Message bubble image support
+  bubbleImageOnly: {
+    padding: 0,
+    overflow: "hidden",
+  },
+  bubbleImage: {
+    width: 210,
+    height: 210,
+    borderRadius: 15,
+  },
+  bubbleCaption: {
+    paddingTop: 6,
+  },
+
+  // Fullscreen image viewer
+  viewerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewerImage: {
+    width: "100%",
+    height: "80%",
   },
 });

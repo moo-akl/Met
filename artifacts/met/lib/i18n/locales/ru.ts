@@ -1055,6 +1055,9 @@ export const ru: LocaleTree = {
     pingPongHint: "По очереди — одно сообщение за раз.",
     today: "Сегодня",
     yesterday: "Вчера",
+    attachPhoto: "Прикрепить фото",
+    removePhoto: "Удалить",
+    photo: "📷 Фото",
   },
   interestLabels: interestLocales.ru,
 };

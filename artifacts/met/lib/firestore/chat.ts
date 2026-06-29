@@ -17,10 +17,14 @@ export interface ChatMessage {
   from: string;
   text: string;
   sentAt: number; // epoch ms
+  /** Firebase Storage download URL for an image attachment. */
+  mediaUri?: string;
+  /** Media type — currently only "image" is supported. */
+  mediaType?: "image";
 }
 
 export interface ChatMeta {
-  lastMessage: { text: string; from: string; sentAt: number } | null;
+  lastMessage: { text: string; from: string; sentAt: number; mediaType?: "image" } | null;
   lastReadAt: Record<string, number>; // uid → epoch ms
   /** Whose turn it is to send next. null = either participant can go first. */
   nextSenderUid: string | null;
@@ -36,12 +40,61 @@ function toEpochMs(v: MaybeTimestamp): number {
 }
 
 /**
+ * Compress and upload a local image URI to Firebase Storage.
+ * Returns the public download URL.
+ *
+ * Compression strategy (for maximum space efficiency):
+ *   - Resize longest edge to ≤1280 px
+ *   - JPEG quality 0.75
+ *   - Falls back to original URI if compression fails
+ */
+export async function uploadChatMedia(
+  fromUid: string,
+  toUid: string,
+  localUri: string,
+): Promise<string> {
+  // ── 1. Compress ──────────────────────────────────────────────────────────
+  let compressedUri = localUri;
+  try {
+    const manip = await import("expo-image-manipulator");
+    // Support both legacy (manipulateAsync) and newer class-based APIs.
+    if (typeof manip.manipulateAsync === "function") {
+      const result = await manip.manipulateAsync(
+        localUri,
+        [{ resize: { width: 1280 } }],
+        { compress: 0.75, format: manip.SaveFormat.JPEG },
+      );
+      compressedUri = result.uri;
+    } else if (manip.ImageManipulator) {
+      const ctx = (manip.ImageManipulator as { manipulate: (uri: string) => {
+        resize: (opts: { width: number }) => { renderAsync: () => Promise<{ saveAsync: (opts: { compress: number; format: unknown }) => Promise<{ uri: string }> }> };
+      } }).manipulate(localUri);
+      const img = await ctx.resize({ width: 1280 }).renderAsync();
+      const saved = await img.saveAsync({ compress: 0.75, format: (manip as { SaveFormat: { JPEG: unknown } }).SaveFormat.JPEG });
+      compressedUri = saved.uri;
+    }
+  } catch {
+    // Compression failed — upload the original; still better than nothing.
+  }
+
+  // ── 2. Upload to Firebase Storage ────────────────────────────────────────
+  const storageMod = await import("@react-native-firebase/storage");
+  const storageInstance = storageMod.default();
+  const chatId = getChatId(fromUid, toUid);
+  const ref = storageInstance.ref(`chats/${chatId}/${Date.now()}.jpg`);
+  await ref.putFile(compressedUri);
+  return ref.getDownloadURL();
+}
+
+/**
  * Send a message from `fromUid` to the chat shared with `toUid`.
+ *
+ * Accepts an optional `mediaUri` (Firebase Storage download URL).
+ * Either `text` or `mediaUri` (or both) must be present.
  *
  * Uses a WriteBatch so the message doc and the chat meta update
  * (which flips nextSenderUid to enforce the ping-pong turn rule)
- * are committed atomically. Either both land or neither does —
- * preventing the state where a message arrives but the turn never flips.
+ * are committed atomically.
  *
  * Returns null on success, or an error string on failure.
  */
@@ -49,11 +102,12 @@ export async function sendMessage(
   fromUid: string,
   toUid: string,
   text: string,
+  mediaUri?: string,
 ): Promise<string | null> {
   const fs = await getFirestoreModule();
   if (!fs) return "Firestore unavailable (native module not loaded)";
   const trimmed = text.trim();
-  if (!trimmed) return "Empty message";
+  if (!trimmed && !mediaUri) return "Empty message";
 
   if (!fromUid || !toUid) {
     return `Invalid UIDs — fromUid="${fromUid}" toUid="${toUid}"`;
@@ -64,21 +118,29 @@ export async function sendMessage(
   const chatRef = fs.collection("chats").doc(chatId);
   const msgRef = chatRef.collection("messages").doc();
 
+  // For the last-message preview: use text if present, otherwise "📷" placeholder
+  const previewText = trimmed || "📷";
+
   try {
     const batch = fs.batch();
 
     // Message doc — the turn rule is enforced server-side in Firestore rules
     // (messages create requires nextSenderUid == null || == caller).
-    batch.set(msgRef, { from: fromUid, text: trimmed, sentAt: now });
+    const msgData: Record<string, unknown> = { from: fromUid, text: trimmed, sentAt: now };
+    if (mediaUri) {
+      msgData["mediaUri"] = mediaUri;
+      msgData["mediaType"] = "image";
+    }
+    batch.set(msgRef, msgData);
 
     // Chat meta — flip the turn to the recipient so they can reply.
-    // set+merge handles both the first-ever message (CREATE) and subsequent
-    // messages (UPDATE) without needing a separate exists() check.
+    const lastMessage: Record<string, unknown> = { text: previewText, from: fromUid, sentAt: now };
+    if (mediaUri) lastMessage["mediaType"] = "image";
     batch.set(
       chatRef,
       {
         participants: [fromUid, toUid].sort(),
-        lastMessage: { text: trimmed, from: fromUid, sentAt: now },
+        lastMessage,
         lastReadAt: { [fromUid]: now },
         nextSenderUid: toUid,
       },
@@ -136,12 +198,17 @@ export async function subscribeToMessages(
           const msgs: ChatMessage[] = [];
           snap.forEach((doc) => {
             const d = doc.data() as Record<string, unknown>;
-            msgs.push({
+            const msg: ChatMessage = {
               id: doc.id,
               from: typeof d["from"] === "string" ? d["from"] : "",
               text: typeof d["text"] === "string" ? d["text"] : "",
               sentAt: toEpochMs(d["sentAt"] as MaybeTimestamp),
-            });
+            };
+            if (typeof d["mediaUri"] === "string") {
+              msg.mediaUri = d["mediaUri"];
+              msg.mediaType = "image";
+            }
+            msgs.push(msg);
           });
           listener(msgs);
         },
@@ -229,6 +296,7 @@ export async function subscribeToChatMeta(
                 text: typeof lm["text"] === "string" ? lm["text"] : "",
                 from: typeof lm["from"] === "string" ? lm["from"] : "",
                 sentAt: toEpochMs(lm["sentAt"] as MaybeTimestamp),
+                ...(lm["mediaType"] === "image" ? { mediaType: "image" as const } : {}),
               }
             : null,
           lastReadAt,

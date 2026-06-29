@@ -1052,6 +1052,9 @@ export const ar: LocaleTree = {
     pingPongHint: "بالتناوب — رسالة واحدة في كل مرة.",
     today: "اليوم",
     yesterday: "أمس",
+    attachPhoto: "إرفاق صورة",
+    removePhoto: "إزالة",
+    photo: "📷 صورة",
   },
   interestLabels: interestLocales.ar,
 };
