@@ -57,19 +57,29 @@ export async function sendMessage(
     return `Invalid UIDs — fromUid="${fromUid}" toUid="${toUid}"`;
   }
 
-  // Cross-check: make sure the Firebase Auth current user matches the
-  // fromUid we're about to write into the document. A mismatch would
-  // cause an immediate permission-denied because the rules check
-  // request.auth.uid == request.resource.data.from.
+  // Cross-check auth UID and verify an ID token is obtainable.
+  // If the token fetch fails, Firestore will see request.auth=null → denied.
   let actualAuthUid: string | null = null;
+  let idTokenStatus = "not-checked";
   try {
     const authMod = await import("@react-native-firebase/auth");
-    actualAuthUid = authMod.default().currentUser?.uid ?? null;
+    const currentUser = authMod.default().currentUser;
+    actualAuthUid = currentUser?.uid ?? null;
+    if (currentUser) {
+      try {
+        const token = await currentUser.getIdToken(/* forceRefresh */ false);
+        idTokenStatus = token ? `ok(${token.slice(0, 6)})` : "null";
+      } catch (tokenErr) {
+        idTokenStatus = `err:${tokenErr instanceof Error ? tokenErr.message : String(tokenErr)}`;
+      }
+    } else {
+      idTokenStatus = "no-user";
+    }
   } catch {
-    // Non-fatal — proceed without the check.
+    idTokenStatus = "import-failed";
   }
   if (actualAuthUid !== null && actualAuthUid !== fromUid) {
-    return `Auth UID mismatch — fromUid="${fromUid}" but auth.uid="${actualAuthUid}"`;
+    return `Auth UID mismatch — fromUid="${fromUid}" but auth.uid="${actualAuthUid}" idToken=${idTokenStatus}`;
   }
 
   const chatId = getChatId(fromUid, toUid);
