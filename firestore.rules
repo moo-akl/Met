@@ -174,9 +174,14 @@ service cloud.firestore {
       // match the caller's UID. Participant check is done at the meta-doc
       // level (create/update rules above); messages inherit the guarantee
       // that only the two participants can touch the parent chat doc.
-      // TEMP: fully open — diagnosing App Check global enforcement vs rules.
+      // Messages are immutable once written.
+      // Any authenticated user can read (both participants need access).
+      // Only the sender (from == uid) can create — no updates or deletes.
       match /messages/{msgId} {
-        allow read, write: if true;
+        allow read: if isAuthed();
+        allow create: if isAuthed() &&
+          request.resource.data.from == request.auth.uid;
+        allow update, delete: if false;
       }
     }
 

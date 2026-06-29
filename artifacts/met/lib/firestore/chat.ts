@@ -57,31 +57,6 @@ export async function sendMessage(
     return `Invalid UIDs — fromUid="${fromUid}" toUid="${toUid}"`;
   }
 
-  // Cross-check auth UID and verify an ID token is obtainable.
-  // If the token fetch fails, Firestore will see request.auth=null → denied.
-  let actualAuthUid: string | null = null;
-  let idTokenStatus = "not-checked";
-  try {
-    const authMod = await import("@react-native-firebase/auth");
-    const currentUser = authMod.default().currentUser;
-    actualAuthUid = currentUser?.uid ?? null;
-    if (currentUser) {
-      try {
-        const token = await currentUser.getIdToken(/* forceRefresh */ false);
-        idTokenStatus = token ? `ok(${token.slice(0, 6)})` : "null";
-      } catch (tokenErr) {
-        idTokenStatus = `err:${tokenErr instanceof Error ? tokenErr.message : String(tokenErr)}`;
-      }
-    } else {
-      idTokenStatus = "no-user";
-    }
-  } catch {
-    idTokenStatus = "import-failed";
-  }
-  if (actualAuthUid !== null && actualAuthUid !== fromUid) {
-    return `Auth UID mismatch — fromUid="${fromUid}" but auth.uid="${actualAuthUid}" idToken=${idTokenStatus}`;
-  }
-
   const chatId = getChatId(fromUid, toUid);
   const now = Date.now();
   const chatRef = fs.collection("chats").doc(chatId);
@@ -93,7 +68,7 @@ export async function sendMessage(
   } catch (err) {
     const code = (err as { code?: string })?.code ?? "unknown";
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[chat] step1 msgRef.set failed", { code, fromUid, toUid, chatId, actualAuthUid });
+    console.warn("[chat] step1 msgRef.set failed", { code, fromUid, toUid, chatId });
     return `step1/msg [${code}] ${msg}`;
   }
 
