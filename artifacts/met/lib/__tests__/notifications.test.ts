@@ -15,7 +15,6 @@ jest.mock("expo-notifications", () => ({
   addNotificationResponseReceivedListener: jest.fn(),
   getLastNotificationResponseAsync: jest.fn(),
   getPermissionsAsync: jest.fn(),
-  getExpoPushTokenAsync: jest.fn(),
 }));
 
 // Variables prefixed with "mock" are allowed to be referenced inside jest.mock
@@ -31,10 +30,12 @@ jest.mock("expo-device", () => ({
   },
 }));
 
-jest.mock("expo-constants", () => ({
-  expoConfig: { extra: { eas: { projectId: "test-project-id" } } },
-  easConfig: null,
-}));
+// eslint-disable-next-line no-var
+var mockGetToken = jest.fn();
+
+jest.mock("@react-native-firebase/messaging", () => {
+  return () => ({ getToken: mockGetToken });
+});
 
 jest.mock("../storage", () => ({
   loadPushToken: jest.fn().mockResolvedValue(null),
@@ -407,12 +408,12 @@ describe("setupNotificationListeners", () => {
 // ---------------------------------------------------------------------------
 
 describe("registerForPushTokenAsync", () => {
+  const FCM_TOKEN = "fCmToKeN_abc123";
+
   beforeEach(() => {
     mockIsDevice = true;
+    mockGetToken = jest.fn().mockResolvedValue(FCM_TOKEN);
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
-    (Notifications.getExpoPushTokenAsync as jest.Mock).mockResolvedValue({
-      data: "ExponentPushToken[test-token-abc]",
-    });
     (savePushToken as jest.Mock).mockResolvedValue(undefined);
   });
 
@@ -427,7 +428,7 @@ describe("registerForPushTokenAsync", () => {
     const result = await registerForPushTokenAsync();
 
     expect(result).toBeNull();
-    expect(Notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(mockGetToken).not.toHaveBeenCalled();
   });
 
   it("returns null when notification permission is not granted", async () => {
@@ -436,39 +437,19 @@ describe("registerForPushTokenAsync", () => {
     const result = await registerForPushTokenAsync();
 
     expect(result).toBeNull();
-    expect(Notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(mockGetToken).not.toHaveBeenCalled();
   });
 
-  it("returns null and does not call getExpoPushTokenAsync when projectId is missing", async () => {
-    const Constants = require("expo-constants");
-    const origExpoConfig = Constants.expoConfig;
-    const origEasConfig = Constants.easConfig;
-    Constants.expoConfig = null;
-    Constants.easConfig = null;
-
+  it("fetches FCM token, saves it to storage, and returns it on success", async () => {
     const result = await registerForPushTokenAsync();
 
-    Constants.expoConfig = origExpoConfig;
-    Constants.easConfig = origEasConfig;
-
-    expect(result).toBeNull();
-    expect(Notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(mockGetToken).toHaveBeenCalled();
+    expect(savePushToken).toHaveBeenCalledWith(FCM_TOKEN);
+    expect(result).toBe(FCM_TOKEN);
   });
 
-  it("fetches token, saves it to storage, and returns it on success", async () => {
-    const result = await registerForPushTokenAsync();
-
-    expect(Notifications.getExpoPushTokenAsync).toHaveBeenCalledWith({
-      projectId: "test-project-id",
-    });
-    expect(savePushToken).toHaveBeenCalledWith("ExponentPushToken[test-token-abc]");
-    expect(result).toBe("ExponentPushToken[test-token-abc]");
-  });
-
-  it("returns null and does not throw when getExpoPushTokenAsync rejects", async () => {
-    (Notifications.getExpoPushTokenAsync as jest.Mock).mockRejectedValue(
-      new Error("network error"),
-    );
+  it("returns null and does not throw when messaging().getToken() rejects", async () => {
+    mockGetToken = jest.fn().mockRejectedValue(new Error("network error"));
 
     const result = await registerForPushTokenAsync();
 
@@ -476,8 +457,8 @@ describe("registerForPushTokenAsync", () => {
     expect(savePushToken).not.toHaveBeenCalled();
   });
 
-  it("does not call savePushToken when getExpoPushTokenAsync returns empty data", async () => {
-    (Notifications.getExpoPushTokenAsync as jest.Mock).mockResolvedValue({ data: "" });
+  it("does not call savePushToken when messaging().getToken() returns empty string", async () => {
+    mockGetToken = jest.fn().mockResolvedValue("");
 
     const result = await registerForPushTokenAsync();
 
@@ -499,14 +480,13 @@ describe("registerForPushTokenAsync", () => {
 // ---------------------------------------------------------------------------
 
 describe("registerAndUploadPushToken", () => {
+  const FCM_TOKEN = "fCmToKeN_upload-token";
   let mockUploader: jest.Mock;
 
   beforeEach(() => {
     mockIsDevice = true;
+    mockGetToken = jest.fn().mockResolvedValue(FCM_TOKEN);
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
-    (Notifications.getExpoPushTokenAsync as jest.Mock).mockResolvedValue({
-      data: "ExponentPushToken[upload-token]",
-    });
     (savePushToken as jest.Mock).mockResolvedValue(undefined);
     mockUploader = jest.fn().mockResolvedValue(undefined);
   });
@@ -519,11 +499,8 @@ describe("registerAndUploadPushToken", () => {
   it("fetches the token, calls the uploader with uid and token, and returns the token", async () => {
     const result = await registerAndUploadPushToken("uid-123", mockUploader);
 
-    expect(result).toBe("ExponentPushToken[upload-token]");
-    expect(mockUploader).toHaveBeenCalledWith(
-      { uid: "uid-123" },
-      "ExponentPushToken[upload-token]",
-    );
+    expect(result).toBe(FCM_TOKEN);
+    expect(mockUploader).toHaveBeenCalledWith({ uid: "uid-123" }, FCM_TOKEN);
   });
 
   it("returns null without calling the uploader when token fetch returns null (not a device)", async () => {
@@ -538,7 +515,7 @@ describe("registerAndUploadPushToken", () => {
   it("returns the token without calling the uploader when uid is empty", async () => {
     const result = await registerAndUploadPushToken("", mockUploader);
 
-    expect(result).toBe("ExponentPushToken[upload-token]");
+    expect(result).toBe(FCM_TOKEN);
     expect(mockUploader).not.toHaveBeenCalled();
   });
 
@@ -547,6 +524,6 @@ describe("registerAndUploadPushToken", () => {
 
     const result = await registerAndUploadPushToken("uid-789", mockUploader);
 
-    expect(result).toBe("ExponentPushToken[upload-token]");
+    expect(result).toBe(FCM_TOKEN);
   });
 });
