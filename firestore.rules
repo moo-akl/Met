@@ -148,6 +148,19 @@ service cloud.firestore {
         return isAuthed() && request.auth.uid in resource.data.participants;
       }
 
+      // Ping-pong turn check: true when it's the caller's turn to send.
+      // Reads the current chat meta doc via get() (costs 1 Firestore read).
+      // Returns true when:
+      //   - the chat doc doesn't exist yet (first-ever message), OR
+      //   - nextSenderUid is null (either participant may go first), OR
+      //   - nextSenderUid equals the caller's UID.
+      function isCallersTurn(chatId) {
+        let chatDoc = get(/databases/$(database)/documents/chats/$(chatId));
+        return !chatDoc.exists ||
+          chatDoc.data.nextSenderUid == null ||
+          chatDoc.data.nextSenderUid == request.auth.uid;
+      }
+
       // Read chat meta doc (lastMessage, lastReadAt).
       // resource may be null on a read of a not-yet-existing doc (e.g. first
       // open before any message is sent), so fall back to the chatId regex
@@ -175,12 +188,14 @@ service cloud.firestore {
       // level (create/update rules above); messages inherit the guarantee
       // that only the two participants can touch the parent chat doc.
       // Messages are immutable once written.
-      // Any authenticated user can read (both participants need access).
-      // Only the sender (from == uid) can create — no updates or deletes.
+      // Create enforces the ping-pong turn rule server-side: the caller
+      // must be the designated next sender (or the chat is brand-new).
+      // Uses get() to read the current chat meta before the batch lands.
       match /messages/{msgId} {
         allow read: if isAuthed();
         allow create: if isAuthed() &&
-          request.resource.data.from == request.auth.uid;
+          request.resource.data.from == request.auth.uid &&
+          isCallersTurn(chatId);
         allow update, delete: if false;
       }
     }

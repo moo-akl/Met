@@ -38,10 +38,12 @@ function toEpochMs(v: MaybeTimestamp): number {
 /**
  * Send a message from `fromUid` to the chat shared with `toUid`.
  *
- * Writes are split into two sequential steps so the UI can report
- * exactly which step failed (message doc vs chat meta doc).
+ * Uses a WriteBatch so the message doc and the chat meta update
+ * (which flips nextSenderUid to enforce the ping-pong turn rule)
+ * are committed atomically. Either both land or neither does —
+ * preventing the state where a message arrives but the turn never flips.
  *
- * Returns null on success, or a diagnostic error string on failure.
+ * Returns null on success, or an error string on failure.
  */
 export async function sendMessage(
   fromUid: string,
@@ -62,21 +64,18 @@ export async function sendMessage(
   const chatRef = fs.collection("chats").doc(chatId);
   const msgRef = chatRef.collection("messages").doc();
 
-  // Step 1: write the message doc. Rule: isAuthed() && from == uid.
   try {
-    await msgRef.set({ from: fromUid, text: trimmed, sentAt: now });
-  } catch (err) {
-    const code = (err as { code?: string })?.code ?? "unknown";
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[chat] step1 msgRef.set failed", { code, fromUid, toUid, chatId });
-    return `step1/msg [${code}] ${msg}`;
-  }
+    const batch = fs.batch();
 
-  // Step 2: upsert the chat meta doc. Best-effort — a failure here
-  // does NOT roll back the message, but we still surface the error so
-  // the developer knows to investigate.
-  try {
-    await chatRef.set(
+    // Message doc — the turn rule is enforced server-side in Firestore rules
+    // (messages create requires nextSenderUid == null || == caller).
+    batch.set(msgRef, { from: fromUid, text: trimmed, sentAt: now });
+
+    // Chat meta — flip the turn to the recipient so they can reply.
+    // set+merge handles both the first-ever message (CREATE) and subsequent
+    // messages (UPDATE) without needing a separate exists() check.
+    batch.set(
+      chatRef,
       {
         participants: [fromUid, toUid].sort(),
         lastMessage: { text: trimmed, from: fromUid, sentAt: now },
@@ -85,15 +84,15 @@ export async function sendMessage(
       },
       { merge: true },
     );
+
+    await batch.commit();
+    return null;
   } catch (err) {
     const code = (err as { code?: string })?.code ?? "unknown";
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[chat] step2 chatRef.set failed", { code, fromUid, toUid, chatId });
-    // Message was sent — don't restore draft, but report the meta failure.
-    return `step2/meta [${code}] ${msg}`;
+    console.warn("[chat] sendMessage batch failed", { code, fromUid, toUid, chatId });
+    return `[${code}] ${msg}`;
   }
-
-  return null; // full success
 }
 
 /**
