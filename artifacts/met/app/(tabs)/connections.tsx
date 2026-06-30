@@ -21,6 +21,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useT } from "@/lib/i18n";
+import { subscribeToChatMeta } from "@/lib/firestore/chat";
 import {
   loadConnectionsSort,
   saveConnectionsSort,
@@ -58,7 +59,7 @@ export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
-  const { encounters, profile } = useApp();
+  const { encounters, profile, authedUid } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const webBot = Platform.OS === "web" ? 34 : 0;
 
@@ -305,7 +306,7 @@ export default function ConnectionsScreen() {
                   <ConnectionRow
                     key={c.id}
                     connection={c}
-                    myUid={profile?.id}
+                    myUid={authedUid ?? profile?.id}
                     isLast={idx === group.items.length - 1}
                     colors={colors}
                     t={t}
@@ -381,7 +382,35 @@ function ConnectionRow({
     );
   }
 
-  const unread = openingUnread;
+  // Subscribe to this peer's chat doc for a live unread indicator.
+  const [chatUnread, setChatUnread] = useState(false);
+  useEffect(() => {
+    if (!myUid || !c.id) return;
+    let cancelled = false;
+    let unsub: (() => void) | null = null;
+
+    subscribeToChatMeta(myUid, c.id, (meta) => {
+      if (cancelled) return;
+      if (!meta?.lastMessage || meta.lastMessage.from === myUid) {
+        setChatUnread(false);
+        return;
+      }
+      const { sentAt } = meta.lastMessage;
+      const readAt = meta.lastReadAt[myUid] ?? 0;
+      const cleared = (meta.clearedAt ?? {})[myUid] ?? 0;
+      setChatUnread(sentAt > readAt && sentAt > cleared);
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unsub = fn;
+    });
+
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
+  }, [myUid, c.id]);
+
+  const unread = openingUnread || chatUnread;
 
   return (
     <View>
@@ -433,7 +462,7 @@ function ConnectionRow({
               <View
                 style={[
                   styles.unreadDot,
-                  { backgroundColor: colors.primary },
+                  { backgroundColor: chatUnread ? "#EF4444" : colors.primary },
                 ]}
               />
             ) : null}

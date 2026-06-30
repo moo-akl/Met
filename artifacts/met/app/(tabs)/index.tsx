@@ -192,6 +192,7 @@ export default function HomeScreen() {
       <AppHeader
         title={t("appHeader.titleHome")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
+        actions={[{ icon: "mail", onPress: () => router.push("/inbox") }]}
       />
       <ScrollView
         contentContainerStyle={{

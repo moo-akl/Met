@@ -603,66 +603,14 @@ export const sendChatMessageNotification = onDocumentCreated(
         ? senderData["displayName"]
         : "Someone";
 
-    // Both iOS and Android register raw FCM tokens via @react-native-firebase/messaging.
-    // Send directly through Firebase Admin SDK — no Expo push relay involved.
-    const msgText =
-      typeof msgData["text"] === "string" && msgData["text"].trim()
-        ? String(msgData["text"]).trim().slice(0, 120)
-        : "📷 Photo";
-
-    try {
-      const fcmResponse = await admin.messaging().send({
-        token: pushToken,
-        notification: {
-          title: senderName,
-          body: msgText,
-        },
-        android: {
-          notification: {
-            // Must match the channel created in configureNotifications() on the client.
-            channelId: "default",
-            sound: "default",
-            priority: "high",
-          },
-          priority: "high",
-        },
-        apns: {
-          payload: {
-            aps: {
-              sound: "default",
-              badge: 1,
-              "content-available": 1,
-            },
-          },
-          headers: {
-            "apns-priority": "10",
-          },
-        },
-        data: { type: "chat_message", chatPeerUid: senderUid },
-      });
-      logger.info(
-        { recipientUid, senderUid, senderName, fcmResponse },
-        "sendChatMessageNotification: push sent via FCM Admin SDK",
-      );
-    } catch (err) {
-      const code = (err as { code?: string }).code;
-      if (
-        code === "messaging/registration-token-not-registered" ||
-        code === "messaging/invalid-registration-token"
-      ) {
-        // Stale/invalid token — permanent failure, no retry.
-        logger.warn(
-          { recipientUid, code },
-          "sendChatMessageNotification: stale FCM token, skipping",
-        );
-        return;
-      }
-      // Transient error — rethrow so Cloud Functions retries.
-      logger.error(
-        { err, recipientUid },
-        "sendChatMessageNotification: FCM Admin SDK error",
-      );
-      throw err;
-    }
+    // Chat push notifications are handled by the API server (POST /api/chats/notify),
+    // which respects the recipient's notifyChat notification preference. Sending here
+    // too would cause duplicate notifications, so this Cloud Function intentionally
+    // skips the FCM send and serves only as a hook for future server-side logic
+    // (analytics, moderation, etc.).
+    logger.info(
+      { recipientUid, senderUid, senderName },
+      "sendChatMessageNotification: skipping FCM — notification delegated to API server",
+    );
   },
 );
