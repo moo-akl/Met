@@ -245,9 +245,11 @@ describe("POST /api/encounters", () => {
       pushMocks.checkNearbyPushAllowed.mockReturnValueOnce(true);
 
       // limit call 1: other profile with interests
-      // limit call 2: caller profile — no interests → no overlap
+      // limit call 2: re-encounter check — empty → not connected → new encounter path
+      // limit call 3: caller profile — no interests → no overlap
       dbMocks.chain.limit
         .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music"] }])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ interests: [] }]);
 
       await postRecordEncounterAs("alice", { otherUid: "bob" });
@@ -263,6 +265,7 @@ describe("POST /api/encounters", () => {
 
       dbMocks.chain.limit
         .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"], preferredLocale: null }])
+        .mockResolvedValueOnce([]) // re-encounter check: not connected
         .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]); // "Travel" is shared
 
       await postRecordEncounterAs("alice", { otherUid: "bob" });
@@ -279,6 +282,7 @@ describe("POST /api/encounters", () => {
       // Bob prefers Spanish — "Travel" should appear as "Viajes" in the notification.
       dbMocks.chain.limit
         .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"], preferredLocale: "es" }])
+        .mockResolvedValueOnce([]) // re-encounter check: not connected
         .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]);
 
       await postRecordEncounterAs("alice", { otherUid: "bob" });
@@ -296,6 +300,7 @@ describe("POST /api/encounters", () => {
       // The normalised comparison should still detect the overlap.
       dbMocks.chain.limit
         .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["music"] }])
+        .mockResolvedValueOnce([]) // re-encounter check: not connected
         .mockResolvedValueOnce([{ interests: ["Music"] }]);
 
       await postRecordEncounterAs("alice", { otherUid: "bob" });
