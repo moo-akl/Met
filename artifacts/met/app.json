@@ -11,11 +11,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "121",
+      "buildNumber": "140",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "Met uses your microphone to record and send voice messages.",
         "NSBluetoothAlwaysUsageDescription": "Met uses Bluetooth to detect nearby Met users you cross paths with, including while the app is in the background.",
         "UIBackgroundModes": [
           "bluetooth-central",
@@ -26,7 +27,7 @@
     },
     "android": {
       "package": "app.met.founders",
-      "versionCode": 120,
+      "versionCode": 140,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#92C977"

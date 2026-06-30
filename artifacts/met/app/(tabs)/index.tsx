@@ -28,6 +28,7 @@ import { usePermissionStatus } from "@/hooks/usePermissionStatus";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useT } from "@/lib/i18n";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
+import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -36,6 +37,7 @@ export default function HomeScreen() {
   const { t } = useT();
   const { encounters, preferences } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
+  const unreadChatCount = useUnreadChatCount();
   const [requestsOpen, setRequestsOpen] = useState(false);
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
 
@@ -192,7 +194,7 @@ export default function HomeScreen() {
       <AppHeader
         title={t("appHeader.titleHome")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
-        actions={[{ icon: "mail", onPress: () => router.push("/inbox") }]}
+        actions={[{ icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount }]}
       />
       <ScrollView
         contentContainerStyle={{

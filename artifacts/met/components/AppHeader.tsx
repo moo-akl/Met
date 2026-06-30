@@ -23,9 +23,10 @@ type Props = {
   title: string;
   actions?: Action[];
   visibility?: Visibility;
+  onBack?: () => void;
 };
 
-export function AppHeader({ title, actions, visibility }: Props) {
+export function AppHeader({ title, actions, visibility, onBack }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webTop = Platform.OS === "web" ? 67 : 0;
@@ -37,6 +38,17 @@ export function AppHeader({ title, actions, visibility }: Props) {
         <Text style={styles.brand}>Met</Text>
       </View>
       <View style={styles.titleRow}>
+        {onBack ? (
+          <Pressable
+            onPress={onBack}
+            hitSlop={10}
+            style={styles.backBtn}
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+          >
+            <Feather name="arrow-left" size={22} color="#fff" />
+          </Pressable>
+        ) : null}
         <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
@@ -128,6 +140,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
+  },
+  backBtn: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 4,
   },
   actionBtn: {
     width: 28,
