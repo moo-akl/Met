@@ -6,6 +6,7 @@
 //
 // chatId = [uidA, uidB].sort().join("_") so both users share one doc.
 
+import * as FileSystem from "expo-file-system/legacy";
 import { getFirestoreModule } from "./client";
 import { api } from "../api/client";
 
@@ -105,8 +106,12 @@ export async function uploadChatMedia(
 }
 
 /**
- * Upload a local audio file URI to Firebase Storage via REST API.
- * Returns a token-bearing download URL. Supports m4a and mp4 audio.
+ * Upload a local audio file URI to Firebase Storage.
+ *
+ * Uses FileSystem.uploadAsync (instead of fetch + blob) so that file:// URIs
+ * are read natively by expo-file-system — React Native's fetch polyfill on iOS
+ * production builds returns status 0 for file:// URLs, making `response.ok`
+ * false even when the file exists, which silently prevented sending.
  */
 export async function uploadChatAudio(
   fromUid: string,
@@ -125,25 +130,20 @@ export async function uploadChatAudio(
     `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o` +
     `?uploadType=media&name=${encodedPath}`;
 
-  const fileResponse = await fetch(localUri);
-  if (!fileResponse.ok) throw new Error(`Cannot read audio file (${fileResponse.status})`);
-  const blob = await fileResponse.blob();
-
-  const uploadResponse = await fetch(uploadUrl, {
-    method: "POST",
+  const result = await FileSystem.uploadAsync(uploadUrl, localUri, {
+    httpMethod: "POST",
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
     headers: {
       Authorization: `Bearer ${idToken}`,
       "Content-Type": "audio/m4a",
     },
-    body: blob,
   });
 
-  if (!uploadResponse.ok) {
-    const errText = await uploadResponse.text().catch(() => String(uploadResponse.status));
-    throw new Error(`Audio upload failed (${uploadResponse.status}): ${errText}`);
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`Audio upload failed (${result.status}): ${result.body}`);
   }
 
-  const meta = (await uploadResponse.json()) as { downloadTokens?: string };
+  const meta = JSON.parse(result.body) as { downloadTokens?: string };
   const dlToken = meta.downloadTokens;
   if (!dlToken) throw new Error("No download token in audio upload response");
 

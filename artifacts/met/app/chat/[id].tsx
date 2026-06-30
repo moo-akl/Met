@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Audio } from "expo-av";
+import type { RecordingOptions } from "expo-av/build/Audio/Recording.types";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   useCallback,
@@ -45,6 +46,16 @@ import {
 
 const MAX_CHARS = 500;
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+
+// Custom recording preset — same quality as HIGH_QUALITY but with metering
+// disabled. The metering timer in expo-av fires on a background thread; if it
+// fires after stopAndUnloadAsync() has deallocated the AVAudioRecorder native
+// object iOS raises SIGABRT/SIGSEGV, crashing the app. Disabling metering
+// eliminates that race condition entirely.
+const VOICE_RECORDING_OPTIONS: RecordingOptions = {
+  ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+  isMeteringEnabled: false,
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -849,25 +860,25 @@ export default function ChatScreen() {
       }
 
       try {
-        // On iOS the AVAudioSession category must be set to PlayAndRecord
-        // BEFORE the system permission dialog is shown. Reversing this order
-        // causes createAsync to fail silently even when the user grants access.
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-        });
+        // Request mic permission first — on iOS we must have a decision before
+        // activating the AVAudioSession in PlayAndRecord mode. Trying to activate
+        // the session before the permission is resolved can raise an uncaught
+        // AVAudioSession exception on certain iOS versions.
         const { granted } = await Audio.requestPermissionsAsync();
         if (!granted) {
-          Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(() => {});
           Alert.alert(
             "Microphone access needed",
             "Please allow microphone access in Settings to send voice messages.",
           );
           return;
         }
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+        });
         const { recording } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY,
+          VOICE_RECORDING_OPTIONS,
         );
         recordingRef.current = recording;
         setIsRecording(true);
