@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "141",
+      "buildNumber": "143",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "app.met.founders",
-      "versionCode": 141,
+      "versionCode": 143,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#92C977"
@@ -91,7 +91,7 @@
         "expo-camera",
         {
           "cameraPermission": "Met uses your camera to scan QR codes from people you meet.",
-          "microphonePermission": false,
+          "microphonePermission": "Met uses your microphone to record and send voice messages.",
           "recordAudioAndroid": false
         }
       ],
