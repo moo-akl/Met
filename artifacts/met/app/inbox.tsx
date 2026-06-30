@@ -3,7 +3,6 @@ import { Feather } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
@@ -81,6 +81,11 @@ export default function InboxScreen() {
   const [archived, setArchived] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
   const webBot = Platform.OS === "web" ? 34 : 0;
+
+  // Action sheet state
+  const [selectedChat, setSelectedChat] = useState<ChatEntry | null>(null);
+  const [rowSheetVisible, setRowSheetVisible] = useState(false);
+  const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
 
   // Load persisted pin/archive state
   useEffect(() => {
@@ -179,7 +184,6 @@ export default function InboxScreen() {
         nextArchived.delete(chatId);
       } else {
         nextArchived.add(chatId);
-        // Unpin if archived
         const nextPinned = new Set(pinned);
         if (nextPinned.has(chatId)) {
           nextPinned.delete(chatId);
@@ -193,62 +197,29 @@ export default function InboxScreen() {
     [archived, pinned],
   );
 
-  const handleDelete = useCallback(
-    (item: ChatEntry) => {
-      Alert.alert(
-        "Delete Conversation",
-        `Delete your chat history with ${item.peerName}? This cannot be undone.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: async () => {
-              // Remove from local state immediately
-              const nextArchived = new Set(archived);
-              nextArchived.delete(item.chatId);
-              const nextPinned = new Set(pinned);
-              nextPinned.delete(item.chatId);
-              setArchived(nextArchived);
-              setPinned(nextPinned);
-              await saveSet(ARCHIVED_KEY, nextArchived);
-              await saveSet(PINNED_KEY, nextPinned);
-              try {
-                await clearChatHistory(authedUid ?? "", item.peerUid);
-              } catch {
-                // ignore
-              }
-            },
-          },
-        ],
-      );
+  const executeDelete = useCallback(
+    async (item: ChatEntry) => {
+      const nextArchived = new Set(archived);
+      nextArchived.delete(item.chatId);
+      const nextPinned = new Set(pinned);
+      nextPinned.delete(item.chatId);
+      setArchived(nextArchived);
+      setPinned(nextPinned);
+      await saveSet(ARCHIVED_KEY, nextArchived);
+      await saveSet(PINNED_KEY, nextPinned);
+      try {
+        await clearChatHistory(authedUid ?? "", item.peerUid);
+      } catch {
+        // ignore
+      }
     },
     [archived, pinned, authedUid],
   );
 
-  const handleLongPress = useCallback(
-    (item: ChatEntry) => {
-      const isPinned = pinned.has(item.chatId);
-      const isArchived = archived.has(item.chatId);
-      Alert.alert(item.peerName, undefined, [
-        {
-          text: isPinned ? "Unpin" : "Pin",
-          onPress: () => void togglePin(item.chatId),
-        },
-        {
-          text: isArchived ? "Unarchive" : "Archive",
-          onPress: () => void toggleArchive(item.chatId),
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => handleDelete(item),
-        },
-        { text: "Cancel", style: "cancel" },
-      ]);
-    },
-    [pinned, archived, togglePin, toggleArchive, handleDelete],
-  );
+  const handleLongPress = useCallback((item: ChatEntry) => {
+    setSelectedChat(item);
+    setRowSheetVisible(true);
+  }, []);
 
   const { pinnedChats, activeChats, archivedChats } = useMemo(() => {
     const p: ChatEntry[] = [];
@@ -321,12 +292,16 @@ export default function InboxScreen() {
     [router, handleLongPress, pinned, colors],
   );
 
-  const allEmpty = pinnedChats.length === 0 && activeChats.length === 0 && archivedChats.length === 0;
+  const allEmpty =
+    pinnedChats.length === 0 && activeChats.length === 0 && archivedChats.length === 0;
 
   type Section = { title: string; data: ChatEntry[]; key: string };
   const sections: Section[] = [];
   if (pinnedChats.length > 0) sections.push({ title: "Pinned", data: pinnedChats, key: "pinned" });
   if (activeChats.length > 0) sections.push({ title: "Messages", data: activeChats, key: "active" });
+
+  const isPinned = selectedChat ? pinned.has(selectedChat.chatId) : false;
+  const isArchived = selectedChat ? archived.has(selectedChat.chatId) : false;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -376,15 +351,9 @@ export default function InboxScreen() {
                     { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
                   ]}
                 >
-                  <Feather
-                    name="archive"
-                    size={15}
-                    color={colors.mutedForeground}
-                  />
+                  <Feather name="archive" size={15} color={colors.mutedForeground} />
                   <Text style={[styles.archivedToggleText, { color: colors.mutedForeground }]}>
-                    {showArchived
-                      ? "Hide archived"
-                      : `Archived (${archivedChats.length})`}
+                    {showArchived ? "Hide archived" : `Archived (${archivedChats.length})`}
                   </Text>
                   <Feather
                     name={showArchived ? "chevron-up" : "chevron-down"}
@@ -407,6 +376,53 @@ export default function InboxScreen() {
           }
         />
       )}
+
+      {/* Row action sheet — pin / archive / delete */}
+      <ActionSheet
+        visible={rowSheetVisible}
+        onClose={() => setRowSheetVisible(false)}
+        title={selectedChat?.peerName}
+        actions={[
+          {
+            label: isPinned ? "Unpin" : "Pin",
+            icon: "bookmark",
+            onPress: () => selectedChat && void togglePin(selectedChat.chatId),
+          },
+          {
+            label: isArchived ? "Unarchive" : "Archive",
+            icon: "archive",
+            onPress: () => selectedChat && void toggleArchive(selectedChat.chatId),
+          },
+          {
+            label: "Delete conversation",
+            icon: "trash-2",
+            destructive: true,
+            onPress: () => {
+              setDeleteSheetVisible(true);
+            },
+          },
+        ]}
+      />
+
+      {/* Delete confirmation sheet */}
+      <ActionSheet
+        visible={deleteSheetVisible}
+        onClose={() => setDeleteSheetVisible(false)}
+        title="Delete conversation?"
+        message={
+          selectedChat
+            ? `Your chat history with ${selectedChat.peerName} will be cleared. This cannot be undone.`
+            : undefined
+        }
+        actions={[
+          {
+            label: "Delete",
+            icon: "trash-2",
+            destructive: true,
+            onPress: () => selectedChat && void executeDelete(selectedChat),
+          },
+        ]}
+      />
     </View>
   );
 }

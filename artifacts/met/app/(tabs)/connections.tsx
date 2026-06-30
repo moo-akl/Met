@@ -311,6 +311,7 @@ export default function ConnectionsScreen() {
                     colors={colors}
                     t={t}
                     onPress={() => router.push(`/connection/${c.id}`)}
+                    onChatPress={() => router.push(`/chat/${c.id}`)}
                   />
                 ))}
               </View>
@@ -347,6 +348,7 @@ function ConnectionRow({
   colors,
   t,
   onPress,
+  onChatPress,
 }: {
   connection: Encounter;
   myUid: string | undefined;
@@ -354,6 +356,7 @@ function ConnectionRow({
   colors: ReturnType<typeof useColors>;
   t: (k: string, opts?: Record<string, unknown>) => string;
   onPress: () => void;
+  onChatPress: () => void;
 }) {
   const om = c.openingMessage;
   let preview: string;
@@ -486,6 +489,20 @@ function ConnectionRow({
             </View>
           ) : null}
         </View>
+        <Pressable
+          onPress={(e) => { e.stopPropagation(); onChatPress(); }}
+          hitSlop={10}
+          style={styles.chatIconWrap}
+          accessibilityLabel="Open chat"
+          accessibilityRole="button"
+        >
+          <Feather
+            name="message-circle"
+            size={22}
+            color={chatUnread ? "#EF4444" : colors.mutedForeground}
+          />
+          {chatUnread ? <View style={styles.chatIconDot} /> : null}
+        </Pressable>
         <Feather
           name="chevron-right"
           size={20}
@@ -641,6 +658,24 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
     overflow: "hidden",
+  },
+  chatIconWrap: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  chatIconDot: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#EF4444",
+    borderWidth: 1.5,
+    borderColor: "#fff",
   },
   separator: { height: 1, marginLeft: 70 },
 });

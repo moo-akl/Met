@@ -813,15 +813,23 @@ export default function ChatScreen() {
     } else {
       setPendingAudio(null);
       try {
+        // On iOS the AVAudioSession category must be set to PlayAndRecord
+        // BEFORE the system permission dialog is shown. Reversing this order
+        // causes createAsync to fail silently even when the user grants access.
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+        });
         const { granted } = await Audio.requestPermissionsAsync();
         if (!granted) {
+          Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(() => {});
           Alert.alert(
             "Microphone access needed",
             "Please allow microphone access in Settings to send voice messages.",
           );
           return;
         }
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
         const { recording } = await Audio.Recording.createAsync(
           Audio.RecordingOptionsPresets.HIGH_QUALITY,
         );
@@ -829,7 +837,9 @@ export default function ChatScreen() {
         setIsRecording(true);
         setRecordSecs(0);
         recordTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
-      } catch {
+      } catch (err) {
+        console.warn("[recording] start failed:", err);
+        Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(() => {});
         Alert.alert("Error", "Could not start recording. Please try again.");
       }
     }
