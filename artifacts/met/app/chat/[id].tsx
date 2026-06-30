@@ -686,6 +686,27 @@ export default function ChatScreen() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Clean up any active recording when the screen unmounts (e.g. user navigates
+  // away mid-recording). Without this the iOS AVAudioSession stays locked in
+  // PlayAndRecord mode and the next createAsync call crashes or returns an error.
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) {
+        clearInterval(recordTimerRef.current);
+        recordTimerRef.current = null;
+      }
+      const stale = recordingRef.current;
+      if (stale) {
+        recordingRef.current = null;
+        stale.stopAndUnloadAsync().catch(() => {});
+      }
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      }).catch(() => {});
+    };
+  }, []);
+
   const listRef = useRef<FlatList<ListItem>>(null);
 
   const isLoading = meta === undefined;
@@ -808,10 +829,25 @@ export default function ChatScreen() {
         }
       } catch {
         // ignore transient recording errors
+      } finally {
+        // Always reset audio mode after stopping so playback works normally
+        // and the AVAudioSession isn't left in PlayAndRecord for the next attempt.
+        Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+        }).catch(() => {});
       }
       setRecordSecs(0);
     } else {
       setPendingAudio(null);
+
+      // Defensive: unload any stale recording object that was never cleaned up
+      // (e.g. a previous attempt that errored out mid-way).
+      if (recordingRef.current) {
+        try { await recordingRef.current.stopAndUnloadAsync(); } catch {}
+        recordingRef.current = null;
+      }
+
       try {
         // On iOS the AVAudioSession category must be set to PlayAndRecord
         // BEFORE the system permission dialog is shown. Reversing this order
