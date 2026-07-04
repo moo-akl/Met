@@ -1,0 +1,31 @@
+kind = "video"
+previewPath = "/met-promo-video/"
+title = "Met Marketing Promo Video"
+version = "1.0.0"
+id = "artifacts/met-promo-video"
+router = "path"
+
+[[integratedSkills]]
+name = "video-js"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/met-promo-video/" ]
+localPort = 21937
+
+[services.development]
+run = "pnpm --filter @workspace/met-promo-video run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/met-promo-video", "run", "build" ]
+publicDir = "artifacts/met-promo-video/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21937"
+BASE_PATH = "/met-promo-video/"

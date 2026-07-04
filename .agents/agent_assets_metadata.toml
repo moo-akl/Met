@@ -179,3 +179,51 @@ id = "aoPHGrS-s_7ahaJU9ILOB"
 uri = "file://attached_assets/met_facebook_cover.png"
 type = "image"
 title = "Met — Facebook Cover Photo"
+
+[[outputs]]
+id = "qNTaqxz_Nei3syLo1Vcp1"
+uri = "file://artifacts/met-promo-video/public/audio/bg_music.mp3"
+type = "audio"
+title = "background music"
+
+[[outputs]]
+id = "AgXOmDUDTiXRqwTcFNGR2"
+uri = "file://marketing/screenshots/01_onboarding.jpg"
+type = "image"
+title = "Onboarding"
+
+[[outputs]]
+id = "5Uji9Gcyny7L-VYuKy-eV"
+uri = "file://marketing/screenshots/02_discover.jpg"
+type = "image"
+title = "Discover Nearby"
+
+[[outputs]]
+id = "h9cMaISkvVFf3PnnjcZZG"
+uri = "file://marketing/screenshots/03_recent.jpg"
+type = "image"
+title = "Recent Encounters"
+
+[[outputs]]
+id = "-0KgznGdQjz_emkeDzgNd"
+uri = "file://marketing/screenshots/04_connections.jpg"
+type = "image"
+title = "Connections"
+
+[[outputs]]
+id = "cKwhdck7h65zH2ji0dOL3"
+uri = "file://marketing/screenshots/05_profile.jpg"
+type = "image"
+title = "Profile"
+
+[[outputs]]
+id = "TFZ5ImTxPv8W3eiTXc-nK"
+uri = "file://marketing/screenshots/06_paywall.jpg"
+type = "image"
+title = "Met Plus"
+
+[[outputs]]
+id = "2kA-pXalGF_-7H0nFeGQH"
+uri = "file://marketing/screenshots/07_referrals.jpg"
+type = "image"
+title = "Referrals"
