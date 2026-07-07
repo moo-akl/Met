@@ -216,7 +216,37 @@ const privacyHtml = layout(
   `,
 );
 
+// Android App Links verification file.
+// Google's Play Console verifies this JSON at:
+//   https://<domain>/.well-known/assetlinks.json
+// The SHA-256 fingerprint here must match the app signing key shown in
+// Play Console → Setup → App integrity → App signing key certificate.
+const assetLinks = JSON.stringify(
+  [
+    {
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: {
+        namespace: "android_app",
+        package_name: "app.met.founders",
+        sha256_cert_fingerprints: [
+          "A0:FF:D9:D6:F1:6C:9F:C8:FB:72:7A:84:F6:3E:01:5B:FE:9F:B1:F1:83:A3:ED:0B:AC:00:55:23:5B:3F:42:59",
+        ],
+      },
+    },
+  ],
+  null,
+  2,
+);
+
 const router: IRouter = Router();
+
+router.get("/.well-known/assetlinks.json", (_req: Request, res: Response) => {
+  res
+    .status(200)
+    .type("application/json")
+    .set("Cache-Control", "public, max-age=3600")
+    .send(assetLinks);
+});
 
 router.get("/support", (_req: Request, res: Response) => {
   res
