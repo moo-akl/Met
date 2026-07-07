@@ -16,3 +16,5 @@
 - [DB schema change → must rebuild libs](db-schema-lib-rebuild.md) — after adding columns to lib/db/src/schema, run `pnpm run typecheck:libs` before server typecheck; otherwise server sees stale Drizzle types and reports column-not-found TS errors.
 - [api/client.ts PATCH method](api-client-patch.md) — the `request()` helper in lib/api/client.ts listed "GET"|"PUT"|"POST"|"DELETE"; adding PATCH endpoints requires adding "PATCH" to that union type.
 - [expo-image-picker copyToCacheDirectory removed](expo-imagepicker-opts.md) — `copyToCacheDirectory` is not a valid ImagePickerOptions key in newer expo-image-picker; remove it to fix TS2353.
+- [iOS paywall root cause](ios-paywall-root-cause.md) — "Plans aren't available" is a StoreKit blocker (Paid Apps Agreement not active being most common), not RevenueCat. Also documents diagRevenueCat.ts raw-fetch 401 bug.
+- [Android deep links assetlinks.json](android-deep-links-assetlinks.md) — /.well-known/assetlinks.json served by API server; must be in artifact.toml paths; SHA-256 from Play Console App Signing key (not upload key).
