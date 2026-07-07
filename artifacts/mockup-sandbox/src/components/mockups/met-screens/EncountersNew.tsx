@@ -1,11 +1,11 @@
 export function EncountersNew() {
-  const bg = "#0B1A0F";
-  const accent = "#29D45A";
-  const textPrimary = "#D6EDD8";
-  const textMuted = "rgba(180,210,182,0.5)";
-  const cardBg = "rgba(29,52,33,0.65)";
-  const cardBorder = "rgba(41,212,90,0.11)";
-  const gridLine = "rgba(41,212,90,0.05)";
+  const bg = "#122B1A";
+  const accent = "#3AE06A";
+  const textPrimary = "#EEF7EF";
+  const textMuted = "rgba(210,235,213,0.55)";
+  const cardBg = "rgba(40,70,48,0.7)";
+  const cardBorder = "rgba(58,224,106,0.14)";
+  const gridLine = "rgba(58,224,106,0.07)";
 
   return (
     <div style={{ width: 390, height: 844, background: bg, fontFamily: "Inter, sans-serif", display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
@@ -20,62 +20,62 @@ export function EncountersNew() {
         ))}
       </svg>
 
+      <div style={{ position: "absolute", top: 80, left: "50%", transform: "translateX(-50%)", width: 280, height: 280, borderRadius: "50%", background: "radial-gradient(circle, rgba(58,224,106,0.09) 0%, transparent 68%)", pointerEvents: "none" }} />
+
       <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
 
         {/* Status */}
-        <div style={{ height: 50, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px" }}>
+        <div style={{ height: 46, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px" }}>
           <span style={{ fontSize: 12, color: textMuted, fontFamily: "'SF Mono', monospace", letterSpacing: 1 }}>09:41</span>
-          <span style={{ fontSize: 10, color: textMuted, fontFamily: "'SF Mono', monospace", letterSpacing: 1 }}>SIG:⬛⬛⬛⬛</span>
+          <span style={{ fontSize: 10, color: textMuted, fontFamily: "'SF Mono', monospace", letterSpacing: 1 }}>SIG:████</span>
         </div>
 
         {/* Header */}
-        <div style={{ padding: "0 20px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ padding: "0 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 10, color: textMuted, letterSpacing: 3, fontFamily: "'SF Mono', monospace", marginBottom: 4 }}>// ENCOUNTERS</div>
             <span style={{ color: textPrimary, fontSize: 22, fontWeight: 600, letterSpacing: -0.3 }}>Proximity Log</span>
           </div>
           <div style={{ width: 36, height: 36, borderRadius: 6, border: `1px solid ${cardBorder}`, background: cardBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={`rgba(41,212,90,0.6)`} strokeWidth="1.5">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={`rgba(58,224,106,0.65)`} strokeWidth="1.5">
               <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/>
             </svg>
           </div>
         </div>
 
         {/* Radar */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-          <div style={{ width: 188, height: 188, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg viewBox="0 0 188 188" width="188" height="188" style={{ position: "absolute", inset: 0 }}>
-              {/* Rings */}
-              {[188, 140, 96, 52].map((r, i) => (
-                <circle key={i} cx="94" cy="94" r={r / 2 - 2} fill="none" stroke={`rgba(41,212,90,${0.06 + i * 0.04})`} strokeWidth="1"/>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          <div style={{ width: 190, height: 190, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg viewBox="0 0 190 190" width="190" height="190" style={{ position: "absolute", inset: 0 }}>
+              {[95, 74, 52, 30].map((r, i) => (
+                <circle key={i} cx="95" cy="95" r={r} fill="none" stroke={`rgba(58,224,106,${0.1 + i * 0.04})`} strokeWidth="1"/>
               ))}
-              {/* Cross hairs */}
-              <line x1="94" y1="4" x2="94" y2="184" stroke="rgba(41,212,90,0.06)" strokeWidth="1"/>
-              <line x1="4" y1="94" x2="184" y2="94" stroke="rgba(41,212,90,0.06)" strokeWidth="1"/>
-              {/* Sweep line */}
-              <line x1="94" y1="94" x2="94" y2="16" stroke={`rgba(41,212,90,0.5)`} strokeWidth="1.5" strokeLinecap="round"/>
-              {/* Sweep fill */}
-              <path d="M94,94 L94,16 A78,78 0 0,1 150,140 Z" fill="rgba(41,212,90,0.04)"/>
+              <line x1="95" y1="5" x2="95" y2="185" stroke="rgba(58,224,106,0.06)" strokeWidth="1"/>
+              <line x1="5" y1="95" x2="185" y2="95" stroke="rgba(58,224,106,0.06)" strokeWidth="1"/>
+              <path d="M95,95 L95,0 A95,95 0 0,1 181,143 Z" fill="rgba(58,224,106,0.06)"/>
+              <line x1="95" y1="95" x2="181" y2="143" stroke={`rgba(58,224,106,0.65)`} strokeWidth="1.5" strokeLinecap="round"/>
               {/* Blips */}
-              <circle cx="128" cy="58" r="3" fill={accent} opacity="0.7"/>
-              <circle cx="128" cy="58" r="7" fill="none" stroke={accent} strokeWidth="0.5" opacity="0.3"/>
-              <circle cx="68" cy="130" r="2.5" fill="#60A5FA" opacity="0.6"/>
-              <circle cx="48" cy="78" r="2" fill="#F59E0B" opacity="0.5"/>
+              <circle cx="128" cy="55" r="8" fill="rgba(58,224,106,0.12)" stroke={accent} strokeWidth="1"/>
+              <text x="128" y="59" textAnchor="middle" fontSize="7" fill={accent} fontWeight="700" fontFamily="'SF Mono', monospace">SK</text>
+              <circle cx="58" cy="135" r="7" fill="rgba(58,224,106,0.1)" stroke="rgba(58,224,106,0.5)" strokeWidth="0.8"/>
+              <text x="58" y="139" textAnchor="middle" fontSize="7" fill="rgba(58,224,106,0.6)" fontWeight="600" fontFamily="'SF Mono', monospace">MT</text>
+              <circle cx="50" cy="72" r="6" fill="rgba(58,224,106,0.08)" stroke="rgba(58,224,106,0.35)" strokeWidth="0.8"/>
+              <text x="50" y="76" textAnchor="middle" fontSize="7" fill="rgba(58,224,106,0.5)" fontWeight="600" fontFamily="'SF Mono', monospace">AL</text>
+              <circle cx="148" cy="120" r="5" fill="rgba(58,224,106,0.07)" stroke="rgba(58,224,106,0.25)" strokeWidth="0.7"/>
             </svg>
-            {/* Center */}
-            <div style={{ width: 30, height: 30, borderRadius: "50%", border: `1.5px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(41,212,90,0.1)", zIndex: 1, boxShadow: `0 0 12px rgba(41,212,90,0.3)` }}>
-              <span style={{ color: accent, fontSize: 13, fontWeight: 700 }}>M</span>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", border: `1.5px solid ${accent}`, background: "rgba(58,224,106,0.12)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1, boxShadow: `0 0 14px rgba(58,224,106,0.4)` }}>
+              <span style={{ color: accent, fontSize: 12, fontWeight: 700 }}>M</span>
             </div>
           </div>
         </div>
 
         {/* Section */}
-        <div style={{ padding: "0 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 9, color: textMuted, letterSpacing: 2, fontFamily: "'SF Mono', monospace" }}>RECENT · 4 NODES</span>
+        <div style={{ padding: "0 20px 8px", display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 9, color: textMuted, letterSpacing: 2, fontFamily: "'SF Mono', monospace" }}>LOG · 4 NODES</span>
           <span style={{ fontSize: 9, color: textMuted, letterSpacing: 1, fontFamily: "'SF Mono', monospace" }}>SORT: TIME ▼</span>
         </div>
 
-        {/* Encounters */}
+        {/* Encounter list */}
         <div style={{ flex: 1, overflowY: "auto", padding: "0 14px", display: "flex", flexDirection: "column", gap: 8 }}>
           {[
             { initials: "SK", name: "Sarah K.", place: "Groundwork Cafe", mutual: true },
@@ -84,27 +84,24 @@ export function EncountersNew() {
             { initials: "JR", name: "James R.", place: "Central Park", mutual: false },
           ].map((enc, i) => (
             <div key={i} style={{
-              background: enc.mutual ? "rgba(41,212,90,0.09)" : cardBg,
+              background: enc.mutual ? "rgba(58,224,106,0.1)" : cardBg,
               borderRadius: 8,
-              border: enc.mutual ? `1px solid rgba(41,212,90,0.3)` : `1px solid ${cardBorder}`,
-              padding: "12px 14px",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
+              border: enc.mutual ? `1px solid rgba(58,224,106,0.35)` : `1px solid ${cardBorder}`,
+              padding: "11px 14px", display: "flex", alignItems: "center", gap: 12,
             }}>
-              <div style={{ width: 40, height: 40, borderRadius: 6, background: "rgba(41,212,90,0.08)", border: `1px solid rgba(41,212,90,${enc.mutual ? 0.35 : 0.15})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <span style={{ color: enc.mutual ? accent : "rgba(41,212,90,0.55)", fontSize: 12, fontWeight: 600, fontFamily: "'SF Mono', monospace" }}>{enc.initials}</span>
+              <div style={{ width: 38, height: 38, borderRadius: 6, background: "rgba(58,224,106,0.1)", border: `1px solid rgba(58,224,106,${enc.mutual ? 0.4 : 0.18})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ color: enc.mutual ? accent : "rgba(58,224,106,0.55)", fontSize: 11, fontWeight: 600, fontFamily: "'SF Mono', monospace" }}>{enc.initials}</span>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ color: textPrimary, fontSize: 14, fontWeight: 500, marginBottom: 3 }}>{enc.name}</div>
+                <div style={{ color: textPrimary, fontSize: 14, fontWeight: 500, marginBottom: 2 }}>{enc.name}</div>
                 <div style={{ color: textMuted, fontSize: 11 }}>{enc.place}</div>
               </div>
               {enc.mutual
-                ? <div style={{ background: "rgba(41,212,90,0.18)", border: `1px solid rgba(41,212,90,0.5)`, borderRadius: 4, padding: "5px 10px" }}>
+                ? <div style={{ background: "rgba(58,224,106,0.18)", border: `1px solid rgba(58,224,106,0.55)`, borderRadius: 4, padding: "5px 10px" }}>
                     <span style={{ color: accent, fontSize: 9, letterSpacing: 1.5, fontFamily: "'SF Mono', monospace" }}>CONNECT</span>
                   </div>
-                : <div style={{ border: `1px solid rgba(41,212,90,0.18)`, borderRadius: 4, padding: "5px 10px" }}>
-                    <span style={{ color: "rgba(41,212,90,0.45)", fontSize: 9, letterSpacing: 1, fontFamily: "'SF Mono', monospace" }}>REVEAL</span>
+                : <div style={{ border: `1px solid rgba(58,224,106,0.2)`, borderRadius: 4, padding: "5px 10px" }}>
+                    <span style={{ color: "rgba(58,224,106,0.5)", fontSize: 9, letterSpacing: 1, fontFamily: "'SF Mono', monospace" }}>REVEAL</span>
                   </div>
               }
             </div>
@@ -112,7 +109,7 @@ export function EncountersNew() {
         </div>
 
         {/* Tab bar */}
-        <div style={{ height: 78, background: "rgba(8,18,11,0.95)", borderTop: `1px solid rgba(41,212,90,0.1)`, display: "flex", alignItems: "center", justifyContent: "space-around", padding: "0 4px 10px" }}>
+        <div style={{ height: 76, background: "rgba(12,26,18,0.96)", borderTop: `1px solid rgba(58,224,106,0.12)`, display: "flex", alignItems: "center", justifyContent: "space-around", padding: "0 4px 8px" }}>
           {[
             { glyph: "⌂", label: "HOME", active: false },
             { glyph: "◈", label: "RECENT", active: true },
@@ -121,9 +118,9 @@ export function EncountersNew() {
             { glyph: "○", label: "PROFILE", active: false },
           ].map((tab, i) => (
             <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 8px" }}>
-              <span style={{ fontSize: 16, color: tab.active ? accent : "rgba(255,255,255,0.2)" }}>{tab.glyph}</span>
-              <span style={{ fontSize: 8, letterSpacing: 1, fontFamily: "'SF Mono', monospace", color: tab.active ? accent : "rgba(255,255,255,0.2)" }}>{tab.label}</span>
-              {tab.active && <div style={{ width: 16, height: 1, background: accent, boxShadow: `0 0 4px ${accent}` }} />}
+              <span style={{ fontSize: 17, color: tab.active ? accent : "rgba(255,255,255,0.22)" }}>{tab.glyph}</span>
+              <span style={{ fontSize: 8, letterSpacing: 1.2, fontFamily: "'SF Mono', monospace", color: tab.active ? accent : "rgba(255,255,255,0.22)" }}>{tab.label}</span>
+              {tab.active && <div style={{ width: 16, height: 1.5, background: accent, boxShadow: `0 0 5px ${accent}` }} />}
             </div>
           ))}
         </div>
