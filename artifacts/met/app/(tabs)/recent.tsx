@@ -144,7 +144,7 @@ export default function RecentScreen() {
       />
 
       {/* Radar panel */}
-      <View style={styles.radarPanel}>
+      <View style={[styles.radarPanel, { borderBottomColor: colors.border }]}>
         <View style={styles.radarMeta}>
           <Text style={[styles.radarLabel, { color: colors.mutedForeground }]}>
             {"// ENCOUNTERS"}
@@ -338,7 +338,6 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     paddingTop: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(58,224,106,0.1)",
   },
   radarMeta: {
     flexDirection: "row",

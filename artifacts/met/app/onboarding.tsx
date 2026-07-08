@@ -55,29 +55,31 @@ type Slide = {
   bodyKey: string;
 };
 
-const SLIDES: Slide[] = [
-  {
-    icon: "target",
-    iconColor: "#60A5FA",
-    iconBg: "rgba(96,165,250,0.15)",
-    titleKey: "onboarding.slide1Title",
-    bodyKey: "onboarding.slide1Body",
-  },
-  {
-    icon: "shield",
-    iconColor: "#3AE06A",
-    iconBg: "rgba(58,224,106,0.15)",
-    titleKey: "onboarding.slide2Title",
-    bodyKey: "onboarding.slide2Body",
-  },
-  {
-    icon: "user",
-    iconColor: "#FBBF24",
-    iconBg: "rgba(251,191,36,0.15)",
-    titleKey: "onboarding.slide3Title",
-    bodyKey: "onboarding.slide3Body",
-  },
-];
+function getSlides(primary: string, border: string): Slide[] {
+  return [
+    {
+      icon: "target",
+      iconColor: "#60A5FA",
+      iconBg: "rgba(96,165,250,0.15)",
+      titleKey: "onboarding.slide1Title",
+      bodyKey: "onboarding.slide1Body",
+    },
+    {
+      icon: "shield",
+      iconColor: primary,
+      iconBg: border,
+      titleKey: "onboarding.slide2Title",
+      bodyKey: "onboarding.slide2Body",
+    },
+    {
+      icon: "user",
+      iconColor: "#FBBF24",
+      iconBg: "rgba(251,191,36,0.15)",
+      titleKey: "onboarding.slide3Title",
+      bodyKey: "onboarding.slide3Body",
+    },
+  ];
+}
 
 const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: string }> = [
   { key: "instagram", label: "Instagram", placeholder: "your.handle" },
@@ -115,6 +117,7 @@ const PRIVACY_URL =
 
 export default function OnboardingScreen() {
   const colors = useColors();
+  const slides = getSlides(colors.primary, colors.border);
   const router = useRouter();
   const { setProfile, setPermissionsCompleted, permissionsCompleted } = useApp();
   const insets = useSafeAreaInsets();
@@ -813,7 +816,7 @@ export default function OnboardingScreen() {
                     borderRadius: colors.radius,
                     borderWidth: 1.5,
                     borderColor: active ? colors.primary : colors.border,
-                    backgroundColor: active ? "rgba(58,224,106,0.12)" : colors.card,
+                    backgroundColor: active ? colors.border : colors.card,
                     opacity: pressed ? 0.75 : 1,
                   })}
                 >
@@ -854,10 +857,10 @@ export default function OnboardingScreen() {
   }
 
   if (phase === "intro") {
-    const current = SLIDES[slide];
+    const current = slides[slide];
     const currentTitle = t(current.titleKey);
     const currentBody = t(current.bodyKey);
-    const isLast = slide === SLIDES.length - 1;
+    const isLast = slide === slides.length - 1;
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View
@@ -910,7 +913,7 @@ export default function OnboardingScreen() {
             </Pressable>
 
             <View style={styles.dots}>
-              {SLIDES.map((_, i) => (
+              {slides.map((_, i) => (
                 <View
                   key={i}
                   style={[

@@ -372,7 +372,7 @@ export default function HomeScreen() {
 
         <View style={styles.heroSection}>
           {/* Radar glow orb */}
-          <View style={styles.radarGlow} pointerEvents="none" />
+          <View style={[styles.radarGlow, { shadowColor: colors.primary }]} pointerEvents="none" />
 
           <RadarView size={220} blips={blips} />
 
@@ -410,8 +410,8 @@ export default function HomeScreen() {
                   style={[
                     styles.vibePill,
                     {
-                      backgroundColor: "rgba(58,224,106,0.08)",
-                      borderColor: "rgba(58,224,106,0.28)",
+                      backgroundColor: colors.border,
+                      borderColor: colors.primary,
                     },
                   ]}
                 >
@@ -880,7 +880,6 @@ const styles = StyleSheet.create({
     marginLeft: -150,
     borderRadius: 150,
     backgroundColor: "transparent",
-    shadowColor: "#3AE06A",
     shadowOpacity: 0.08,
     shadowRadius: 60,
     shadowOffset: { width: 0, height: 0 },

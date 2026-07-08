@@ -3,14 +3,16 @@ import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Svg, { Line } from "react-native-svg";
 
 import { useTheme } from "@/contexts/ThemeContext";
+import { useColors } from "@/hooks/useColors";
 
 export function GridOverlay() {
   const { isDark } = useTheme();
+  const colors = useColors();
   const { width, height } = useWindowDimensions();
 
   if (!isDark) return null;
 
-  const gridLine = "rgba(58,224,106,0.07)";
+  const gridLine = colors.border;
   const hCount = Math.ceil(height / 40) + 2;
   const vCount = Math.ceil(width / 44) + 2;
 
