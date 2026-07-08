@@ -209,3 +209,25 @@ export async function loadDragHintDismissed(): Promise<boolean> {
 export async function saveDragHintDismissed(): Promise<void> {
   await AsyncStorage.setItem(DRAG_HINT_DISMISSED_KEY, "1");
 }
+
+function profileBannerDismissedKey(uid: string): string {
+  return `met:profileBannerDismissed:v1:${uid}`;
+}
+
+export async function loadProfileBannerDismissed(uid: string): Promise<boolean> {
+  if (!uid) return false;
+  const raw = await AsyncStorage.getItem(profileBannerDismissedKey(uid));
+  return raw === "1";
+}
+
+export async function saveProfileBannerDismissed(
+  uid: string,
+  dismissed: boolean,
+): Promise<void> {
+  if (!uid) return;
+  if (dismissed) {
+    await AsyncStorage.setItem(profileBannerDismissedKey(uid), "1");
+  } else {
+    await AsyncStorage.removeItem(profileBannerDismissedKey(uid));
+  }
+}

@@ -38,7 +38,11 @@ import {
   SUPPORTED_LANGUAGES,
   useT,
 } from "@/lib/i18n";
-import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
+import {
+  DISCOVERY_RANGE_METERS,
+  loadProfileBannerDismissed,
+  saveProfileBannerDismissed,
+} from "@/lib/storage";
 import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 
 export default function HomeScreen() {
@@ -84,13 +88,21 @@ export default function HomeScreen() {
     }
     setReloadingLang(false);
   };
-  const { encounters, preferences, profile } = useApp();
+  const { encounters, preferences, profile, authedUid } = useApp();
   const [profileBannerDismissed, setProfileBannerDismissed] = useState(false);
   const profileIncomplete =
     !!profile && (!profile.verified || Object.keys(profile.socials ?? {}).length === 0);
+
   useEffect(() => {
-    if (!profileIncomplete) setProfileBannerDismissed(false);
-  }, [profileIncomplete]);
+    if (!authedUid) return;
+    loadProfileBannerDismissed(authedUid).then(setProfileBannerDismissed).catch(() => {});
+  }, [authedUid]);
+
+  useEffect(() => {
+    if (!authedUid || !profile || profileIncomplete) return;
+    setProfileBannerDismissed(false);
+    saveProfileBannerDismissed(authedUid, false).catch(() => {});
+  }, [profileIncomplete, authedUid, profile]);
   const blips = useMemo<RadarBlip[]>(
     () =>
       encounters.slice(0, 6).map((e, i) => ({
@@ -353,7 +365,11 @@ export default function HomeScreen() {
               </Text>
             </View>
             <Pressable
-              onPress={(e) => { e.stopPropagation(); setProfileBannerDismissed(true); }}
+              onPress={(e) => {
+                e.stopPropagation();
+                setProfileBannerDismissed(true);
+                if (authedUid) saveProfileBannerDismissed(authedUid, true).catch(() => {});
+              }}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Dismiss"
