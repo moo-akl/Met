@@ -24,9 +24,6 @@ function ChatTabIcon({ color }: { color: string }) {
   );
 }
 
-const TAB_BAR_BG = "#0C1A12";
-const TAB_BAR_BORDER = "rgba(58,224,106,0.12)";
-
 export default function TabLayout() {
   const colors = useColors();
   const isWeb = Platform.OS === "web";
@@ -36,7 +33,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: "rgba(255,255,255,0.28)",
+        tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarShowLabel: true,
         tabBarLabelStyle: {
@@ -47,15 +44,15 @@ export default function TabLayout() {
           textTransform: "uppercase",
         },
         tabBarStyle: {
-          backgroundColor: TAB_BAR_BG,
-          borderTopColor: TAB_BAR_BORDER,
+          backgroundColor: colors.background,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
           elevation: 0,
           ...(isWeb ? { height: 84 } : {}),
         },
         tabBarBackground: () => (
           <View
-            style={[StyleSheet.absoluteFill, { backgroundColor: TAB_BAR_BG }]}
+            style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
           />
         ),
       }}

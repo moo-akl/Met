@@ -27,6 +27,13 @@ type Props = {
   scanActive?: boolean;
 };
 
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export function AppHeader({
   title,
   actions,
@@ -64,7 +71,14 @@ export function AppHeader({
         ) : (
           <View style={styles.brand}>
             <View
-              style={[styles.logoCircle, { borderColor: colors.primary }]}
+              style={[
+                styles.logoCircle,
+                {
+                  borderColor: colors.primary,
+                  backgroundColor: hexToRgba(colors.primary, 0.1),
+                  shadowColor: colors.primary,
+                },
+              ]}
             >
               <Text style={[styles.logoLetter, { color: colors.primary }]}>
                 M
@@ -78,7 +92,15 @@ export function AppHeader({
 
         <View style={styles.right}>
           {scanActive ? (
-            <View style={[styles.scanPill, { borderColor: "rgba(58,224,106,0.35)" }]}>
+            <View
+              style={[
+                styles.scanPill,
+                {
+                  borderColor: hexToRgba(colors.primary, 0.35),
+                  backgroundColor: hexToRgba(colors.primary, 0.07),
+                },
+              ]}
+            >
               <View style={[styles.scanDot, { backgroundColor: colors.primary }]} />
               <Text style={[styles.scanText, { color: colors.primary }]}>
                 SCAN.ACTIVE
@@ -99,7 +121,15 @@ export function AppHeader({
               hitSlop={8}
               style={({ pressed }) => [
                 styles.visPill,
-                visibility.isVisible ? styles.visPillOn : styles.visPillOff,
+                visibility.isVisible
+                  ? {
+                      backgroundColor: hexToRgba(colors.primary, 0.12),
+                      borderColor: hexToRgba(colors.primary, 0.35),
+                    }
+                  : {
+                      backgroundColor: "transparent",
+                      borderColor: hexToRgba(colors.primary, 0.25),
+                    },
                 { opacity: pressed ? 0.7 : 1 },
               ]}
             >
@@ -166,8 +196,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(58,224,106,0.1)",
-    shadowColor: "#3AE06A",
     shadowOpacity: 0.35,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
@@ -200,7 +228,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 5,
     borderWidth: 1,
-    backgroundColor: "rgba(58,224,106,0.07)",
   },
   scanDot: {
     width: 5,
@@ -220,14 +247,6 @@ const styles = StyleSheet.create({
     height: 26,
     borderRadius: 13,
     borderWidth: 1,
-  },
-  visPillOn: {
-    backgroundColor: "rgba(58,224,106,0.12)",
-    borderColor: "rgba(58,224,106,0.35)",
-  },
-  visPillOff: {
-    backgroundColor: "transparent",
-    borderColor: "rgba(58,224,106,0.25)",
   },
   visPillText: {
     fontFamily: "Inter_600SemiBold",
