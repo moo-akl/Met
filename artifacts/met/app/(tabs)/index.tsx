@@ -1,11 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "@/components/MetGradient";
 import { useRouter } from "expo-router";
+import * as Updates from "expo-updates";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
+  DevSettings,
   Easing,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -26,7 +30,13 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { usePermissionReminders } from "@/hooks/usePermissionReminders";
 import { usePermissionStatus } from "@/hooks/usePermissionStatus";
 import { useVisibility } from "@/hooks/useVisibility";
-import { useT } from "@/lib/i18n";
+import {
+  type LangCode,
+  getLanguage,
+  setLanguage,
+  SUPPORTED_LANGUAGES,
+  useT,
+} from "@/lib/i18n";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 
@@ -35,6 +45,44 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
+  const [langPickerOpen, setLangPickerOpen] = useState(false);
+  const [reloadingLang, setReloadingLang] = useState(false);
+  const currentLang = getLanguage();
+
+  const onPickLanguage = (code: LangCode) => {
+    if (reloadingLang || code === currentLang) return;
+    Alert.alert(
+      t("language.confirmTitle"),
+      SUPPORTED_LANGUAGES.find((s) => s.code === code)?.native ?? code,
+      [
+        { text: t("profile.cancelBtn"), style: "cancel" },
+        { text: t("language.confirmRestart"), onPress: () => void applyLanguage(code) },
+      ],
+    );
+  };
+
+  const applyLanguage = async (code: LangCode) => {
+    setReloadingLang(true);
+    setLangPickerOpen(false);
+    let rtlChanged = false;
+    try {
+      ({ rtlChanged } = await setLanguage(code));
+    } catch {
+      setReloadingLang(false);
+      return;
+    }
+    setTimeout(() => void reloadApp(rtlChanged), 1200);
+  };
+
+  const reloadApp = async (rtlChanged: boolean) => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      try { window.location.reload(); return; } catch {}
+    } else {
+      try { await Updates.reloadAsync(); return; } catch {}
+      try { DevSettings.reload(); return; } catch {}
+    }
+    setReloadingLang(false);
+  };
   const { encounters, preferences } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const unreadChatCount = useUnreadChatCount();
@@ -194,7 +242,10 @@ export default function HomeScreen() {
       <AppHeader
         title={t("appHeader.titleHome")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
-        actions={[{ icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount }]}
+        actions={[
+          { icon: "globe", onPress: () => setLangPickerOpen(true) },
+          { icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount },
+        ]}
       />
       <ScrollView
         contentContainerStyle={{
@@ -611,6 +662,63 @@ export default function HomeScreen() {
         visible={requestsOpen}
         onClose={() => setRequestsOpen(false)}
       />
+
+      <Modal
+        visible={langPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLangPickerOpen(false)}
+      >
+        <View style={styles.langBackdrop}>
+          <Pressable style={{ flex: 1 }} onPress={() => setLangPickerOpen(false)} />
+          <View style={[styles.langSheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.langHandle} />
+            <View style={styles.langHeader}>
+              <Text style={[styles.langTitle, { color: colors.foreground }]}>
+                {t("language.title")}
+              </Text>
+              <Pressable onPress={() => setLangPickerOpen(false)} hitSlop={12}>
+                <Feather name="x" size={22} color={colors.foreground} />
+              </Pressable>
+            </View>
+            <Text style={[styles.langSub, { color: colors.mutedForeground }]}>
+              {t("language.subtitle")}
+            </Text>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 12 }}>
+              {SUPPORTED_LANGUAGES.map((opt) => {
+                const active = opt.code === currentLang;
+                return (
+                  <Pressable
+                    key={opt.code}
+                    onPress={() => onPickLanguage(opt.code)}
+                    style={({ pressed }) => [
+                      styles.langRow,
+                      {
+                        backgroundColor: active ? colors.primary : colors.muted,
+                        borderColor: active ? colors.primary : colors.border,
+                        opacity: pressed ? 0.8 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.langRowIcon, { backgroundColor: active ? "rgba(255,255,255,0.25)" : colors.background }]}>
+                      <Feather name="globe" size={16} color={active ? "#fff" : colors.foreground} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.langRowLabel, { color: active ? "#fff" : colors.foreground }]}>
+                        {opt.native}
+                      </Text>
+                      <Text style={[styles.langRowSub, { color: active ? "rgba(255,255,255,0.8)" : colors.mutedForeground }]}>
+                        {opt.label}{opt.rtl ? "  •  RTL" : ""}
+                      </Text>
+                    </View>
+                    {active && <Feather name="check" size={18} color="#fff" />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -944,5 +1052,65 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: "uppercase",
     marginTop: 2,
+  },
+  langBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  langSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    maxHeight: "80%",
+  },
+  langHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(150,150,150,0.4)",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  langHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  langTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 18,
+  },
+  langSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  langRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  langRowIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  langRowLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+  },
+  langRowSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 1,
   },
 });
