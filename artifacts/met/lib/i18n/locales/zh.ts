@@ -113,6 +113,11 @@ export const zh: LocaleTree = {
     newPeopleA11y: "本周认识 {{count}} 位新朋友",
     crossedAgainA11y: "本周再次擦肩 {{count}} 次",
     statA11y: "{{label}}:{{value}}",
+    profileBannerTitle: "Complete your profile",
+    profileBannerNoPhoto: "Add a verified selfie — Met checks for a real face to keep things authentic.",
+    profileBannerNoSocials: "Add at least one social link so people can connect with you.",
+    profileBannerBoth: "Add a verified selfie and a social link so people can connect with you.",
+    profileBannerCta: "Set up profile →",
   },
   recent: {
     title: "最近",

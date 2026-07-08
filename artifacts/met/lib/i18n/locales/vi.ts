@@ -119,6 +119,11 @@ export const vi: LocaleTree = {
     newPeopleA11y: "{{count}} người mới tuần này",
     crossedAgainA11y: "{{count}} người gặp lại tuần này",
     statA11y: "{{label}}: {{value}}",
+    profileBannerTitle: "Complete your profile",
+    profileBannerNoPhoto: "Add a verified selfie — Met checks for a real face to keep things authentic.",
+    profileBannerNoSocials: "Add at least one social link so people can connect with you.",
+    profileBannerBoth: "Add a verified selfie and a social link so people can connect with you.",
+    profileBannerCta: "Set up profile →",
   },
   recent: {
     title: "Gần đây",

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 
 import { useApp } from "@/contexts/AppContext";
 import { api } from "@/lib/api/client";
@@ -31,6 +32,7 @@ const VISIBILITY_CONSENT_KEY = "met:visibilityConsentAccepted:v1";
  */
 export function useVisibility() {
   const { profile, setProfile } = useApp();
+  const router = useRouter();
   const isVisible = profile?.isVisible ?? false;
 
   const performToggle = useCallback(
@@ -85,6 +87,24 @@ export function useVisibility() {
     // time. Once accepted we never re-prompt (toggling off and on
     // repeatedly is a normal usage pattern, not a re-consent event).
     if (next) {
+      // Hard gate: require a verified (real-face) photo before the user
+      // can become discoverable. This keeps the community authentic and
+      // prevents random-image signups from polluting nearby feeds.
+      if (!profile.verified) {
+        Alert.alert(
+          "Verified photo required",
+          "Add a real selfie to your profile before going visible. Met checks for a face to keep the community authentic.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Go to Profile",
+              onPress: () => router.push("/(tabs)/profile"),
+            },
+          ],
+        );
+        return;
+      }
+
       const accepted = await AsyncStorage.getItem(VISIBILITY_CONSENT_KEY);
       if (accepted !== "1") {
         Alert.alert(

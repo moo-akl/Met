@@ -84,7 +84,7 @@ export default function HomeScreen() {
     }
     setReloadingLang(false);
   };
-  const { encounters, preferences } = useApp();
+  const { encounters, preferences, profile } = useApp();
   const blips = useMemo<RadarBlip[]>(
     () =>
       encounters.slice(0, 6).map((e, i) => ({
@@ -316,6 +316,39 @@ export default function HomeScreen() {
           onAccept={openReminderSettings}
           onDismiss={dismissReminder}
         />
+
+        {profile && (!profile.verified || Object.keys(profile.socials ?? {}).length === 0) ? (
+          <Pressable
+            onPress={() => router.push("/(tabs)/profile")}
+            accessibilityRole="button"
+            accessibilityLabel={t("home.profileBannerTitle")}
+            style={({ pressed }) => [
+              styles.banner,
+              {
+                backgroundColor: "#EFF6FF",
+                borderColor: "#3B82F6",
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <View style={[styles.permAlertIcon, { backgroundColor: "#DBEAFE" }]}>
+              <Feather name="user" size={18} color="#2563EB" />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[styles.bannerTitle, { color: "#1E3A5F" }]}>
+                {t("home.profileBannerTitle")}
+              </Text>
+              <Text style={[styles.bannerSub, { color: "#1D4ED8" }]}>
+                {!profile.verified && Object.keys(profile.socials ?? {}).length === 0
+                  ? t("home.profileBannerBoth")
+                  : !profile.verified
+                    ? t("home.profileBannerNoPhoto")
+                    : t("home.profileBannerNoSocials")}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#3B82F6" />
+          </Pressable>
+        ) : null}
 
         {incoming.length > 0 ? (
           <Pressable
