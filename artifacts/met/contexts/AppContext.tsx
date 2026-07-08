@@ -57,9 +57,11 @@ import {
   clearPreferences,
   clearProfile,
   loadEncounters,
+  clearDragHintDismissed,
   loadPermissionsCompleted,
   loadPreferences,
   loadProfile,
+  saveDisclosureAccepted,
   saveEncounters,
   savePermissionsCompleted,
   savePreferences,
@@ -421,6 +423,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (previousUid) await clearCooldownsFor(previousUid);
     if (previousUid) await saveProfileBannerDismissed(previousUid, false);
     await savePermissionsCompleted(false);
+    await clearDragHintDismissed();
+    await saveDisclosureAccepted("location", false);
+    await saveDisclosureAccepted("bluetooth", false);
     // Same dev-only gate as initial load — production reset leaves the
     // encounters list genuinely empty.
     const seeded = __DEV__ ? buildSeedEncounters() : [];
@@ -447,6 +452,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (previousUid) await clearCooldownsFor(previousUid);
     if (previousUid) await saveProfileBannerDismissed(previousUid, false);
     await savePermissionsCompleted(false);
+    await clearDragHintDismissed();
+    await saveDisclosureAccepted("location", false);
+    await saveDisclosureAccepted("bluetooth", false);
     const seeded = __DEV__ ? buildSeedEncounters() : [];
     setProfileState(null);
     setAllEncounters(seeded);

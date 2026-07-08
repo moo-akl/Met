@@ -210,6 +210,10 @@ export async function saveDragHintDismissed(): Promise<void> {
   await AsyncStorage.setItem(DRAG_HINT_DISMISSED_KEY, "1");
 }
 
+export async function clearDragHintDismissed(): Promise<void> {
+  await AsyncStorage.removeItem(DRAG_HINT_DISMISSED_KEY);
+}
+
 function profileBannerDismissedKey(uid: string): string {
   return `met:profileBannerDismissed:v1:${uid}`;
 }
