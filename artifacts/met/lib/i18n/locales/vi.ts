@@ -361,6 +361,11 @@ export const vi: LocaleTree = {
     interestsSelectedCount: "Đã chọn {{current}}/{{max}}",
     interestsSearchPlaceholder: "Tìm kiếm sở thích…",
     dragReorderHint: "Giữ và kéo để sắp xếp lại",
+    languageSub: "Chọn ngôn ngữ bạn muốn sử dụng",
+    socialInvalidHandle: "Tên người dùng không hợp lệ",
+    socialNotReachable: "Không thể xác minh hồ sơ",
+    socialVerified: "Đã xác minh",
+    socialVerifying: "Đang kiểm tra...",
     referralTitle: "Có mã mời không?",
     referralSub:
       "Tuỳ chọn. Nhập mã của bạn bè để họ được ghi nhận.",

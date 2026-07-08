@@ -360,6 +360,11 @@ export const nl: LocaleTree = {
     interestsSelectedCount: "{{current}}/{{max}} geselecteerd",
     interestsSearchPlaceholder: "Zoek interesses…",
     dragReorderHint: "Ingedrukt houden en slepen om te herordenen",
+    languageSub: "Kies de taal die je wilt gebruiken",
+    socialInvalidHandle: "Ongeldige gebruikersnaam",
+    socialNotReachable: "Profiel kon niet worden geverifieerd",
+    socialVerified: "Geverifieerd",
+    socialVerifying: "Bezig met controleren...",
     referralTitle: "Heb je een uitnodigingscode?",
     referralSub:
       "Optioneel. Voer de code van een vriend in zodat hij credit krijgt.",

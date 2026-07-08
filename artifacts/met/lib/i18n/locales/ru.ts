@@ -361,6 +361,11 @@ export const ru: LocaleTree = {
     interestsSelectedCount: "{{current}}/{{max}} выбрано",
     interestsSearchPlaceholder: "Поиск интересов…",
     dragReorderHint: "Удерживайте и перетащите для изменения порядка",
+    languageSub: "Выберите язык, который хотите использовать",
+    socialInvalidHandle: "Неверный формат имени пользователя",
+    socialNotReachable: "Не удалось проверить профиль",
+    socialVerified: "Подтверждено",
+    socialVerifying: "Проверка...",
     referralTitle: "Есть код приглашения?",
     referralSub:
       "Необязательно. Введите код друга, чтобы он получил награду.",

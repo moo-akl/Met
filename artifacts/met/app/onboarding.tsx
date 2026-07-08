@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -35,7 +36,8 @@ import {
   signUpWithEmail,
 } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api/client";
-import { getLanguage, useT } from "@/lib/i18n";
+import { getLanguage, setLanguage, SUPPORTED_LANGUAGES, useT, type LangCode } from "@/lib/i18n";
+import { validateHandle, checkHandleReachable } from "@/lib/socialValidation";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { loadDragHintDismissed, loadProfile, saveDragHintDismissed } from "@/lib/storage";
@@ -56,22 +58,22 @@ type Slide = {
 const SLIDES: Slide[] = [
   {
     icon: "target",
-    iconColor: "#3B82F6",
-    iconBg: "#DBEAFE",
+    iconColor: "#60A5FA",
+    iconBg: "rgba(96,165,250,0.15)",
     titleKey: "onboarding.slide1Title",
     bodyKey: "onboarding.slide1Body",
   },
   {
     icon: "shield",
-    iconColor: "#3DCC44",
-    iconBg: "#DCFCE7",
+    iconColor: "#3AE06A",
+    iconBg: "rgba(58,224,106,0.15)",
     titleKey: "onboarding.slide2Title",
     bodyKey: "onboarding.slide2Body",
   },
   {
     icon: "user",
-    iconColor: "#F59E0B",
-    iconBg: "#FEF3C7",
+    iconColor: "#FBBF24",
+    iconBg: "rgba(251,191,36,0.15)",
     titleKey: "onboarding.slide3Title",
     bodyKey: "onboarding.slide3Body",
   },
@@ -87,6 +89,7 @@ const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: st
 ];
 
 type Phase =
+  | "language"
   | "intro"
   | "auth"
   | "verify"
@@ -124,8 +127,9 @@ export default function OnboardingScreen() {
   const permissionsOnly = startAt === "permissions";
 
   const [phase, setPhase] = useState<Phase>(
-    permissionsOnly ? "invite" : "intro",
+    permissionsOnly ? "invite" : "language",
   );
+  const [selectedLang, setSelectedLang] = useState<LangCode>(getLanguage());
   const [slide, setSlide] = useState(0);
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -162,6 +166,9 @@ export default function OnboardingScreen() {
   // explicit checkbox confirming the user is 18+ and accepts our Terms +
   // Privacy Policy. Reset per session — never persisted.
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [socialErrors, setSocialErrors] = useState<Partial<Record<SocialPlatform, string>>>({});
+  const [socialVerifying, setSocialVerifying] = useState<Partial<Record<SocialPlatform, boolean>>>({});
+  const [socialVerified, setSocialVerified] = useState<Partial<Record<SocialPlatform, boolean>>>({});
   // Verify-email-screen state. `verifyEmail` is the address the user
   // signed up with (shown in the body copy). `resendCooldownEndsAt` is
   // a wall-clock timestamp; `cooldownRemaining` is a tick that drives
@@ -186,6 +193,35 @@ export default function OnboardingScreen() {
       return () => { cancelled = true; };
     }
   }, [phase]);
+
+  const validateSocial = useCallback(async (platform: SocialPlatform, handle: string) => {
+    const clean = handle.replace(/^@/, "").trim();
+    if (!clean) {
+      setSocialErrors((prev) => { const n = { ...prev }; delete n[platform]; return n; });
+      setSocialVerified((prev) => { const n = { ...prev }; delete n[platform]; return n; });
+      return;
+    }
+    const { valid, message } = validateHandle(platform, clean);
+    if (!valid) {
+      setSocialErrors((prev) => ({ ...prev, [platform]: message }));
+      setSocialVerified((prev) => { const n = { ...prev }; delete n[platform]; return n; });
+      return;
+    }
+    setSocialVerifying((prev) => ({ ...prev, [platform]: true }));
+    setSocialErrors((prev) => { const n = { ...prev }; delete n[platform]; return n; });
+    try {
+      const reachable = await checkHandleReachable(platform, clean);
+      if (!reachable) {
+        setSocialErrors((prev) => ({ ...prev, [platform]: t("onboarding.socialNotReachable") }));
+      } else {
+        setSocialVerified((prev) => ({ ...prev, [platform]: true }));
+      }
+    } catch {
+      // network errors don't block the user
+    } finally {
+      setSocialVerifying((prev) => { const n = { ...prev }; delete n[platform]; return n; });
+    }
+  }, [t]);
 
   const handleInterestsReorder = useCallback((newItems: string[]) => {
     setInterests((prev) => {
@@ -740,6 +776,83 @@ export default function OnboardingScreen() {
     return () => clearInterval(id);
   }, [resendCooldownEndsAt]);
 
+  if (phase === "language") {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.introWrap,
+            { paddingTop: topPad + 48, paddingBottom: bottomPad },
+          ]}
+        >
+          <View style={styles.introTextArea}>
+            <Text style={[styles.introTitle, { color: colors.foreground }]}>
+              {t("language.pickerTitle")}
+            </Text>
+            <Text style={[styles.introBody, { color: colors.mutedForeground }]}>
+              {t("onboarding.languageSub")}
+            </Text>
+          </View>
+
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ gap: 10, paddingVertical: 16 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => {
+              const active = selectedLang === lang.code;
+              return (
+                <Pressable
+                  key={lang.code}
+                  onPress={() => setSelectedLang(lang.code)}
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 18,
+                    paddingVertical: 14,
+                    borderRadius: colors.radius,
+                    borderWidth: 1.5,
+                    borderColor: active ? colors.primary : colors.border,
+                    backgroundColor: active ? "rgba(58,224,106,0.12)" : colors.card,
+                    opacity: pressed ? 0.75 : 1,
+                  })}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "600" }}>
+                      {lang.native}
+                    </Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 2 }}>
+                      {lang.label}
+                    </Text>
+                  </View>
+                  {active && <Feather name="check-circle" size={20} color={colors.primary} />}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Pressable
+            onPress={() => {
+              setLanguage(selectedLang);
+              setPhase("intro");
+            }}
+            style={({ pressed }) => ({
+              backgroundColor: colors.primary,
+              borderRadius: colors.radius,
+              paddingVertical: 16,
+              alignItems: "center",
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <Text style={{ color: colors.primaryForeground, fontSize: 17, fontWeight: "700" }}>
+              {t("common.continue")}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   if (phase === "intro") {
     const current = SLIDES[slide];
     const currentTitle = t(current.titleKey);
@@ -753,6 +866,14 @@ export default function OnboardingScreen() {
             { paddingTop: topPad + 24, paddingBottom: bottomPad },
           ]}
         >
+          <Pressable
+            onPress={() => setPhase("language")}
+            hitSlop={12}
+            style={{ alignSelf: "flex-start", marginBottom: 8 }}
+          >
+            <Feather name="chevron-left" size={24} color={colors.foreground} />
+          </Pressable>
+
           <View style={styles.introIconArea}>
             <View
               style={[
@@ -1394,9 +1515,12 @@ export default function OnboardingScreen() {
                   </Text>
                   <TextInput
                     value={socials[f.key] ?? ""}
-                    onChangeText={(v) =>
-                      setSocials((prev) => ({ ...prev, [f.key]: v }))
-                    }
+                    onChangeText={(v) => {
+                      setSocials((prev) => ({ ...prev, [f.key]: v }));
+                      if (socialErrors[f.key]) setSocialErrors((prev) => { const n = { ...prev }; delete n[f.key]; return n; });
+                      if (socialVerified[f.key]) setSocialVerified((prev) => { const n = { ...prev }; delete n[f.key]; return n; });
+                    }}
+                    onBlur={() => validateSocial(f.key, socials[f.key] ?? "")}
                     placeholder={f.placeholder}
                     autoCapitalize="none"
                     placeholderTextColor={colors.mutedForeground}
@@ -1404,11 +1528,30 @@ export default function OnboardingScreen() {
                       styles.input,
                       {
                         backgroundColor: colors.card,
-                        borderColor: colors.border,
+                        borderColor: socialErrors[f.key]
+                          ? colors.destructive
+                          : socialVerified[f.key]
+                          ? colors.primary
+                          : colors.border,
                         color: colors.foreground,
                       },
                     ]}
                   />
+                  {socialVerifying[f.key] && (
+                    <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }}>
+                      {t("onboarding.socialVerifying")}
+                    </Text>
+                  )}
+                  {!socialVerifying[f.key] && socialErrors[f.key] && (
+                    <Text style={{ color: colors.destructive, fontSize: 12, marginTop: 4 }}>
+                      {socialErrors[f.key]}
+                    </Text>
+                  )}
+                  {!socialVerifying[f.key] && !socialErrors[f.key] && socialVerified[f.key] && (
+                    <Text style={{ color: colors.primary, fontSize: 12, marginTop: 4 }}>
+                      {t("onboarding.socialVerified")}
+                    </Text>
+                  )}
                 </View>
               ))}
             </View>

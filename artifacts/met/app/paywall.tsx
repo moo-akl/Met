@@ -136,6 +136,13 @@ const FEATURES: FeatureMatrix[] = [
     plus: false,
     pro: true,
   },
+  {
+    icon: "slash",
+    label: "Ad-free experience",
+    free: false,
+    plus: true,
+    pro: true,
+  },
 ];
 
 export default function PaywallScreen() {

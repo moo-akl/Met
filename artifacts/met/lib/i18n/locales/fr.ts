@@ -365,6 +365,11 @@ export const fr: LocaleTree = {
     interestsSelectedCount: "{{current}}/{{max}} sélectionnés",
     interestsSearchPlaceholder: "Rechercher des intérêts…",
     dragReorderHint: "Maintenir et glisser pour réorganiser",
+    languageSub: "Choisissez la langue que vous souhaitez utiliser",
+    socialInvalidHandle: "Identifiant invalide",
+    socialNotReachable: "Impossible de vérifier le profil",
+    socialVerified: "Vérifié",
+    socialVerifying: "Vérification...",
     referralTitle: "Vous avez un code d'invitation ?",
     referralSub:
       "Optionnel. Entrez le code d'un ami pour qu'il en soit crédité.",

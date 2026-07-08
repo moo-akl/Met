@@ -364,6 +364,11 @@ export const ar: LocaleTree = {
     interestsSelectedCount: "{{current}}/{{max}} محدد",
     interestsSearchPlaceholder: "ابحث عن الاهتمامات…",
     dragReorderHint: "اضغط مطولاً واسحب لإعادة الترتيب",
+    languageSub: "اختر اللغة التي تريد استخدامها",
+    socialInvalidHandle: "اسم مستخدم غير صالح",
+    socialNotReachable: "تعذّر التحقق من الملف الشخصي",
+    socialVerified: "تم التحقق",
+    socialVerifying: "جارٍ التحقق...",
     referralTitle: "هل لديك رمز دعوة؟",
     referralSub:
       "اختياري. أدخل رمز صديق ليُحتسب له.",
