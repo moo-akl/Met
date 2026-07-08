@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -19,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { RadarView } from "@/components/RadarView";
 import { SortableChips } from "@/components/SortableChips";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -186,6 +188,10 @@ export default function OnboardingScreen() {
   // Guard against double-mount (StrictMode) running our resume effect
   // twice and overwriting the user's chosen phase.
   const resumedRef = useRef(false);
+  const socialFloatAnims = useRef<Animated.Value[]>(
+    Array.from({ length: 5 }, () => new Animated.Value(0))
+  );
+  const shieldPulseAnim = useRef(new Animated.Value(0));
 
   useEffect(() => {
     if (phase === "interests") {
@@ -779,6 +785,28 @@ export default function OnboardingScreen() {
     return () => clearInterval(id);
   }, [resendCooldownEndsAt]);
 
+  useEffect(() => {
+    if (phase !== "intro") return;
+    const loops = [
+      ...socialFloatAnims.current.map((anim, i) =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(anim, { toValue: 1, duration: 1800 + i * 250, useNativeDriver: true }),
+            Animated.timing(anim, { toValue: 0, duration: 1800 + i * 250, useNativeDriver: true }),
+          ])
+        )
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(shieldPulseAnim.current, { toValue: 1, duration: 1500, useNativeDriver: true }),
+          Animated.timing(shieldPulseAnim.current, { toValue: 0, duration: 1500, useNativeDriver: true }),
+        ])
+      ),
+    ];
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+  }, [phase]);
+
   if (phase === "language") {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -857,101 +885,277 @@ export default function OnboardingScreen() {
   }
 
   if (phase === "intro") {
-    const current = slides[slide];
-    const currentTitle = t(current.titleKey);
-    const currentBody = t(current.bodyKey);
     const isLast = slide === slides.length - 1;
+    const ORBIT_R = 108;
+    const SOCIAL_SIZE = 300;
+
+    const socialItems = [
+      { name: "instagram" as const, color: "#E1306C", angle: -90 },
+      { name: "twitter" as const, color: "#1DA1F2", angle: -22 },
+      { name: "snapchat-ghost" as const, color: "#F7CA00", angle: 54 },
+      { name: "linkedin" as const, color: "#0A66C2", angle: 130 },
+      { name: "facebook" as const, color: "#1877F2", angle: 206 },
+    ];
+
+    const badges = ["PROXIMITY", "PRIVACY FIRST", "LINK UP"];
+    const accentColors = [colors.primary, "#60A5FA", "#FBBF24"];
+    const accent = accentColors[slide] ?? colors.primary;
+
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {/* Top nav */}
         <View
-          style={[
-            styles.introWrap,
-            { paddingTop: topPad + 24, paddingBottom: bottomPad },
-          ]}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingTop: topPad,
+            paddingHorizontal: 24,
+            paddingBottom: 4,
+          }}
         >
           <Pressable
             onPress={() => setPhase("language")}
             hitSlop={12}
-            style={{ alignSelf: "flex-start", marginBottom: 8 }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
             <Feather name="chevron-left" size={24} color={colors.foreground} />
           </Pressable>
+          <Pressable
+            onPress={() => setPhase("auth")}
+            hitSlop={12}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <Text style={{ fontFamily: "Inter_500Medium", fontSize: 15, color: colors.mutedForeground }}>
+              {t("common.skip")}
+            </Text>
+          </Pressable>
+        </View>
 
-          <View style={styles.introIconArea}>
-            <View
-              style={[
-                styles.introIconWrap,
-                { backgroundColor: current.iconBg },
-              ]}
-            >
-              <Feather
-                name={current.icon}
-                size={56}
-                color={current.iconColor}
+        {/* Slide visual */}
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          {slide === 0 && (
+            <View style={{ alignItems: "center", justifyContent: "center" }}>
+              <View
+                style={{
+                  position: "absolute",
+                  width: 290,
+                  height: 290,
+                  borderRadius: 145,
+                  backgroundColor: `${colors.primary}0C`,
+                  borderWidth: 1,
+                  borderColor: `${colors.primary}20`,
+                }}
+              />
+              <RadarView
+                size={260}
+                blips={[
+                  { initials: "AB", angle: 42, radiusFraction: 0.52 },
+                  { initials: "SK", angle: 127, radiusFraction: 0.68 },
+                  { initials: "MR", angle: 218, radiusFraction: 0.38 },
+                  { initials: "JL", angle: 305, radiusFraction: 0.60 },
+                ]}
               />
             </View>
-          </View>
+          )}
 
-          <View style={styles.introTextArea}>
-            <Text style={[styles.introTitle, { color: colors.foreground }]}>
-              {currentTitle}
-            </Text>
-            <Text style={[styles.introBody, { color: colors.mutedForeground }]}>
-              {currentBody}
-            </Text>
-          </View>
-
-          <View style={styles.introFooter}>
-            <Pressable
-              onPress={() => setPhase("auth")}
-              hitSlop={12}
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-            >
-              <Text style={[styles.skipText, { color: colors.primary }]}>
-                {isLast ? " " : t("common.skip")}
-              </Text>
-            </Pressable>
-
-            <View style={styles.dots}>
-              {slides.map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    {
-                      backgroundColor:
-                        i === slide ? colors.primary : "#CBD5D1",
-                      width: i === slide ? 22 : 8,
-                    },
-                  ]}
-                />
-              ))}
+          {slide === 1 && (
+            <View style={{ alignItems: "center", justifyContent: "center" }}>
+              <Animated.View
+                style={{
+                  position: "absolute",
+                  width: 240,
+                  height: 240,
+                  borderRadius: 120,
+                  borderWidth: 1,
+                  borderColor: "#60A5FA",
+                  opacity: shieldPulseAnim.current.interpolate({ inputRange: [0, 1], outputRange: [0.06, 0.22] }),
+                  transform: [{ scale: shieldPulseAnim.current.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1.08] }) }],
+                }}
+              />
+              <Animated.View
+                style={{
+                  position: "absolute",
+                  width: 178,
+                  height: 178,
+                  borderRadius: 89,
+                  borderWidth: 1,
+                  borderColor: "#60A5FA",
+                  opacity: shieldPulseAnim.current.interpolate({ inputRange: [0, 1], outputRange: [0.10, 0.28] }),
+                  transform: [{ scale: shieldPulseAnim.current.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.04] }) }],
+                }}
+              />
+              <View
+                style={{
+                  width: 118,
+                  height: 118,
+                  borderRadius: 59,
+                  backgroundColor: "rgba(96,165,250,0.12)",
+                  borderWidth: 1.5,
+                  borderColor: "rgba(96,165,250,0.35)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Feather name="shield" size={52} color="#60A5FA" />
+              </View>
+              <View style={{ flexDirection: "row", gap: 24, marginTop: 28 }}>
+                {[0, 1].map((i) => (
+                  <View
+                    key={i}
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 23,
+                      backgroundColor: "rgba(96,165,250,0.10)",
+                      borderWidth: 1,
+                      borderColor: "rgba(96,165,250,0.25)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ color: "rgba(96,165,250,0.55)", fontSize: 20, fontFamily: "Inter_700Bold" }}>?</Text>
+                  </View>
+                ))}
+              </View>
             </View>
+          )}
 
-            {isLast ? (
-              <Pressable
-                onPress={() => setPhase("auth")}
-                hitSlop={12}
-                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          {slide === 2 && (
+            <View style={{ width: SOCIAL_SIZE, height: SOCIAL_SIZE, alignItems: "center", justifyContent: "center" }}>
+              <View
+                style={{
+                  width: 88,
+                  height: 88,
+                  borderRadius: 44,
+                  backgroundColor: colors.primary,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  shadowColor: colors.primary,
+                  shadowOpacity: 0.5,
+                  shadowRadius: 20,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: 10,
+                }}
               >
-                <Text style={[styles.getStarted, { color: colors.primary }]}>
-                  {t("onboarding.getStarted")}
-                </Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() => setSlide(slide + 1)}
-                hitSlop={12}
-                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-              >
-                <Feather
-                  name="arrow-right"
-                  size={24}
-                  color={colors.foreground}
-                />
-              </Pressable>
-            )}
+                <Text style={{ color: "#FFFFFF", fontSize: 38, fontFamily: "Inter_700Bold" }}>M</Text>
+              </View>
+
+              {socialItems.map((item, i) => {
+                const rad = (item.angle * Math.PI) / 180;
+                const cx = SOCIAL_SIZE / 2 + ORBIT_R * Math.cos(rad) - 24;
+                const cy = SOCIAL_SIZE / 2 + ORBIT_R * Math.sin(rad) - 24;
+                return (
+                  <Animated.View
+                    key={i}
+                    style={{
+                      position: "absolute",
+                      left: cx,
+                      top: cy,
+                      transform: [{
+                        translateY: socialFloatAnims.current[i].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -10],
+                        }),
+                      }],
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        backgroundColor: item.color,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        shadowColor: item.color,
+                        shadowOpacity: 0.4,
+                        shadowRadius: 8,
+                        shadowOffset: { width: 0, height: 3 },
+                        elevation: 6,
+                      }}
+                    >
+                      <FontAwesome name={item.name} size={22} color="#FFFFFF" />
+                    </View>
+                  </Animated.View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* Text content */}
+        <View style={{ paddingHorizontal: 28, paddingBottom: 16, gap: 14 }}>
+          <View
+            style={{
+              alignSelf: "flex-start",
+              borderRadius: 100,
+              paddingHorizontal: 12,
+              paddingVertical: 5,
+              backgroundColor: `${accent}18`,
+              borderWidth: 1,
+              borderColor: `${accent}40`,
+            }}
+          >
+            <Text style={{ fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 1.5, color: accent }}>
+              {badges[slide]}
+            </Text>
           </View>
+
+          <Text style={{ fontFamily: "Inter_700Bold", fontSize: 34, lineHeight: 40, color: colors.foreground }}>
+            {t(slides[slide].titleKey)}
+          </Text>
+
+          <Text style={{ fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 23, color: colors.mutedForeground }}>
+            {t(slides[slide].bodyKey)}
+          </Text>
+        </View>
+
+        {/* Bottom nav */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 28,
+            paddingBottom: bottomPad + 8,
+            paddingTop: 4,
+          }}
+        >
+          <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+            {slides.map((_, i) => (
+              <View
+                key={i}
+                style={{
+                  height: 6,
+                  width: i === slide ? 20 : 6,
+                  borderRadius: 3,
+                  backgroundColor: i === slide ? colors.primary : `${colors.primary}30`,
+                }}
+              />
+            ))}
+          </View>
+
+          <Pressable
+            onPress={() => (isLast ? setPhase("auth") : setSlide(slide + 1))}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              backgroundColor: colors.primary,
+              borderRadius: colors.radius,
+              paddingHorizontal: 22,
+              paddingVertical: 14,
+              opacity: pressed ? 0.82 : 1,
+            })}
+          >
+            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 16, color: colors.primaryForeground }}>
+              {isLast ? t("onboarding.getStarted") : t("common.continue")}
+            </Text>
+            {!isLast && (
+              <Feather name="arrow-right" size={16} color={colors.primaryForeground} />
+            )}
+          </Pressable>
         </View>
       </View>
     );

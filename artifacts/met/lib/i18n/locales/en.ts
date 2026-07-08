@@ -323,15 +323,15 @@ export const en = {
     welcomeTitle: "Welcome to Met",
     welcomeSub: "Remember the human, not the follower count.",
     getStarted: "Get started",
-    slide1Title: "Discover Nearby People",
+    slide1Title: "Discover who's nearby",
     slide1Body:
-      "Met uses your location to find others nearby. No more missed connections.",
-    slide2Title: "Stay Private & Secure",
+      "Met scans your surroundings and surfaces real people you've crossed paths with. No swiping — just proximity.",
+    slide2Title: "Anonymous until you click",
     slide2Body:
-      "We never share your exact location. Only your encounter ID is exchanged locally.",
-    slide3Title: "Create Your Identity",
+      "Your identity stays hidden until you both agree to connect. Total privacy, by design.",
+    slide3Title: "Link your world",
     slide3Body:
-      "Let's set up your profile so people know who they've met.",
+      "Add your handles once. After you match, share Instagram, TikTok, Snapchat, and more in a tap.",
     tapToChoose: "Tap to choose",
     infoTitle: "A name and a sentence.",
     infoSub: "Keep your bio short. The shorter, the more honest it feels.",
