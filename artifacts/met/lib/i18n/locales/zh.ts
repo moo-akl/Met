@@ -734,6 +734,8 @@ export const zh: LocaleTree = {
     languageSub: "Met 提供 {{count}} 种语言",
     appearance: "外观",
     appearanceSub: "自动、浅色或深色",
+    themeDark: "深色模式",
+    themeLight: "浅色模式",
     referralsRow: "邀请朋友",
     referralsRowSub: "3 位朋友 = 1 个月 Plus,免费",
     subscriptionRow: "订阅",

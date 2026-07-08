@@ -23,6 +23,7 @@ import { Avatar } from "@/components/Avatar";
 import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { api } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
@@ -221,6 +222,7 @@ function formatVerifiedDate(
 
 export function SettingsSheet({ visible, onClose }: Props) {
   const colors = useColors();
+  const { isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
   const { t, lang } = useT();
@@ -583,6 +585,15 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   t("language.deviceDefault")
                 }
                 onPress={() => setView("language")}
+                colors={colors}
+              />
+
+              <ToggleRow
+                icon={isDark ? "moon" : "sun"}
+                label={t("settings.appearance")}
+                sub={isDark ? t("settings.themeDark") : t("settings.themeLight")}
+                value={isDark}
+                onValueChange={() => toggleTheme()}
                 colors={colors}
               />
 

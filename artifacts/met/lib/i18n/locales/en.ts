@@ -806,6 +806,8 @@ export const en = {
     languageSub: "Met is available in {{count}} languages",
     appearance: "Appearance",
     appearanceSub: "Auto, light, or dark",
+    themeDark: "Dark mode",
+    themeLight: "Light mode",
     referralsRow: "Invite friends",
     referralsRowSub: "3 friends = 1 month Plus, free",
     subscriptionRow: "Subscription",

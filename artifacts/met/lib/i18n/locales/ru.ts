@@ -777,6 +777,8 @@ export const ru: LocaleTree = {
     languageSub: "Met доступен на {{count}} языках",
     appearance: "Внешний вид",
     appearanceSub: "Авто, светлый или тёмный",
+    themeDark: "Тёмная тема",
+    themeLight: "Светлая тема",
     referralsRow: "Пригласить друзей",
     referralsRowSub: "3 друга = 1 месяц Plus, бесплатно",
     subscriptionRow: "Подписка",

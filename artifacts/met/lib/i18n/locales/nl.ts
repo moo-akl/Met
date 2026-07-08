@@ -775,6 +775,8 @@ export const nl: LocaleTree = {
     languageSub: "Met is beschikbaar in {{count}} talen",
     appearance: "Uiterlijk",
     appearanceSub: "Auto, licht of donker",
+    themeDark: "Donkere modus",
+    themeLight: "Lichte modus",
     referralsRow: "Vrienden uitnodigen",
     referralsRowSub: "3 vrienden = 1 maand Plus, gratis",
     subscriptionRow: "Abonnement",

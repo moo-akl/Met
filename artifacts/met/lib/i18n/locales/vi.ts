@@ -774,6 +774,8 @@ export const vi: LocaleTree = {
     languageSub: "Met có sẵn bằng {{count}} ngôn ngữ",
     appearance: "Giao diện",
     appearanceSub: "Tự động, sáng hoặc tối",
+    themeDark: "Chế độ tối",
+    themeLight: "Chế độ sáng",
     referralsRow: "Mời bạn bè",
     referralsRowSub: "3 bạn = 1 tháng Plus, miễn phí",
     subscriptionRow: "Đăng ký",

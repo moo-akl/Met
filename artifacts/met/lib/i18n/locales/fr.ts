@@ -782,6 +782,8 @@ export const fr: LocaleTree = {
     languageSub: "Met est disponible en {{count}} langues",
     appearance: "Apparence",
     appearanceSub: "Auto, clair ou sombre",
+    themeDark: "Mode sombre",
+    themeLight: "Mode clair",
     referralsRow: "Inviter des amis",
     referralsRowSub: "3 amis = 1 mois Plus, gratuit",
     subscriptionRow: "Abonnement",

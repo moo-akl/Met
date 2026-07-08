@@ -775,6 +775,8 @@ export const ar: LocaleTree = {
     languageSub: "Met متاح بـ {{count}} لغات",
     appearance: "المظهر",
     appearanceSub: "تلقائي أو فاتح أو داكن",
+    themeDark: "الوضع الداكن",
+    themeLight: "الوضع الفاتح",
     referralsRow: "ادعُ أصدقاء",
     referralsRowSub: "3 أصدقاء = شهر Plus مجانًا",
     subscriptionRow: "الاشتراك",
