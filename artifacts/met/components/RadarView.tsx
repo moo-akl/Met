@@ -9,6 +9,7 @@ import Svg, {
 } from "react-native-svg";
 
 import { useColors } from "@/hooks/useColors";
+import { hexToRgba } from "@/lib/color";
 
 export type RadarBlip = {
   initials: string;
@@ -31,13 +32,6 @@ function toXY(angleDeg: number, r: number, cx: number, cy: number) {
 function angleDiff(a: number, sweep: number): number {
   const d = ((sweep - a) % 360 + 360) % 360;
   return d < 60 ? 1 - d / 60 : 0;
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 export function RadarView({ size = 220, blips = [], periodMs = 3500, color }: Props) {
