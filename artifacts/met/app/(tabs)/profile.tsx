@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -25,6 +26,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { SocialLinkRow } from "@/components/SocialLinkRow";
 import { useApp } from "@/contexts/AppContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { findBlockedTerm } from "@/lib/contentFilter";
@@ -48,6 +50,7 @@ type PhotoIntent = "main" | "extra";
 
 export default function ProfileScreen() {
   const colors = useColors();
+  const { isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t, lang } = useT();
@@ -744,6 +747,40 @@ export default function ProfileScreen() {
               onPress={() => setEditing(true)}
             />
           )}
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            backgroundColor: colors.card,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: colors.border,
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Feather name="moon" size={16} color={colors.primary} />
+            <Text
+              style={{
+                fontFamily: "Inter_500Medium",
+                fontSize: 15,
+                color: colors.foreground,
+              }}
+            >
+              Radar Theme
+            </Text>
+          </View>
+          <Switch
+            value={isDark}
+            onValueChange={toggleTheme}
+            trackColor={{ false: colors.muted, true: colors.primary }}
+            thumbColor="#FFFFFF"
+            ios_backgroundColor={colors.muted}
+          />
         </View>
       </KeyboardAwareScrollView>
 

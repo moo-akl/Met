@@ -24,6 +24,7 @@ import {
   ChatMessageBanner,
 } from "@/components/ChatMessageBanner";
 import { AppProvider, useApp } from "@/contexts/AppContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { initializeFirestore } from "@/lib/firestore/client";
 import { initI18n } from "@/lib/i18n";
 import {
@@ -415,6 +416,7 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
+            <ThemeProvider>
             <KeyboardProvider>
               <SubscriptionProvider>
                 <AppProvider>
@@ -429,6 +431,7 @@ export default function RootLayout() {
                 </AppProvider>
               </SubscriptionProvider>
             </KeyboardProvider>
+            </ThemeProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>
