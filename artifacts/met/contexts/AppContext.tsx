@@ -64,6 +64,7 @@ import {
   savePermissionsCompleted,
   savePreferences,
   saveProfile,
+  saveProfileBannerDismissed,
   type Preferences,
 } from "@/lib/storage";
 import type { Encounter, EncounterStatus, Profile } from "@/lib/types";
@@ -418,6 +419,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await clearPreferences();
     await clearReferrals();
     if (previousUid) await clearCooldownsFor(previousUid);
+    if (previousUid) await saveProfileBannerDismissed(previousUid, false);
     await savePermissionsCompleted(false);
     // Same dev-only gate as initial load — production reset leaves the
     // encounters list genuinely empty.
@@ -443,6 +445,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await clearPreferences();
     await clearReferrals();
     if (previousUid) await clearCooldownsFor(previousUid);
+    if (previousUid) await saveProfileBannerDismissed(previousUid, false);
     await savePermissionsCompleted(false);
     const seeded = __DEV__ ? buildSeedEncounters() : [];
     setProfileState(null);
