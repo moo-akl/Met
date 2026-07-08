@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api } from "@/lib/api/client";
 import { isLegacyUserId } from "@/lib/auth";
+import { t } from "@/lib/i18n";
 
 /**
  * Persisted flag — `"1"` once the user has been shown (and accepted)
@@ -92,12 +93,12 @@ export function useVisibility() {
       // prevents random-image signups from polluting nearby feeds.
       if (!profile.verified) {
         Alert.alert(
-          "Verified photo required",
-          "Add a real selfie to your profile before going visible. Met checks for a face to keep the community authentic.",
+          t("visibility.noPhotoTitle"),
+          t("visibility.noPhotoBody"),
           [
-            { text: "Cancel", style: "cancel" },
+            { text: t("common.cancel"), style: "cancel" },
             {
-              text: "Go to Profile",
+              text: t("visibility.goToProfile"),
               onPress: () => router.push("/(tabs)/profile"),
             },
           ],

@@ -119,11 +119,17 @@ export const nl: LocaleTree = {
     newPeopleA11y: "{{count}} nieuwe mensen deze week",
     crossedAgainA11y: "{{count}} keer opnieuw tegengekomen deze week",
     statA11y: "{{label}}: {{value}}",
-    profileBannerTitle: "Complete your profile",
-    profileBannerNoPhoto: "Add a verified selfie — Met checks for a real face to keep things authentic.",
-    profileBannerNoSocials: "Add at least one social link so people can connect with you.",
-    profileBannerBoth: "Add a verified selfie and a social link so people can connect with you.",
-    profileBannerCta: "Set up profile →",
+    profileBannerTitle: "Maak je profiel compleet",
+    profileBannerNoPhoto: "Voeg een foto toe waarop je gezicht duidelijk zichtbaar is — Met verifieert elke foto om de community authentiek te houden.",
+    profileBannerNoSocials: "Voeg minimaal één sociale link toe zodat mensen contact met je kunnen opnemen.",
+    profileBannerBoth: "Voeg een foto met je gezicht en minimaal één sociale link toe zodat mensen contact met je kunnen opnemen.",
+    profileBannerCta: "Profiel instellen →",
+  },
+
+  visibility: {
+    noPhotoTitle: "Geverifieerde foto vereist",
+    noPhotoBody: "Voeg een foto toe waarop je gezicht duidelijk zichtbaar is voordat je zichtbaar wordt. Met controleert op een echt gezicht om de community authentiek te houden.",
+    goToProfile: "Ga naar profiel",
   },
   recent: {
     title: "Recent",

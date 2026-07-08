@@ -121,10 +121,16 @@ export const en = {
     crossedAgainA11y: "{{count}} crossed paths again this week",
     statA11y: "{{label}}: {{value}}",
     profileBannerTitle: "Complete your profile",
-    profileBannerNoPhoto: "Add a verified selfie — Met checks for a real face to keep things authentic.",
+    profileBannerNoPhoto: "Add a photo that shows your face clearly — Met verifies each photo to keep the community authentic.",
     profileBannerNoSocials: "Add at least one social link so people can connect with you.",
-    profileBannerBoth: "Add a verified selfie and a social link so people can connect with you.",
+    profileBannerBoth: "Add a photo that shows your face clearly and at least one social link so people can connect with you.",
     profileBannerCta: "Set up profile →",
+  },
+
+  visibility: {
+    noPhotoTitle: "Verified photo required",
+    noPhotoBody: "Add a photo that shows your face clearly before going visible. Met checks for a real face to keep the community authentic.",
+    goToProfile: "Go to Profile",
   },
 
   recent: {

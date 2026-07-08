@@ -119,11 +119,17 @@ export const ru: LocaleTree = {
     newPeopleA11y: "{{count}} новых людей на этой неделе",
     crossedAgainA11y: "{{count}} повторных встреч на этой неделе",
     statA11y: "{{label}}: {{value}}",
-    profileBannerTitle: "Complete your profile",
-    profileBannerNoPhoto: "Add a verified selfie — Met checks for a real face to keep things authentic.",
-    profileBannerNoSocials: "Add at least one social link so people can connect with you.",
-    profileBannerBoth: "Add a verified selfie and a social link so people can connect with you.",
-    profileBannerCta: "Set up profile →",
+    profileBannerTitle: "Заполни профиль",
+    profileBannerNoPhoto: "Загрузи фото, на котором чётко видно твоё лицо — Met проверяет каждое фото, чтобы сохранить подлинность сообщества.",
+    profileBannerNoSocials: "Добавь хотя бы одну ссылку на соцсеть, чтобы люди могли с тобой связаться.",
+    profileBannerBoth: "Загрузи фото с лицом и добавь хотя бы одну ссылку на соцсеть, чтобы люди могли с тобой связаться.",
+    profileBannerCta: "Настроить профиль →",
+  },
+
+  visibility: {
+    noPhotoTitle: "Требуется подтверждённое фото",
+    noPhotoBody: "Загрузи фото, на котором чётко видно твоё лицо, прежде чем стать видимым. Met проверяет наличие реального лица, чтобы сохранить подлинность сообщества.",
+    goToProfile: "Перейти в профиль",
   },
   recent: {
     title: "Недавние",

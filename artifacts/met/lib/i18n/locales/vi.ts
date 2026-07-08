@@ -119,11 +119,17 @@ export const vi: LocaleTree = {
     newPeopleA11y: "{{count}} người mới tuần này",
     crossedAgainA11y: "{{count}} người gặp lại tuần này",
     statA11y: "{{label}}: {{value}}",
-    profileBannerTitle: "Complete your profile",
-    profileBannerNoPhoto: "Add a verified selfie — Met checks for a real face to keep things authentic.",
-    profileBannerNoSocials: "Add at least one social link so people can connect with you.",
-    profileBannerBoth: "Add a verified selfie and a social link so people can connect with you.",
-    profileBannerCta: "Set up profile →",
+    profileBannerTitle: "Hoàn thiện hồ sơ của bạn",
+    profileBannerNoPhoto: "Thêm ảnh thấy rõ khuôn mặt của bạn — Met xác minh từng ảnh để giữ cộng đồng chân thực.",
+    profileBannerNoSocials: "Thêm ít nhất một liên kết mạng xã hội để mọi người có thể kết nối với bạn.",
+    profileBannerBoth: "Thêm ảnh khuôn mặt rõ ràng và ít nhất một liên kết mạng xã hội để mọi người có thể kết nối với bạn.",
+    profileBannerCta: "Thiết lập hồ sơ →",
+  },
+
+  visibility: {
+    noPhotoTitle: "Yêu cầu ảnh đã xác minh",
+    noPhotoBody: "Thêm ảnh thấy rõ khuôn mặt của bạn trước khi hiển thị. Met kiểm tra khuôn mặt thật để giữ cộng đồng chân thực.",
+    goToProfile: "Đến trang hồ sơ",
   },
   recent: {
     title: "Gần đây",

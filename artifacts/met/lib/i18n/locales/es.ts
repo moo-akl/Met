@@ -117,11 +117,17 @@ export const es: LocaleTree = {
     newPeopleA11y: "{{count}} personas nuevas esta semana",
     crossedAgainA11y: "{{count}} reencuentros esta semana",
     statA11y: "{{label}}: {{value}}",
-    profileBannerTitle: "Complete your profile",
-    profileBannerNoPhoto: "Add a verified selfie — Met checks for a real face to keep things authentic.",
-    profileBannerNoSocials: "Add at least one social link so people can connect with you.",
-    profileBannerBoth: "Add a verified selfie and a social link so people can connect with you.",
-    profileBannerCta: "Set up profile →",
+    profileBannerTitle: "Completa tu perfil",
+    profileBannerNoPhoto: "Añade una foto donde se vea claramente tu cara — Met verifica cada foto para mantener la comunidad auténtica.",
+    profileBannerNoSocials: "Añade al menos un enlace social para que la gente pueda conectar contigo.",
+    profileBannerBoth: "Añade una foto donde se vea tu cara y al menos un enlace social para que la gente pueda conectar contigo.",
+    profileBannerCta: "Configurar perfil →",
+  },
+
+  visibility: {
+    noPhotoTitle: "Foto verificada requerida",
+    noPhotoBody: "Añade una foto donde se vea claramente tu cara antes de ser visible. Met verifica que haya una cara real para mantener la comunidad auténtica.",
+    goToProfile: "Ir al perfil",
   },
   recent: {
     title: "Recientes",

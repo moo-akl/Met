@@ -113,11 +113,17 @@ export const zh: LocaleTree = {
     newPeopleA11y: "本周认识 {{count}} 位新朋友",
     crossedAgainA11y: "本周再次擦肩 {{count}} 次",
     statA11y: "{{label}}:{{value}}",
-    profileBannerTitle: "Complete your profile",
-    profileBannerNoPhoto: "Add a verified selfie — Met checks for a real face to keep things authentic.",
-    profileBannerNoSocials: "Add at least one social link so people can connect with you.",
-    profileBannerBoth: "Add a verified selfie and a social link so people can connect with you.",
-    profileBannerCta: "Set up profile →",
+    profileBannerTitle: "完善你的资料",
+    profileBannerNoPhoto: "请上传一张能清晰看到你脸的照片——Met 会验证每张照片以保持社区的真实性。",
+    profileBannerNoSocials: "请至少添加一个社交链接，方便他人与你联系。",
+    profileBannerBoth: "请上传一张清晰的正脸照片，并至少添加一个社交链接，方便他人与你联系。",
+    profileBannerCta: "设置资料 →",
+  },
+
+  visibility: {
+    noPhotoTitle: "需要经过验证的照片",
+    noPhotoBody: "在上线前，请上传一张能清晰看到你脸的照片。Met 会验证真实人脸，以保持社区的真实性。",
+    goToProfile: "前往资料页",
   },
   recent: {
     title: "最近",
