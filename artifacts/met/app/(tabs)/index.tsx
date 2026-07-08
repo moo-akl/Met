@@ -21,8 +21,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
+import { GridOverlay } from "@/components/GridOverlay";
 import { PermissionDisclosureDialog } from "@/components/PermissionDisclosureDialog";
-import { PulseBeacon } from "@/components/PulseBeacon";
+import { type RadarBlip, RadarView } from "@/components/RadarView";
 import { RequestsSheet } from "@/components/RequestsSheet";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -84,6 +85,15 @@ export default function HomeScreen() {
     setReloadingLang(false);
   };
   const { encounters, preferences } = useApp();
+  const blips = useMemo<RadarBlip[]>(
+    () =>
+      encounters.slice(0, 6).map((e, i) => ({
+        initials: (e.realName ?? "??").slice(0, 2).toUpperCase(),
+        angle: (i * 73 + 22) % 360,
+        radiusFraction: 0.38 + (i % 3) * 0.18,
+      })),
+    [encounters],
+  );
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const unreadChatCount = useUnreadChatCount();
   const [requestsOpen, setRequestsOpen] = useState(false);
@@ -239,8 +249,10 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <GridOverlay />
       <AppHeader
         title={t("appHeader.titleHome")}
+        scanActive={isVisible}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[
           { icon: "globe", onPress: () => setLangPickerOpen(true) },
@@ -318,7 +330,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [
               styles.banner,
               {
-                backgroundColor: "#DCFCE7",
+                backgroundColor: colors.card,
                 borderColor: colors.primary,
                 opacity: pressed ? 0.85 : 1,
               },
@@ -342,7 +354,7 @@ export default function HomeScreen() {
               ))}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.bannerTitle, { color: "#14532D" }]}>
+              <Text style={[styles.bannerTitle, { color: colors.foreground }]}>
                 {t(
                   incoming.length === 1
                     ? "home.peopleWantReveal_one"
@@ -350,7 +362,7 @@ export default function HomeScreen() {
                   { count: incoming.length },
                 )}
               </Text>
-              <Text style={[styles.bannerSub, { color: "#166534" }]}>
+              <Text style={[styles.bannerSub, { color: colors.mutedForeground }]}>
                 {t("home.tapToReview")}
               </Text>
             </View>
@@ -359,17 +371,10 @@ export default function HomeScreen() {
         ) : null}
 
         <View style={styles.heroSection}>
-          {/* Soft radial-feeling glow behind the beacon — only when active. */}
-          {isVisible ? (
-            <LinearGradient
-              colors={["rgba(61,204,68,0.18)", "rgba(61,204,68,0)"]}
-              style={styles.heroGlow}
-              pointerEvents="none"
-            />
-          ) : null}
-          <View style={styles.beaconWrap}>
-            <PulseBeacon size={180} active={isVisible} />
-          </View>
+          {/* Radar glow orb */}
+          <View style={styles.radarGlow} pointerEvents="none" />
+
+          <RadarView size={220} blips={blips} />
 
           <View style={styles.beaconLabelRow}>
             {isVisible ? (
@@ -405,13 +410,13 @@ export default function HomeScreen() {
                   style={[
                     styles.vibePill,
                     {
-                      backgroundColor: vibe.bg,
-                      borderColor: vibe.border,
+                      backgroundColor: "rgba(58,224,106,0.08)",
+                      borderColor: "rgba(58,224,106,0.28)",
                     },
                   ]}
                 >
-                  <Feather name={vibe.icon} size={12} color={vibe.fg} />
-                  <Text style={[styles.vibeText, { color: vibe.fg }]}>
+                  <Feather name={vibe.icon} size={12} color={colors.primary} />
+                  <Text style={[styles.vibeText, { color: colors.primary }]}>
                     {t(vibe.labelKey)}
                   </Text>
                 </View>
@@ -861,25 +866,24 @@ const styles = StyleSheet.create({
   heroSection: {
     alignItems: "center",
     paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 24,
+    paddingTop: 12,
+    paddingBottom: 12,
     gap: 4,
     position: "relative",
   },
-  heroGlow: {
+  radarGlow: {
     position: "absolute",
-    top: 24,
+    top: 0,
     left: "50%",
-    width: 320,
-    height: 320,
-    marginLeft: -160,
-    borderRadius: 160,
-  },
-  beaconWrap: {
-    height: 200,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
+    width: 300,
+    height: 300,
+    marginLeft: -150,
+    borderRadius: 150,
+    backgroundColor: "transparent",
+    shadowColor: "#3AE06A",
+    shadowOpacity: 0.08,
+    shadowRadius: 60,
+    shadowOffset: { width: 0, height: 0 },
   },
   beaconLabelRow: {
     flexDirection: "row",

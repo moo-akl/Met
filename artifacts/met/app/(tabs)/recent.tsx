@@ -8,6 +8,8 @@ import { AppHeader } from "@/components/AppHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { EncounterRow } from "@/components/EncounterRow";
+import { GridOverlay } from "@/components/GridOverlay";
+import { type RadarBlip, RadarView } from "@/components/RadarView";
 import { RequestsSheet } from "@/components/RequestsSheet";
 import { ScanFab } from "@/components/ScanFab";
 import { useApp } from "@/contexts/AppContext";
@@ -32,6 +34,15 @@ export default function RecentScreen() {
   const { t } = useT();
   const params = useLocalSearchParams<{ filter?: string }>();
   const { encounters, preferences, profile } = useApp();
+  const blips = useMemo<RadarBlip[]>(
+    () =>
+      encounters.slice(0, 6).map((e, i) => ({
+        initials: (e.realName ?? "??").slice(0, 2).toUpperCase(),
+        angle: (i * 73 + 22) % 360,
+        radiusFraction: 0.38 + (i % 3) * 0.18,
+      })),
+    [encounters],
+  );
   const { isPlusSubscriber, isSubscriptionReady } = useSubscription();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
@@ -125,11 +136,28 @@ export default function RecentScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <GridOverlay />
       <AppHeader
         title={t("appHeader.titleRecent")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[{ icon: "bell", onPress: handleBell, badge: pendingRequests }]}
       />
+
+      {/* Radar panel */}
+      <View style={styles.radarPanel}>
+        <View style={styles.radarMeta}>
+          <Text style={[styles.radarLabel, { color: colors.mutedForeground }]}>
+            {"// ENCOUNTERS"}
+          </Text>
+          <Text style={[styles.radarCount, { color: colors.mutedForeground }]}>
+            {`LOG · ${encounters.length} NODES`}
+          </Text>
+        </View>
+        <View style={{ alignItems: "center" }}>
+          <RadarView size={160} blips={blips} periodMs={4200} />
+        </View>
+      </View>
+
       <ScrollView
         contentContainerStyle={{
           paddingTop: 8,
@@ -305,6 +333,28 @@ export default function RecentScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  radarPanel: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    paddingTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(58,224,106,0.1)",
+  },
+  radarMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  radarLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 1.8,
+  },
+  radarCount: {
+    fontSize: 9,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 1.5,
+  },
   list: { paddingHorizontal: 4 },
   separator: { height: 1, marginLeft: 70 },
   filterChip: {

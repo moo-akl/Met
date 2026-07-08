@@ -24,20 +24,33 @@ type Props = {
   actions?: Action[];
   visibility?: Visibility;
   onBack?: () => void;
+  scanActive?: boolean;
 };
 
-export function AppHeader({ title, actions, visibility, onBack }: Props) {
+export function AppHeader({
+  title,
+  actions,
+  visibility,
+  onBack,
+  scanActive,
+}: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webTop = Platform.OS === "web" ? 67 : 0;
   const { t } = useT();
 
   return (
-    <View style={[styles.wrap, { backgroundColor: colors.primary }]}>
-      <View style={[styles.brandRow, { paddingTop: insets.top + webTop + 10 }]}>
-        <Text style={styles.brand}>Met</Text>
-      </View>
-      <View style={styles.titleRow}>
+    <View
+      style={[
+        styles.wrap,
+        {
+          backgroundColor: colors.card,
+          borderBottomColor: colors.border,
+          paddingTop: insets.top + webTop,
+        },
+      ]}
+    >
+      <View style={styles.headerRow}>
         {onBack ? (
           <Pressable
             onPress={onBack}
@@ -46,13 +59,33 @@ export function AppHeader({ title, actions, visibility, onBack }: Props) {
             accessibilityLabel="Go back"
             accessibilityRole="button"
           >
-            <Feather name="arrow-left" size={22} color="#fff" />
+            <Feather name="arrow-left" size={22} color={colors.foreground} />
           </Pressable>
-        ) : null}
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
-        <View style={styles.actions}>
+        ) : (
+          <View style={styles.brand}>
+            <View
+              style={[styles.logoCircle, { borderColor: colors.primary }]}
+            >
+              <Text style={[styles.logoLetter, { color: colors.primary }]}>
+                M
+              </Text>
+            </View>
+            <Text style={[styles.brandText, { color: colors.foreground }]}>
+              {title}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.right}>
+          {scanActive ? (
+            <View style={[styles.scanPill, { borderColor: "rgba(58,224,106,0.35)" }]}>
+              <View style={[styles.scanDot, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.scanText, { color: colors.primary }]}>
+                SCAN.ACTIVE
+              </Text>
+            </View>
+          ) : null}
+
           {visibility ? (
             <Pressable
               onPress={visibility.onToggle}
@@ -66,24 +99,23 @@ export function AppHeader({ title, actions, visibility, onBack }: Props) {
               hitSlop={8}
               style={({ pressed }) => [
                 styles.visPill,
-                visibility.isVisible
-                  ? styles.visPillOn
-                  : styles.visPillOff,
+                visibility.isVisible ? styles.visPillOn : styles.visPillOff,
                 { opacity: pressed ? 0.7 : 1 },
               ]}
             >
               <Feather
                 name={visibility.isVisible ? "radio" : "slash"}
                 size={13}
-                color="#FFFFFF"
+                color={colors.primary}
               />
-              <Text style={styles.visPillText}>
+              <Text style={[styles.visPillText, { color: colors.primary }]}>
                 {visibility.isVisible
                   ? t("appHeader.visible")
                   : t("appHeader.hidden")}
               </Text>
             </Pressable>
           ) : null}
+
           {actions?.map((a, i) => (
             <Pressable
               key={i}
@@ -94,7 +126,7 @@ export function AppHeader({ title, actions, visibility, onBack }: Props) {
                 { opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Feather name={a.icon} size={22} color="#fff" />
+              <Feather name={a.icon} size={22} color={colors.foreground} />
               {a.badge && a.badge > 0 ? (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
@@ -111,42 +143,95 @@ export function AppHeader({ title, actions, visibility, onBack }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { width: "100%" },
-  brandRow: {
-    paddingBottom: 6,
-    alignItems: "center",
+  wrap: {
+    width: "100%",
+    borderBottomWidth: 1,
   },
-  brand: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 20,
-    color: "#FFFFFF",
-    letterSpacing: 0.2,
-  },
-  titleRow: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 18,
+    paddingVertical: 12,
   },
-  title: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 24,
-    color: "#FFFFFF",
-    flex: 1,
-  },
-  actions: {
+  brand: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 10,
+  },
+  logoCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(58,224,106,0.1)",
+    shadowColor: "#3AE06A",
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  logoLetter: {
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+  },
+  brandText: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.3,
   },
   backBtn: {
     width: 32,
     height: 32,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 4,
+  },
+  right: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  scanPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 5,
+    borderWidth: 1,
+    backgroundColor: "rgba(58,224,106,0.07)",
+  },
+  scanDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  scanText: {
+    fontSize: 9,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 1.8,
+  },
+  visPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+  },
+  visPillOn: {
+    backgroundColor: "rgba(58,224,106,0.12)",
+    borderColor: "rgba(58,224,106,0.35)",
+  },
+  visPillOff: {
+    backgroundColor: "transparent",
+    borderColor: "rgba(58,224,106,0.25)",
+  },
+  visPillText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
   },
   actionBtn: {
     width: 28,
@@ -171,27 +256,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 10,
     fontFamily: "Inter_700Bold",
-  },
-  visPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1,
-  },
-  visPillOn: {
-    backgroundColor: "rgba(255,255,255,0.22)",
-    borderColor: "rgba(255,255,255,0.4)",
-  },
-  visPillOff: {
-    backgroundColor: "transparent",
-    borderColor: "rgba(255,255,255,0.55)",
-  },
-  visPillText: {
-    color: "#FFFFFF",
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 12,
   },
 });
