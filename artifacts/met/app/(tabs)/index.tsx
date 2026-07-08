@@ -85,6 +85,12 @@ export default function HomeScreen() {
     setReloadingLang(false);
   };
   const { encounters, preferences, profile } = useApp();
+  const [profileBannerDismissed, setProfileBannerDismissed] = useState(false);
+  const profileIncomplete =
+    !!profile && (!profile.verified || Object.keys(profile.socials ?? {}).length === 0);
+  useEffect(() => {
+    if (!profileIncomplete) setProfileBannerDismissed(false);
+  }, [profileIncomplete]);
   const blips = useMemo<RadarBlip[]>(
     () =>
       encounters.slice(0, 6).map((e, i) => ({
@@ -317,7 +323,7 @@ export default function HomeScreen() {
           onDismiss={dismissReminder}
         />
 
-        {profile && (!profile.verified || Object.keys(profile.socials ?? {}).length === 0) ? (
+        {profileIncomplete && !profileBannerDismissed ? (
           <Pressable
             onPress={() => router.push("/(tabs)/profile")}
             accessibilityRole="button"
@@ -339,14 +345,21 @@ export default function HomeScreen() {
                 {t("home.profileBannerTitle")}
               </Text>
               <Text style={[styles.bannerSub, { color: "#1D4ED8" }]}>
-                {!profile.verified && Object.keys(profile.socials ?? {}).length === 0
+                {profile && !profile.verified && Object.keys(profile.socials ?? {}).length === 0
                   ? t("home.profileBannerBoth")
-                  : !profile.verified
+                  : profile && !profile.verified
                     ? t("home.profileBannerNoPhoto")
                     : t("home.profileBannerNoSocials")}
               </Text>
             </View>
-            <Feather name="chevron-right" size={20} color="#3B82F6" />
+            <Pressable
+              onPress={(e) => { e.stopPropagation(); setProfileBannerDismissed(true); }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss"
+            >
+              <Feather name="x" size={18} color="#3B82F6" />
+            </Pressable>
           </Pressable>
         ) : null}
 
