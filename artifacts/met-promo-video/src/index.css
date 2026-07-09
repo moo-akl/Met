@@ -1,35 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  --color-primary: #0A0A0B;
-  --color-secondary: #18181B;
-  --color-accent: #06B6D4;
-  --color-accent-2: #10B981;
-  --color-accent-3: #3B82F6;
+  --color-primary: #122B1A;
+  --color-secondary: #1A3D24;
+  --color-accent: #3AE06A;
+  
+  --color-bg-light: #1A3D24;
+  --color-bg-dark: #122B1A;
+  --color-bg-muted: #1A3D24;
 
-  --color-bg-light: #0A0A0B;
-  --color-bg-dark: #000000;
-  --color-bg-muted: #18181B;
+  --color-text-primary: #EEF7EF;
+  --color-text-secondary: rgba(210,235,213,0.55);
+  --color-text-muted: rgba(210,235,213,0.3);
+  --color-text-inverse: #122B1A;
 
-  --color-text-primary: #FFFFFF;
-  --color-text-secondary: #9CA3AF;
-  --color-text-muted: #6B7280;
-  --color-text-inverse: #000000;
-
-  --color-success: #10B981;
+  --color-success: #3AE06A;
   --color-warning: #F59E0B;
   --color-error: #EF4444;
 
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-body: 'DM Sans', sans-serif;
+  --font-display: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
 }
 
 @theme inline {
   --color-primary: var(--color-primary);
   --color-secondary: var(--color-secondary);
   --color-accent: var(--color-accent);
-  --color-accent-2: var(--color-accent-2);
-  --color-accent-3: var(--color-accent-3);
   --color-bg-light: var(--color-bg-light);
   --color-bg-dark: var(--color-bg-dark);
   --color-bg-muted: var(--color-bg-muted);
@@ -42,33 +38,6 @@
   --color-error: var(--color-error);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
-
-  --text-xs: 0.75rem;
-  --text-xs--line-height: calc(1 / 0.75);
-  --text-sm: 0.875rem;
-  --text-sm--line-height: calc(1.25 / 0.875);
-  --text-base: 1rem;
-  --text-base--line-height: calc(1.5 / 1);
-  --text-lg: 1.125rem;
-  --text-lg--line-height: calc(1.75 / 1.125);
-  --text-xl: 1.25rem;
-  --text-xl--line-height: calc(1.75 / 1.25);
-  --text-2xl: 1.5rem;
-  --text-2xl--line-height: calc(2 / 1.5);
-  --text-3xl: 1.875rem;
-  --text-3xl--line-height: calc(2.25 / 1.875);
-  --text-4xl: 2.25rem;
-  --text-4xl--line-height: calc(2.5 / 2.25);
-  --text-5xl: 3rem;
-  --text-5xl--line-height: 1;
-  --text-6xl: 3.75rem;
-  --text-6xl--line-height: 1;
-  --text-7xl: 4.5rem;
-  --text-7xl--line-height: 1;
-  --text-8xl: 6rem;
-  --text-8xl--line-height: 1;
-  --text-9xl: 8rem;
-  --text-9xl--line-height: 1;
 }
 
 body {
@@ -81,4 +50,12 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
+}
+
+.tactical-border {
+  border: 1px solid rgba(58,224,106,0.14);
+}
+
+.tactical-glow {
+  box-shadow: 0 0 20px rgba(58,224,106,0.2);
 }
