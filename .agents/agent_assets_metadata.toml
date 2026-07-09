@@ -12,17 +12,23 @@ uri = "file://attached_assets/met_facebook_cover.png"
 type = "image"
 title = "met app facebook cover"
 
+[[generated]]
+id = "Q_x1T75SNBrJ24oSK5On6"
+uri = "file://artifacts/met-landing/public/coffee-shop.png"
+type = "image"
+title = "Two people meeting coffee shop"
+
+[[generated]]
+id = "vwSW1aBweZD7oFKAiBKwe"
+uri = "file://artifacts/met-landing/public/park-app.png"
+type = "image"
+title = "Person using app in park"
+
 [[outputs]]
 id = "77slVHvtkAaNWSn3JKhny"
 uri = "file://docs/MET_BUSINESS.md"
 type = "text"
 title = "Met — Competitor Map & Monetization Plan"
-
-[[outputs]]
-id = "pHbq5_4kcX-5svRhsFrye"
-uri = "file://artifacts/met/store-assets/screenshots/01_onboarding.png"
-type = "image"
-title = "Screenshot 6 — Onboarding"
 
 [[outputs]]
 id = "j3cVe71wwx4RVTprSYAyK"

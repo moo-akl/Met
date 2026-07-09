@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/met-landing/"
+title = "Met — Landing Page"
+version = "1.0.0"
+id = "artifacts/met-landing"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/met-landing/" ]
+localPort = 25671
+
+[services.development]
+run = "pnpm --filter @workspace/met-landing run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/met-landing", "run", "build" ]
+publicDir = "artifacts/met-landing/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25671"
+BASE_PATH = "/met-landing/"
