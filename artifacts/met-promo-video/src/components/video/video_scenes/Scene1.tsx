@@ -6,9 +6,9 @@ export function Scene1() {
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setPhase(1), 300), // First text
-      setTimeout(() => setPhase(2), 1800), // Second text
-      setTimeout(() => setPhase(3), 3200), // Exit
+      setTimeout(() => setPhase(1), 200),
+      setTimeout(() => setPhase(2), 1600),
+      setTimeout(() => setPhase(3), 2800),
     ];
     return () => timers.forEach(t => clearTimeout(t));
   }, []);
@@ -17,33 +17,41 @@ export function Scene1() {
   const text2 = "What if you could actually meet them?";
 
   return (
-    <motion.div 
-      className="absolute inset-0 flex items-center justify-center"
-      initial={{ opacity: 0, scale: 1.1 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, filter: 'blur(20px)', scale: 1.5 }}
-      transition={{ duration: 0.8, ease: "easeOut" }}
+    <motion.div
+      className="absolute inset-0 flex flex-col items-center justify-center px-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, filter: 'blur(20px)', scale: 1.4 }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
     >
-      <div className="text-center px-12 relative z-10 w-full max-w-5xl mx-auto h-[300px]">
+      {/* Accent line */}
+      <motion.div
+        className="h-[2px] bg-[var(--color-accent)] mb-10 rounded-full"
+        initial={{ width: 0 }}
+        animate={phase >= 1 ? { width: '48px' } : { width: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      />
+
+      <div className="relative h-[200px] w-full flex items-center justify-center">
         {/* Text 1 */}
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center flex-wrap gap-x-3 w-full">
+        <div className="absolute inset-x-0 flex flex-wrap justify-center gap-x-[6px] gap-y-1 px-4">
           {text1.split(' ').map((word, i) => (
-            <motion.span 
+            <motion.span
               key={`w1-${i}`}
-              className="text-[4vw] font-bold tracking-tight text-[var(--color-text-primary)] leading-tight inline-block"
-              initial={{ opacity: 0, y: 40, rotateX: -30 }}
+              className="text-[22px] font-bold tracking-tight text-[var(--color-text-primary)] leading-tight inline-block"
+              initial={{ opacity: 0, y: 30, rotateX: -25 }}
               animate={
-                phase === 1 
-                  ? { opacity: 1, y: 0, rotateX: 0 } 
-                  : phase >= 2 
-                    ? { opacity: 0, y: -40, rotateX: 30 } 
-                    : { opacity: 0, y: 40, rotateX: -30 }
+                phase === 1
+                  ? { opacity: 1, y: 0, rotateX: 0 }
+                  : phase >= 2
+                    ? { opacity: 0, y: -25, rotateX: 20 }
+                    : { opacity: 0, y: 30, rotateX: -25 }
               }
-              transition={{ 
-                type: 'spring', 
-                stiffness: 300, 
-                damping: 20, 
-                delay: phase === 1 ? i * 0.08 : i * 0.04 
+              transition={{
+                type: 'spring',
+                stiffness: 320,
+                damping: 22,
+                delay: phase === 1 ? i * 0.07 : i * 0.03,
               }}
             >
               {word}
@@ -52,22 +60,22 @@ export function Scene1() {
         </div>
 
         {/* Text 2 */}
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center flex-wrap gap-x-4 w-full">
+        <div className="absolute inset-x-0 flex flex-wrap justify-center gap-x-[5px] gap-y-1 px-4">
           {text2.split(' ').map((word, i) => (
-            <motion.span 
+            <motion.span
               key={`w2-${i}`}
-              className="text-[4.5vw] font-black tracking-tighter text-[var(--color-accent)] leading-none inline-block drop-shadow-[0_0_15px_rgba(58,224,106,0.3)]"
-              initial={{ opacity: 0, y: 40, scale: 0.8 }}
+              className="text-[24px] font-black tracking-tighter text-[var(--color-accent)] leading-tight inline-block drop-shadow-[0_0_12px_rgba(58,224,106,0.35)]"
+              initial={{ opacity: 0, y: 30, scale: 0.85 }}
               animate={
                 phase >= 2 && phase < 3
-                  ? { opacity: 1, y: 0, scale: 1 } 
-                  : { opacity: 0, y: phase >= 3 ? -40 : 40, scale: phase >= 3 ? 1.2 : 0.8 }
+                  ? { opacity: 1, y: 0, scale: 1 }
+                  : { opacity: 0, y: phase >= 3 ? -30 : 30, scale: phase >= 3 ? 1.1 : 0.85 }
               }
-              transition={{ 
-                type: 'spring', 
-                stiffness: 400, 
-                damping: 25, 
-                delay: phase >= 2 ? i * 0.06 : 0 
+              transition={{
+                type: 'spring',
+                stiffness: 380,
+                damping: 24,
+                delay: phase >= 2 ? i * 0.05 : 0,
               }}
             >
               {word}
@@ -75,6 +83,29 @@ export function Scene1() {
           ))}
         </div>
       </div>
+
+      {/* Bottom accent */}
+      <motion.div
+        className="h-[2px] bg-[var(--color-accent)] mt-10 rounded-full"
+        initial={{ width: 0 }}
+        animate={phase >= 1 ? { width: '48px' } : { width: 0 }}
+        transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+      />
+
+      {/* Floating particles */}
+      {[...Array(6)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-1 h-1 rounded-full bg-[var(--color-accent)]"
+          style={{ left: `${15 + i * 14}%`, top: `${20 + (i % 3) * 25}%` }}
+          animate={{
+            y: [0, -12, 0],
+            opacity: [0.15, 0.5, 0.15],
+            scale: [1, 1.4, 1],
+          }}
+          transition={{ duration: 2 + i * 0.3, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
+        />
+      ))}
     </motion.div>
   );
 }
