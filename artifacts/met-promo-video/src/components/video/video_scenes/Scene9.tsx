@@ -1,14 +1,10 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
-
-const privacyPoints = [
-  'No location ever stored',
-  'Anonymous until you reveal',
-  'You control who sees you',
-  'Delete your data anytime',
-];
+import { useLang } from '../LangContext';
 
 export function Scene9() {
+  const { t } = useLang();
+  const s = t.scene9;
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
@@ -19,18 +15,18 @@ export function Scene9() {
       setTimeout(() => setPhase(4), 1600),
       setTimeout(() => setPhase(5), 2050),
     ];
-    return () => timers.forEach(t => clearTimeout(t));
+    return () => timers.forEach(c => clearTimeout(c));
   }, []);
 
   return (
     <motion.div
       className="absolute inset-0 flex flex-col items-center justify-center px-8"
+      dir={t.dir}
       initial={{ opacity: 0, clipPath: 'polygon(0 100%, 100% 100%, 100% 100%, 0 100%)' }}
       animate={{ opacity: 1, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%)' }}
       exit={{ opacity: 0, y: -60, filter: 'blur(12px)' }}
       transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Shield icon */}
       <motion.div
         className="mb-6 relative"
         initial={{ scale: 0, rotate: -20 }}
@@ -59,7 +55,6 @@ export function Scene9() {
             transition={{ duration: 0.5, ease: 'easeOut' }}
           />
         </svg>
-        {/* Glow */}
         <motion.div
           className="absolute inset-0 rounded-full blur-2xl"
           style={{ background: 'rgba(58,224,106,0.2)' }}
@@ -68,7 +63,6 @@ export function Scene9() {
         />
       </motion.div>
 
-      {/* Headline */}
       <motion.div
         className="text-center mb-8"
         initial={{ opacity: 0, y: 16 }}
@@ -76,16 +70,15 @@ export function Scene9() {
         transition={{ duration: 0.6, delay: 0.15 }}
       >
         <h2 className="text-[28px] font-black tracking-tight text-[var(--color-text-primary)] leading-tight">
-          Your privacy.
+          {s.headline1}
         </h2>
         <h2 className="text-[28px] font-black tracking-tight leading-tight text-[var(--color-accent)] drop-shadow-[0_0_12px_rgba(58,224,106,0.4)]">
-          Non-negotiable.
+          {s.headline2}
         </h2>
       </motion.div>
 
-      {/* Privacy points */}
       <div className="flex flex-col gap-3 w-full max-w-[280px]">
-        {privacyPoints.map((point, i) => (
+        {s.points.map((point, i) => (
           <motion.div
             key={i}
             className="flex items-center gap-3"
@@ -109,7 +102,6 @@ export function Scene9() {
         ))}
       </div>
 
-      {/* Scan line effect */}
       <motion.div
         className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-30"
         animate={{ top: ['0%', '100%'] }}

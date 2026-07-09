@@ -2,20 +2,29 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Repeat, ChevronDown, ChevronUp, Volume2, VolumeX } from 'lucide-react';
 import VideoTemplate, { SCENE_DURATIONS } from './VideoTemplate';
 import { useSceneControls } from '@/lib/video/useSceneControls';
+import { Lang } from './translations';
 
 const PROGRESS_TICK_MS = 60;
+
+const LANGS: { code: Lang; label: string }[] = [
+  { code: 'en', label: 'EN' },
+  { code: 'es', label: 'ES' },
+  { code: 'ar', label: 'AR' },
+];
 
 interface ControlBarProps {
   visible: boolean;
   collapsed: boolean;
   locked: boolean;
   muted: boolean;
+  lang: Lang;
   sceneKeys: string[];
   activeIndex: number;
   activeDuration: number;
   tick: number;
   onToggleLock: () => void;
   onToggleMuted: () => void;
+  onLangChange: (l: Lang) => void;
   onJumpTo: (index: number) => void;
   onToggleCollapsed: () => void;
 }
@@ -67,65 +76,86 @@ function ProgressSegments({
 }
 
 function ControlBar({
-  visible, collapsed, locked, muted, sceneKeys, activeIndex, activeDuration, tick,
-  onToggleLock, onToggleMuted, onJumpTo, onToggleCollapsed,
+  visible, collapsed, locked, muted, lang, sceneKeys, activeIndex, activeDuration, tick,
+  onToggleLock, onToggleMuted, onLangChange, onJumpTo, onToggleCollapsed,
 }: ControlBarProps) {
   return (
     <div
-      className={`flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-4 transition-all duration-200 ease-out ${
+      className={`flex flex-col gap-0 bg-black/50 backdrop-blur-sm transition-all duration-200 ease-out ${
         visible
           ? 'translate-y-0 opacity-100 pointer-events-auto'
           : 'translate-y-full opacity-0 pointer-events-none'
       }`}
       aria-hidden={!visible}
     >
-      <button
-        onClick={onToggleLock}
-        className={`w-14 h-14 flex items-center justify-center transition-colors rounded-lg shrink-0 ${
-          locked
-            ? 'text-white bg-white/15 hover:bg-white/25'
-            : 'text-white/60 hover:text-white hover:bg-white/10'
-        }`}
-        title={locked ? 'Loop current scene: on' : 'Loop current scene: off'}
-        aria-label={locked ? 'Loop current scene: on' : 'Loop current scene: off'}
-        aria-pressed={locked}
-      >
-        <Repeat className="w-8 h-8" />
-      </button>
-
-      <button
-        onClick={onToggleMuted}
-        className="w-14 h-14 flex items-center justify-center transition-colors rounded-lg shrink-0 text-white/60 hover:text-white hover:bg-white/10"
-        title={muted ? 'Unmute preview audio' : 'Mute preview audio'}
-        aria-label={muted ? 'Unmute preview audio' : 'Mute preview audio'}
-        aria-pressed={!muted}
-      >
-        {muted ? <VolumeX className="w-8 h-8" /> : <Volume2 className="w-8 h-8" />}
-      </button>
-
-      <div className="w-px self-stretch bg-white/15" aria-hidden="true" />
-
-      <ProgressSegments
-        sceneKeys={sceneKeys}
-        activeIndex={activeIndex}
-        activeDuration={activeDuration}
-        tick={tick}
-        onJumpTo={onJumpTo}
-      />
-
-      <div className="text-xl text-white/60 font-mono tabular-nums shrink-0">
-        {activeIndex + 1}/{sceneKeys.length}
+      {/* Language row */}
+      <div className="flex items-center justify-center gap-1 px-5 pt-3 pb-1">
+        {LANGS.map(({ code, label }) => (
+          <button
+            key={code}
+            onClick={() => onLangChange(code)}
+            className={`px-4 py-1.5 rounded-full text-sm font-bold tracking-widest transition-all ${
+              lang === code
+                ? 'bg-[#3AE06A] text-[#0E2B16]'
+                : 'text-white/50 hover:text-white hover:bg-white/10'
+            }`}
+            aria-pressed={lang === code}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      <button
-        onClick={onToggleCollapsed}
-        className="w-14 h-14 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors rounded-lg shrink-0"
-        title={collapsed ? 'Show controls' : 'Hide controls'}
-        aria-label={collapsed ? 'Show controls' : 'Hide controls'}
-        aria-expanded={!collapsed}
-      >
-        {collapsed ? <ChevronUp className="w-10 h-10" /> : <ChevronDown className="w-10 h-10" />}
-      </button>
+      {/* Controls row */}
+      <div className="flex items-center gap-3 px-5 py-4">
+        <button
+          onClick={onToggleLock}
+          className={`w-14 h-14 flex items-center justify-center transition-colors rounded-lg shrink-0 ${
+            locked
+              ? 'text-white bg-white/15 hover:bg-white/25'
+              : 'text-white/60 hover:text-white hover:bg-white/10'
+          }`}
+          title={locked ? 'Loop current scene: on' : 'Loop current scene: off'}
+          aria-label={locked ? 'Loop current scene: on' : 'Loop current scene: off'}
+          aria-pressed={locked}
+        >
+          <Repeat className="w-8 h-8" />
+        </button>
+
+        <button
+          onClick={onToggleMuted}
+          className="w-14 h-14 flex items-center justify-center transition-colors rounded-lg shrink-0 text-white/60 hover:text-white hover:bg-white/10"
+          title={muted ? 'Unmute preview audio' : 'Mute preview audio'}
+          aria-label={muted ? 'Unmute preview audio' : 'Mute preview audio'}
+          aria-pressed={!muted}
+        >
+          {muted ? <VolumeX className="w-8 h-8" /> : <Volume2 className="w-8 h-8" />}
+        </button>
+
+        <div className="w-px self-stretch bg-white/15" aria-hidden="true" />
+
+        <ProgressSegments
+          sceneKeys={sceneKeys}
+          activeIndex={activeIndex}
+          activeDuration={activeDuration}
+          tick={tick}
+          onJumpTo={onJumpTo}
+        />
+
+        <div className="text-xl text-white/60 font-mono tabular-nums shrink-0">
+          {activeIndex + 1}/{sceneKeys.length}
+        </div>
+
+        <button
+          onClick={onToggleCollapsed}
+          className="w-14 h-14 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors rounded-lg shrink-0"
+          title={collapsed ? 'Show controls' : 'Hide controls'}
+          aria-label={collapsed ? 'Show controls' : 'Hide controls'}
+          aria-expanded={!collapsed}
+        >
+          {collapsed ? <ChevronUp className="w-10 h-10" /> : <ChevronDown className="w-10 h-10" />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -139,6 +169,7 @@ export default function VideoWithControls() {
   } = useSceneControls(SCENE_DURATIONS);
 
   const [muted, setMuted] = useState(true);
+  const [lang, setLang] = useState<Lang>('en');
   const toggleMuted = useCallback(() => setMuted((m) => !m), []);
 
   const sensorRef = useRef<HTMLDivElement | null>(null);
@@ -177,7 +208,7 @@ export default function VideoWithControls() {
   const barVisible = !collapsed || hovering || tapPinned;
 
   // Export path: no props, preserves recording markers
-  if (!isIframed) return <VideoTemplate />;
+  if (!isIframed) return <VideoTemplate lang={lang} />;
 
   return (
     <div className="relative w-full h-screen">
@@ -186,12 +217,13 @@ export default function VideoWithControls() {
         durations={durations}
         loop
         muted={muted}
+        lang={lang}
         onSceneChange={onSceneChange}
       />
       <div
         ref={sensorRef}
         className="absolute bottom-0 left-0 right-0 z-50 flex flex-col justify-end"
-        style={{ height: '25%' }}
+        style={{ height: '30%' }}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
         onPointerDown={handlePointerDown}
@@ -202,12 +234,14 @@ export default function VideoWithControls() {
           collapsed={collapsed}
           locked={locked}
           muted={muted}
+          lang={lang}
           sceneKeys={sceneKeys}
           activeIndex={activeIndex}
           activeDuration={activeDuration}
           tick={tick}
           onToggleLock={toggleLock}
           onToggleMuted={toggleMuted}
+          onLangChange={setLang}
           onJumpTo={jumpTo}
           onToggleCollapsed={handleToggleCollapsed}
         />

@@ -1,6 +1,8 @@
 import { useEffect, useRef, ComponentType } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVideoPlayer } from '@/lib/video';
+import { LangProvider } from './LangContext';
+import { Lang } from './translations';
 import { Scene1 } from './video_scenes/Scene1';
 import { Scene2 } from './video_scenes/Scene2';
 import { Scene3 } from './video_scenes/Scene3';
@@ -51,11 +53,13 @@ export default function VideoTemplate({
   durations = SCENE_DURATIONS,
   loop = true,
   muted = false,
+  lang = 'en',
   onSceneChange,
 }: {
   durations?: Record<string, number>;
   loop?: boolean;
   muted?: boolean;
+  lang?: Lang;
   onSceneChange?: (sceneKey: string) => void;
 } = {}) {
   const { currentScene, currentSceneKey } = useVideoPlayer({ durations, loop });
@@ -139,11 +143,13 @@ export default function VideoTemplate({
           transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }}
         />
 
-        {/* Foreground Scenes */}
+        {/* Foreground Scenes — wrapped in LangProvider */}
         <div className="relative z-20 w-full h-full">
-          <AnimatePresence mode="popLayout">
-            {SceneComponent && <SceneComponent key={currentSceneKey} />}
-          </AnimatePresence>
+          <LangProvider lang={lang}>
+            <AnimatePresence mode="popLayout">
+              {SceneComponent && <SceneComponent key={currentSceneKey} />}
+            </AnimatePresence>
+          </LangProvider>
         </div>
 
         <audio

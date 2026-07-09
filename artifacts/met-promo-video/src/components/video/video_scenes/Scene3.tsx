@@ -1,14 +1,11 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { PhoneMockup } from '../PhoneMockup';
-
-const encounters = [
-  { initials: 'SJ', name: 'Sarah J.', loc: 'Blue Bottle Coffee', time: '2m ago', unread: true },
-  { initials: 'MK', name: 'Mike K.', loc: 'Dolores Park', time: '14m ago', unread: false },
-  { initials: 'AL', name: 'Alex L.', loc: 'Whole Foods Market', time: '1h ago', unread: false },
-];
+import { useLang } from '../LangContext';
 
 export function Scene3() {
+  const { t } = useLang();
+  const s = t.scene3;
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
@@ -18,12 +15,13 @@ export function Scene3() {
       setTimeout(() => setPhase(3), 900),
       setTimeout(() => setPhase(4), 1200),
     ];
-    return () => timers.forEach(t => clearTimeout(t));
+    return () => timers.forEach(c => clearTimeout(c));
   }, []);
 
   return (
     <motion.div
       className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-6"
+      dir={t.dir}
       initial={{ opacity: 0, filter: 'blur(16px)' }}
       animate={{ opacity: 1, filter: 'blur(0px)' }}
       exit={{ opacity: 0, x: -60, filter: 'blur(10px)' }}
@@ -36,7 +34,7 @@ export function Scene3() {
           animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
           transition={{ duration: 0.5 }}
         >
-          // ENCOUNTER LOG
+          {s.section}
         </motion.div>
         <motion.h2
           className="text-[26px] font-black tracking-tight text-[var(--color-text-primary)] leading-tight"
@@ -44,25 +42,25 @@ export function Scene3() {
           animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
           transition={{ duration: 0.6, delay: 0.1 }}
         >
-          Every crossing.{' '}
-          <span className="text-[var(--color-accent)] drop-shadow-[0_0_10px_rgba(58,224,106,0.4)]">Logged.</span>
+          {s.headline}{' '}
+          <span className="text-[var(--color-accent)] drop-shadow-[0_0_10px_rgba(58,224,106,0.4)]">{s.headlineAccent}</span>
         </motion.h2>
       </div>
 
       <PhoneMockup>
-        <div className="w-full h-full pt-8 px-3 flex flex-col">
+        <div className="w-full h-full pt-8 px-3 flex flex-col" dir={t.dir}>
           <motion.div
             className="text-[7px] tracking-[0.2em] text-[var(--color-text-secondary)] font-semibold mb-4 flex justify-between"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            <span>// ENCOUNTERS</span>
-            <span className="text-[var(--color-accent)]">3 NODES</span>
+            <span>{s.encountersLabel}</span>
+            <span className="text-[var(--color-accent)]">{s.nodes}</span>
           </motion.div>
 
           <div className="flex flex-col gap-2">
-            {encounters.map((enc, i) => (
+            {s.encounters.map((enc, i) => (
               <motion.div
                 key={i}
                 className="bg-[var(--color-bg-light)] rounded-xl p-3 flex items-center gap-3 tactical-border"
@@ -75,9 +73,9 @@ export function Scene3() {
                     className="w-10 h-10 rounded-full bg-[var(--color-bg-dark)] flex items-center justify-center text-[var(--color-accent)] font-bold text-xs"
                     style={{ border: '1.5px solid var(--color-accent)' }}
                   >
-                    {enc.initials}
+                    {enc.name.charAt(0)}
                   </div>
-                  {enc.unread && (
+                  {i === 0 && (
                     <motion.div
                       className="absolute -top-0.5 -right-0.5 w-[10px] h-[10px] rounded-full bg-[#EF4444]"
                       style={{ border: '1.5px solid var(--color-bg-light)' }}
@@ -95,7 +93,6 @@ export function Scene3() {
             ))}
           </div>
 
-          {/* Blurred card teasing more */}
           <motion.div
             className="mt-2 bg-[var(--color-bg-light)] rounded-xl p-3 tactical-border opacity-30 filter blur-[2px]"
             initial={{ opacity: 0 }}

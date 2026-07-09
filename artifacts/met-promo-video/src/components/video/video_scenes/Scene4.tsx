@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { PhoneMockup } from '../PhoneMockup';
+import { useLang } from '../LangContext';
 
 export function Scene4() {
+  const { t } = useLang();
+  const s = t.scene4;
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
@@ -11,12 +14,13 @@ export function Scene4() {
       setTimeout(() => setPhase(2), 900),
       setTimeout(() => setPhase(3), 2000),
     ];
-    return () => timers.forEach(t => clearTimeout(t));
+    return () => timers.forEach(c => clearTimeout(c));
   }, []);
 
   return (
     <motion.div
       className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-6"
+      dir={t.dir}
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, y: 80, filter: 'blur(10px)' }}
@@ -29,7 +33,7 @@ export function Scene4() {
           animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
           transition={{ duration: 0.5 }}
         >
-          // MUTUAL REVEAL
+          {s.section}
         </motion.div>
         <motion.h2
           className="text-[26px] font-black tracking-tight text-[var(--color-text-primary)] leading-tight"
@@ -37,21 +41,19 @@ export function Scene4() {
           animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
           transition={{ duration: 0.6, delay: 0.1 }}
         >
-          Reveal when{' '}
-          <span className="text-[var(--color-accent)] drop-shadow-[0_0_10px_rgba(58,224,106,0.4)]">you're ready.</span>
+          {s.headline}{' '}
+          <span className="text-[var(--color-accent)] drop-shadow-[0_0_10px_rgba(58,224,106,0.4)]">{s.headlineAccent}</span>
         </motion.h2>
       </div>
 
       <PhoneMockup>
-        <div className="w-full h-full bg-[var(--color-bg-dark)] relative flex flex-col justify-end">
-          {/* Blurred bg */}
+        <div className="w-full h-full bg-[var(--color-bg-dark)] relative flex flex-col justify-end" dir={t.dir}>
           <div className="absolute inset-0 p-4 pt-10 opacity-25 pointer-events-none filter blur-[2px]">
             <div className="w-full h-14 bg-[var(--color-bg-light)] rounded-xl mb-3" />
             <div className="w-full h-14 bg-[var(--color-bg-light)] rounded-xl mb-3" />
             <div className="w-full h-14 bg-[var(--color-bg-light)] rounded-xl" />
           </div>
 
-          {/* Dim overlay */}
           <motion.div
             className="absolute inset-0 bg-black/65"
             initial={{ opacity: 0 }}
@@ -59,7 +61,6 @@ export function Scene4() {
             transition={{ duration: 0.5 }}
           />
 
-          {/* Bottom sheet */}
           <motion.div
             className="relative bg-[var(--color-bg-light)] rounded-t-3xl border-t border-[var(--color-accent)]/20 p-5 pb-10 w-full"
             style={{ boxShadow: '0 -10px 40px rgba(0,0,0,0.5)' }}
@@ -76,9 +77,11 @@ export function Scene4() {
               >
                 <span className="text-[var(--color-text-muted)] text-2xl font-bold" style={{ filter: 'blur(0px)' }}>?</span>
               </div>
-              <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-1">Reveal Request</h3>
+              <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-1">{s.modalTitle}</h3>
               <p className="text-[10px] text-[var(--color-text-secondary)] text-center leading-relaxed">
-                Someone from Dolores Park<br />wants to connect with you.
+                {s.modalBody.split('\n').map((line, i) => (
+                  <span key={i}>{line}{i === 0 ? <br /> : null}</span>
+                ))}
               </p>
             </div>
 
@@ -89,7 +92,7 @@ export function Scene4() {
                 animate={phase >= 3 ? { scale: [1, 1.04, 1] } : {}}
                 transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
               >
-                Accept Reveal
+                {s.accept}
                 {phase >= 3 && (
                   <motion.div
                     className="absolute inset-0 bg-white/25"
@@ -98,8 +101,9 @@ export function Scene4() {
                   />
                 )}
               </motion.div>
-              <div className="w-full py-3 rounded-xl text-center text-[var(--color-text-secondary)] text-sm font-semibold" style={{ border: '1px solid rgba(210,235,213,0.2)' }}>
-                Not Now
+              <div className="w-full py-3 rounded-xl text-center text-[var(--color-text-secondary)] text-sm font-semibold"
+                style={{ border: '1px solid rgba(210,235,213,0.2)' }}>
+                {s.notNow}
               </div>
             </div>
           </motion.div>
