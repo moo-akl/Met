@@ -91,6 +91,13 @@ When Firebase credentials change (e.g. new Firebase project, regenerated config)
 - **BLE Testing**: Requires physical devices and EAS dev/production builds (not supported in Expo Go, simulator, or emulator).
 - **Deployment method**: Builds are triggered from GitHub source via EAS — there is NO Expo OTA in use. Every JS or native change requires pushing to GitHub and triggering a new EAS build. Never tell the user to "close and reopen the app" to get an OTA update — it won't work.
 
+## Domains
+
+- **Production**: `https://metapp.replit.app` (full deployment — API + landing page)
+- **Custom domain**: `https://met-app.org` — points to the Met landing page at the root `/`
+- **Landing page path**: served at `/` (root), both on `metapp.replit.app` and `met-app.org`
+- **Expo mobile preview path**: moved to `/expo/` (Expo uses its own domain via `router = "expo-domain"`; this path only affects the IDE preview pane)
+
 ## Pointers
 
 - **Expo Documentation**: [https://docs.expo.dev/](https://docs.expo.dev/)
