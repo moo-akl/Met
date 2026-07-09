@@ -122,6 +122,7 @@ export const ar: LocaleTree = {
     statA11y: "{{label}}: {{value}}",
     profileBannerTitle: "أكمل ملفك الشخصي",
     profileBannerNoPhoto: "أضف صورة تُظهر وجهك بوضوح — يتحقق Met من كل صورة للحفاظ على أصالة المجتمع.",
+    profileBannerNoBio: "أضف نبذة قصيرة حتى يتعرف عليك الناس قبل التواصل.",
     profileBannerNoSocials: "أضف رابطًا اجتماعيًا واحدًا على الأقل حتى يتمكن الآخرون من التواصل معك.",
     profileBannerBoth: "أضف صورة تُظهر وجهك بوضوح ورابطًا اجتماعيًا واحدًا على الأقل حتى يتمكن الآخرون من التواصل معك.",
     profileBannerCta: "إعداد الملف الشخصي →",

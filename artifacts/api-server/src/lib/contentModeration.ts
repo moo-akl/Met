@@ -23,8 +23,8 @@ const VIOLENCE_THRESHOLD = 4; // LIKELY
 const RACY_THRESHOLD = 5; // VERY_LIKELY
 
 export type ModerationResult =
-  | { safe: true }
-  | { safe: false; reason: string };
+  | { safe: true; faceCount: number }
+  | { safe: false; reason: string; faceCount: number };
 
 /**
  * Get a short-lived Google OAuth2 access token from the Firebase Admin
@@ -61,14 +61,17 @@ export async function moderateImage(
       { err },
       "content-moderation: failed to get access token — skipping check",
     );
-    return { safe: true };
+    return { safe: true, faceCount: 1 };
   }
 
   const body = {
     requests: [
       {
         image: { content: base64 },
-        features: [{ type: "SAFE_SEARCH_DETECTION", maxResults: 1 }],
+        features: [
+          { type: "SAFE_SEARCH_DETECTION", maxResults: 1 },
+          { type: "FACE_DETECTION", maxResults: 5 },
+        ],
       },
     ],
   };
@@ -88,7 +91,7 @@ export async function moderateImage(
       { err },
       "content-moderation: Vision API request failed — skipping check",
     );
-    return { safe: true };
+    return { safe: true, faceCount: 1 };
   }
 
   if (!resp.ok) {
@@ -97,7 +100,7 @@ export async function moderateImage(
       { status: resp.status, body: text.slice(0, 500) },
       "content-moderation: Vision API error response — skipping check",
     );
-    return { safe: true };
+    return { safe: true, faceCount: 1 };
   }
 
   let data: unknown;
@@ -108,10 +111,10 @@ export async function moderateImage(
       { err },
       "content-moderation: failed to parse Vision API response — skipping check",
     );
-    return { safe: true };
+    return { safe: true, faceCount: 1 };
   }
 
-  const annotation = (
+  const response = (
     data as {
       responses?: Array<{
         safeSearchAnnotation?: {
@@ -119,12 +122,16 @@ export async function moderateImage(
           violence?: string;
           racy?: string;
         };
+        faceAnnotations?: Array<{ detectionConfidence?: number }>;
       }>;
     }
-  )?.responses?.[0]?.safeSearchAnnotation;
+  )?.responses?.[0];
+
+  const annotation = response?.safeSearchAnnotation;
+  const faceCount = response?.faceAnnotations?.length ?? 0;
 
   if (!annotation) {
-    return { safe: true };
+    return { safe: true, faceCount };
   }
 
   const adult = LIKELIHOOD_RANK[annotation.adult ?? "UNKNOWN"] ?? 0;
@@ -134,6 +141,7 @@ export async function moderateImage(
   if (adult >= ADULT_THRESHOLD) {
     return {
       safe: false,
+      faceCount,
       reason:
         "This photo contains adult content and can't be used as a profile photo. Please choose a different photo.",
     };
@@ -141,6 +149,7 @@ export async function moderateImage(
   if (violence >= VIOLENCE_THRESHOLD) {
     return {
       safe: false,
+      faceCount,
       reason:
         "This photo contains violent content and can't be used as a profile photo. Please choose a different photo.",
     };
@@ -148,10 +157,11 @@ export async function moderateImage(
   if (racy >= RACY_THRESHOLD) {
     return {
       safe: false,
+      faceCount,
       reason:
         "This photo doesn't meet our community guidelines. Please choose a different photo.",
     };
   }
 
-  return { safe: true };
+  return { safe: true, faceCount };
 }

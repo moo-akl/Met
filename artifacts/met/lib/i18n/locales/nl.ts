@@ -121,6 +121,7 @@ export const nl: LocaleTree = {
     statA11y: "{{label}}: {{value}}",
     profileBannerTitle: "Maak je profiel compleet",
     profileBannerNoPhoto: "Voeg een foto toe waarop je gezicht duidelijk zichtbaar is — Met verifieert elke foto om de community authentiek te houden.",
+    profileBannerNoBio: "Voeg een korte bio toe zodat mensen je kunnen leren kennen voordat ze contact opnemen.",
     profileBannerNoSocials: "Voeg minimaal één sociale link toe zodat mensen contact met je kunnen opnemen.",
     profileBannerBoth: "Voeg een foto met je gezicht en minimaal één sociale link toe zodat mensen contact met je kunnen opnemen.",
     profileBannerCta: "Profiel instellen →",

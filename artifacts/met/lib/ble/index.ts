@@ -8,6 +8,7 @@
 // In Expo Go (no native BLE module linked) every call here is a
 // well-typed no-op that resolves with `started: false` and the reason.
 
+import { Platform, PermissionsAndroid } from "react-native";
 import type { RemoteProfile } from "../api/client";
 import { uidToBleHash } from "./encode";
 import {
@@ -67,6 +68,16 @@ export async function startBleProximity(
   const generation = nextGeneration++;
   session = { uid: opts.uid, generation, advertising: false };
   recordSelf(opts.uid, null);
+
+  // Android 13+ (API 33): request POST_NOTIFICATIONS permission so the
+  // foreground-service notification is visible to the user. Without this
+  // the notification silently drops on API 33+ devices even though the
+  // foreground service is running. No-op on iOS and lower Android APIs.
+  if (Platform.OS === "android" && (Platform.Version as number) >= 33) {
+    await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    ).catch(() => {});
+  }
 
   // Android: start the foreground service NOW so the process stays in
   // the foreground-service tier for the entire BLE proximity session.

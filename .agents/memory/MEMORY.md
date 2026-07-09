@@ -18,3 +18,5 @@
 - [expo-image-picker copyToCacheDirectory removed](expo-imagepicker-opts.md) — `copyToCacheDirectory` is not a valid ImagePickerOptions key in newer expo-image-picker; remove it to fix TS2353.
 - [iOS paywall root cause](ios-paywall-root-cause.md) — "Plans aren't available" is a StoreKit blocker (Paid Apps Agreement not active being most common), not RevenueCat. Also documents diagRevenueCat.ts raw-fetch 401 bug.
 - [Android deep links assetlinks.json](android-deep-links-assetlinks.md) — /.well-known/assetlinks.json served by API server; must be in artifact.toml paths; SHA-256 from Play Console App Signing key (not upload key).
+- [Photo gate — face detection](photo-gate-face-detection.md) — faceDetector.ts is a stub (MLKit conflict); real gate is server-side Vision API FACE_DETECTION in profilePhoto.ts; fail-open returns faceCount:1.
+- [Android POST_NOTIFICATIONS runtime](android-post-notifications.md) — Android 13+ silently hides foreground-service notification without PermissionsAndroid.request(POST_NOTIFICATIONS) at runtime.

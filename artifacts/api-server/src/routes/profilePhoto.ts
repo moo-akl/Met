@@ -89,11 +89,19 @@ router.post(
       moderation = await moderateImage(body.base64);
     } catch (err) {
       req.log?.error?.({ err }, "content moderation threw unexpectedly — allowing upload");
-      moderation = { safe: true };
+      moderation = { safe: true, faceCount: 1 };
     }
     if (!moderation.safe) {
       req.log?.warn?.({ uid }, "profile photo rejected by content moderation");
       res.status(422).json({ message: moderation.reason });
+      return;
+    }
+    if (moderation.faceCount === 0) {
+      req.log?.warn?.({ uid }, "profile photo rejected: no face detected");
+      res.status(422).json({
+        message:
+          "We couldn't detect a face in this photo. Please use a clear, well-lit photo showing your face.",
+      });
       return;
     }
 

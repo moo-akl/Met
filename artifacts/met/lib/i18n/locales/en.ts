@@ -122,6 +122,7 @@ export const en = {
     statA11y: "{{label}}: {{value}}",
     profileBannerTitle: "Complete your profile",
     profileBannerNoPhoto: "Add a photo that shows your face clearly — Met verifies each photo to keep the community authentic.",
+    profileBannerNoBio: "Add a short bio so people can get to know you before connecting.",
     profileBannerNoSocials: "Add at least one social link so people can connect with you.",
     profileBannerBoth: "Add a photo that shows your face clearly and at least one social link so people can connect with you.",
     profileBannerCta: "Set up profile →",

@@ -119,6 +119,7 @@ export const es: LocaleTree = {
     statA11y: "{{label}}: {{value}}",
     profileBannerTitle: "Completa tu perfil",
     profileBannerNoPhoto: "Añade una foto donde se vea claramente tu cara — Met verifica cada foto para mantener la comunidad auténtica.",
+    profileBannerNoBio: "Añade una breve descripción para que la gente te conozca antes de conectar.",
     profileBannerNoSocials: "Añade al menos un enlace social para que la gente pueda conectar contigo.",
     profileBannerBoth: "Añade una foto donde se vea tu cara y al menos un enlace social para que la gente pueda conectar contigo.",
     profileBannerCta: "Configurar perfil →",

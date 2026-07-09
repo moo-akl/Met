@@ -121,6 +121,7 @@ export const vi: LocaleTree = {
     statA11y: "{{label}}: {{value}}",
     profileBannerTitle: "Hoàn thiện hồ sơ của bạn",
     profileBannerNoPhoto: "Thêm ảnh thấy rõ khuôn mặt của bạn — Met xác minh từng ảnh để giữ cộng đồng chân thực.",
+    profileBannerNoBio: "Thêm tiểu sử ngắn để mọi người có thể biết về bạn trước khi kết nối.",
     profileBannerNoSocials: "Thêm ít nhất một liên kết mạng xã hội để mọi người có thể kết nối với bạn.",
     profileBannerBoth: "Thêm ảnh khuôn mặt rõ ràng và ít nhất một liên kết mạng xã hội để mọi người có thể kết nối với bạn.",
     profileBannerCta: "Thiết lập hồ sơ →",

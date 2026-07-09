@@ -90,8 +90,16 @@ export default function HomeScreen() {
   };
   const { encounters, preferences, profile, authedUid } = useApp();
   const [profileBannerDismissed, setProfileBannerDismissed] = useState(false);
-  const profileIncomplete =
-    !!profile && (!profile.verified || Object.keys(profile.socials ?? {}).length === 0);
+  const profileSteps = profile
+    ? [
+        profile.verified,
+        (profile.bio ?? "").trim().length > 0,
+        Object.keys(profile.socials ?? {}).length > 0,
+      ]
+    : [];
+  const profileScore = profileSteps.filter(Boolean).length;
+  const profileTotal = profileSteps.length;
+  const profileIncomplete = !!profile && profileScore < profileTotal;
 
   useEffect(() => {
     if (!authedUid) return;
@@ -353,15 +361,35 @@ export default function HomeScreen() {
               <Feather name="user" size={18} color="#2563EB" />
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[styles.bannerTitle, { color: "#1E3A5F" }]}>
-                {t("home.profileBannerTitle")}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[styles.bannerTitle, { color: "#1E3A5F" }]}>
+                  {t("home.profileBannerTitle")}
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 2 }}>
+                  {profileSteps.map((done, i) => (
+                    <View
+                      key={i}
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 4,
+                        backgroundColor: done ? "#2563EB" : "#BFDBFE",
+                      }}
+                    />
+                  ))}
+                </View>
+                <Text style={[styles.bannerSub, { color: "#2563EB", fontFamily: "Inter_700Bold" }]}>
+                  {profileScore}/{profileTotal}
+                </Text>
+              </View>
               <Text style={[styles.bannerSub, { color: "#1D4ED8" }]}>
                 {profile && !profile.verified && Object.keys(profile.socials ?? {}).length === 0
                   ? t("home.profileBannerBoth")
                   : profile && !profile.verified
                     ? t("home.profileBannerNoPhoto")
-                    : t("home.profileBannerNoSocials")}
+                    : !(profile?.bio ?? "").trim()
+                      ? t("home.profileBannerNoBio")
+                      : t("home.profileBannerNoSocials")}
               </Text>
             </View>
             <Pressable
