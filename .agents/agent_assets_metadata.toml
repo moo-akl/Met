@@ -287,3 +287,33 @@ id = "2e1UqcqJJDC8YqhkugX0e"
 uri = "file://screenshots/scene9.jpg"
 type = "image"
 title = "Scene 9 — Outro: Met logo reveal"
+
+[[outputs]]
+id = "slUwCsMYEm5yPH0VtG6Cw"
+uri = "file://screenshots/ad-radar.jpg"
+type = "image"
+title = "Ad 1 — Radar (Discover Nearby)"
+
+[[outputs]]
+id = "bkOrzOkGfDhdNIl_MoN4j"
+uri = "file://screenshots/ad-encounters.jpg"
+type = "image"
+title = "Ad 2 — Encounters"
+
+[[outputs]]
+id = "pDH1pMyCDVzJnXkZOYkIH"
+uri = "file://screenshots/ad-reveal.jpg"
+type = "image"
+title = "Ad 3 — Reveal"
+
+[[outputs]]
+id = "xWGp5Gp9qkHX_FVVihngw"
+uri = "file://screenshots/ad-profile.jpg"
+type = "image"
+title = "Ad 4 — Profile"
+
+[[outputs]]
+id = "1CkZkoKAVLSEBQjeVdZjg"
+uri = "file://screenshots/ad-connections.jpg"
+type = "image"
+title = "Ad 5 — Connections"
