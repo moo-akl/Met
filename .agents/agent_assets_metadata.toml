@@ -227,3 +227,57 @@ id = "2kA-pXalGF_-7H0nFeGQH"
 uri = "file://marketing/screenshots/07_referrals.jpg"
 type = "image"
 title = "Referrals"
+
+[[outputs]]
+id = "EiGobn3bZDbY7mboM19ga"
+uri = "file://screenshots/scene1.jpg"
+type = "image"
+title = "Scene 1 — Hook: You walk past them every day"
+
+[[outputs]]
+id = "6pKWHLJ_qgfjCm-Db0czd"
+uri = "file://screenshots/scene2.jpg"
+type = "image"
+title = "Scene 2 — Proximity Detection: Detect who's nearby"
+
+[[outputs]]
+id = "mltnUkKFdnEBGRHxUGKLI"
+uri = "file://screenshots/scene3.jpg"
+type = "image"
+title = "Scene 3 — Encounter Log: Every crossing, logged"
+
+[[outputs]]
+id = "qocuZkmAU_WssDalGKY0r"
+uri = "file://screenshots/scene4.jpg"
+type = "image"
+title = "Scene 4 — Mutual Reveal: Reveal when you're ready"
+
+[[outputs]]
+id = "T28IYTwzHn3IVon3VtZFM"
+uri = "file://screenshots/scene5.jpg"
+type = "image"
+title = "Scene 5 — Social Linking: Link your socials"
+
+[[outputs]]
+id = "ZIvSkipTMQn62JC0G5Ctv"
+uri = "file://screenshots/scene6.jpg"
+type = "image"
+title = "Scene 6 — Private Networks: Your circles, your rules"
+
+[[outputs]]
+id = "VrV2630-JQd7Sg_gEnF7v"
+uri = "file://screenshots/scene7.jpg"
+type = "image"
+title = "Scene 7 — Privacy First: Non-negotiable"
+
+[[outputs]]
+id = "qE3o8Sg1qHkPMamDCkfjK"
+uri = "file://screenshots/scene8.jpg"
+type = "image"
+title = "Scene 8 — Connections: Turn encounters into real connections"
+
+[[outputs]]
+id = "2e1UqcqJJDC8YqhkugX0e"
+uri = "file://screenshots/scene9.jpg"
+type = "image"
+title = "Scene 9 — Outro: Met logo reveal"
