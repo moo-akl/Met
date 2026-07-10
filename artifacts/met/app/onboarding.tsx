@@ -46,6 +46,10 @@ import { loadDragHintDismissed, loadProfile, saveDragHintDismissed } from "@/lib
 import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
 import { consumePendingReferral } from "./_layout";
+import {
+  tiktokIdentify,
+  tiktokTrackRegistration,
+} from "@/lib/tiktok";
 
 type IconName = React.ComponentProps<typeof Feather>["name"];
 
@@ -329,9 +333,21 @@ export default function OnboardingScreen() {
     }
   };
 
-  const goToProfileSetup = async () => {
+  const goToProfileSetup = async (method: "email" | "google" | "apple") => {
     const restored = await tryRestoreExistingProfile();
-    if (!restored) setPhase("photo");
+    if (!restored) {
+      // New user — registration is complete (they passed auth).
+      tiktokTrackRegistration(method);
+      setPhase("photo");
+    }
+    // Identify the user for both new and returning sessions.
+    try {
+      const authMod = await import("@react-native-firebase/auth");
+      const uid = authMod.default().currentUser?.uid;
+      if (uid) tiktokIdentify(uid);
+    } catch {
+      // Firebase not available — skip identify.
+    }
   };
 
   const showSignInError = () =>
@@ -385,7 +401,7 @@ export default function OnboardingScreen() {
             // handleFinish will redirect to the info step as a fallback.
           }
         }
-        await goToProfileSetup();
+        await goToProfileSetup("apple");
       }
     } catch {
       showSignInError();
@@ -400,7 +416,7 @@ export default function OnboardingScreen() {
     try {
       // Returns null when the user cancels the Google sheet — silent.
       const uid = await signInWithGoogle();
-      if (uid) await goToProfileSetup();
+      if (uid) await goToProfileSetup("google");
     } catch {
       showSignInError();
     } finally {
@@ -438,7 +454,7 @@ export default function OnboardingScreen() {
       // and bypass this gate via handleApple/handleGoogle.
       const verified = await isCurrentUserEmailVerified();
       if (verified) {
-        await goToProfileSetup();
+        await goToProfileSetup("email");
         return;
       }
       // Sign-in path: an existing unverified account exists. Re-issue
@@ -500,7 +516,7 @@ export default function OnboardingScreen() {
     try {
       const verified = await reloadAndCheckVerified();
       if (verified) {
-        await goToProfileSetup();
+        await goToProfileSetup("email");
       } else {
         Alert.alert(
           t("onboarding.verifyNotYetTitle"),
@@ -570,7 +586,7 @@ export default function OnboardingScreen() {
   // required.
   const handleWebSkip = async () => {
     if (!requireTerms()) return;
-    await goToProfileSetup();
+    await goToProfileSetup("email");
   };
 
   const handleFinish = async () => {
@@ -746,7 +762,7 @@ export default function OnboardingScreen() {
       } else {
         // Verified email, or non-email provider (Apple/Google) —
         // try restoring from server first, otherwise show profile setup.
-        await goToProfileSetup();
+        await goToProfileSetup("email");
       }
     })();
     return () => {
@@ -761,7 +777,7 @@ export default function OnboardingScreen() {
     if (phase !== "verify") return;
     const id = setInterval(async () => {
       const verified = await reloadAndCheckVerified();
-      if (verified) await goToProfileSetup();
+      if (verified) await goToProfileSetup("email");
     }, VERIFY_POLL_MS);
     return () => clearInterval(id);
   }, [phase]);

@@ -16,6 +16,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import {
+  tiktokTrackPurchase,
+  tiktokTrackViewContent,
+} from "@/lib/tiktok";
+import {
   findMonthlyPackage,
   findYearlyPackage,
   isRevenueCatTestMode,
@@ -176,6 +180,11 @@ export default function PaywallScreen() {
     if (isPlusSubscriber && !isProSubscriber) setSelectedTier("pro");
   }, [isPlusSubscriber, isProSubscriber]);
 
+  // Track paywall view on mount.
+  useEffect(() => {
+    tiktokTrackViewContent("paywall");
+  }, []);
+
   const pickTier = (t: PaidTier) => {
     tierManuallySet.current = true;
     setSelectedTier(t);
@@ -267,6 +276,11 @@ export default function PaywallScreen() {
     if (!selectedPackage) return;
     try {
       await purchase(selectedPackage);
+      // Track the purchase in TikTok Events Manager.
+      const price = selectedPackage.product.price ?? 0;
+      const currency = selectedPackage.product.currencyCode ?? "USD";
+      const contentId = selectedPackage.product.identifier ?? selectedTier;
+      tiktokTrackPurchase({ value: price, currency, contentId });
       setTimeout(() => router.back(), 300);
     } catch (err) {
       console.warn("Purchase failed", err);

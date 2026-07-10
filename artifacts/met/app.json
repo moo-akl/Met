@@ -142,7 +142,8 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.572463722097-4iofschrap1ovqoluon9j41d9l31iejl"
         }
-      ]
+      ],
+      "./plugins/with-tiktok-android.js"
     ],
     "experiments": {
       "typedRoutes": true,

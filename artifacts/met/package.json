@@ -93,6 +93,7 @@
     "react-native-ble-plx": "^3.5.1",
     "react-native-purchases": "9.7.2",
     "react-native-qrcode-svg": "^6.3.21",
+    "react-native-tiktok-business-sdk": "^1.6.2",
     "react-native-view-shot": "^4.0.3"
   }
 }
