@@ -242,18 +242,55 @@ export default function ProfileScreen() {
     }
     setSaving(true);
     const photoChanged = photoUri !== profile.photoUri;
+
+    let finalPhotoUri = photoUri;
+    let photoVerification: { verified?: boolean; photoVerifiedAt?: number } = {};
+
+    if (photoChanged) {
+      if (!/^https?:\/\//i.test(photoUri)) {
+        // Local file — upload to the server, which runs face detection.
+        // Throws ApiError (with the server's message) on 4xx/5xx.
+        try {
+          const FileSystem = await import("expo-file-system/legacy");
+          const base64 = await FileSystem.readAsStringAsync(photoUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const lower = photoUri.toLowerCase();
+          const contentType = lower.endsWith(".png")
+            ? "image/png"
+            : lower.endsWith(".webp")
+              ? "image/webp"
+              : "image/jpeg";
+          const result = await api.uploadProfilePhoto(
+            { uid: authedUid ?? "" },
+            { base64, contentType },
+          );
+          finalPhotoUri = result.photoUrl;
+          photoVerification = { verified: true, photoVerifiedAt: Date.now() };
+        } catch (err: unknown) {
+          setSaving(false);
+          const msg =
+            err instanceof Error
+              ? err.message
+              : "Photo upload failed. Please try again.";
+          Alert.alert("Photo not accepted", msg);
+          return;
+        }
+      } else {
+        // Already an https:// URL (e.g. a promoted extra photo that was
+        // previously uploaded and verified by the server).
+        photoVerification = { verified: true, photoVerifiedAt: Date.now() };
+      }
+    }
+
     await setProfile({
       ...profile,
       name: name.trim(),
       bio: bio.trim(),
-      photoUri,
+      photoUri: finalPhotoUri,
       socials,
       interests,
-      // A new main photo is only set after passing the verifier so it counts
-      // as freshly verified. Otherwise leave the existing stamps alone.
-      ...(photoChanged
-        ? { verified: true, photoVerifiedAt: Date.now() }
-        : null),
+      ...photoVerification,
     });
     setSaving(false);
     setEditing(false);
