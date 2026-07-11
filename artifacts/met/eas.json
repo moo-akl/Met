@@ -20,7 +20,11 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://metapp.replit.app",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_MaVQlHLubCXRmZPewbuJiIruIhH",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ"
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ",
+        "EXPO_PUBLIC_TIKTOK_APP_ID": "app.met.founders",
+        "EXPO_PUBLIC_TIKTOK_TT_APP_ID": "7660984706938241042",
+        "EXPO_PUBLIC_TIKTOK_ACCESS_TOKEN": "TTqJ0VkNIQTcBysFo0kNom5rsjWGiDqJ",
+        "EXPO_PUBLIC_TIKTOK_DEBUG": "true"
       },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0",
@@ -37,7 +41,11 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://metapp.replit.app",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_MaVQlHLubCXRmZPewbuJiIruIhH",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ"
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ",
+        "EXPO_PUBLIC_TIKTOK_APP_ID": "app.met.founders",
+        "EXPO_PUBLIC_TIKTOK_TT_APP_ID": "7660984706938241042",
+        "EXPO_PUBLIC_TIKTOK_ACCESS_TOKEN": "TTqJ0VkNIQTcBysFo0kNom5rsjWGiDqJ",
+        "EXPO_PUBLIC_TIKTOK_DEBUG": "true"
       },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0",
@@ -54,7 +62,11 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://metapp.replit.app",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_MaVQlHLubCXRmZPewbuJiIruIhH",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ"
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ",
+        "EXPO_PUBLIC_TIKTOK_APP_ID": "app.met.founders",
+        "EXPO_PUBLIC_TIKTOK_TT_APP_ID": "7660984706938241042",
+        "EXPO_PUBLIC_TIKTOK_ACCESS_TOKEN": "TTqJ0VkNIQTcBysFo0kNom5rsjWGiDqJ",
+        "EXPO_PUBLIC_TIKTOK_DEBUG": "true"
       },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0"
@@ -70,7 +82,10 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://metapp.replit.app",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_MaVQlHLubCXRmZPewbuJiIruIhH",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ"
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_HkFDPPPYKzZdTEtuGakKZlQvldJ",
+        "EXPO_PUBLIC_TIKTOK_APP_ID": "app.met.founders",
+        "EXPO_PUBLIC_TIKTOK_TT_APP_ID": "7660984706938241042",
+        "EXPO_PUBLIC_TIKTOK_ACCESS_TOKEN": "TTqJ0VkNIQTcBysFo0kNom5rsjWGiDqJ"
       },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0"
