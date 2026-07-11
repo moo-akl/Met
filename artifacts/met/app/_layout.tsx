@@ -69,10 +69,13 @@ try {
 
 // Initialize TikTok Business SDK (Android only; no-op on iOS).
 // All three env vars must be set in EXPO_PUBLIC_* for tracking to work.
+// debug:true routes events through TikTok's test pipeline so they appear
+// in Events Manager → Test Events before going live in production.
 void initTikTok(
   process.env.EXPO_PUBLIC_TIKTOK_APP_ID ?? "",
   process.env.EXPO_PUBLIC_TIKTOK_TT_APP_ID ?? "",
   process.env.EXPO_PUBLIC_TIKTOK_ACCESS_TOKEN ?? "",
+  __DEV__,
 ).then(() => {
   tiktokTrackLaunch();
 });
