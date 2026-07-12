@@ -3,6 +3,15 @@ import { motion } from 'framer-motion';
 import { HeroPhone } from '../components/HeroPhone';
 import { AppScreensCarousel } from '../components/AppScreensCarousel';
 
+declare global {
+  interface Window {
+    ttq?: {
+      track: (event: string, params?: Record<string, unknown>) => void;
+      page: () => void;
+    };
+  }
+}
+
 const isIOS = () =>
   typeof navigator !== "undefined" &&
   /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -13,6 +22,15 @@ const PLAY_STORE_URL =
 
 function getStoreUrl() {
   return isIOS() ? APP_STORE_URL : PLAY_STORE_URL;
+}
+
+function trackDownload(store: "android" | "ios", location: string) {
+  window.ttq?.track("ClickButton", {
+    content_id: `app_download_${store}`,
+    content_name: `Download Met — ${store === "android" ? "Google Play" : "App Store"}`,
+    content_category: "app_download",
+    description: location,
+  });
 }
 
 export default function Landing() {
@@ -27,6 +45,7 @@ export default function Landing() {
             href={getStoreUrl()}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackDownload(isIOS() ? "ios" : "android", "navbar")}
             className="bg-gray-900 text-white px-5 py-2 rounded-full text-sm font-semibold hover:bg-green-600 transition-colors duration-300"
           >
             Download Free
@@ -68,6 +87,7 @@ export default function Landing() {
                 href={getStoreUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackDownload(isIOS() ? "ios" : "android", "hero")}
                 className="w-full sm:w-auto bg-gray-900 hover:bg-green-600 text-white px-8 py-4 rounded-full font-bold text-base shadow-xl shadow-gray-900/20 hover:scale-105 transition-all duration-300 text-center"
               >
                 Download Met — It's Free
@@ -310,6 +330,7 @@ export default function Landing() {
                 href={PLAY_STORE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackDownload("android", "cta_section")}
                 className="flex items-center gap-3 bg-gray-900 hover:bg-black text-white px-8 py-4 rounded-full font-bold text-base shadow-2xl shadow-gray-900/20 hover:scale-105 transition-all duration-300"
               >
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
