@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
+import { HubStatusBadge } from "@/components/HubStatusBadge";
 import { Avatar } from "@/components/Avatar";
 import { GridOverlay } from "@/components/GridOverlay";
 import { PermissionDisclosureDialog } from "@/components/PermissionDisclosureDialog";
@@ -575,6 +576,8 @@ export default function HomeScreen() {
             onPress={() => setRequestsOpen(true)}
           />
         </View>
+
+        <HubStatusBadge />
 
         <View
           style={[

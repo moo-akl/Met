@@ -501,6 +501,49 @@ export const api = {
       opts,
     ),
   /**
+   * Hub check-in — resolves the caller's current coordinates to a Google Places
+   * venue within 50 m, records the visit, and updates their hub streak.
+   * Returns the resolved venue and current streak count.
+   * Throws ApiError with status 404 when no recognised venue is nearby.
+   */
+  hubCheckin: (opts: ApiOptions, input: { lat: number; lng: number }) =>
+    request<{ placeId: string; placeName: string; streak: number }>(
+      "POST",
+      "/api/hubs/checkin",
+      opts,
+      input,
+    ),
+  /**
+   * Record that the caller viewed another user's profile.
+   * Server fires a "vibe-checked" push to the target (24 h dedup).
+   */
+  recordProfileView: (opts: ApiOptions, targetUid: string) =>
+    request<{ recorded: boolean; pushSent: boolean }>(
+      "POST",
+      "/api/profile-views",
+      opts,
+      { targetUid },
+    ),
+  /**
+   * Submit a peer review tag for a user (one per reviewer/receiver pair).
+   * Adjusts the receiver's trust score on the server.
+   */
+  submitReview: (
+    opts: ApiOptions,
+    input: { receiverUid: string; tag: string },
+  ) =>
+    request<{ recorded: boolean }>("POST", "/api/reviews", opts, input),
+  /**
+   * Fetch hub streaks and trust score for any user.
+   */
+  getUserStats: (opts: ApiOptions, uid: string) =>
+    request<{
+      userUid: string;
+      hubStreaks: Record<string, number>;
+      trustScore: number;
+      lastStreakUpdate: string | null;
+    }>("GET", `/api/users/${encodeURIComponent(uid)}/stats`, opts),
+  /**
    * Lightweight server-sync of notification preferences. Accepts any subset
    * of the known keys; merges with existing values on the server.
    * Best-effort — call fire-and-forget; the app works fine without it.
