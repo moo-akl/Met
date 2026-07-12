@@ -11,6 +11,7 @@ import reportsRouter from "./reports";
 import referralsRouter from "./referrals";
 import networksRouter from "./networks";
 import chatsRouter from "./chats";
+import engagementRouter from "./engagement";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(reportsRouter);
 router.use(referralsRouter);
 router.use(networksRouter);
 router.use(chatsRouter);
+router.use(engagementRouter);
 
 export default router;
