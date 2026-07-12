@@ -5,8 +5,8 @@ const screens = [
   {
     id: "networks",
     label: "Networks",
-    headline: "Everyone you've ever crossed paths with, in one place.",
-    sub: "University. Work. Gym. Your world, organised.",
+    headline: "Create communities around the places that matter to you.",
+    sub: "Start a network for your class, team, or gym crew — add members and grow your circle.",
     phone: <NetworksScreen />,
   },
   {
@@ -43,40 +43,42 @@ function PhoneShell({ children }: { children: React.ReactNode }) {
 }
 
 function NetworksScreen() {
-  const groups = [
-    { icon: "🎓", label: "University", count: 14, color: "bg-blue-50 border-blue-100" },
-    { icon: "💼", label: "Work", count: 9, color: "bg-purple-50 border-purple-100" },
-    { icon: "🏋️", label: "Gym", count: 5, color: "bg-orange-50 border-orange-100" },
-    { icon: "☕", label: "Coffee shops", count: 7, color: "bg-yellow-50 border-yellow-100" },
+  const networks = [
+    { icon: "🎓", label: "CS Class of 2026", members: 38, joined: true },
+    { icon: "🏋️", label: "Morning Gym Crew", members: 12, joined: true },
+    { icon: "💼", label: "Marketing Interns", members: 9, joined: false },
+    { icon: "🎸", label: "Music Society", members: 24, joined: false },
   ];
   return (
     <div className="h-full flex flex-col bg-white px-3 pt-2">
-      <p className="text-[10px] font-black text-gray-900 mb-2 tracking-tight">Your Networks</p>
-      <div className="space-y-2">
-        {groups.map((g) => (
-          <div key={g.label} className={`flex items-center justify-between rounded-xl px-3 py-2.5 border ${g.color}`}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[10px] font-black text-gray-900 tracking-tight">Networks</p>
+        <div className="bg-green-500 rounded-full px-2 py-0.5">
+          <span className="text-[8px] font-black text-white">+ Create</span>
+        </div>
+      </div>
+      {/* Search bar */}
+      <div className="bg-gray-100 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 mb-2.5">
+        <svg className="w-2.5 h-2.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+        </svg>
+        <span className="text-[9px] text-gray-400">Search networks...</span>
+      </div>
+      <div className="space-y-1.5">
+        {networks.map((n) => (
+          <div key={n.label} className="flex items-center justify-between rounded-xl px-2.5 py-2 border border-gray-100 bg-gray-50">
             <div className="flex items-center gap-2">
-              <span className="text-base">{g.icon}</span>
-              <span className="text-[11px] font-bold text-gray-800">{g.label}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-black text-gray-500">{g.count}</span>
-              <div className="flex -space-x-1">
-                {[...Array(Math.min(3, g.count))].map((_, i) => (
-                  <div key={i} className="w-4 h-4 rounded-full bg-gray-200 border border-white" />
-                ))}
+              <span className="text-sm">{n.icon}</span>
+              <div>
+                <p className="text-[9px] font-black text-gray-900 leading-tight">{n.label}</p>
+                <p className="text-[7px] text-gray-400">{n.members} members</p>
               </div>
+            </div>
+            <div className={`text-[7px] font-black rounded-full px-1.5 py-0.5 ${n.joined ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500"}`}>
+              {n.joined ? "Joined" : "Join"}
             </div>
           </div>
         ))}
-      </div>
-      <div className="mt-3 rounded-xl bg-green-50 border border-green-100 px-3 py-2.5 flex items-center gap-2">
-        <motion.div
-          className="w-2 h-2 rounded-full bg-green-500"
-          animate={{ opacity: [1, 0.4, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
-        <span className="text-[10px] font-bold text-green-700">3 people nearby right now</span>
       </div>
     </div>
   );

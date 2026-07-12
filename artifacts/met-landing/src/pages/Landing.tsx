@@ -120,8 +120,8 @@ export default function Landing() {
               },
               {
                 emoji: "🌐",
-                title: "Build your real-life network",
-                desc: "University, office, conferences — grow your circle with people you actually cross paths with every day, not strangers online.",
+                title: "Create your own community",
+                desc: "Start a network for your class, your team, your gym crew. Add members, grow your circle, and stay connected with people who actually share your world.",
               },
             ].map((feature, i) => (
               <motion.div
