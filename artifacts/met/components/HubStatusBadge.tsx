@@ -6,6 +6,10 @@
  *
  * Shows:  📍 <Venue Name>  |  🔥 <Streak>
  *
+ * Premium visual features:
+ *   - Looping glow pulse behind the pill (opacity loop via Animated)
+ *   - Scale-bounce on the 🔥 icon whenever the streak increments
+ *
  * Hides itself (returns null) when:
  *   - No hub is found within 50 m
  *   - Location permission is not granted
@@ -18,13 +22,7 @@
 
 import { useRouter } from "expo-router";
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, Animated, Pressable } from "react-native";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
 import { useColors } from "@/hooks/useColors";
 
@@ -53,16 +51,70 @@ function HubStatusBadgeInner() {
   const router = useRouter();
   const { hubState } = useHubCheckin();
 
-  // Fade the badge in when it first appears and out when it disappears.
-  const opacity = React.useRef(new Animated.Value(0)).current;
+  // Fade badge in/out on visibility change
+  const badgeOpacity = React.useRef(new Animated.Value(0)).current;
 
+  // Glow halo: loops 0.25 → 0.7 → 0.25
+  const glowOpacity = React.useRef(new Animated.Value(0.25)).current;
+
+  // Flame scale bounce on streak increment
+  const flameScale = React.useRef(new Animated.Value(1)).current;
+  const prevStreakRef = React.useRef<number | null>(null);
+
+  // Fade in/out
   React.useEffect(() => {
-    Animated.timing(opacity, {
+    Animated.timing(badgeOpacity, {
       toValue: hubState ? 1 : 0,
       duration: 350,
       useNativeDriver: true,
     }).start();
-  }, [hubState, opacity]);
+  }, [hubState, badgeOpacity]);
+
+  // Glow pulse loop
+  React.useEffect(() => {
+    if (!hubState) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowOpacity, {
+          toValue: 0.7,
+          duration: 1300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowOpacity, {
+          toValue: 0.25,
+          duration: 1300,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [hubState, glowOpacity]);
+
+  // Flame bounce on streak change
+  React.useEffect(() => {
+    if (!hubState) return;
+    if (
+      prevStreakRef.current !== null &&
+      hubState.streak !== prevStreakRef.current
+    ) {
+      Animated.sequence([
+        Animated.spring(flameScale, {
+          toValue: 1.55,
+          useNativeDriver: true,
+          tension: 220,
+          friction: 4,
+        }),
+        Animated.spring(flameScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }),
+      ]).start();
+    }
+    prevStreakRef.current = hubState.streak;
+  }, [hubState?.streak, flameScale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!hubState) return null;
 
@@ -75,47 +127,62 @@ function HubStatusBadgeInner() {
   };
 
   return (
-    <Animated.View style={{ opacity, marginHorizontal: 20, marginTop: 12 }}>
+    <Animated.View
+      style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
+    >
       <Pressable
         onPress={handlePress}
         disabled={hubState.isMock}
         accessibilityLabel={`Checked in at ${hubState.placeName}, ${hubState.streak} day streak. Tap to see leaderboard.`}
         accessibilityRole="button"
       >
-      <View
-        style={[
-          styles.pill,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.primary,
-          },
-        ]}
-      >
-        {/* Location icon + venue name */}
-        <Text style={styles.icon}>📍</Text>
-        <Text
-          numberOfLines={1}
-          style={[styles.placeName, { color: colors.foreground }]}
+        {/* Glow halo — sits behind the pill */}
+        <Animated.View
+          style={[
+            styles.glow,
+            { borderColor: colors.primary, opacity: glowOpacity },
+          ]}
+          pointerEvents="none"
+        />
+
+        <View
+          style={[
+            styles.pill,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.primary,
+            },
+          ]}
         >
-          {hubState.placeName}
-        </Text>
+          {/* Location icon + venue name */}
+          <Text style={styles.icon}>📍</Text>
+          <Text
+            numberOfLines={1}
+            style={[styles.placeName, { color: colors.foreground }]}
+          >
+            {hubState.placeName}
+          </Text>
 
-        {/* Divider */}
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          {/* Divider */}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        {/* Streak */}
-        <Text style={styles.fireIcon}>🔥</Text>
-        <Text style={[styles.streakCount, { color: colors.primary }]}>
-          {hubState.streak}
-        </Text>
+          {/* Animated flame + streak count */}
+          <Animated.Text
+            style={[styles.fireIcon, { transform: [{ scale: flameScale }] }]}
+          >
+            🔥
+          </Animated.Text>
+          <Text style={[styles.streakCount, { color: colors.primary }]}>
+            {hubState.streak}
+          </Text>
 
-        {/* Dev-only MOCK label */}
-        {hubState.isMock ? (
-          <View style={styles.mockBadge}>
-            <Text style={styles.mockText}>MOCK</Text>
-          </View>
-        ) : null}
-      </View>
+          {/* Dev-only MOCK label */}
+          {hubState.isMock ? (
+            <View style={styles.mockBadge}>
+              <Text style={styles.mockText}>MOCK</Text>
+            </View>
+          ) : null}
+        </View>
       </Pressable>
     </Animated.View>
   );
@@ -130,6 +197,15 @@ export function HubStatusBadge() {
 }
 
 const styles = StyleSheet.create({
+  glow: {
+    position: "absolute",
+    top: -5,
+    left: -5,
+    right: -5,
+    bottom: -5,
+    borderRadius: 999,
+    borderWidth: 2,
+  },
   pill: {
     flexDirection: "row",
     alignItems: "center",
@@ -140,6 +216,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     maxWidth: "100%",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   icon: {
     fontSize: 14,
