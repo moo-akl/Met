@@ -1090,5 +1090,39 @@ export const ar: LocaleTree = {
     cancelReply: "إلغاء الرد",
     options: "خيارات المحادثة",
   },
+  review: {
+    title: "كيف كان الجو؟",
+    subtitle: "أعطِ {{name}} وسمًا سريعًا",
+    submit: "أرسل الطاقة",
+    submitted: "تم الإرسال!",
+    tag_friendly: "ودود",
+    tag_funny: "مضحك",
+    tag_interesting: "مثير للاهتمام",
+    tag_helpful: "مفيد",
+    tag_genuine: "صادق",
+  },
+
+  trustScore: {
+    trusted: "موثوق",
+    neutral: "محايد",
+    flagged: "مُبلَّغ عنه",
+  },
+
+  leaderboard: {
+    title: "لوحة المتصدرين",
+    tabAllTime: "كل الأوقات",
+    tabMonthly: "أفضل الشهر",
+    rankLabel: "الترتيب",
+    checkinsLabel: "تسجيلات",
+    emptyAllTime: "لا توجد تسجيلات في هذا المكان حتى الآن.",
+    emptyMonthly: "لا توجد تسجيلات هذا الشهر. كن الأول!",
+    championBadge: "بطل",
+    lastMonthWinner: "بطل الشهر الماضي",
+    youLabel: "أنت",
+    checkinCountA11y: "{{count}} تسجيلات",
+    rankA11y: "الترتيب {{rank}}",
+    championA11y: "بطل الشهر",
+  },
+
   interestLabels: interestLocales.ar,
 };

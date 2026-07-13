@@ -1094,5 +1094,39 @@ export const ru: LocaleTree = {
     cancelReply: "Отменить ответ",
     options: "Параметры чата",
   },
+  review: {
+    title: "Какая была атмосфера?",
+    subtitle: "Дайте {{name}} быстрый тег",
+    submit: "Отправить",
+    submitted: "Отправлено!",
+    tag_friendly: "Дружелюбный",
+    tag_funny: "Смешной",
+    tag_interesting: "Интересный",
+    tag_helpful: "Полезный",
+    tag_genuine: "Настоящий",
+  },
+
+  trustScore: {
+    trusted: "Надёжный",
+    neutral: "Нейтральный",
+    flagged: "Отмечен",
+  },
+
+  leaderboard: {
+    title: "Таблица лидеров",
+    tabAllTime: "За всё время",
+    tabMonthly: "Топ месяца",
+    rankLabel: "Место",
+    checkinsLabel: "отметок",
+    emptyAllTime: "Пока нет отметок в этом месте.",
+    emptyMonthly: "Пока нет отметок в этом месяце. Будь первым!",
+    championBadge: "Чемпион",
+    lastMonthWinner: "Чемпион прошлого месяца",
+    youLabel: "Вы",
+    checkinCountA11y: "{{count}} отметок",
+    rankA11y: "Место {{rank}}",
+    championA11y: "Чемпион месяца",
+  },
+
   interestLabels: interestLocales.ru,
 };

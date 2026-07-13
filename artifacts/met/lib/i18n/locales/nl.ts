@@ -1089,5 +1089,39 @@ export const nl: LocaleTree = {
     cancelReply: "Antwoord annuleren",
     options: "Chatopties",
   },
+  review: {
+    title: "Hoe was de vibe?",
+    subtitle: "Geef {{name}} een snelle tag",
+    submit: "Stuur Vibe",
+    submitted: "Vibe verzonden!",
+    tag_friendly: "Vriendelijk",
+    tag_funny: "Grappig",
+    tag_interesting: "Interessant",
+    tag_helpful: "Behulpzaam",
+    tag_genuine: "Authentiek",
+  },
+
+  trustScore: {
+    trusted: "Vertrouwd",
+    neutral: "Neutraal",
+    flagged: "Gemarkeerd",
+  },
+
+  leaderboard: {
+    title: "Ranglijst",
+    tabAllTime: "Altijd",
+    tabMonthly: "Maandelijks top",
+    rankLabel: "Rang",
+    checkinsLabel: "check-ins",
+    emptyAllTime: "Nog geen check-ins op deze locatie.",
+    emptyMonthly: "Nog geen check-ins deze maand. Wees de eerste!",
+    championBadge: "Kampioen",
+    lastMonthWinner: "Kampioen van vorige maand",
+    youLabel: "Jij",
+    checkinCountA11y: "{{count}} check-ins",
+    rankA11y: "Rang {{rank}}",
+    championA11y: "Maandelijkse kampioen",
+  },
+
   interestLabels: interestLocales.nl,
 };

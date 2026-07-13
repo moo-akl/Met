@@ -1087,5 +1087,39 @@ export const pt: LocaleTree = {
     cancelReply: "Cancelar resposta",
     options: "Opções do chat",
   },
+  review: {
+    title: "Como foi a vibe?",
+    subtitle: "Dê uma tag rápida a {{name}}",
+    submit: "Enviar Vibe",
+    submitted: "Vibe enviada!",
+    tag_friendly: "Amigável",
+    tag_funny: "Engraçado",
+    tag_interesting: "Interessante",
+    tag_helpful: "Prestativo",
+    tag_genuine: "Genuíno",
+  },
+
+  trustScore: {
+    trusted: "Confiável",
+    neutral: "Neutro",
+    flagged: "Marcado",
+  },
+
+  leaderboard: {
+    title: "Tabela de líderes",
+    tabAllTime: "Todos os tempos",
+    tabMonthly: "Top mensal",
+    rankLabel: "Posição",
+    checkinsLabel: "check-ins",
+    emptyAllTime: "Ainda sem check-ins neste local.",
+    emptyMonthly: "Ainda sem check-ins este mês. Seja o primeiro!",
+    championBadge: "Campeão",
+    lastMonthWinner: "Campeão do mês passado",
+    youLabel: "Você",
+    checkinCountA11y: "{{count}} check-ins",
+    rankA11y: "Posição {{rank}}",
+    championA11y: "Campeão mensal",
+  },
+
   interestLabels: interestLocales.pt,
 };

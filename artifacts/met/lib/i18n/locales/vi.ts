@@ -1089,5 +1089,39 @@ export const vi: LocaleTree = {
     cancelReply: "Hủy trả lời",
     options: "Tùy chọn trò chuyện",
   },
+  review: {
+    title: "Cảm giác như thế nào?",
+    subtitle: "Gắn thẻ nhanh cho {{name}}",
+    submit: "Gửi Vibe",
+    submitted: "Đã gửi!",
+    tag_friendly: "Thân thiện",
+    tag_funny: "Hài hước",
+    tag_interesting: "Thú vị",
+    tag_helpful: "Hữu ích",
+    tag_genuine: "Chân thành",
+  },
+
+  trustScore: {
+    trusted: "Đáng tin cậy",
+    neutral: "Trung lập",
+    flagged: "Đã bị báo cáo",
+  },
+
+  leaderboard: {
+    title: "Bảng xếp hạng",
+    tabAllTime: "Mọi thời đại",
+    tabMonthly: "Hàng tháng",
+    rankLabel: "Xếp hạng",
+    checkinsLabel: "check-in",
+    emptyAllTime: "Chưa có check-in tại địa điểm này.",
+    emptyMonthly: "Chưa có check-in tháng này. Hãy là người đầu tiên!",
+    championBadge: "Vô địch",
+    lastMonthWinner: "Vô địch tháng trước",
+    youLabel: "Bạn",
+    checkinCountA11y: "{{count}} check-in",
+    rankA11y: "Xếp hạng {{rank}}",
+    championA11y: "Vô địch hàng tháng",
+  },
+
   interestLabels: interestLocales.vi,
 };

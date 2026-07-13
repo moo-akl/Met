@@ -1081,5 +1081,39 @@ export const es: LocaleTree = {
     cancelReply: "Cancelar respuesta",
     options: "Opciones del chat",
   },
+  review: {
+    title: "¿Cómo fue el ambiente?",
+    subtitle: "Dale un tag rápido a {{name}}",
+    submit: "Enviar Vibra",
+    submitted: "¡Vibra enviada!",
+    tag_friendly: "Amistoso",
+    tag_funny: "Divertido",
+    tag_interesting: "Interesante",
+    tag_helpful: "Útil",
+    tag_genuine: "Auténtico",
+  },
+
+  trustScore: {
+    trusted: "Confiable",
+    neutral: "Neutral",
+    flagged: "Marcado",
+  },
+
+  leaderboard: {
+    title: "Tabla de líderes",
+    tabAllTime: "Todos los tiempos",
+    tabMonthly: "Top mensual",
+    rankLabel: "Rango",
+    checkinsLabel: "registros",
+    emptyAllTime: "Aún no hay registros en este lugar.",
+    emptyMonthly: "Aún no hay registros este mes. ¡Sé el primero!",
+    championBadge: "Campeón",
+    lastMonthWinner: "Campeón del mes pasado",
+    youLabel: "Tú",
+    checkinCountA11y: "{{count}} registros",
+    rankA11y: "Rango {{rank}}",
+    championA11y: "Campeón mensual",
+  },
+
   interestLabels: interestLocales.es,
 };

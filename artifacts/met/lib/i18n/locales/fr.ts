@@ -1097,5 +1097,39 @@ export const fr: LocaleTree = {
     cancelReply: "Annuler la réponse",
     options: "Options du chat",
   },
+  review: {
+    title: "Quelle était l'ambiance ?",
+    subtitle: "Donnez un tag rapide à {{name}}",
+    submit: "Envoyer Vibe",
+    submitted: "Vibe envoyé !",
+    tag_friendly: "Sympa",
+    tag_funny: "Drôle",
+    tag_interesting: "Intéressant",
+    tag_helpful: "Serviable",
+    tag_genuine: "Authentique",
+  },
+
+  trustScore: {
+    trusted: "Fiable",
+    neutral: "Neutre",
+    flagged: "Signalé",
+  },
+
+  leaderboard: {
+    title: "Classement",
+    tabAllTime: "Toujours",
+    tabMonthly: "Top mensuel",
+    rankLabel: "Rang",
+    checkinsLabel: "enregistrements",
+    emptyAllTime: "Aucun enregistrement dans ce lieu.",
+    emptyMonthly: "Pas encore de check-in ce mois-ci. Soyez le premier !",
+    championBadge: "Champion",
+    lastMonthWinner: "Champion du mois dernier",
+    youLabel: "Vous",
+    checkinCountA11y: "{{count}} enregistrements",
+    rankA11y: "Rang {{rank}}",
+    championA11y: "Champion mensuel",
+  },
+
   interestLabels: interestLocales.fr,
 };

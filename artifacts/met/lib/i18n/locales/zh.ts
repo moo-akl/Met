@@ -1042,5 +1042,39 @@ export const zh: LocaleTree = {
     cancelReply: "取消回复",
     options: "聊天选项",
   },
+  review: {
+    title: "感觉如何？",
+    subtitle: "给{{name}}一个快速标签",
+    submit: "发送感受",
+    submitted: "已发送！",
+    tag_friendly: "友好",
+    tag_funny: "有趣",
+    tag_interesting: "有意思",
+    tag_helpful: "有帮助",
+    tag_genuine: "真诚",
+  },
+
+  trustScore: {
+    trusted: "可信",
+    neutral: "中立",
+    flagged: "已标记",
+  },
+
+  leaderboard: {
+    title: "排行榜",
+    tabAllTime: "历史",
+    tabMonthly: "月度",
+    rankLabel: "排名",
+    checkinsLabel: "次签到",
+    emptyAllTime: "该地点暂无签到。",
+    emptyMonthly: "本月暂无签到，快来第一个吧！",
+    championBadge: "冠军",
+    lastMonthWinner: "上月冠军",
+    youLabel: "你",
+    checkinCountA11y: "{{count}} 次签到",
+    rankA11y: "排名 {{rank}}",
+    championA11y: "月度冠军",
+  },
+
   interestLabels: interestLocales.zh,
 };
