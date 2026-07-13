@@ -9,6 +9,7 @@ import { useHasUnreadChats } from "@/hooks/useHasUnreadChats";
 import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
 import {
+  dismissDiscoveryHints,
   initDiscoveryState,
   isDiscoveryDismissedSync,
   subscribeDiscovery,
@@ -143,7 +144,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: t("tabs.home"),
+          // HomeTabIcon shows the pulsing discovery ring; tapping the tab
+          // permanently dismisses both the ring and the HubStatusBadge tooltip.
           tabBarIcon: ({ color }) => <HomeTabIcon color={color} />,
+        }}
+        listeners={{
+          tabPress: () => {
+            dismissDiscoveryHints();
+          },
         }}
       />
       <Tabs.Screen
