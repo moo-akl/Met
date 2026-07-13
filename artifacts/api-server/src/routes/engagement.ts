@@ -696,9 +696,13 @@ router.post(
     // Co-location validation: both users must have a hub check-in at the same
     // place_id within the last CO_LOCATION_WINDOW_MS. This prevents fake reviews
     // from users who never actually crossed paths.
+    // Strictly enforced — no fail-open. A reviewer with no recent check-ins
+    // cannot submit a review; they must be physically present at a shared venue.
     // ---------------------------------------------------------------------------
     const windowStart = new Date(Date.now() - CO_LOCATION_WINDOW_MS);
-    const [reviewerCheckin] = await db
+
+    // 1. Collect all venues the reviewer visited within the window.
+    const reviewerPlaces = await db
       .select({ placeId: hubCheckinsTable.placeId })
       .from(hubCheckinsTable)
       .where(
@@ -706,44 +710,38 @@ router.post(
           eq(hubCheckinsTable.userUid, reviewerUid),
           gte(hubCheckinsTable.createdAt, windowStart),
         ),
-      )
-      .limit(50);
+      );
+    const reviewerPlaceIds = [...new Set(reviewerPlaces.map((r) => r.placeId))];
 
-    if (reviewerCheckin) {
-      // Check if receiver was at the same place(s) within the same window
-      const reviewerPlaces = await db
-        .select({ placeId: hubCheckinsTable.placeId })
-        .from(hubCheckinsTable)
-        .where(
-          and(
-            eq(hubCheckinsTable.userUid, reviewerUid),
-            gte(hubCheckinsTable.createdAt, windowStart),
-          ),
-        );
-      const reviewerPlaceIds = reviewerPlaces.map((r) => r.placeId);
-      if (reviewerPlaceIds.length > 0) {
-        const [receiverCheckin] = await db
-          .select({ placeId: hubCheckinsTable.placeId })
-          .from(hubCheckinsTable)
-          .where(
-            and(
-              eq(hubCheckinsTable.userUid, receiverUid),
-              gte(hubCheckinsTable.createdAt, windowStart),
-              inArray(hubCheckinsTable.placeId, reviewerPlaceIds),
-            ),
-          )
-          .limit(1);
-        if (!receiverCheckin) {
-          res.status(403).json({
-            message: "co_location_required",
-            detail: "You can only review someone you were at the same place as recently.",
-          });
-          return;
-        }
-      }
+    // 2. Reviewer must have at least one recent check-in.
+    if (reviewerPlaceIds.length === 0) {
+      res.status(403).json({
+        message: "co_location_required",
+        detail: "You can only review someone you were at the same place as recently.",
+      });
+      return;
     }
-    // If no checkin data exists at all (e.g. during onboarding or dev), we allow
-    // the review to proceed — fail-open to avoid blocking legitimate users.
+
+    // 3. Receiver must have also checked in at one of those venues within the window.
+    const [receiverCheckin] = await db
+      .select({ placeId: hubCheckinsTable.placeId })
+      .from(hubCheckinsTable)
+      .where(
+        and(
+          eq(hubCheckinsTable.userUid, receiverUid),
+          gte(hubCheckinsTable.createdAt, windowStart),
+          inArray(hubCheckinsTable.placeId, reviewerPlaceIds),
+        ),
+      )
+      .limit(1);
+
+    if (!receiverCheckin) {
+      res.status(403).json({
+        message: "co_location_required",
+        detail: "You can only review someone you were at the same place as recently.",
+      });
+      return;
+    }
 
     const now = new Date();
 

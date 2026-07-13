@@ -28,20 +28,46 @@ interface Props {
   loading?: boolean;
 }
 
-function StarDisplay({ rating }: { rating: number }) {
+export function StarDisplay({ rating, size = 20 }: { rating: number; size?: number }) {
   const colors = useColors();
-  const full = Math.floor(rating);
   return (
     <View style={styles.starsRow}>
-      {[1, 2, 3, 4, 5].map((star) => (
-        <Feather
-          key={star}
-          name="star"
-          size={20}
-          color={star <= full ? "#F5B700" : colors.border}
-          style={{ marginHorizontal: 1 }}
-        />
-      ))}
+      {[1, 2, 3, 4, 5].map((star) => {
+        const filled = rating >= star;
+        const half = !filled && rating >= star - 0.5;
+        if (half) {
+          return (
+            <View
+              key={star}
+              style={{ width: size + 2, height: size, marginHorizontal: 1 }}
+            >
+              {/* Grey background star */}
+              <Feather name="star" size={size} color={colors.border} />
+              {/* Gold left half clipped over the grey star */}
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: (size + 2) / 2,
+                  overflow: "hidden",
+                }}
+              >
+                <Feather name="star" size={size} color="#F5B700" />
+              </View>
+            </View>
+          );
+        }
+        return (
+          <Feather
+            key={star}
+            name="star"
+            size={size}
+            color={filled ? "#F5B700" : colors.border}
+            style={{ marginHorizontal: 1 }}
+          />
+        );
+      })}
     </View>
   );
 }

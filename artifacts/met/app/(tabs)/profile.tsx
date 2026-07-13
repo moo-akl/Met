@@ -21,7 +21,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { SortableChips } from "@/components/SortableChips";
 import { TierBadge } from "@/components/TierBadge";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
-import { ReputationRadar } from "@/components/ReputationRadar";
+import { ReputationRadar, StarDisplay } from "@/components/ReputationRadar";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { MyQrSheet } from "@/components/MyQrSheet";
 import { ShareCardSheet } from "@/components/ShareCardSheet";
@@ -74,6 +74,7 @@ export default function ProfileScreen() {
   const [name, setName] = useState(profile?.name ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [trustScore, setTrustScore] = useState<number | null>(null);
+  const [averageRating, setAverageRating] = useState<number | null>(null);
   const [reviewSummary, setReviewSummary] = useState<{
     count: number;
     hasEnough: boolean;
@@ -194,7 +195,10 @@ export default function ProfileScreen() {
     const ctrl = new AbortController();
     api
       .getUserStats({ uid: authedUid, signal: ctrl.signal }, authedUid)
-      .then((s) => setTrustScore(s.trustScore))
+      .then((s) => {
+        setTrustScore(s.trustScore);
+        setAverageRating(typeof s.averageRating === "number" ? s.averageRating : null);
+      })
       .catch(() => {});
     return () => ctrl.abort();
   }, [authedUid]);
@@ -441,6 +445,14 @@ export default function ProfileScreen() {
               </View>
               {trustScore !== null ? (
                 <TrustScoreBadge score={trustScore} size="sm" showScore />
+              ) : null}
+              {averageRating !== null && averageRating > 0 ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <StarDisplay rating={averageRating} size={14} />
+                  <Text style={{ fontFamily: "Inter_500Medium", fontSize: 12, color: colors.mutedForeground }}>
+                    {averageRating.toFixed(1)}
+                  </Text>
+                </View>
               ) : null}
             </View>
           )}
