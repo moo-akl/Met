@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "check-firebase-keys": "tsx ./src/check-firebase-key-restrictions.ts",
     "check-i18n-keys": "tsx ./src/check-i18n-keys.ts",
+    "simulate-month-end": "tsx ./src/simulate-month-end.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

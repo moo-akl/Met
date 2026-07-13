@@ -16,12 +16,14 @@
  * orange "MOCK" label is shown in that case.
  */
 
+import { useRouter } from "expo-router";
 import React from "react";
 import {
   View,
   Text,
   StyleSheet,
   Animated,
+  Pressable,
 } from "react-native";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
 import { useColors } from "@/hooks/useColors";
@@ -48,6 +50,7 @@ class HubErrorBoundary extends React.Component<
 
 function HubStatusBadgeInner() {
   const colors = useColors();
+  const router = useRouter();
   const { hubState } = useHubCheckin();
 
   // Fade the badge in when it first appears and out when it disappears.
@@ -63,8 +66,22 @@ function HubStatusBadgeInner() {
 
   if (!hubState) return null;
 
+  const handlePress = () => {
+    if (hubState.isMock) return;
+    router.push({
+      pathname: "/leaderboard/[placeId]",
+      params: { placeId: hubState.placeId, placeName: hubState.placeName },
+    } as never);
+  };
+
   return (
     <Animated.View style={{ opacity, marginHorizontal: 20, marginTop: 12 }}>
+      <Pressable
+        onPress={handlePress}
+        disabled={hubState.isMock}
+        accessibilityLabel={`Checked in at ${hubState.placeName}, ${hubState.streak} day streak. Tap to see leaderboard.`}
+        accessibilityRole="button"
+      >
       <View
         style={[
           styles.pill,
@@ -73,8 +90,6 @@ function HubStatusBadgeInner() {
             borderColor: colors.primary,
           },
         ]}
-        accessibilityLabel={`Checked in at ${hubState.placeName}, ${hubState.streak} day streak`}
-        accessibilityRole="text"
       >
         {/* Location icon + venue name */}
         <Text style={styles.icon}>📍</Text>
@@ -101,6 +116,7 @@ function HubStatusBadgeInner() {
           </View>
         ) : null}
       </View>
+      </Pressable>
     </Animated.View>
   );
 }

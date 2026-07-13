@@ -1090,6 +1090,22 @@ export const en = {
     editRegenCodeConfirmBody: "The current code will stop working.",
     editRegenCodeConfirmOk: "Regenerate",
   },
+
+  leaderboard: {
+    title: "Leaderboard",
+    tabAllTime: "All-Time",
+    tabMonthly: "Monthly Top",
+    rankLabel: "Rank",
+    checkinsLabel: "check-ins",
+    emptyAllTime: "No check-ins yet at this hub.",
+    emptyMonthly: "No check-ins this month yet. Be the first!",
+    championBadge: "Champion",
+    lastMonthWinner: "Last month's champion",
+    youLabel: "You",
+    checkinCountA11y: "{{count}} check-ins",
+    rankA11y: "Rank {{rank}}",
+    championA11y: "Monthly champion",
+  },
 };
 
 // We use a deep-partial type for non-en locales so they can omit any key

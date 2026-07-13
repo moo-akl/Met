@@ -7,6 +7,7 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  date,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -136,3 +137,44 @@ export const insertReviewSchema = createInsertSchema(reviewsTable).omit({
 
 export type InsertReview = z.infer<typeof insertReviewSchema>;
 export type Review = typeof reviewsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// monthly_champions
+// One row per (place_id, month). Populated by a cron job on the 1st of each
+// month — stores the top-ranked visitor(s) for the previous month.
+// month: the first calendar day of the month being crowned (e.g. "2026-07-01").
+// ---------------------------------------------------------------------------
+export const monthlyChampionsTable = pgTable(
+  "monthly_champions",
+  {
+    id: serial("id").primaryKey(),
+    placeId: text("place_id").notNull(),
+    placeName: text("place_name"),
+    userUid: text("user_uid").notNull(),
+    month: date("month").notNull(),
+    rank: integer("rank").notNull().default(1),
+    checkinCount: integer("checkin_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    placeMonthRankUniq: uniqueIndex("monthly_champions_place_month_rank_uniq").on(
+      t.placeId,
+      t.month,
+      t.rank,
+    ),
+    userIdx: index("monthly_champions_user_idx").on(t.userUid),
+    placeMonthIdx: index("monthly_champions_place_month_idx").on(
+      t.placeId,
+      t.month,
+    ),
+  }),
+);
+
+export const insertMonthlyChampionSchema = createInsertSchema(
+  monthlyChampionsTable,
+).omit({ id: true, createdAt: true });
+
+export type InsertMonthlyChampion = z.infer<typeof insertMonthlyChampionSchema>;
+export type MonthlyChampion = typeof monthlyChampionsTable.$inferSelect;

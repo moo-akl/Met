@@ -544,6 +544,42 @@ export const api = {
       lastStreakUpdate: string | null;
     }>("GET", `/api/users/${encodeURIComponent(uid)}/stats`, opts),
   /**
+   * Fetch leaderboard for a hub. period defaults to "all_time".
+   * "current_month" filters to check-ins from the start of the current UTC month.
+   */
+  getLeaderboard: (
+    opts: ApiOptions,
+    placeId: string,
+    period: "all_time" | "current_month" = "all_time",
+  ) =>
+    request<
+      Array<{
+        rank: number;
+        uid: string;
+        displayName: string;
+        photoUrl: string | null;
+        checkinCount: number;
+      }>
+    >(
+      "GET",
+      `/api/hubs/${encodeURIComponent(placeId)}/leaderboard?period=${period}`,
+      opts,
+    ),
+  /**
+   * Fetch all past monthly champion badges for a user.
+   * Returns wins where rank = 1, ordered newest first.
+   */
+  getChampionBadges: (opts: ApiOptions, uid: string) =>
+    request<
+      Array<{
+        placeId: string;
+        placeName: string | null;
+        month: string;
+        rank: number;
+        checkinCount: number;
+      }>
+    >("GET", `/api/users/${encodeURIComponent(uid)}/champion-badges`, opts),
+  /**
    * Lightweight server-sync of notification preferences. Accepts any subset
    * of the known keys; merges with existing values on the server.
    * Best-effort — call fire-and-forget; the app works fine without it.

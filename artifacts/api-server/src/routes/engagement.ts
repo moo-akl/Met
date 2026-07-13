@@ -9,7 +9,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { eq, and, desc, gte, sql, count } from "drizzle-orm";
+import { eq, and, desc, gte, sql, count, lt, isNull, or } from "drizzle-orm";
 import {
   db,
   hubCheckinsTable,
@@ -17,6 +17,7 @@ import {
   profileViewsTable,
   reviewsTable,
   profilesTable,
+  monthlyChampionsTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
@@ -285,8 +286,9 @@ router.post(
 );
 
 // ---------------------------------------------------------------------------
-// GET /api/hubs/:placeId/leaderboard
-// Returns top 20 users by total check-in count at a given place.
+// GET /api/hubs/:placeId/leaderboard?period=all_time|current_month
+// Returns top 20 users by check-in count at a given place.
+// period defaults to "all_time".
 // ---------------------------------------------------------------------------
 
 router.get(
@@ -294,6 +296,20 @@ router.get(
   requireUid,
   async (req, res): Promise<void> => {
     const { placeId } = req.params as { placeId: string };
+    const period =
+      req.query["period"] === "current_month" ? "current_month" : "all_time";
+
+    // For current_month, filter to rows from start of this month (UTC).
+    const monthStart =
+      period === "current_month"
+        ? new Date(
+            Date.UTC(
+              new Date().getUTCFullYear(),
+              new Date().getUTCMonth(),
+              1,
+            ),
+          )
+        : null;
 
     const rows = await db
       .select({
@@ -307,7 +323,14 @@ router.get(
         profilesTable,
         eq(profilesTable.uid, hubCheckinsTable.userUid),
       )
-      .where(eq(hubCheckinsTable.placeId, placeId))
+      .where(
+        monthStart
+          ? and(
+              eq(hubCheckinsTable.placeId, placeId),
+              gte(hubCheckinsTable.createdAt, monthStart),
+            )
+          : eq(hubCheckinsTable.placeId, placeId),
+      )
       .groupBy(
         hubCheckinsTable.userUid,
         profilesTable.displayName,
@@ -325,6 +348,141 @@ router.get(
         checkinCount: Number(r.checkinCount),
       })),
     );
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/users/:uid/champion-badges
+// Returns all past monthly championship wins for a user (used for badge display).
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/users/:uid/champion-badges",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const { uid } = req.params as { uid: string };
+
+    const badges = await db
+      .select({
+        placeId: monthlyChampionsTable.placeId,
+        placeName: monthlyChampionsTable.placeName,
+        month: monthlyChampionsTable.month,
+        rank: monthlyChampionsTable.rank,
+        checkinCount: monthlyChampionsTable.checkinCount,
+      })
+      .from(monthlyChampionsTable)
+      .where(
+        and(
+          eq(monthlyChampionsTable.userUid, uid),
+          eq(monthlyChampionsTable.rank, 1),
+        ),
+      )
+      .orderBy(desc(monthlyChampionsTable.month))
+      .limit(24); // up to 2 years of history
+
+    res.json(badges);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// POST /api/hubs/crown-monthly-champions
+// Internal endpoint — called by the cron job on the 1st of each month.
+// Identifies top visitor(s) for the previous month across all hubs and inserts
+// them into monthly_champions. Protected by a shared secret header.
+// ---------------------------------------------------------------------------
+
+router.post(
+  "/hubs/crown-monthly-champions",
+  async (req, res): Promise<void> => {
+    const secret = process.env["CRON_SECRET"];
+    if (!secret || req.headers["x-cron-secret"] !== secret) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    // Determine the previous month window.
+    const now = new Date();
+    const prevMonthStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1),
+    );
+    const prevMonthEnd = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    // ISO date string for the month column: "YYYY-MM-01"
+    const monthStr = prevMonthStart.toISOString().slice(0, 10);
+
+    // Aggregate check-ins per (placeId, userUid) for the previous month.
+    const rankings = await db
+      .select({
+        placeId: hubCheckinsTable.placeId,
+        placeName: hubCheckinsTable.placeName,
+        userUid: hubCheckinsTable.userUid,
+        checkinCount: count(hubCheckinsTable.id).as("checkin_count"),
+      })
+      .from(hubCheckinsTable)
+      .where(
+        and(
+          gte(hubCheckinsTable.createdAt, prevMonthStart),
+          lt(hubCheckinsTable.createdAt, prevMonthEnd),
+        ),
+      )
+      .groupBy(
+        hubCheckinsTable.placeId,
+        hubCheckinsTable.placeName,
+        hubCheckinsTable.userUid,
+      )
+      .orderBy(
+        hubCheckinsTable.placeId,
+        desc(sql`count(${hubCheckinsTable.id})`),
+      );
+
+    if (rankings.length === 0) {
+      res.json({ crowned: 0, month: monthStr });
+      return;
+    }
+
+    // Pick the top user per place (rank 1 only).
+    const championsMap = new Map<
+      string,
+      { placeId: string; placeName: string | null; userUid: string; checkinCount: number }
+    >();
+    for (const row of rankings) {
+      if (!championsMap.has(row.placeId)) {
+        championsMap.set(row.placeId, {
+          placeId: row.placeId,
+          placeName: row.placeName ?? null,
+          userUid: row.userUid,
+          checkinCount: Number(row.checkinCount),
+        });
+      }
+    }
+
+    const toInsert = Array.from(championsMap.values());
+
+    // Upsert: if a champion row already exists for this place+month (e.g. job
+    // re-run), skip rather than error.
+    let crowned = 0;
+    for (const champ of toInsert) {
+      try {
+        await db
+          .insert(monthlyChampionsTable)
+          .values({
+            placeId: champ.placeId,
+            placeName: champ.placeName,
+            userUid: champ.userUid,
+            month: monthStr,
+            rank: 1,
+            checkinCount: champ.checkinCount,
+          })
+          .onConflictDoNothing();
+        crowned++;
+      } catch (err) {
+        logger.warn({ err, placeId: champ.placeId }, "champion insert skipped");
+      }
+    }
+
+    logger.info({ crowned, month: monthStr }, "Monthly champions crowned");
+    res.json({ crowned, month: monthStr });
   },
 );
 
