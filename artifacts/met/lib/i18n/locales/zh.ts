@@ -1104,5 +1104,21 @@ export const zh: LocaleTree = {
     championA11y: "月度冠军",
   },
 
+  valueTour: {
+    slide1Title: "找到与你有缘相遇的人",
+    slide1Sub:
+      "Met 在后台悄悄监听。附近使用该应用的任何人都会出现 — 无需滑动。",
+    slide2Title: "匿名直到你们都准备好",
+    slide2Sub:
+      "你的真实姓名和社交账号将保持隐藏，直到双方都点击「揭示」。每一步都由你掌控。",
+    slide3Title: "在你最喜欢的地方竞争",
+    slide3Sub:
+      "在咖啡馆、健身房和场所打卡，攀登本地排行榜。出现得越多 — 排名越高。",
+    next: "下一步",
+    getStarted: "开始",
+    skip: "跳过",
+    hubTooltip: "点击参与竞争！",
+  },
+
   interestLabels: interestLocales.zh,
 };

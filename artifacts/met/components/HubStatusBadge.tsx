@@ -25,6 +25,9 @@ import React from "react";
 import { View, Text, StyleSheet, Animated, Pressable } from "react-native";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
 import { useColors } from "@/hooks/useColors";
+import { useSessionCount } from "@/hooks/useSessionCount";
+import { useT } from "@/lib/i18n";
+import { loadHubTooltipDismissed, saveHubTooltipDismissed } from "@/lib/storage";
 
 // Re-export so callers can import both from one file if needed.
 export { useHubCheckin } from "@/hooks/useHubCheckin";
@@ -49,7 +52,9 @@ class HubErrorBoundary extends React.Component<
 function HubStatusBadgeInner() {
   const colors = useColors();
   const router = useRouter();
+  const { t } = useT();
   const { hubState } = useHubCheckin();
+  const sessionCount = useSessionCount();
 
   // Fade badge in/out on visibility change
   const badgeOpacity = React.useRef(new Animated.Value(0)).current;
@@ -60,6 +65,11 @@ function HubStatusBadgeInner() {
   // Flame scale bounce on streak increment
   const flameScale = React.useRef(new Animated.Value(1)).current;
   const prevStreakRef = React.useRef<number | null>(null);
+
+  // Tooltip — "Tap to compete!" shown for first 3 sessions
+  const [tooltipVisible, setTooltipVisible] = React.useState(false);
+  const tooltipOpacity = React.useRef(new Animated.Value(0)).current;
+  const tooltipCheckedRef = React.useRef(false);
 
   // Fade in/out — spring for organic feel
   React.useEffect(() => {
@@ -120,9 +130,40 @@ function HubStatusBadgeInner() {
     prevStreakRef.current = hubState.streak;
   }, [hubState?.streak, flameScale]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Show "Tap to compete!" tooltip for sessions 1–3 unless already dismissed
+  React.useEffect(() => {
+    if (!hubState || tooltipCheckedRef.current) return;
+    if (sessionCount === 0) return;
+    if (sessionCount > 3) return;
+    tooltipCheckedRef.current = true;
+    loadHubTooltipDismissed()
+      .then((dismissed) => {
+        if (dismissed) return;
+        setTooltipVisible(true);
+        Animated.timing(tooltipOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+        const timer = setTimeout(() => dismissTooltipFn(), 4000);
+        return () => clearTimeout(timer);
+      })
+      .catch(() => {});
+  }, [hubState, sessionCount, tooltipOpacity]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dismissTooltipFn = React.useCallback(() => {
+    Animated.timing(tooltipOpacity, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => setTooltipVisible(false));
+    saveHubTooltipDismissed().catch(() => {});
+  }, [tooltipOpacity]);
+
   if (!hubState) return null;
 
   const handlePress = () => {
+    if (tooltipVisible) dismissTooltipFn();
     if (hubState.isMock) return;
     router.push({
       pathname: "/leaderboard/[placeId]",
@@ -134,6 +175,20 @@ function HubStatusBadgeInner() {
     <Animated.View
       style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
     >
+      {tooltipVisible && (
+        <Animated.View
+          style={[
+            styles.tooltip,
+            { backgroundColor: colors.primary, opacity: tooltipOpacity },
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={[styles.tooltipText, { color: colors.primaryForeground }]}>
+            {t("valueTour.hubTooltip")}
+          </Text>
+          <View style={[styles.tooltipArrow, { borderTopColor: colors.primary }]} />
+        </Animated.View>
+      )}
       <Pressable
         onPress={handlePress}
         disabled={hubState.isMock}
@@ -201,6 +256,37 @@ export function HubStatusBadge() {
 }
 
 const styles = StyleSheet.create({
+  tooltip: {
+    alignSelf: "center",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  tooltipText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+    letterSpacing: 0.2,
+  },
+  tooltipArrow: {
+    position: "absolute",
+    bottom: -7,
+    alignSelf: "center",
+    left: "50%",
+    marginLeft: -7,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 7,
+    borderRightWidth: 7,
+    borderTopWidth: 7,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+  },
   glow: {
     position: "absolute",
     top: -5,

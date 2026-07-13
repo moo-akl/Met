@@ -235,3 +235,37 @@ export async function saveProfileBannerDismissed(
     await AsyncStorage.removeItem(profileBannerDismissedKey(uid));
   }
 }
+
+const SESSION_COUNT_KEY = "met:sessionCount:v1";
+const VALUE_TOUR_SEEN_KEY = "met:valueTourSeen:v1";
+const HUB_TOOLTIP_DISMISSED_KEY = "met:hubTooltipDismissed:v1";
+
+export async function loadSessionCount(): Promise<number> {
+  const raw = await AsyncStorage.getItem(SESSION_COUNT_KEY);
+  return raw ? parseInt(raw, 10) : 0;
+}
+
+export async function incrementSessionCount(): Promise<number> {
+  const current = await loadSessionCount();
+  const next = current + 1;
+  await AsyncStorage.setItem(SESSION_COUNT_KEY, String(next));
+  return next;
+}
+
+export async function loadValueTourSeen(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(VALUE_TOUR_SEEN_KEY);
+  return raw === "1";
+}
+
+export async function saveValueTourSeen(): Promise<void> {
+  await AsyncStorage.setItem(VALUE_TOUR_SEEN_KEY, "1");
+}
+
+export async function loadHubTooltipDismissed(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(HUB_TOOLTIP_DISMISSED_KEY);
+  return raw === "1";
+}
+
+export async function saveHubTooltipDismissed(): Promise<void> {
+  await AsyncStorage.setItem(HUB_TOOLTIP_DISMISSED_KEY, "1");
+}

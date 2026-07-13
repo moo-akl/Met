@@ -1151,5 +1151,21 @@ export const vi: LocaleTree = {
     championA11y: "Vô địch hàng tháng",
   },
 
+  valueTour: {
+    slide1Title: "Tìm những người bạn đã gặp",
+    slide1Sub:
+      "Met lắng nghe âm thầm ở chế độ nền. Bất kỳ ai gần đó cũng dùng ứng dụng sẽ hiện ra — không cần vuốt.",
+    slide2Title: "Ẩn danh cho đến khi cả hai sẵn sàng",
+    slide2Sub:
+      "Tên thật và mạng xã hội của bạn được ẩn cho đến khi cả hai chạm Tiết lộ. Bạn kiểm soát mọi bước.",
+    slide3Title: "Cạnh tranh tại những địa điểm yêu thích",
+    slide3Sub:
+      "Check in tại quán cà phê, phòng gym và địa điểm để leo lên bảng xếp hạng địa phương. Xuất hiện nhiều hơn — thăng hạng cao hơn.",
+    next: "Tiếp theo",
+    getStarted: "Bắt đầu",
+    skip: "Bỏ qua",
+    hubTooltip: "Nhấn để cạnh tranh!",
+  },
+
   interestLabels: interestLocales.vi,
 };

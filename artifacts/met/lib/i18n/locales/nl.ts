@@ -1151,5 +1151,21 @@ export const nl: LocaleTree = {
     championA11y: "Maandelijkse kampioen",
   },
 
+  valueTour: {
+    slide1Title: "Vind mensen die je bent tegengekomen",
+    slide1Sub:
+      "Met luistert stil op de achtergrond. Iedereen in de buurt die ook de app gebruikt, verschijnt — zonder swipen.",
+    slide2Title: "Anoniem totdat jullie allebei klaar zijn",
+    slide2Sub:
+      "Je echte naam en socials blijven verborgen totdat jullie allebei op Onthul drukken. Jij behoudt de controle bij elke stap.",
+    slide3Title: "Concurreer op je favoriete plekken",
+    slide3Sub:
+      "Check in bij cafés, sportscholen en locaties om de lokale ranglijst te beklimmen. Kom vaker — stijg hoger.",
+    next: "Volgende",
+    getStarted: "Begin",
+    skip: "Overslaan",
+    hubTooltip: "Tik om te concurreren!",
+  },
+
   interestLabels: interestLocales.nl,
 };

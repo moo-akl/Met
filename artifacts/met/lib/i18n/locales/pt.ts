@@ -1149,5 +1149,21 @@ export const pt: LocaleTree = {
     championA11y: "Campeão mensal",
   },
 
+  valueTour: {
+    slide1Title: "Encontra quem cruzou o teu caminho",
+    slide1Sub:
+      "O Met ouve discretamente em segundo plano. Qualquer pessoa próxima na app aparece — sem deslizar.",
+    slide2Title: "Anónimo até estarem prontos",
+    slide2Sub:
+      "O teu nome real e redes sociais ficam escondidos até ambos carregarem em Revelar. Tu controlas cada passo.",
+    slide3Title: "Compete nos teus lugares favoritos",
+    slide3Sub:
+      "Faz check-in em cafés, ginásios e locais para subir no ranking local. Aparece mais — sobe mais alto.",
+    next: "Seguinte",
+    getStarted: "Começar",
+    skip: "Saltar",
+    hubTooltip: "Toca para competir!",
+  },
+
   interestLabels: interestLocales.pt,
 };

@@ -42,7 +42,8 @@ import { getLanguage, setLanguage, SUPPORTED_LANGUAGES, useT, type LangCode } fr
 import { validateHandle, checkHandleReachable } from "@/lib/socialValidation";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
-import { loadDragHintDismissed, loadProfile, saveDragHintDismissed } from "@/lib/storage";
+import { loadDragHintDismissed, loadProfile, loadValueTourSeen, saveDragHintDismissed } from "@/lib/storage";
+import { ValueTour } from "@/components/ValueTour";
 import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
 import { consumePendingReferral } from "./_layout";
@@ -98,6 +99,7 @@ const SOCIAL_FIELDS: Array<{ key: SocialPlatform; label: string; placeholder: st
 
 type Phase =
   | "language"
+  | "valueTour"
   | "intro"
   | "auth"
   | "verify"
@@ -880,8 +882,11 @@ export default function OnboardingScreen() {
 
           <Pressable
             onPress={() => {
-              setLanguage(selectedLang);
-              setPhase("intro");
+              void (async () => {
+                setLanguage(selectedLang);
+                const seen = await loadValueTourSeen().catch(() => true);
+                setPhase(seen ? "intro" : "valueTour");
+              })();
             }}
             style={({ pressed }) => ({
               backgroundColor: colors.primary,
@@ -897,6 +902,14 @@ export default function OnboardingScreen() {
           </Pressable>
         </View>
       </View>
+    );
+  }
+
+  if (phase === "valueTour") {
+    return (
+      <ValueTour
+        onDone={() => setPhase("intro")}
+      />
     );
   }
 

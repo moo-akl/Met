@@ -1159,5 +1159,21 @@ export const fr: LocaleTree = {
     championA11y: "Champion mensuel",
   },
 
+  valueTour: {
+    slide1Title: "Retrouve ceux que tu as croisés",
+    slide1Sub:
+      "Met écoute discrètement en arrière-plan. Toute personne à proximité sur l'appli apparaît — sans swiper.",
+    slide2Title: "Anonyme jusqu'à ce que vous soyez prêts",
+    slide2Sub:
+      "Ton vrai nom et tes réseaux restent cachés jusqu'à ce que vous appuyiez tous les deux sur Révéler. Tu gardes le contrôle à chaque étape.",
+    slide3Title: "Rivalise dans tes endroits préférés",
+    slide3Sub:
+      "Check-in dans des cafés, des salles de sport et des lieux pour grimper dans le classement local. Plus tu viens — plus tu montes.",
+    next: "Suivant",
+    getStarted: "C'est parti",
+    skip: "Passer",
+    hubTooltip: "Appuie pour rivaliser !",
+  },
+
   interestLabels: interestLocales.fr,
 };

@@ -44,6 +44,7 @@ import {
 } from "@/lib/revenuecat";
 import { api } from "@/lib/api/client";
 import { initTikTok, tiktokTrackLaunch } from "@/lib/tiktok";
+import { incrementSessionCount } from "@/lib/storage";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -420,6 +421,13 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  // Increment session count once per cold start so session-gated features
+  // (value tour, leaderboard pulse, hub tooltip) can track how new the user is.
+  useEffect(() => {
+    incrementSessionCount().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keep a ref so the foreground listener can read the current pathname
   // without being recreated on every navigation change.

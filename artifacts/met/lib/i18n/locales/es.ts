@@ -1143,5 +1143,21 @@ export const es: LocaleTree = {
     championA11y: "Campeón mensual",
   },
 
+  valueTour: {
+    slide1Title: "Encuentra a quienes te has cruzado",
+    slide1Sub:
+      "Met escucha en silencio en segundo plano. Cualquier persona cercana que use la app aparece — sin deslizar.",
+    slide2Title: "Anónimo hasta que estés listo",
+    slide2Sub:
+      "Tu nombre real y tus redes sociales permanecen ocultos hasta que ambos pulséis Revelar. Tú controlas cada paso.",
+    slide3Title: "Compite en tus lugares favoritos",
+    slide3Sub:
+      "Haz check-in en cafeterías, gimnasios y locales para subir en el ranking local. Aparece más — sube más alto.",
+    next: "Siguiente",
+    getStarted: "Comenzar",
+    skip: "Omitir",
+    hubTooltip: "¡Pulsa para competir!",
+  },
+
   interestLabels: interestLocales.es,
 };

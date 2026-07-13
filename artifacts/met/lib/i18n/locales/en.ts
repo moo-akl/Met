@@ -1152,6 +1152,22 @@ export const en = {
     rankA11y: "Rank {{rank}}",
     championA11y: "Monthly champion",
   },
+
+  valueTour: {
+    slide1Title: "Find people you've crossed paths with",
+    slide1Sub:
+      "Met quietly listens in the background. Anyone nearby who's also on Met shows up — no swiping required.",
+    slide2Title: "Anonymous until you're both ready",
+    slide2Sub:
+      "Your real name and socials stay hidden until you both tap Reveal. You stay in control at every step.",
+    slide3Title: "Compete at your favourite spots",
+    slide3Sub:
+      "Check in at cafés, gyms, and venues to climb the local leaderboard. Show up more — rank higher.",
+    next: "Next",
+    getStarted: "Get started",
+    skip: "Skip",
+    hubTooltip: "Tap to compete!",
+  },
 };
 
 // We use a deep-partial type for non-en locales so they can omit any key

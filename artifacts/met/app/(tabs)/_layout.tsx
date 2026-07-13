@@ -1,11 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, Easing, Platform, StyleSheet, View } from "react-native";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useHasUnreadChats } from "@/hooks/useHasUnreadChats";
+import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
 
 function ChatTabIcon({ color }: { color: string }) {
@@ -20,6 +21,70 @@ function ChatTabIcon({ color }: { color: string }) {
           style={[styles.unreadDot, { backgroundColor: colors.primary }]}
         />
       )}
+    </View>
+  );
+}
+
+function HomeTabIcon({ color }: { color: string }) {
+  const sessionCount = useSessionCount();
+  const colors = useColors();
+  const showPulse = sessionCount > 0 && sessionCount <= 3;
+
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    if (!showPulse) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(scaleAnim, {
+            toValue: 1.7,
+            duration: 900,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacityAnim, {
+            toValue: 0,
+            duration: 900,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacityAnim, {
+            toValue: 0.6,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [showPulse, scaleAnim, opacityAnim]);
+
+  return (
+    <View style={styles.tabIconWrap}>
+      {showPulse && (
+        <Animated.View
+          style={[
+            styles.pulseRing,
+            {
+              borderColor: colors.primary,
+              transform: [{ scale: scaleAnim }],
+              opacity: opacityAnim,
+            },
+          ]}
+          pointerEvents="none"
+        />
+      )}
+      <Feather name="home" size={22} color={color} />
     </View>
   );
 }
@@ -61,9 +126,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: t("tabs.home"),
-          tabBarIcon: ({ color }) => (
-            <Feather name="home" size={22} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <HomeTabIcon color={color} />,
         }}
       />
       <Tabs.Screen
@@ -112,5 +175,18 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  tabIconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 36,
+    height: 36,
+  },
+  pulseRing: {
+    position: "absolute",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
   },
 });
