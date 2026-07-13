@@ -670,9 +670,12 @@ const ReviewBody = z.object({
 // Co-location window — both users must have checked in to the same place
 // within the last CO_LOCATION_WINDOW_MS milliseconds.
 const CO_LOCATION_WINDOW_MS = 24 * 60 * 60 * 1000;
-// Two check-ins at the same place are considered co-present when their
-// timestamps are within this tolerance of each other (≈ 30-minute window).
-const CO_LOCATION_PROXIMITY_MS = 30 * 60 * 1000;
+// Each hub check-in is modelled as a session lasting CO_SESSION_DURATION_MS
+// from the check-in timestamp (hub_checkins has no explicit checkout column).
+// This lets us compute real interval overlap between two users' sessions.
+const CO_SESSION_DURATION_MS = 2 * 60 * 60 * 1000; // 2 h assumed session
+// Minimum cumulative interval overlap required to permit a review.
+const CO_MIN_OVERLAP_MS = 30 * 60 * 1000; // 30 min
 
 router.post(
   "/reviews",
@@ -698,17 +701,17 @@ router.post(
     // ---------------------------------------------------------------------------
     // Co-location validation — strictly enforced, no fail-open.
     //
-    // Both users must have a hub check-in at the same place_id within the last
-    // CO_LOCATION_WINDOW_MS AND their check-in timestamps at that shared venue
-    // must be within CO_LOCATION_PROXIMITY_MS (30 min) of each other.
+    // Requires that the reviewer and receiver have a cumulative session overlap
+    // of at least CO_MIN_OVERLAP_MS (30 min) at the same place_id within the
+    // last CO_LOCATION_WINDOW_MS (24 h).
     //
-    // Because hub_checkins only stores check-in timestamps (no checkout), the
-    // 30-minute timestamp proximity is the best-available approximation of
-    // "both were physically present at the venue at the same time."
+    // hub_checkins has no explicit checkout column, so each check-in is modelled
+    // as a session of length CO_SESSION_DURATION_MS starting at createdAt.
+    // Interval intersections are computed in memory from the fetched rows.
     // ---------------------------------------------------------------------------
     const windowStart = new Date(Date.now() - CO_LOCATION_WINDOW_MS);
 
-    // 1. Fetch all of the reviewer's check-ins with timestamps within the window.
+    // 1. Fetch reviewer's check-ins with timestamps within the window.
     const reviewerCheckins = await db
       .select({
         placeId: hubCheckinsTable.placeId,
@@ -755,18 +758,36 @@ router.post(
       return;
     }
 
-    // 4. Require at least one (reviewer, receiver) check-in pair at the same
-    //    place within 30 minutes of each other — the closest approximation of
-    //    "overlapping presence" achievable without a checkout timestamp.
-    const coLocated = reviewerCheckins.some((rc) =>
-      receiverCheckins.some(
-        (rv) =>
-          rc.placeId === rv.placeId &&
-          Math.abs(rc.createdAt.getTime() - rv.createdAt.getTime()) <= CO_LOCATION_PROXIMITY_MS,
-      ),
-    );
+    // 4. Build [start, end) session intervals per place for the reviewer.
+    type Interval = { start: number; end: number };
+    const reviewerByPlace = new Map<string, Interval[]>();
+    for (const rc of reviewerCheckins) {
+      const start = rc.createdAt.getTime();
+      const list = reviewerByPlace.get(rc.placeId) ?? [];
+      list.push({ start, end: start + CO_SESSION_DURATION_MS });
+      reviewerByPlace.set(rc.placeId, list);
+    }
 
-    if (!coLocated) {
+    // 5. Compute cumulative overlap across all shared venues.
+    //    Each (reviewer session, receiver session) pair contributes the length
+    //    of their intersection, capped so double-counted segments don't inflate
+    //    the total beyond what a real visit could produce.
+    let totalOverlapMs = 0;
+    for (const rv of receiverCheckins) {
+      const reviewerIntervals = reviewerByPlace.get(rv.placeId) ?? [];
+      const rvStart = rv.createdAt.getTime();
+      const rvEnd = rvStart + CO_SESSION_DURATION_MS;
+      for (const ri of reviewerIntervals) {
+        const overlapStart = Math.max(ri.start, rvStart);
+        const overlapEnd = Math.min(ri.end, rvEnd);
+        if (overlapEnd > overlapStart) {
+          totalOverlapMs += overlapEnd - overlapStart;
+        }
+      }
+    }
+
+    // 6. Enforce the minimum co-presence threshold.
+    if (totalOverlapMs < CO_MIN_OVERLAP_MS) {
       res.status(403).json({
         message: "co_location_required",
         detail: "You can only review someone you were at the same place as recently.",
