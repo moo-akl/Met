@@ -626,6 +626,35 @@ export default function ProfileScreen() {
           </Pressable>
         ) : null}
 
+        {__DEV__ ? (
+          <View style={{ gap: 8, marginTop: 8 }}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+              DEV: Tier override
+            </Text>
+            {(["free", "plus", "pro"] as const).map((t2) => (
+              <Pressable
+                key={t2}
+                onPress={() =>
+                  api
+                    .devSetTier({ uid: authedUid ?? "" }, { tier: t2 })
+                    .then(() => Alert.alert("Dev", `Tier set to ${t2}`))
+                    .catch((e: unknown) =>
+                      Alert.alert("Error", e instanceof Error ? e.message : String(e)),
+                    )
+                }
+                style={[
+                  styles.upgradeBanner,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium" }}>
+                  Set tier: {t2}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
         {editing ? (
           <View style={{ gap: 12 }}>
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>

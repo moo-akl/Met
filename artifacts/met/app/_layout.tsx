@@ -40,7 +40,9 @@ import { initReferrals } from "@/lib/referrals";
 import {
   initializeRevenueCat,
   SubscriptionProvider,
+  useSubscription,
 } from "@/lib/revenuecat";
+import { api } from "@/lib/api/client";
 import { initTikTok, tiktokTrackLaunch } from "@/lib/tiktok";
 
 SplashScreen.preventAutoHideAsync();
@@ -212,6 +214,28 @@ function ChatBannerController({
       onDismiss={handleDismiss}
     />
   );
+}
+
+/**
+ * Syncs the device's active RevenueCat subscription tier to Postgres so
+ * server-side gates (profile-view limits, spotlight, etc.) stay accurate.
+ * Must live inside both SubscriptionProvider and AppProvider.
+ */
+function SubscriptionSyncer() {
+  const { tier, isSubscriptionReady } = useSubscription();
+  const { authedUid } = useApp();
+
+  useEffect(() => {
+    if (!authedUid || !isSubscriptionReady) return;
+    api
+      .syncSubscription(
+        { uid: authedUid },
+        { tier, status: tier === "free" ? "inactive" : "active" },
+      )
+      .catch(() => {});
+  }, [authedUid, tier, isSubscriptionReady]);
+
+  return null;
 }
 
 /**
@@ -442,6 +466,7 @@ export default function RootLayout() {
             <KeyboardProvider>
               <SubscriptionProvider>
                 <AppProvider>
+                  <SubscriptionSyncer />
                   <PushTokenRegistrar />
                   <ProfileGate />
                   <RootLayoutNav />

@@ -20,10 +20,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { findBlockedTerm } from "@/lib/contentFilter";
 import { useT } from "@/lib/i18n";
+import { api, ApiError } from "@/lib/api/client";
 import { type ReportReason, submitReport } from "@/lib/reports";
 import { useSubscription } from "@/lib/revenuecat";
 import {
@@ -59,12 +61,14 @@ export default function EncounterDetail() {
     declineRevealRequest,
     cancelRevealRequest,
     profile,
+    authedUid,
   } = useApp();
   const { isSubscribed, isSubscriptionReady } = useSubscription();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [revealsRemaining, setRevealsRemaining] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
+  const [viewLimitModal, setViewLimitModal] = useState(false);
   const [accepting, setAccepting] = useState(false);
   // Reveal-request confirmation sheet — gives the sender one last chance to
   // attach a personal note before the request fires. Empty draft = no note.
@@ -89,6 +93,20 @@ export default function EncounterDetail() {
     () => allEncounters.find((e) => e.id === id),
     [allEncounters, id],
   );
+
+  // Record a profile view for the "vibe-checked" push notification and the
+  // free-tier daily-view gate. Fire-and-forget — a 402 response means the
+  // free limit is exhausted; show the upgrade modal instead.
+  useEffect(() => {
+    if (!encounter || !authedUid) return;
+    api
+      .recordProfileView({ uid: authedUid }, encounter.id)
+      .catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 402) {
+          setViewLimitModal(true);
+        }
+      });
+  }, [encounter?.id, authedUid]);
 
   // RevenueCat occasionally never resolves `customerInfo` on Android — most
   // commonly on ad-hoc / direct-install builds where Google Play Billing
@@ -802,6 +820,11 @@ export default function EncounterDetail() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      <SubscriptionModal
+        visible={viewLimitModal}
+        onDismiss={() => setViewLimitModal(false)}
+      />
     </View>
   );
 }
