@@ -1117,6 +1117,11 @@ export const zh: LocaleTree = {
     championA11y: "月度冠军",
   },
 
+  venue: {
+    selectTitle: "你在哪个地方?",
+    cancel: "暂不",
+  },
+
   checkin: {
     cooldown: "你最近已在此处签到",
     cooldownRemaining: "{{time}}后可再次签到",

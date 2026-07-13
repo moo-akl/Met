@@ -58,21 +58,56 @@ const reviewWriteLimit = createUserRateLimiter({
 interface PlacesResult {
   placeId: string;
   displayName: string;
+  /** Straight-line distance from the queried point (haversine, rounded to m). */
+  distanceM: number;
 }
 
+/** Haversine great-circle distance in metres between two WGS-84 coordinates. */
+function haversineMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const R = 6_371_000;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const dLambda = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dPhi / 2) ** 2 +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+const INCLUDED_PLACE_TYPES = [
+  "restaurant",
+  "cafe",
+  "bar",
+  "library",
+  "gym",
+  "university",
+  "shopping_mall",
+  "park",
+  "museum",
+  "movie_theater",
+  "transit_station",
+];
+
 /**
- * Calls Google Places Nearby Search (New) API to find the nearest venue
- * within 50 m of the given coordinates. Returns null if none found or if
- * the API key is not configured.
+ * Calls Google Places Nearby Search (New) API to return up to `maxResults`
+ * venues within 50 m of the given coordinates, ordered by distance.
+ * Returns an empty array if none are found or if the API key is not set.
  */
-async function findNearbyPlace(
+async function findNearbyPlaces(
   lat: number,
   lng: number,
-): Promise<PlacesResult | null> {
+  maxResults = 5,
+): Promise<PlacesResult[]> {
   const apiKey = process.env["GOOGLE_API_KEY"];
   if (!apiKey) {
     logger.warn("GOOGLE_API_KEY not set — skipping Places lookup");
-    return null;
+    return [];
   }
 
   try {
@@ -83,24 +118,11 @@ async function findNearbyPlace(
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": apiKey,
-          "X-Goog-FieldMask":
-            "places.id,places.displayName,places.location",
+          "X-Goog-FieldMask": "places.id,places.displayName,places.location",
         },
         body: JSON.stringify({
-          includedTypes: [
-            "restaurant",
-            "cafe",
-            "bar",
-            "library",
-            "gym",
-            "university",
-            "shopping_mall",
-            "park",
-            "museum",
-            "movie_theater",
-            "transit_station",
-          ],
-          maxResultCount: 1,
+          includedTypes: INCLUDED_PLACE_TYPES,
+          maxResultCount: maxResults,
           locationRestriction: {
             circle: {
               center: { latitude: lat, longitude: lng },
@@ -118,29 +140,33 @@ async function findNearbyPlace(
         { status: res.status, body: text.slice(0, 200) },
         "Google Places API error",
       );
-      return null;
+      return [];
     }
 
     const data = (await res.json()) as {
       places?: Array<{
         id?: string;
         displayName?: { text?: string };
+        location?: { latitude?: number; longitude?: number };
       }>;
     };
 
-    const place = data.places?.[0];
-    if (!place?.id) return null;
-
-    return {
-      placeId: place.id,
-      displayName: place.displayName?.text ?? "Unknown place",
-    };
+    return (data.places ?? [])
+      .filter((p) => !!p.id)
+      .map((p) => ({
+        placeId: p.id!,
+        displayName: p.displayName?.text ?? "Unknown place",
+        distanceM:
+          p.location?.latitude != null && p.location?.longitude != null
+            ? haversineMeters(lat, lng, p.location.latitude, p.location.longitude)
+            : 0,
+      }));
   } catch (err) {
     logger.warn(
       { err: (err as Error)?.message },
       "Google Places API request failed",
     );
-    return null;
+    return [];
   }
 }
 
@@ -188,6 +214,10 @@ const CHECKIN_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const CheckinBody = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
+  /** When provided, skips the Google Places lookup and uses this venue directly. */
+  placeId: z.string().optional(),
+  /** Human-readable venue name supplied alongside an explicit placeId. */
+  placeName: z.string().optional(),
 });
 
 router.post(
@@ -203,8 +233,19 @@ router.post(
     }
     const { lat, lng } = parsed.data;
 
-    // Resolve coordinates → place via Google Places
-    const place = await findNearbyPlace(lat, lng);
+    // Resolve place: use the explicit placeId when the client already made a
+    // /nearby call and the user picked from the multi-venue modal; otherwise
+    // auto-resolve from GPS coords (single-venue path).
+    let place: { placeId: string; displayName: string } | null;
+    if (parsed.data.placeId) {
+      place = {
+        placeId: parsed.data.placeId,
+        displayName: parsed.data.placeName ?? "Unknown place",
+      };
+    } else {
+      const nearby = await findNearbyPlaces(lat, lng, 1);
+      place = nearby[0] ?? null;
+    }
     if (!place) {
       res
         .status(404)
@@ -314,6 +355,47 @@ router.post(
       placeName: place.displayName,
       streak,
     });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/hubs/nearby?lat=&lng=
+// Returns all recognised venues within 50 m (up to 5), ordered by distance.
+// The frontend calls this first; if > 1 venue is returned it shows the
+// SelectVenueModal so the user can pick before confirming a check-in.
+// NOTE: this route MUST be registered before GET /hubs/:placeId/leaderboard
+// so Express doesn't match "nearby" as a :placeId param.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/hubs/nearby",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const lat = parseFloat(String(req.query["lat"]));
+    const lng = parseFloat(String(req.query["lng"]));
+    if (
+      isNaN(lat) ||
+      isNaN(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      res
+        .status(400)
+        .json({ message: "lat and lng query params are required (valid numbers)" });
+      return;
+    }
+
+    const venues = await findNearbyPlaces(lat, lng, 5);
+    if (venues.length === 0) {
+      res
+        .status(404)
+        .json({ message: "No recognised venues found within 50 m" });
+      return;
+    }
+
+    res.json({ venues });
   },
 );
 

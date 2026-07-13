@@ -1165,6 +1165,11 @@ export const ar: LocaleTree = {
     championA11y: "بطل الشهر",
   },
 
+  venue: {
+    selectTitle: "في أي مكان أنت؟",
+    cancel: "ليس الآن",
+  },
+
   checkin: {
     cooldown: "لقد سجّلت حضورك هنا مؤخراً",
     cooldownRemaining: "سجّل حضورك مرة أخرى بعد {{time}}",

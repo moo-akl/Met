@@ -1166,6 +1166,11 @@ export const en = {
     championA11y: "Monthly champion",
   },
 
+  venue: {
+    selectTitle: "Which venue are you at?",
+    cancel: "Not now",
+  },
+
   checkin: {
     cooldown: "You've already checked in here recently",
     cooldownRemaining: "Check in again in {{time}}",

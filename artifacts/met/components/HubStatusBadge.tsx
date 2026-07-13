@@ -24,6 +24,7 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { View, Text, StyleSheet, Animated, Pressable } from "react-native";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
+import { SelectVenueModal } from "@/components/SelectVenueModal";
 import { useColors } from "@/hooks/useColors";
 import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
@@ -69,7 +70,8 @@ function HubStatusBadgeInner() {
   const colors = useColors();
   const router = useRouter();
   const { t } = useT();
-  const { hubState, cooldownMinutes } = useHubCheckin();
+  const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection } =
+    useHubCheckin();
   const sessionCount = useSessionCount();
 
   // Fade badge in/out on visibility change
@@ -221,7 +223,18 @@ function HubStatusBadgeInner() {
     );
   }
 
-  if (!hubState) return null;
+  if (!hubState && pendingVenues === null) return null;
+
+  if (!hubState) {
+    return (
+      <SelectVenueModal
+        visible={pendingVenues !== null && pendingVenues.length > 0}
+        venues={pendingVenues ?? []}
+        onSelect={confirmVenue}
+        onDismiss={cancelVenueSelection}
+      />
+    );
+  }
 
   const handlePress = () => {
     // Tapping the badge is user intent — permanently dismiss both hints

@@ -1156,6 +1156,11 @@ export const es: LocaleTree = {
     championA11y: "Campeón mensual",
   },
 
+  venue: {
+    selectTitle: "¿En qué lugar estás?",
+    cancel: "Ahora no",
+  },
+
   checkin: {
     cooldown: "Ya has hecho check-in aquí recientemente",
     cooldownRemaining: "Vuelve a hacer check-in en {{time}}",

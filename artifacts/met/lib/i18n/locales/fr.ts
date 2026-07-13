@@ -1172,6 +1172,11 @@ export const fr: LocaleTree = {
     championA11y: "Champion mensuel",
   },
 
+  venue: {
+    selectTitle: "Dans quel établissement êtes-vous ?",
+    cancel: "Pas maintenant",
+  },
+
   checkin: {
     cooldown: "Tu t'es déjà enregistré ici récemment",
     cooldownRemaining: "Reviens dans {{time}}",

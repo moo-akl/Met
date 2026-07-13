@@ -98,6 +98,14 @@ export interface ApiOptions {
   signal?: AbortSignal;
 }
 
+/** A venue returned by GET /api/hubs/nearby. */
+export interface VenueResult {
+  placeId: string;
+  displayName: string;
+  /** Haversine distance in metres from the queried GPS point. */
+  distanceM: number;
+}
+
 async function request<T>(
   method: "GET" | "PUT" | "POST" | "DELETE" | "PATCH",
   path: string,
@@ -501,12 +509,36 @@ export const api = {
       opts,
     ),
   /**
-   * Hub check-in — resolves the caller's current coordinates to a Google Places
-   * venue within 50 m, records the visit, and updates their hub streak.
-   * Returns the resolved venue and current streak count.
-   * Throws ApiError with status 404 when no recognised venue is nearby.
+   * Returns all recognised Google Places venues within 50 m of the given
+   * coordinates (up to 5), ordered by distance. Call this first when the user
+   * triggers a check-in; if > 1 venue is returned, show the SelectVenueModal
+   * so the user can pick before confirming.
+   * Throws ApiError with status 404 when no venues are found.
    */
-  hubCheckin: (opts: ApiOptions, input: { lat: number; lng: number }) =>
+  hubNearby: (opts: ApiOptions, input: { lat: number; lng: number }) =>
+    request<{ venues: VenueResult[] }>(
+      "GET",
+      `/api/hubs/nearby?lat=${input.lat}&lng=${input.lng}`,
+      opts,
+    ),
+  /**
+   * Hub check-in — records the visit to the given venue and updates the user's
+   * hub streak. When `placeId` is provided (chosen from the multi-venue modal)
+   * the server skips the Google Places lookup. Otherwise it auto-resolves from
+   * lat/lng (single-venue fast path).
+   * Throws ApiError with status 404 when no venue is found (auto-resolve path).
+   * Throws ApiError with status 403 { error: "cooldown" } when the 4-hour
+   * cooldown for this (user, venue) pair has not yet elapsed.
+   */
+  hubCheckin: (
+    opts: ApiOptions,
+    input: {
+      lat: number;
+      lng: number;
+      placeId?: string;
+      placeName?: string;
+    },
+  ) =>
     request<{ placeId: string; placeName: string; streak: number }>(
       "POST",
       "/api/hubs/checkin",

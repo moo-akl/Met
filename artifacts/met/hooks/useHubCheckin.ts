@@ -1,25 +1,35 @@
 /**
  * useHubCheckin
  *
- * Periodically resolves the user's current GPS coordinates to a Google Places
- * venue (via POST /api/hubs/checkin) and returns the hub state.
+ * Periodically resolves the user's current GPS coordinates to nearby Google
+ * Places venues (via GET /api/hubs/nearby) and manages the check-in flow.
  *
- * Debounce: at most one API call every 5 minutes per app session.
+ * Single-venue path (common): if exactly one venue is found within 50 m the
+ * hook auto-checks in via POST /api/hubs/checkin and returns hubState.
+ *
+ * Multi-venue path: if two or more venues are found within 50 m the hook sets
+ * `pendingVenues` instead of auto-checking in.  The UI should render
+ * SelectVenueModal when pendingVenues is non-null, call `confirmVenue(venue)`
+ * when the user selects one, or `cancelVenueSelection()` to dismiss.
+ *
+ * Debounce: at most one /nearby call every 5 minutes per app session.
  *
  * Cooldown: if the server returns 403 { error: "cooldown", remainingMinutes }
  * the hook surfaces remainingMinutes so the UI can tell the user when they can
- * check in again. The cooldown is per (user, place_id) — different venues are
- * not affected.
+ * check in again.
  *
  * Mock fallback: in __DEV__ builds, any API error other than 404 or cooldown
- * will produce a fake hub state so the HubStatusBadge UI is always visible for
- * testing. The mock state carries `isMock: true` so the badge can label itself.
+ * will produce a fake hub state so the HubStatusBadge UI is always visible
+ * for testing. The mock state carries `isMock: true` so the badge can label
+ * itself.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
 import { useApp } from "@/contexts/AppContext";
-import { api, ApiError } from "@/lib/api/client";
+import { api, ApiError, type VenueResult } from "@/lib/api/client";
+
+export type { VenueResult };
 
 const CHECKIN_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -40,21 +50,108 @@ const MOCK_HUB_STATE: HubState = {
 export function useHubCheckin(): {
   hubState: HubState | null;
   cooldownMinutes: number | null;
+  pendingVenues: VenueResult[] | null;
+  confirmVenue: (venue: VenueResult) => void;
+  cancelVenueSelection: () => void;
 } {
   const { authedUid } = useApp();
   const [hubState, setHubState] = useState<HubState | null>(null);
   const [cooldownMinutes, setCooldownMinutes] = useState<number | null>(null);
+  const [pendingVenues, setPendingVenues] = useState<VenueResult[] | null>(null);
 
   // Tracks the timestamp of the last successfully fired API call so we can
   // debounce without relying on component lifecycle timing.
   const lastFiredAt = useRef<number>(0);
   const mountedRef = useRef(true);
 
+  // The GPS position captured at the time of the /nearby call — stored so
+  // the deferred confirmVenue path can pass valid coords to /checkin.
+  const lastPositionRef = useRef<Location.LocationObject | null>(null);
+
+  // Keep a ref to authedUid so the stable performCheckin callback can read it.
+  const authedUidRef = useRef<string | null | undefined>(authedUid);
+  useEffect(() => {
+    authedUidRef.current = authedUid;
+  }, [authedUid]);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
+  }, []);
+
+  /**
+   * Calls POST /api/hubs/checkin with the chosen venue and stored GPS position.
+   * Stable (only uses refs) so it can be a dependency-free useCallback and used
+   * safely in both the interval path and the confirmVenue callback.
+   */
+  const performCheckin = useCallback(
+    async (venue: VenueResult, pos: Location.LocationObject) => {
+      const uid = authedUidRef.current;
+      if (!uid) return;
+
+      try {
+        const result = await api.hubCheckin(
+          { uid },
+          {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            placeId: venue.placeId,
+            placeName: venue.displayName,
+          },
+        );
+        if (mountedRef.current) {
+          setHubState({
+            placeId: result.placeId,
+            placeName: result.placeName,
+            streak: result.streak,
+            isMock: false,
+          });
+          setCooldownMinutes(null);
+        }
+      } catch (err: unknown) {
+        const apiErr = err instanceof ApiError ? err : null;
+
+        if (apiErr?.status === 403) {
+          const body = apiErr.body as Record<string, unknown> | null;
+          if (
+            body?.error === "cooldown" &&
+            typeof body.remainingMinutes === "number"
+          ) {
+            if (mountedRef.current) setCooldownMinutes(body.remainingMinutes);
+            return;
+          }
+        }
+
+        if (apiErr?.status === 404) {
+          if (mountedRef.current) {
+            setHubState(null);
+            setCooldownMinutes(null);
+          }
+        } else if (__DEV__) {
+          if (mountedRef.current) setHubState(MOCK_HUB_STATE);
+        }
+      }
+    },
+    [],
+  );
+
+  /** Called when the user taps a venue row in SelectVenueModal. */
+  const confirmVenue = useCallback(
+    (venue: VenueResult) => {
+      if (!mountedRef.current) return;
+      setPendingVenues(null);
+      const pos = lastPositionRef.current;
+      if (!pos) return;
+      void performCheckin(venue, pos);
+    },
+    [performCheckin],
+  );
+
+  /** Called when the user dismisses the SelectVenueModal without choosing. */
+  const cancelVenueSelection = useCallback(() => {
+    setPendingVenues(null);
   }, []);
 
   useEffect(() => {
@@ -92,34 +189,26 @@ export function useHubCheckin(): {
       // parallel interval tick slip through the debounce check.
       lastFiredAt.current = now;
 
+      // Store position now — confirmVenue needs it if the modal is shown.
+      lastPositionRef.current = pos;
+
       try {
-        const result = await api.hubCheckin(
+        const { venues } = await api.hubNearby(
           { uid: authedUid },
           { lat: pos.coords.latitude, lng: pos.coords.longitude },
         );
-        if (mountedRef.current) {
-          setHubState({
-            placeId: result.placeId,
-            placeName: result.placeName,
-            streak: result.streak,
-            isMock: false,
-          });
-          // Successful check-in clears any previous cooldown.
-          setCooldownMinutes(null);
+
+        if (!mountedRef.current) return;
+
+        if (venues.length === 1) {
+          // Only one venue — auto-checkin without prompting the user.
+          await performCheckin(venues[0]!, pos);
+        } else {
+          // Multiple venues — surface the selection modal.
+          setPendingVenues(venues);
         }
       } catch (err: unknown) {
         const apiErr = err instanceof ApiError ? err : null;
-
-        if (apiErr?.status === 403) {
-          // Cooldown response: { error: "cooldown", remainingMinutes: N }
-          const body = apiErr.body as Record<string, unknown> | null;
-          if (body?.error === "cooldown" && typeof body.remainingMinutes === "number") {
-            if (mountedRef.current) {
-              setCooldownMinutes(body.remainingMinutes);
-            }
-            return;
-          }
-        }
 
         if (apiErr?.status === 404) {
           // No venue found within 50 m — hide the badge and clear cooldown.
@@ -132,8 +221,8 @@ export function useHubCheckin(): {
           // → show mock state so the badge UI is always visible for testing.
           if (mountedRef.current) setHubState(MOCK_HUB_STATE);
         }
-        // In production non-404/non-cooldown errors are silently ignored (badge
-        // stays hidden / in its previous state) to avoid noisy error UX.
+        // In production non-404 errors are silently ignored (badge stays
+        // hidden / in its previous state) to avoid noisy error UX.
       }
     };
 
@@ -141,7 +230,7 @@ export function useHubCheckin(): {
     void doCheckin();
     const id = setInterval(() => void doCheckin(), CHECKIN_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [authedUid]);
+  }, [authedUid, performCheckin]);
 
-  return { hubState, cooldownMinutes };
+  return { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection };
 }

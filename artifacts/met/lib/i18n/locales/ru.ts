@@ -1169,6 +1169,11 @@ export const ru: LocaleTree = {
     championA11y: "Чемпион месяца",
   },
 
+  venue: {
+    selectTitle: "В каком заведении вы находитесь?",
+    cancel: "Не сейчас",
+  },
+
   checkin: {
     cooldown: "Вы уже отметились здесь недавно",
     cooldownRemaining: "Отметьтесь снова через {{time}}",

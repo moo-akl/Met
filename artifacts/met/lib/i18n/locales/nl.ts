@@ -1164,6 +1164,11 @@ export const nl: LocaleTree = {
     championA11y: "Maandelijkse kampioen",
   },
 
+  venue: {
+    selectTitle: "Bij welk etablissement ben je?",
+    cancel: "Nu niet",
+  },
+
   checkin: {
     cooldown: "Je bent hier onlangs al ingecheckt",
     cooldownRemaining: "Check opnieuw in over {{time}}",
