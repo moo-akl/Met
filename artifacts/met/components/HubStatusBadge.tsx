@@ -197,29 +197,37 @@ function HubStatusBadgeInner() {
   if (!hubState && cooldownMinutes !== null && cooldownMinutes > 0) {
     const timeLabel = formatCooldown(cooldownMinutes);
     return (
-      <Animated.View
-        style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
-      >
-        <View
-          style={[
-            styles.pill,
-            styles.cooldownPill,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-            },
-          ]}
-          accessibilityLabel={t("checkin.cooldownRemaining", { time: timeLabel })}
+      <>
+        <SelectVenueModal
+          visible={pendingVenues !== null && pendingVenues.length > 0}
+          venues={pendingVenues ?? []}
+          onSelect={confirmVenue}
+          onDismiss={cancelVenueSelection}
+        />
+        <Animated.View
+          style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
         >
-          <Text style={styles.icon}>⏳</Text>
-          <Text
-            numberOfLines={1}
-            style={[styles.cooldownText, { color: colors.mutedForeground }]}
+          <View
+            style={[
+              styles.pill,
+              styles.cooldownPill,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+            accessibilityLabel={t("checkin.cooldownRemaining", { time: timeLabel })}
           >
-            {t("checkin.cooldownRemaining", { time: timeLabel })}
-          </Text>
-        </View>
-      </Animated.View>
+            <Text style={styles.icon}>⏳</Text>
+            <Text
+              numberOfLines={1}
+              style={[styles.cooldownText, { color: colors.mutedForeground }]}
+            >
+              {t("checkin.cooldownRemaining", { time: timeLabel })}
+            </Text>
+          </View>
+        </Animated.View>
+      </>
     );
   }
 
@@ -247,9 +255,17 @@ function HubStatusBadgeInner() {
   };
 
   return (
-    <Animated.View
-      style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
-    >
+    <>
+      {/* Modal renders on top regardless of whether a hub badge is already active */}
+      <SelectVenueModal
+        visible={pendingVenues !== null && pendingVenues.length > 0}
+        venues={pendingVenues ?? []}
+        onSelect={confirmVenue}
+        onDismiss={cancelVenueSelection}
+      />
+      <Animated.View
+        style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
+      >
       {tooltipVisible && (
         <Animated.View
           style={[
@@ -319,6 +335,7 @@ function HubStatusBadgeInner() {
         </View>
       </Pressable>
     </Animated.View>
+    </>
   );
 }
 
