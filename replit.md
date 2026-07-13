@@ -90,6 +90,7 @@ When Firebase credentials change (e.g. new Firebase project, regenerated config)
 - **Native Module Changes**: Updates to `artifacts/met/modules/expo-met-ble/` require a fresh `eas build` (cannot be OTA updated).
 - **BLE Testing**: Requires physical devices and EAS dev/production builds (not supported in Expo Go, simulator, or emulator).
 - **Deployment method**: Builds are triggered from GitHub source via EAS — there is NO Expo OTA in use. Every JS or native change requires pushing to GitHub and triggering a new EAS build. Never tell the user to "close and reopen the app" to get an OTA update — it won't work.
+- **EAS typecheck gate**: `artifacts/met/scripts/eas-post-install.js` runs `pnpm run typecheck:libs && pnpm --filter @workspace/met run typecheck` on every EAS build (gated on `EAS_BUILD`/`CI`). A TypeScript error exits non-zero and aborts the build early — before the Xcode/Gradle native compile steps begin. This runs after `pnpm install` so all workspace-lib declarations are available.
 
 ## Domains
 

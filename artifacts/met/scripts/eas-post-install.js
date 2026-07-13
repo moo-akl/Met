@@ -6,27 +6,37 @@
 //
 // PURPOSE
 // -------
-// Belt-and-suspenders safety net: even though the pre-install hook
-// already ensures `expo` is a workspace-root devDep (so its binary lands
-// at <workspace>/node_modules/.bin/expo after install), if anything has
-// gone wrong with that injection, this hook hunts for the `expo` binary
-// anywhere in the install tree and symlinks it to the workspace root.
+// 1. TYPECHECK GATE
+//    Runs `pnpm run typecheck:libs && pnpm --filter @workspace/met run typecheck`
+//    so that TypeScript errors in the Expo app abort the build early — before
+//    the expensive Xcode/Gradle native compile steps begin. Exits non-zero on
+//    failure so EAS treats the build as failed.
+//
+// 2. BINARY SYMLINK (belt-and-suspenders)
+//    Even though the pre-install hook already ensures `expo` is a workspace-root
+//    devDep (so its binary lands at <workspace>/node_modules/.bin/expo after
+//    install), if anything has gone wrong with that injection, this hook hunts
+//    for the `expo` binary anywhere in the install tree and symlinks it to the
+//    workspace root.
 //
 // We also log loudly (with a sentinel banner) so we can confirm in EAS
-// build output whether the hook actually ran. The previous build's
-// pipeline summary did NOT show a "Post-install hook" step, suggesting
-// EAS didn't pick up our registration. Loud logs give us proof one way
-// or the other.
+// build output whether the hook actually ran.
 //
 // LOCAL SAFETY
 // ------------
 // Gated on `EAS_BUILD` / `CI`. Local invocation is a no-op.
 // =============================================================================
 
+const { execSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
 const TARGET_BINARIES = ["expo", "eas", "react-native"];
+
+function run(cmd, cwd) {
+  console.log(`[eas-post-install] $ ${cmd}  (cwd=${cwd})`);
+  execSync(cmd, { cwd, stdio: "inherit" });
+}
 
 function findWorkspaceRoot(start) {
   let dir = start;
@@ -100,10 +110,18 @@ function main() {
 
   if (!isEas) {
     console.log(
-      "[eas-post-install] Not running on EAS/CI. Skipping symlink work.",
+      "[eas-post-install] Not running on EAS/CI. Skipping typecheck and symlink work.",
     );
     return;
   }
+
+  // 1. Run TypeScript typecheck so type errors abort the build before the
+  //    expensive EAS queue step begins. Build composite libs first so the
+  //    Expo app's workspace-lib imports resolve correctly.
+  console.log("[eas-post-install] Running typecheck...");
+  run("pnpm run typecheck:libs", root);
+  run("pnpm --filter @workspace/met run typecheck", root);
+  console.log("[eas-post-install] Typecheck passed.");
 
   const rootBin = path.join(root, "node_modules", ".bin");
   console.log(
