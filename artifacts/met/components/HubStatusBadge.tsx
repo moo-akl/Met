@@ -27,7 +27,12 @@ import { useHubCheckin } from "@/hooks/useHubCheckin";
 import { useColors } from "@/hooks/useColors";
 import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
-import { loadHubTooltipDismissed, saveHubTooltipDismissed } from "@/lib/storage";
+import {
+  dismissDiscoveryHints,
+  initDiscoveryState,
+  isDiscoveryDismissedSync,
+  subscribeDiscovery,
+} from "@/lib/discoveryHints";
 
 // Re-export so callers can import both from one file if needed.
 export { useHubCheckin } from "@/hooks/useHubCheckin";
@@ -68,6 +73,9 @@ function HubStatusBadgeInner() {
 
   // Tooltip — "Tap to compete!" shown for first 3 sessions
   const [tooltipVisible, setTooltipVisible] = React.useState(false);
+  const [discoveryDismissed, setDiscoveryDismissed] = React.useState(
+    isDiscoveryDismissedSync,
+  );
   const tooltipOpacity = React.useRef(new Animated.Value(0)).current;
   const tooltipCheckedRef = React.useRef(false);
 
@@ -130,40 +138,51 @@ function HubStatusBadgeInner() {
     prevStreakRef.current = hubState.streak;
   }, [hubState?.streak, flameScale]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Subscribe to real-time discovery dismissal (e.g. from HomeTabIcon tap)
+  React.useEffect(() => {
+    initDiscoveryState()
+      .then(() => {
+        if (isDiscoveryDismissedSync()) setDiscoveryDismissed(true);
+      })
+      .catch(() => {});
+    return subscribeDiscovery(() => {
+      setDiscoveryDismissed(true);
+      fadeOutTooltip();
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Show "Tap to compete!" tooltip for sessions 1–3 unless already dismissed
   React.useEffect(() => {
     if (!hubState || tooltipCheckedRef.current) return;
     if (sessionCount === 0) return;
     if (sessionCount > 3) return;
+    if (discoveryDismissed) return;
     tooltipCheckedRef.current = true;
-    loadHubTooltipDismissed()
-      .then((dismissed) => {
-        if (dismissed) return;
-        setTooltipVisible(true);
-        Animated.timing(tooltipOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-        const timer = setTimeout(() => dismissTooltipFn(), 4000);
-        return () => clearTimeout(timer);
-      })
-      .catch(() => {});
-  }, [hubState, sessionCount, tooltipOpacity]); // eslint-disable-line react-hooks/exhaustive-deps
+    setTooltipVisible(true);
+    Animated.timing(tooltipOpacity, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    // Auto-hide after 4 s — visual only, does NOT persist dismissal
+    const timer = setTimeout(() => fadeOutTooltip(), 4000);
+    return () => clearTimeout(timer);
+  }, [hubState, sessionCount, discoveryDismissed, tooltipOpacity]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const dismissTooltipFn = React.useCallback(() => {
+  /** Fade the tooltip out visually — does NOT persist to storage. */
+  const fadeOutTooltip = React.useCallback(() => {
     Animated.timing(tooltipOpacity, {
       toValue: 0,
       duration: 250,
       useNativeDriver: true,
     }).start(() => setTooltipVisible(false));
-    saveHubTooltipDismissed().catch(() => {});
   }, [tooltipOpacity]);
 
   if (!hubState) return null;
 
   const handlePress = () => {
-    if (tooltipVisible) dismissTooltipFn();
+    // Tapping the badge is user intent — permanently dismiss both hints
+    dismissDiscoveryHints();
     if (hubState.isMock) return;
     router.push({
       pathname: "/leaderboard/[placeId]",

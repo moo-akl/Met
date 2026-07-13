@@ -908,7 +908,7 @@ export default function OnboardingScreen() {
   if (phase === "valueTour") {
     return (
       <ValueTour
-        onDone={() => setPhase("intro")}
+        onDone={() => setPhase("auth")}
       />
     );
   }

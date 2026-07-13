@@ -1154,15 +1154,15 @@ export const en = {
   },
 
   valueTour: {
-    slide1Title: "Find people you've crossed paths with",
+    slide1Title: "See who's around you",
     slide1Sub:
-      "Met quietly listens in the background. Anyone nearby who's also on Met shows up — no swiping required.",
-    slide2Title: "Anonymous until you're both ready",
+      "Met quietly listens in the background. Anyone nearby who's also on Met appears on your radar — no swiping required.",
+    slide2Title: "Compete to own your scene",
     slide2Sub:
-      "Your real name and socials stay hidden until you both tap Reveal. You stay in control at every step.",
-    slide3Title: "Compete at your favourite spots",
+      "Check in at cafés, gyms, and venues to climb the local leaderboard. Show up more — rank higher and earn the crown.",
+    slide3Title: "Build your social footprint",
     slide3Sub:
-      "Check in at cafés, gyms, and venues to climb the local leaderboard. Show up more — rank higher.",
+      "Every reveal, encounter, and check-in grows your reputation. The more you connect, the stronger your presence.",
     next: "Next",
     getStarted: "Get started",
     skip: "Skip",

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, StyleSheet, View } from "react-native";
 
 import { useApp } from "@/contexts/AppContext";
@@ -8,6 +8,11 @@ import { useColors } from "@/hooks/useColors";
 import { useHasUnreadChats } from "@/hooks/useHasUnreadChats";
 import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
+import {
+  initDiscoveryState,
+  isDiscoveryDismissedSync,
+  subscribeDiscovery,
+} from "@/lib/discoveryHints";
 
 function ChatTabIcon({ color }: { color: string }) {
   const { authedUid } = useApp();
@@ -28,7 +33,19 @@ function ChatTabIcon({ color }: { color: string }) {
 function HomeTabIcon({ color }: { color: string }) {
   const sessionCount = useSessionCount();
   const colors = useColors();
-  const showPulse = sessionCount > 0 && sessionCount <= 3;
+  const [discoveryDismissed, setDiscoveryDismissed] = useState(
+    isDiscoveryDismissedSync,
+  );
+
+  useEffect(() => {
+    initDiscoveryState().then(() => {
+      if (isDiscoveryDismissedSync()) setDiscoveryDismissed(true);
+    }).catch(() => {});
+    return subscribeDiscovery(() => setDiscoveryDismissed(true));
+  }, []);
+
+  const showPulse =
+    !discoveryDismissed && sessionCount > 0 && sessionCount <= 3;
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(0.6)).current;
