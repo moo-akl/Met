@@ -670,6 +670,9 @@ const ReviewBody = z.object({
 // Co-location window — both users must have checked in to the same place
 // within the last CO_LOCATION_WINDOW_MS milliseconds.
 const CO_LOCATION_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Two check-ins at the same place are considered co-present when their
+// timestamps are within this tolerance of each other (≈ 30-minute window).
+const CO_LOCATION_PROXIMITY_MS = 30 * 60 * 1000;
 
 router.post(
   "/reviews",
@@ -693,17 +696,24 @@ router.post(
     const sanitisedVibeTags = vibeTags.filter((t) => ALLOWED_VIBE_TAGS.has(t));
 
     // ---------------------------------------------------------------------------
-    // Co-location validation: both users must have a hub check-in at the same
-    // place_id within the last CO_LOCATION_WINDOW_MS. This prevents fake reviews
-    // from users who never actually crossed paths.
-    // Strictly enforced — no fail-open. A reviewer with no recent check-ins
-    // cannot submit a review; they must be physically present at a shared venue.
+    // Co-location validation — strictly enforced, no fail-open.
+    //
+    // Both users must have a hub check-in at the same place_id within the last
+    // CO_LOCATION_WINDOW_MS AND their check-in timestamps at that shared venue
+    // must be within CO_LOCATION_PROXIMITY_MS (30 min) of each other.
+    //
+    // Because hub_checkins only stores check-in timestamps (no checkout), the
+    // 30-minute timestamp proximity is the best-available approximation of
+    // "both were physically present at the venue at the same time."
     // ---------------------------------------------------------------------------
     const windowStart = new Date(Date.now() - CO_LOCATION_WINDOW_MS);
 
-    // 1. Collect all venues the reviewer visited within the window.
-    const reviewerPlaces = await db
-      .select({ placeId: hubCheckinsTable.placeId })
+    // 1. Fetch all of the reviewer's check-ins with timestamps within the window.
+    const reviewerCheckins = await db
+      .select({
+        placeId: hubCheckinsTable.placeId,
+        createdAt: hubCheckinsTable.createdAt,
+      })
       .from(hubCheckinsTable)
       .where(
         and(
@@ -711,7 +721,7 @@ router.post(
           gte(hubCheckinsTable.createdAt, windowStart),
         ),
       );
-    const reviewerPlaceIds = [...new Set(reviewerPlaces.map((r) => r.placeId))];
+    const reviewerPlaceIds = [...new Set(reviewerCheckins.map((r) => r.placeId))];
 
     // 2. Reviewer must have at least one recent check-in.
     if (reviewerPlaceIds.length === 0) {
@@ -722,9 +732,12 @@ router.post(
       return;
     }
 
-    // 3. Receiver must have also checked in at one of those venues within the window.
-    const [receiverCheckin] = await db
-      .select({ placeId: hubCheckinsTable.placeId })
+    // 3. Fetch receiver's check-ins at the same venue(s) within the window.
+    const receiverCheckins = await db
+      .select({
+        placeId: hubCheckinsTable.placeId,
+        createdAt: hubCheckinsTable.createdAt,
+      })
       .from(hubCheckinsTable)
       .where(
         and(
@@ -732,10 +745,28 @@ router.post(
           gte(hubCheckinsTable.createdAt, windowStart),
           inArray(hubCheckinsTable.placeId, reviewerPlaceIds),
         ),
-      )
-      .limit(1);
+      );
 
-    if (!receiverCheckin) {
+    if (receiverCheckins.length === 0) {
+      res.status(403).json({
+        message: "co_location_required",
+        detail: "You can only review someone you were at the same place as recently.",
+      });
+      return;
+    }
+
+    // 4. Require at least one (reviewer, receiver) check-in pair at the same
+    //    place within 30 minutes of each other — the closest approximation of
+    //    "overlapping presence" achievable without a checkout timestamp.
+    const coLocated = reviewerCheckins.some((rc) =>
+      receiverCheckins.some(
+        (rv) =>
+          rc.placeId === rv.placeId &&
+          Math.abs(rc.createdAt.getTime() - rv.createdAt.getTime()) <= CO_LOCATION_PROXIMITY_MS,
+      ),
+    );
+
+    if (!coLocated) {
       res.status(403).json({
         message: "co_location_required",
         detail: "You can only review someone you were at the same place as recently.",
