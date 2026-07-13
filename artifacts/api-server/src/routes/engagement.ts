@@ -18,6 +18,7 @@ import {
   reviewsTable,
   profilesTable,
   monthlyChampionsTable,
+  subscriptionsTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
@@ -517,6 +518,47 @@ router.post(
       return;
     }
 
+    // ---------------------------------------------------------------------------
+    // Free-tier view limit: 3 unique profiles per rolling 24 h window.
+    // Plus/Pro subscribers are exempt. Look up the viewer's subscription row;
+    // absent = free.
+    // ---------------------------------------------------------------------------
+    const [viewerSub] = await db
+      .select({ tier: subscriptionsTable.tier, status: subscriptionsTable.status })
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.userUid, viewerUid))
+      .limit(1);
+
+    const viewerTier = viewerSub?.tier ?? "free";
+    const isSubscribed =
+      (viewerTier === "plus" || viewerTier === "pro") &&
+      viewerSub?.status === "active";
+
+    if (!isSubscribed) {
+      const dayStart = new Date();
+      dayStart.setHours(0, 0, 0, 0);
+
+      const [{ todayCount }] = await db
+        .select({ todayCount: count() })
+        .from(profileViewsTable)
+        .where(
+          and(
+            eq(profileViewsTable.viewerUid, viewerUid),
+            gte(profileViewsTable.createdAt, dayStart),
+          ),
+        );
+
+      const FREE_DAILY_VIEW_LIMIT = 3;
+      if (todayCount >= FREE_DAILY_VIEW_LIMIT) {
+        res.status(402).json({
+          limitReached: true,
+          tier: viewerTier,
+          message: "Daily profile view limit reached. Upgrade to Met Plus for unlimited views.",
+        });
+        return;
+      }
+    }
+
     // Insert the view row
     await db.insert(profileViewsTable).values({ viewerUid, targetUid });
 
@@ -706,5 +748,120 @@ router.get(
     });
   },
 );
+
+// ---------------------------------------------------------------------------
+// GET /api/user/subscription
+// Returns the server-side subscription record for the authenticated user.
+// ---------------------------------------------------------------------------
+router.get(
+  "/user/subscription",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const [sub] = await db
+      .select()
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.userUid, uid))
+      .limit(1);
+
+    res.json({
+      userUid: uid,
+      tier: sub?.tier ?? "free",
+      status: sub?.status ?? "inactive",
+      expiryDate: sub?.expiryDate?.toISOString() ?? null,
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// POST /api/user/subscription
+// Syncs the client's RevenueCat tier to Postgres. Called after a purchase or
+// on app launch. Upserts the subscriptions row.
+// ---------------------------------------------------------------------------
+const SyncSubscriptionBody = z.object({
+  tier: z.enum(["free", "plus", "pro"]),
+  status: z.enum(["active", "inactive"]),
+  expiryDate: z.string().nullable().optional(),
+});
+
+router.post(
+  "/user/subscription",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const parsed = SyncSubscriptionBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid subscription body", errors: parsed.error.flatten() });
+      return;
+    }
+    const { tier, status, expiryDate } = parsed.data;
+    await db
+      .insert(subscriptionsTable)
+      .values({
+        userUid: uid,
+        tier,
+        status,
+        expiryDate: expiryDate ? new Date(expiryDate) : null,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: subscriptionsTable.userUid,
+        set: {
+          tier,
+          status,
+          expiryDate: expiryDate ? new Date(expiryDate) : null,
+          updatedAt: new Date(),
+        },
+      });
+
+    res.json({ success: true });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// POST /api/dev/set-tier  (development only)
+// Manually override a user's tier in the subscriptions table for testing.
+// Disabled in production.
+// ---------------------------------------------------------------------------
+if (process.env.NODE_ENV !== "production") {
+  const DevSetTierBody = z.object({
+    tier: z.enum(["free", "plus", "pro"]),
+  });
+
+  router.post(
+    "/dev/set-tier",
+    requireUid,
+    async (req, res): Promise<void> => {
+      const uid = req.uid!;
+      const parsed = DevSetTierBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ message: "tier must be free | plus | pro" });
+        return;
+      }
+      const { tier } = parsed.data;
+      const isActive = tier !== "free";
+      await db
+        .insert(subscriptionsTable)
+        .values({
+          userUid: uid,
+          tier,
+          status: isActive ? "active" : "inactive",
+          expiryDate: null,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: subscriptionsTable.userUid,
+          set: {
+            tier,
+            status: isActive ? "active" : "inactive",
+            expiryDate: null,
+            updatedAt: new Date(),
+          },
+        });
+
+      res.json({ success: true, tier });
+    },
+  );
+}
 
 export default router;

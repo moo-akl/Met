@@ -19,7 +19,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
 import { SortableChips } from "@/components/SortableChips";
+import { TierBadge } from "@/components/TierBadge";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
+import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { MyQrSheet } from "@/components/MyQrSheet";
 import { ShareCardSheet } from "@/components/ShareCardSheet";
 import { PhotoVerifier } from "@/components/PhotoVerifier";
@@ -77,6 +79,7 @@ export default function ProfileScreen() {
   const [interestSearch, setInterestSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [showDragHint, setShowDragHint] = useState(false);
+  const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
 
   // Photo verification overlay state. `pendingIntent` distinguishes a
   // main-photo replacement (handled in edit mode, awaits Save) from an extra
@@ -411,9 +414,12 @@ export default function ProfileScreen() {
             />
           ) : (
             <View style={{ alignItems: "center", gap: 6 }}>
-              <Text style={[styles.name, { color: colors.foreground }]}>
-                {profile?.name ?? ""}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={[styles.name, { color: colors.foreground }]}>
+                  {profile?.name ?? ""}
+                </Text>
+                {tier !== "free" ? <TierBadge tier={tier} size="sm" /> : null}
+              </View>
               {trustScore !== null ? (
                 <TrustScoreBadge score={trustScore} size="sm" showScore />
               ) : null}
@@ -595,6 +601,29 @@ export default function ProfileScreen() {
               </Text>
             </View>
           </View>
+        ) : null}
+
+        {tier === "free" ? (
+          <Pressable
+            onPress={() => setUpgradeModalVisible(true)}
+            style={[
+              styles.upgradeBanner,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.upgradeBannerLeft}>
+              <Feather name="zap" size={18} color="#F5B700" />
+              <View style={{ gap: 1 }}>
+                <Text style={[styles.upgradeBannerTitle, { color: colors.foreground }]}>
+                  {t("subscription.upgradeBanner")}
+                </Text>
+                <Text style={[styles.upgradeBannerSub, { color: colors.mutedForeground }]}>
+                  {t("subscription.upgradeBannerSub")}
+                </Text>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </Pressable>
         ) : null}
 
         {editing ? (
@@ -867,6 +896,11 @@ export default function ProfileScreen() {
           },
         ]}
       />
+
+      <SubscriptionModal
+        visible={upgradeModalVisible}
+        onDismiss={() => setUpgradeModalVisible(false)}
+      />
     </View>
   );
 }
@@ -953,6 +987,29 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     padding: 14,
+  },
+  upgradeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  upgradeBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  upgradeBannerTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
+  upgradeBannerSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 1,
   },
   streakEmoji: { fontSize: 28 },
   streakCount: { fontFamily: "Inter_600SemiBold", fontSize: 16 },

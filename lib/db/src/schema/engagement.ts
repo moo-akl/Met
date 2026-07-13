@@ -209,3 +209,23 @@ export const userReportsTable = pgTable(
 );
 
 export type UserReport = typeof userReportsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// subscriptions
+// Server-side record of a user's subscription tier. Written by the client
+// after a successful RevenueCat purchase (or manually by the dev toggle for
+// testing). The server uses this to enforce server-side benefits such as the
+// profile-view limit and the radar spotlight flag.
+// ---------------------------------------------------------------------------
+export const subscriptionsTable = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  userUid: text("user_uid").notNull().unique(),
+  tier: text("tier").notNull().default("free"),   // 'free' | 'plus' | 'pro'
+  status: text("status").notNull().default("inactive"), // 'active' | 'inactive'
+  expiryDate: timestamp("expiry_date", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type Subscription = typeof subscriptionsTable.$inferSelect;

@@ -1091,6 +1091,28 @@ export const en = {
     editRegenCodeConfirmOk: "Regenerate",
   },
 
+  subscription: {
+    modalTitle: "Unlock Met Plus & Pro",
+    modalSubtitle: "Discover everyone you've crossed paths with.",
+    plusPrice: "$4.99 / mo",
+    proPrice: "$9.99 / mo",
+    popular: "Popular",
+    featureUnlimitedViews: "Unlimited profile views",
+    featurePlusBadge: "Plus badge on your profile",
+    featureEncounters: "See all encounters, no daily cap",
+    featureRadarSpotlight: "Radar Spotlight — glow on the radar",
+    featureProBadge: "Pro badge on your profile",
+    cta: "See Plans & Pricing",
+    maybeLater: "Maybe later",
+    viewLimitReason: "You've reached your daily profile view limit.",
+    upgradeBanner: "Upgrade to Plus or Pro",
+    upgradeBannerSub: "Unlimited views, badges & more.",
+    devSetTier: "Dev: Set Tier",
+    tierFree: "Free",
+    tierPlus: "Plus",
+    tierPro: "Pro",
+  },
+
   review: {
     title: "How was the vibe?",
     subtitle: "Give {{name}} a quick tag",

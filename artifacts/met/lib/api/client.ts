@@ -580,6 +580,41 @@ export const api = {
       }>
     >("GET", `/api/users/${encodeURIComponent(uid)}/champion-badges`, opts),
   /**
+   * Get server-side subscription record for a user.
+   */
+  getSubscription: (opts: ApiOptions) =>
+    request<{
+      userUid: string;
+      tier: "free" | "plus" | "pro";
+      status: "active" | "inactive";
+      expiryDate: string | null;
+    }>("GET", "/api/user/subscription", opts),
+
+  /**
+   * Sync tier to server after a successful RevenueCat purchase.
+   * Also called on app launch to keep server in sync.
+   */
+  syncSubscription: (
+    opts: ApiOptions,
+    body: {
+      tier: "free" | "plus" | "pro";
+      status: "active" | "inactive";
+      expiryDate?: string | null;
+    },
+  ) =>
+    request<{ success: boolean }>("POST", "/api/user/subscription", opts, body),
+
+  /**
+   * DEV ONLY — manually set a tier in the subscriptions table for testing.
+   * The endpoint is disabled in production.
+   */
+  devSetTier: (
+    opts: ApiOptions,
+    body: { tier: "free" | "plus" | "pro" },
+  ) =>
+    request<{ success: boolean }>("POST", "/api/dev/set-tier", opts, body),
+
+  /**
    * Lightweight server-sync of notification preferences. Accepts any subset
    * of the known keys; merges with existing values on the server.
    * Best-effort — call fire-and-forget; the app works fine without it.

@@ -43,7 +43,7 @@ export default function RecentScreen() {
       })),
     [encounters],
   );
-  const { isPlusSubscriber, isSubscriptionReady } = useSubscription();
+  const { isPlusSubscriber, isProSubscriber, isSubscriptionReady } = useSubscription();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
 
@@ -154,7 +154,7 @@ export default function RecentScreen() {
           </Text>
         </View>
         <View style={{ alignItems: "center" }}>
-          <RadarView size={160} blips={blips} periodMs={4200} />
+          <RadarView size={160} blips={blips} periodMs={4200} isSpotlight={isProSubscriber} />
         </View>
       </View>
 
