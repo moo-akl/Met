@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
 import { SortableChips } from "@/components/SortableChips";
+import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { MyQrSheet } from "@/components/MyQrSheet";
 import { ShareCardSheet } from "@/components/ShareCardSheet";
 import { PhotoVerifier } from "@/components/PhotoVerifier";
@@ -69,6 +70,7 @@ export default function ProfileScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [name, setName] = useState(profile?.name ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
+  const [trustScore, setTrustScore] = useState<number | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(profile?.photoUri ?? null);
   const [socials, setSocials] = useState<SocialLinks>(profile?.socials ?? {});
   const [interests, setInterests] = useState<string[]>(profile?.interests ?? []);
@@ -171,6 +173,17 @@ export default function ProfileScreen() {
     api
       .getStreak({ uid: authedUid, signal: ctrl.signal })
       .then((s) => setStreak(s))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [authedUid]);
+
+  // Fetch trust score for the current user.
+  useEffect(() => {
+    if (!authedUid) return;
+    const ctrl = new AbortController();
+    api
+      .getUserStats({ uid: authedUid, signal: ctrl.signal }, authedUid)
+      .then((s) => setTrustScore(s.trustScore))
       .catch(() => {});
     return () => ctrl.abort();
   }, [authedUid]);
@@ -397,9 +410,14 @@ export default function ProfileScreen() {
               ]}
             />
           ) : (
-            <Text style={[styles.name, { color: colors.foreground }]}>
-              {profile?.name ?? ""}
-            </Text>
+            <View style={{ alignItems: "center", gap: 6 }}>
+              <Text style={[styles.name, { color: colors.foreground }]}>
+                {profile?.name ?? ""}
+              </Text>
+              {trustScore !== null ? (
+                <TrustScoreBadge score={trustScore} size="sm" showScore />
+              ) : null}
+            </View>
           )}
 
           {editing ? (

@@ -1091,6 +1091,24 @@ export const en = {
     editRegenCodeConfirmOk: "Regenerate",
   },
 
+  review: {
+    title: "How was the vibe?",
+    subtitle: "Give {{name}} a quick tag",
+    submit: "Send Vibe",
+    submitted: "Vibe sent!",
+    tag_friendly: "Friendly",
+    tag_funny: "Funny",
+    tag_interesting: "Interesting",
+    tag_helpful: "Helpful",
+    tag_genuine: "Genuine",
+  },
+
+  trustScore: {
+    trusted: "Trusted",
+    neutral: "Neutral",
+    flagged: "Flagged",
+  },
+
   leaderboard: {
     title: "Leaderboard",
     tabAllTime: "All-Time",

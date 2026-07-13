@@ -178,3 +178,34 @@ export const insertMonthlyChampionSchema = createInsertSchema(
 
 export type InsertMonthlyChampion = z.infer<typeof insertMonthlyChampionSchema>;
 export type MonthlyChampion = typeof monthlyChampionsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// user_reports
+// Postgres mirror of abuse/safety reports (primary copy is in Firestore).
+// Storing in Postgres lets us efficiently count reports per reported user
+// and trigger automated trust-score penalties server-side.
+// ---------------------------------------------------------------------------
+export const userReportsTable = pgTable(
+  "user_reports",
+  {
+    id: serial("id").primaryKey(),
+    reporterUid: text("reporter_uid").notNull(),
+    reportedUid: text("reported_uid").notNull(),
+    reason: text("reason").notNull(),
+    firestoreId: text("firestore_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    reportedIdx: index("user_reports_reported_idx").on(t.reportedUid),
+    reporterIdx: index("user_reports_reporter_idx").on(t.reporterUid),
+    // One report per reporter→reported pair prevents vote-stuffing.
+    reporterReportedUniq: uniqueIndex("user_reports_reporter_reported_uniq").on(
+      t.reporterUid,
+      t.reportedUid,
+    ),
+  }),
+);
+
+export type UserReport = typeof userReportsTable.$inferSelect;

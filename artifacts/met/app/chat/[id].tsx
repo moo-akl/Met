@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Audio } from "expo-av";
+import { ReviewModal } from "@/components/ReviewModal";
 import type { RecordingOptions } from "expo-av/build/Audio/Recording.types";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
@@ -656,6 +657,7 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const { allEncounters, authedUid, profile } = useApp();
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const peerUid = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -1095,7 +1097,13 @@ export default function ChatScreen() {
         ]}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            if (messages.length > 0 && peerUid) {
+              setShowReviewModal(true);
+            } else {
+              router.back();
+            }
+          }}
           hitSlop={12}
           style={styles.headerBtn}
           accessibilityLabel={t("common.back")}
@@ -1532,6 +1540,17 @@ export default function ChatScreen() {
           setReplyingTo(msg);
         }}
         onDeleteDone={() => setActionMessage(null)}
+      />
+
+      {/* ── Post-chat vibe review ── */}
+      <ReviewModal
+        visible={showReviewModal}
+        receiverUid={peerUid ?? ""}
+        receiverName={peerName}
+        onDone={() => {
+          setShowReviewModal(false);
+          router.back();
+        }}
       />
     </View>
   );
