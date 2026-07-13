@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   integer,
+  real,
   jsonb,
   uniqueIndex,
   index,
@@ -59,6 +60,7 @@ export const userStatsTable = pgTable("user_stats", {
     .default({}),
   lastStreakUpdate: timestamp("last_streak_update", { withTimezone: true }),
   trustScore: integer("trust_score").notNull().default(100),
+  communityStanding: real("community_standing"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -116,7 +118,10 @@ export const reviewsTable = pgTable(
     id: serial("id").primaryKey(),
     reviewerUid: text("reviewer_uid").notNull(),
     receiverUid: text("receiver_uid").notNull(),
-    tag: text("tag").notNull(),
+    tag: text("tag").notNull().default("reviewed"),
+    courtesy: integer("courtesy"),
+    communication: integer("communication"),
+    reliability: integer("reliability"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

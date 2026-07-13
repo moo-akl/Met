@@ -9,7 +9,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { eq, and, desc, gte, sql, count, lt, isNull, or } from "drizzle-orm";
+import { eq, and, desc, gte, sql, count, lt, isNull, isNotNull, or, avg } from "drizzle-orm";
 import {
   db,
   hubCheckinsTable,
@@ -655,7 +655,10 @@ const NEGATIVE_TAGS = new Set([
 
 const ReviewBody = z.object({
   receiverUid: z.string().min(1),
-  tag: z.string().min(1).max(50),
+  tag: z.string().min(1).max(50).optional().default("reviewed"),
+  courtesy: z.number().int().min(1).max(5).optional(),
+  communication: z.number().int().min(1).max(5).optional(),
+  reliability: z.number().int().min(1).max(5).optional(),
 });
 
 router.post(
@@ -666,10 +669,10 @@ router.post(
     const reviewerUid = req.uid!;
     const parsed = ReviewBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ message: "receiverUid and tag are required" });
+      res.status(400).json({ message: "receiverUid is required" });
       return;
     }
-    const { receiverUid, tag } = parsed.data;
+    const { receiverUid, tag, courtesy, communication, reliability } = parsed.data;
 
     if (reviewerUid === receiverUid) {
       res.status(400).json({ message: "Cannot review yourself" });
@@ -677,25 +680,50 @@ router.post(
     }
 
     try {
-      await db.insert(reviewsTable).values({ reviewerUid, receiverUid, tag });
+      await db.insert(reviewsTable).values({
+        reviewerUid,
+        receiverUid,
+        tag,
+        courtesy: courtesy ?? null,
+        communication: communication ?? null,
+        reliability: reliability ?? null,
+      });
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "";
       if (msg.includes("reviews_reviewer_receiver_uniq")) {
-        res
-          .status(409)
-          .json({ message: "You have already reviewed this user" });
-        return;
+        // Allow updating scores on an existing review (upsert approach)
+        if (courtesy !== undefined || communication !== undefined || reliability !== undefined) {
+          await db
+            .update(reviewsTable)
+            .set({
+              courtesy: courtesy ?? null,
+              communication: communication ?? null,
+              reliability: reliability ?? null,
+            })
+            .where(
+              and(
+                eq(reviewsTable.reviewerUid, reviewerUid),
+                eq(reviewsTable.receiverUid, receiverUid),
+              ),
+            );
+        } else {
+          res.status(409).json({ message: "You have already reviewed this user" });
+          return;
+        }
+      } else {
+        throw err;
       }
-      throw err;
     }
 
-    // Adjust trust score based on tag sentiment
+    // Adjust trust score based on tag sentiment (legacy path)
     const tagLower = tag.toLowerCase();
     const delta = POSITIVE_TAGS.has(tagLower)
       ? 2
       : NEGATIVE_TAGS.has(tagLower)
         ? -5
         : 0;
+
+    const now = new Date();
 
     if (delta !== 0) {
       const [existing] = await db
@@ -704,7 +732,6 @@ router.post(
         .where(eq(userStatsTable.userUid, receiverUid))
         .limit(1);
 
-      const now = new Date();
       if (existing) {
         const newScore = Math.max(0, Math.min(200, existing.trustScore + delta));
         await db
@@ -720,7 +747,112 @@ router.post(
       }
     }
 
+    // Recompute community_standing from all scored reviews for this user.
+    if (courtesy !== undefined || communication !== undefined || reliability !== undefined) {
+      const scoredReviews = await db
+        .select({
+          courtesy: reviewsTable.courtesy,
+          communication: reviewsTable.communication,
+          reliability: reviewsTable.reliability,
+        })
+        .from(reviewsTable)
+        .where(
+          and(
+            eq(reviewsTable.receiverUid, receiverUid),
+            isNotNull(reviewsTable.courtesy),
+          ),
+        );
+
+      if (scoredReviews.length > 0) {
+        const avgC =
+          scoredReviews.reduce((s, r) => s + (r.courtesy ?? 0), 0) /
+          scoredReviews.length;
+        const avgCom =
+          scoredReviews.reduce((s, r) => s + (r.communication ?? 0), 0) /
+          scoredReviews.length;
+        const avgR =
+          scoredReviews.reduce((s, r) => s + (r.reliability ?? 0), 0) /
+          scoredReviews.length;
+        const communityStanding = (avgC + avgCom + avgR) / 3;
+
+        const [statsRow] = await db
+          .select()
+          .from(userStatsTable)
+          .where(eq(userStatsTable.userUid, receiverUid))
+          .limit(1);
+
+        if (statsRow) {
+          await db
+            .update(userStatsTable)
+            .set({ communityStanding, updatedAt: now })
+            .where(eq(userStatsTable.userUid, receiverUid));
+        } else {
+          await db.insert(userStatsTable).values({
+            userUid: receiverUid,
+            hubStreaks: {},
+            trustScore: 100,
+            communityStanding,
+          });
+        }
+      }
+    }
+
     res.json({ recorded: true });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/users/:uid/review-summary
+// Returns aggregated category scores for a user's received reviews.
+// hasEnough=false when fewer than 3 scored reviews exist.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/users/:uid/review-summary",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const { uid } = req.params as { uid: string };
+
+    const reviews = await db
+      .select({
+        courtesy: reviewsTable.courtesy,
+        communication: reviewsTable.communication,
+        reliability: reviewsTable.reliability,
+      })
+      .from(reviewsTable)
+      .where(
+        and(
+          eq(reviewsTable.receiverUid, uid),
+          isNotNull(reviewsTable.courtesy),
+        ),
+      );
+
+    const reviewCount = reviews.length;
+
+    if (reviewCount < 3) {
+      res.json({ count: reviewCount, hasEnough: false });
+      return;
+    }
+
+    const avgCourtesy =
+      reviews.reduce((s, r) => s + (r.courtesy ?? 0), 0) / reviewCount;
+    const avgCommunication =
+      reviews.reduce((s, r) => s + (r.communication ?? 0), 0) / reviewCount;
+    const avgReliability =
+      reviews.reduce((s, r) => s + (r.reliability ?? 0), 0) / reviewCount;
+    const communityStanding =
+      (avgCourtesy + avgCommunication + avgReliability) / 3;
+
+    const round1 = (n: number) => Math.round(n * 10) / 10;
+
+    res.json({
+      count: reviewCount,
+      hasEnough: true,
+      averageCourtesy: round1(avgCourtesy),
+      averageCommunication: round1(avgCommunication),
+      averageReliability: round1(avgReliability),
+      communityStanding: round1(communityStanding),
+    });
   },
 );
 

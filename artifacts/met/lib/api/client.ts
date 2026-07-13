@@ -525,14 +525,33 @@ export const api = {
       { targetUid },
     ),
   /**
-   * Submit a peer review tag for a user (one per reviewer/receiver pair).
-   * Adjusts the receiver's trust score on the server.
+   * Submit a scored peer review (one per reviewer/receiver pair).
+   * Accepts 3 dimension scores (1–5 each) and updates community_standing.
    */
   submitReview: (
     opts: ApiOptions,
-    input: { receiverUid: string; tag: string },
+    input: {
+      receiverUid: string;
+      courtesy?: number;
+      communication?: number;
+      reliability?: number;
+    },
   ) =>
     request<{ recorded: boolean }>("POST", "/api/reviews", opts, input),
+  /**
+   * Fetch aggregated review scores for a user.
+   * Returns per-dimension averages and community_standing.
+   * hasEnough=false when fewer than 3 scored reviews exist.
+   */
+  getReviewSummary: (opts: ApiOptions, uid: string) =>
+    request<{
+      count: number;
+      hasEnough: boolean;
+      averageCourtesy?: number;
+      averageCommunication?: number;
+      averageReliability?: number;
+      communityStanding?: number;
+    }>("GET", `/api/users/${encodeURIComponent(uid)}/review-summary`, opts),
   /**
    * Fetch hub streaks and trust score for any user.
    */

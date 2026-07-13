@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
+import { ReputationRadar } from "@/components/ReputationRadar";
 import { Avatar } from "@/components/Avatar";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { SocialChip } from "@/components/SocialChip";
@@ -49,6 +50,14 @@ export default function ConnectionScreen() {
   const [liveInterests, setLiveInterests] = useState<string[] | undefined>(undefined);
   const [mutualCount, setMutualCount] = useState(0);
   const [mutualNames, setMutualNames] = useState<string[]>([]);
+  const [reviewSummary, setReviewSummary] = useState<{
+    count: number;
+    hasEnough: boolean;
+    averageCourtesy?: number;
+    averageCommunication?: number;
+    averageReliability?: number;
+    communityStanding?: number;
+  } | null>(null);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -90,6 +99,17 @@ export default function ConnectionScreen() {
         setMutualCount(r.count);
         setMutualNames(r.names);
       })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [encounter?.id, authedUid]);
+
+  // Fetch this connection's review summary (community standing).
+  useEffect(() => {
+    if (!encounter || !authedUid) return;
+    const ctrl = new AbortController();
+    api
+      .getReviewSummary({ uid: authedUid, signal: ctrl.signal }, encounter.id)
+      .then(setReviewSummary)
       .catch(() => {});
     return () => ctrl.abort();
   }, [encounter?.id, authedUid]);
@@ -367,6 +387,8 @@ export default function ConnectionScreen() {
             onChange={(next) => setTags(encounter.id, next)}
           />
         </View>
+
+        <ReputationRadar summary={reviewSummary} />
       </ScrollView>
 
       <ActionSheet

@@ -21,6 +21,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { SortableChips } from "@/components/SortableChips";
 import { TierBadge } from "@/components/TierBadge";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
+import { ReputationRadar } from "@/components/ReputationRadar";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { MyQrSheet } from "@/components/MyQrSheet";
 import { ShareCardSheet } from "@/components/ShareCardSheet";
@@ -73,6 +74,14 @@ export default function ProfileScreen() {
   const [name, setName] = useState(profile?.name ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [trustScore, setTrustScore] = useState<number | null>(null);
+  const [reviewSummary, setReviewSummary] = useState<{
+    count: number;
+    hasEnough: boolean;
+    averageCourtesy?: number;
+    averageCommunication?: number;
+    averageReliability?: number;
+    communityStanding?: number;
+  } | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(profile?.photoUri ?? null);
   const [socials, setSocials] = useState<SocialLinks>(profile?.socials ?? {});
   const [interests, setInterests] = useState<string[]>(profile?.interests ?? []);
@@ -187,6 +196,17 @@ export default function ProfileScreen() {
     api
       .getUserStats({ uid: authedUid, signal: ctrl.signal }, authedUid)
       .then((s) => setTrustScore(s.trustScore))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [authedUid]);
+
+  // Fetch review summary (category scores) for the current user.
+  useEffect(() => {
+    if (!authedUid) return;
+    const ctrl = new AbortController();
+    api
+      .getReviewSummary({ uid: authedUid, signal: ctrl.signal }, authedUid)
+      .then(setReviewSummary)
       .catch(() => {});
     return () => ctrl.abort();
   }, [authedUid]);
@@ -602,6 +622,8 @@ export default function ProfileScreen() {
             </View>
           </View>
         ) : null}
+
+        <ReputationRadar summary={reviewSummary} />
 
         {tier === "free" ? (
           <Pressable
