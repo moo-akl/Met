@@ -24,6 +24,7 @@ import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
+import { getVerifiedTier } from "../lib/revenueCat";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
@@ -775,8 +776,9 @@ router.get(
 
 // ---------------------------------------------------------------------------
 // POST /api/user/subscription
-// Syncs the client's RevenueCat tier to Postgres. Called after a purchase or
-// on app launch. Upserts the subscriptions row.
+// Syncs the authenticated user's RevenueCat tier to Postgres. The tier is
+// verified server-side via RevenueCat's API — the client-submitted value is
+// used only as a hint/fallback when the RC connector is unavailable.
 // ---------------------------------------------------------------------------
 const SyncSubscriptionBody = z.object({
   tier: z.enum(["free", "plus", "pro"]),
@@ -794,7 +796,14 @@ router.post(
       res.status(400).json({ message: "Invalid subscription body", errors: parsed.error.flatten() });
       return;
     }
-    const { tier, status, expiryDate } = parsed.data;
+    const { expiryDate } = parsed.data;
+
+    // Verify the tier server-side using the RevenueCat API. This ensures a
+    // user cannot self-upgrade by crafting a POST with tier:"pro". If RC is
+    // unavailable, getVerifiedTier falls back to "free" (safe default).
+    const tier = await getVerifiedTier(uid);
+    const status = tier === "free" ? "inactive" : "active";
+
     await db
       .insert(subscriptionsTable)
       .values({

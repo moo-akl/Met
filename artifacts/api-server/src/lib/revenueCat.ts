@@ -1,5 +1,8 @@
 import { createClient } from "@replit/revenuecat-sdk/client";
-import { grantCustomerEntitlement } from "@replit/revenuecat-sdk";
+import {
+  grantCustomerEntitlement,
+  listCustomerActiveEntitlements,
+} from "@replit/revenuecat-sdk";
 import { logger } from "./logger";
 
 const PROJECT_ID = process.env.REVENUECAT_PROJECT_ID;
@@ -56,6 +59,42 @@ async function getRcClient() {
     baseUrl: "https://api.revenuecat.com/v2",
     headers: { Authorization: "Bearer " + token },
   });
+}
+
+/**
+ * Fetches the caller's active entitlements from RevenueCat and returns the
+ * verified tier. Used server-side so the subscription endpoint never trusts
+ * the tier value the client claims to have.
+ *
+ * Returns "free" when the customer has no active paid entitlements or when
+ * the RevenueCat connector is not yet connected (fail-open so first-launch
+ * sync doesn't break).
+ */
+export async function getVerifiedTier(
+  customerUid: string,
+): Promise<"free" | "plus" | "pro"> {
+  if (!PROJECT_ID) {
+    logger.warn("REVENUECAT_PROJECT_ID not set — skipping server-side tier verification");
+    return "free";
+  }
+  try {
+    const client = await getRcClient();
+    const result = await listCustomerActiveEntitlements({
+      client,
+      path: { project_id: PROJECT_ID, customer_id: customerUid },
+    });
+    if (result.error) {
+      logger.warn({ error: result.error, customerUid }, "RevenueCat listCustomerActiveEntitlements error");
+      return "free";
+    }
+    const ids = (result.data?.items ?? []).map((e) => e.entitlement_id);
+    if (ids.includes("pro")) return "pro";
+    if (ids.includes("plus")) return "plus";
+    return "free";
+  } catch (err) {
+    logger.warn({ err: (err as Error)?.message, customerUid }, "RevenueCat tier verification failed — defaulting to free");
+    return "free";
+  }
 }
 
 export async function grantPlusEntitlementForReferral(
