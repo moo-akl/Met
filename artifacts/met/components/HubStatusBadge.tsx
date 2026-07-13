@@ -61,34 +61,38 @@ function HubStatusBadgeInner() {
   const flameScale = React.useRef(new Animated.Value(1)).current;
   const prevStreakRef = React.useRef<number | null>(null);
 
-  // Fade in/out
+  // Fade in/out — spring for organic feel
   React.useEffect(() => {
-    Animated.timing(badgeOpacity, {
+    Animated.spring(badgeOpacity, {
       toValue: hubState ? 1 : 0,
-      duration: 350,
       useNativeDriver: true,
+      tension: 70,
+      friction: 12,
     }).start();
   }, [hubState, badgeOpacity]);
 
-  // Glow pulse loop
+  // Glow pulse loop — spring-driven recursive chain
+  const glowActiveRef = React.useRef(true);
   React.useEffect(() => {
     if (!hubState) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowOpacity, {
-          toValue: 0.7,
-          duration: 1300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowOpacity, {
-          toValue: 0.25,
-          duration: 1300,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
+    glowActiveRef.current = true;
+    function pulseGlow(toValue: number) {
+      if (!glowActiveRef.current) return;
+      Animated.spring(glowOpacity, {
+        toValue,
+        useNativeDriver: true,
+        tension: 18,
+        friction: 10,
+      }).start(({ finished }) => {
+        if (finished && glowActiveRef.current) {
+          pulseGlow(toValue === 0.7 ? 0.25 : 0.7);
+        }
+      });
+    }
+    pulseGlow(0.7);
+    return () => {
+      glowActiveRef.current = false;
+    };
   }, [hubState, glowOpacity]);
 
   // Flame bounce on streak change

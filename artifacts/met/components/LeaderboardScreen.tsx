@@ -122,38 +122,58 @@ function MedalBadge({ rank }: { rank: 1 | 2 | 3 }) {
 }
 
 // ---------------------------------------------------------------------------
-// ChampionPulse — gently pulsing scale wrapper for the crown icon
+// ChampionPulse — spring-driven scale + gold glow for the crown icon
 // ---------------------------------------------------------------------------
 
 function ChampionPulse({ label }: { label: string }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const glowOpacity = useRef(new Animated.Value(0.25)).current;
+  const activeRef = useRef(true);
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scale, {
-          toValue: 1.18,
-          duration: 900,
+    activeRef.current = true;
+    // Recursive spring chain — true spring physics throughout
+    function bounce(toScale: number, toGlow: number) {
+      if (!activeRef.current) return;
+      Animated.parallel([
+        Animated.spring(scale, {
+          toValue: toScale,
           useNativeDriver: true,
+          tension: 35,
+          friction: 7,
         }),
-        Animated.timing(scale, {
-          toValue: 1,
-          duration: 900,
+        Animated.spring(glowOpacity, {
+          toValue: toGlow,
           useNativeDriver: true,
+          tension: 25,
+          friction: 9,
         }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [scale]);
+      ]).start(({ finished }) => {
+        if (finished && activeRef.current) {
+          bounce(toScale === 1.2 ? 1 : 1.2, toGlow === 0.75 ? 0.25 : 0.75);
+        }
+      });
+    }
+    bounce(1.2, 0.75);
+    return () => {
+      activeRef.current = false;
+    };
+  }, [scale, glowOpacity]);
 
   return (
-    <Animated.Text
-      style={[styles.championIcon, { transform: [{ scale }] }]}
-      accessibilityLabel={label}
-    >
-      👑
-    </Animated.Text>
+    <View style={styles.championWrapper}>
+      {/* Gold glow halo behind the crown */}
+      <Animated.View
+        style={[styles.championGlow, { opacity: glowOpacity }]}
+        pointerEvents="none"
+      />
+      <Animated.Text
+        style={[styles.championIcon, { transform: [{ scale }] }]}
+        accessibilityLabel={label}
+      >
+        👑
+      </Animated.Text>
+    </View>
   );
 }
 
@@ -282,6 +302,16 @@ function LeaderboardRow({
         ]}
         accessibilityLabel={`${t("leaderboard.rankA11y", { rank: item.rank })} ${item.displayName} ${t("leaderboard.checkinCountA11y", { count: item.checkinCount })}`}
       >
+        {/* Current-user gradient background */}
+        {isCurrentUser && (
+          <MetGradient
+            colors={[colors.primary + "22", colors.primary + "06", "transparent"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        )}
+
         {/* Current-user accent bar */}
         {isCurrentUser && (
           <View
@@ -742,6 +772,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: 0.5,
     textTransform: "uppercase",
+  },
+  championWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 22,
+    height: 22,
+  },
+  championGlow: {
+    position: "absolute",
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#FFD700",
   },
   championIcon: {
     fontSize: 14,
