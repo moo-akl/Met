@@ -1169,6 +1169,11 @@ export const ru: LocaleTree = {
     championA11y: "Чемпион месяца",
   },
 
+  checkin: {
+    cooldown: "Вы уже отметились здесь недавно",
+    cooldownRemaining: "Отметьтесь снова через {{time}}",
+  },
+
   valueTour: {
     slide1Title: "Найди тех, с кем пересекался",
     slide1Sub:

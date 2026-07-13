@@ -37,6 +37,17 @@ import {
 // Re-export so callers can import both from one file if needed.
 export { useHubCheckin } from "@/hooks/useHubCheckin";
 
+/** Formats a cooldown duration (in minutes) as a short human-readable string.
+ *  240 → "4h", 135 → "2h 15m", 45 → "45m"
+ */
+function formatCooldown(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
 class HubErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean }
@@ -58,7 +69,7 @@ function HubStatusBadgeInner() {
   const colors = useColors();
   const router = useRouter();
   const { t } = useT();
-  const { hubState } = useHubCheckin();
+  const { hubState, cooldownMinutes } = useHubCheckin();
   const sessionCount = useSessionCount();
 
   // Fade badge in/out on visibility change
@@ -79,15 +90,16 @@ function HubStatusBadgeInner() {
   const tooltipOpacity = React.useRef(new Animated.Value(0)).current;
   const tooltipCheckedRef = React.useRef(false);
 
-  // Fade in/out — spring for organic feel
+  // Fade in/out — spring for organic feel; visible when either hubState or cooldown is present
+  const badgeVisible = !!hubState || (cooldownMinutes !== null && cooldownMinutes > 0);
   React.useEffect(() => {
     Animated.spring(badgeOpacity, {
-      toValue: hubState ? 1 : 0,
+      toValue: badgeVisible ? 1 : 0,
       useNativeDriver: true,
       tension: 70,
       friction: 12,
     }).start();
-  }, [hubState, badgeOpacity]);
+  }, [badgeVisible, badgeOpacity]);
 
   // Glow pulse loop — spring-driven recursive chain
   const glowActiveRef = React.useRef(true);
@@ -177,6 +189,37 @@ function HubStatusBadgeInner() {
       useNativeDriver: true,
     }).start(() => setTooltipVisible(false));
   }, [tooltipOpacity]);
+
+  // Cooldown pill — shown when the server rejected a re-check-in (403 cooldown)
+  // and there is no active hub state to display.
+  if (!hubState && cooldownMinutes !== null && cooldownMinutes > 0) {
+    const timeLabel = formatCooldown(cooldownMinutes);
+    return (
+      <Animated.View
+        style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
+      >
+        <View
+          style={[
+            styles.pill,
+            styles.cooldownPill,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+          accessibilityLabel={t("checkin.cooldownRemaining", { time: timeLabel })}
+        >
+          <Text style={styles.icon}>⏳</Text>
+          <Text
+            numberOfLines={1}
+            style={[styles.cooldownText, { color: colors.mutedForeground }]}
+          >
+            {t("checkin.cooldownRemaining", { time: timeLabel })}
+          </Text>
+        </View>
+      </Animated.View>
+    );
+  }
 
   if (!hubState) return null;
 
@@ -353,6 +396,14 @@ const styles = StyleSheet.create({
   streakCount: {
     fontFamily: "Inter_700Bold",
     fontSize: 13,
+  },
+  cooldownPill: {
+    opacity: 0.75,
+  },
+  cooldownText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+    flexShrink: 1,
   },
   mockBadge: {
     backgroundColor: "#F97316",

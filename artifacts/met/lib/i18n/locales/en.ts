@@ -1166,6 +1166,11 @@ export const en = {
     championA11y: "Monthly champion",
   },
 
+  checkin: {
+    cooldown: "You've already checked in here recently",
+    cooldownRemaining: "Check in again in {{time}}",
+  },
+
   valueTour: {
     slide1Title: "See who's around you",
     slide1Sub:

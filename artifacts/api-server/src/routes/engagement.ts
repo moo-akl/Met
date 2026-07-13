@@ -182,6 +182,9 @@ function computeNewStreak(
 // POST /api/hubs/checkin
 // ---------------------------------------------------------------------------
 
+// 4-hour cooldown per (user, place) to prevent streak/leaderboard farming.
+const CHECKIN_COOLDOWN_MS = 4 * 60 * 60 * 1000;
+
 const CheckinBody = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
@@ -210,6 +213,33 @@ router.post(
     }
 
     const now = new Date();
+
+    // ---------------------------------------------------------------------------
+    // Anti-spam cooldown: reject if the user checked in at this exact venue
+    // within the past 4 hours. Back-to-back check-ins at *different* venues are
+    // not affected (cooldown is per (user, place_id)).
+    // ---------------------------------------------------------------------------
+    const cooldownCutoff = new Date(now.getTime() - CHECKIN_COOLDOWN_MS);
+    const [recentCheckin] = await db
+      .select({ createdAt: hubCheckinsTable.createdAt })
+      .from(hubCheckinsTable)
+      .where(
+        and(
+          eq(hubCheckinsTable.userUid, uid),
+          eq(hubCheckinsTable.placeId, place.placeId),
+          gte(hubCheckinsTable.createdAt, cooldownCutoff),
+        ),
+      )
+      .orderBy(desc(hubCheckinsTable.createdAt))
+      .limit(1);
+
+    if (recentCheckin) {
+      const remainingMs =
+        recentCheckin.createdAt.getTime() + CHECKIN_COOLDOWN_MS - now.getTime();
+      const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+      res.status(403).json({ error: "cooldown", remainingMinutes });
+      return;
+    }
 
     // Insert the check-in row
     await db.insert(hubCheckinsTable).values({

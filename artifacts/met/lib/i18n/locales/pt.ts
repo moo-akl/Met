@@ -1162,6 +1162,11 @@ export const pt: LocaleTree = {
     championA11y: "Campeão mensal",
   },
 
+  checkin: {
+    cooldown: "Você já fez check-in aqui recentemente",
+    cooldownRemaining: "Faça check-in novamente em {{time}}",
+  },
+
   valueTour: {
     slide1Title: "Encontra quem cruzou o teu caminho",
     slide1Sub:

@@ -6,9 +6,14 @@
  *
  * Debounce: at most one API call every 5 minutes per app session.
  *
- * Mock fallback: in __DEV__ builds, any API error other than 404 will produce
- * a fake hub state so the HubStatusBadge UI is always visible for testing.
- * The mock state carries `isMock: true` so the badge can label itself clearly.
+ * Cooldown: if the server returns 403 { error: "cooldown", remainingMinutes }
+ * the hook surfaces remainingMinutes so the UI can tell the user when they can
+ * check in again. The cooldown is per (user, place_id) — different venues are
+ * not affected.
+ *
+ * Mock fallback: in __DEV__ builds, any API error other than 404 or cooldown
+ * will produce a fake hub state so the HubStatusBadge UI is always visible for
+ * testing. The mock state carries `isMock: true` so the badge can label itself.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -32,9 +37,13 @@ const MOCK_HUB_STATE: HubState = {
   isMock: true,
 };
 
-export function useHubCheckin(): { hubState: HubState | null } {
+export function useHubCheckin(): {
+  hubState: HubState | null;
+  cooldownMinutes: number | null;
+} {
   const { authedUid } = useApp();
   const [hubState, setHubState] = useState<HubState | null>(null);
+  const [cooldownMinutes, setCooldownMinutes] = useState<number | null>(null);
 
   // Tracks the timestamp of the last successfully fired API call so we can
   // debounce without relying on component lifecycle timing.
@@ -95,20 +104,36 @@ export function useHubCheckin(): { hubState: HubState | null } {
             streak: result.streak,
             isMock: false,
           });
+          // Successful check-in clears any previous cooldown.
+          setCooldownMinutes(null);
         }
       } catch (err: unknown) {
         const apiErr = err instanceof ApiError ? err : null;
 
+        if (apiErr?.status === 403) {
+          // Cooldown response: { error: "cooldown", remainingMinutes: N }
+          const body = apiErr.body as Record<string, unknown> | null;
+          if (body?.error === "cooldown" && typeof body.remainingMinutes === "number") {
+            if (mountedRef.current) {
+              setCooldownMinutes(body.remainingMinutes);
+            }
+            return;
+          }
+        }
+
         if (apiErr?.status === 404) {
-          // No venue found within 50 m — hide the badge.
-          if (mountedRef.current) setHubState(null);
+          // No venue found within 50 m — hide the badge and clear cooldown.
+          if (mountedRef.current) {
+            setHubState(null);
+            setCooldownMinutes(null);
+          }
         } else if (__DEV__) {
           // Any other error in dev (network down, server not started, etc.)
           // → show mock state so the badge UI is always visible for testing.
           if (mountedRef.current) setHubState(MOCK_HUB_STATE);
         }
-        // In production non-404 errors are silently ignored (badge stays
-        // hidden / in its previous state) to avoid noisy error UX.
+        // In production non-404/non-cooldown errors are silently ignored (badge
+        // stays hidden / in its previous state) to avoid noisy error UX.
       }
     };
 
@@ -118,5 +143,5 @@ export function useHubCheckin(): { hubState: HubState | null } {
     return () => clearInterval(id);
   }, [authedUid]);
 
-  return { hubState };
+  return { hubState, cooldownMinutes };
 }

@@ -1164,6 +1164,11 @@ export const vi: LocaleTree = {
     championA11y: "Vô địch hàng tháng",
   },
 
+  checkin: {
+    cooldown: "Bạn đã check-in ở đây gần đây rồi",
+    cooldownRemaining: "Check-in lại sau {{time}}",
+  },
+
   valueTour: {
     slide1Title: "Tìm những người bạn đã gặp",
     slide1Sub:
