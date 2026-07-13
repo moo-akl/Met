@@ -1117,7 +1117,7 @@ export const nl: LocaleTree = {
     courtesy: "Beleefdheid",
     communication: "Communicatie",
     reliability: "Betrouwbaarheid",
-    blurb: "Beoordelingen zijn anoniem en worden gemiddeld over tijd.",
+    blurb: "Je eerlijke beoordeling bepaalt andermans reputatie en beloont kwaliteitsvolle interacties.",
     submit: "Beoordeling insturen",
     submitted: "Beoordeling ingediend!",
     communityStanding: "Gemeenschapsstatus",

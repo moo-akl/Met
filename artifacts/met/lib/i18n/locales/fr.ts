@@ -1125,7 +1125,7 @@ export const fr: LocaleTree = {
     courtesy: "Courtoisie",
     communication: "Communication",
     reliability: "Fiabilité",
-    blurb: "Les notes sont anonymes et calculées en moyenne au fil du temps.",
+    blurb: "Votre note honnête influence la réputation des autres et récompense les interactions de qualité.",
     submit: "Soumettre l'avis",
     submitted: "Avis soumis !",
     communityStanding: "Réputation communautaire",

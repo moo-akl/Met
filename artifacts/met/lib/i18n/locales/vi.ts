@@ -1117,7 +1117,7 @@ export const vi: LocaleTree = {
     courtesy: "Lịch sự",
     communication: "Giao tiếp",
     reliability: "Độ tin cậy",
-    blurb: "Đánh giá ẩn danh và được tính trung bình theo thời gian.",
+    blurb: "Đánh giá trung thực của bạn định hình danh tiếng người khác và thưởng cho các tương tác chất lượng.",
     submit: "Gửi đánh giá",
     submitted: "Đã gửi đánh giá!",
     communityStanding: "Uy tín cộng đồng",

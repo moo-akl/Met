@@ -1118,7 +1118,7 @@ export const ar: LocaleTree = {
     courtesy: "اللياقة",
     communication: "التواصل",
     reliability: "الموثوقية",
-    blurb: "التقييمات مجهولة ويتم حسابها كمتوسط بمرور الوقت.",
+    blurb: "تقييمك الصادق يؤثر في سمعة الآخرين ويكافئ التفاعلات عالية الجودة.",
     submit: "إرسال التقييم",
     submitted: "تم إرسال التقييم!",
     communityStanding: "مكانة المجتمع",

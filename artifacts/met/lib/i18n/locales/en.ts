@@ -1119,7 +1119,7 @@ export const en = {
     courtesy: "Courtesy",
     communication: "Communication",
     reliability: "Reliability",
-    blurb: "Ratings are anonymous and averaged over time.",
+    blurb: "Your honest rating shapes others' reputation and rewards quality interactions.",
     submit: "Submit Review",
     submitted: "Review submitted!",
     communityStanding: "Community Standing",

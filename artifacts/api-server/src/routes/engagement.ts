@@ -773,7 +773,9 @@ router.post(
         const avgR =
           scoredReviews.reduce((s, r) => s + (r.reliability ?? 0), 0) /
           scoredReviews.length;
-        const communityStanding = (avgC + avgCom + avgR) / 3;
+        // Normalize 1–5 average to 0–100 index: 1→0, 5→100
+        const communityStanding =
+          (((avgC + avgCom + avgR) / 3 - 1) / 4) * 100;
 
         const [statsRow] = await db
           .select()
@@ -840,8 +842,9 @@ router.get(
       reviews.reduce((s, r) => s + (r.communication ?? 0), 0) / reviewCount;
     const avgReliability =
       reviews.reduce((s, r) => s + (r.reliability ?? 0), 0) / reviewCount;
+    // Normalize 1–5 average to 0–100 index: 1→0, 5→100
     const communityStanding =
-      (avgCourtesy + avgCommunication + avgReliability) / 3;
+      (((avgCourtesy + avgCommunication + avgReliability) / 3 - 1) / 4) * 100;
 
     const round1 = (n: number) => Math.round(n * 10) / 10;
 

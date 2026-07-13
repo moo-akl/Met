@@ -1115,7 +1115,7 @@ export const pt: LocaleTree = {
     courtesy: "Cortesia",
     communication: "Comunicação",
     reliability: "Confiabilidade",
-    blurb: "As avaliações são anônimas e calculadas como média ao longo do tempo.",
+    blurb: "Sua avaliação honesta molda a reputação dos outros e recompensa interações de qualidade.",
     submit: "Enviar avaliação",
     submitted: "Avaliação enviada!",
     communityStanding: "Reputação na comunidade",

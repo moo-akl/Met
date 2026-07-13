@@ -152,6 +152,11 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
                 </Pressable>
               </View>
 
+              {/* Educational blurb — shown at top so users understand before rating */}
+              <Text style={[styles.blurb, { color: colors.mutedForeground }]}>
+                {t("review.blurb")}
+              </Text>
+
               {/* Category selectors */}
               <View
                 style={[
@@ -177,11 +182,6 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
                   onChange={setReliability}
                 />
               </View>
-
-              {/* Educational blurb */}
-              <Text style={[styles.blurb, { color: colors.mutedForeground }]}>
-                {t("review.blurb")}
-              </Text>
 
               {/* Submit */}
               <Pressable

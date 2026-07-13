@@ -4,10 +4,12 @@
  * Triangular radar chart showing averaged scores across three review
  * dimensions: Courtesy, Communication, Reliability.
  * Each axis maps score 1–5 to distance from centre.
+ * Community Standing is shown as a 0–100 index (normalized from the avg).
+ * The data polygon fades in on mount with a React Native Animated.Value.
  * Rendered with react-native-svg (already in the project).
  */
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Line, Path, Polygon, Text as SvgText } from "react-native-svg";
 
 import { useColors } from "@/hooks/useColors";
@@ -70,6 +72,16 @@ export function ReputationRadar({ summary, loading }: Props) {
   const colors = useColors();
   const { t } = useT();
 
+  // Animate the chart fill/polygon into view on mount
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 700,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
+
   const cardBg = colors.card;
   const borderColor = colors.border;
   const muted = colors.mutedForeground;
@@ -96,9 +108,12 @@ export function ReputationRadar({ summary, loading }: Props) {
   const courtesy = Math.max(1, Math.min(5, summary.averageCourtesy ?? 1));
   const communication = Math.max(1, Math.min(5, summary.averageCommunication ?? 1));
   const reliability = Math.max(1, Math.min(5, summary.averageReliability ?? 1));
-  const standing = summary.communityStanding ?? ((courtesy + communication + reliability) / 3);
 
-  const standingPct = Math.round(((standing - 1) / 4) * 100);
+  // communityStanding arrives as 0–100 from the server; fall back to local normalization
+  const standingPct = Math.round(
+    summary.communityStanding ??
+      (((courtesy + communication + reliability) / 3 - 1) / 4) * 100,
+  );
 
   // Label positions (outside each vertex)
   const LABEL_OFFSET = 18;
@@ -127,7 +142,8 @@ export function ReputationRadar({ summary, loading }: Props) {
         </View>
       </View>
 
-      <View style={styles.chartArea}>
+      {/* Animated chart area — fades in on mount */}
+      <Animated.View style={[styles.chartArea, { opacity: fadeAnim }]}>
         <Svg width={SVG_W} height={SVG_H} viewBox={`0 0 ${SVG_W} ${SVG_H}`}>
           {/* Grid rings */}
           {TIERS.map((tier) => (
@@ -215,7 +231,7 @@ export function ReputationRadar({ summary, loading }: Props) {
             {t("review.reliability")}
           </SvgText>
         </Svg>
-      </View>
+      </Animated.View>
 
       {/* Score row */}
       <View style={styles.scoreRow}>

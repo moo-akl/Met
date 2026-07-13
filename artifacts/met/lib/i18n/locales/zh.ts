@@ -1070,7 +1070,7 @@ export const zh: LocaleTree = {
     courtesy: "礼貌",
     communication: "沟通",
     reliability: "可靠性",
-    blurb: "评分是匿名的，并随时间取平均值。",
+    blurb: "您的真实评价塑造他人声誉，并奖励高质量的互动。",
     submit: "提交评价",
     submitted: "评价已提交！",
     communityStanding: "社区声誉",
