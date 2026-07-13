@@ -532,28 +532,26 @@ export const api = {
     opts: ApiOptions,
     input: {
       receiverUid: string;
-      courtesy?: number;
-      communication?: number;
-      reliability?: number;
+      starRating: number;
+      vibeTags?: string[];
     },
   ) =>
     request<{ recorded: boolean }>("POST", "/api/reviews", opts, input),
   /**
-   * Fetch aggregated review scores for a user.
-   * Returns per-dimension averages and community_standing.
+   * Fetch aggregated review scores (v2 — Community Impact Score).
+   * Returns weighted average star rating and vibe tag frequency breakdown.
    * hasEnough=false when fewer than 3 scored reviews exist.
    */
   getReviewSummary: (opts: ApiOptions, uid: string) =>
     request<{
       count: number;
       hasEnough: boolean;
-      averageCourtesy?: number;
-      averageCommunication?: number;
-      averageReliability?: number;
+      averageRating?: number;
+      vibeTags?: Record<string, number>;
       communityStanding?: number;
     }>("GET", `/api/users/${encodeURIComponent(uid)}/review-summary`, opts),
   /**
-   * Fetch hub streaks and trust score for any user.
+   * Fetch hub streaks, trust score, and average rating for any user.
    */
   getUserStats: (opts: ApiOptions, uid: string) =>
     request<{
@@ -561,6 +559,8 @@ export const api = {
       hubStreaks: Record<string, number>;
       trustScore: number;
       lastStreakUpdate: string | null;
+      averageRating: number;
+      reviewCount: number;
     }>("GET", `/api/users/${encodeURIComponent(uid)}/stats`, opts),
   /**
    * Fetch leaderboard for a hub. period defaults to "all_time".

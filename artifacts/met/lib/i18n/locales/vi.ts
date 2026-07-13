@@ -1127,6 +1127,19 @@ export const vi: LocaleTree = {
     tag_interesting: "Thú vị",
     tag_helpful: "Hữu ích",
     tag_genuine: "Chân thành",
+    starLabel: "Đánh giá tổng thể",
+    vibeTagsLabel: "Nhãn vibe (tùy chọn)",
+    coLocationError: "Bạn chỉ có thể đánh giá ai đó mà bạn gần đây ở cùng một nơi.",
+    reviewSingular: "đánh giá",
+    reviewPlural: "đánh giá",
+    averageRating: "Đánh giá trung bình",
+    vibeTags: {
+      kind: "Tốt bụng",
+      reliable: "Đáng tin",
+      open: "Cởi mở",
+      funny: "Hài hước",
+      professional: "Chuyên nghiệp",
+    },
   },
 
   trustScore: {

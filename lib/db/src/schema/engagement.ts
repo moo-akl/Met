@@ -9,6 +9,7 @@ import {
   uniqueIndex,
   index,
   date,
+  numeric,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -61,6 +62,11 @@ export const userStatsTable = pgTable("user_stats", {
   lastStreakUpdate: timestamp("last_streak_update", { withTimezone: true }),
   trustScore: integer("trust_score").notNull().default(100),
   communityStanding: real("community_standing"),
+  // Community Impact Score fields — added for weighted peer-review system
+  averageRating: numeric("average_rating", { precision: 3, scale: 2 })
+    .notNull()
+    .default("0"),
+  reviewCount: integer("review_count").notNull().default(0),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -118,10 +124,15 @@ export const reviewsTable = pgTable(
     id: serial("id").primaryKey(),
     reviewerUid: text("reviewer_uid").notNull(),
     receiverUid: text("receiver_uid").notNull(),
+    // Legacy tag field — kept for backwards compat, not used in new reviews
     tag: text("tag").notNull().default("reviewed"),
+    // Legacy scored dimensions — kept nullable for old rows
     courtesy: integer("courtesy"),
     communication: integer("communication"),
     reliability: integer("reliability"),
+    // Community Impact Score fields
+    starRating: integer("star_rating"), // 1–5
+    vibeTags: jsonb("vibe_tags").$type<string[]>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

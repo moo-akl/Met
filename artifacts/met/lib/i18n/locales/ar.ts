@@ -1128,6 +1128,19 @@ export const ar: LocaleTree = {
     tag_interesting: "مثير للاهتمام",
     tag_helpful: "مفيد",
     tag_genuine: "صادق",
+    starLabel: "التقييم الإجمالي",
+    vibeTagsLabel: "وسوم الطاقة (اختياري)",
+    coLocationError: "يمكنك تقييم شخص كنتَ معه في المكان نفسه مؤخرًا فقط.",
+    reviewSingular: "تقييم",
+    reviewPlural: "تقييمات",
+    averageRating: "متوسط التقييم",
+    vibeTags: {
+      kind: "لطيف",
+      reliable: "موثوق",
+      open: "منفتح",
+      funny: "مضحك",
+      professional: "محترف",
+    },
   },
 
   trustScore: {

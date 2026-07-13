@@ -1127,6 +1127,19 @@ export const nl: LocaleTree = {
     tag_interesting: "Interessant",
     tag_helpful: "Behulpzaam",
     tag_genuine: "Authentiek",
+    starLabel: "Algemene beoordeling",
+    vibeTagsLabel: "Vibe-tags (optioneel)",
+    coLocationError: "Je kunt alleen iemand beoordelen met wie je recentelijk op dezelfde plek was.",
+    reviewSingular: "beoordeling",
+    reviewPlural: "beoordelingen",
+    averageRating: "Gemiddelde beoordeling",
+    vibeTags: {
+      kind: "Vriendelijk",
+      reliable: "Betrouwbaar",
+      open: "Open",
+      funny: "Grappig",
+      professional: "Professioneel",
+    },
   },
 
   trustScore: {

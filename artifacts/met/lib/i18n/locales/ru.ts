@@ -1132,6 +1132,19 @@ export const ru: LocaleTree = {
     tag_interesting: "Интересный",
     tag_helpful: "Полезный",
     tag_genuine: "Настоящий",
+    starLabel: "Общая оценка",
+    vibeTagsLabel: "Метки вайба (необязательно)",
+    coLocationError: "Вы можете оценивать только тех, с кем недавно были в одном месте.",
+    reviewSingular: "отзыв",
+    reviewPlural: "отзывов",
+    averageRating: "Средняя оценка",
+    vibeTags: {
+      kind: "Добрый",
+      reliable: "Надёжный",
+      open: "Открытый",
+      funny: "Смешной",
+      professional: "Профессиональный",
+    },
   },
 
   trustScore: {

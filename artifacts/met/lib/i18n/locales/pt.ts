@@ -1125,6 +1125,19 @@ export const pt: LocaleTree = {
     tag_interesting: "Interessante",
     tag_helpful: "Prestativo",
     tag_genuine: "Genuíno",
+    starLabel: "Avaliação geral",
+    vibeTagsLabel: "Tags de vibe (opcional)",
+    coLocationError: "Você só pode avaliar alguém com quem esteve recentemente no mesmo lugar.",
+    reviewSingular: "avaliação",
+    reviewPlural: "avaliações",
+    averageRating: "Avaliação média",
+    vibeTags: {
+      kind: "Gentil",
+      reliable: "Confiável",
+      open: "Aberto",
+      funny: "Engraçado",
+      professional: "Profissional",
+    },
   },
 
   trustScore: {

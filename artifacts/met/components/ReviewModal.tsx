@@ -1,8 +1,8 @@
 /**
- * ReviewModal — 3-category scored peer review
+ * ReviewModal — 5-star peer review with Vibe Tags
  *
- * Bottom-sheet modal that prompts the user to rate a peer across three
- * dimensions: Courtesy, Communication, Reliability (each 1–5 dots).
+ * Bottom-sheet modal that prompts the user to rate a peer with a 1–5 star
+ * picker and optional Vibe Tag chips (Kind, Reliable, Open, Funny, Professional).
  * Appears after a chat session. Calls api.submitReview then invokes onDone.
  */
 
@@ -22,46 +22,35 @@ import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
 
-const MAX_SCORE = 5;
+const VIBE_TAG_KEYS = ["kind", "reliable", "open", "funny", "professional"] as const;
+type VibeTagKey = (typeof VIBE_TAG_KEYS)[number];
 
-interface CategoryRowProps {
-  label: string;
+interface StarPickerProps {
   value: number;
   onChange: (v: number) => void;
 }
 
-function CategoryRow({ label, value, onChange }: CategoryRowProps) {
+function StarPicker({ value, onChange }: StarPickerProps) {
   const colors = useColors();
   return (
-    <View style={styles.categoryRow}>
-      <Text style={[styles.categoryLabel, { color: colors.foreground }]}>
-        {label}
-      </Text>
-      <View style={styles.dotsRow}>
-        {Array.from({ length: MAX_SCORE }, (_, i) => {
-          const score = i + 1;
-          const filled = score <= value;
-          return (
-            <Pressable
-              key={score}
-              onPress={() => onChange(score)}
-              hitSlop={6}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: filled }}
-              accessibilityLabel={`${score} out of ${MAX_SCORE}`}
-            >
-              <View
-                style={[
-                  styles.dot,
-                  filled
-                    ? { backgroundColor: colors.primary }
-                    : { backgroundColor: colors.muted, borderColor: colors.border, borderWidth: 1.5 },
-                ]}
-              />
-            </Pressable>
-          );
-        })}
-      </View>
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Pressable
+          key={star}
+          onPress={() => onChange(star)}
+          hitSlop={8}
+          accessibilityRole="radio"
+          accessibilityState={{ checked: star <= value }}
+          accessibilityLabel={`${star} star${star !== 1 ? "s" : ""}`}
+        >
+          <Feather
+            name="star"
+            size={40}
+            color={star <= value ? "#F5B700" : colors.border}
+            style={{ marginHorizontal: 4 }}
+          />
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -79,21 +68,36 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
   const { t } = useT();
   const { authedUid } = useApp();
 
-  const [courtesy, setCourtesy] = useState(0);
-  const [communication, setCommunication] = useState(0);
-  const [reliability, setReliability] = useState(0);
+  const [starRating, setStarRating] = useState(0);
+  const [selectedTags, setSelectedTags] = useState<Set<VibeTagKey>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const allRated = courtesy > 0 && communication > 0 && reliability > 0;
+  const canSubmit = starRating > 0;
+
+  const toggleTag = (tag: VibeTagKey) => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) {
+        next.delete(tag);
+      } else {
+        next.add(tag);
+      }
+      return next;
+    });
+  };
 
   const handleSubmit = async () => {
-    if (!allRated || !authedUid) return;
+    if (!canSubmit || !authedUid) return;
     setSubmitting(true);
     try {
       await api.submitReview(
         { uid: authedUid },
-        { receiverUid, courtesy, communication, reliability },
+        {
+          receiverUid,
+          starRating,
+          vibeTags: Array.from(selectedTags),
+        },
       );
     } catch {
       // best-effort — don't block navigation on failure
@@ -152,51 +156,67 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
                 </Pressable>
               </View>
 
-              {/* Educational blurb — shown at top so users understand before rating */}
+              {/* Educational blurb */}
               <Text style={[styles.blurb, { color: colors.mutedForeground }]}>
                 {t("review.blurb")}
               </Text>
 
-              {/* Category selectors */}
-              <View
-                style={[
-                  styles.categoriesCard,
-                  { backgroundColor: colors.background, borderColor: colors.border },
-                ]}
-              >
-                <CategoryRow
-                  label={t("review.courtesy")}
-                  value={courtesy}
-                  onChange={setCourtesy}
-                />
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <CategoryRow
-                  label={t("review.communication")}
-                  value={communication}
-                  onChange={setCommunication}
-                />
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <CategoryRow
-                  label={t("review.reliability")}
-                  value={reliability}
-                  onChange={setReliability}
-                />
+              {/* 5-star picker */}
+              <View style={[styles.starCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[styles.starLabel, { color: colors.foreground }]}>
+                  {t("review.starLabel")}
+                </Text>
+                <StarPicker value={starRating} onChange={setStarRating} />
+              </View>
+
+              {/* Vibe tag chips */}
+              <Text style={[styles.vibeHeading, { color: colors.mutedForeground }]}>
+                {t("review.vibeTagsLabel")}
+              </Text>
+              <View style={styles.tagsWrap}>
+                {VIBE_TAG_KEYS.map((tag) => {
+                  const active = selectedTags.has(tag);
+                  return (
+                    <Pressable
+                      key={tag}
+                      onPress={() => toggleTag(tag)}
+                      style={[
+                        styles.tagChip,
+                        {
+                          backgroundColor: active ? colors.primary : colors.muted,
+                          borderColor: active ? colors.primary : colors.border,
+                        },
+                      ]}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: active }}
+                    >
+                      <Text
+                        style={[
+                          styles.tagChipText,
+                          { color: active ? "#fff" : colors.foreground },
+                        ]}
+                      >
+                        {t(`review.vibeTags.${tag}`)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
 
               {/* Submit */}
               <Pressable
                 onPress={handleSubmit}
-                disabled={!allRated || submitting}
+                disabled={!canSubmit || submitting}
                 style={[
                   styles.submitBtn,
                   {
                     backgroundColor:
-                      allRated && !submitting ? colors.primary : colors.muted,
+                      canSubmit && !submitting ? colors.primary : colors.muted,
                   },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel={t("review.submit")}
-                accessibilityState={{ disabled: !allRated || submitting }}
+                accessibilityState={{ disabled: !canSubmit || submitting }}
               >
                 {submitting ? (
                   <ActivityIndicator color="#fff" size="small" />
@@ -204,7 +224,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
                   <Text
                     style={[
                       styles.submitText,
-                      { color: allRated ? "#fff" : colors.mutedForeground },
+                      { color: canSubmit ? "#fff" : colors.mutedForeground },
                     ]}
                   >
                     {t("review.submit")}
@@ -249,7 +269,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 18,
+    marginBottom: 12,
   },
   title: {
     fontFamily: "Inter_700Bold",
@@ -261,44 +281,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 3,
   },
-  categoriesCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 14,
-    overflow: "hidden",
-  },
-  categoryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  categoryLabel: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-    flex: 1,
-  },
-  dotsRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
-  dot: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: 16,
-  },
   blurb: {
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     textAlign: "center",
     marginBottom: 16,
     lineHeight: 17,
+  },
+  starCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    alignItems: "center",
+    marginBottom: 18,
+    gap: 12,
+  },
+  starLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
+  starRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  vibeHeading: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  tagsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 18,
+  },
+  tagChip: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  tagChipText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
   },
   submitBtn: {
     borderRadius: 12,

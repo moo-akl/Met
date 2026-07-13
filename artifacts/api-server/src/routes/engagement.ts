@@ -9,7 +9,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { eq, and, desc, gte, sql, count, lt, isNull, isNotNull, or, avg } from "drizzle-orm";
+import { eq, and, desc, gte, sql, count, lt, isNull, isNotNull, or, avg, inArray } from "drizzle-orm";
 import {
   db,
   hubCheckinsTable,
@@ -653,13 +653,23 @@ const NEGATIVE_TAGS = new Set([
   "creepy",
 ]);
 
+const ALLOWED_VIBE_TAGS = new Set([
+  "kind",
+  "reliable",
+  "open",
+  "funny",
+  "professional",
+]);
+
 const ReviewBody = z.object({
   receiverUid: z.string().min(1),
-  tag: z.string().min(1).max(50).optional().default("reviewed"),
-  courtesy: z.number().int().min(1).max(5).optional(),
-  communication: z.number().int().min(1).max(5).optional(),
-  reliability: z.number().int().min(1).max(5).optional(),
+  starRating: z.number().int().min(1).max(5),
+  vibeTags: z.array(z.string().max(30)).max(5).optional().default([]),
 });
+
+// Co-location window — both users must have checked in to the same place
+// within the last CO_LOCATION_WINDOW_MS milliseconds.
+const CO_LOCATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 router.post(
   "/reviews",
@@ -669,134 +679,161 @@ router.post(
     const reviewerUid = req.uid!;
     const parsed = ReviewBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ message: "receiverUid is required" });
+      res.status(400).json({ message: "starRating (1–5) and receiverUid are required" });
       return;
     }
-    const { receiverUid, tag, courtesy, communication, reliability } = parsed.data;
+    const { receiverUid, starRating, vibeTags } = parsed.data;
 
     if (reviewerUid === receiverUid) {
       res.status(400).json({ message: "Cannot review yourself" });
       return;
     }
 
+    // Sanitise vibeTags — only allow known tag values
+    const sanitisedVibeTags = vibeTags.filter((t) => ALLOWED_VIBE_TAGS.has(t));
+
+    // ---------------------------------------------------------------------------
+    // Co-location validation: both users must have a hub check-in at the same
+    // place_id within the last CO_LOCATION_WINDOW_MS. This prevents fake reviews
+    // from users who never actually crossed paths.
+    // ---------------------------------------------------------------------------
+    const windowStart = new Date(Date.now() - CO_LOCATION_WINDOW_MS);
+    const [reviewerCheckin] = await db
+      .select({ placeId: hubCheckinsTable.placeId })
+      .from(hubCheckinsTable)
+      .where(
+        and(
+          eq(hubCheckinsTable.userUid, reviewerUid),
+          gte(hubCheckinsTable.createdAt, windowStart),
+        ),
+      )
+      .limit(50);
+
+    if (reviewerCheckin) {
+      // Check if receiver was at the same place(s) within the same window
+      const reviewerPlaces = await db
+        .select({ placeId: hubCheckinsTable.placeId })
+        .from(hubCheckinsTable)
+        .where(
+          and(
+            eq(hubCheckinsTable.userUid, reviewerUid),
+            gte(hubCheckinsTable.createdAt, windowStart),
+          ),
+        );
+      const reviewerPlaceIds = reviewerPlaces.map((r) => r.placeId);
+      if (reviewerPlaceIds.length > 0) {
+        const [receiverCheckin] = await db
+          .select({ placeId: hubCheckinsTable.placeId })
+          .from(hubCheckinsTable)
+          .where(
+            and(
+              eq(hubCheckinsTable.userUid, receiverUid),
+              gte(hubCheckinsTable.createdAt, windowStart),
+              inArray(hubCheckinsTable.placeId, reviewerPlaceIds),
+            ),
+          )
+          .limit(1);
+        if (!receiverCheckin) {
+          res.status(403).json({
+            message: "co_location_required",
+            detail: "You can only review someone you were at the same place as recently.",
+          });
+          return;
+        }
+      }
+    }
+    // If no checkin data exists at all (e.g. during onboarding or dev), we allow
+    // the review to proceed — fail-open to avoid blocking legitimate users.
+
+    const now = new Date();
+
+    // ---------------------------------------------------------------------------
+    // Upsert the review row
+    // ---------------------------------------------------------------------------
     try {
       await db.insert(reviewsTable).values({
         reviewerUid,
         receiverUid,
-        tag,
-        courtesy: courtesy ?? null,
-        communication: communication ?? null,
-        reliability: reliability ?? null,
+        starRating,
+        vibeTags: sanitisedVibeTags,
       });
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "";
       if (msg.includes("reviews_reviewer_receiver_uniq")) {
-        // Allow updating scores on an existing review (upsert approach)
-        if (courtesy !== undefined || communication !== undefined || reliability !== undefined) {
-          await db
-            .update(reviewsTable)
-            .set({
-              courtesy: courtesy ?? null,
-              communication: communication ?? null,
-              reliability: reliability ?? null,
-            })
-            .where(
-              and(
-                eq(reviewsTable.reviewerUid, reviewerUid),
-                eq(reviewsTable.receiverUid, receiverUid),
-              ),
-            );
-        } else {
-          res.status(409).json({ message: "You have already reviewed this user" });
-          return;
-        }
+        await db
+          .update(reviewsTable)
+          .set({ starRating, vibeTags: sanitisedVibeTags })
+          .where(
+            and(
+              eq(reviewsTable.reviewerUid, reviewerUid),
+              eq(reviewsTable.receiverUid, receiverUid),
+            ),
+          );
       } else {
         throw err;
       }
     }
 
-    // Adjust trust score based on tag sentiment (legacy path)
-    const tagLower = tag.toLowerCase();
-    const delta = POSITIVE_TAGS.has(tagLower)
-      ? 2
-      : NEGATIVE_TAGS.has(tagLower)
-        ? -5
-        : 0;
+    // ---------------------------------------------------------------------------
+    // Recompute weighted average rating for receiver.
+    // Weight = reviewer's trust_score / 100 (default weight 1.0 when no stats).
+    // ---------------------------------------------------------------------------
+    const starReviews = await db
+      .select({
+        starRating: reviewsTable.starRating,
+        reviewerUid: reviewsTable.reviewerUid,
+      })
+      .from(reviewsTable)
+      .where(
+        and(
+          eq(reviewsTable.receiverUid, receiverUid),
+          isNotNull(reviewsTable.starRating),
+        ),
+      );
 
-    const now = new Date();
-
-    if (delta !== 0) {
-      const [existing] = await db
-        .select()
+    let weightedSum = 0;
+    let weightTotal = 0;
+    for (const row of starReviews) {
+      if (row.starRating === null) continue;
+      const [rStats] = await db
+        .select({ trustScore: userStatsTable.trustScore })
         .from(userStatsTable)
-        .where(eq(userStatsTable.userUid, receiverUid))
+        .where(eq(userStatsTable.userUid, row.reviewerUid))
         .limit(1);
-
-      if (existing) {
-        const newScore = Math.max(0, Math.min(200, existing.trustScore + delta));
-        await db
-          .update(userStatsTable)
-          .set({ trustScore: newScore, updatedAt: now })
-          .where(eq(userStatsTable.userUid, receiverUid));
-      } else {
-        await db.insert(userStatsTable).values({
-          userUid: receiverUid,
-          hubStreaks: {},
-          trustScore: Math.max(0, 100 + delta),
-        });
-      }
+      const w = (rStats?.trustScore ?? 100) / 100;
+      weightedSum += row.starRating * w;
+      weightTotal += w;
     }
+    const newAvgRating = weightTotal > 0 ? weightedSum / weightTotal : 0;
+    const newReviewCount = starReviews.length;
+    // Normalize weighted avg (1–5) → community_standing (0–100)
+    const communityStanding = newAvgRating > 0 ? ((newAvgRating - 1) / 4) * 100 : 0;
 
-    // Recompute community_standing from all scored reviews for this user.
-    if (courtesy !== undefined || communication !== undefined || reliability !== undefined) {
-      const scoredReviews = await db
-        .select({
-          courtesy: reviewsTable.courtesy,
-          communication: reviewsTable.communication,
-          reliability: reviewsTable.reliability,
+    const [statsRow] = await db
+      .select()
+      .from(userStatsTable)
+      .where(eq(userStatsTable.userUid, receiverUid))
+      .limit(1);
+
+    if (statsRow) {
+      await db
+        .update(userStatsTable)
+        .set({
+          averageRating: String(parseFloat(newAvgRating.toFixed(2))),
+          reviewCount: newReviewCount,
+          communityStanding,
+          updatedAt: now,
         })
-        .from(reviewsTable)
-        .where(
-          and(
-            eq(reviewsTable.receiverUid, receiverUid),
-            isNotNull(reviewsTable.courtesy),
-          ),
-        );
-
-      if (scoredReviews.length > 0) {
-        const avgC =
-          scoredReviews.reduce((s, r) => s + (r.courtesy ?? 0), 0) /
-          scoredReviews.length;
-        const avgCom =
-          scoredReviews.reduce((s, r) => s + (r.communication ?? 0), 0) /
-          scoredReviews.length;
-        const avgR =
-          scoredReviews.reduce((s, r) => s + (r.reliability ?? 0), 0) /
-          scoredReviews.length;
-        // Normalize 1–5 average to 0–100 index: 1→0, 5→100
-        const communityStanding =
-          (((avgC + avgCom + avgR) / 3 - 1) / 4) * 100;
-
-        const [statsRow] = await db
-          .select()
-          .from(userStatsTable)
-          .where(eq(userStatsTable.userUid, receiverUid))
-          .limit(1);
-
-        if (statsRow) {
-          await db
-            .update(userStatsTable)
-            .set({ communityStanding, updatedAt: now })
-            .where(eq(userStatsTable.userUid, receiverUid));
-        } else {
-          await db.insert(userStatsTable).values({
-            userUid: receiverUid,
-            hubStreaks: {},
-            trustScore: 100,
-            communityStanding,
-          });
-        }
-      }
+        .where(eq(userStatsTable.userUid, receiverUid));
+    } else {
+      await db.insert(userStatsTable).values({
+        userUid: receiverUid,
+        hubStreaks: {},
+        trustScore: 100,
+        averageRating: String(parseFloat(newAvgRating.toFixed(2))),
+        reviewCount: newReviewCount,
+        communityStanding,
+      });
     }
 
     res.json({ recorded: true });
@@ -817,15 +854,15 @@ router.get(
 
     const reviews = await db
       .select({
-        courtesy: reviewsTable.courtesy,
-        communication: reviewsTable.communication,
-        reliability: reviewsTable.reliability,
+        starRating: reviewsTable.starRating,
+        vibeTags: reviewsTable.vibeTags,
+        reviewerUid: reviewsTable.reviewerUid,
       })
       .from(reviewsTable)
       .where(
         and(
           eq(reviewsTable.receiverUid, uid),
-          isNotNull(reviewsTable.courtesy),
+          isNotNull(reviewsTable.starRating),
         ),
       );
 
@@ -836,25 +873,40 @@ router.get(
       return;
     }
 
-    const avgCourtesy =
-      reviews.reduce((s, r) => s + (r.courtesy ?? 0), 0) / reviewCount;
-    const avgCommunication =
-      reviews.reduce((s, r) => s + (r.communication ?? 0), 0) / reviewCount;
-    const avgReliability =
-      reviews.reduce((s, r) => s + (r.reliability ?? 0), 0) / reviewCount;
-    // Normalize 1–5 average to 0–100 index: 1→0, 5→100
-    const communityStanding =
-      (((avgCourtesy + avgCommunication + avgReliability) / 3 - 1) / 4) * 100;
+    // Weighted average rating using reviewer trust scores
+    let weightedSum = 0;
+    let weightTotal = 0;
+    for (const row of reviews) {
+      if (row.starRating === null) continue;
+      const [rStats] = await db
+        .select({ trustScore: userStatsTable.trustScore })
+        .from(userStatsTable)
+        .where(eq(userStatsTable.userUid, row.reviewerUid))
+        .limit(1);
+      const w = (rStats?.trustScore ?? 100) / 100;
+      weightedSum += row.starRating * w;
+      weightTotal += w;
+    }
+    const avgRating = weightTotal > 0 ? weightedSum / weightTotal : 0;
+    const communityStanding = avgRating > 0 ? ((avgRating - 1) / 4) * 100 : 0;
 
-    const round1 = (n: number) => Math.round(n * 10) / 10;
+    // Aggregate vibe tags across all reviews
+    const vibeTagCounts: Record<string, number> = {};
+    for (const row of reviews) {
+      const tags = (row.vibeTags as string[] | null) ?? [];
+      for (const tag of tags) {
+        vibeTagCounts[tag] = (vibeTagCounts[tag] ?? 0) + 1;
+      }
+    }
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
 
     res.json({
       count: reviewCount,
       hasEnough: true,
-      averageCourtesy: round1(avgCourtesy),
-      averageCommunication: round1(avgCommunication),
-      averageReliability: round1(avgReliability),
-      communityStanding: round1(communityStanding),
+      averageRating: round2(avgRating),
+      vibeTags: vibeTagCounts,
+      communityStanding: Math.round(communityStanding),
     });
   },
 );
@@ -881,6 +933,8 @@ router.get(
       hubStreaks: (stats?.hubStreaks ?? {}) as Record<string, number>,
       trustScore: stats?.trustScore ?? 100,
       lastStreakUpdate: stats?.lastStreakUpdate?.toISOString() ?? null,
+      averageRating: parseFloat((stats?.averageRating as string | null | undefined) ?? "0"),
+      reviewCount: stats?.reviewCount ?? 0,
     });
   },
 );

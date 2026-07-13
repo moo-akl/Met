@@ -1080,6 +1080,19 @@ export const zh: LocaleTree = {
     tag_interesting: "有意思",
     tag_helpful: "有帮助",
     tag_genuine: "真诚",
+    starLabel: "综合评分",
+    vibeTagsLabel: "氛围标签（可选）",
+    coLocationError: "您只能评价近期与您在同一地点的人。",
+    reviewSingular: "条评价",
+    reviewPlural: "条评价",
+    averageRating: "平均评分",
+    vibeTags: {
+      kind: "友善",
+      reliable: "可靠",
+      open: "开放",
+      funny: "幽默",
+      professional: "专业",
+    },
   },
 
   trustScore: {

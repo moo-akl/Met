@@ -77,9 +77,8 @@ export default function ProfileScreen() {
   const [reviewSummary, setReviewSummary] = useState<{
     count: number;
     hasEnough: boolean;
-    averageCourtesy?: number;
-    averageCommunication?: number;
-    averageReliability?: number;
+    averageRating?: number;
+    vibeTags?: Record<string, number>;
     communityStanding?: number;
   } | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(profile?.photoUri ?? null);

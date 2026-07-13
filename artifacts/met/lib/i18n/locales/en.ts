@@ -1129,6 +1129,19 @@ export const en = {
     tag_interesting: "Interesting",
     tag_helpful: "Helpful",
     tag_genuine: "Genuine",
+    starLabel: "Overall rating",
+    vibeTagsLabel: "Vibe tags (optional)",
+    coLocationError: "You can only review someone you've recently been at the same place as.",
+    reviewSingular: "review",
+    reviewPlural: "reviews",
+    averageRating: "Average rating",
+    vibeTags: {
+      kind: "Kind",
+      reliable: "Reliable",
+      open: "Open",
+      funny: "Funny",
+      professional: "Professional",
+    },
   },
 
   trustScore: {

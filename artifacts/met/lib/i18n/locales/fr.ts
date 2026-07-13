@@ -1135,6 +1135,19 @@ export const fr: LocaleTree = {
     tag_interesting: "Intéressant",
     tag_helpful: "Serviable",
     tag_genuine: "Authentique",
+    starLabel: "Note globale",
+    vibeTagsLabel: "Tags ambiance (optionnel)",
+    coLocationError: "Vous ne pouvez noter que quelqu'un avec qui vous étiez récemment au même endroit.",
+    reviewSingular: "avis",
+    reviewPlural: "avis",
+    averageRating: "Note moyenne",
+    vibeTags: {
+      kind: "Bienveillant",
+      reliable: "Fiable",
+      open: "Ouvert",
+      funny: "Drôle",
+      professional: "Professionnel",
+    },
   },
 
   trustScore: {
