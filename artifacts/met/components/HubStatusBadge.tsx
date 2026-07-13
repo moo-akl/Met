@@ -29,6 +29,23 @@ import { useColors } from "@/hooks/useColors";
 // Re-export so callers can import both from one file if needed.
 export { useHubCheckin } from "@/hooks/useHubCheckin";
 
+class HubErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
+
 function HubStatusBadgeInner() {
   const colors = useColors();
   const { hubState } = useHubCheckin();
@@ -89,7 +106,11 @@ function HubStatusBadgeInner() {
 }
 
 export function HubStatusBadge() {
-  return <HubStatusBadgeInner />;
+  return (
+    <HubErrorBoundary>
+      <HubStatusBadgeInner />
+    </HubErrorBoundary>
+  );
 }
 
 const styles = StyleSheet.create({
