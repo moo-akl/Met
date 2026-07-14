@@ -1201,6 +1201,11 @@ export const en = {
     gotIt: "Got it",
     skip: "Skip",
   },
+
+  connectionsWalkthrough: {
+    step1: "Reveal requests land here — tap one to accept or decline and connect.",
+    step2: "Everyone you've mutually connected with lives here. Tap a name to view their profile or start a chat.",
+  },
 };
 
 // We use a deep-partial type for non-en locales so they can omit any key

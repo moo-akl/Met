@@ -1192,5 +1192,10 @@ export const es: LocaleTree = {
     skip: "Omitir",
   },
 
+  connectionsWalkthrough: {
+    step1: "Las solicitudes de revelación llegan aquí — toca una para aceptar o rechazar y conectarte.",
+    step2: "Todas las personas con las que te has conectado mutuamente están aquí. Toca un nombre para ver su perfil o iniciar un chat.",
+  },
+
   interestLabels: interestLocales.es,
 };

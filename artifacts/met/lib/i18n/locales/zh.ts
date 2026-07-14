@@ -1153,5 +1153,10 @@ export const zh: LocaleTree = {
     skip: "跳过",
   },
 
+  connectionsWalkthrough: {
+    step1: "揭露请求会在这里出现 — 点击一个来接受或拒绝并建立连接。",
+    step2: "你所有互相连接的好友都在这里。点击名字查看他们的主页或开始聊天。",
+  },
+
   interestLabels: interestLocales.zh,
 };

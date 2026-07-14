@@ -297,3 +297,14 @@ export async function saveInteractiveWalkthroughPending(): Promise<void> {
 export async function clearInteractiveWalkthroughPending(): Promise<void> {
   await AsyncStorage.removeItem(INTERACTIVE_WALKTHROUGH_PENDING_KEY);
 }
+
+const CONNECTIONS_WALKTHROUGH_SEEN_KEY = "met:connectionsWalkthroughSeen:v1";
+
+export async function loadConnectionsWalkthroughSeen(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(CONNECTIONS_WALKTHROUGH_SEEN_KEY);
+  return raw === "1";
+}
+
+export async function saveConnectionsWalkthroughSeen(): Promise<void> {
+  await AsyncStorage.setItem(CONNECTIONS_WALKTHROUGH_SEEN_KEY, "1");
+}

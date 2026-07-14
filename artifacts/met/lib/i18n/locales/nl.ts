@@ -1200,5 +1200,10 @@ export const nl: LocaleTree = {
     skip: "Overslaan",
   },
 
+  connectionsWalkthrough: {
+    step1: "Onthullingsverzoeken komen hier binnen — tik op een verzoek om het te accepteren of weigeren en verbinden.",
+    step2: "Iedereen met wie je wederzijds verbonden bent staat hier. Tik op een naam om hun profiel te zien of een chat te starten.",
+  },
+
   interestLabels: interestLocales.nl,
 };

@@ -1198,5 +1198,10 @@ export const pt: LocaleTree = {
     skip: "Saltar",
   },
 
+  connectionsWalkthrough: {
+    step1: "Os pedidos de revelação chegam aqui — toque num para aceitar ou recusar e conectar-se.",
+    step2: "Todas as pessoas com quem estás mutuamente conectado/a estão aqui. Toca num nome para ver o perfil ou iniciar uma conversa.",
+  },
+
   interestLabels: interestLocales.pt,
 };

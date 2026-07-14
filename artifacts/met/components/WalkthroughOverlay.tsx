@@ -13,7 +13,7 @@ import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 
 const SPOTLIGHT_PAD = 14;
-const TOTAL_STEPS = 3;
+const DEFAULT_TOTAL_STEPS = 3;
 
 export type TargetRect = {
   x: number;
@@ -24,7 +24,8 @@ export type TargetRect = {
 
 interface Props {
   visible: boolean;
-  step: 1 | 2 | 3;
+  step: number;
+  totalSteps?: number;
   targetRect: TargetRect | null;
   stepText: string;
   isLastStep: boolean;
@@ -35,6 +36,7 @@ interface Props {
 export function WalkthroughOverlay({
   visible,
   step,
+  totalSteps = DEFAULT_TOTAL_STEPS,
   targetRect,
   stepText,
   isLastStep,
@@ -180,7 +182,7 @@ export function WalkthroughOverlay({
           ]}
         >
           <View style={styles.stepDots}>
-            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+            {Array.from({ length: totalSteps }, (_, i) => (
               <View
                 key={i}
                 style={[

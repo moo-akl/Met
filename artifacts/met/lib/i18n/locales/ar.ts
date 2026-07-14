@@ -1201,5 +1201,10 @@ export const ar: LocaleTree = {
     skip: "تخطى",
   },
 
+  connectionsWalkthrough: {
+    step1: "تصل طلبات الكشف هنا — انقر على أحدها للقبول أو الرفض والتواصل.",
+    step2: "جميع الأشخاص الذين تواصلت معهم بشكل متبادل موجودون هنا. انقر على اسم لعرض ملفه الشخصي أو بدء محادثة.",
+  },
+
   interestLabels: interestLocales.ar,
 };

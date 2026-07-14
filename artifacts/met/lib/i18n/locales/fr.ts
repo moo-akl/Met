@@ -1208,5 +1208,10 @@ export const fr: LocaleTree = {
     skip: "Passer",
   },
 
+  connectionsWalkthrough: {
+    step1: "Les demandes de révélation arrivent ici — appuie sur une pour l'accepter ou la refuser et te connecter.",
+    step2: "Toutes les personnes avec lesquelles tu es mutuellement connecté(e) sont ici. Appuie sur un nom pour voir son profil ou démarrer une conversation.",
+  },
+
   interestLabels: interestLocales.fr,
 };

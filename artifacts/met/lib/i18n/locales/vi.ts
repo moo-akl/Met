@@ -1200,5 +1200,10 @@ export const vi: LocaleTree = {
     skip: "Bỏ qua",
   },
 
+  connectionsWalkthrough: {
+    step1: "Yêu cầu tiết lộ sẽ xuất hiện ở đây — nhấn vào một yêu cầu để chấp nhận hoặc từ chối và kết nối.",
+    step2: "Tất cả những người bạn đã kết nối qua lại đều ở đây. Nhấn vào tên để xem hồ sơ hoặc bắt đầu trò chuyện.",
+  },
+
   interestLabels: interestLocales.vi,
 };
