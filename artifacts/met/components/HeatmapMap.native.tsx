@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Platform,
   StyleSheet,
   View,
   type StyleProp,
@@ -279,7 +280,7 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
   return (
     <MapView
       ref={mapRef}
-      provider={PROVIDER_GOOGLE}
+      provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
       style={[styles.map, style]}
       initialRegion={DEFAULT_REGION}
       showsUserLocation

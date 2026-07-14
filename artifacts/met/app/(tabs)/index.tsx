@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "@/components/MetGradient";
 import { useRouter } from "expo-router";
 import * as Updates from "expo-updates";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -44,7 +43,6 @@ import {
   DISCOVERY_RANGE_METERS,
   loadInteractiveWalkthroughSeen,
   clearInteractiveWalkthroughPending,
-  loadInteractiveWalkthroughPending,
   loadProfileBannerDismissed,
   saveInteractiveWalkthroughSeen,
   saveProfileBannerDismissed,
@@ -129,12 +127,10 @@ export default function HomeScreen() {
     useHubCheckin();
 
   useEffect(() => {
-    // Only show to users who JUST completed the value tour (pending flag was written
-    // in ValueTour.tsx on first mount). This prevents existing/returning users from
-    // seeing the walkthrough after upgrading.
-    Promise.all([loadInteractiveWalkthroughPending(), loadInteractiveWalkthroughSeen()])
-      .then(([pending, seen]) => {
-        if (pending && !seen) setWalkthroughStep(1);
+    // Show the interactive walkthrough once to any user who hasn't seen it yet.
+    loadInteractiveWalkthroughSeen()
+      .then((seen) => {
+        if (!seen) setWalkthroughStep(1);
       })
       .catch(() => {});
   }, []);
@@ -193,7 +189,6 @@ export default function HomeScreen() {
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const unreadChatCount = useUnreadChatCount();
   const [requestsOpen, setRequestsOpen] = useState(false);
-  const [showMap, setShowMap] = useState(false);
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
 
   // Tick every 60 s so the "today" window slides forward without needing a
@@ -228,31 +223,6 @@ export default function HomeScreen() {
     [encounters],
   );
 
-  const stats = useMemo(() => {
-    const todayCutoff = now - 24 * 60 * 60 * 1000;
-    const cleanupCutoff =
-      preferences.autoCleanupDays > 0
-        ? now - preferences.autoCleanupDays * 24 * 60 * 60 * 1000
-        : 0;
-    // Mirror the same filter the Recent tab applies so tapping "today"
-    // leads to a list whose length matches the displayed count.
-    const todayEncounters = encounters.filter((e) => {
-      if (e.status === "connected") return false;
-      if (e.status === "encounter") {
-        if (e.lastDistanceM > rangeM) return false;
-        if (cleanupCutoff > 0 && e.lastSeenAt < cleanupCutoff) return false;
-      }
-      return e.lastSeenAt >= todayCutoff;
-    });
-    return {
-      today: todayEncounters.length,
-      connections: encounters.filter((e) => e.status === "connected").length,
-      pending: encounters.filter(
-        (e) => e.status === "request_sent" || e.status === "request_received",
-      ).length,
-    };
-  }, [encounters, now, rangeM, preferences.autoCleanupDays]);
-
   // Lightweight weekly recap so the home screen reinforces the "people, not
   // followers" thesis. `newPeople` are first-seen this week; `repeats` are
   // anyone you've crossed paths with more than once whose latest sighting is
@@ -281,11 +251,8 @@ export default function HomeScreen() {
     [encounters],
   );
 
-  // Animated count-ups for the hero number + each stat card.
+  // Animated count-up for the hero number.
   const animatedWithin = useCountUp(isVisible ? withinRange : 0, 700);
-  const animatedToday = useCountUp(stats.today, 700);
-  const animatedConn = useCountUp(stats.connections, 700);
-  const animatedPending = useCountUp(stats.pending, 700);
 
   // "LIVE" pulse dot near BEACON ACTIVE — opacity loop.
   const livePulse = useRef(new Animated.Value(1)).current;
@@ -625,84 +592,62 @@ export default function HomeScreen() {
           )}
         </View>
 
-        <Pressable
-          onPress={() => setShowMap((v) => !v)}
-          accessibilityRole="button"
-          accessibilityLabel={showMap ? "Hide density map" : "Show density map"}
-          style={({ pressed }) => [
-            styles.mapToggle,
-            {
-              backgroundColor: showMap ? colors.primary : colors.card,
-              borderColor: showMap ? colors.primary : colors.border,
-              opacity: pressed ? 0.8 : 1,
-            },
+        <View
+          style={[
+            styles.heatmapSection,
+            { borderColor: colors.border },
           ]}
         >
-          <Feather
-            name="map"
-            size={14}
-            color={showMap ? "#ffffff" : colors.mutedForeground}
-          />
-          <Text
-            style={[
-              styles.mapToggleText,
-              { color: showMap ? "#ffffff" : colors.mutedForeground },
-            ]}
-          >
-            {showMap ? "Hide map" : "Density map"}
-          </Text>
-        </Pressable>
-
-        {showMap ? (
-          <View
-            style={[
-              styles.heatmapSection,
-              { borderColor: colors.border },
-            ]}
-          >
-            <HeatmapMap style={{ flex: 1 }} />
-          </View>
-        ) : null}
-
-        <View style={styles.statsRow}>
-          <StatCard
-            icon="users"
-            value={animatedToday}
-            label={t("home.todayCard")}
-            colors={colors}
-            onPress={() => router.push("/(tabs)/recent")}
-          />
-          <StatCard
-            icon="link-2"
-            value={animatedConn}
-            label={t("home.connectionsCard")}
-            colors={colors}
-            onPress={() => router.push("/(tabs)/connections")}
-          />
-          <StatCard
-            icon="bell"
-            value={animatedPending}
-            label={t("home.pendingCard")}
-            colors={colors}
-            onPress={() => setRequestsOpen(true)}
-          />
+          <HeatmapMap style={{ flex: 1 }} />
         </View>
 
         <View ref={checkinBtnRef} style={styles.checkinCtaWrapper}>
           <Pressable
-            style={[
+            style={({ pressed }) => [
               styles.checkinCta,
-              { backgroundColor: colors.card, borderColor: colors.border },
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                opacity: pressed ? 0.82 : 1,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              },
             ]}
             accessibilityRole="button"
             onPress={handleCheckinPress}
           >
-            <Feather name="map-pin" size={14} color={colors.mutedForeground} />
-            <Text style={[styles.checkinCtaText, { color: colors.mutedForeground }]}>
+            <Feather name="map-pin" size={18} color={colors.primary} />
+            <Text style={[styles.checkinCtaText, { color: colors.foreground, flex: 1 }]}>
               {t("home.checkInCta")}
             </Text>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
           </Pressable>
         </View>
+
+        <Pressable
+          onPress={() => {
+            if (hubState?.placeId) {
+              router.push(`/leaderboard/${hubState.placeId}`);
+            } else {
+              Alert.alert("Check in first", "Check in to a venue to view its leaderboard.");
+            }
+          }}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.leaderboardBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: pressed ? 0.82 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
+          ]}
+        >
+          <Feather name="award" size={18} color={colors.primary} />
+          <Text style={[styles.checkinCtaText, { color: colors.foreground, flex: 1 }]}>
+            Check leaderboards
+          </Text>
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+        </Pressable>
 
         <View ref={hubBadgeRef}>
           <HubStatusBadge
@@ -824,27 +769,13 @@ export default function HomeScreen() {
               },
             ]}
           >
-            <LinearGradient
-              colors={["rgba(249,115,22,0.15)", "rgba(249,115,22,0)"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
             <View style={[styles.referralIconWrap, { backgroundColor: "#F97316" }]}>
-              <Feather name="radio" size={20} color="#FFFFFF" />
+              <Feather name="radio" size={16} color="#FFFFFF" />
             </View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={[styles.referralTitle, { color: colors.foreground }]}>
-                Set up your beacon
-              </Text>
-              <Text style={[styles.referralSub, { color: colors.mutedForeground }]}>
-                Enable Bluetooth & Location so Met can detect nearby people.
-              </Text>
-              <Text style={[styles.referralCta, { color: "#F97316" }]}>
-                Enable permissions{"  "}
-                <Feather name="arrow-right" size={12} color="#F97316" />
-              </Text>
-            </View>
+            <Text style={[styles.referralTitle, { color: colors.foreground, flex: 1 }]}>
+              Set up your beacon
+            </Text>
+            <Feather name="chevron-right" size={16} color="#F97316" />
           </Pressable>
         ) : (
           <Pressable
@@ -861,34 +792,18 @@ export default function HomeScreen() {
               },
             ]}
           >
-            <LinearGradient
-              colors={["rgba(61,204,68,0.18)", "rgba(61,204,68,0)"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
             <View
               style={[
                 styles.referralIconWrap,
                 { backgroundColor: colors.primary },
               ]}
             >
-              <Feather name="gift" size={20} color="#FFFFFF" />
+              <Feather name="gift" size={16} color="#FFFFFF" />
             </View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={[styles.referralTitle, { color: colors.foreground }]}>
-                {t("home.referralCtaTitle")}
-              </Text>
-              <Text
-                style={[styles.referralSub, { color: colors.mutedForeground }]}
-              >
-                {t("home.referralCtaSub")}
-              </Text>
-              <Text style={[styles.referralCta, { color: colors.primary }]}>
-                {t("home.referralCtaCta")}{"  "}
-                <Feather name="arrow-right" size={12} color={colors.primary} />
-              </Text>
-            </View>
+            <Text style={[styles.referralTitle, { color: colors.foreground, flex: 1 }]}>
+              {t("home.referralCtaTitle")}
+            </Text>
+            <Feather name="chevron-right" size={16} color={colors.primary} />
           </Pressable>
         )}
       </ScrollView>
@@ -1031,45 +946,6 @@ function tickerLine(
   return t("home.tickerJustCrossed", { name: e.realName, when });
 }
 
-function StatCard({
-  icon,
-  value,
-  label,
-  colors,
-  onPress,
-}: {
-  icon: React.ComponentProps<typeof Feather>["name"];
-  value: number;
-  label: string;
-  colors: ReturnType<typeof useColors>;
-  onPress?: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${label}: ${value}`}
-      style={({ pressed }) => [
-        styles.stat,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          opacity: pressed ? 0.75 : 1,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
-        },
-      ]}
-    >
-      <Feather name={icon} size={18} color={colors.primary} />
-      <Text style={[styles.statValue, { color: colors.foreground }]}>
-        {value}
-      </Text>
-      <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   banner: {
@@ -1190,28 +1066,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 12,
   },
-  statsRow: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  stat: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 6,
-    alignItems: "flex-start",
-  },
-  statValue: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 26,
-    marginTop: 2,
-  },
-  statLabel: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-  },
   weeklyCard: {
     marginHorizontal: 20,
     marginTop: 16,
@@ -1268,37 +1122,25 @@ const styles = StyleSheet.create({
   referralCard: {
     marginHorizontal: 20,
     marginTop: 14,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1.5,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 10,
     overflow: "hidden",
   },
   referralIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   referralTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-  },
-  referralSub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  referralCta: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 12,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    marginTop: 2,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
   },
   langBackdrop: {
     flex: 1,
@@ -1360,21 +1202,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 1,
   },
-  mapToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginTop: 16,
-  },
-  mapToggleText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 13,
-  },
   checkinCtaWrapper: {
     marginHorizontal: 20,
     marginTop: 12,
@@ -1382,16 +1209,26 @@ const styles = StyleSheet.create({
   checkinCta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
+    gap: 8,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
     borderWidth: 1,
   },
   checkinCtaText: {
     fontFamily: "Inter_600SemiBold",
-    fontSize: 13,
+    fontSize: 14,
+  },
+  leaderboardBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   heatmapSection: {
     marginHorizontal: 20,
@@ -1399,6 +1236,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     overflow: "hidden",
-    height: 300,
+    height: 380,
   },
 });
