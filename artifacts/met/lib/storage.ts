@@ -269,3 +269,14 @@ export async function loadHubTooltipDismissed(): Promise<boolean> {
 export async function saveHubTooltipDismissed(): Promise<void> {
   await AsyncStorage.setItem(HUB_TOOLTIP_DISMISSED_KEY, "1");
 }
+
+const INTERACTIVE_WALKTHROUGH_SEEN_KEY = "met:interactiveWalkthroughSeen:v1";
+
+export async function loadInteractiveWalkthroughSeen(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(INTERACTIVE_WALKTHROUGH_SEEN_KEY);
+  return raw === "1";
+}
+
+export async function saveInteractiveWalkthroughSeen(): Promise<void> {
+  await AsyncStorage.setItem(INTERACTIVE_WALKTHROUGH_SEEN_KEY, "1");
+}
