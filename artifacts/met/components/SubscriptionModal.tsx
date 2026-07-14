@@ -19,6 +19,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { GestureDetector } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 
 import { useColors } from "@/hooks/useColors";
@@ -50,7 +51,7 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
   const colors = useColors();
   const router = useRouter();
   const { t } = useT();
-  const { isMounted, panelStyle, backdropStyle } = useSlideUpModal(visible);
+  const { isMounted, panelStyle, backdropStyle, panGesture } = useSlideUpModal(visible, onDismiss);
 
   const handleUpgrade = () => {
     onDismiss();
@@ -67,6 +68,7 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
     >
       <Animated.View style={[styles.backdropWrapper, backdropStyle]}>
       <Pressable style={styles.backdrop} onPress={onDismiss}>
+        <GestureDetector gesture={panGesture}>
         <Animated.View style={panelStyle}>
         <Pressable
           style={[styles.sheet, { backgroundColor: colors.card }]}
@@ -174,6 +176,7 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
           </Pressable>
         </Pressable>
         </Animated.View>
+        </GestureDetector>
       </Pressable>
       </Animated.View>
     </Modal>

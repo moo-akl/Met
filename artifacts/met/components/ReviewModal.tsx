@@ -16,6 +16,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -107,7 +108,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
   const colors = useColors();
   const { t } = useT();
   const { authedUid } = useApp();
-  const { isMounted, panelStyle, backdropStyle } = useSlideUpModal(visible);
+  const { isMounted, panelStyle, backdropStyle, panGesture } = useSlideUpModal(visible, onDone);
 
   const [starRating, setStarRating] = useState(0);
   const [selectedTags, setSelectedTags] = useState<Set<VibeTagKey>>(new Set());
@@ -163,6 +164,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
     >
       <Animated.View style={[styles.backdropWrapper, backdropStyle]}>
       <Pressable style={styles.backdrop} onPress={handleSkip}>
+        <GestureDetector gesture={panGesture}>
         <Animated.View style={panelStyle}>
         <Pressable
           style={[styles.sheet, { backgroundColor: colors.card }]}
@@ -284,6 +286,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
           )}
         </Pressable>
         </Animated.View>
+        </GestureDetector>
       </Pressable>
       </Animated.View>
     </Modal>

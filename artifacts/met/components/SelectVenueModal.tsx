@@ -15,6 +15,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { GestureDetector } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
 import { useSlideUpModal } from "@/hooks/useSlideUpModal";
@@ -36,7 +37,7 @@ export function SelectVenueModal({
 }: SelectVenueModalProps) {
   const colors = useColors();
   const { t } = useT();
-  const { isMounted, panelStyle, backdropStyle } = useSlideUpModal(visible);
+  const { isMounted, panelStyle, backdropStyle, panGesture } = useSlideUpModal(visible, onDismiss);
 
   return (
     <Modal
@@ -48,6 +49,7 @@ export function SelectVenueModal({
     >
       <Animated.View style={[styles.backdropWrapper, backdropStyle]}>
       <Pressable style={styles.backdrop} onPress={onDismiss}>
+        <GestureDetector gesture={panGesture}>
         <Animated.View style={panelStyle}>
         {/* Stop tap propagation so tapping the sheet itself doesn't dismiss */}
         <Pressable style={[styles.sheet, { backgroundColor: colors.card }]} onPress={() => {}}>
@@ -118,6 +120,7 @@ export function SelectVenueModal({
           </Pressable>
         </Pressable>
         </Animated.View>
+        </GestureDetector>
       </Pressable>
       </Animated.View>
     </Modal>

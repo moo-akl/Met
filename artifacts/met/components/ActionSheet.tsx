@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { GestureDetector } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -41,7 +42,7 @@ export function ActionSheet({
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
-  const { isMounted, panelStyle, backdropStyle } = useSlideUpModal(visible);
+  const { isMounted, panelStyle, backdropStyle, panGesture } = useSlideUpModal(visible, onClose);
 
   return (
     <Modal
@@ -52,6 +53,7 @@ export function ActionSheet({
     >
       <Animated.View style={[styles.backdropWrapper, backdropStyle]}>
       <Pressable style={styles.backdrop} onPress={onClose}>
+        <GestureDetector gesture={panGesture}>
         <Animated.View style={panelStyle}>
         <Pressable
           onPress={(e) => e.stopPropagation()}
@@ -132,6 +134,7 @@ export function ActionSheet({
           </Pressable>
         </Pressable>
         </Animated.View>
+        </GestureDetector>
       </Pressable>
       </Animated.View>
     </Modal>
