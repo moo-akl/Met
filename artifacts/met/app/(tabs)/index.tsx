@@ -134,10 +134,7 @@ export default function HomeScreen() {
     // seeing the walkthrough after upgrading.
     Promise.all([loadInteractiveWalkthroughPending(), loadInteractiveWalkthroughSeen()])
       .then(([pending, seen]) => {
-        if (pending && !seen) {
-          clearInteractiveWalkthroughPending().catch(() => {});
-          setWalkthroughStep(1);
-        }
+        if (pending && !seen) setWalkthroughStep(1);
       })
       .catch(() => {});
   }, []);
@@ -164,6 +161,7 @@ export default function HomeScreen() {
       setWalkthroughStep(0);
       setWalkthroughTarget(null);
       saveInteractiveWalkthroughSeen().catch(() => {});
+      clearInteractiveWalkthroughPending().catch(() => {});
     } else {
       setWalkthroughStep((s) => (s + 1) as 1 | 2 | 3);
     }
@@ -173,6 +171,7 @@ export default function HomeScreen() {
     setWalkthroughStep(0);
     setWalkthroughTarget(null);
     saveInteractiveWalkthroughSeen().catch(() => {});
+    clearInteractiveWalkthroughPending().catch(() => {});
   }, []);
 
   const handleCheckinPress = useCallback(() => {
@@ -717,6 +716,7 @@ export default function HomeScreen() {
             pendingVenues={pendingVenues}
             confirmVenue={confirmVenue}
             cancelVenueSelection={cancelVenueSelection}
+            walkthroughActive={walkthroughStep === 2}
           />
         </View>
 

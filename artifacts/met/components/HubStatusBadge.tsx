@@ -72,6 +72,9 @@ interface HubStatusBadgeProps {
   pendingVenues: VenueResult[] | null;
   confirmVenue: (venue: VenueResult) => void;
   cancelVenueSelection: () => void;
+  /** When true and no badge would normally render, shows a ghost pill so
+   *  the walkthrough overlay can measure a target for step 2. */
+  walkthroughActive?: boolean;
 }
 
 function HubStatusBadgeInner({
@@ -80,6 +83,7 @@ function HubStatusBadgeInner({
   pendingVenues,
   confirmVenue,
   cancelVenueSelection,
+  walkthroughActive = false,
 }: HubStatusBadgeProps) {
   const colors = useColors();
   const router = useRouter();
@@ -243,7 +247,29 @@ function HubStatusBadgeInner({
     );
   }
 
-  if (!hubState && pendingVenues === null) return null;
+  if (!hubState && pendingVenues === null) {
+    if (!walkthroughActive) return null;
+    // Ghost pill — rendered only during walkthrough step 2 so hubBadgeRef has
+    // a non-zero measured size for the spotlight even before the user checks in.
+    return (
+      <View style={{ marginHorizontal: 20, marginTop: 12 }}>
+        <View
+          style={[
+            styles.pill,
+            { backgroundColor: colors.card, borderColor: colors.border, opacity: 0.45 },
+          ]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Text style={styles.icon}>📍</Text>
+          <Text style={[styles.placeName, { color: colors.mutedForeground }]}>—</Text>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <Text style={styles.fireIcon}>🔥</Text>
+          <Text style={[styles.streakCount, { color: colors.mutedForeground }]}>0</Text>
+        </View>
+      </View>
+    );
+  }
 
   if (!hubState) {
     return (
