@@ -43,11 +43,13 @@ import {
 import {
   DISCOVERY_RANGE_METERS,
   loadInteractiveWalkthroughSeen,
+  clearInteractiveWalkthroughPending,
+  loadInteractiveWalkthroughPending,
   loadProfileBannerDismissed,
-  loadValueTourSeen,
   saveInteractiveWalkthroughSeen,
   saveProfileBannerDismissed,
 } from "@/lib/storage";
+import { useHubCheckin } from "@/hooks/useHubCheckin";
 import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 import { WalkthroughOverlay, type TargetRect } from "@/components/WalkthroughOverlay";
 
@@ -123,11 +125,19 @@ export default function HomeScreen() {
   const radarRef = useRef<View>(null);
   const [walkthroughStep, setWalkthroughStep] = useState<0 | 1 | 2 | 3>(0);
   const [walkthroughTarget, setWalkthroughTarget] = useState<TargetRect | null>(null);
+  const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection } =
+    useHubCheckin();
 
   useEffect(() => {
-    Promise.all([loadValueTourSeen(), loadInteractiveWalkthroughSeen()])
-      .then(([tourSeen, walkthroughSeen]) => {
-        if (tourSeen && !walkthroughSeen) setWalkthroughStep(1);
+    // Only show to users who JUST completed the value tour (pending flag was written
+    // in ValueTour.tsx on first mount). This prevents existing/returning users from
+    // seeing the walkthrough after upgrading.
+    Promise.all([loadInteractiveWalkthroughPending(), loadInteractiveWalkthroughSeen()])
+      .then(([pending, seen]) => {
+        if (pending && !seen) {
+          clearInteractiveWalkthroughPending().catch(() => {});
+          setWalkthroughStep(1);
+        }
       })
       .catch(() => {});
   }, []);
@@ -164,6 +174,18 @@ export default function HomeScreen() {
     setWalkthroughTarget(null);
     saveInteractiveWalkthroughSeen().catch(() => {});
   }, []);
+
+  const handleCheckinPress = useCallback(() => {
+    // When exactly one venue is nearby, confirm the check-in directly.
+    // When multiple venues are nearby, SelectVenueModal (inside HubStatusBadge)
+    // is already visible for selection. When no venue is detected, show
+    // instructional copy from the walkthrough step.
+    if (pendingVenues && pendingVenues.length === 1) {
+      confirmVenue(pendingVenues[0]);
+    } else {
+      Alert.alert(t("home.checkInCta"), t("walkthrough.step1"));
+    }
+  }, [pendingVenues, confirmVenue, t]);
 
   const blips = useMemo<RadarBlip[]>(
     () =>
@@ -679,7 +701,7 @@ export default function HomeScreen() {
               { backgroundColor: colors.card, borderColor: colors.border },
             ]}
             accessibilityRole="button"
-            onPress={() => Alert.alert(t("home.checkInCta"), t("walkthrough.step1"))}
+            onPress={handleCheckinPress}
           >
             <Feather name="map-pin" size={14} color={colors.mutedForeground} />
             <Text style={[styles.checkinCtaText, { color: colors.mutedForeground }]}>
@@ -689,7 +711,13 @@ export default function HomeScreen() {
         </View>
 
         <View ref={hubBadgeRef}>
-          <HubStatusBadge />
+          <HubStatusBadge
+            hubState={hubState}
+            cooldownMinutes={cooldownMinutes}
+            pendingVenues={pendingVenues}
+            confirmVenue={confirmVenue}
+            cancelVenueSelection={cancelVenueSelection}
+          />
         </View>
 
         <View

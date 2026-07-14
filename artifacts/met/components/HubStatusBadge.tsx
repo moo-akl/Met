@@ -23,7 +23,7 @@
 import { useRouter } from "expo-router";
 import React from "react";
 import { View, Text, StyleSheet, Animated, Pressable } from "react-native";
-import { useHubCheckin } from "@/hooks/useHubCheckin";
+import { type HubState, type VenueResult } from "@/hooks/useHubCheckin";
 import { SelectVenueModal } from "@/components/SelectVenueModal";
 import { useColors } from "@/hooks/useColors";
 import { useSessionCount } from "@/hooks/useSessionCount";
@@ -66,12 +66,24 @@ class HubErrorBoundary extends React.Component<
   }
 }
 
-function HubStatusBadgeInner() {
+interface HubStatusBadgeProps {
+  hubState: HubState | null;
+  cooldownMinutes: number | null;
+  pendingVenues: VenueResult[] | null;
+  confirmVenue: (venue: VenueResult) => void;
+  cancelVenueSelection: () => void;
+}
+
+function HubStatusBadgeInner({
+  hubState,
+  cooldownMinutes,
+  pendingVenues,
+  confirmVenue,
+  cancelVenueSelection,
+}: HubStatusBadgeProps) {
   const colors = useColors();
   const router = useRouter();
   const { t } = useT();
-  const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection } =
-    useHubCheckin();
   const sessionCount = useSessionCount();
 
   // Fade badge in/out on visibility change
@@ -339,10 +351,10 @@ function HubStatusBadgeInner() {
   );
 }
 
-export function HubStatusBadge() {
+export function HubStatusBadge(props: HubStatusBadgeProps) {
   return (
     <HubErrorBoundary>
-      <HubStatusBadgeInner />
+      <HubStatusBadgeInner {...props} />
     </HubErrorBoundary>
   );
 }

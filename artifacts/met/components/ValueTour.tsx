@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
-import { saveValueTourSeen } from "@/lib/storage";
+import { saveInteractiveWalkthroughPending, saveValueTourSeen } from "@/lib/storage";
 
 // ---------------------------------------------------------------------------
 // Slide 1: Radar
@@ -412,6 +412,7 @@ export function ValueTour({ onDone }: Props) {
   // never re-shows the tour.
   useEffect(() => {
     saveValueTourSeen().catch(() => {});
+    saveInteractiveWalkthroughPending().catch(() => {});
   }, []);
 
   const SLIDES = [

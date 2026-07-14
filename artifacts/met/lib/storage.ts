@@ -271,6 +271,7 @@ export async function saveHubTooltipDismissed(): Promise<void> {
 }
 
 const INTERACTIVE_WALKTHROUGH_SEEN_KEY = "met:interactiveWalkthroughSeen:v1";
+const INTERACTIVE_WALKTHROUGH_PENDING_KEY = "met:interactiveWalkthroughPending:v1";
 
 export async function loadInteractiveWalkthroughSeen(): Promise<boolean> {
   const raw = await AsyncStorage.getItem(INTERACTIVE_WALKTHROUGH_SEEN_KEY);
@@ -279,4 +280,20 @@ export async function loadInteractiveWalkthroughSeen(): Promise<boolean> {
 
 export async function saveInteractiveWalkthroughSeen(): Promise<void> {
   await AsyncStorage.setItem(INTERACTIVE_WALKTHROUGH_SEEN_KEY, "1");
+}
+
+/** Written when a user completes the Value Tour for the first time.
+ *  Consumed once by the Home screen to start the interactive walkthrough,
+ *  then cleared so subsequent launches never re-show it. */
+export async function loadInteractiveWalkthroughPending(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(INTERACTIVE_WALKTHROUGH_PENDING_KEY);
+  return raw === "1";
+}
+
+export async function saveInteractiveWalkthroughPending(): Promise<void> {
+  await AsyncStorage.setItem(INTERACTIVE_WALKTHROUGH_PENDING_KEY, "1");
+}
+
+export async function clearInteractiveWalkthroughPending(): Promise<void> {
+  await AsyncStorage.removeItem(INTERACTIVE_WALKTHROUGH_PENDING_KEY);
 }
