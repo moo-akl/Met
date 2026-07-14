@@ -198,6 +198,14 @@ export default function HomeScreen() {
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // Defer map mount by one tick so the JS thread is not blocked during
+  // initial layout — prevents a Google Maps SDK crash on Android launch.
+  const [mapReady, setMapReady] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setMapReady(true), 0);
+    return () => clearTimeout(id);
+  }, []);
   const { locationOk, bluetoothOk, checked } = usePermissionStatus();
   const permsMissing = checked && (!locationOk || !bluetoothOk);
   const {
@@ -598,7 +606,7 @@ export default function HomeScreen() {
             { borderColor: colors.border },
           ]}
         >
-          <HeatmapMap style={{ flex: 1 }} />
+          {mapReady && <HeatmapMap style={{ flex: 1 }} />}
         </View>
 
         <View ref={checkinBtnRef} style={styles.checkinCtaWrapper}>
