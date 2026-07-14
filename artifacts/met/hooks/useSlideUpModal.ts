@@ -49,6 +49,29 @@ const DISMISS_THRESHOLD = 120;
 /** Downward flick velocity (px/s) that triggers dismiss regardless of distance. */
 const DISMISS_VELOCITY = 800;
 
+/**
+ * Returns a spring config for the exit animation.
+ *
+ * For slow drags that cross the threshold the original SPRING_OUT curve is
+ * used unchanged.  For fast flicks the stiffness is scaled up and damping
+ * scaled down so the sheet exits at roughly the finger's speed.  The
+ * `velocity` seed hands the current finger speed directly to Reanimated so
+ * there is no discontinuity at the moment of release.
+ *
+ * The multiplier is capped at 4× to avoid unrealistically instant exits.
+ */
+function exitSpringConfig(velocityY: number) {
+  if (velocityY <= DISMISS_VELOCITY) {
+    return SPRING_OUT;
+  }
+  const factor = Math.min(velocityY / DISMISS_VELOCITY, 4);
+  return {
+    stiffness: SPRING_OUT.stiffness * factor,
+    damping: SPRING_OUT.damping / Math.sqrt(factor),
+    velocity: velocityY,
+  };
+}
+
 export function useSlideUpModal(visible: boolean, onDismiss?: () => void) {
   const translateY = useSharedValue(PANEL_OFFSCREEN);
   const dragY = useSharedValue(0);
@@ -89,9 +112,13 @@ export function useSlideUpModal(visible: boolean, onDismiss?: () => void) {
         // is no jump when dragY resets to 0.
         translateY.value = dragY.value;
         dragY.value = 0;
-        translateY.value = withSpring(PANEL_OFFSCREEN, SPRING_OUT, (finished) => {
-          if (finished) runOnJS(onDismiss)();
-        });
+        translateY.value = withSpring(
+          PANEL_OFFSCREEN,
+          exitSpringConfig(e.velocityY),
+          (finished) => {
+            if (finished) runOnJS(onDismiss)();
+          },
+        );
       } else {
         // Not far enough — spring back to open position.
         dragY.value = withSpring(0, SPRING_IN);
