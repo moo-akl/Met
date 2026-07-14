@@ -8,9 +8,11 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useSlideUpModal } from "@/hooks/useSlideUpModal";
 
 type IconName = React.ComponentProps<typeof Feather>["name"];
 
@@ -39,15 +41,17 @@ export function ActionSheet({
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
+  const { isMounted, panelStyle } = useSlideUpModal(visible);
 
   return (
     <Modal
-      visible={visible}
+      visible={isMounted}
       transparent
-      animationType="fade"
+      animationType="none"
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
+        <Animated.View style={panelStyle}>
         <Pressable
           onPress={(e) => e.stopPropagation()}
           style={[
@@ -126,6 +130,7 @@ export function ActionSheet({
             </Text>
           </Pressable>
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );

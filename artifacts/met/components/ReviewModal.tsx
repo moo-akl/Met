@@ -27,6 +27,7 @@ import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
 import { getStarColor } from "@/components/ReputationRadar";
+import { useSlideUpModal } from "@/hooks/useSlideUpModal";
 
 const VIBE_TAG_KEYS = ["kind", "reliable", "open", "funny", "professional"] as const;
 type VibeTagKey = (typeof VIBE_TAG_KEYS)[number];
@@ -106,6 +107,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
   const colors = useColors();
   const { t } = useT();
   const { authedUid } = useApp();
+  const { isMounted, panelStyle } = useSlideUpModal(visible);
 
   const [starRating, setStarRating] = useState(0);
   const [selectedTags, setSelectedTags] = useState<Set<VibeTagKey>>(new Set());
@@ -153,13 +155,14 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
 
   return (
     <Modal
-      visible={visible}
+      visible={isMounted}
       transparent
-      animationType="slide"
+      animationType="none"
       statusBarTranslucent
       onRequestClose={handleSkip}
     >
       <Pressable style={styles.backdrop} onPress={handleSkip}>
+        <Animated.View style={panelStyle}>
         <Pressable
           style={[styles.sheet, { backgroundColor: colors.card }]}
           onPress={() => {}}
@@ -279,6 +282,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
             </>
           )}
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );

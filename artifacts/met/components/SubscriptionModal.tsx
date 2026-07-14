@@ -19,8 +19,10 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated from "react-native-reanimated";
 
 import { useColors } from "@/hooks/useColors";
+import { useSlideUpModal } from "@/hooks/useSlideUpModal";
 import { useT } from "@/lib/i18n";
 
 interface Props {
@@ -48,6 +50,7 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
   const colors = useColors();
   const router = useRouter();
   const { t } = useT();
+  const { isMounted, panelStyle } = useSlideUpModal(visible);
 
   const handleUpgrade = () => {
     onDismiss();
@@ -56,13 +59,14 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
 
   return (
     <Modal
-      visible={visible}
+      visible={isMounted}
       transparent
-      animationType="slide"
+      animationType="none"
       statusBarTranslucent
       onRequestClose={onDismiss}
     >
       <Pressable style={styles.backdrop} onPress={onDismiss}>
+        <Animated.View style={panelStyle}>
         <Pressable
           style={[styles.sheet, { backgroundColor: colors.card }]}
           onPress={() => {}}
@@ -168,6 +172,7 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
             </Text>
           </Pressable>
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );

@@ -15,7 +15,9 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
+import { useSlideUpModal } from "@/hooks/useSlideUpModal";
 import { useT } from "@/lib/i18n";
 import type { VenueResult } from "@/hooks/useHubCheckin";
 
@@ -34,18 +36,20 @@ export function SelectVenueModal({
 }: SelectVenueModalProps) {
   const colors = useColors();
   const { t } = useT();
+  const { isMounted, panelStyle } = useSlideUpModal(visible);
 
   return (
     <Modal
-      visible={visible}
+      visible={isMounted}
       transparent
-      animationType="slide"
+      animationType="none"
       statusBarTranslucent
       onRequestClose={onDismiss}
     >
       <Pressable style={styles.backdrop} onPress={onDismiss}>
+        <Animated.View style={panelStyle}>
         {/* Stop tap propagation so tapping the sheet itself doesn't dismiss */}
-        <Pressable style={[styles.sheet, { backgroundColor: colors.card }]}>
+        <Pressable style={[styles.sheet, { backgroundColor: colors.card }]} onPress={() => {}}>
           {/* Drag handle */}
           <View
             style={[styles.handle, { backgroundColor: colors.border }]}
@@ -112,6 +116,7 @@ export function SelectVenueModal({
             </Text>
           </Pressable>
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );

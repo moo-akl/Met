@@ -1,7 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Platform, StyleSheet, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Platform, StyleSheet, View } from "react-native";
+import Animated, {
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+} from "react-native-reanimated";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -48,57 +55,39 @@ function HomeTabIcon({ color }: { color: string }) {
   const showPulse =
     !discoveryDismissed && sessionCount > 0 && sessionCount <= 3;
 
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const opacityAnim = useRef(new Animated.Value(0.6)).current;
+  const scaleAnim = useSharedValue(1);
+  const opacityAnim = useSharedValue(0.6);
 
   useEffect(() => {
-    if (!showPulse) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(scaleAnim, {
-            toValue: 1.7,
-            duration: 900,
-            easing: Easing.out(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacityAnim, {
-            toValue: 0,
-            duration: 900,
-            easing: Easing.out(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(scaleAnim, {
-            toValue: 1,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacityAnim, {
-            toValue: 0.6,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]),
+    if (!showPulse) {
+      cancelAnimation(scaleAnim);
+      cancelAnimation(opacityAnim);
+      scaleAnim.value = 1;
+      opacityAnim.value = 0.6;
+      return;
+    }
+    scaleAnim.value = withRepeat(
+      withSpring(1.7, { damping: 10, stiffness: 60 }),
+      -1,
+      true,
     );
-    loop.start();
-    return () => loop.stop();
+    opacityAnim.value = withRepeat(
+      withSpring(0, { damping: 20, stiffness: 80 }),
+      -1,
+      true,
+    );
   }, [showPulse, scaleAnim, opacityAnim]);
+
+  const pulseAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scaleAnim.value }],
+    opacity: opacityAnim.value,
+  }));
 
   return (
     <View style={styles.tabIconWrap}>
       {showPulse && (
         <Animated.View
-          style={[
-            styles.pulseRing,
-            {
-              borderColor: colors.primary,
-              transform: [{ scale: scaleAnim }],
-              opacity: opacityAnim,
-            },
-          ]}
+          style={[styles.pulseRing, { borderColor: colors.primary }, pulseAnimStyle]}
           pointerEvents="none"
         />
       )}
