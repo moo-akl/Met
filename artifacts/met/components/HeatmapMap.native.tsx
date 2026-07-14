@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   StyleSheet,
@@ -6,7 +6,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import MapView, { Circle, Marker, type Region } from "react-native-maps";
+import MapView, { Circle, Marker, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 import * as Location from "expo-location";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -15,6 +15,16 @@ import {
   type ActiveVenueResult,
   type HeatmapVenueResult,
 } from "@/lib/api/client";
+
+// Refetch heatmap if the map center moved more than ~500 m (~0.005°)
+const SIGNIFICANT_PAN_DEG = 0.005;
+
+function regionMovedSignificantly(a: Region, b: Region): boolean {
+  return (
+    Math.abs(a.latitude - b.latitude) > SIGNIFICANT_PAN_DEG ||
+    Math.abs(a.longitude - b.longitude) > SIGNIFICANT_PAN_DEG
+  );
+}
 
 export interface HeatmapMapProps {
   style?: StyleProp<ViewStyle>;
@@ -114,13 +124,16 @@ function PulsingMarker({
   );
 }
 
-export function HeatmapMap({ style }: HeatmapMapProps) {
+function HeatmapMapInner({ style }: HeatmapMapProps) {
   const { authedUid } = useApp();
   const colors = useColors();
 
   const mapRef = useRef<MapView>(null);
   const [activeVenues, setActiveVenues] = useState<ActiveVenueResult[]>([]);
   const [heatmapVenues, setHeatmapVenues] = useState<HeatmapVenueResult[]>([]);
+  // Tracks the region at which we last fetched heatmap data to avoid
+  // redundant fetches when the user pans only a tiny amount.
+  const lastFetchedRegionRef = useRef<Region | null>(null);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -157,6 +170,20 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
     [authedUid],
   );
 
+  // Fired by MapView after the user finishes panning or zooming. Only
+  // refetches heatmap data if the center moved significantly (> ~500 m)
+  // from the position used for the last fetch — prevents excessive API
+  // calls on every tiny drag.
+  const handleRegionChangeComplete = useCallback(
+    (region: Region) => {
+      const prev = lastFetchedRegionRef.current;
+      if (prev && !regionMovedSignificantly(prev, region)) return;
+      lastFetchedRegionRef.current = region;
+      void fetchHeatmap(region.latitude, region.longitude);
+    },
+    [fetchHeatmap],
+  );
+
   useEffect(() => {
     if (!authedUid) return;
     let cancelled = false;
@@ -168,6 +195,12 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
         if (last && !cancelled) {
           const { latitude, longitude } = last.coords;
           centerOn(latitude, longitude);
+          lastFetchedRegionRef.current = {
+            latitude,
+            longitude,
+            latitudeDelta: 0.015,
+            longitudeDelta: 0.015,
+          };
           void fetchHeatmap(latitude, longitude);
         }
       } catch {}
@@ -182,6 +215,12 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
         if (!cancelled) {
           const { latitude, longitude } = pos.coords;
           centerOn(latitude, longitude);
+          lastFetchedRegionRef.current = {
+            latitude,
+            longitude,
+            latitudeDelta: 0.015,
+            longitudeDelta: 0.015,
+          };
           void fetchHeatmap(latitude, longitude);
         }
       } catch {}
@@ -200,15 +239,11 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
     };
   }, [authedUid, centerOn, fetchActive, fetchHeatmap]);
 
-  return (
-    <MapView
-      ref={mapRef}
-      style={[styles.map, style]}
-      initialRegion={DEFAULT_REGION}
-      showsUserLocation
-      showsMyLocationButton={false}
-    >
-      {heatmapVenues.map((venue) => {
+  // Memoize Circle and Marker children so MapView's child tree is stable
+  // between renders and doesn't trigger unnecessary Google Maps SDK redraws.
+  const heatCircles = useMemo(
+    () =>
+      heatmapVenues.map((venue) => {
         const pop = venue.popularity ?? 0;
         const radius = 20 + (pop / 100) * 80;
         const fillOpacity = pop > 0 ? 0.1 + (pop / 100) * 0.22 : 0.07;
@@ -222,8 +257,13 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
             fillColor={`rgba(110,110,110,${fillOpacity.toFixed(2)})`}
           />
         );
-      })}
-      {activeVenues
+      }),
+    [heatmapVenues],
+  );
+
+  const activeMarkers = useMemo(
+    () =>
+      activeVenues
         .filter((v) => !isNaN(v.lat) && !isNaN(v.lng))
         .map((venue) => (
           <PulsingMarker
@@ -232,10 +272,30 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
             checkinCount={venue.checkinCount}
             primaryColor={colors.primary}
           />
-        ))}
+        )),
+    [activeVenues, colors.primary],
+  );
+
+  return (
+    <MapView
+      ref={mapRef}
+      provider={PROVIDER_GOOGLE}
+      style={[styles.map, style]}
+      initialRegion={DEFAULT_REGION}
+      showsUserLocation
+      showsMyLocationButton={false}
+      onRegionChangeComplete={handleRegionChangeComplete}
+    >
+      {heatCircles}
+      {activeMarkers}
     </MapView>
   );
 }
+
+// React.memo prevents re-renders when the parent re-renders but props are
+// unchanged — critical for HeatmapMap because the Google Maps SDK incurs
+// non-trivial memory and GPU cost on every mount/unmount cycle.
+export const HeatmapMap = React.memo(HeatmapMapInner);
 
 const styles = StyleSheet.create({
   map: {
