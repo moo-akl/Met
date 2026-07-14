@@ -9,11 +9,17 @@
  *   Red    (<100)  — Flagged
  *
  * Pass size="sm" for inline use next to a name, size="md" for profile hero.
+ * Pulses once on mount (scale 1 → 1.12 → 1) via Reanimated withSpring.
  */
 
 import { Feather } from "@expo/vector-icons";
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect } from "react";
+import { StyleSheet, Text } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
 type Tier = "trusted" | "neutral" | "flagged";
 
@@ -43,8 +49,22 @@ export function TrustScoreBadge({ score, size = "sm", showScore = false }: Props
   const cfg = TIER_CONFIG[tier];
   const isSmall = size === "sm";
 
+  const scale = useSharedValue(1);
+
+  // Pulse once on mount to draw the user's eye to their trust tier.
+  useEffect(() => {
+    scale.value = withSpring(1.12, { damping: 6, stiffness: 300 }, () => {
+      scale.value = withSpring(1, { damping: 10, stiffness: 200 });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <View
+    <Animated.View
       style={[
         styles.pill,
         {
@@ -53,6 +73,7 @@ export function TrustScoreBadge({ score, size = "sm", showScore = false }: Props
           paddingVertical: isSmall ? 3 : 5,
           gap: isSmall ? 4 : 5,
         },
+        animStyle,
       ]}
       accessibilityLabel={`Trust score: ${score} — ${cfg.label}`}
       accessibilityRole="text"
@@ -75,7 +96,7 @@ export function TrustScoreBadge({ score, size = "sm", showScore = false }: Props
       >
         {cfg.label}
       </Text>
-    </View>
+    </Animated.View>
   );
 }
 

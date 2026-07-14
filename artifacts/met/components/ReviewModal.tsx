@@ -16,14 +16,68 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
+import { getStarColor } from "@/components/ReputationRadar";
 
 const VIBE_TAG_KEYS = ["kind", "reliable", "open", "funny", "professional"] as const;
 type VibeTagKey = (typeof VIBE_TAG_KEYS)[number];
+
+// Individual animated star — each instance owns its own shared value so the
+// bounce is isolated to the tapped star.
+interface AnimatedStarProps {
+  star: number;
+  value: number;
+  onChange: (v: number) => void;
+}
+
+function AnimatedStar({ star, value, onChange }: AnimatedStarProps) {
+  const colors = useColors();
+  const scale = useSharedValue(1);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePress = () => {
+    scale.value = withSpring(1.4, { damping: 6, stiffness: 300 }, () => {
+      scale.value = withSpring(1, { damping: 8, stiffness: 200 });
+    });
+    onChange(star);
+  };
+
+  const filled = star <= value;
+  // Color all filled stars based on the current selection tier so the whole
+  // row shifts tone as the user sweeps through ratings.
+  const fillColor = value > 0 ? getStarColor(value) : "#F5B700";
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      hitSlop={8}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: filled }}
+      accessibilityLabel={`${star} star${star !== 1 ? "s" : ""}`}
+    >
+      <Animated.View style={animStyle}>
+        <Feather
+          name="star"
+          size={40}
+          color={filled ? fillColor : colors.border}
+          style={{ marginHorizontal: 4 }}
+        />
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 interface StarPickerProps {
   value: number;
@@ -31,25 +85,10 @@ interface StarPickerProps {
 }
 
 function StarPicker({ value, onChange }: StarPickerProps) {
-  const colors = useColors();
   return (
     <View style={styles.starRow}>
       {[1, 2, 3, 4, 5].map((star) => (
-        <Pressable
-          key={star}
-          onPress={() => onChange(star)}
-          hitSlop={8}
-          accessibilityRole="radio"
-          accessibilityState={{ checked: star <= value }}
-          accessibilityLabel={`${star} star${star !== 1 ? "s" : ""}`}
-        >
-          <Feather
-            name="star"
-            size={40}
-            color={star <= value ? "#F5B700" : colors.border}
-            style={{ marginHorizontal: 4 }}
-          />
-        </Pressable>
+        <AnimatedStar key={star} star={star} value={value} onChange={onChange} />
       ))}
     </View>
   );

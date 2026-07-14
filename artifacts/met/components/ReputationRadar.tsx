@@ -28,8 +28,21 @@ interface Props {
   loading?: boolean;
 }
 
+/**
+ * Maps a numeric star rating to a gradient-coded solid color:
+ *   4.5–5   → Gold    (#DAA520 — mid of #FFD700–#DAA520)
+ *   3.5–4.4 → Emerald (#3DAA68 — mid of #50C878–#2E8B57)
+ *   < 3.5   → Amber   (#CD853F — mid of #FFBF00–#CD853F)
+ */
+export function getStarColor(rating: number): string {
+  if (rating >= 4.5) return "#DAA520";
+  if (rating >= 3.5) return "#3DAA68";
+  return "#CD853F";
+}
+
 export function StarDisplay({ rating, size = 20 }: { rating: number; size?: number }) {
   const colors = useColors();
+  const fillColor = getStarColor(rating);
   return (
     <View style={styles.starsRow}>
       {[1, 2, 3, 4, 5].map((star) => {
@@ -43,7 +56,7 @@ export function StarDisplay({ rating, size = 20 }: { rating: number; size?: numb
             >
               {/* Grey background star */}
               <Feather name="star" size={size} color={colors.border} />
-              {/* Gold left half clipped over the grey star */}
+              {/* Gradient-colored left half clipped over the grey star */}
               <View
                 style={{
                   position: "absolute",
@@ -53,7 +66,7 @@ export function StarDisplay({ rating, size = 20 }: { rating: number; size?: numb
                   overflow: "hidden",
                 }}
               >
-                <Feather name="star" size={size} color="#F5B700" />
+                <Feather name="star" size={size} color={fillColor} />
               </View>
             </View>
           );
@@ -63,7 +76,7 @@ export function StarDisplay({ rating, size = 20 }: { rating: number; size?: numb
             key={star}
             name="star"
             size={size}
-            color={filled ? "#F5B700" : colors.border}
+            color={filled ? fillColor : colors.border}
             style={{ marginHorizontal: 1 }}
           />
         );
@@ -103,6 +116,7 @@ export function ReputationRadar({ summary, loading }: Props) {
   const avgRating = summary.averageRating ?? 0;
   const vibeTags = summary.vibeTags ?? {};
   const maxTagCount = Math.max(1, ...Object.values(vibeTags).map((v) => v ?? 0));
+  const ratingColor = getStarColor(avgRating);
 
   return (
     <Animated.View
@@ -127,7 +141,7 @@ export function ReputationRadar({ summary, loading }: Props) {
 
       {/* Star rating display */}
       <View style={styles.ratingRow}>
-        <Text style={[styles.ratingNumber, { color: colors.foreground }]}>
+        <Text style={[styles.ratingNumber, { color: ratingColor }]}>
           {avgRating.toFixed(1)}
         </Text>
         <View style={styles.ratingRight}>
