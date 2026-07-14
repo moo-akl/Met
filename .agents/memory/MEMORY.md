@@ -21,3 +21,4 @@
 - [Photo gate — face detection](photo-gate-face-detection.md) — faceDetector.ts is a stub (MLKit conflict); real gate is server-side Vision API FACE_DETECTION in profilePhoto.ts; fail-open returns faceCount:1.
 - [Android POST_NOTIFICATIONS runtime](android-post-notifications.md) — Android 13+ silently hides foreground-service notification without PermissionsAndroid.request(POST_NOTIFICATIONS) at runtime.
 - [TestFlight duplicate build number crash](testflight-build-number.md) — uploading a new build with the same buildNumber/versionCode as an existing TestFlight build causes a silent native crash; iOS runs the old binary. Always increment before every upload.
+- [Firestore callerIsParticipant legacy fallback](firestore-chat-participant-fallback.md) — callerIsParticipant() in chat rules must guard with 'participants' in resource.data before accessing it; legacy chat docs may lack this field, causing permission-denied on update.

@@ -1187,6 +1187,15 @@ export const en = {
     slide3Title: "Build your social footprint",
     slide3Sub:
       "Every reveal, encounter, and check-in grows your reputation. The more you connect, the stronger your presence.",
+    slide4Title: "Check in & climb the leaderboard",
+    slide4Sub:
+      "Tap into venues around you — cafés, gyms, parks. Check in, earn points, and see where you rank among regulars.",
+    slide5Title: "See where people gather",
+    slide5Sub:
+      "The live heatmap shows you real-time hotspots in your city. Go where the crowd is, or discover quieter spots nearby.",
+    slide6Title: "Your trust score opens doors",
+    slide6Sub:
+      "Every genuine interaction builds your trust score. A higher score unlocks more encounters, reveals, and exclusive features.",
     next: "Next",
     getStarted: "Get started",
     skip: "Skip",

@@ -394,6 +394,269 @@ function ReputationScene({ color }: { color: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Slide 4: Check-in / Places
+// ---------------------------------------------------------------------------
+function CheckinScene({ color }: { color: string }) {
+  const pinScale = useRef(new Animated.Value(0)).current;
+  const pinBounce = useRef(new Animated.Value(0)).current;
+  const ring1 = useRef(new Animated.Value(0)).current;
+  const ring2 = useRef(new Animated.Value(0)).current;
+  const badgeScale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.spring(pinScale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 7 }),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pinBounce, { toValue: -8, duration: 350, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pinBounce, { toValue: 0, duration: 350, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+          Animated.delay(800),
+        ]),
+        { iterations: 3 },
+      ),
+    ]).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(ring1, { toValue: 1, duration: 1200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        ]),
+        Animated.timing(ring1, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    ).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(600),
+        Animated.timing(ring2, { toValue: 1, duration: 1200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        Animated.timing(ring2, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    ).start();
+    setTimeout(() => {
+      Animated.spring(badgeScale, { toValue: 1, useNativeDriver: true, tension: 180, friction: 7 }).start();
+    }, 900);
+    return () => {
+      pinScale.stopAnimation();
+      pinBounce.stopAnimation();
+      ring1.stopAnimation();
+      ring2.stopAnimation();
+      badgeScale.stopAnimation();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <View style={styles.sceneContainer}>
+      {/* Ripple rings */}
+      {[ring1, ring2].map((anim, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: "absolute",
+            width: 130,
+            height: 130,
+            borderRadius: 65,
+            borderWidth: 2,
+            borderColor: color + "50",
+            opacity: anim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0.7, 0] }),
+            transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] }) }],
+          }}
+        />
+      ))}
+      {/* Map pin */}
+      <Animated.View style={{ alignItems: "center", transform: [{ scale: pinScale }, { translateY: pinBounce }] }}>
+        <View style={[styles.checkinPin, { backgroundColor: color }]}>
+          <Feather name="map-pin" size={26} color="#fff" />
+        </View>
+        <View style={[styles.checkinPinTip, { backgroundColor: color }]} />
+      </Animated.View>
+      {/* Points badge */}
+      <Animated.View
+        style={[
+          styles.checkinBadge,
+          { backgroundColor: color, transform: [{ scale: badgeScale }] },
+        ]}
+      >
+        <Text style={styles.checkinBadgeText}>+50 pts</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Slide 5: Heatmap
+// ---------------------------------------------------------------------------
+function HeatmapScene({ color }: { color: string }) {
+  const dots = useMemo(
+    () =>
+      [
+        { x: 60, y: 55, size: 38, opacity: 0.85, delay: 0 },
+        { x: 95, y: 40, size: 28, opacity: 0.65, delay: 120 },
+        { x: 115, y: 70, size: 34, opacity: 0.75, delay: 200 },
+        { x: 75, y: 90, size: 24, opacity: 0.55, delay: 80 },
+        { x: 45, y: 80, size: 20, opacity: 0.45, delay: 160 },
+        { x: 130, y: 50, size: 18, opacity: 0.4, delay: 240 },
+        { x: 50, y: 115, size: 22, opacity: 0.5, delay: 300 },
+        { x: 105, y: 108, size: 30, opacity: 0.6, delay: 180 },
+      ].map((d) => ({ ...d, anim: new Animated.Value(0) })),
+    [],
+  );
+  const pulseAnims = useMemo(() => dots.map(() => new Animated.Value(0.7)), [dots]);
+
+  useEffect(() => {
+    dots.forEach((d, i) => {
+      Animated.sequence([
+        Animated.delay(d.delay),
+        Animated.timing(d.anim, { toValue: 1, duration: 500, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      ]).start();
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(d.delay + 400),
+          Animated.timing(pulseAnims[i], { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pulseAnims[i], { toValue: 0.7, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ]),
+      ).start();
+    });
+    return () => {
+      dots.forEach((d) => d.anim.stopAnimation());
+      pulseAnims.forEach((a) => a.stopAnimation());
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <View style={[styles.heatmapCanvas]}>
+      {/* Grid lines */}
+      {[30, 60, 90, 120].map((y) => (
+        <View key={`h${y}`} style={[styles.heatmapGridLine, { top: y, width: "100%" }]} />
+      ))}
+      {[40, 80, 120].map((x) => (
+        <View key={`v${x}`} style={[styles.heatmapGridLineV, { left: x, height: "100%" }]} />
+      ))}
+      {/* Heat blobs */}
+      {dots.map((d, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: "absolute",
+            left: d.x - d.size / 2,
+            top: d.y - d.size / 2,
+            width: d.size,
+            height: d.size,
+            borderRadius: d.size / 2,
+            backgroundColor: color,
+            opacity: d.anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, d.opacity],
+            }),
+            transform: [
+              {
+                scale: Animated.multiply(
+                  d.anim,
+                  pulseAnims[i],
+                ),
+              },
+            ],
+          }}
+        />
+      ))}
+      {/* "You are here" dot */}
+      <View style={[styles.heatmapYou, { borderColor: color }]}>
+        <View style={[styles.heatmapYouInner, { backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Slide 6: Trust Score
+// ---------------------------------------------------------------------------
+function TrustScene({ color }: { color: string }) {
+  const arcProgress = useRef(new Animated.Value(0)).current;
+  const scoreOpacity = useRef(new Animated.Value(0)).current;
+  const scoreScale = useRef(new Animated.Value(0.5)).current;
+  const badgeScales = useMemo(() => [0, 1, 2].map(() => new Animated.Value(0)), []);
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(arcProgress, { toValue: 1, duration: 1200, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.parallel([
+        Animated.spring(scoreScale, { toValue: 1, useNativeDriver: true, tension: 180, friction: 7 }),
+        Animated.timing(scoreOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]),
+    ]).start(() => {
+      Animated.stagger(150, badgeScales.map((s) =>
+        Animated.spring(s, { toValue: 1, useNativeDriver: true, tension: 200, friction: 7 }),
+      )).start();
+    });
+    return () => {
+      arcProgress.stopAnimation();
+      scoreOpacity.stopAnimation();
+      scoreScale.stopAnimation();
+      badgeScales.forEach((s) => s.stopAnimation());
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const badges = [
+    { label: "Encounters", icon: "users" as const, color: "#60A5FA" },
+    { label: "Reveals", icon: "eye" as const, color: "#34D399" },
+    { label: "Check-ins", icon: "map-pin" as const, color: "#FBBF24" },
+  ];
+
+  return (
+    <View style={styles.sceneContainer}>
+      {/* Arc gauge */}
+      <View style={styles.trustGaugeWrap}>
+        {/* Background track */}
+        <View style={[styles.trustTrack, { borderColor: color + "25" }]} />
+        {/* Filled arc approximation using segments */}
+        {Array.from({ length: 18 }).map((_, i) => {
+          const angle = -200 + i * 22;
+          const filled = arcProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 18],
+          });
+          return (
+            <Animated.View
+              key={i}
+              style={{
+                position: "absolute",
+                width: 6,
+                height: 14,
+                borderRadius: 3,
+                backgroundColor: color,
+                opacity: filled.interpolate({
+                  inputRange: [i - 0.3, i + 0.3],
+                  outputRange: [0, 1],
+                  extrapolate: "clamp",
+                }),
+                transform: [
+                  { rotate: `${angle}deg` },
+                  { translateY: -52 },
+                ],
+              }}
+            />
+          );
+        })}
+        {/* Score number */}
+        <Animated.View style={{ opacity: scoreOpacity, transform: [{ scale: scoreScale }], alignItems: "center" }}>
+          <Text style={[styles.trustScore, { color: color }]}>87</Text>
+          <Text style={[styles.trustLabel, { color: color + "99" }]}>trust score</Text>
+        </Animated.View>
+      </View>
+      {/* Badges */}
+      <View style={styles.trustBadgeRow}>
+        {badges.map((b, i) => (
+          <Animated.View
+            key={b.label}
+            style={[styles.trustBadge, { backgroundColor: b.color + "20", borderColor: b.color + "50", transform: [{ scale: badgeScales[i] }] }]}
+          >
+            <Feather name={b.icon} size={13} color={b.color} />
+            <Text style={[styles.trustBadgeText, { color: b.color }]}>{b.label}</Text>
+          </Animated.View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main ValueTour
 // ---------------------------------------------------------------------------
 interface Props {
@@ -430,6 +693,21 @@ export function ValueTour({ onDone }: Props) {
       titleKey: "valueTour.slide3Title",
       subKey: "valueTour.slide3Sub",
       scene: <ReputationScene color={colors.primary} />,
+    },
+    {
+      titleKey: "valueTour.slide4Title",
+      subKey: "valueTour.slide4Sub",
+      scene: <CheckinScene color={colors.primary} />,
+    },
+    {
+      titleKey: "valueTour.slide5Title",
+      subKey: "valueTour.slide5Sub",
+      scene: <HeatmapScene color={colors.primary} />,
+    },
+    {
+      titleKey: "valueTour.slide6Title",
+      subKey: "valueTour.slide6Sub",
+      scene: <TrustScene color={colors.primary} />,
     },
   ];
 
@@ -652,5 +930,117 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // Slide 4 – Check-in
+  checkinPin: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkinPinTip: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginTop: -6,
+    transform: [{ scaleY: 0.5 }],
+  },
+  checkinBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  checkinBadgeText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+    color: "#fff",
+  },
+
+  // Slide 5 – Heatmap
+  heatmapCanvas: {
+    width: 170,
+    height: 150,
+    borderRadius: 14,
+    backgroundColor: "#0f172a",
+    overflow: "hidden",
+    position: "relative",
+  },
+  heatmapGridLine: {
+    position: "absolute",
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  heatmapGridLineV: {
+    position: "absolute",
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  heatmapYou: {
+    position: "absolute",
+    bottom: 18,
+    right: 22,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  heatmapYouInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+
+  // Slide 6 – Trust Score
+  trustGaugeWrap: {
+    width: 140,
+    height: 140,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  trustTrack: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 8,
+  },
+  trustScore: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 36,
+    textAlign: "center",
+  },
+  trustLabel: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    textAlign: "center",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  trustBadgeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 16,
+  },
+  trustBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  trustBadgeText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 10,
   },
 });

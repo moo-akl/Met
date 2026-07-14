@@ -132,10 +132,12 @@ service cloud.firestore {
 
       // Is the caller one of the two participants stored in the chat doc?
       //
-      // Uses the `participants` array (written at chat creation time) rather
-      // than parsing the chatId with a regex. This is exact — no wildcard
-      // ambiguity — and also handles Apple Sign-In UIDs which contain a
-      // literal dot that regex `.` would treat as "any character".
+      // Primary check: uses the `participants` array written at chat creation.
+      // Fallback: if the doc pre-dates the participants field (legacy chats),
+      // derive the pair from the chatId itself.  chatId = [uidA,uidB].sort()
+      // joined by "_".  We split on the FIRST "_" only to handle UIDs that
+      // contain underscores.  Apple Sign-In UIDs use "." not "_" so they are
+      // safe regardless.
       //
       // NOTE: isVerifiedApp() (App Check) is intentionally omitted here —
       // same pattern as the requests/ subcollection. App Check tokens may
@@ -145,7 +147,12 @@ service cloud.firestore {
       // of the two UIDs stored at chat creation, which is only known after a
       // mutual reveal.
       function callerIsParticipant() {
-        return isAuthed() && request.auth.uid in resource.data.participants;
+        return isAuthed() && (
+          ('participants' in resource.data &&
+           request.auth.uid in resource.data.participants) ||
+          request.auth.uid == chatId.split('_')[0] ||
+          request.auth.uid == chatId.split('_')[1]
+        );
       }
 
       // Ping-pong turn check: true when it's the caller's turn to send.
