@@ -6,7 +6,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import MapView, { Circle, Marker } from "react-native-maps";
+import MapView, { Circle, Marker, type Region } from "react-native-maps";
 import * as Location from "expo-location";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -118,7 +118,7 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
   const { authedUid } = useApp();
   const colors = useColors();
 
-  const [region, setRegion] = useState(DEFAULT_REGION);
+  const mapRef = useRef<MapView>(null);
   const [activeVenues, setActiveVenues] = useState<ActiveVenueResult[]>([]);
   const [heatmapVenues, setHeatmapVenues] = useState<HeatmapVenueResult[]>([]);
 
@@ -128,6 +128,11 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
     return () => {
       mountedRef.current = false;
     };
+  }, []);
+
+  const centerOn = useCallback((latitude: number, longitude: number) => {
+    const r: Region = { latitude, longitude, latitudeDelta: 0.015, longitudeDelta: 0.015 };
+    mapRef.current?.animateToRegion(r, 400);
   }, []);
 
   const fetchActive = useCallback(async () => {
@@ -157,15 +162,17 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
     let cancelled = false;
 
     const init = async () => {
+      // Quick initial center from last known position
       try {
         const last = await Location.getLastKnownPositionAsync();
         if (last && !cancelled) {
           const { latitude, longitude } = last.coords;
-          setRegion({ latitude, longitude, latitudeDelta: 0.015, longitudeDelta: 0.015 });
+          centerOn(latitude, longitude);
           void fetchHeatmap(latitude, longitude);
         }
       } catch {}
 
+      // Then get a fresh accurate position
       try {
         const perm = await Location.getForegroundPermissionsAsync();
         if (perm.status !== "granted" || cancelled) return;
@@ -174,7 +181,7 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
         });
         if (!cancelled) {
           const { latitude, longitude } = pos.coords;
-          setRegion({ latitude, longitude, latitudeDelta: 0.015, longitudeDelta: 0.015 });
+          centerOn(latitude, longitude);
           void fetchHeatmap(latitude, longitude);
         }
       } catch {}
@@ -191,12 +198,13 @@ export function HeatmapMap({ style }: HeatmapMapProps) {
       cancelled = true;
       clearInterval(pollId);
     };
-  }, [authedUid, fetchActive, fetchHeatmap]);
+  }, [authedUid, centerOn, fetchActive, fetchHeatmap]);
 
   return (
     <MapView
+      ref={mapRef}
       style={[styles.map, style]}
-      region={region}
+      initialRegion={DEFAULT_REGION}
       showsUserLocation
       showsMyLocationButton={false}
     >
