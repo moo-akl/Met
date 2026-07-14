@@ -60,7 +60,7 @@ const DISMISS_VELOCITY = 800;
  *
  * The multiplier is capped at 4× to avoid unrealistically instant exits.
  */
-function exitSpringConfig(velocityY: number) {
+export function exitSpringConfig(velocityY: number) {
   if (velocityY <= DISMISS_VELOCITY) {
     return SPRING_OUT;
   }
