@@ -44,6 +44,7 @@ import {
   DISCOVERY_RANGE_METERS,
   loadInteractiveWalkthroughSeen,
   loadProfileBannerDismissed,
+  loadValueTourSeen,
   saveInteractiveWalkthroughSeen,
   saveProfileBannerDismissed,
 } from "@/lib/storage";
@@ -124,8 +125,10 @@ export default function HomeScreen() {
   const [walkthroughTarget, setWalkthroughTarget] = useState<TargetRect | null>(null);
 
   useEffect(() => {
-    loadInteractiveWalkthroughSeen()
-      .then((seen) => { if (!seen) setWalkthroughStep(1); })
+    Promise.all([loadValueTourSeen(), loadInteractiveWalkthroughSeen()])
+      .then(([tourSeen, walkthroughSeen]) => {
+        if (tourSeen && !walkthroughSeen) setWalkthroughStep(1);
+      })
       .catch(() => {});
   }, []);
 
@@ -676,6 +679,7 @@ export default function HomeScreen() {
               { backgroundColor: colors.card, borderColor: colors.border },
             ]}
             accessibilityRole="button"
+            onPress={() => Alert.alert(t("home.checkInCta"), t("walkthrough.step1"))}
           >
             <Feather name="map-pin" size={14} color={colors.mutedForeground} />
             <Text style={[styles.checkinCtaText, { color: colors.mutedForeground }]}>
