@@ -192,3 +192,79 @@ describe("panGesture onEnd — dismiss / snap-back decision", () => {
     expect(withSpring).not.toHaveBeenCalledWith(0, expect.anything());
   });
 });
+
+/**
+ * Tests for the panGesture onFinalize snap-back handler.
+ *
+ * onFinalize fires after every gesture attempt (including ones where onEnd
+ * never fires — e.g. the gesture was cancelled by an incoming call or stolen
+ * by a parent handler).  Three branches:
+ *   1. cancelled (success=false) + dragY ≠ 0  → spring dragY back to 0
+ *   2. cancelled (success=false) + dragY = 0  → no-op (no withSpring call)
+ *   3. completed normally (success=true)       → onFinalize leaves dragY alone
+ */
+describe("panGesture onFinalize — cancelled gesture snap-back", () => {
+  const SPRING_IN = { damping: 20, stiffness: 220 };
+
+  let dragYSv: { value: number };
+  let onFinalizeCb: (e: object, success: boolean) => void;
+
+  beforeAll(() => {
+    // Reset the useSharedValue mock so we get fresh shared-value instances.
+    let svCount = 0;
+    (useSharedValue as jest.Mock).mockImplementation((initial: number) => {
+      const sv = { value: initial };
+      // Hook creates: index 0 → translateY, index 1 → dragY
+      if (svCount === 1) dragYSv = sv;
+      svCount++;
+      return sv;
+    });
+
+    // Capture the onFinalize callback.
+    let capturedCb: ((e: object, success: boolean) => void) | null = null;
+    (Gesture.Pan as jest.Mock).mockImplementationOnce(() => {
+      const pan: any = {};
+      pan.activeOffsetY = jest.fn(() => pan);
+      pan.failOffsetY = jest.fn(() => pan);
+      pan.onUpdate = jest.fn(() => pan);
+      pan.onEnd = jest.fn(() => pan);
+      pan.onFinalize = jest.fn((cb: (e: object, success: boolean) => void) => {
+        capturedCb = cb;
+        return pan;
+      });
+      return pan;
+    });
+
+    useSlideUpModal(false, jest.fn());
+
+    if (!dragYSv!) throw new Error("dragY shared-value was not captured");
+    if (!capturedCb) throw new Error("onFinalize callback was not registered");
+    onFinalizeCb = capturedCb;
+  });
+
+  beforeEach(() => {
+    (withSpring as jest.Mock).mockClear();
+  });
+
+  it("springs dragY back to 0 when gesture is cancelled and dragY is non-zero", () => {
+    dragYSv.value = 80;
+    onFinalizeCb({}, false);
+
+    expect(withSpring).toHaveBeenCalledTimes(1);
+    expect(withSpring).toHaveBeenCalledWith(0, SPRING_IN);
+  });
+
+  it("does not call withSpring when gesture is cancelled but dragY is already 0", () => {
+    dragYSv.value = 0;
+    onFinalizeCb({}, false);
+
+    expect(withSpring).not.toHaveBeenCalled();
+  });
+
+  it("does not touch dragY when the gesture completed normally (success=true)", () => {
+    dragYSv.value = 60;
+    onFinalizeCb({}, true);
+
+    expect(withSpring).not.toHaveBeenCalled();
+  });
+});
