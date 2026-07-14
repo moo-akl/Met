@@ -92,6 +92,7 @@
     "geofire-common": "^6.0.0",
     "i18n-js": "^4.5.3",
     "react-native-ble-plx": "^3.5.1",
+    "react-native-maps": "^1.29.0",
     "react-native-purchases": "9.7.2",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-tiktok-business-sdk": "^1.6.2",

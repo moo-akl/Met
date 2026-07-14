@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
+import { HeatmapMap } from "@/components/HeatmapMap";
 import { HubStatusBadge } from "@/components/HubStatusBadge";
 import { Avatar } from "@/components/Avatar";
 import { GridOverlay } from "@/components/GridOverlay";
@@ -124,6 +125,7 @@ export default function HomeScreen() {
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const unreadChatCount = useUnreadChatCount();
   const [requestsOpen, setRequestsOpen] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
 
   // Tick every 60 s so the "today" window slides forward without needing a
@@ -552,6 +554,45 @@ export default function HomeScreen() {
             </>
           )}
         </View>
+
+        <Pressable
+          onPress={() => setShowMap((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={showMap ? "Hide density map" : "Show density map"}
+          style={({ pressed }) => [
+            styles.mapToggle,
+            {
+              backgroundColor: showMap ? colors.primary : colors.card,
+              borderColor: showMap ? colors.primary : colors.border,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <Feather
+            name="map"
+            size={14}
+            color={showMap ? "#ffffff" : colors.mutedForeground}
+          />
+          <Text
+            style={[
+              styles.mapToggleText,
+              { color: showMap ? "#ffffff" : colors.mutedForeground },
+            ]}
+          >
+            {showMap ? "Hide map" : "Density map"}
+          </Text>
+        </Pressable>
+
+        {showMap ? (
+          <View
+            style={[
+              styles.heatmapSection,
+              { borderColor: colors.border },
+            ]}
+          >
+            <HeatmapMap style={{ flex: 1 }} />
+          </View>
+        ) : null}
 
         <View style={styles.statsRow}>
           <StatCard
@@ -1208,5 +1249,28 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     marginTop: 1,
+  },
+  mapToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: 16,
+  },
+  mapToggleText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+  },
+  heatmapSection: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    height: 300,
   },
 });

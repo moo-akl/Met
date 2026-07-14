@@ -60,6 +60,10 @@ interface PlacesResult {
   displayName: string;
   /** Straight-line distance from the queried point (haversine, rounded to m). */
   distanceM: number;
+  /** WGS-84 latitude of the place centroid (from Google Places API). */
+  lat: number;
+  /** WGS-84 longitude of the place centroid (from Google Places API). */
+  lng: number;
 }
 
 /** Haversine great-circle distance in metres between two WGS-84 coordinates. */
@@ -96,13 +100,14 @@ const INCLUDED_PLACE_TYPES = [
 
 /**
  * Calls Google Places Nearby Search (New) API to return up to `maxResults`
- * venues within 50 m of the given coordinates, ordered by distance.
+ * venues within `radiusM` metres of the given coordinates, ordered by distance.
  * Returns an empty array if none are found or if the API key is not set.
  */
 async function findNearbyPlaces(
   lat: number,
   lng: number,
   maxResults = 5,
+  radiusM = 50,
 ): Promise<PlacesResult[]> {
   const apiKey = process.env["GOOGLE_API_KEY"];
   if (!apiKey) {
@@ -126,7 +131,7 @@ async function findNearbyPlaces(
           locationRestriction: {
             circle: {
               center: { latitude: lat, longitude: lng },
-              radius: 50,
+              radius: radiusM,
             },
           },
           rankPreference: "DISTANCE",
@@ -152,14 +157,23 @@ async function findNearbyPlaces(
     };
 
     return (data.places ?? [])
-      .filter((p) => !!p.id)
+      .filter(
+        (p) =>
+          !!p.id &&
+          p.location?.latitude != null &&
+          p.location?.longitude != null,
+      )
       .map((p) => ({
         placeId: p.id!,
         displayName: p.displayName?.text ?? "Unknown place",
-        distanceM:
-          p.location?.latitude != null && p.location?.longitude != null
-            ? haversineMeters(lat, lng, p.location.latitude, p.location.longitude)
-            : 0,
+        distanceM: haversineMeters(
+          lat,
+          lng,
+          p.location!.latitude!,
+          p.location!.longitude!,
+        ),
+        lat: p.location!.latitude!,
+        lng: p.location!.longitude!,
       }));
   } catch (err) {
     logger.warn(
@@ -167,6 +181,35 @@ async function findNearbyPlaces(
       "Google Places API request failed",
     );
     return [];
+  }
+}
+
+/**
+ * Fetches the currentPopularity integer (0–100) from the Google Places
+ * Details (New) API. Returns null when the API key is absent, the request
+ * fails, or the field is not available for this place (most venues do not
+ * have live popularity data — the UI falls back to a static ring in that case).
+ */
+async function fetchPlacePopularity(placeId: string): Promise<number | null> {
+  const apiKey = process.env["GOOGLE_API_KEY"];
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(
+      `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`,
+      {
+        headers: {
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": "currentPopularity",
+        },
+      },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { currentPopularity?: number };
+    return typeof data.currentPopularity === "number"
+      ? data.currentPopularity
+      : null;
+  } catch {
+    return null;
   }
 }
 
@@ -396,6 +439,107 @@ router.get(
     }
 
     res.json({ venues });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/hubs/active
+// Returns distinct venues with at least one check-in in the last 30 minutes,
+// grouped by place. lat/lng are the average GPS coordinates of those check-ins
+// (all within 50 m of the same venue, so the average is a good centroid).
+// Used by HeatmapMap to render the real-time "people here now" pulsing layer.
+// NOTE: registered before GET /hubs/:placeId/leaderboard to avoid Express
+// matching "active" as a :placeId param.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/hubs/active",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+    const rows = await db
+      .select({
+        placeId: hubCheckinsTable.placeId,
+        placeName: hubCheckinsTable.placeName,
+        lat: sql<string>`AVG(CAST(${hubCheckinsTable.lat} AS FLOAT8))`,
+        lng: sql<string>`AVG(CAST(${hubCheckinsTable.lng} AS FLOAT8))`,
+        checkinCount: count(hubCheckinsTable.id),
+      })
+      .from(hubCheckinsTable)
+      .where(
+        and(
+          gte(hubCheckinsTable.createdAt, thirtyMinsAgo),
+          isNotNull(hubCheckinsTable.lat),
+          isNotNull(hubCheckinsTable.lng),
+        ),
+      )
+      .groupBy(hubCheckinsTable.placeId, hubCheckinsTable.placeName)
+      .orderBy(desc(count(hubCheckinsTable.id)))
+      .limit(50);
+
+    res.json({
+      venues: rows.map((r) => ({
+        placeId: r.placeId,
+        placeName: r.placeName ?? "Unknown place",
+        lat: Number(r.lat),
+        lng: Number(r.lng),
+        checkinCount: Number(r.checkinCount),
+      })),
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/hubs/heatmap?lat=&lng=&radius=
+// Returns nearby venues (within radius metres, default 1 000 m, max 5 000 m)
+// with Google Places currentPopularity data for the density heat-circle layer.
+// popularity is null when Google Places has no live data for a venue (common —
+// only high-traffic venues tend to have currentPopularity; the UI renders a
+// small static ring as a fallback in that case).
+// NOTE: registered before GET /hubs/:placeId/leaderboard.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/hubs/heatmap",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const lat = parseFloat(String(req.query["lat"]));
+    const lng = parseFloat(String(req.query["lng"]));
+    const radiusM = Math.min(
+      5_000,
+      Math.max(50, parseInt(String(req.query["radius"] ?? "1000"), 10) || 1_000),
+    );
+
+    if (
+      isNaN(lat) ||
+      isNaN(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      res
+        .status(400)
+        .json({ message: "lat and lng query params are required (valid numbers)" });
+      return;
+    }
+
+    const venues = await findNearbyPlaces(lat, lng, 20, radiusM);
+
+    // Fetch popularity for all venues in parallel — failures return null.
+    const withPopularity = await Promise.all(
+      venues.map(async (v) => ({
+        placeId: v.placeId,
+        displayName: v.displayName,
+        lat: v.lat,
+        lng: v.lng,
+        distanceM: v.distanceM,
+        popularity: await fetchPlacePopularity(v.placeId),
+      })),
+    );
+
+    res.json({ venues: withPopularity });
   },
 );
 

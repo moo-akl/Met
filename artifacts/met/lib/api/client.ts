@@ -106,6 +106,26 @@ export interface VenueResult {
   distanceM: number;
 }
 
+/** A venue returned by GET /api/hubs/active (check-ins in the last 30 min). */
+export interface ActiveVenueResult {
+  placeId: string;
+  placeName: string;
+  lat: number;
+  lng: number;
+  checkinCount: number;
+}
+
+/** A venue returned by GET /api/hubs/heatmap (nearby places with popularity). */
+export interface HeatmapVenueResult {
+  placeId: string;
+  displayName: string;
+  lat: number;
+  lng: number;
+  distanceM: number;
+  /** Google Places current_popularity (0–100), null when not available. */
+  popularity: number | null;
+}
+
 async function request<T>(
   method: "GET" | "PUT" | "POST" | "DELETE" | "PATCH",
   path: string,
@@ -684,4 +704,31 @@ export const api = {
       opts,
       prefs,
     ),
+  /**
+   * Returns all venues that have had at least one Met check-in in the last
+   * 30 minutes. Used by HeatmapMap to render the real-time "people here now"
+   * pulsing dot layer.
+   */
+  hubActive: (opts: ApiOptions) =>
+    request<{ venues: ActiveVenueResult[] }>("GET", "/api/hubs/active", opts),
+  /**
+   * Returns nearby venues (within `radius` metres, default 1 000 m) with
+   * Google Places current_popularity data for the density heat layer.
+   * popularity is null for venues that have no live data from Google.
+   */
+  hubHeatmap: (
+    opts: ApiOptions,
+    input: { lat: number; lng: number; radius?: number },
+  ) => {
+    const params = new URLSearchParams({
+      lat: String(input.lat),
+      lng: String(input.lng),
+    });
+    if (input.radius !== undefined) params.set("radius", String(input.radius));
+    return request<{ venues: HeatmapVenueResult[] }>(
+      "GET",
+      `/api/hubs/heatmap?${params.toString()}`,
+      opts,
+    );
+  },
 };
