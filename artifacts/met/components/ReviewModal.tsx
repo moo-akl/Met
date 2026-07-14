@@ -107,7 +107,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
   const colors = useColors();
   const { t } = useT();
   const { authedUid } = useApp();
-  const { isMounted, panelStyle } = useSlideUpModal(visible);
+  const { isMounted, panelStyle, backdropStyle } = useSlideUpModal(visible);
 
   const [starRating, setStarRating] = useState(0);
   const [selectedTags, setSelectedTags] = useState<Set<VibeTagKey>>(new Set());
@@ -161,6 +161,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
       statusBarTranslucent
       onRequestClose={handleSkip}
     >
+      <Animated.View style={[styles.backdropWrapper, backdropStyle]}>
       <Pressable style={styles.backdrop} onPress={handleSkip}>
         <Animated.View style={panelStyle}>
         <Pressable
@@ -284,11 +285,15 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
         </Pressable>
         </Animated.View>
       </Pressable>
+      </Animated.View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  backdropWrapper: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",

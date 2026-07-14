@@ -36,7 +36,7 @@ export function SelectVenueModal({
 }: SelectVenueModalProps) {
   const colors = useColors();
   const { t } = useT();
-  const { isMounted, panelStyle } = useSlideUpModal(visible);
+  const { isMounted, panelStyle, backdropStyle } = useSlideUpModal(visible);
 
   return (
     <Modal
@@ -46,6 +46,7 @@ export function SelectVenueModal({
       statusBarTranslucent
       onRequestClose={onDismiss}
     >
+      <Animated.View style={[styles.backdropWrapper, backdropStyle]}>
       <Pressable style={styles.backdrop} onPress={onDismiss}>
         <Animated.View style={panelStyle}>
         {/* Stop tap propagation so tapping the sheet itself doesn't dismiss */}
@@ -118,11 +119,15 @@ export function SelectVenueModal({
         </Pressable>
         </Animated.View>
       </Pressable>
+      </Animated.View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  backdropWrapper: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",

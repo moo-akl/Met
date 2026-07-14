@@ -6,16 +6,23 @@
  * mounted until the exit spring fully completes — preventing the sheet from
  * disappearing before the slide-down animation finishes.
  *
+ * The `backdropStyle` animates opacity in sync with the panel position so the
+ * semi-transparent backdrop fades in/out smoothly instead of snapping.
+ *
  * Usage:
- *   const { isMounted, panelStyle } = useSlideUpModal(visible);
+ *   const { isMounted, panelStyle, backdropStyle } = useSlideUpModal(visible);
  *   <Modal visible={isMounted} animationType="none" ...>
- *     ...
- *     <Animated.View style={[styles.sheet, panelStyle]}>...</Animated.View>
+ *     <Animated.View style={[{ flex: 1 }, backdropStyle]}>
+ *       ...
+ *       <Animated.View style={[styles.sheet, panelStyle]}>...</Animated.View>
+ *     </Animated.View>
  *   </Modal>
  */
 
 import { useEffect, useState } from "react";
 import {
+  Extrapolation,
+  interpolate,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -51,5 +58,16 @@ export function useSlideUpModal(visible: boolean) {
     transform: [{ translateY: translateY.value }],
   }));
 
-  return { isMounted, panelStyle };
+  // Opacity derived directly from panel position so backdrop fade is always
+  // in sync with the sheet spring — no extra shared value or timer needed.
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      translateY.value,
+      [0, PANEL_OFFSCREEN],
+      [1, 0],
+      Extrapolation.CLAMP,
+    ),
+  }));
+
+  return { isMounted, panelStyle, backdropStyle };
 }

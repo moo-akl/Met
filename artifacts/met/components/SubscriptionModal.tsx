@@ -50,7 +50,7 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
   const colors = useColors();
   const router = useRouter();
   const { t } = useT();
-  const { isMounted, panelStyle } = useSlideUpModal(visible);
+  const { isMounted, panelStyle, backdropStyle } = useSlideUpModal(visible);
 
   const handleUpgrade = () => {
     onDismiss();
@@ -65,6 +65,7 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
       statusBarTranslucent
       onRequestClose={onDismiss}
     >
+      <Animated.View style={[styles.backdropWrapper, backdropStyle]}>
       <Pressable style={styles.backdrop} onPress={onDismiss}>
         <Animated.View style={panelStyle}>
         <Pressable
@@ -174,6 +175,7 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
         </Pressable>
         </Animated.View>
       </Pressable>
+      </Animated.View>
     </Modal>
   );
 }
@@ -210,6 +212,9 @@ function FeatureRow({
 }
 
 const styles = StyleSheet.create({
+  backdropWrapper: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",

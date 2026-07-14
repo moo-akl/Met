@@ -41,7 +41,7 @@ export function ActionSheet({
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
-  const { isMounted, panelStyle } = useSlideUpModal(visible);
+  const { isMounted, panelStyle, backdropStyle } = useSlideUpModal(visible);
 
   return (
     <Modal
@@ -50,6 +50,7 @@ export function ActionSheet({
       animationType="none"
       onRequestClose={onClose}
     >
+      <Animated.View style={[styles.backdropWrapper, backdropStyle]}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Animated.View style={panelStyle}>
         <Pressable
@@ -132,11 +133,15 @@ export function ActionSheet({
         </Pressable>
         </Animated.View>
       </Pressable>
+      </Animated.View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  backdropWrapper: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
