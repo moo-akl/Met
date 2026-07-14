@@ -119,6 +119,7 @@ export const zh: LocaleTree = {
     profileBannerNoSocials: "请至少添加一个社交链接，方便他人与你联系。",
     profileBannerBoth: "请上传一张清晰的正脸照片，并至少添加一个社交链接，方便他人与你联系。",
     profileBannerCta: "设置资料 →",
+    checkInCta: "附近签到",
   },
 
   visibility: {

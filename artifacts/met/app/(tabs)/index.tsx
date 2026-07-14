@@ -117,6 +117,7 @@ export default function HomeScreen() {
     saveProfileBannerDismissed(authedUid, false).catch(() => {});
   }, [profileIncomplete, authedUid, profile]);
 
+  const checkinBtnRef = useRef<View>(null);
   const hubBadgeRef = useRef<View>(null);
   const radarRef = useRef<View>(null);
   const [walkthroughStep, setWalkthroughStep] = useState<0 | 1 | 2 | 3>(0);
@@ -130,7 +131,10 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (walkthroughStep === 0) return;
-    const targetRef = walkthroughStep === 3 ? radarRef : hubBadgeRef;
+    const targetRef =
+      walkthroughStep === 1 ? checkinBtnRef :
+      walkthroughStep === 3 ? radarRef :
+      hubBadgeRef;
     setWalkthroughTarget(null);
     const timer = setTimeout(() => {
       targetRef.current?.measureInWindow((x, y, width, height) => {
@@ -663,6 +667,21 @@ export default function HomeScreen() {
             colors={colors}
             onPress={() => setRequestsOpen(true)}
           />
+        </View>
+
+        <View ref={checkinBtnRef} style={styles.checkinCtaWrapper}>
+          <Pressable
+            style={[
+              styles.checkinCta,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            accessibilityRole="button"
+          >
+            <Feather name="map-pin" size={14} color={colors.mutedForeground} />
+            <Text style={[styles.checkinCtaText, { color: colors.mutedForeground }]}>
+              {t("home.checkInCta")}
+            </Text>
+          </Pressable>
         </View>
 
         <View ref={hubBadgeRef}>
@@ -1326,6 +1345,24 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   mapToggleText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+  },
+  checkinCtaWrapper: {
+    marginHorizontal: 20,
+    marginTop: 12,
+  },
+  checkinCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  checkinCtaText: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 13,
   },

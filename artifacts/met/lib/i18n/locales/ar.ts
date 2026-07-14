@@ -126,6 +126,7 @@ export const ar: LocaleTree = {
     profileBannerNoSocials: "أضف رابطًا اجتماعيًا واحدًا على الأقل حتى يتمكن الآخرون من التواصل معك.",
     profileBannerBoth: "أضف صورة تُظهر وجهك بوضوح ورابطًا اجتماعيًا واحدًا على الأقل حتى يتمكن الآخرون من التواصل معك.",
     profileBannerCta: "إعداد الملف الشخصي →",
+    checkInCta: "سجّل حضورك",
   },
 
   visibility: {

@@ -125,6 +125,7 @@ export const ru: LocaleTree = {
     profileBannerNoSocials: "Добавь хотя бы одну ссылку на соцсеть, чтобы люди могли с тобой связаться.",
     profileBannerBoth: "Загрузи фото с лицом и добавь хотя бы одну ссылку на соцсеть, чтобы люди могли с тобой связаться.",
     profileBannerCta: "Настроить профиль →",
+    checkInCta: "Отметиться",
   },
 
   visibility: {

@@ -123,6 +123,7 @@ export const es: LocaleTree = {
     profileBannerNoSocials: "Añade al menos un enlace social para que la gente pueda conectar contigo.",
     profileBannerBoth: "Añade una foto donde se vea tu cara y al menos un enlace social para que la gente pueda conectar contigo.",
     profileBannerCta: "Configurar perfil →",
+    checkInCta: "Hacer check-in",
   },
 
   visibility: {

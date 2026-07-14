@@ -126,6 +126,7 @@ export const en = {
     profileBannerNoSocials: "Add at least one social link so people can connect with you.",
     profileBannerBoth: "Add a photo that shows your face clearly and at least one social link so people can connect with you.",
     profileBannerCta: "Set up profile →",
+    checkInCta: "Check in nearby",
   },
 
   visibility: {

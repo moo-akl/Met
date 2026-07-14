@@ -125,6 +125,7 @@ export const nl: LocaleTree = {
     profileBannerNoSocials: "Voeg minimaal één sociale link toe zodat mensen contact met je kunnen opnemen.",
     profileBannerBoth: "Voeg een foto met je gezicht en minimaal één sociale link toe zodat mensen contact met je kunnen opnemen.",
     profileBannerCta: "Profiel instellen →",
+    checkInCta: "Inchecken",
   },
 
   visibility: {

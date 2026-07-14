@@ -125,6 +125,7 @@ export const fr: LocaleTree = {
     profileBannerNoSocials: "Ajoute au moins un lien social pour que les gens puissent te contacter.",
     profileBannerBoth: "Ajoute une photo de ton visage et au moins un lien social pour que les gens puissent te contacter.",
     profileBannerCta: "Configurer le profil →",
+    checkInCta: "S'enregistrer",
   },
 
   visibility: {

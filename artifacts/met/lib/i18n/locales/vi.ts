@@ -125,6 +125,7 @@ export const vi: LocaleTree = {
     profileBannerNoSocials: "Thêm ít nhất một liên kết mạng xã hội để mọi người có thể kết nối với bạn.",
     profileBannerBoth: "Thêm ảnh khuôn mặt rõ ràng và ít nhất một liên kết mạng xã hội để mọi người có thể kết nối với bạn.",
     profileBannerCta: "Thiết lập hồ sơ →",
+    checkInCta: "Check-in gần đây",
   },
 
   visibility: {
