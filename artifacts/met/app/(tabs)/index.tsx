@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "@/components/MetGradient";
 import { useRouter } from "expo-router";
 import * as Updates from "expo-updates";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -42,10 +42,13 @@ import {
 } from "@/lib/i18n";
 import {
   DISCOVERY_RANGE_METERS,
+  loadInteractiveWalkthroughSeen,
   loadProfileBannerDismissed,
+  saveInteractiveWalkthroughSeen,
   saveProfileBannerDismissed,
 } from "@/lib/storage";
 import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
+import { WalkthroughOverlay, type TargetRect } from "@/components/WalkthroughOverlay";
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -113,6 +116,48 @@ export default function HomeScreen() {
     setProfileBannerDismissed(false);
     saveProfileBannerDismissed(authedUid, false).catch(() => {});
   }, [profileIncomplete, authedUid, profile]);
+
+  const hubBadgeRef = useRef<View>(null);
+  const radarRef = useRef<View>(null);
+  const [walkthroughStep, setWalkthroughStep] = useState<0 | 1 | 2 | 3>(0);
+  const [walkthroughTarget, setWalkthroughTarget] = useState<TargetRect | null>(null);
+
+  useEffect(() => {
+    loadInteractiveWalkthroughSeen()
+      .then((seen) => { if (!seen) setWalkthroughStep(1); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (walkthroughStep === 0) return;
+    const targetRef = walkthroughStep === 3 ? radarRef : hubBadgeRef;
+    setWalkthroughTarget(null);
+    const timer = setTimeout(() => {
+      targetRef.current?.measureInWindow((x, y, width, height) => {
+        if (width > 0 && height > 0) {
+          setWalkthroughTarget({ x, y, width, height });
+        }
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [walkthroughStep]);
+
+  const handleWalkthroughNext = useCallback(() => {
+    if (walkthroughStep >= 3) {
+      setWalkthroughStep(0);
+      setWalkthroughTarget(null);
+      saveInteractiveWalkthroughSeen().catch(() => {});
+    } else {
+      setWalkthroughStep((s) => (s + 1) as 1 | 2 | 3);
+    }
+  }, [walkthroughStep]);
+
+  const handleWalkthroughSkip = useCallback(() => {
+    setWalkthroughStep(0);
+    setWalkthroughTarget(null);
+    saveInteractiveWalkthroughSeen().catch(() => {});
+  }, []);
+
   const blips = useMemo<RadarBlip[]>(
     () =>
       encounters.slice(0, 6).map((e, i) => ({
@@ -467,7 +512,9 @@ export default function HomeScreen() {
           {/* Radar glow orb */}
           <View style={[styles.radarGlow, { shadowColor: colors.primary }]} pointerEvents="none" />
 
-          <RadarView size={220} blips={blips} />
+          <View ref={radarRef}>
+            <RadarView size={220} blips={blips} />
+          </View>
 
           <View style={styles.beaconLabelRow}>
             {isVisible ? (
@@ -618,7 +665,9 @@ export default function HomeScreen() {
           />
         </View>
 
-        <HubStatusBadge />
+        <View ref={hubBadgeRef}>
+          <HubStatusBadge />
+        </View>
 
         <View
           style={[
@@ -858,6 +907,21 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+      <WalkthroughOverlay
+        visible={walkthroughStep > 0}
+        step={(walkthroughStep || 1) as 1 | 2 | 3}
+        targetRect={walkthroughTarget}
+        stepText={
+          walkthroughStep === 1
+            ? t("walkthrough.step1")
+            : walkthroughStep === 2
+              ? t("walkthrough.step2")
+              : t("walkthrough.step3")
+        }
+        isLastStep={walkthroughStep === 3}
+        onNext={handleWalkthroughNext}
+        onSkip={handleWalkthroughSkip}
+      />
     </View>
   );
 }

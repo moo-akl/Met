@@ -1188,5 +1188,14 @@ export const pt: LocaleTree = {
     hubTooltip: "Toca para competir!",
   },
 
+  walkthrough: {
+    step1: "Toque aqui para fazer check-in num Hub próximo",
+    step2: "Toque para ver quem está liderando aqui",
+    step3: "Seu Radar — pessoas próximas aparecem como pontos aqui",
+    next: "Próximo",
+    gotIt: "Entendi",
+    skip: "Saltar",
+  },
+
   interestLabels: interestLocales.pt,
 };

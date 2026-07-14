@@ -1190,5 +1190,14 @@ export const nl: LocaleTree = {
     hubTooltip: "Tik om te concurreren!",
   },
 
+  walkthrough: {
+    step1: "Tik hier om in te checken bij een Hub in de buurt",
+    step2: "Tik om te zien wie hier aan de leiding staat",
+    step3: "Jouw Radar — mensen in de buurt verschijnen als stippen hier",
+    next: "Volgende",
+    gotIt: "Begrepen",
+    skip: "Overslaan",
+  },
+
   interestLabels: interestLocales.nl,
 };

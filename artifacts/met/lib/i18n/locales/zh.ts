@@ -1143,5 +1143,14 @@ export const zh: LocaleTree = {
     hubTooltip: "点击参与竞争！",
   },
 
+  walkthrough: {
+    step1: "点击此处在附近的 Hub 签到",
+    step2: "点击查看谁在这里领先",
+    step3: "你的雷达 — 附近的人会以点的形式出现在这里",
+    next: "下一步",
+    gotIt: "明白了",
+    skip: "跳过",
+  },
+
   interestLabels: interestLocales.zh,
 };

@@ -1191,5 +1191,14 @@ export const ar: LocaleTree = {
     hubTooltip: "اضغط للتنافس!",
   },
 
+  walkthrough: {
+    step1: "اضغط هنا للتسجيل في أقرب مكان",
+    step2: "اضغط لترى من يتصدر هذا المكان",
+    step3: "رادارك — يظهر الأشخاص القريبون كنقاط هنا",
+    next: "التالي",
+    gotIt: "فهمت",
+    skip: "تخطى",
+  },
+
   interestLabels: interestLocales.ar,
 };

@@ -1198,5 +1198,14 @@ export const fr: LocaleTree = {
     hubTooltip: "Appuie pour rivaliser !",
   },
 
+  walkthrough: {
+    step1: "Appuie ici pour t'enregistrer dans un Hub à proximité",
+    step2: "Appuie pour voir qui est en tête ici",
+    step3: "Ton Radar — les personnes proches apparaissent comme des points ici",
+    next: "Suivant",
+    gotIt: "Compris",
+    skip: "Passer",
+  },
+
   interestLabels: interestLocales.fr,
 };

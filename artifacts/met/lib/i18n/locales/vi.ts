@@ -1190,5 +1190,14 @@ export const vi: LocaleTree = {
     hubTooltip: "Nhấn để cạnh tranh!",
   },
 
+  walkthrough: {
+    step1: "Nhấn vào đây để check-in tại Hub gần nhất",
+    step2: "Nhấn để xem ai đang dẫn đầu ở địa điểm này",
+    step3: "Radar của bạn — những người ở gần xuất hiện dưới dạng điểm ở đây",
+    next: "Tiếp theo",
+    gotIt: "Hiểu rồi",
+    skip: "Bỏ qua",
+  },
+
   interestLabels: interestLocales.vi,
 };

@@ -1191,6 +1191,15 @@ export const en = {
     skip: "Skip",
     hubTooltip: "Tap to compete!",
   },
+
+  walkthrough: {
+    step1: "Tap here to check in to a nearby Hub",
+    step2: "Tap to see who's leading at this spot",
+    step3: "Your Radar — nearby people appear as blips here",
+    next: "Next",
+    gotIt: "Got it",
+    skip: "Skip",
+  },
 };
 
 // We use a deep-partial type for non-en locales so they can omit any key
