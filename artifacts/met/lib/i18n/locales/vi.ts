@@ -1185,6 +1185,15 @@ export const vi: LocaleTree = {
     slide3Title: "Cạnh tranh tại những địa điểm yêu thích",
     slide3Sub:
       "Check in tại quán cà phê, phòng gym và địa điểm để leo lên bảng xếp hạng địa phương. Xuất hiện nhiều hơn — thăng hạng cao hơn.",
+    slide4Title: "Check in và leo bảng xếp hạng",
+    slide4Sub:
+      "Khám phá các địa điểm quanh bạn — quán cà phê, phòng gym, công viên. Check in, kiếm điểm và xem vị trí của bạn trong số khách hàng thường xuyên.",
+    slide5Title: "Xem nơi mọi người tụ tập",
+    slide5Sub:
+      "Bản đồ nhiệt trực tiếp cho bạn thấy các điểm nóng trong thành phố theo thời gian thực. Đến nơi đông người hoặc khám phá những nơi yên tĩnh gần đó.",
+    slide6Title: "Điểm tin cậy mở ra cơ hội",
+    slide6Sub:
+      "Mỗi tương tác chân thành xây dựng điểm tin cậy của bạn. Điểm cao hơn mở khóa nhiều cuộc gặp gỡ, tiết lộ và tính năng độc quyền hơn.",
     next: "Tiếp theo",
     getStarted: "Bắt đầu",
     skip: "Bỏ qua",

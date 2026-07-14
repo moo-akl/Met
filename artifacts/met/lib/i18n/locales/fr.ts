@@ -1193,6 +1193,15 @@ export const fr: LocaleTree = {
     slide3Title: "Rivalise dans tes endroits préférés",
     slide3Sub:
       "Check-in dans des cafés, des salles de sport et des lieux pour grimper dans le classement local. Plus tu viens — plus tu montes.",
+    slide4Title: "Check-in et grimpe dans le classement",
+    slide4Sub:
+      "Explore les lieux autour de toi — cafés, salles de sport, parcs. Fais ton check-in, gagne des points et vois où tu te situes parmi les habitués.",
+    slide5Title: "Vois où les gens se retrouvent",
+    slide5Sub:
+      "La carte de chaleur en direct te montre les points chauds de ta ville en temps réel. Va là où se trouve la foule, ou découvre des endroits plus calmes à proximité.",
+    slide6Title: "Ton score de confiance ouvre des portes",
+    slide6Sub:
+      "Chaque interaction authentique construit ton score de confiance. Un score plus élevé débloque plus de rencontres, de révélations et de fonctionnalités exclusives.",
     next: "Suivant",
     getStarted: "C'est parti",
     skip: "Passer",

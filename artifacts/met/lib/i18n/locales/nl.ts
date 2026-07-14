@@ -1185,6 +1185,15 @@ export const nl: LocaleTree = {
     slide3Title: "Concurreer op je favoriete plekken",
     slide3Sub:
       "Check in bij cafés, sportscholen en locaties om de lokale ranglijst te beklimmen. Kom vaker — stijg hoger.",
+    slide4Title: "Check in en klim de ranglijst",
+    slide4Sub:
+      "Ontdek locaties om je heen — cafés, sportscholen, parken. Check in, verdien punten en zie hoe je scoort onder de vaste bezoekers.",
+    slide5Title: "Zie waar mensen samenkomen",
+    slide5Sub:
+      "De live heatmap toont je real-time hotspots in jouw stad. Ga waar de menigte is, of ontdek rustigere plekken in de buurt.",
+    slide6Title: "Je vertrouwensscore opent deuren",
+    slide6Sub:
+      "Elke oprechte interactie bouwt je vertrouwensscore op. Een hogere score ontgrendelt meer ontmoetingen, onthullingen en exclusieve functies.",
     next: "Volgende",
     getStarted: "Begin",
     skip: "Overslaan",
