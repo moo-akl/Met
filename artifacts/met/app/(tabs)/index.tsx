@@ -125,7 +125,7 @@ export default function HomeScreen() {
   const radarRef = useRef<View>(null);
   const [walkthroughStep, setWalkthroughStep] = useState<0 | 1 | 2 | 3>(0);
   const [walkthroughTarget, setWalkthroughTarget] = useState<TargetRect | null>(null);
-  const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection } =
+  const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin } =
     useHubCheckin();
 
   useEffect(() => {
@@ -175,16 +175,11 @@ export default function HomeScreen() {
   }, []);
 
   const handleCheckinPress = useCallback(() => {
-    // When exactly one venue is nearby, confirm the check-in directly.
-    // When multiple venues are nearby, SelectVenueModal (inside HubStatusBadge)
-    // is already visible for selection. When no venue is detected, show
-    // instructional copy from the walkthrough step.
-    if (pendingVenues && pendingVenues.length === 1) {
-      confirmVenue(pendingVenues[0]);
-    } else {
-      Alert.alert(t("home.checkInCta"), t("walkthrough.step1"));
-    }
-  }, [pendingVenues, confirmVenue, t]);
+    // Trigger a real location + nearby-hub lookup (bypasses the 5-min debounce).
+    // Single-venue → auto-confirms; multiple venues → opens SelectVenueModal;
+    // no nearby hub → badge stays hidden (user sees nothing changed yet).
+    attemptCheckin();
+  }, [attemptCheckin]);
 
   const blips = useMemo<RadarBlip[]>(
     () =>

@@ -53,6 +53,9 @@ export function useHubCheckin(): {
   pendingVenues: VenueResult[] | null;
   confirmVenue: (venue: VenueResult) => void;
   cancelVenueSelection: () => void;
+  /** Bypass the 5-minute debounce and immediately run a location + nearby
+   *  lookup.  Safe to call from UI (e.g. "Check in" CTA). */
+  attemptCheckin: () => void;
 } {
   const { authedUid } = useApp();
   const [hubState, setHubState] = useState<HubState | null>(null);
@@ -67,6 +70,10 @@ export function useHubCheckin(): {
   // The GPS position captured at the time of the /nearby call — stored so
   // the deferred confirmVenue path can pass valid coords to /checkin.
   const lastPositionRef = useRef<Location.LocationObject | null>(null);
+
+  // Stores the current doCheckin fn so attemptCheckin can call it without
+  // rebuilding a new callback every render.
+  const doCheckinRef = useRef<(() => Promise<void>) | null>(null);
 
   // Keep a ref to authedUid so the stable performCheckin callback can read it.
   const authedUidRef = useRef<string | null | undefined>(authedUid);
@@ -226,11 +233,21 @@ export function useHubCheckin(): {
       }
     };
 
+    // Expose the current doCheckin so attemptCheckin can call it.
+    doCheckinRef.current = doCheckin;
+
     // Fire immediately on mount / uid change, then every 5 minutes.
     void doCheckin();
     const id = setInterval(() => void doCheckin(), CHECKIN_INTERVAL_MS);
     return () => clearInterval(id);
   }, [authedUid, performCheckin]);
 
-  return { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection };
+  /** Resets the debounce timer and immediately runs a location + nearby
+   *  lookup — intended for the manual "Check in" CTA. */
+  const attemptCheckin = useCallback(() => {
+    lastFiredAt.current = 0;
+    void doCheckinRef.current?.();
+  }, []);
+
+  return { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin };
 }
