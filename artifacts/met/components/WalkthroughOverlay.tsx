@@ -56,20 +56,29 @@ export function WalkthroughOverlay({
   const colors = useColors();
   const { t } = useT();
 
-  // ── RN Animated (spotlight overlay + ring pulse — unchanged) ──────────
+  // isMounted drives Modal visibility — stays true until the exit spring
+  // fully completes, so the slide-down animation is always visible.
+  const [isMounted, setIsMounted] = useState(false);
+
+  // ── RN Animated (spotlight overlay fade + ring pulse) ─────────────────
   const ringAnim = useRef(new RNAnimated.Value(0)).current;
   const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
   useEffect(() => {
-    if (!visible) {
-      fadeAnim.setValue(0);
-      return;
+    if (visible) {
+      RNAnimated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 240,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Fade the dark overlay out in sync with the panel sliding down.
+      RNAnimated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }).start();
     }
-    RNAnimated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 240,
-      useNativeDriver: true,
-    }).start();
   }, [visible, fadeAnim]);
 
   useEffect(() => {
@@ -96,21 +105,19 @@ export function WalkthroughOverlay({
   // ── Reanimated (bottom-sheet panel) ───────────────────────────────────
   const panelY = useSharedValue(PANEL_OFFSCREEN);
 
-  // Displayed content — only updated after the panel has slid off-screen,
-  // so there's no mid-slide content flash during step transitions.
+  // Displayed content — only updated after the panel slides off on step
+  // transitions, preventing mid-slide content flashes.
   const [displayedStep, setDisplayedStep] = useState(step);
   const [displayedText, setDisplayedText] = useState(stepText);
   const [displayedIsLast, setDisplayedIsLast] = useState(isLastStep);
   const [displayedTotal, setDisplayedTotal] = useState(totalSteps);
 
-  // Ref holds the very latest content so the Reanimated callback (which
-  // runs on the UI thread) can read it via runOnJS without stale closure.
+  // Always-current ref for the Reanimated → JS bridge.
   const contentRef = useRef({ step, stepText, isLastStep, totalSteps });
   useEffect(() => {
     contentRef.current = { step, stepText, isLastStep, totalSteps };
   });
 
-  // Called via runOnJS once the panel has fully slid off on a step change.
   const applyContentAndSlideIn = useCallback(() => {
     setDisplayedStep(contentRef.current.step);
     setDisplayedText(contentRef.current.stepText);
@@ -119,24 +126,29 @@ export function WalkthroughOverlay({
     panelY.value = withSpring(0, PANEL_SPRING_IN);
   }, [panelY]);
 
-  // Show / hide the panel when visibility changes.
+  // Mount / unmount lifecycle driven by the exit spring callback so the
+  // slide-down animation always completes before the Modal disappears.
   useEffect(() => {
     if (visible) {
-      // Snap displayed content to current props before springing in.
+      // Snap displayed content to current props, mount, then spring in.
       setDisplayedStep(step);
       setDisplayedText(stepText);
       setDisplayedIsLast(isLastStep);
       setDisplayedTotal(totalSteps);
+      setIsMounted(true);
       panelY.value = withSpring(0, PANEL_SPRING_IN);
     } else {
-      panelY.value = withSpring(PANEL_OFFSCREEN, PANEL_SPRING_OUT);
+      // Spring the panel off-screen; unmount only after animation finishes.
+      panelY.value = withSpring(PANEL_OFFSCREEN, PANEL_SPRING_OUT, (finished) => {
+        if (finished) runOnJS(setIsMounted)(false);
+      });
     }
-    // Intentionally omits step/stepText/isLastStep/totalSteps — those are
-    // handled by the step-transition effect below.
+    // Intentionally omits step/stepText/isLastStep/totalSteps — step
+    // transitions are handled by the separate effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, panelY]);
 
-  // Step transition: slide out → swap content → slide back in.
+  // Step transition: slide panel out → swap content → slide back in.
   const prevStepRef = useRef(step);
   useEffect(() => {
     if (!visible || step === prevStepRef.current) {
@@ -153,7 +165,7 @@ export function WalkthroughOverlay({
     transform: [{ translateY: panelY.value }],
   }));
 
-  if (!visible) return null;
+  if (!isMounted) return null;
 
   // ── Spotlight geometry ────────────────────────────────────────────────
   const ringOpacity = ringAnim.interpolate({
@@ -168,7 +180,7 @@ export function WalkthroughOverlay({
 
   return (
     <Modal
-      visible={visible}
+      visible={isMounted}
       transparent
       animationType="none"
       statusBarTranslucent
