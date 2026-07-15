@@ -7,6 +7,7 @@ import {
   Animated,
   DevSettings,
   Easing,
+  InteractionManager,
   Linking,
   Modal,
   Platform,
@@ -171,14 +172,21 @@ export default function HomeScreen() {
     return () => clearInterval(id);
   }, []);
 
-  // Defer map mount until after the user is authenticated and give the
-  // Android system 500 ms to stabilize — prevents a Google Maps SDK crash
-  // that occurs when the map initialises during the auth transition.
+  // Mount the map only after all navigation animations have settled.
+  // InteractionManager.runAfterInteractions() fires once the JS thread is
+  // idle (transitions complete), preventing the Google Maps / Apple Maps SDK
+  // crash that occurs when MapView initialises mid-animation on both platforms.
   const [mapReady, setMapReady] = useState(false);
   useEffect(() => {
     if (!authedUid) return;
-    const id = setTimeout(() => setMapReady(true), 500);
-    return () => clearTimeout(id);
+    let cancelled = false;
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (!cancelled) setMapReady(true);
+    });
+    return () => {
+      cancelled = true;
+      task.cancel();
+    };
   }, [authedUid]);
   const { locationOk, bluetoothOk, checked } = usePermissionStatus();
   const permsMissing = checked && (!locationOk || !bluetoothOk);
