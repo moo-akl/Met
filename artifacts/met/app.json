@@ -130,7 +130,7 @@
         }
       ],
       ["react-native-maps", {
-        "androidGoogleMapsApiKey": "AIzaSyDBKgHSM-f34RZZdzORAO0ADcBYhYEKojA"
+        "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
       }],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
