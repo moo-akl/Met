@@ -19,12 +19,27 @@ import {
 
 // Refetch heatmap if the map center moved more than ~500 m (~0.005°)
 const SIGNIFICANT_PAN_DEG = 0.005;
+// Refetch if zoom changed by more than ~25 % of the current span
+const SIGNIFICANT_ZOOM_RATIO = 0.25;
+// Cap fetch radius at 100 km so we don't hammer the API on extreme zoom-out
+const MAX_FETCH_RADIUS_M = 100_000;
+
+/** Derive a fetch radius (metres) from the visible latitude span. */
+function fetchRadiusFromDelta(latitudeDelta: number): number {
+  return Math.min(
+    Math.round(latitudeDelta * 111_000 * 0.6),
+    MAX_FETCH_RADIUS_M,
+  );
+}
 
 function regionMovedSignificantly(a: Region, b: Region): boolean {
-  return (
+  const panned =
     Math.abs(a.latitude - b.latitude) > SIGNIFICANT_PAN_DEG ||
-    Math.abs(a.longitude - b.longitude) > SIGNIFICANT_PAN_DEG
-  );
+    Math.abs(a.longitude - b.longitude) > SIGNIFICANT_PAN_DEG;
+  const zoomed =
+    Math.abs(a.latitudeDelta - b.latitudeDelta) >
+    b.latitudeDelta * SIGNIFICANT_ZOOM_RATIO;
+  return panned || zoomed;
 }
 
 export interface HeatmapMapProps {
@@ -158,12 +173,12 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
   }, [authedUid]);
 
   const fetchHeatmap = useCallback(
-    async (lat: number, lng: number) => {
+    async (lat: number, lng: number, radius: number) => {
       if (!authedUid || !mountedRef.current) return;
       try {
         const { venues } = await api.hubHeatmap(
           { uid: authedUid },
-          { lat, lng, radius: 1000 },
+          { lat, lng, radius },
         );
         if (mountedRef.current) setHeatmapVenues(venues);
       } catch {}
@@ -173,14 +188,15 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
 
   // Fired by MapView after the user finishes panning or zooming. Only
   // refetches heatmap data if the center moved significantly (> ~500 m)
-  // from the position used for the last fetch — prevents excessive API
+  // or the zoom level changed significantly — prevents excessive API
   // calls on every tiny drag.
   const handleRegionChangeComplete = useCallback(
     (region: Region) => {
       const prev = lastFetchedRegionRef.current;
       if (prev && !regionMovedSignificantly(prev, region)) return;
       lastFetchedRegionRef.current = region;
-      void fetchHeatmap(region.latitude, region.longitude);
+      const radius = fetchRadiusFromDelta(region.latitudeDelta);
+      void fetchHeatmap(region.latitude, region.longitude, radius);
     },
     [fetchHeatmap],
   );
@@ -196,13 +212,14 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
         if (last && !cancelled) {
           const { latitude, longitude } = last.coords;
           centerOn(latitude, longitude);
+          const initialDelta = 0.015;
           lastFetchedRegionRef.current = {
             latitude,
             longitude,
-            latitudeDelta: 0.015,
-            longitudeDelta: 0.015,
+            latitudeDelta: initialDelta,
+            longitudeDelta: initialDelta,
           };
-          void fetchHeatmap(latitude, longitude);
+          void fetchHeatmap(latitude, longitude, fetchRadiusFromDelta(initialDelta));
         }
       } catch {}
 
@@ -216,13 +233,14 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
         if (!cancelled) {
           const { latitude, longitude } = pos.coords;
           centerOn(latitude, longitude);
+          const initialDelta = 0.015;
           lastFetchedRegionRef.current = {
             latitude,
             longitude,
-            latitudeDelta: 0.015,
-            longitudeDelta: 0.015,
+            latitudeDelta: initialDelta,
+            longitudeDelta: initialDelta,
           };
-          void fetchHeatmap(latitude, longitude);
+          void fetchHeatmap(latitude, longitude, fetchRadiusFromDelta(initialDelta));
         }
       } catch {}
     };
