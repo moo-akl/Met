@@ -11,6 +11,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { getStarColor } from "@/lib/rating";
 
 const VIBE_TAG_KEYS = ["kind", "reliable", "open", "funny", "professional"] as const;
 type VibeTagKey = (typeof VIBE_TAG_KEYS)[number];
@@ -26,18 +27,6 @@ export interface ReviewSummary {
 interface Props {
   summary: ReviewSummary | null;
   loading?: boolean;
-}
-
-/**
- * Maps a numeric star rating to a gradient-coded solid color:
- *   4.5–5   → Gold    (#DAA520 — mid of #FFD700–#DAA520)
- *   3.5–4.4 → Emerald (#3DAA68 — mid of #50C878–#2E8B57)
- *   < 3.5   → Amber   (#CD853F — mid of #FFBF00–#CD853F)
- */
-export function getStarColor(rating: number): string {
-  if (rating >= 4.5) return "#DAA520";
-  if (rating >= 3.5) return "#3DAA68";
-  return "#CD853F";
 }
 
 export function StarDisplay({ rating, size = 20 }: { rating: number; size?: number }) {

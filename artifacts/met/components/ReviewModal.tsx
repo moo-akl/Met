@@ -27,7 +27,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
-import { getStarColor } from "@/components/ReputationRadar";
+import { getStarColor } from "@/lib/rating";
 import { useSlideUpModal } from "@/hooks/useSlideUpModal";
 
 const VIBE_TAG_KEYS = ["kind", "reliable", "open", "funny", "professional"] as const;
