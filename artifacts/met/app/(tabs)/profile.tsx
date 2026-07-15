@@ -734,12 +734,43 @@ export default function ProfileScreen() {
 
         {trophies.length > 0 ? (
           <View style={{ gap: 10, marginTop: 4 }}>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-              🏆 Trophies
-            </Text>
+            {/* Header row */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Image
+                source={require("@/assets/images/rewards_trophy.jpg")}
+                style={{ width: 36, height: 36, borderRadius: 6 }}
+                contentFit="cover"
+              />
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginBottom: 0 }]}>
+                Trophies
+              </Text>
+            </View>
             {trophies.map((trophy, i) => {
-              const medal =
-                trophy.rank === 1 ? "🥇" : trophy.rank === 2 ? "🥈" : "🥉";
+              const rank = trophy.rank as 1 | 2 | 3;
+              const RANK_CONFIG = {
+                1: {
+                  bg: "#FFF8E1",
+                  border: "#FFD700",
+                  accent: "#B8860B",
+                  label: "CHAMPION",
+                  icon: "🏆",
+                },
+                2: {
+                  bg: "#F5F5F5",
+                  border: "#C0C0C0",
+                  accent: "#707070",
+                  label: "RUNNER-UP",
+                  icon: "🥈",
+                },
+                3: {
+                  bg: "#FBF0E8",
+                  border: "#CD7F32",
+                  accent: "#8B4513",
+                  label: "3RD PLACE",
+                  icon: "🥉",
+                },
+              } as const;
+              const cfg = RANK_CONFIG[rank] ?? RANK_CONFIG[3];
               const monthLabel = new Date(trophy.month + "T00:00:00").toLocaleDateString(
                 undefined,
                 { month: "long", year: "numeric" },
@@ -747,23 +778,51 @@ export default function ProfileScreen() {
               return (
                 <View
                   key={`${trophy.placeId}-${trophy.month}-${i}`}
-                  style={[
-                    styles.streakCard,
-                    { backgroundColor: colors.card, borderColor: colors.border },
-                  ]}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    backgroundColor: cfg.bg,
+                    borderWidth: 1.5,
+                    borderColor: cfg.border,
+                    borderRadius: 14,
+                    padding: 14,
+                  }}
                 >
-                  <Text style={{ fontSize: 26 }}>{medal}</Text>
+                  <Text style={{ fontSize: 32 }}>{cfg.icon}</Text>
                   <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                      <Text
+                        style={{
+                          fontFamily: "Inter_700Bold",
+                          fontSize: 10,
+                          color: cfg.accent,
+                          letterSpacing: 1,
+                        }}
+                      >
+                        {cfg.label}
+                      </Text>
+                    </View>
                     <Text
-                      style={[styles.streakCount, { color: colors.foreground }]}
+                      style={{ fontFamily: "Inter_700Bold", fontSize: 15, color: "#1a1a1a" }}
                       numberOfLines={1}
                     >
                       {trophy.placeName ?? trophy.placeId}
                     </Text>
-                    <Text style={[styles.streakSub, { color: colors.mutedForeground }]}>
+                    <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: cfg.accent, marginTop: 2 }}>
                       {monthLabel} · {trophy.checkinCount} check-ins
                     </Text>
                   </View>
+                  <Image
+                    source={require("@/assets/images/rewards_trophy.jpg")}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 8,
+                      opacity: 0.85,
+                    }}
+                    contentFit="cover"
+                  />
                 </View>
               );
             })}
