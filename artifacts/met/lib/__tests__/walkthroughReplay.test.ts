@@ -53,6 +53,7 @@ jest.mock("@react-native-async-storage/async-storage", () => {
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
+  clearInteractiveWalkthroughPending,
   clearInteractiveWalkthroughSeen,
   loadInteractiveWalkthroughSeen,
   saveInteractiveWalkthroughSeen,
@@ -67,6 +68,32 @@ function clearStore(): void {
   const store = (AsyncStorage as unknown as { _store: Record<string, string> })
     ._store;
   Object.keys(store).forEach((k) => delete store[k]);
+}
+
+/**
+ * Simulate the useFocusEffect callback from app/(tabs)/index.tsx and return
+ * the resulting walkthroughStep value (0 = hidden, 1 = shown).
+ *
+ * The real callback:
+ *   loadInteractiveWalkthroughSeen()
+ *     .then(seen => { if (!seen) setWalkthroughStep(1); })
+ *     .catch(() => {});
+ */
+async function simulateFocusEffect(
+  initialStep: 0 | 1 | 2 = 0,
+): Promise<0 | 1 | 2> {
+  let walkthroughStep: 0 | 1 | 2 = initialStep;
+  const setWalkthroughStep = (v: 0 | 1 | 2) => {
+    walkthroughStep = v;
+  };
+
+  await loadInteractiveWalkthroughSeen()
+    .then((seen) => {
+      if (!seen) setWalkthroughStep(1);
+    })
+    .catch(() => {});
+
+  return walkthroughStep;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,27 +163,6 @@ describe("walkthrough replay — storage layer", () => {
 describe("walkthrough replay — Home useFocusEffect logic", () => {
   beforeEach(clearStore);
 
-  /**
-   * Simulate the useFocusEffect callback and return the resulting
-   * walkthroughStep value (0 = hidden, 1 = shown).
-   */
-  async function simulateFocusEffect(
-    initialStep: 0 | 1 | 2 = 0,
-  ): Promise<0 | 1 | 2> {
-    let walkthroughStep: 0 | 1 | 2 = initialStep;
-    const setWalkthroughStep = (v: 0 | 1 | 2) => {
-      walkthroughStep = v;
-    };
-
-    await loadInteractiveWalkthroughSeen()
-      .then((seen) => {
-        if (!seen) setWalkthroughStep(1);
-      })
-      .catch(() => {});
-
-    return walkthroughStep;
-  }
-
   it("sets walkthroughStep to 1 (shows overlay) when the seen key is absent", async () => {
     const step = await simulateFocusEffect();
     expect(step).toBe(1);
@@ -192,5 +198,114 @@ describe("walkthrough replay — Home useFocusEffect logic", () => {
     for (let i = 0; i < 5; i++) {
       expect(await simulateFocusEffect(0)).toBe(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Home-screen button handlers (inline simulation)
+//
+// handleWalkthroughNext (Next / Got it button):
+//   if (walkthroughStep >= 2) {
+//     setWalkthroughStep(0);
+//     saveInteractiveWalkthroughSeen().catch(() => {});
+//     clearInteractiveWalkthroughPending().catch(() => {});
+//   } else {
+//     setWalkthroughStep((s) => (s + 1) as 1 | 2);
+//   }
+//
+// handleWalkthroughSkip (Skip button):
+//   setWalkthroughStep(0);
+//   saveInteractiveWalkthroughSeen().catch(() => {});
+//   clearInteractiveWalkthroughPending().catch(() => {});
+// ---------------------------------------------------------------------------
+
+describe("walkthrough button handlers — handleWalkthroughNext and handleWalkthroughSkip", () => {
+  beforeEach(clearStore);
+
+  // ---- helpers that mirror the real Home-screen callback logic ----
+
+  async function simulateNext(
+    step: 0 | 1 | 2,
+  ): Promise<{ newStep: 0 | 1 | 2; seen: boolean }> {
+    let walkthroughStep: 0 | 1 | 2 = step;
+
+    if (walkthroughStep >= 2) {
+      walkthroughStep = 0;
+      await saveInteractiveWalkthroughSeen().catch(() => {});
+      await clearInteractiveWalkthroughPending().catch(() => {});
+    } else {
+      walkthroughStep = (walkthroughStep + 1) as 1 | 2;
+    }
+
+    const seen = await loadInteractiveWalkthroughSeen();
+    return { newStep: walkthroughStep, seen };
+  }
+
+  async function simulateSkip(
+    step: 0 | 1 | 2,
+  ): Promise<{ newStep: 0 | 1 | 2; seen: boolean }> {
+    let walkthroughStep: 0 | 1 | 2 = step;
+    walkthroughStep = 0;
+    await saveInteractiveWalkthroughSeen().catch(() => {});
+    await clearInteractiveWalkthroughPending().catch(() => {});
+
+    const seen = await loadInteractiveWalkthroughSeen();
+    return { newStep: walkthroughStep, seen };
+  }
+
+  // ---- Skip tests ----
+
+  it("Skip at step 1 resets walkthroughStep to 0 and saves the seen flag", async () => {
+    const { newStep, seen } = await simulateSkip(1);
+    expect(newStep).toBe(0);
+    expect(seen).toBe(true);
+  });
+
+  it("Skip at step 2 resets walkthroughStep to 0 and saves the seen flag", async () => {
+    const { newStep, seen } = await simulateSkip(2);
+    expect(newStep).toBe(0);
+    expect(seen).toBe(true);
+  });
+
+  it("after Skip the overlay does not re-appear on the next focus event", async () => {
+    await simulateSkip(1);
+    const step = await simulateFocusEffect(0);
+    expect(step).toBe(0);
+  });
+
+  // ---- Next (mid-flow) tests ----
+
+  it("Next at step 1 advances walkthroughStep to 2 without saving seen", async () => {
+    const { newStep, seen } = await simulateNext(1);
+    expect(newStep).toBe(2);
+    expect(seen).toBe(false);
+  });
+
+  // ---- Got it (final step) tests ----
+
+  it("Got it (Next at step 2) resets walkthroughStep to 0 and saves the seen flag", async () => {
+    const { newStep, seen } = await simulateNext(2);
+    expect(newStep).toBe(0);
+    expect(seen).toBe(true);
+  });
+
+  it("after Got it the overlay does not re-appear on the next focus event", async () => {
+    await simulateNext(2);
+    const step = await simulateFocusEffect(0);
+    expect(step).toBe(0);
+  });
+
+  // ---- Full two-step flow ----
+
+  it("full flow: step 1 Next → step 2 Got it saves seen and resets to 0", async () => {
+    // Step 1 → Next → step 2 (no save yet)
+    const afterFirst = await simulateNext(1);
+    expect(afterFirst.newStep).toBe(2);
+    expect(afterFirst.seen).toBe(false);
+
+    // Step 2 → Got it → done
+    const afterSecond = await simulateNext(afterFirst.newStep);
+    expect(afterSecond.newStep).toBe(0);
+    expect(afterSecond.seen).toBe(true);
   });
 });
