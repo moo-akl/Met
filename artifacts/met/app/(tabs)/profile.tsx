@@ -64,9 +64,11 @@ export default function ProfileScreen() {
 
   const profileSteps = profile
     ? [
-        profile.verified,
+        !!(profile.name ?? "").trim(),
+        !!profile.verified,
         (profile.bio ?? "").trim().length > 0,
         Object.keys(profile.socials ?? {}).length > 0,
+        (profile.interests ?? []).length > 0,
       ]
     : [];
   const profileScore = profileSteps.filter(Boolean).length;
@@ -449,13 +451,17 @@ export default function ProfileScreen() {
                 lineHeight: 17,
               }}
             >
-              {profile && !profile.verified && Object.keys(profile.socials ?? {}).length === 0
-                ? t("home.profileBannerBoth")
-                : profile && !profile.verified
-                  ? t("home.profileBannerNoPhoto")
-                  : !(profile?.bio ?? "").trim()
-                    ? t("home.profileBannerNoBio")
-                    : t("home.profileBannerNoSocials")}
+              {!(profile?.name ?? "").trim()
+                ? t("home.profileBannerNoName")
+                : profile && !profile.verified && Object.keys(profile.socials ?? {}).length === 0
+                  ? t("home.profileBannerBoth")
+                  : profile && !profile.verified
+                    ? t("home.profileBannerNoPhoto")
+                    : !(profile?.bio ?? "").trim()
+                      ? t("home.profileBannerNoBio")
+                      : (profile?.interests ?? []).length === 0
+                        ? t("home.profileBannerNoInterests")
+                        : t("home.profileBannerNoSocials")}
             </Text>
           </View>
         ) : null}
@@ -710,31 +716,6 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <ReputationRadar summary={reviewSummary} />
-
-        {tier === "free" ? (
-          <Pressable
-            onPress={() => setUpgradeModalVisible(true)}
-            style={[
-              styles.upgradeBanner,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <View style={styles.upgradeBannerLeft}>
-              <Feather name="zap" size={18} color="#F5B700" />
-              <View style={{ gap: 1 }}>
-                <Text style={[styles.upgradeBannerTitle, { color: colors.foreground }]}>
-                  {t("subscription.upgradeBanner")}
-                </Text>
-                <Text style={[styles.upgradeBannerSub, { color: colors.mutedForeground }]}>
-                  {t("subscription.upgradeBannerSub")}
-                </Text>
-              </View>
-            </View>
-            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-          </Pressable>
-        ) : null}
-
         {__DEV__ ? (
           <View style={{ gap: 8, marginTop: 8 }}>
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
@@ -971,6 +952,34 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {!editing ? (
+          <>
+            <ReputationRadar summary={reviewSummary} />
+            {tier === "free" ? (
+              <Pressable
+                onPress={() => setUpgradeModalVisible(true)}
+                style={[
+                  styles.upgradeBanner,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.upgradeBannerLeft}>
+                  <Feather name="zap" size={18} color="#F5B700" />
+                  <View style={{ gap: 1 }}>
+                    <Text style={[styles.upgradeBannerTitle, { color: colors.foreground }]}>
+                      {t("subscription.upgradeBanner")}
+                    </Text>
+                    <Text style={[styles.upgradeBannerSub, { color: colors.mutedForeground }]}>
+                      {t("subscription.upgradeBannerSub")}
+                    </Text>
+                  </View>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            ) : null}
+          </>
+        ) : null}
+
         <View
           style={{
             flexDirection: "row",
@@ -985,7 +994,7 @@ export default function ProfileScreen() {
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Feather name="moon" size={16} color={colors.primary} />
+            <Feather name={isDark ? "moon" : "sun"} size={16} color={colors.primary} />
             <Text
               style={{
                 fontFamily: "Inter_500Medium",
@@ -993,7 +1002,7 @@ export default function ProfileScreen() {
                 color: colors.foreground,
               }}
             >
-              Radar Theme
+              {isDark ? "Dark Theme" : "Bright Theme"}
             </Text>
           </View>
           <Switch
