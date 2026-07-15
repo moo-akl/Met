@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated as RNAnimated,
+  Dimensions,
   Modal,
   Pressable,
   StyleSheet,
@@ -172,11 +173,14 @@ export function WalkthroughOverlay({
     inputRange: [0, 1],
     outputRange: [0.45, 1],
   });
+  const { height: screenH } = Dimensions.get("window");
   const hasTarget = targetRect !== null;
   const spotX = hasTarget ? targetRect!.x - SPOTLIGHT_PAD : 0;
-  const spotY = hasTarget ? targetRect!.y - SPOTLIGHT_PAD : 0;
   const spotW = hasTarget ? targetRect!.width + SPOTLIGHT_PAD * 2 : 0;
   const spotH = hasTarget ? targetRect!.height + SPOTLIGHT_PAD * 2 : 0;
+  // Clamp so the spotlight ring never renders off-screen.
+  const rawSpotY = hasTarget ? targetRect!.y - SPOTLIGHT_PAD : 0;
+  const spotY = Math.max(0, Math.min(rawSpotY, Math.max(0, screenH - spotH)));
 
   return (
     <Modal

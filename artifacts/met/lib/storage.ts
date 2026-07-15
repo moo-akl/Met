@@ -237,7 +237,7 @@ export async function saveProfileBannerDismissed(
 }
 
 const SESSION_COUNT_KEY = "met:sessionCount:v1";
-const VALUE_TOUR_SEEN_KEY = "met:valueTourSeen:v1";
+const VALUE_TOUR_SEEN_KEY = "met:valueTourSeen:v2";
 const HUB_TOOLTIP_DISMISSED_KEY = "met:hubTooltipDismissed:v1";
 
 export async function loadSessionCount(): Promise<number> {

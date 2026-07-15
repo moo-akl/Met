@@ -146,6 +146,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="recent"
         options={{
+          href: null,
           title: t("tabs.recent"),
           tabBarIcon: ({ color }) => (
             <Feather name="users" size={22} color={color} />

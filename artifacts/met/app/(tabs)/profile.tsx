@@ -62,6 +62,17 @@ export default function ProfileScreen() {
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const { tier } = useSubscription();
 
+  const profileSteps = profile
+    ? [
+        profile.verified,
+        (profile.bio ?? "").trim().length > 0,
+        Object.keys(profile.socials ?? {}).length > 0,
+      ]
+    : [];
+  const profileScore = profileSteps.filter(Boolean).length;
+  const profileTotal = profileSteps.length;
+  const profileIncomplete = !!profile && profileScore < profileTotal;
+
   const [editing, setEditing] = useState(false);
   const [streak, setStreak] = useState<{
     currentStreak: number;
@@ -384,6 +395,71 @@ export default function ProfileScreen() {
         bottomOffset={20}
         keyboardShouldPersistTaps="handled"
       >
+        {profileIncomplete ? (
+          <View
+            style={{
+              backgroundColor: "#EFF6FF",
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: "#3B82F6",
+              padding: 14,
+              gap: 10,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Feather name="user-check" size={16} color="#2563EB" />
+              <Text
+                style={{
+                  fontFamily: "Inter_700Bold",
+                  fontSize: 13,
+                  color: "#1E3A5F",
+                  flex: 1,
+                }}
+              >
+                {t("home.profileBannerTitle")}
+              </Text>
+              <Text
+                style={{
+                  fontFamily: "Inter_700Bold",
+                  fontSize: 13,
+                  color: "#2563EB",
+                }}
+              >
+                {profileScore}/{profileTotal}
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {profileSteps.map((done, i) => (
+                <View
+                  key={i}
+                  style={{
+                    flex: 1,
+                    height: 5,
+                    borderRadius: 3,
+                    backgroundColor: done ? "#2563EB" : "#BFDBFE",
+                  }}
+                />
+              ))}
+            </View>
+            <Text
+              style={{
+                fontFamily: "Inter_400Regular",
+                fontSize: 12,
+                color: "#1D4ED8",
+                lineHeight: 17,
+              }}
+            >
+              {profile && !profile.verified && Object.keys(profile.socials ?? {}).length === 0
+                ? t("home.profileBannerBoth")
+                : profile && !profile.verified
+                  ? t("home.profileBannerNoPhoto")
+                  : !(profile?.bio ?? "").trim()
+                    ? t("home.profileBannerNoBio")
+                    : t("home.profileBannerNoSocials")}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={styles.photoArea}>
           <Pressable
             onPress={editing ? handleMainPhotoPress : undefined}

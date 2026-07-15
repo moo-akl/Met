@@ -43,9 +43,7 @@ import {
   DISCOVERY_RANGE_METERS,
   loadInteractiveWalkthroughSeen,
   clearInteractiveWalkthroughPending,
-  loadProfileBannerDismissed,
   saveInteractiveWalkthroughSeen,
-  saveProfileBannerDismissed,
 } from "@/lib/storage";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
 import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
@@ -95,33 +93,10 @@ export default function HomeScreen() {
     setReloadingLang(false);
   };
   const { encounters, preferences, profile, authedUid } = useApp();
-  const [profileBannerDismissed, setProfileBannerDismissed] = useState(false);
-  const profileSteps = profile
-    ? [
-        profile.verified,
-        (profile.bio ?? "").trim().length > 0,
-        Object.keys(profile.socials ?? {}).length > 0,
-      ]
-    : [];
-  const profileScore = profileSteps.filter(Boolean).length;
-  const profileTotal = profileSteps.length;
-  const profileIncomplete = !!profile && profileScore < profileTotal;
-
-  useEffect(() => {
-    if (!authedUid) return;
-    loadProfileBannerDismissed(authedUid).then(setProfileBannerDismissed).catch(() => {});
-  }, [authedUid]);
-
-  useEffect(() => {
-    if (!authedUid || !profile || profileIncomplete) return;
-    setProfileBannerDismissed(false);
-    saveProfileBannerDismissed(authedUid, false).catch(() => {});
-  }, [profileIncomplete, authedUid, profile]);
 
   const checkinBtnRef = useRef<View>(null);
-  const hubBadgeRef = useRef<View>(null);
   const radarRef = useRef<View>(null);
-  const [walkthroughStep, setWalkthroughStep] = useState<0 | 1 | 2 | 3>(0);
+  const [walkthroughStep, setWalkthroughStep] = useState<0 | 1 | 2>(0);
   const [walkthroughTarget, setWalkthroughTarget] = useState<TargetRect | null>(null);
   const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin } =
     useHubCheckin();
@@ -137,10 +112,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (walkthroughStep === 0) return;
-    const targetRef =
-      walkthroughStep === 1 ? checkinBtnRef :
-      walkthroughStep === 3 ? radarRef :
-      hubBadgeRef;
+    const targetRef = walkthroughStep === 1 ? checkinBtnRef : radarRef;
     setWalkthroughTarget(null);
     const timer = setTimeout(() => {
       targetRef.current?.measureInWindow((x, y, width, height) => {
@@ -153,13 +125,13 @@ export default function HomeScreen() {
   }, [walkthroughStep]);
 
   const handleWalkthroughNext = useCallback(() => {
-    if (walkthroughStep >= 3) {
+    if (walkthroughStep >= 2) {
       setWalkthroughStep(0);
       setWalkthroughTarget(null);
       saveInteractiveWalkthroughSeen().catch(() => {});
       clearInteractiveWalkthroughPending().catch(() => {});
     } else {
-      setWalkthroughStep((s) => (s + 1) as 1 | 2 | 3);
+      setWalkthroughStep((s) => (s + 1) as 1 | 2);
     }
   }, [walkthroughStep]);
 
@@ -199,13 +171,15 @@ export default function HomeScreen() {
     return () => clearInterval(id);
   }, []);
 
-  // Defer map mount by one tick so the JS thread is not blocked during
-  // initial layout — prevents a Google Maps SDK crash on Android launch.
+  // Defer map mount until after the user is authenticated and give the
+  // Android system 500 ms to stabilize — prevents a Google Maps SDK crash
+  // that occurs when the map initialises during the auth transition.
   const [mapReady, setMapReady] = useState(false);
   useEffect(() => {
-    const id = setTimeout(() => setMapReady(true), 0);
+    if (!authedUid) return;
+    const id = setTimeout(() => setMapReady(true), 500);
     return () => clearTimeout(id);
-  }, []);
+  }, [authedUid]);
   const { locationOk, bluetoothOk, checked } = usePermissionStatus();
   const permsMissing = checked && (!locationOk || !bluetoothOk);
   const {
@@ -389,69 +363,6 @@ export default function HomeScreen() {
           onDismiss={dismissReminder}
         />
 
-        {profileIncomplete && !profileBannerDismissed ? (
-          <Pressable
-            onPress={() => router.push("/(tabs)/profile")}
-            accessibilityRole="button"
-            accessibilityLabel={t("home.profileBannerTitle")}
-            style={({ pressed }) => [
-              styles.banner,
-              {
-                backgroundColor: "#EFF6FF",
-                borderColor: "#3B82F6",
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-          >
-            <View style={[styles.permAlertIcon, { backgroundColor: "#DBEAFE" }]}>
-              <Feather name="user" size={18} color="#2563EB" />
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={[styles.bannerTitle, { color: "#1E3A5F" }]}>
-                  {t("home.profileBannerTitle")}
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 2 }}>
-                  {profileSteps.map((done, i) => (
-                    <View
-                      key={i}
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: 4,
-                        backgroundColor: done ? "#2563EB" : "#BFDBFE",
-                      }}
-                    />
-                  ))}
-                </View>
-                <Text style={[styles.bannerSub, { color: "#2563EB", fontFamily: "Inter_700Bold" }]}>
-                  {profileScore}/{profileTotal}
-                </Text>
-              </View>
-              <Text style={[styles.bannerSub, { color: "#1D4ED8" }]}>
-                {profile && !profile.verified && Object.keys(profile.socials ?? {}).length === 0
-                  ? t("home.profileBannerBoth")
-                  : profile && !profile.verified
-                    ? t("home.profileBannerNoPhoto")
-                    : !(profile?.bio ?? "").trim()
-                      ? t("home.profileBannerNoBio")
-                      : t("home.profileBannerNoSocials")}
-              </Text>
-            </View>
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation();
-                setProfileBannerDismissed(true);
-                if (authedUid) saveProfileBannerDismissed(authedUid, true).catch(() => {});
-              }}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss"
-            >
-              <Feather name="x" size={18} color="#3B82F6" />
-            </Pressable>
-          </Pressable>
-        ) : null}
 
         {incoming.length > 0 ? (
           <Pressable
@@ -657,16 +568,55 @@ export default function HomeScreen() {
           <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
         </Pressable>
 
-        <View ref={hubBadgeRef}>
-          <HubStatusBadge
-            hubState={hubState}
-            cooldownMinutes={cooldownMinutes}
-            pendingVenues={pendingVenues}
-            confirmVenue={confirmVenue}
-            cancelVenueSelection={cancelVenueSelection}
-            walkthroughActive={walkthroughStep === 2}
-          />
-        </View>
+        <Pressable
+          onPress={() => router.push("/(tabs)/recent")}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.leaderboardBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: pressed ? 0.82 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
+          ]}
+        >
+          <Feather name="users" size={18} color={colors.primary} />
+          <Text style={[styles.checkinCtaText, { color: colors.foreground, flex: 1 }]}>
+            {t("tabs.recent")}
+          </Text>
+          {encounters.length > 0 && (
+            <View
+              style={{
+                backgroundColor: colors.primary,
+                borderRadius: 12,
+                paddingHorizontal: 7,
+                paddingVertical: 2,
+                marginRight: 4,
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.primaryForeground,
+                  fontSize: 11,
+                  fontFamily: "Inter_700Bold",
+                }}
+              >
+                {encounters.length}
+              </Text>
+            </View>
+          )}
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+        </Pressable>
+
+        <HubStatusBadge
+          hubState={hubState}
+          cooldownMinutes={cooldownMinutes}
+          pendingVenues={pendingVenues}
+          confirmVenue={confirmVenue}
+          cancelVenueSelection={cancelVenueSelection}
+          walkthroughActive={false}
+        />
 
         <View
           style={[
@@ -878,16 +828,15 @@ export default function HomeScreen() {
       </Modal>
       <WalkthroughOverlay
         visible={walkthroughStep > 0}
-        step={(walkthroughStep || 1) as 1 | 2 | 3}
+        step={(walkthroughStep || 1) as 1 | 2}
+        totalSteps={2}
         targetRect={walkthroughTarget}
         stepText={
           walkthroughStep === 1
             ? t("walkthrough.step1")
-            : walkthroughStep === 2
-              ? t("walkthrough.step2")
-              : t("walkthrough.step3")
+            : t("walkthrough.step2")
         }
-        isLastStep={walkthroughStep === 3}
+        isLastStep={walkthroughStep === 2}
         onNext={handleWalkthroughNext}
         onSkip={handleWalkthroughSkip}
       />
