@@ -129,7 +129,9 @@
           "androidMode": "default"
         }
       ],
-      "react-native-maps",
+      ["react-native-maps", {
+        "androidGoogleMapsApiKey": "AIzaSyDBKgHSM-f34RZZdzORAO0ADcBYhYEKojA"
+      }],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-firebase/messaging",
