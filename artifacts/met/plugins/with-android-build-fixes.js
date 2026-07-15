@@ -1,5 +1,6 @@
 const {
   withGradleProperties,
+  withProjectBuildGradle,
   withAppBuildGradle,
   withDangerousMod,
 } = require("expo/config-plugins");
@@ -43,6 +44,42 @@ const path = require("path");
  * All changes only apply to CI/local production builds.
  */
 const withAndroidBuildFixes = (config) => {
+  // Force TikTok SDK to a pinned, stable version.
+  // The react-native-tiktok-business-sdk npm package hardcodes 1.6.1 in its
+  // own build.gradle; JitPack intermittently fails to serve that artifact
+  // (returns 0 bytes). This resolution strategy overrides every subproject's
+  // dependency resolution to use 1.5.0 instead.
+  config = withProjectBuildGradle(config, (cfg) => {
+    if (cfg.modResults.language !== "groovy") return cfg;
+    if (cfg.modResults.contents.includes("// with-android-build-fixes:tiktok-pin")) {
+      return cfg;
+    }
+    cfg.modResults.contents = cfg.modResults.contents.replace(
+      /subprojects\s*\{/,
+      `subprojects {
+    // with-android-build-fixes:tiktok-pin
+    configurations.all {
+        resolutionStrategy {
+            force 'com.github.tiktok:tiktok-business-android-sdk:1.5.0'
+        }
+    }`,
+    );
+    // Fallback: if no subprojects block, append allprojects block
+    if (!cfg.modResults.contents.includes("// with-android-build-fixes:tiktok-pin")) {
+      cfg.modResults.contents += `
+allprojects {
+    // with-android-build-fixes:tiktok-pin
+    configurations.all {
+        resolutionStrategy {
+            force 'com.github.tiktok:tiktok-business-android-sdk:1.5.0'
+        }
+    }
+}
+`;
+    }
+    return cfg;
+  });
+
   config = withGradleProperties(config, (cfg) => {
     const props = cfg.modResults;
     const setProp = (key, value) => {
