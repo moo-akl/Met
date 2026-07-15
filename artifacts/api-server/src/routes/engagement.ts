@@ -19,6 +19,7 @@ import {
   profilesTable,
   monthlyChampionsTable,
   subscriptionsTable,
+  revealRequestsTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
@@ -1157,6 +1158,36 @@ router.get(
   requireUid,
   async (req, res): Promise<void> => {
     const { uid } = req.params as { uid: string };
+    const callerUid = req.uid!;
+
+    // Reveal-state guard: vibe-tag breakdown is only returned when the
+    // caller is viewing their own profile OR has a mutually accepted
+    // reveal with the target. Pre-reveal callers receive the same
+    // aggregate-only shape as /community-standing.
+    const isSelf = callerUid === uid;
+    let isConnected = false;
+    if (!isSelf) {
+      const [connection] = await db
+        .select({ id: revealRequestsTable.id })
+        .from(revealRequestsTable)
+        .where(
+          and(
+            eq(revealRequestsTable.status, "accepted"),
+            or(
+              and(
+                eq(revealRequestsTable.senderUid, callerUid),
+                eq(revealRequestsTable.recipientUid, uid),
+              ),
+              and(
+                eq(revealRequestsTable.senderUid, uid),
+                eq(revealRequestsTable.recipientUid, callerUid),
+              ),
+            ),
+          ),
+        )
+        .limit(1);
+      isConnected = !!connection;
+    }
 
     const reviews = await db
       .select({
@@ -1195,8 +1226,20 @@ router.get(
     }
     const avgRating = weightTotal > 0 ? weightedSum / weightTotal : 0;
     const communityStanding = avgRating > 0 ? ((avgRating - 1) / 4) * 100 : 0;
+    const round2 = (n: number) => Math.round(n * 100) / 100;
 
-    // Aggregate vibe tags across all reviews
+    if (!isSelf && !isConnected) {
+      // Pre-reveal callers: aggregate only, no vibe-tag breakdown.
+      res.json({
+        count: reviewCount,
+        hasEnough: true,
+        averageRating: round2(avgRating),
+        communityStanding: Math.round(communityStanding),
+      });
+      return;
+    }
+
+    // Self-view or post-reveal: return full summary including vibe tags.
     const vibeTagCounts: Record<string, number> = {};
     for (const row of reviews) {
       const tags = (row.vibeTags as string[] | null) ?? [];
@@ -1205,13 +1248,70 @@ router.get(
       }
     }
 
+    res.json({
+      count: reviewCount,
+      hasEnough: true,
+      averageRating: round2(avgRating),
+      vibeTags: vibeTagCounts,
+      communityStanding: Math.round(communityStanding),
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/users/:uid/community-standing
+// Pre-reveal guard: returns only the aggregate standing score (count,
+// hasEnough, averageRating, communityStanding). Vibe tag breakdown and
+// individual dimension scores are withheld until after a mutual reveal.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/users/:uid/community-standing",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const { uid } = req.params as { uid: string };
+
+    const reviews = await db
+      .select({
+        starRating: reviewsTable.starRating,
+        reviewerUid: reviewsTable.reviewerUid,
+      })
+      .from(reviewsTable)
+      .where(
+        and(
+          eq(reviewsTable.receiverUid, uid),
+          isNotNull(reviewsTable.starRating),
+        ),
+      );
+
+    const reviewCount = reviews.length;
+
+    if (reviewCount < 3) {
+      res.json({ count: reviewCount, hasEnough: false });
+      return;
+    }
+
+    let weightedSum = 0;
+    let weightTotal = 0;
+    for (const row of reviews) {
+      if (row.starRating === null) continue;
+      const [rStats] = await db
+        .select({ trustScore: userStatsTable.trustScore })
+        .from(userStatsTable)
+        .where(eq(userStatsTable.userUid, row.reviewerUid))
+        .limit(1);
+      const w = (rStats?.trustScore ?? 100) / 100;
+      weightedSum += row.starRating * w;
+      weightTotal += w;
+    }
+    const avgRating = weightTotal > 0 ? weightedSum / weightTotal : 0;
+    const communityStanding = avgRating > 0 ? ((avgRating - 1) / 4) * 100 : 0;
     const round2 = (n: number) => Math.round(n * 100) / 100;
 
     res.json({
       count: reviewCount,
       hasEnough: true,
       averageRating: round2(avgRating),
-      vibeTags: vibeTagCounts,
       communityStanding: Math.round(communityStanding),
     });
   },

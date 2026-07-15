@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionSheet } from "@/components/ActionSheet";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
+import { getStarColor, StarDisplay } from "@/components/ReputationRadar";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { findBlockedTerm } from "@/lib/contentFilter";
@@ -77,6 +78,12 @@ export default function EncounterDetail() {
   // Report flow — opens a reasons sheet, then submits + auto-blocks.
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [reportConfirmation, setReportConfirmation] = useState(false);
+  const [preRevealStanding, setPreRevealStanding] = useState<{
+    count: number;
+    hasEnough: boolean;
+    averageRating?: number;
+    communityStanding?: number;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +113,18 @@ export default function EncounterDetail() {
           setViewLimitModal(true);
         }
       });
+  }, [encounter?.id, authedUid]);
+
+  // Fetch the peer's pre-reveal community standing (averageRating +
+  // communityStanding only — vibe tag breakdown stays hidden pre-reveal).
+  useEffect(() => {
+    if (!encounter || !authedUid) return;
+    const ctrl = new AbortController();
+    api
+      .getCommunityStanding({ uid: authedUid, signal: ctrl.signal }, encounter.id)
+      .then(setPreRevealStanding)
+      .catch(() => {});
+    return () => ctrl.abort();
   }, [encounter?.id, authedUid]);
 
   // RevenueCat occasionally never resolves `customerInfo` on Android — most
@@ -535,6 +554,49 @@ export default function EncounterDetail() {
             </View>
           ) : null}
 
+          {preRevealStanding?.hasEnough && preRevealStanding.averageRating !== undefined ? (
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                {t("review.communityStanding")}
+              </Text>
+              <View
+                style={[
+                  styles.standingRow,
+                  { backgroundColor: colors.muted, borderColor: colors.border },
+                ]}
+              >
+                <StarDisplay rating={preRevealStanding.averageRating} size={16} />
+                <Text
+                  style={[
+                    styles.standingRating,
+                    { color: getStarColor(preRevealStanding.averageRating) },
+                  ]}
+                >
+                  {preRevealStanding.averageRating.toFixed(1)}
+                </Text>
+                <Text style={[styles.standingReviews, { color: colors.mutedForeground }]}>
+                  {"·"}{" "}
+                  {preRevealStanding.count}{" "}
+                  {preRevealStanding.count === 1
+                    ? t("review.reviewSingular")
+                    : t("review.reviewPlural")}
+                </Text>
+                {preRevealStanding.communityStanding !== undefined && (
+                  <View
+                    style={[
+                      styles.standingBadge,
+                      { backgroundColor: colors.primary + "1A" },
+                    ]}
+                  >
+                    <Text style={[styles.standingBadgeText, { color: colors.primary }]}>
+                      {Math.round(preRevealStanding.communityStanding)}%
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : null}
+
           <View
             style={[
               styles.lockCard,
@@ -920,6 +982,33 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,
+  },
+  standingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  standingRating: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+  },
+  standingReviews: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    flex: 1,
+  },
+  standingBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  standingBadgeText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 12,
   },
   bioText: {
     fontFamily: "Inter_400Regular",

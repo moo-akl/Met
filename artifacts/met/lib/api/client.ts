@@ -603,6 +603,18 @@ export const api = {
       communityStanding?: number;
     }>("GET", `/api/users/${encodeURIComponent(uid)}/review-summary`, opts),
   /**
+   * Fetch pre-reveal community standing for a peer (no vibe-tag breakdown).
+   * Only exposes averageRating + communityStanding — individual dimension
+   * scores are withheld until after a mutual reveal.
+   */
+  getCommunityStanding: (opts: ApiOptions, uid: string) =>
+    request<{
+      count: number;
+      hasEnough: boolean;
+      averageRating?: number;
+      communityStanding?: number;
+    }>("GET", `/api/users/${encodeURIComponent(uid)}/community-standing`, opts),
+  /**
    * Fetch hub streaks, trust score, and average rating for any user.
    */
   getUserStats: (opts: ApiOptions, uid: string) =>
