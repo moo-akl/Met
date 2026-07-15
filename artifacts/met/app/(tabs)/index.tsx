@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as Updates from "expo-updates";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -172,22 +172,28 @@ export default function HomeScreen() {
     return () => clearInterval(id);
   }, []);
 
-  // Mount the map only after all navigation animations have settled.
-  // InteractionManager.runAfterInteractions() fires once the JS thread is
-  // idle (transitions complete), preventing the Google Maps / Apple Maps SDK
-  // crash that occurs when MapView initialises mid-animation on both platforms.
+  // Mount the map only after the tab is fully visible AND the user is authenticated.
+  // useFocusEffect fires after the navigation animation completes (guaranteed by
+  // React Navigation), so the Google Maps SDK never initialises mid-transition.
+  // mapMountedRef prevents unmounting/remounting the map when switching tabs.
   const [mapReady, setMapReady] = useState(false);
-  useEffect(() => {
-    if (!authedUid) return;
-    let cancelled = false;
-    const task = InteractionManager.runAfterInteractions(() => {
-      if (!cancelled) setMapReady(true);
-    });
-    return () => {
-      cancelled = true;
-      task.cancel();
-    };
-  }, [authedUid]);
+  const mapMountedRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!authedUid || mapMountedRef.current) return;
+      let cancelled = false;
+      const task = InteractionManager.runAfterInteractions(() => {
+        if (!cancelled) {
+          mapMountedRef.current = true;
+          setMapReady(true);
+        }
+      });
+      return () => {
+        cancelled = true;
+        task.cancel();
+      };
+    }, [authedUid]),
+  );
   const { locationOk, bluetoothOk, checked } = usePermissionStatus();
   const permsMissing = checked && (!locationOk || !bluetoothOk);
   const {
