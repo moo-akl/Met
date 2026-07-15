@@ -40,6 +40,8 @@ jest.mock("@react-native-firebase/messaging", () => {
 jest.mock("../storage", () => ({
   loadPushToken: jest.fn().mockResolvedValue(null),
   savePushToken: jest.fn().mockResolvedValue(undefined),
+  loadLastProcessedNotifId: jest.fn().mockResolvedValue(null),
+  saveLastProcessedNotifId: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("../api/client", () => ({
@@ -57,7 +59,19 @@ import {
   routeNotifTap,
   setupNotificationListeners,
 } from "../notifications";
-import { savePushToken } from "../storage";
+import {
+  loadLastProcessedNotifId,
+  saveLastProcessedNotifId,
+  savePushToken,
+} from "../storage";
+
+/**
+ * Flush all pending microtasks and one macro-task tick so that async
+ * cold-start handlers (which do multiple awaits internally) settle fully
+ * before assertions run.
+ */
+const flushPromises = (): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, 0));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -234,7 +248,7 @@ describe("setupNotificationListeners", () => {
     const onTap = jest.fn();
     setupNotificationListeners(onTap);
 
-    await Promise.resolve(); // flush the getLastNotificationResponseAsync promise
+    await flushPromises();
 
     expect(onTap).toHaveBeenCalledTimes(1);
     expect(onTap).toHaveBeenCalledWith(
@@ -250,7 +264,7 @@ describe("setupNotificationListeners", () => {
     const onTap = jest.fn();
     setupNotificationListeners(onTap);
 
-    await Promise.resolve();
+    await flushPromises();
 
     expect(onTap).toHaveBeenCalledWith(
       expect.objectContaining({ type: "reveal_accepted", fromUid: "user-cold" }),
@@ -265,7 +279,7 @@ describe("setupNotificationListeners", () => {
     const onTap = jest.fn();
     setupNotificationListeners(onTap);
 
-    await Promise.resolve();
+    await flushPromises();
 
     expect(onTap).toHaveBeenCalledWith(
       expect.objectContaining({ type: "encounter", encounterId: "enc-cold" }),
@@ -278,7 +292,7 @@ describe("setupNotificationListeners", () => {
     const onTap = jest.fn();
     setupNotificationListeners(onTap);
 
-    await Promise.resolve();
+    await flushPromises();
 
     expect(onTap).not.toHaveBeenCalled();
   });
@@ -299,7 +313,7 @@ describe("setupNotificationListeners", () => {
     setupNotificationListeners(onTap);
 
     // Cold-start fires first
-    await Promise.resolve();
+    await flushPromises();
     expect(onTap).toHaveBeenCalledTimes(1);
 
     // Foreground listener fires for the same notification id
@@ -325,7 +339,7 @@ describe("setupNotificationListeners", () => {
     expect(onTap).toHaveBeenCalledTimes(1);
 
     // Cold-start promise resolves — same id should be skipped
-    await Promise.resolve();
+    await flushPromises();
     expect(onTap).toHaveBeenCalledTimes(1);
   });
 
@@ -368,7 +382,7 @@ describe("setupNotificationListeners", () => {
     const onTap = jest.fn();
     setupNotificationListeners(onTap, tappedIds);
 
-    await Promise.resolve();
+    await flushPromises();
 
     expect(tappedIds.has("cold-tap-id")).toBe(true);
   });
@@ -387,6 +401,80 @@ describe("setupNotificationListeners", () => {
     expect(tappedIds.has("tap-id-banner")).toBe(true);
     // onTap was called once (routing), but the banner should be suppressed by the set
     expect(onTap).toHaveBeenCalledTimes(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // AsyncStorage cross-session dedup (Android cold-start replay prevention)
+  // -------------------------------------------------------------------------
+
+  it("cold-start — skips dispatch when persisted last-processed id matches the response id", async () => {
+    const staleId = "stale-notif-id";
+    (Notifications.getLastNotificationResponseAsync as jest.Mock).mockResolvedValue(
+      makeResponse(staleId, { type: "encounter", encounterId: "enc-stale" }),
+    );
+    // Simulate the previous session having already processed this notification
+    (loadLastProcessedNotifId as jest.Mock).mockResolvedValue(staleId);
+
+    const onTap = jest.fn();
+    setupNotificationListeners(onTap);
+
+    await flushPromises();
+
+    expect(onTap).not.toHaveBeenCalled();
+  });
+
+  it("cold-start — dispatches and persists the id when it does not match the stored id", async () => {
+    const newId = "fresh-notif-id";
+    (Notifications.getLastNotificationResponseAsync as jest.Mock).mockResolvedValue(
+      makeResponse(newId, { type: "chat_message", chatPeerUid: "peer-new" }),
+    );
+    (loadLastProcessedNotifId as jest.Mock).mockResolvedValue("some-old-notif-id");
+
+    const onTap = jest.fn();
+    setupNotificationListeners(onTap);
+
+    await flushPromises();
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "chat_message", chatPeerUid: "peer-new" }),
+    );
+    expect(saveLastProcessedNotifId).toHaveBeenCalledWith(newId);
+  });
+
+  it("cold-start — dispatches and persists the id when AsyncStorage has no stored id yet", async () => {
+    const freshId = "very-first-cold-start";
+    (Notifications.getLastNotificationResponseAsync as jest.Mock).mockResolvedValue(
+      makeResponse(freshId, { type: "reveal_accepted", fromUid: "uid-first" }),
+    );
+    (loadLastProcessedNotifId as jest.Mock).mockResolvedValue(null);
+
+    const onTap = jest.fn();
+    setupNotificationListeners(onTap);
+
+    await flushPromises();
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(saveLastProcessedNotifId).toHaveBeenCalledWith(freshId);
+  });
+
+  it("cold-start — proceeds (fail-open) and dispatches when AsyncStorage read throws", async () => {
+    const notifId = "notif-storage-error";
+    (Notifications.getLastNotificationResponseAsync as jest.Mock).mockResolvedValue(
+      makeResponse(notifId, { type: "encounter", encounterId: "enc-err" }),
+    );
+    (loadLastProcessedNotifId as jest.Mock).mockRejectedValue(new Error("storage unavailable"));
+
+    const onTap = jest.fn();
+    setupNotificationListeners(onTap);
+
+    await flushPromises();
+
+    // Fail-open: a storage error should not silently drop a legitimate tap
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "encounter", encounterId: "enc-err" }),
+    );
   });
 
   // -------------------------------------------------------------------------

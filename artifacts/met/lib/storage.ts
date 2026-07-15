@@ -308,3 +308,25 @@ export async function loadConnectionsWalkthroughSeen(): Promise<boolean> {
 export async function saveConnectionsWalkthroughSeen(): Promise<void> {
   await AsyncStorage.setItem(CONNECTIONS_WALKTHROUGH_SEEN_KEY, "1");
 }
+
+const LAST_PROCESSED_NOTIF_ID_KEY = "met:lastProcessedNotifId:v1";
+
+/**
+ * Returns the notification request identifier that was last processed on a
+ * cold start, or null if none has been recorded yet.
+ *
+ * Used by setupNotificationListeners as a cross-session dedup fallback for
+ * Android where clearLastNotificationResponseAsync may not be available.
+ */
+export async function loadLastProcessedNotifId(): Promise<string | null> {
+  return AsyncStorage.getItem(LAST_PROCESSED_NOTIF_ID_KEY);
+}
+
+/**
+ * Persists the notification request identifier that was just processed on a
+ * cold start so the next launch can skip it if getLastNotificationResponseAsync
+ * hands it back again.
+ */
+export async function saveLastProcessedNotifId(id: string): Promise<void> {
+  await AsyncStorage.setItem(LAST_PROCESSED_NOTIF_ID_KEY, id);
+}

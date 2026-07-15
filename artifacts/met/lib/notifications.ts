@@ -3,7 +3,12 @@ import * as Notifications from "expo-notifications";
 import messaging from "@react-native-firebase/messaging";
 import { Platform } from "react-native";
 
-import { loadPushToken, savePushToken } from "./storage";
+import {
+  loadLastProcessedNotifId,
+  loadPushToken,
+  saveLastProcessedNotifId,
+  savePushToken,
+} from "./storage";
 
 let configured = false;
 
@@ -237,15 +242,39 @@ export function setupNotificationListeners(
 
   // Cold-start tap: when the user opened the app *by tapping* a
   // notification, getLastNotificationResponseAsync() returns it once.
-  // We then clear it so the same tap isn't replayed on the next cold
-  // start (Android in particular can hand back the stale response).
+  //
+  // Primary defence: call clearLastNotificationResponseAsync() so Expo
+  // does not hand back the same response on the next cold start. This
+  // function was added in a later Expo SDK revision, so we guard with a
+  // runtime check.
+  //
+  // Secondary defence (Android fallback): even when the clear call is
+  // unavailable or fails, we persist the processed notification ID in
+  // AsyncStorage and compare it against the returned response on every
+  // launch. If the IDs match we skip dispatch, preventing replay.
   Notifications.getLastNotificationResponseAsync()
-    .then((resp) => {
+    .then(async (resp) => {
       if (!resp) return;
-      dispatch(
-        resp.notification.request.identifier,
-        resp.notification.request.content.data,
-      );
+
+      const id = resp.notification.request.identifier;
+
+      // Cross-session dedup: skip if this ID was already handled on a
+      // previous launch (protects against Android stale-response replay
+      // when clearLastNotificationResponseAsync is not available).
+      try {
+        const lastId = await loadLastProcessedNotifId();
+        if (lastId !== null && lastId === id) return;
+      } catch {
+        // Storage read failure — proceed and process the notification
+        // rather than silently dropping a legitimate tap.
+      }
+
+      dispatch(id, resp.notification.request.content.data);
+
+      // Persist the ID before attempting the Expo clear so we always have
+      // a record of having processed this notification, even if clear fails.
+      saveLastProcessedNotifId(id).catch(() => {});
+
       const clear = (
         Notifications as unknown as {
           clearLastNotificationResponseAsync?: () => Promise<void>;
