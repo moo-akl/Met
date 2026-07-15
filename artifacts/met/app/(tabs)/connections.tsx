@@ -449,8 +449,8 @@ function ConnectionRow({
     );
   }
 
-  // Subscribe to this peer's chat doc for a live unread indicator.
-  const [chatUnread, setChatUnread] = useState(false);
+  // Subscribe to this peer's chat doc for live preview + unread indicator.
+  const [chatMeta, setChatMeta] = useState<import("@/lib/firestore/chat").ChatMeta | null>(null);
   useEffect(() => {
     if (!myUid || !c.id) return;
     let cancelled = false;
@@ -458,14 +458,7 @@ function ConnectionRow({
 
     subscribeToChatMeta(myUid, c.id, (meta) => {
       if (cancelled) return;
-      if (!meta?.lastMessage || meta.lastMessage.from === myUid) {
-        setChatUnread(false);
-        return;
-      }
-      const { sentAt } = meta.lastMessage;
-      const readAt = meta.lastReadAt[myUid] ?? 0;
-      const cleared = (meta.clearedAt ?? {})[myUid] ?? 0;
-      setChatUnread(sentAt > readAt && sentAt > cleared);
+      setChatMeta(meta);
     }).then((fn) => {
       if (cancelled) fn();
       else unsub = fn;
@@ -476,6 +469,25 @@ function ConnectionRow({
       unsub?.();
     };
   }, [myUid, c.id]);
+
+  const chatLast = chatMeta?.lastMessage ?? null;
+  const chatUnread = (() => {
+    if (!chatLast || !myUid) return false;
+    const readAt = chatMeta?.lastReadAt[myUid] ?? 0;
+    const cleared = (chatMeta?.clearedAt ?? {})[myUid] ?? 0;
+    return chatLast.sentAt > readAt && chatLast.sentAt > cleared;
+  })();
+
+  // Override preview and timestamp with the actual last chat message when available.
+  // lastMessage.text is already formatted by sendMessage ("🎤 Voice message", "📷", or plain text).
+  if (chatLast) {
+    const isMine = chatLast.from === myUid;
+    preview = isMine
+      ? t("connections.youColon", { text: chatLast.text })
+      : chatLast.text;
+    timestamp = chatLast.sentAt;
+    previewColor = chatUnread ? colors.foreground : colors.mutedForeground;
+  }
 
   const unread = openingUnread || chatUnread;
 
