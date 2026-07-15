@@ -47,7 +47,6 @@ import {
   saveInteractiveWalkthroughSeen,
 } from "@/lib/storage";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
-import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 import { WalkthroughOverlay, type TargetRect } from "@/components/WalkthroughOverlay";
 
 export default function HomeScreen() {
@@ -160,7 +159,6 @@ export default function HomeScreen() {
     [encounters],
   );
   const { isVisible, toggle: toggleVisibility } = useVisibility();
-  const unreadChatCount = useUnreadChatCount();
   const [requestsOpen, setRequestsOpen] = useState(false);
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
 
@@ -316,7 +314,6 @@ export default function HomeScreen() {
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[
           { icon: "globe", onPress: () => setLangPickerOpen(true) },
-          { icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount },
         ]}
       />
       <ScrollView

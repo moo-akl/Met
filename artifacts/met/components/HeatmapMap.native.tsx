@@ -59,13 +59,13 @@ function PulsingMarker({
       Animated.sequence([
         Animated.parallel([
           Animated.timing(scale, {
-            toValue: 2.0,
-            duration: 1100,
+            toValue: 2.6,
+            duration: 900,
             useNativeDriver: true,
           }),
           Animated.timing(opacity, {
             toValue: 0,
-            duration: 1100,
+            duration: 900,
             useNativeDriver: true,
           }),
         ]),
@@ -76,7 +76,7 @@ function PulsingMarker({
             useNativeDriver: true,
           }),
           Animated.timing(opacity, {
-            toValue: 0.55,
+            toValue: 0.65,
             duration: 0,
             useNativeDriver: true,
           }),
@@ -246,16 +246,21 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
     () =>
       heatmapVenues.map((venue) => {
         const pop = venue.popularity ?? 0;
-        const radius = 20 + (pop / 100) * 80;
-        const fillOpacity = pop > 0 ? 0.1 + (pop / 100) * 0.22 : 0.07;
+        const radius = 25 + (pop / 100) * 100;
+        // Gradient from cool blue-violet (low) → warm orange-red (high)
+        const r = Math.round(80 + (pop / 100) * 175);
+        const g = Math.round(60 - (pop / 100) * 20);
+        const b = Math.round(200 - (pop / 100) * 180);
+        const fillOpacity = pop > 0 ? 0.18 + (pop / 100) * 0.32 : 0.1;
+        const strokeOpacity = pop > 0 ? 0.4 + (pop / 100) * 0.3 : 0.2;
         return (
           <Circle
             key={`heat-${venue.placeId}`}
             center={{ latitude: venue.lat, longitude: venue.lng }}
             radius={radius}
-            strokeWidth={1}
-            strokeColor="rgba(110,110,110,0.4)"
-            fillColor={`rgba(110,110,110,${fillOpacity.toFixed(2)})`}
+            strokeWidth={1.5}
+            strokeColor={`rgba(${r},${g},${b},${strokeOpacity.toFixed(2)})`}
+            fillColor={`rgba(${r},${g},${b},${fillOpacity.toFixed(2)})`}
           />
         );
       }),
@@ -271,10 +276,10 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
             key={`active-${venue.placeId}`}
             coordinate={{ latitude: venue.lat, longitude: venue.lng }}
             checkinCount={venue.checkinCount}
-            primaryColor={colors.primary}
+            primaryColor="#34C759"
           />
         )),
-    [activeVenues, colors.primary],
+    [activeVenues],
   );
 
   return (

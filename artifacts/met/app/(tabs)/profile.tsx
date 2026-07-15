@@ -102,6 +102,13 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [showDragHint, setShowDragHint] = useState(false);
   const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
+  const [trophies, setTrophies] = useState<{
+    placeId: string;
+    placeName: string | null;
+    month: string;
+    rank: number;
+    checkinCount: number;
+  }[]>([]);
 
   // Photo verification overlay state. `pendingIntent` distinguishes a
   // main-photo replacement (handled in edit mode, awaits Save) from an extra
@@ -200,6 +207,15 @@ export default function ProfileScreen() {
       .then((s) => setStreak(s))
       .catch(() => {});
     return () => ctrl.abort();
+  }, [authedUid]);
+
+  // Fetch monthly champion trophies earned by this user.
+  useEffect(() => {
+    if (!authedUid) return;
+    api
+      .getChampionBadges({ uid: authedUid }, authedUid)
+      .then((badges) => setTrophies(badges))
+      .catch(() => {});
   }, [authedUid]);
 
   // Fetch trust score for the current user.
@@ -713,6 +729,44 @@ export default function ProfileScreen() {
                 Best: {streak.longestStreak} · {streak.totalConnections} connections
               </Text>
             </View>
+          </View>
+        ) : null}
+
+        {trophies.length > 0 ? (
+          <View style={{ gap: 10, marginTop: 4 }}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+              🏆 Trophies
+            </Text>
+            {trophies.map((trophy, i) => {
+              const medal =
+                trophy.rank === 1 ? "🥇" : trophy.rank === 2 ? "🥈" : "🥉";
+              const monthLabel = new Date(trophy.month + "T00:00:00").toLocaleDateString(
+                undefined,
+                { month: "long", year: "numeric" },
+              );
+              return (
+                <View
+                  key={`${trophy.placeId}-${trophy.month}-${i}`}
+                  style={[
+                    styles.streakCard,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={{ fontSize: 26 }}>{medal}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[styles.streakCount, { color: colors.foreground }]}
+                      numberOfLines={1}
+                    >
+                      {trophy.placeName ?? trophy.placeId}
+                    </Text>
+                    <Text style={[styles.streakSub, { color: colors.mutedForeground }]}>
+                      {monthLabel} · {trophy.checkinCount} check-ins
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         ) : null}
 

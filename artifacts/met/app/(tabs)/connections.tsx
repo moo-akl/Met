@@ -21,6 +21,7 @@ import { WalkthroughOverlay, type TargetRect } from "@/components/WalkthroughOve
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
+import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 import { useT } from "@/lib/i18n";
 import { subscribeToChatMeta } from "@/lib/firestore/chat";
 import {
@@ -64,6 +65,7 @@ export default function ConnectionsScreen() {
   const { t } = useT();
   const { encounters, profile, authedUid } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
+  const unreadChatCount = useUnreadChatCount();
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   const [query, setQuery] = useState("");
@@ -217,7 +219,10 @@ export default function ConnectionsScreen() {
       <AppHeader
         title={t("appHeader.titleConnections")}
         visibility={{ isVisible, onToggle: toggleVisibility }}
-        actions={[{ icon: "sliders", onPress: () => setSortMenuOpen(true) }]}
+        actions={[
+          { icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount },
+          { icon: "sliders", onPress: () => setSortMenuOpen(true) },
+        ]}
       />
 
       {connections.length > 0 ? (
