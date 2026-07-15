@@ -147,6 +147,8 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
   const mapRef = useRef<MapView>(null);
   const [activeVenues, setActiveVenues] = useState<ActiveVenueResult[]>([]);
   const [heatmapVenues, setHeatmapVenues] = useState<HeatmapVenueResult[]>([]);
+  // Tracks the current visible region so heatCircles can scale with zoom.
+  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   // Tracks the region at which we last fetched heatmap data to avoid
   // redundant fetches when the user pans only a tiny amount.
   const lastFetchedRegionRef = useRef<Region | null>(null);
@@ -191,12 +193,13 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
   // or the zoom level changed significantly — prevents excessive API
   // calls on every tiny drag.
   const handleRegionChangeComplete = useCallback(
-    (region: Region) => {
+    (newRegion: Region) => {
+      setRegion(newRegion);
       const prev = lastFetchedRegionRef.current;
-      if (prev && !regionMovedSignificantly(prev, region)) return;
-      lastFetchedRegionRef.current = region;
-      const radius = fetchRadiusFromDelta(region.latitudeDelta);
-      void fetchHeatmap(region.latitude, region.longitude, radius);
+      if (prev && !regionMovedSignificantly(prev, newRegion)) return;
+      lastFetchedRegionRef.current = newRegion;
+      const radius = fetchRadiusFromDelta(newRegion.latitudeDelta);
+      void fetchHeatmap(newRegion.latitude, newRegion.longitude, radius);
     },
     [fetchHeatmap],
   );
@@ -260,30 +263,38 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
 
   // Memoize Circle and Marker children so MapView's child tree is stable
   // between renders and doesn't trigger unnecessary Google Maps SDK redraws.
-  const heatCircles = useMemo(
-    () =>
-      heatmapVenues.map((venue) => {
-        const pop = venue.popularity ?? 0;
-        const radius = 25 + (pop / 100) * 100;
-        // Gradient from cool blue-violet (low) → warm orange-red (high)
-        const r = Math.round(80 + (pop / 100) * 175);
-        const g = Math.round(60 - (pop / 100) * 20);
-        const b = Math.round(200 - (pop / 100) * 180);
-        const fillOpacity = pop > 0 ? 0.18 + (pop / 100) * 0.32 : 0.1;
-        const strokeOpacity = pop > 0 ? 0.4 + (pop / 100) * 0.3 : 0.2;
-        return (
-          <Circle
-            key={`heat-${venue.placeId}`}
-            center={{ latitude: venue.lat, longitude: venue.lng }}
-            radius={radius}
-            strokeWidth={1.5}
-            strokeColor={`rgba(${r},${g},${b},${strokeOpacity.toFixed(2)})`}
-            fillColor={`rgba(${r},${g},${b},${fillOpacity.toFixed(2)})`}
-          />
-        );
-      }),
-    [heatmapVenues],
-  );
+  //
+  // Visual radius scales with the visible latitude span so density spots
+  // remain perceptible at both street level and city/country level.
+  // Base circle ≈ 2.5 % of the visible height; high-popularity venues grow
+  // up to 5 % of the visible height. These fractions keep circles visually
+  // distinguishable without swamping the map at any zoom.
+  const heatCircles = useMemo(() => {
+    const visibleHeightM = region.latitudeDelta * 111_000;
+    const baseRadiusM = visibleHeightM * 0.025;
+    const popBoostM = visibleHeightM * 0.025;
+
+    return heatmapVenues.map((venue) => {
+      const pop = venue.popularity ?? 0;
+      const radius = baseRadiusM + (pop / 100) * popBoostM;
+      // Gradient from cool blue-violet (low) → warm orange-red (high)
+      const r = Math.round(80 + (pop / 100) * 175);
+      const g = Math.round(60 - (pop / 100) * 20);
+      const b = Math.round(200 - (pop / 100) * 180);
+      const fillOpacity = pop > 0 ? 0.18 + (pop / 100) * 0.32 : 0.1;
+      const strokeOpacity = pop > 0 ? 0.4 + (pop / 100) * 0.3 : 0.2;
+      return (
+        <Circle
+          key={`heat-${venue.placeId}`}
+          center={{ latitude: venue.lat, longitude: venue.lng }}
+          radius={radius}
+          strokeWidth={1.5}
+          strokeColor={`rgba(${r},${g},${b},${strokeOpacity.toFixed(2)})`}
+          fillColor={`rgba(${r},${g},${b},${fillOpacity.toFixed(2)})`}
+        />
+      );
+    });
+  }, [heatmapVenues, region.latitudeDelta]);
 
   const activeMarkers = useMemo(
     () =>
