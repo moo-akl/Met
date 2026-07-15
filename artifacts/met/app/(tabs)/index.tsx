@@ -101,14 +101,17 @@ export default function HomeScreen() {
   const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin } =
     useHubCheckin();
 
-  useEffect(() => {
-    // Show the interactive walkthrough once to any user who hasn't seen it yet.
-    loadInteractiveWalkthroughSeen()
-      .then((seen) => {
-        if (!seen) setWalkthroughStep(1);
-      })
-      .catch(() => {});
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      // Show the interactive walkthrough whenever the home tab focuses and the
+      // seen key is cleared (covers first-time launch and Settings "Replay" tap).
+      loadInteractiveWalkthroughSeen()
+        .then((seen) => {
+          if (!seen) setWalkthroughStep(1);
+        })
+        .catch(() => {});
+    }, []),
+  );
 
   useEffect(() => {
     if (walkthroughStep === 0) return;

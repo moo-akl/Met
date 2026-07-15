@@ -809,6 +809,8 @@ export const es: LocaleTree = {
     rtlRestartTitle: "Se necesita reiniciar",
     rtlRestartBody:
       "Met necesita recargar para aplicar el diseño en árabe. Cierra y vuelve a abrir la app.",
+    replayTour: "Repetir el recorrido de la app",
+    replayTourSub: "Vuelve a ver el tutorial desde el principio",
   },
   language: {
     pickerTitle: "Elige un idioma",

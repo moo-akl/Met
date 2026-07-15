@@ -847,6 +847,8 @@ export const en = {
     rtlRestartTitle: "Restart needed",
     rtlRestartBody:
       "Met needs to reload to fully apply Arabic layout. Close and reopen the app.",
+    replayTour: "Replay app tour",
+    replayTourSub: "See the walkthrough again from step 1",
   },
 
   language: {

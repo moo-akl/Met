@@ -819,6 +819,8 @@ export const ru: LocaleTree = {
     rtlRestartTitle: "Нужен перезапуск",
     rtlRestartBody:
       "Met нужно перезагрузить, чтобы полностью применить арабский интерфейс. Закройте и снова откройте приложение.",
+    replayTour: "Повторить обучение",
+    replayTourSub: "Посмотреть обучение снова с первого шага",
   },
   language: {
     pickerTitle: "Выберите язык",

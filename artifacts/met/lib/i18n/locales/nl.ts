@@ -816,6 +816,8 @@ export const nl: LocaleTree = {
     rtlRestartTitle: "Herstart nodig",
     rtlRestartBody:
       "Met moet herladen om de Arabische lay-out volledig toe te passen. Sluit en heropen de app.",
+    replayTour: "App-rondleiding herhalen",
+    replayTourSub: "Bekijk de rondleiding opnieuw vanaf stap 1",
   },
   language: {
     pickerTitle: "Kies een taal",

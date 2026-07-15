@@ -817,6 +817,8 @@ export const ar: LocaleTree = {
     rtlRestartTitle: "يلزم إعادة التشغيل",
     rtlRestartBody:
       "يحتاج Met إلى إعادة التحميل لتطبيق التخطيط العربي بالكامل. أغلق التطبيق وافتحه من جديد.",
+    replayTour: "إعادة جولة التطبيق",
+    replayTourSub: "شاهد الجولة الإرشادية مرة أخرى من البداية",
   },
   language: {
     pickerTitle: "اختر لغة",

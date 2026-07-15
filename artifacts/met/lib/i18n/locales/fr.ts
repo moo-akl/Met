@@ -824,6 +824,8 @@ export const fr: LocaleTree = {
     rtlRestartTitle: "Redémarrage nécessaire",
     rtlRestartBody:
       "Met doit recharger pour appliquer pleinement la mise en page arabe. Fermez et rouvrez l'app.",
+    replayTour: "Revoir le tutoriel",
+    replayTourSub: "Recommencer la visite guidée depuis le début",
   },
   language: {
     pickerTitle: "Choisissez une langue",

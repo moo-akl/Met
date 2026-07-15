@@ -282,6 +282,10 @@ export async function saveInteractiveWalkthroughSeen(): Promise<void> {
   await AsyncStorage.setItem(INTERACTIVE_WALKTHROUGH_SEEN_KEY, "1");
 }
 
+export async function clearInteractiveWalkthroughSeen(): Promise<void> {
+  await AsyncStorage.removeItem(INTERACTIVE_WALKTHROUGH_SEEN_KEY);
+}
+
 /** Written when a user completes the Value Tour for the first time.
  *  Consumed once by the Home screen to start the interactive walkthrough,
  *  then cleared so subsequent launches never re-show it. */

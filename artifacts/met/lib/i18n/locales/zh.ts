@@ -775,6 +775,8 @@ export const zh: LocaleTree = {
     rtlRestartTitle: "需要重启",
     rtlRestartBody:
       "Met 需要重新加载以完整应用阿拉伯语布局。请关闭并重新打开应用。",
+    replayTour: "重播应用导览",
+    replayTourSub: "从第一步重新查看教程",
   },
   language: {
     pickerTitle: "选择语言",

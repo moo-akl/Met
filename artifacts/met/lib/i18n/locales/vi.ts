@@ -816,6 +816,8 @@ export const vi: LocaleTree = {
     rtlRestartTitle: "Cần khởi động lại",
     rtlRestartBody:
       "Met cần tải lại để áp dụng đầy đủ bố cục tiếng Ả Rập. Đóng và mở lại ứng dụng.",
+    replayTour: "Phát lại hướng dẫn ứng dụng",
+    replayTourSub: "Xem lại hướng dẫn từ bước đầu tiên",
   },
   language: {
     pickerTitle: "Chọn ngôn ngữ",
