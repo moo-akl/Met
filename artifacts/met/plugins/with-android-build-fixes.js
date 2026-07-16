@@ -98,15 +98,17 @@ allprojects {
 // with-android-build-fixes:tiktok-kotlin
 // Force react-native-tiktok-business-sdk to compile as Kotlin 1.9 source
 // so it stays compatible when the root project uses the Kotlin 2.0 compiler.
+// NOTE: do NOT use afterEvaluate here — Gradle 8.x throws
+// "Cannot run Project.afterEvaluate when the project is already evaluated"
+// when subprojects have already passed their configuration phase.
+// tasks.withType().configureEach is lazy and avoids that restriction.
 subprojects {
-    afterEvaluate {
-        if (project.name == 'react-native-tiktok-business-sdk') {
-            tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                kotlinOptions {
-                    languageVersion = "1.9"
-                    apiVersion      = "1.9"
-                    jvmTarget       = "17"
-                }
+    if (project.name == 'react-native-tiktok-business-sdk') {
+        tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            kotlinOptions {
+                languageVersion = "1.9"
+                apiVersion      = "1.9"
+                jvmTarget       = "17"
             }
         }
     }
