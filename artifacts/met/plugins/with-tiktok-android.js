@@ -84,6 +84,31 @@ const withTikTokAndroid = (config) => {
     },
   ]);
 
+  // 4. Pin Kotlin version for the TikTok module.
+  //    react-native-tiktok-business-sdk reads TikTokBusiness_kotlinVersion from
+  //    gradle.properties (via its getExtOrDefault helper). RN 0.81 upgraded to
+  //    Kotlin 2.0.x, which breaks the SDK's Kotlin source. Pinning it to 1.9.25
+  //    (the last stable 1.x release) keeps the SDK on a compatible compiler
+  //    without affecting any other module in the build.
+  config = withDangerousMod(config, [
+    "android",
+    (cfg) => {
+      const gradlePropsPath = path.join(
+        cfg.modRequest.platformProjectRoot,
+        "gradle.properties",
+      );
+
+      if (!fs.existsSync(gradlePropsPath)) return cfg;
+
+      let contents = fs.readFileSync(gradlePropsPath, "utf-8");
+      if (contents.includes("TikTokBusiness_kotlinVersion")) return cfg;
+
+      contents += "\n# Pin Kotlin version for react-native-tiktok-business-sdk (incompatible with Kotlin 2.0)\nTikTokBusiness_kotlinVersion=1.9.25\n";
+      fs.writeFileSync(gradlePropsPath, contents);
+      return cfg;
+    },
+  ]);
+
   return config;
 };
 
