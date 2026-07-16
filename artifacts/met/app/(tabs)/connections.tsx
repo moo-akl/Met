@@ -16,6 +16,7 @@ import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
+import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { useQuery } from "@tanstack/react-query";
 import { useApp } from "@/contexts/AppContext";
@@ -380,12 +381,9 @@ function ConnectionRow({
     standing?.hasEnough && standing?.averageRating != null
       ? standing.averageRating
       : null;
-  const trustScore =
-    standing?.hasEnough && standing?.communityStanding != null
-      ? standing.communityStanding
-      : null;
   const isPioneer = standing?.isPioneer ?? false;
   const trophyCount = standing?.trophyCount ?? 0;
+  const peerTrustScore = standing?.trustScore ?? null;
 
   const om = c.openingMessage;
   let preview: string;
@@ -541,29 +539,24 @@ function ConnectionRow({
             </View>
           ) : null}
 
-          {(isPioneer || trophyCount > 0 || trustScore !== null) ? (
+          {(isPioneer || trophyCount > 0 || peerTrustScore !== null) ? (
             <View style={styles.badgesRow}>
               {isPioneer ? (
-                <View style={styles.badgePill}>
-                  <Feather name="award" size={10} color="#F59E0B" />
-                  <Text style={[styles.badgeText, { color: "#92400E" }]}>Pioneer</Text>
+                <View style={styles.pioneerBadge}>
+                  <Feather name="award" size={11} color="#D4AF37" />
+                  <Text style={styles.pioneerBadgeText}>MET PIONEER</Text>
                 </View>
               ) : null}
               {trophyCount > 0 ? (
-                <View style={[styles.badgePill, { backgroundColor: "#FEF3C7" }]}>
-                  <Feather name="target" size={10} color="#D97706" />
-                  <Text style={[styles.badgeText, { color: "#92400E" }]}>
+                <View style={styles.trophyBadge}>
+                  <Feather name="award" size={11} color="#D4AF37" />
+                  <Text style={styles.trophyBadgeText}>
                     {trophyCount} {trophyCount === 1 ? "Trophy" : "Trophies"}
                   </Text>
                 </View>
               ) : null}
-              {trustScore !== null ? (
-                <View style={[styles.badgePill, { backgroundColor: "#EFF6FF" }]}>
-                  <Feather name="shield" size={10} color="#3B82F6" />
-                  <Text style={[styles.badgeText, { color: "#1E40AF" }]}>
-                    {trustScore}% Trust
-                  </Text>
-                </View>
+              {peerTrustScore !== null ? (
+                <TrustScoreBadge score={peerTrustScore} size="sm" showScore />
               ) : null}
             </View>
           ) : null}
@@ -764,21 +757,44 @@ const styles = StyleSheet.create({
   badgesRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 4,
+    gap: 5,
     marginTop: 3,
   },
-  badgePill: {
+  pioneerBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    backgroundColor: "#FEF9C3",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: "rgba(212,175,55,0.12)",
+    borderWidth: 1,
+    borderColor: "#D4AF37",
   },
-  badgeText: {
-    fontFamily: "Inter_600SemiBold",
+  pioneerBadgeText: {
+    fontFamily: "Inter_700Bold",
     fontSize: 10,
+    letterSpacing: 1.5,
+    color: "#D4AF37",
+    textTransform: "uppercase",
+  },
+  trophyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,215,0,0.10)",
+    borderWidth: 1,
+    borderColor: "#FFD700",
+  },
+  trophyBadgeText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    letterSpacing: 1,
+    color: "#92400E",
+    textTransform: "uppercase",
   },
   chatIconWrap: {
     width: 32,

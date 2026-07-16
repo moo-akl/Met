@@ -1365,8 +1365,15 @@ router.get(
       .where(eq(trophiesTable.userUid, uid));
     const trophyCount = Number(trophyRow?.cnt ?? 0);
 
+    const [statsRow] = await db
+      .select({ trustScore: userStatsTable.trustScore })
+      .from(userStatsTable)
+      .where(eq(userStatsTable.userUid, uid))
+      .limit(1);
+    const trustScore = statsRow?.trustScore ?? 100;
+
     if (reviewCount < 3) {
-      res.json({ count: reviewCount, hasEnough: false, isPioneer, trophyCount });
+      res.json({ count: reviewCount, hasEnough: false, isPioneer, trophyCount, trustScore });
       return;
     }
 
@@ -1394,6 +1401,7 @@ router.get(
       communityStanding: Math.round(communityStanding),
       isPioneer,
       trophyCount,
+      trustScore,
     });
   },
 );
