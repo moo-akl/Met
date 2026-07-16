@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, count, sql } from "drizzle-orm";
+import { and, eq, count, or, sql } from "drizzle-orm";
 import { requireUid } from "../middlewares/requireUid";
 import { adminDb } from "../lib/firebaseAdmin";
-import { db, userReportsTable, userStatsTable } from "@workspace/db";
+import { db, userReportsTable, userStatsTable, reviewsTable } from "@workspace/db";
+import { recalcUserRating } from "../lib/reviewRecalc";
 
 const router: IRouter = Router();
 
@@ -118,6 +119,31 @@ router.post("/reports", requireUid, async (req, res) => {
           "trust_score penalised",
         );
       }
+
+      // Remove reviews in both directions between reporter and reported user.
+      // Without this, a rating written before the report continues to
+      // influence the reported user's community standing — the same
+      // ghost-rating problem that exists after connection removal.
+      await db
+        .delete(reviewsTable)
+        .where(
+          or(
+            and(
+              eq(reviewsTable.reviewerUid, reporterUid),
+              eq(reviewsTable.receiverUid, reportedUid),
+            ),
+            and(
+              eq(reviewsTable.reviewerUid, reportedUid),
+              eq(reviewsTable.receiverUid, reporterUid),
+            ),
+          ),
+        );
+
+      // Recalculate community standing for both users immediately.
+      await Promise.all([
+        recalcUserRating(reporterUid),
+        recalcUserRating(reportedUid),
+      ]);
     } catch (err) {
       // Postgres mirror is best-effort — report is already safely in Firestore.
       req.log?.warn?.({ err }, "failed to mirror report to Postgres");
