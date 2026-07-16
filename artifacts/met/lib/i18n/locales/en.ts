@@ -1227,9 +1227,9 @@ export const en = {
     empty: "No trophies yet — keep checking in!",
     loading: "Loading trophies…",
     howToWinTitle: "How to Win Trophies",
-    howToWinGold: "🥇 Gold — Finish #1 in any Hub's monthly leaderboard",
-    howToWinSilver: "🥈 Silver — Finish #2 in any Hub's monthly leaderboard",
-    howToWinBronze: "🥉 Bronze — Finish #3 in any Hub's monthly leaderboard",
+    howToWinGold: "🏆 Gold — Finish #1 in any Hub's monthly leaderboard",
+    howToWinSilver: "🏆 Silver — Finish #2 in any Hub's monthly leaderboard",
+    howToWinBronze: "🏆 Bronze — Finish #3 in any Hub's monthly leaderboard",
     howToWinNote: "Leaderboards reset every month — a fresh chance to win every month.",
   },
 
