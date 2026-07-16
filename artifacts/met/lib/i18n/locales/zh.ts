@@ -1174,19 +1174,25 @@ export const zh: LocaleTree = {
   },
 
   trophies: {
-    title: "奖杯柜",
-    empty: "在任意月份赢得任一枢纽前三名，即可获得第一个奖杯。",
+    title: "奖杯",
+    empty: "在最喜欢的地方签到，排名第一，赢取奖杯！",
     loading: "正在加载奖杯…",
+    howToWinNote: "在最喜欢的地方签到，排名第一，赢取奖杯！",
+    visibility: "可见性",
+    public: "公开",
+    private: "私密",
   },
 
   pioneer: {
     dashboardTitle: "先驱者排行榜",
-    dashboardSub: "按积分排名的前50位创始人",
+    dashboardSub: "按积分排名的前50位先驱者",
     formula: "推荐 ×20 · 签到 ×2 · 聊天 ×5",
     topContributor: "最佳贡献者",
     scoreBreakdown: "{{referrals}} 次推荐 · {{chats}} 次聊天",
     loadError: "加载失败 — 点击重试",
     viewLeaderboard: "查看先驱者排行榜 →",
+    leaderboardBtn: "先驱者排行榜",
+    howScoreNote: "积分每日更新。顶级贡献者每月将赢得惊喜奖励。",
   },
 
   interestLabels: interestLocales.zh,

@@ -1223,30 +1223,33 @@ export const en = {
   },
 
   trophies: {
-    title: "Trophy Case",
+    title: "Trophies",
     empty: "No trophies yet — keep checking in!",
     loading: "Loading trophies…",
     howToWinTitle: "How to Win Trophies",
     howToWinGold: "Gold — Finish #1 in any Hub's monthly leaderboard",
     howToWinSilver: "Silver — Finish #2 in any Hub's monthly leaderboard",
     howToWinBronze: "Bronze — Finish #3 in any Hub's monthly leaderboard",
-    howToWinNote: "Leaderboards reset every month — a fresh chance to win every month.",
+    howToWinNote: "Check in to your favorite spot, rank first, and win trophies!",
+    visibility: "Visibility",
+    public: "Public",
+    private: "Private",
   },
 
   pioneer: {
     dashboardTitle: "Pioneer Leaderboard",
-    dashboardSub: "Top 50 Founders ranked by score",
+    dashboardSub: "Top 50 Pioneers ranked by score",
     formula: "Referrals ×20 · Check-ins ×2 · Chats ×5",
     topContributor: "Top Contributor",
     scoreBreakdown: "{{referrals}} referrals · {{chats}} chats",
     loadError: "Couldn't load — tap to retry",
     viewLeaderboard: "View Pioneer Leaderboard →",
-    leaderboardBtn: "Founders Leaderboard",
+    leaderboardBtn: "Pioneers Leaderboard",
     howScoreTitle: "How Your Score is Calculated",
     howScoreReferrals: "Refer a new user → +20 pts",
     howScoreCheckins: "Check in to any Hub → +2 pts",
     howScoreChats: "Connect & chat with someone → +5 pts",
-    howScoreNote: "Scores update daily. Top contributor earns a special badge.",
+    howScoreNote: "Scores update daily. Top contributors will win surprising rewards monthly.",
   },
 };
 

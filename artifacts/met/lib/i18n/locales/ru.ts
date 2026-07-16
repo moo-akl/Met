@@ -1226,19 +1226,25 @@ export const ru: LocaleTree = {
   },
 
   trophies: {
-    title: "Трофейная витрина",
-    empty: "Займите топ-3 в любом хабе за любой месяц, чтобы получить свой первый трофей.",
+    title: "Трофеи",
+    empty: "Отметься в любимом месте, займи первое место и выиграй трофей!",
     loading: "Загрузка трофеев…",
+    howToWinNote: "Отметься в любимом месте, займи первое место и выиграй трофей!",
+    visibility: "Видимость",
+    public: "Публичные",
+    private: "Приватные",
   },
 
   pioneer: {
     dashboardTitle: "Рейтинг пионеров",
-    dashboardSub: "Топ-50 основателей по очкам",
+    dashboardSub: "Топ-50 пионеров по очкам",
     formula: "Рефералы ×20 · Чекины ×2 · Чаты ×5",
-    topContributor: "Главный участник",
+    topContributor: "Лучший участник",
     scoreBreakdown: "{{referrals}} рефералов · {{chats}} чатов",
     loadError: "Не удалось загрузить — нажмите, чтобы повторить",
     viewLeaderboard: "Рейтинг пионеров →",
+    leaderboardBtn: "Рейтинг пионеров",
+    howScoreNote: "Очки обновляются каждый день. Лучшие участники каждый месяц получают неожиданные призы.",
   },
 
   interestLabels: interestLocales.ru,

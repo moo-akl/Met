@@ -26,3 +26,20 @@ export function getStarColor(rating: number): string {
   if (rating >= 3.5) return STAR_COLOR_EMERALD;
   return STAR_COLOR_AMBER;
 }
+
+/**
+ * Per-position star colors for the review picker.
+ * Each star slot has its own vivid color so the picker is clearly not monochrome:
+ *   1 star  → red    (low rating)
+ *   2 stars → orange
+ *   3 stars → yellow
+ *   4 stars → green
+ *   5 stars → gold   (top rating)
+ */
+export const STAR_POSITION_COLORS: readonly string[] = [
+  "#FF4444", // 1 — red
+  "#FF8800", // 2 — orange
+  "#FFD700", // 3 — yellow
+  "#44BB44", // 4 — green
+  "#DAA520", // 5 — gold
+];

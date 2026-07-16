@@ -25,18 +25,18 @@ export async function savePioneerModalSeen(): Promise<void> {
 const PARTS = [
   {
     icon: "award" as const,
-    title: "Founder Status",
-    body: "You're one of the first 500 people to join Met. Your Founder status is permanent — a recognition that you were here when it all started, shaping the community from day one.",
+    title: "Pioneer Status",
+    body: "You're one of the first 500 people to join Met. Your Pioneer status is permanent — a recognition that you were here when it all started, shaping the community from day one.",
   },
   {
     icon: "zap" as const,
-    title: "Founder Superpowers",
+    title: "Pioneer Superpowers",
     body: "Your check-ins earn 1.5× more points than regular members. You also appear with priority on the Met radar, making you naturally more visible to people nearby.",
   },
   {
     icon: "gift" as const,
-    title: "Founder's Surprise",
-    body: "The top Founders on the Pioneer Leaderboard — ranked by how many friends they've brought to Met — are marked as eligible for an exclusive surprise from the Met team. A personal thank-you for helping build this community.",
+    title: "Monthly Rewards",
+    body: "Top contributors on the Pioneer Leaderboard win surprising rewards every month — a personal thank-you from the Met team for helping build this community.",
   },
 ];
 
@@ -77,7 +77,7 @@ export function PioneerModal({ visible, onClose }: Props) {
             <View style={styles.iconRing}>
               <Feather name={part.icon} size={28} color="#FFD700" />
             </View>
-            <Text style={styles.headerLabel}>MET FOUNDER</Text>
+            <Text style={styles.headerLabel}>MET PIONEER</Text>
           </LinearGradient>
 
           <View style={styles.body}>

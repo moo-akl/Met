@@ -1,20 +1,28 @@
 /**
  * TrophyCase
  *
- * Displays a user's trophy collection in a responsive grid.
- * Gold trophies have a continuous "shine" shimmer animation to feel premium.
+ * Shows a pressable summary row ("Trophies →") on the profile page.
+ * Tapping opens a full-screen modal with the trophy grid, a public/private
+ * visibility toggle, and a how-to-win hint.
  */
 
-import React, { useEffect, useRef } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
+  Modal,
+  Pressable,
   StyleSheet,
+  Switch,
   Text,
   View,
   type ListRenderItemInfo,
 } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
+
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 
@@ -37,10 +45,12 @@ export interface Trophy {
 // ---------------------------------------------------------------------------
 
 const TROPHY_COLORS: Record<string, { bg: string; border: string; text: string; glow: string }> = {
-  Gold: { bg: "#2A1F00", border: "#FFD700", text: "#FFD700", glow: "rgba(255,215,0,0.35)" },
+  Gold:   { bg: "#2A1F00", border: "#FFD700", text: "#FFD700", glow: "rgba(255,215,0,0.35)" },
   Silver: { bg: "#1A1A22", border: "#C0C0C0", text: "#D8D8D8", glow: "rgba(192,192,192,0.25)" },
   Bronze: { bg: "#1E1200", border: "#CD7F32", text: "#CD7F32", glow: "rgba(205,127,50,0.25)" },
 };
+
+const VISIBILITY_KEY = "met:trophies_public:v1";
 
 // ---------------------------------------------------------------------------
 // SVG Trophy Cup icon
@@ -49,13 +59,11 @@ const TROPHY_COLORS: Record<string, { bg: string; border: string; text: string; 
 function TrophyCupIcon({ color, size = 28 }: { color: string; size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      {/* Cup bowl */}
       <Path
         d="M6 2 H18 V10 C18 15.5 12 17 12 17 C12 17 6 15.5 6 10 Z"
         fill={color}
         opacity={0.95}
       />
-      {/* Left handle */}
       <Path
         d="M6 5 C2.5 5 2.5 12 6 12"
         stroke={color}
@@ -64,7 +72,6 @@ function TrophyCupIcon({ color, size = 28 }: { color: string; size?: number }) {
         fill="none"
         opacity={0.7}
       />
-      {/* Right handle */}
       <Path
         d="M18 5 C21.5 5 21.5 12 18 12"
         stroke={color}
@@ -73,9 +80,7 @@ function TrophyCupIcon({ color, size = 28 }: { color: string; size?: number }) {
         fill="none"
         opacity={0.7}
       />
-      {/* Stem */}
       <Rect x="11" y="17" width="2" height="3" fill={color} opacity={0.85} />
-      {/* Base */}
       <Path
         d="M8 20 H16 A1 1 0 0 1 16 22 H8 A1 1 0 0 1 8 20 Z"
         fill={color}
@@ -86,7 +91,7 @@ function TrophyCupIcon({ color, size = 28 }: { color: string; size?: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Gold Shine animation component
+// Gold Shine animation
 // ---------------------------------------------------------------------------
 
 function GoldShine({ children }: { children: React.ReactNode }) {
@@ -95,36 +100,21 @@ function GoldShine({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(shimmer, {
-          toValue: 1,
-          duration: 1400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shimmer, {
-          toValue: 0,
-          duration: 1400,
-          useNativeDriver: true,
-        }),
+        Animated.timing(shimmer, { toValue: 1, duration: 1400, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 1400, useNativeDriver: true }),
       ]),
     );
     anim.start();
     return () => anim.stop();
   }, [shimmer]);
 
-  const opacity = shimmer.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0, 0.55, 0],
-  });
+  const opacity = shimmer.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.55, 0] });
 
   return (
     <View style={styles.shineContainer}>
       {children}
       <Animated.View
-        style={[
-          StyleSheet.absoluteFill,
-          styles.shineOverlay,
-          { opacity },
-        ]}
+        style={[StyleSheet.absoluteFill, styles.shineOverlay, { opacity }]}
         pointerEvents="none"
       />
     </View>
@@ -166,6 +156,44 @@ function TrophyCard({ trophy }: { trophy: Trophy }) {
 }
 
 // ---------------------------------------------------------------------------
+// How-to-win card (shown in modal when trophies list is empty)
+// ---------------------------------------------------------------------------
+
+function HowToWinCard() {
+  const { t } = useT();
+  const colors = useColors();
+  return (
+    <View style={[styles.howToCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Text style={[styles.howToTitle, { color: colors.foreground }]}>
+        {t("trophies.howToWinTitle")}
+      </Text>
+      <View style={styles.howToRow}>
+        <TrophyCupIcon color={TROPHY_COLORS.Gold!.text} size={18} />
+        <Text style={[styles.howToRowText, { color: colors.mutedForeground }]}>
+          {t("trophies.howToWinGold")}
+        </Text>
+      </View>
+      <View style={styles.howToRow}>
+        <TrophyCupIcon color={TROPHY_COLORS.Silver!.text} size={18} />
+        <Text style={[styles.howToRowText, { color: colors.mutedForeground }]}>
+          {t("trophies.howToWinSilver")}
+        </Text>
+      </View>
+      <View style={styles.howToRow}>
+        <TrophyCupIcon color={TROPHY_COLORS.Bronze!.text} size={18} />
+        <Text style={[styles.howToRowText, { color: colors.mutedForeground }]}>
+          {t("trophies.howToWinBronze")}
+        </Text>
+      </View>
+      <View style={[styles.howToDivider, { backgroundColor: colors.border }]} />
+      <Text style={[styles.howToNote, { color: colors.mutedForeground }]}>
+        {t("trophies.howToWinNote")}
+      </Text>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -177,64 +205,134 @@ interface Props {
 export function TrophyCase({ trophies, loading }: Props) {
   const { t } = useT();
   const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(VISIBILITY_KEY).then((val) => {
+      if (val !== null) setIsPublic(val === "1");
+    });
+  }, []);
+
+  const handleToggleVisibility = (val: boolean) => {
+    setIsPublic(val);
+    void AsyncStorage.setItem(VISIBILITY_KEY, val ? "1" : "0");
+  };
 
   if (loading) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+      <View style={[styles.rowWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TrophyCupIcon color={TROPHY_COLORS.Gold!.text} size={16} />
+        <Text style={[styles.rowTitle, { color: colors.foreground }]}>{t("trophies.title")}</Text>
+        <Text style={[styles.rowMeta, { color: colors.mutedForeground }]}>
           {t("trophies.loading")}
         </Text>
       </View>
     );
   }
 
-  return (
-    <View style={styles.wrapper}>
-      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-        {t("trophies.title")}
-      </Text>
+  const count = trophies.length;
 
-      {trophies.length === 0 && !loading && (
-        <View style={[styles.howToCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.howToTitle, { color: colors.foreground }]}>
-            {t("trophies.howToWinTitle")}
-          </Text>
-          <View style={styles.howToRow}>
-            <TrophyCupIcon color={TROPHY_COLORS.Gold!.text} size={18} />
-            <Text style={[styles.howToRowText, { color: colors.mutedForeground }]}>
-              {t("trophies.howToWinGold")}
-            </Text>
+  return (
+    <>
+      {/* Pressable summary row — same style as the Pioneer Leaderboard link */}
+      <Pressable
+        onPress={() => setModalVisible(true)}
+        accessibilityRole="button"
+        style={({ pressed }) => [
+          styles.rowWrap,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            opacity: pressed ? 0.82 : 1,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          },
+        ]}
+      >
+        <TrophyCupIcon color={TROPHY_COLORS.Gold!.text} size={18} />
+        <Text style={[styles.rowTitle, { color: colors.foreground, flex: 1 }]}>
+          {t("trophies.title")}
+        </Text>
+        {count > 0 && (
+          <View style={[styles.countBadge, { backgroundColor: colors.primary + "22" }]}>
+            <Text style={[styles.countBadgeText, { color: colors.primary }]}>{count}</Text>
           </View>
-          <View style={styles.howToRow}>
-            <TrophyCupIcon color={TROPHY_COLORS.Silver!.text} size={18} />
-            <Text style={[styles.howToRowText, { color: colors.mutedForeground }]}>
-              {t("trophies.howToWinSilver")}
-            </Text>
-          </View>
-          <View style={styles.howToRow}>
-            <TrophyCupIcon color={TROPHY_COLORS.Bronze!.text} size={18} />
-            <Text style={[styles.howToRowText, { color: colors.mutedForeground }]}>
-              {t("trophies.howToWinBronze")}
-            </Text>
-          </View>
-          <View style={[styles.howToDivider, { backgroundColor: colors.border }]} />
-          <Text style={[styles.howToNote, { color: colors.mutedForeground }]}>
-            {t("trophies.howToWinNote")}
-          </Text>
-        </View>
-      )}
-      <FlatList<Trophy>
-        data={trophies}
-        keyExtractor={(item) => String(item.id)}
-        numColumns={3}
-        scrollEnabled={false}
-        renderItem={({ item }: ListRenderItemInfo<Trophy>) => (
-          <TrophyCard trophy={item} />
         )}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.grid}
-      />
-    </View>
+        <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+      </Pressable>
+
+      {/* Full-screen modal with trophies grid + visibility toggle */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={[styles.modal, { backgroundColor: colors.background, paddingTop: insets.top + 8 }]}>
+          {/* Modal header */}
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <TrophyCupIcon color={TROPHY_COLORS.Gold!.text} size={22} />
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              {t("trophies.title")}
+            </Text>
+            <Pressable
+              onPress={() => setModalVisible(false)}
+              hitSlop={12}
+              style={styles.closeBtn}
+              accessibilityLabel={t("common.close")}
+            >
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          {/* Visibility toggle */}
+          <View style={[styles.visibilityRow, { borderBottomColor: colors.border }]}>
+            <Feather
+              name={isPublic ? "eye" : "eye-off"}
+              size={16}
+              color={colors.mutedForeground}
+            />
+            <Text style={[styles.visibilityLabel, { color: colors.foreground }]}>
+              {t("trophies.visibility")}
+            </Text>
+            <Text style={[styles.visibilityValue, { color: colors.mutedForeground }]}>
+              {isPublic ? t("trophies.public") : t("trophies.private")}
+            </Text>
+            <Switch
+              value={isPublic}
+              onValueChange={handleToggleVisibility}
+              trackColor={{ false: colors.muted, true: colors.primary + "88" }}
+              thumbColor={isPublic ? colors.primary : colors.mutedForeground}
+            />
+          </View>
+
+          {/* Trophy grid or empty/how-to state */}
+          {count === 0 ? (
+            <View style={styles.modalContent}>
+              <HowToWinCard />
+            </View>
+          ) : (
+            <FlatList<Trophy>
+              data={trophies}
+              keyExtractor={(item) => String(item.id)}
+              numColumns={3}
+              scrollEnabled
+              renderItem={({ item }: ListRenderItemInfo<Trophy>) => <TrophyCard trophy={item} />}
+              columnWrapperStyle={styles.row}
+              contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + 24 }]}
+              ListHeaderComponent={
+                <View style={styles.hintRow}>
+                  <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+                    {t("trophies.howToWinNote")}
+                  </Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -243,18 +341,83 @@ export function TrophyCase({ trophies, loading }: Props) {
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
-  wrapper: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+  /* Pressable summary row */
+  rowWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  sectionTitle: {
-    fontSize: 16,
+  rowTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+  },
+  rowMeta: {
+    fontSize: 13,
+  },
+  countBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  countBadgeText: {
+    fontSize: 12,
     fontWeight: "700",
-    marginBottom: 12,
-    letterSpacing: 0.3,
+  },
+
+  /* Modal */
+  modal: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  closeBtn: {
+    padding: 2,
+  },
+
+  /* Visibility toggle row */
+  visibilityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  visibilityLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  visibilityValue: {
+    fontSize: 13,
+  },
+
+  /* Trophy grid */
+  modalContent: {
+    padding: 16,
   },
   grid: {
     gap: 8,
+    padding: 16,
   },
   row: {
     gap: 8,
@@ -299,23 +462,19 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.6)",
     borderRadius: 12,
   },
-  emptyContainer: {
-    paddingVertical: 20,
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-  },
-  emptyEmoji: {
-    fontSize: 32,
-    opacity: 0.3,
-  },
-  emptyText: {
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  howToCard: {
+
+  /* Hint text at top of grid */
+  hintRow: {
     marginBottom: 12,
+  },
+  hintText: {
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+  },
+
+  /* How-to-win card */
+  howToCard: {
     borderRadius: 14,
     borderWidth: 1,
     padding: 14,
@@ -341,8 +500,7 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   howToNote: {
-    fontSize: 11,
-    lineHeight: 16,
-    opacity: 0.7,
+    fontSize: 12,
+    lineHeight: 17,
   },
 });

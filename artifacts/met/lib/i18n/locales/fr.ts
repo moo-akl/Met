@@ -1229,19 +1229,25 @@ export const fr: LocaleTree = {
   },
 
   trophies: {
-    title: "Vitrine des trophées",
-    empty: "Gagnez le top 3 dans un Hub n'importe quel mois pour décrocher votre premier trophée.",
+    title: "Trophées",
+    empty: "Enregistre-toi à ton endroit favori, sois premier et gagne des trophées !",
     loading: "Chargement des trophées…",
+    howToWinNote: "Enregistre-toi à ton endroit favori, sois premier et gagne des trophées !",
+    visibility: "Visibilité",
+    public: "Public",
+    private: "Privé",
   },
 
   pioneer: {
     dashboardTitle: "Classement Pioneer",
-    dashboardSub: "Top 50 Fondateurs classés par score",
+    dashboardSub: "Top 50 Pionniers classés par score",
     formula: "Références ×20 · Check-ins ×2 · Chats ×5",
     topContributor: "Contributeur Principal",
     scoreBreakdown: "{{referrals}} références · {{chats}} chats",
     loadError: "Impossible de charger — appuyez pour réessayer",
     viewLeaderboard: "Voir le Classement Pioneer →",
+    leaderboardBtn: "Classement Pionniers",
+    howScoreNote: "Les scores sont mis à jour chaque jour. Les meilleurs contributeurs gagnent des récompenses surprises chaque mois.",
   },
 
   interestLabels: interestLocales.fr,

@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Updates from "expo-updates";
@@ -42,6 +43,9 @@ import {
 } from "@/lib/i18n";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
+
+const CHECKIN_CTA_KEY = "met:checkin_cta_last_shown";
+const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -91,7 +95,20 @@ export default function HomeScreen() {
   const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin } =
     useHubCheckin();
 
+  // Show the check-in CTA banner at most once every 6 hours.
+  const [checkinCtaVisible, setCheckinCtaVisible] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(CHECKIN_CTA_KEY).then((raw) => {
+      if (!raw) { setCheckinCtaVisible(true); return; }
+      setCheckinCtaVisible(Date.now() - Number(raw) >= SIX_HOURS_MS);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleCheckinPress = useCallback(() => {
+    // Save timestamp and hide the banner for 6 hours.
+    void AsyncStorage.setItem(CHECKIN_CTA_KEY, String(Date.now()));
+    setCheckinCtaVisible(false);
     // Trigger a real location + nearby-hub lookup (bypasses the 5-min debounce).
     // Single-venue → auto-confirms; multiple venues → opens SelectVenueModal;
     // no nearby hub → badge stays hidden (user sees nothing changed yet).
@@ -480,7 +497,7 @@ export default function HomeScreen() {
           {mapReady && <HeatmapMap style={{ flex: 1 }} />}
         </View>
 
-        <View style={styles.checkinCtaWrapper}>
+        {checkinCtaVisible && <View style={styles.checkinCtaWrapper}>
           <Pressable
             style={({ pressed }) => [
               styles.checkinCta,
@@ -500,7 +517,7 @@ export default function HomeScreen() {
             </Text>
             <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
           </Pressable>
-        </View>
+        </View>}
 
         <Pressable
           onPress={() => {

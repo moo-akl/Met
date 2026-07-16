@@ -618,7 +618,7 @@ export default function ProfileScreen() {
                   style={styles.pioneerBadge}
                 >
                   <Feather name="award" size={11} color="#D4AF37" />
-                  <Text style={styles.pioneerBadgeText}>MET FOUNDER</Text>
+                  <Text style={styles.pioneerBadgeText}>MET PIONEER</Text>
                 </Pressable>
               )}
               <Pressable
@@ -633,7 +633,7 @@ export default function ProfileScreen() {
               {prizeEligible ? (
                 <View style={styles.prizeBadge}>
                   <Feather name="gift" size={11} color="#FFD700" />
-                  <Text style={styles.prizeBadgeText}>Eligible for Founder's Surprise Prize</Text>
+                  <Text style={styles.prizeBadgeText}>Eligible for Pioneer Monthly Reward</Text>
                 </View>
               ) : null}
             </View>

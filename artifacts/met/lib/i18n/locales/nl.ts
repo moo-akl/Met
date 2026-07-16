@@ -1221,19 +1221,25 @@ export const nl: LocaleTree = {
   },
 
   trophies: {
-    title: "Trofeeënkast",
-    empty: "Win de top 3 bij een Hub in een willekeurige maand om je eerste trofee te verdienen.",
+    title: "Trofeeën",
+    empty: "Check in op je favoriete plek, eindig eerste en win trofeeën!",
     loading: "Trofeeën laden…",
+    howToWinNote: "Check in op je favoriete plek, eindig eerste en win trofeeën!",
+    visibility: "Zichtbaarheid",
+    public: "Openbaar",
+    private: "Privé",
   },
 
   pioneer: {
     dashboardTitle: "Pioneer-ranglijst",
-    dashboardSub: "Top 50 Oprichters gerangschikt op score",
+    dashboardSub: "Top 50 Pioniers gerangschikt op score",
     formula: "Verwijzingen ×20 · Check-ins ×2 · Chats ×5",
-    topContributor: "Topper Bijdrager",
+    topContributor: "Beste bijdrager",
     scoreBreakdown: "{{referrals}} verwijzingen · {{chats}} chats",
     loadError: "Kon niet laden — tik om opnieuw te proberen",
     viewLeaderboard: "Pioneer-ranglijst bekijken →",
+    leaderboardBtn: "Pioniers-ranglijst",
+    howScoreNote: "Scores worden dagelijks bijgewerkt. Beste bijdragers winnen elke maand verrassende beloningen.",
   },
 
   interestLabels: interestLocales.nl,

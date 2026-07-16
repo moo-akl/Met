@@ -1221,19 +1221,25 @@ export const vi: LocaleTree = {
   },
 
   trophies: {
-    title: "Tủ cúp",
-    empty: "Vào top 3 tại một Hub trong bất kỳ tháng nào để giành cúp đầu tiên.",
+    title: "Cúp",
+    empty: "Check-in tại địa điểm yêu thích, dẫn đầu bảng xếp hạng và nhận cúp!",
     loading: "Đang tải cúp…",
+    howToWinNote: "Check-in tại địa điểm yêu thích, dẫn đầu bảng xếp hạng và nhận cúp!",
+    visibility: "Hiển thị",
+    public: "Công khai",
+    private: "Riêng tư",
   },
 
   pioneer: {
     dashboardTitle: "Bảng xếp hạng Pioneer",
-    dashboardSub: "Top 50 nhà sáng lập theo điểm số",
+    dashboardSub: "Top 50 Pioneer theo điểm số",
     formula: "Giới thiệu ×20 · Check-in ×2 · Chat ×5",
     topContributor: "Người đóng góp hàng đầu",
     scoreBreakdown: "{{referrals}} giới thiệu · {{chats}} chat",
     loadError: "Không thể tải — nhấn để thử lại",
     viewLeaderboard: "Xem Bảng xếp hạng Pioneer →",
+    leaderboardBtn: "Bảng xếp hạng Pioneer",
+    howScoreNote: "Điểm được cập nhật hàng ngày. Người đóng góp hàng đầu nhận phần thưởng bất ngờ mỗi tháng.",
   },
 
   interestLabels: interestLocales.vi,

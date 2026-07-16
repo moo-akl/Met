@@ -1219,19 +1219,25 @@ export const pt: LocaleTree = {
   },
 
   trophies: {
-    title: "Vitrine de troféus",
-    empty: "Ganhe o top 3 num Hub em qualquer mês para conquistar o seu primeiro troféu.",
+    title: "Troféus",
+    empty: "Faça check-in no seu lugar favorito, fique em 1º e ganhe troféus!",
     loading: "Carregando troféus…",
+    howToWinNote: "Faça check-in no seu lugar favorito, fique em 1º e ganhe troféus!",
+    visibility: "Visibilidade",
+    public: "Público",
+    private: "Privado",
   },
 
   pioneer: {
     dashboardTitle: "Classificação Pioneer",
-    dashboardSub: "Top 50 Fundadores classificados por pontuação",
+    dashboardSub: "Top 50 Pioneiros por pontuação",
     formula: "Referências ×20 · Check-ins ×2 · Chats ×5",
     topContributor: "Principal Contribuidor",
     scoreBreakdown: "{{referrals}} referências · {{chats}} chats",
     loadError: "Não foi possível carregar — toque para tentar novamente",
     viewLeaderboard: "Ver Classificação Pioneer →",
+    leaderboardBtn: "Classificação Pioneiros",
+    howScoreNote: "As pontuações são atualizadas diariamente. Os melhores contribuidores ganham recompensas surpresa todo mês.",
   },
 
   interestLabels: interestLocales.pt,

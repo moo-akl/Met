@@ -1222,19 +1222,25 @@ export const ar: LocaleTree = {
   },
 
   trophies: {
-    title: "خزانة الكؤوس",
-    empty: "احتل المراكز الثلاثة الأولى في أي مركز خلال أي شهر لتحصل على كأسك الأول.",
+    title: "الكؤوس",
+    empty: "سجّل حضورك في مكانك المفضل، احتل المرتبة الأولى، واربح كأسك!",
     loading: "جار تحميل الكؤوس...",
+    howToWinNote: "سجّل حضورك في مكانك المفضل، احتل المرتبة الأولى، واربح كأسك!",
+    visibility: "مستوى الخصوصية",
+    public: "عام",
+    private: "خاص",
   },
 
   pioneer: {
     dashboardTitle: "لوحة المبتكرين",
-    dashboardSub: "أفضل 50 مؤسساً مرتبين حسب النقاط",
+    dashboardSub: "أفضل 50 مبتكراً مرتبين حسب النقاط",
     formula: "الإحالات ×20 · تسجيلات الدخول ×2 · المحادثات ×5",
     topContributor: "أفضل مساهم",
     scoreBreakdown: "{{referrals}} إحالة · {{chats}} محادثة",
     loadError: "تعذّر التحميل — انقر للمحاولة مجدداً",
     viewLeaderboard: "عرض لوحة المبتكرين ←",
+    leaderboardBtn: "لوحة المبتكرين",
+    howScoreNote: "تُحدَّث النقاط يومياً. أفضل المساهمين يفوزون بمكافآت مفاجئة كل شهر.",
   },
 
   interestLabels: interestLocales.ar,

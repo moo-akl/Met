@@ -27,7 +27,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
-import { getStarColor } from "@/lib/rating";
+import { STAR_POSITION_COLORS } from "@/lib/rating";
 import { useSlideUpModal } from "@/hooks/useSlideUpModal";
 
 const VIBE_TAG_KEYS = ["kind", "reliable", "open", "funny", "professional"] as const;
@@ -57,9 +57,9 @@ function AnimatedStar({ star, value, onChange }: AnimatedStarProps) {
   };
 
   const filled = star <= value;
-  // Color all filled stars based on the current selection tier so the whole
-  // row shifts tone as the user sweeps through ratings.
-  const fillColor = value > 0 ? getStarColor(value) : "#F5B700";
+  // Each star position has its own vivid color so the picker is clearly not
+  // monochrome: 1=red, 2=orange, 3=yellow, 4=green, 5=gold.
+  const fillColor = STAR_POSITION_COLORS[star - 1] ?? "#FFD700";
 
   return (
     <Pressable
@@ -73,7 +73,7 @@ function AnimatedStar({ star, value, onChange }: AnimatedStarProps) {
         <Feather
           name="star"
           size={40}
-          color={filled ? fillColor : colors.border}
+          color={filled ? fillColor : "rgba(255,255,255,0.15)"}
           style={{ marginHorizontal: 4 }}
         />
       </Animated.View>

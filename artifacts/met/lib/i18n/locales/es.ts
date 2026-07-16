@@ -1213,19 +1213,25 @@ export const es: LocaleTree = {
   },
 
   trophies: {
-    title: "Vitrina de trofeos",
-    empty: "Gana el top 3 en un Hub durante cualquier mes para ganar tu primer trofeo.",
+    title: "Trofeos",
+    empty: "Haz check-in en tu lugar favorito, clasifica primero y gana trofeos.",
     loading: "Cargando trofeos…",
+    howToWinNote: "Haz check-in en tu lugar favorito, clasifica primero y gana trofeos.",
+    visibility: "Visibilidad",
+    public: "Público",
+    private: "Privado",
   },
 
   pioneer: {
     dashboardTitle: "Clasificación Pioneer",
-    dashboardSub: "Top 50 Fundadores por puntuación",
+    dashboardSub: "Top 50 Pioneros por puntuación",
     formula: "Referencias ×20 · Check-ins ×2 · Chats ×5",
     topContributor: "Colaborador Principal",
     scoreBreakdown: "{{referrals}} referencias · {{chats}} chats",
     loadError: "No se pudo cargar — toca para reintentar",
     viewLeaderboard: "Ver Clasificación Pioneer →",
+    leaderboardBtn: "Clasificación Pioneros",
+    howScoreNote: "Las puntuaciones se actualizan a diario. Los mejores contribuidores ganan premios sorpresa cada mes.",
   },
 
   interestLabels: interestLocales.es,
