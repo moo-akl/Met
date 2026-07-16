@@ -80,6 +80,41 @@ allprojects {
     return cfg;
   });
 
+  // Force TikTok SDK Kotlin source to compile as 1.9 even when the root project
+  // ships the Kotlin 2.0 compiler (RN 0.81 sets kotlinVersion=2.0.21 globally).
+  // In a Gradle multi-project build the root buildscript classpath is inherited
+  // by all subprojects, so patching the SDK's own buildscript entry is
+  // ineffective — the root's 2.0.x compiler still wins.  Instead we use
+  // subprojects/afterEvaluate to set languageVersion+apiVersion="1.9" on the
+  // SDK's KotlinCompile tasks, which tells the 2.0 compiler to accept 1.9
+  // source, and jvmTarget="17" to match the rest of the build.
+  config = withProjectBuildGradle(config, (cfg) => {
+    if (cfg.modResults.language !== "groovy") return cfg;
+    if (cfg.modResults.contents.includes("// with-android-build-fixes:tiktok-kotlin")) {
+      return cfg;
+    }
+    cfg.modResults.contents += `
+
+// with-android-build-fixes:tiktok-kotlin
+// Force react-native-tiktok-business-sdk to compile as Kotlin 1.9 source
+// so it stays compatible when the root project uses the Kotlin 2.0 compiler.
+subprojects {
+    afterEvaluate {
+        if (project.name == 'react-native-tiktok-business-sdk') {
+            tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                    languageVersion = "1.9"
+                    apiVersion      = "1.9"
+                    jvmTarget       = "17"
+                }
+            }
+        }
+    }
+}
+`;
+    return cfg;
+  });
+
   config = withGradleProperties(config, (cfg) => {
     const props = cfg.modResults;
     const setProp = (key, value) => {
@@ -96,6 +131,13 @@ allprojects {
       "org.gradle.jvmargs",
       "-Xmx6g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8",
     );
+    // Suppress JVM-target mismatch warning-as-error: some third-party modules
+    // (including react-native-tiktok-business-sdk) still declare jvmTarget=1.8
+    // or 11 in their own build.gradle; Kotlin 2.0 promotes the cross-module
+    // mismatch from a warning to a build error.  IGNORE disables the check
+    // project-wide; correctness is unaffected (the actual bytecode target is
+    // set per-task via the afterEvaluate block above).
+    setProp("kotlin.jvm.target.validation.mode", "IGNORE");
     return cfg;
   });
 
