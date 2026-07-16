@@ -13,6 +13,8 @@ const path = require("path");
  *   1. Adds JitPack repository to project-level build.gradle
  *   2. Adds SDK + lifecycle + install-referrer dependencies to app/build.gradle
  *   3. Adds ProGuard rules to proguard-rules.pro
+ *   4. Patches the SDK's own build.gradle to pin Kotlin 1.9.25 (RN 0.81 uses
+ *      Kotlin 2.0.x globally, which breaks the SDK's Kotlin source)
  */
 const withTikTokAndroid = (config) => {
   // 1. Add JitPack to project-level build.gradle
@@ -84,27 +86,55 @@ const withTikTokAndroid = (config) => {
     },
   ]);
 
-  // 4. Pin Kotlin version for the TikTok module.
-  //    react-native-tiktok-business-sdk reads TikTokBusiness_kotlinVersion from
-  //    gradle.properties (via its getExtOrDefault helper). RN 0.81 upgraded to
-  //    Kotlin 2.0.x, which breaks the SDK's Kotlin source. Pinning it to 1.9.25
-  //    (the last stable 1.x release) keeps the SDK on a compatible compiler
-  //    without affecting any other module in the build.
+  // 4. Patch the TikTok SDK's own build.gradle to hardcode Kotlin 1.9.25.
+  //
+  //    Why: react-native-tiktok-business-sdk's build.gradle uses
+  //    getExtOrDefault('kotlinVersion') which first checks rootProject.ext.kotlinVersion.
+  //    RN 0.81 sets that ext var to "2.0.21" globally, so the TikTokBusiness_kotlinVersion
+  //    gradle.properties fallback is never reached. Kotlin 2.0.x breaks the SDK's source.
+  //
+  //    Fix: resolve the pnpm symlink to the real build.gradle file and rewrite
+  //    the two dynamic version lookups to the literal "1.9.25". This runs during
+  //    expo prebuild (before Gradle reads the file), and pnpm reinstalls on every
+  //    EAS build so the patched file is fresh on every run.
   config = withDangerousMod(config, [
     "android",
     (cfg) => {
-      const gradlePropsPath = path.join(
-        cfg.modRequest.platformProjectRoot,
-        "gradle.properties",
+      const symlink = path.join(
+        cfg.modRequest.projectRoot,
+        "node_modules",
+        "react-native-tiktok-business-sdk",
+        "android",
+        "build.gradle",
       );
 
-      if (!fs.existsSync(gradlePropsPath)) return cfg;
+      // Resolve through pnpm symlink to the real file
+      let realPath;
+      try {
+        realPath = fs.realpathSync(symlink);
+      } catch (_) {
+        // SDK not found — nothing to patch
+        return cfg;
+      }
 
-      let contents = fs.readFileSync(gradlePropsPath, "utf-8");
-      if (contents.includes("TikTokBusiness_kotlinVersion")) return cfg;
+      let contents = fs.readFileSync(realPath, "utf-8");
 
-      contents += "\n# Pin Kotlin version for react-native-tiktok-business-sdk (incompatible with Kotlin 2.0)\nTikTokBusiness_kotlinVersion=1.9.25\n";
-      fs.writeFileSync(gradlePropsPath, contents);
+      // Already patched on a previous run (shouldn't happen in EAS but be safe)
+      if (contents.includes("1.9.25")) return cfg;
+
+      // Replace the classpath version lookup
+      contents = contents.replace(
+        /classpath "org\.jetbrains\.kotlin:kotlin-gradle-plugin:\$\{getExtOrDefault\('kotlinVersion'\)\}"/g,
+        'classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25"',
+      );
+
+      // Replace the stdlib version lookup
+      contents = contents.replace(
+        /def kotlin_version = getExtOrDefault\("kotlinVersion"\)/g,
+        'def kotlin_version = "1.9.25"',
+      );
+
+      fs.writeFileSync(realPath, contents);
       return cfg;
     },
   ]);
