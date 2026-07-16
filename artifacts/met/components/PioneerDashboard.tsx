@@ -236,6 +236,26 @@ export function PioneerDashboard({ visible, onClose }: Props) {
           <Text style={styles.formulaText}>{t("pioneer.formula")}</Text>
         </View>
 
+        {/* How score works */}
+        <View style={styles.howScoreCard}>
+          <Text style={styles.howScoreTitle}>{t("pioneer.howScoreTitle")}</Text>
+          <View style={styles.howScoreRows}>
+            <View style={styles.howScoreRow}>
+              <Text style={styles.howScoreEmoji}>👥</Text>
+              <Text style={styles.howScoreText}>{t("pioneer.howScoreReferrals")}</Text>
+            </View>
+            <View style={styles.howScoreRow}>
+              <Text style={styles.howScoreEmoji}>📍</Text>
+              <Text style={styles.howScoreText}>{t("pioneer.howScoreCheckins")}</Text>
+            </View>
+            <View style={styles.howScoreRow}>
+              <Text style={styles.howScoreEmoji}>💬</Text>
+              <Text style={styles.howScoreText}>{t("pioneer.howScoreChats")}</Text>
+            </View>
+          </View>
+          <Text style={styles.howScoreNote}>{t("pioneer.howScoreNote")}</Text>
+        </View>
+
         {/* Content */}
         {loading ? (
           <ActivityIndicator style={{ flex: 1 }} color="#FFD700" />
@@ -425,5 +445,45 @@ const styles = StyleSheet.create({
   errorText: {
     color: "rgba(255,255,255,0.4)",
     fontSize: 14,
+  },
+  howScoreCard: {
+    marginHorizontal: 12,
+    marginBottom: 12,
+    backgroundColor: "rgba(255,215,0,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.12)",
+    borderRadius: 14,
+    padding: 14,
+    gap: 10,
+  },
+  howScoreTitle: {
+    color: "rgba(255,215,0,0.85)",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  howScoreRows: {
+    gap: 8,
+  },
+  howScoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  howScoreEmoji: {
+    fontSize: 16,
+    width: 24,
+    textAlign: "center",
+  },
+  howScoreText: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 13,
+    flex: 1,
+  },
+  howScoreNote: {
+    color: "rgba(255,215,0,0.45)",
+    fontSize: 11,
+    lineHeight: 16,
   },
 });

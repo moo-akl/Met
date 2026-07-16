@@ -1224,8 +1224,13 @@ export const en = {
 
   trophies: {
     title: "Trophy Case",
-    empty: "Win top 3 at a Hub in any month to earn your first trophy.",
+    empty: "No trophies yet — keep checking in!",
     loading: "Loading trophies…",
+    howToWinTitle: "How to Win Trophies",
+    howToWinGold: "🥇 Gold — Finish #1 in any Hub's monthly leaderboard",
+    howToWinSilver: "🥈 Silver — Finish #2 in any Hub's monthly leaderboard",
+    howToWinBronze: "🥉 Bronze — Finish #3 in any Hub's monthly leaderboard",
+    howToWinNote: "Leaderboards reset every month — a fresh chance to win every month.",
   },
 
   pioneer: {
@@ -1236,6 +1241,12 @@ export const en = {
     scoreBreakdown: "{{referrals}} referrals · {{chats}} chats",
     loadError: "Couldn't load — tap to retry",
     viewLeaderboard: "View Pioneer Leaderboard →",
+    leaderboardBtn: "Founders Leaderboard",
+    howScoreTitle: "How Your Score is Calculated",
+    howScoreReferrals: "Refer a new user → +20 pts",
+    howScoreCheckins: "Check in to any Hub → +2 pts",
+    howScoreChats: "Connect & chat with someone → +5 pts",
+    howScoreNote: "Scores update daily. Top contributor earns a special badge.",
   },
 };
 

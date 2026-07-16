@@ -612,25 +612,24 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               ) : null}
-              {isPioneer ? (
-                <>
-                  <Pressable
-                    onPress={() => setPioneerModalVisible(true)}
-                    style={styles.pioneerBadge}
-                  >
-                    <Feather name="award" size={11} color="#D4AF37" />
-                    <Text style={styles.pioneerBadgeText}>MET FOUNDER</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setPioneerDashboardVisible(true)}
-                    style={styles.pioneerLeaderboardLink}
-                  >
-                    <Text style={styles.pioneerLeaderboardLinkText}>
-                      {t("pioneer.viewLeaderboard")}
-                    </Text>
-                  </Pressable>
-                </>
-              ) : null}
+              {isPioneer && (
+                <Pressable
+                  onPress={() => setPioneerModalVisible(true)}
+                  style={styles.pioneerBadge}
+                >
+                  <Feather name="award" size={11} color="#D4AF37" />
+                  <Text style={styles.pioneerBadgeText}>MET FOUNDER</Text>
+                </Pressable>
+              )}
+              <Pressable
+                onPress={() => setPioneerDashboardVisible(true)}
+                style={styles.pioneerLeaderboardLink}
+              >
+                <Feather name="users" size={11} color="#D4AF37" style={{ marginRight: 3 }} />
+                <Text style={styles.pioneerLeaderboardLinkText}>
+                  {t("pioneer.leaderboardBtn")}
+                </Text>
+              </Pressable>
               {prizeEligible ? (
                 <View style={styles.prizeBadge}>
                   <Feather name="gift" size={11} color="#FFD700" />
@@ -1168,9 +1167,7 @@ export default function ProfileScreen() {
 
         {!editing ? (
           <>
-            {(myTrophies.length > 0 || myTrophiesLoading) && (
-              <TrophyCase trophies={myTrophies} loading={myTrophiesLoading} />
-            )}
+            <TrophyCase trophies={myTrophies} loading={myTrophiesLoading} />
             <ReputationRadar summary={reviewSummary} />
             {tier === "free" ? (
               <Pressable

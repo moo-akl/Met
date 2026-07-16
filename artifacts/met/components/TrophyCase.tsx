@@ -151,22 +151,32 @@ export function TrophyCase({ trophies, loading }: Props) {
     );
   }
 
-  if (trophies.length === 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyEmoji}>🏆</Text>
-        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-          {t("trophies.empty")}
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.wrapper}>
       <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
         {t("trophies.title")}
       </Text>
+
+      {trophies.length === 0 && !loading && (
+        <View style={[styles.howToCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.howToTitle, { color: colors.foreground }]}>
+            {t("trophies.howToWinTitle")}
+          </Text>
+          <Text style={[styles.howToRow, { color: colors.mutedForeground }]}>
+            {t("trophies.howToWinGold")}
+          </Text>
+          <Text style={[styles.howToRow, { color: colors.mutedForeground }]}>
+            {t("trophies.howToWinSilver")}
+          </Text>
+          <Text style={[styles.howToRow, { color: colors.mutedForeground }]}>
+            {t("trophies.howToWinBronze")}
+          </Text>
+          <View style={[styles.howToDivider, { backgroundColor: colors.border }]} />
+          <Text style={[styles.howToNote, { color: colors.mutedForeground }]}>
+            {t("trophies.howToWinNote")}
+          </Text>
+        </View>
+      )}
       <FlatList<Trophy>
         data={trophies}
         keyExtractor={(item) => String(item.id)}
@@ -260,5 +270,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
     lineHeight: 18,
+  },
+  howToCard: {
+    marginBottom: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+  },
+  howToTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  howToRow: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  howToDivider: {
+    height: 1,
+    marginVertical: 2,
+  },
+  howToNote: {
+    fontSize: 11,
+    lineHeight: 16,
+    opacity: 0.7,
   },
 });
