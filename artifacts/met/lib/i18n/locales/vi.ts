@@ -1168,6 +1168,7 @@ export const vi: LocaleTree = {
     checkinCountA11y: "{{count}} check-in",
     rankA11y: "Xếp hạng {{rank}}",
     championA11y: "Vô địch hàng tháng",
+    trophyWinnerA11y: "Người giành cúp trước đây",
   },
 
   venue: {
@@ -1217,6 +1218,22 @@ export const vi: LocaleTree = {
   connectionsWalkthrough: {
     step1: "Yêu cầu tiết lộ sẽ xuất hiện ở đây — nhấn vào một yêu cầu để chấp nhận hoặc từ chối và kết nối.",
     step2: "Tất cả những người bạn đã kết nối qua lại đều ở đây. Nhấn vào tên để xem hồ sơ hoặc bắt đầu trò chuyện.",
+  },
+
+  trophies: {
+    title: "Tủ cúp",
+    empty: "Vào top 3 tại một Hub trong bất kỳ tháng nào để giành cúp đầu tiên.",
+    loading: "Đang tải cúp…",
+  },
+
+  pioneer: {
+    dashboardTitle: "Bảng xếp hạng Pioneer",
+    dashboardSub: "Top 50 nhà sáng lập theo điểm số",
+    formula: "Giới thiệu ×20 · Check-in ×2 · Chat ×5",
+    topContributor: "Người đóng góp hàng đầu",
+    scoreBreakdown: "{{referrals}} giới thiệu · {{chats}} chat",
+    loadError: "Không thể tải — nhấn để thử lại",
+    viewLeaderboard: "Xem Bảng xếp hạng Pioneer →",
   },
 
   interestLabels: interestLocales.vi,

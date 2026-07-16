@@ -1168,6 +1168,7 @@ export const nl: LocaleTree = {
     checkinCountA11y: "{{count}} check-ins",
     rankA11y: "Rang {{rank}}",
     championA11y: "Maandelijkse kampioen",
+    trophyWinnerA11y: "Vorige trofeeëwinnaar",
   },
 
   venue: {
@@ -1217,6 +1218,22 @@ export const nl: LocaleTree = {
   connectionsWalkthrough: {
     step1: "Onthullingsverzoeken komen hier binnen — tik op een verzoek om het te accepteren of weigeren en verbinden.",
     step2: "Iedereen met wie je wederzijds verbonden bent staat hier. Tik op een naam om hun profiel te zien of een chat te starten.",
+  },
+
+  trophies: {
+    title: "Trofeeënkast",
+    empty: "Win de top 3 bij een Hub in een willekeurige maand om je eerste trofee te verdienen.",
+    loading: "Trofeeën laden…",
+  },
+
+  pioneer: {
+    dashboardTitle: "Pioneer-ranglijst",
+    dashboardSub: "Top 50 Oprichters gerangschikt op score",
+    formula: "Verwijzingen ×20 · Check-ins ×2 · Chats ×5",
+    topContributor: "Topper Bijdrager",
+    scoreBreakdown: "{{referrals}} verwijzingen · {{chats}} chats",
+    loadError: "Kon niet laden — tik om opnieuw te proberen",
+    viewLeaderboard: "Pioneer-ranglijst bekijken →",
   },
 
   interestLabels: interestLocales.nl,

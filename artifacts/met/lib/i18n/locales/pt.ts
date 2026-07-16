@@ -1166,6 +1166,7 @@ export const pt: LocaleTree = {
     checkinCountA11y: "{{count}} check-ins",
     rankA11y: "Posição {{rank}}",
     championA11y: "Campeão mensal",
+    trophyWinnerA11y: "Vencedor anterior de troféu",
   },
 
   venue: {
@@ -1215,6 +1216,22 @@ export const pt: LocaleTree = {
   connectionsWalkthrough: {
     step1: "Os pedidos de revelação chegam aqui — toque num para aceitar ou recusar e conectar-se.",
     step2: "Todas as pessoas com quem estás mutuamente conectado/a estão aqui. Toca num nome para ver o perfil ou iniciar uma conversa.",
+  },
+
+  trophies: {
+    title: "Vitrine de troféus",
+    empty: "Ganhe o top 3 num Hub em qualquer mês para conquistar o seu primeiro troféu.",
+    loading: "Carregando troféus…",
+  },
+
+  pioneer: {
+    dashboardTitle: "Classificação Pioneer",
+    dashboardSub: "Top 50 Fundadores classificados por pontuação",
+    formula: "Referências ×20 · Check-ins ×2 · Chats ×5",
+    topContributor: "Principal Contribuidor",
+    scoreBreakdown: "{{referrals}} referências · {{chats}} chats",
+    loadError: "Não foi possível carregar — toque para tentar novamente",
+    viewLeaderboard: "Ver Classificação Pioneer →",
   },
 
   interestLabels: interestLocales.pt,

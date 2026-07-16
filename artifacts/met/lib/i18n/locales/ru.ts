@@ -1173,6 +1173,7 @@ export const ru: LocaleTree = {
     checkinCountA11y: "{{count}} отметок",
     rankA11y: "Место {{rank}}",
     championA11y: "Чемпион месяца",
+    trophyWinnerA11y: "Предыдущий победитель трофея",
   },
 
   venue: {
@@ -1222,6 +1223,22 @@ export const ru: LocaleTree = {
   connectionsWalkthrough: {
     step1: "Запросы на раскрытие приходят сюда — нажмите на один, чтобы принять или отклонить и соединиться.",
     step2: "Все ваши взаимные знакомства здесь. Нажмите на имя, чтобы посмотреть профиль или начать чат.",
+  },
+
+  trophies: {
+    title: "Трофейная витрина",
+    empty: "Займите топ-3 в любом хабе за любой месяц, чтобы получить свой первый трофей.",
+    loading: "Загрузка трофеев…",
+  },
+
+  pioneer: {
+    dashboardTitle: "Рейтинг пионеров",
+    dashboardSub: "Топ-50 основателей по очкам",
+    formula: "Рефералы ×20 · Чекины ×2 · Чаты ×5",
+    topContributor: "Главный участник",
+    scoreBreakdown: "{{referrals}} рефералов · {{chats}} чатов",
+    loadError: "Не удалось загрузить — нажмите, чтобы повторить",
+    viewLeaderboard: "Рейтинг пионеров →",
   },
 
   interestLabels: interestLocales.ru,

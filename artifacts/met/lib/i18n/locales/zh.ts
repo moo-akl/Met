@@ -1121,6 +1121,7 @@ export const zh: LocaleTree = {
     checkinCountA11y: "{{count}} 次签到",
     rankA11y: "排名 {{rank}}",
     championA11y: "月度冠军",
+    trophyWinnerA11y: "历史奖杯得主",
   },
 
   venue: {
@@ -1170,6 +1171,22 @@ export const zh: LocaleTree = {
   connectionsWalkthrough: {
     step1: "揭露请求会在这里出现 — 点击一个来接受或拒绝并建立连接。",
     step2: "你所有互相连接的好友都在这里。点击名字查看他们的主页或开始聊天。",
+  },
+
+  trophies: {
+    title: "奖杯柜",
+    empty: "在任意月份赢得任一枢纽前三名，即可获得第一个奖杯。",
+    loading: "正在加载奖杯…",
+  },
+
+  pioneer: {
+    dashboardTitle: "先驱者排行榜",
+    dashboardSub: "按积分排名的前50位创始人",
+    formula: "推荐 ×20 · 签到 ×2 · 聊天 ×5",
+    topContributor: "最佳贡献者",
+    scoreBreakdown: "{{referrals}} 次推荐 · {{chats}} 次聊天",
+    loadError: "加载失败 — 点击重试",
+    viewLeaderboard: "查看先驱者排行榜 →",
   },
 
   interestLabels: interestLocales.zh,
