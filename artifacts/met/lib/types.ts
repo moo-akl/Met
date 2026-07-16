@@ -25,6 +25,9 @@ export type Profile = {
   // Always [] for free; up to 2 for plus, 5 for pro. Each entry has been
   // through the same face + content-safety check as the main photo.
   extraPhotos?: string[];
+  // Whether the Rewards Collection (trophies) is visible to other users
+  // on the public profile. Defaults to true (public) when absent.
+  rewardsPublic?: boolean;
 };
 
 export type EncounterStatus =

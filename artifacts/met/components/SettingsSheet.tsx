@@ -38,7 +38,6 @@ import { useReferrals } from "@/lib/referrals";
 import { useSubscription } from "@/lib/revenuecat";
 import {
   type AutoCleanupDays,
-  clearInteractiveWalkthroughSeen,
   type DiscoveryRange,
 } from "@/lib/storage";
 
@@ -810,18 +809,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
                       })
                 }
                 onPress={() => setView("blocked")}
-                colors={colors}
-              />
-
-              <NavRow
-                icon="play-circle"
-                label={t("settings.replayTour")}
-                sub={t("settings.replayTourSub")}
-                onPress={() => {
-                  clearInteractiveWalkthroughSeen().catch(() => {});
-                  close();
-                  setTimeout(() => router.push("/"), 50);
-                }}
                 colors={colors}
               />
 

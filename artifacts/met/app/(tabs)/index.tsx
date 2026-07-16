@@ -40,14 +40,8 @@ import {
   SUPPORTED_LANGUAGES,
   useT,
 } from "@/lib/i18n";
-import {
-  DISCOVERY_RANGE_METERS,
-  loadInteractiveWalkthroughSeen,
-  clearInteractiveWalkthroughPending,
-  saveInteractiveWalkthroughSeen,
-} from "@/lib/storage";
+import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
-import { WalkthroughOverlay, type TargetRect } from "@/components/WalkthroughOverlay";
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -94,56 +88,8 @@ export default function HomeScreen() {
   };
   const { encounters, preferences, profile, authedUid } = useApp();
 
-  const checkinBtnRef = useRef<View>(null);
-  const radarRef = useRef<View>(null);
-  const [walkthroughStep, setWalkthroughStep] = useState<0 | 1 | 2>(0);
-  const [walkthroughTarget, setWalkthroughTarget] = useState<TargetRect | null>(null);
   const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin } =
     useHubCheckin();
-
-  useFocusEffect(
-    useCallback(() => {
-      // Show the interactive walkthrough whenever the home tab focuses and the
-      // seen key is cleared (covers first-time launch and Settings "Replay" tap).
-      loadInteractiveWalkthroughSeen()
-        .then((seen) => {
-          if (!seen) setWalkthroughStep(1);
-        })
-        .catch(() => {});
-    }, []),
-  );
-
-  useEffect(() => {
-    if (walkthroughStep === 0) return;
-    const targetRef = walkthroughStep === 1 ? checkinBtnRef : radarRef;
-    setWalkthroughTarget(null);
-    const timer = setTimeout(() => {
-      targetRef.current?.measureInWindow((x, y, width, height) => {
-        if (width > 0 && height > 0) {
-          setWalkthroughTarget({ x, y, width, height });
-        }
-      });
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [walkthroughStep]);
-
-  const handleWalkthroughNext = useCallback(() => {
-    if (walkthroughStep >= 2) {
-      setWalkthroughStep(0);
-      setWalkthroughTarget(null);
-      saveInteractiveWalkthroughSeen().catch(() => {});
-      clearInteractiveWalkthroughPending().catch(() => {});
-    } else {
-      setWalkthroughStep((s) => (s + 1) as 1 | 2);
-    }
-  }, [walkthroughStep]);
-
-  const handleWalkthroughSkip = useCallback(() => {
-    setWalkthroughStep(0);
-    setWalkthroughTarget(null);
-    saveInteractiveWalkthroughSeen().catch(() => {});
-    clearInteractiveWalkthroughPending().catch(() => {});
-  }, []);
 
   const handleCheckinPress = useCallback(() => {
     // Trigger a real location + nearby-hub lookup (bypasses the 5-min debounce).
@@ -435,7 +381,7 @@ export default function HomeScreen() {
           {/* Radar glow orb */}
           <View style={[styles.radarGlow, { shadowColor: colors.primary }]} pointerEvents="none" />
 
-          <View ref={radarRef}>
+          <View>
             <RadarView size={220} blips={blips} />
           </View>
 
@@ -534,7 +480,7 @@ export default function HomeScreen() {
           {mapReady && <HeatmapMap style={{ flex: 1 }} />}
         </View>
 
-        <View ref={checkinBtnRef} style={styles.checkinCtaWrapper}>
+        <View style={styles.checkinCtaWrapper}>
           <Pressable
             style={({ pressed }) => [
               styles.checkinCta,
@@ -629,7 +575,6 @@ export default function HomeScreen() {
           pendingVenues={pendingVenues}
           confirmVenue={confirmVenue}
           cancelVenueSelection={cancelVenueSelection}
-          walkthroughActive={false}
         />
 
         <View
@@ -840,20 +785,6 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
-      <WalkthroughOverlay
-        visible={walkthroughStep > 0}
-        step={(walkthroughStep || 1) as 1 | 2}
-        totalSteps={2}
-        targetRect={walkthroughTarget}
-        stepText={
-          walkthroughStep === 1
-            ? t("walkthrough.step1")
-            : t("walkthrough.step2")
-        }
-        isLastStep={walkthroughStep === 2}
-        onNext={handleWalkthroughNext}
-        onSkip={handleWalkthroughSkip}
-      />
     </View>
   );
 }

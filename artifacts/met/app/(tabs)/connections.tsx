@@ -17,7 +17,6 @@ import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
-import { WalkthroughOverlay, type TargetRect } from "@/components/WalkthroughOverlay";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
@@ -26,9 +25,7 @@ import { useT } from "@/lib/i18n";
 import { subscribeToChatMeta } from "@/lib/firestore/chat";
 import {
   loadConnectionsSort,
-  loadConnectionsWalkthroughSeen,
   saveConnectionsSort,
-  saveConnectionsWalkthroughSeen,
   type ConnectionsSort,
 } from "@/lib/storage";
 import type { Encounter } from "@/lib/types";
@@ -72,50 +69,6 @@ export default function ConnectionsScreen() {
   const [sort, setSort] = useState<ConnectionsSort>("recent");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [activeTag, setActiveTag] = useState<string | null>(null);
-
-  // Walkthrough state — 0 means hidden, 1 = step 1, 2 = step 2.
-  const [walkthroughStep, setWalkthroughStep] = useState<0 | 1 | 2>(0);
-  const [walkthroughTarget, setWalkthroughTarget] = useState<TargetRect | null>(null);
-  const listRef = useRef<View>(null);
-
-  // Show on first visit only.
-  useEffect(() => {
-    loadConnectionsWalkthroughSeen()
-      .then((seen) => {
-        if (!seen) setWalkthroughStep(1);
-      })
-      .catch(() => {});
-  }, []);
-
-  // Measure the connections list for step 2.
-  useEffect(() => {
-    if (walkthroughStep !== 2) {
-      if (walkthroughStep === 1) setWalkthroughTarget(null);
-      return;
-    }
-    const timer = setTimeout(() => {
-      listRef.current?.measureInWindow((x, y, width, height) => {
-        if (width > 0 && height > 0) {
-          setWalkthroughTarget({ x, y, width, height });
-        }
-      });
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [walkthroughStep]);
-
-  const dismissWalkthrough = useCallback(() => {
-    setWalkthroughStep(0);
-    setWalkthroughTarget(null);
-    saveConnectionsWalkthroughSeen().catch(() => {});
-  }, []);
-
-  const handleWalkthroughNext = useCallback(() => {
-    if (walkthroughStep >= 2) {
-      dismissWalkthrough();
-    } else {
-      setWalkthroughStep((s) => (s + 1) as 1 | 2);
-    }
-  }, [walkthroughStep, dismissWalkthrough]);
 
   // Persisted sort. Loaded once at mount; never blocks first render.
   useEffect(() => {
@@ -296,7 +249,7 @@ export default function ConnectionsScreen() {
         </ScrollView>
       ) : null}
 
-      <View ref={listRef} style={styles.listWrapper}>
+      <View style={styles.listWrapper}>
       <ScrollView
         contentContainerStyle={{
           paddingTop: 8,
@@ -392,20 +345,6 @@ export default function ConnectionsScreen() {
         }))}
       />
 
-      <WalkthroughOverlay
-        visible={walkthroughStep > 0}
-        step={walkthroughStep || 1}
-        totalSteps={2}
-        targetRect={walkthroughTarget}
-        stepText={
-          walkthroughStep === 1
-            ? t("connectionsWalkthrough.step1")
-            : t("connectionsWalkthrough.step2")
-        }
-        isLastStep={walkthroughStep === 2}
-        onNext={handleWalkthroughNext}
-        onSkip={dismissWalkthrough}
-      />
     </View>
   );
 }

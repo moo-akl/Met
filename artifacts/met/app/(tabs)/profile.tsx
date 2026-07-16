@@ -733,17 +733,39 @@ export default function ProfileScreen() {
         ) : null}
 
         {trophies.length > 0 ? (
-          <View style={{ gap: 10, marginTop: 4 }}>
-            {/* Header row */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Image
-                source={require("@/assets/images/rewards_trophy.jpg")}
-                style={{ width: 36, height: 36, borderRadius: 6 }}
-                contentFit="cover"
-              />
-              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginBottom: 0 }]}>
-                Trophies
-              </Text>
+          <View style={{ gap: 12, marginTop: 4 }}>
+            {/* Header row with public/private toggle */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Image
+                  source={require("@/assets/images/rewards_trophy.jpg")}
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  contentFit="cover"
+                />
+                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                  Rewards Collection
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather
+                  name={(profile?.rewardsPublic ?? true) ? "eye" : "eye-off"}
+                  size={13}
+                  color={colors.mutedForeground}
+                />
+                <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: colors.mutedForeground }}>
+                  {(profile?.rewardsPublic ?? true) ? "Public" : "Private"}
+                </Text>
+                <Switch
+                  value={profile?.rewardsPublic ?? true}
+                  onValueChange={async (val) => {
+                    if (!profile) return;
+                    await setProfile({ ...profile, rewardsPublic: val });
+                  }}
+                  trackColor={{ false: colors.muted, true: colors.primary }}
+                  thumbColor="#FFFFFF"
+                  ios_backgroundColor={colors.muted}
+                />
+              </View>
             </View>
             {trophies.map((trophy, i) => {
               const rank = trophy.rank as 1 | 2 | 3;
@@ -791,18 +813,17 @@ export default function ProfileScreen() {
                 >
                   <Text style={{ fontSize: 32 }}>{cfg.icon}</Text>
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                      <Text
-                        style={{
-                          fontFamily: "Inter_700Bold",
-                          fontSize: 10,
-                          color: cfg.accent,
-                          letterSpacing: 1,
-                        }}
-                      >
-                        {cfg.label}
-                      </Text>
-                    </View>
+                    <Text
+                      style={{
+                        fontFamily: "Inter_700Bold",
+                        fontSize: 10,
+                        color: cfg.accent,
+                        letterSpacing: 1,
+                        marginBottom: 3,
+                      }}
+                    >
+                      {cfg.label}
+                    </Text>
                     <Text
                       style={{ fontFamily: "Inter_700Bold", fontSize: 15, color: "#1a1a1a" }}
                       numberOfLines={1}
@@ -815,12 +836,7 @@ export default function ProfileScreen() {
                   </View>
                   <Image
                     source={require("@/assets/images/rewards_trophy.jpg")}
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 8,
-                      opacity: 0.85,
-                    }}
+                    style={{ width: 44, height: 44, borderRadius: 8, opacity: 0.85 }}
                     contentFit="cover"
                   />
                 </View>
