@@ -124,6 +124,10 @@ export const reviewsTable = pgTable(
     id: serial("id").primaryKey(),
     reviewerUid: text("reviewer_uid").notNull(),
     receiverUid: text("receiver_uid").notNull(),
+    // context: "chat" = review left from within chat screen;
+    //          "meeting" = review left after physically meeting at a venue.
+    // Each reviewer/receiver pair may have one review per context (max 2).
+    context: text("context").notNull().default("chat"),
     // Legacy tag field — kept for backwards compat, not used in new reviews
     tag: text("tag").notNull().default("reviewed"),
     // Legacy scored dimensions — kept nullable for old rows
@@ -138,9 +142,10 @@ export const reviewsTable = pgTable(
       .defaultNow(),
   },
   (t) => ({
-    reviewerReceiverUniq: uniqueIndex("reviews_reviewer_receiver_uniq").on(
+    reviewerReceiverContextUniq: uniqueIndex("reviews_reviewer_receiver_context_uniq").on(
       t.reviewerUid,
       t.receiverUid,
+      t.context,
     ),
     receiverIdx: index("reviews_receiver_idx").on(t.receiverUid),
   }),

@@ -406,6 +406,19 @@ router.post(
     const checkinMultiplier = isPioneer ? 1.5 : 1.0;
     const streakPoints = Math.round(streak * checkinMultiplier);
 
+    // Keep pioneer_score current after every check-in.
+    if (isPioneer) {
+      void db.execute(sql`
+        UPDATE profiles
+        SET pioneer_score = (
+          (referral_count * 20)
+          + (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid)
+          + (chat_connections * 5)
+        )
+        WHERE uid = ${uid}
+      `).catch(() => {});
+    }
+
     res.json({
       placeId: place.placeId,
       placeName: place.displayName,
@@ -994,6 +1007,7 @@ const ReviewBody = z.object({
   receiverUid: z.string().min(1),
   starRating: z.number().int().min(1).max(5),
   vibeTags: z.array(z.string().max(30)).max(5).optional().default([]),
+  context: z.enum(["chat", "meeting"]).optional().default("chat"),
 });
 
 // Co-location window — both users must have checked in to the same place
@@ -1017,7 +1031,7 @@ router.post(
       res.status(400).json({ message: "starRating (1–5) and receiverUid are required" });
       return;
     }
-    const { receiverUid, starRating, vibeTags } = parsed.data;
+    const { receiverUid, starRating, vibeTags, context } = parsed.data;
 
     if (reviewerUid === receiverUid) {
       res.status(400).json({ message: "Cannot review yourself" });
@@ -1133,12 +1147,13 @@ router.post(
       await db.insert(reviewsTable).values({
         reviewerUid,
         receiverUid,
+        context,
         starRating,
         vibeTags: sanitisedVibeTags,
       });
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "";
-      if (msg.includes("reviews_reviewer_receiver_uniq")) {
+      if (msg.includes("reviews_reviewer_receiver_context_uniq")) {
         await db
           .update(reviewsTable)
           .set({ starRating, vibeTags: sanitisedVibeTags })
@@ -1146,6 +1161,7 @@ router.post(
             and(
               eq(reviewsTable.reviewerUid, reviewerUid),
               eq(reviewsTable.receiverUid, receiverUid),
+              eq(reviewsTable.context, context),
             ),
           );
       } else {

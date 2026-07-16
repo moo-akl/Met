@@ -1235,6 +1235,16 @@ export const vi: LocaleTree = {
   },
 
   pioneer: {
+    modalTitle: "MET PIONEER",
+    slide1Title: "Trạng thái Pioneer",
+    slide1Body: "Bạn là một trong 500 người đầu tiên tham gia Met. Trạng thái Pioneer của bạn là vĩnh viễn — sự công nhận rằng bạn đã ở đây ngay từ đầu, định hình cộng đồng từ ngày đầu tiên.",
+    slide2Title: "Siêu năng lực Pioneer",
+    slide2Body: "Các lần check-in của bạn mang lại điểm thưởng gấp 1,5× so với thành viên thông thường. Bạn cũng xuất hiện ưu tiên trên radar của Met, tự nhiên trở nên dễ thấy hơn với những người xung quanh.",
+    slide3Title: "Phần thưởng Hàng tháng",
+    slide3Body: "Những người đóng góp hàng đầu trên Bảng xếp hạng Pioneer nhận phần thưởng bất ngờ mỗi tháng — lời cảm ơn cá nhân từ đội ngũ Met vì đã giúp xây dựng cộng đồng này.",
+    back: "Quay lại",
+    next: "Tiếp theo",
+    gotIt: "Đã hiểu",
     dashboardTitle: "Bảng xếp hạng Pioneer",
     dashboardSub: "Top 50 Pioneer theo điểm số",
     formula: "Giới thiệu ×20 · Check-in ×2 · Chat ×5",

@@ -27,7 +27,6 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
-import { STAR_POSITION_COLORS } from "@/lib/rating";
 import { useSlideUpModal } from "@/hooks/useSlideUpModal";
 
 const VIBE_TAG_KEYS = ["kind", "reliable", "open", "funny", "professional"] as const;
@@ -57,9 +56,7 @@ function AnimatedStar({ star, value, onChange }: AnimatedStarProps) {
   };
 
   const filled = star <= value;
-  // Each star position has its own vivid color so the picker is clearly not
-  // monochrome: 1=red, 2=orange, 3=yellow, 4=green, 5=gold.
-  const fillColor = STAR_POSITION_COLORS[star - 1] ?? "#FFD700";
+  const fillColor = "#FFD700";
 
   return (
     <Pressable
@@ -100,11 +97,13 @@ interface Props {
   visible: boolean;
   receiverUid: string;
   receiverName: string;
+  /** "chat" = submitted from chat screen (default). "meeting" = submitted after physically meeting. */
+  context?: "chat" | "meeting";
   /** Called after submit succeeds OR after user skips. */
   onDone: () => void;
 }
 
-export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Props) {
+export function ReviewModal({ visible, receiverUid, receiverName, context = "chat", onDone }: Props) {
   const colors = useColors();
   const { t } = useT();
   const { authedUid } = useApp();
@@ -139,6 +138,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, onDone }: Prop
           receiverUid,
           starRating,
           vibeTags: Array.from(selectedTags),
+          context,
         },
       );
     } catch {

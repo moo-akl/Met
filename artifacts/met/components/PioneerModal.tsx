@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -10,6 +9,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useT } from "@/lib/i18n";
 
 const PIONEER_MODAL_SEEN_KEY = "met:pioneer_modal_seen:v1";
 
@@ -22,23 +22,8 @@ export async function savePioneerModalSeen(): Promise<void> {
   await AsyncStorage.setItem(PIONEER_MODAL_SEEN_KEY, "1");
 }
 
-const PARTS = [
-  {
-    icon: "award" as const,
-    title: "Pioneer Status",
-    body: "You're one of the first 500 people to join Met. Your Pioneer status is permanent — a recognition that you were here when it all started, shaping the community from day one.",
-  },
-  {
-    icon: "zap" as const,
-    title: "Pioneer Superpowers",
-    body: "Your check-ins earn 1.5× more points than regular members. You also appear with priority on the Met radar, making you naturally more visible to people nearby.",
-  },
-  {
-    icon: "gift" as const,
-    title: "Monthly Rewards",
-    body: "Top contributors on the Pioneer Leaderboard win surprising rewards every month — a personal thank-you from the Met team for helping build this community.",
-  },
-];
+const SLIDE_ICONS: ("award" | "zap" | "gift")[] = ["award", "zap", "gift"];
+const SLIDE_COUNT = 3;
 
 type Props = {
   visible: boolean;
@@ -46,10 +31,19 @@ type Props = {
 };
 
 export function PioneerModal({ visible, onClose }: Props) {
+  const { t } = useT();
   const [page, setPage] = useState(0);
 
-  const isLast = page === PARTS.length - 1;
-  const part = PARTS[page]!;
+  const isLast = page === SLIDE_COUNT - 1;
+  const isFirst = page === 0;
+  const icon = SLIDE_ICONS[page]!;
+
+  const slides = [
+    { title: t("pioneer.slide1Title"), body: t("pioneer.slide1Body") },
+    { title: t("pioneer.slide2Title"), body: t("pioneer.slide2Body") },
+    { title: t("pioneer.slide3Title"), body: t("pioneer.slide3Body") },
+  ];
+  const slide = slides[page]!;
 
   const handleNext = () => {
     if (isLast) {
@@ -58,6 +52,10 @@ export function PioneerModal({ visible, onClose }: Props) {
     } else {
       setPage((p) => p + 1);
     }
+  };
+
+  const handleBack = () => {
+    if (!isFirst) setPage((p) => p - 1);
   };
 
   return (
@@ -75,18 +73,18 @@ export function PioneerModal({ visible, onClose }: Props) {
             style={styles.headerGradient}
           >
             <View style={styles.iconRing}>
-              <Feather name={part.icon} size={28} color="#FFD700" />
+              <Feather name={icon} size={28} color="#FFD700" />
             </View>
-            <Text style={styles.headerLabel}>MET PIONEER</Text>
+            <Text style={styles.headerLabel}>{t("pioneer.modalTitle")}</Text>
           </LinearGradient>
 
           <View style={styles.body}>
-            <Text style={styles.partTitle}>{part.title}</Text>
-            <Text style={styles.partBody}>{part.body}</Text>
+            <Text style={styles.partTitle}>{slide.title}</Text>
+            <Text style={styles.partBody}>{slide.body}</Text>
           </View>
 
           <View style={styles.dots}>
-            {PARTS.map((_, i) => (
+            {slides.map((_, i) => (
               <View
                 key={i}
                 style={[styles.dot, i === page && styles.dotActive]}
@@ -94,23 +92,34 @@ export function PioneerModal({ visible, onClose }: Props) {
             ))}
           </View>
 
-          <Pressable onPress={handleNext} style={styles.btn}>
-            <LinearGradient
-              colors={["#D4AF37", "#FFD700", "#D4AF37"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.btnGradient}
-            >
-              <Text style={styles.btnText}>
-                {isLast ? "Got it" : "Next"}
-              </Text>
-              <Feather
-                name={isLast ? "check" : "arrow-right"}
-                size={16}
-                color="#1a0a00"
-              />
-            </LinearGradient>
-          </Pressable>
+          <View style={styles.btnRow}>
+            {!isFirst ? (
+              <Pressable onPress={handleBack} style={styles.backBtn}>
+                <Feather name="arrow-left" size={16} color="#D4AF37" />
+                <Text style={styles.backBtnText}>{t("pioneer.back")}</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.backBtnPlaceholder} />
+            )}
+
+            <Pressable onPress={handleNext} style={styles.btn}>
+              <LinearGradient
+                colors={["#D4AF37", "#FFD700", "#D4AF37"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.btnGradient}
+              >
+                <Text style={styles.btnText}>
+                  {isLast ? t("pioneer.gotIt") : t("pioneer.next")}
+                </Text>
+                <Feather
+                  name={isLast ? "check" : "arrow-right"}
+                  size={16}
+                  color="#1a0a00"
+                />
+              </LinearGradient>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
@@ -193,9 +202,33 @@ const styles = StyleSheet.create({
     width: 18,
     backgroundColor: "#D4AF37",
   },
-  btn: {
-    marginHorizontal: 20,
+  btnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
     marginBottom: 20,
+    gap: 10,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#D4AF37",
+  },
+  backBtnText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    color: "#D4AF37",
+  },
+  backBtnPlaceholder: {
+    width: 80,
+  },
+  btn: {
+    flex: 1,
     borderRadius: 14,
     overflow: "hidden",
   },

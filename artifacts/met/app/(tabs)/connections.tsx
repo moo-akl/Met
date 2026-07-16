@@ -17,11 +17,13 @@ import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
+import { useQuery } from "@tanstack/react-query";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 import { useT } from "@/lib/i18n";
+import { api } from "@/lib/api/client";
 import { subscribeToChatMeta } from "@/lib/firestore/chat";
 import {
   loadConnectionsSort,
@@ -366,6 +368,19 @@ function ConnectionRow({
   onPress: () => void;
   onChatPress: () => void;
 }) {
+  const verified = !!(c.photoUri && c.photoUri !== "");
+
+  const { data: standing } = useQuery({
+    queryKey: ["communityStanding", c.id],
+    queryFn: () => api.getCommunityStanding({ uid: myUid ?? "" }, c.id),
+    enabled: !!myUid && !!c.id,
+    staleTime: 5 * 60 * 1000,
+  });
+  const averageRating =
+    standing?.hasEnough && standing?.averageRating != null
+      ? standing.averageRating
+      : null;
+
   const om = c.openingMessage;
   let preview: string;
   let previewColor = colors.mutedForeground;
@@ -447,12 +462,23 @@ function ConnectionRow({
         <Avatar uri={c.photoUri} size={54} ring={unread} />
         <View style={styles.body}>
           <View style={styles.topLine}>
-            <Text
-              style={[styles.name, { color: colors.foreground }]}
-              numberOfLines={1}
-            >
-              {c.realName}
-            </Text>
+            <View style={styles.nameGroup}>
+              <Text
+                style={[styles.name, { color: colors.foreground }]}
+                numberOfLines={1}
+              >
+                {c.realName}
+              </Text>
+              {verified ? (
+                <Feather name="check-circle" size={13} color="#22C55E" />
+              ) : null}
+              {averageRating != null ? (
+                <View style={styles.ratingPill}>
+                  <Feather name="star" size={10} color="#FFD700" />
+                  <Text style={styles.ratingText}>{averageRating.toFixed(1)}</Text>
+                </View>
+              ) : null}
+            </View>
             <Text
               style={[
                 styles.timestamp,
@@ -657,7 +683,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
   },
-  name: { fontFamily: "Inter_700Bold", fontSize: 16, flex: 1 },
+  nameGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    flex: 1,
+    flexShrink: 1,
+    overflow: "hidden",
+  },
+  name: { fontFamily: "Inter_700Bold", fontSize: 16, flexShrink: 1 },
+  ratingPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#FEF9C3",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  ratingText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    color: "#92400E",
+  },
   timestamp: { fontFamily: "Inter_500Medium", fontSize: 12 },
   previewLine: {
     flexDirection: "row",

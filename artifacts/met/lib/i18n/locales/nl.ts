@@ -1235,6 +1235,16 @@ export const nl: LocaleTree = {
   },
 
   pioneer: {
+    modalTitle: "MET PIONIER",
+    slide1Title: "Pioneer-status",
+    slide1Body: "Je bent een van de eerste 500 mensen die Met hebben gejoind. Je Pioneer-status is permanent — een erkenning dat je er al was vanaf het begin en de gemeenschap hebt gevormd.",
+    slide2Title: "Pioneer Superkrachten",
+    slide2Body: "Je check-ins leveren 1,5× meer punten op dan die van gewone leden. Je verschijnt ook met prioriteit op de Met-radar, waardoor je van nature zichtbaarder bent voor mensen in de buurt.",
+    slide3Title: "Maandelijkse Beloningen",
+    slide3Body: "De beste bijdragers op de Pioneer-ranglijst winnen elke maand verrassende beloningen — een persoonlijk bedankje van het Met-team voor het helpen opbouwen van deze gemeenschap.",
+    back: "Terug",
+    next: "Volgende",
+    gotIt: "Begrepen",
     dashboardTitle: "Pioneer-ranglijst",
     dashboardSub: "Top 50 Pioniers gerangschikt op score",
     formula: "Verwijzingen ×20 · Check-ins ×2 · Chats ×5",

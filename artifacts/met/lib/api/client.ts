@@ -596,6 +596,7 @@ export const api = {
       receiverUid: string;
       starRating: number;
       vibeTags?: string[];
+      context?: "chat" | "meeting";
     },
   ) =>
     request<{ recorded: boolean }>("POST", "/api/reviews", opts, input),

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
-import { db, referralCodesTable, referralRedemptionsTable } from "@workspace/db";
+import { db, referralCodesTable, referralRedemptionsTable, profilesTable } from "@workspace/db";
 import {
   RegisterReferralCodeBody,
   RedeemReferralCodeBody,
@@ -105,6 +105,17 @@ router.post("/referrals/redeem", requireUid, async (req, res) => {
       req.log.error({ err, ownerUid: owner.uid }, "Failed to grant referral reward");
     }
   }
+
+  // Keep pioneer_score current for the referral code owner after each redemption.
+  void db.execute(sql`
+    UPDATE profiles
+    SET pioneer_score = (
+      (referral_count * 20)
+      + (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid)
+      + (chat_connections * 5)
+    )
+    WHERE uid = ${owner.uid} AND is_pioneer = true
+  `).catch(() => {});
 
   res.json({ result: "accepted" });
 });

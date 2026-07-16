@@ -1227,6 +1227,16 @@ export const es: LocaleTree = {
   },
 
   pioneer: {
+    modalTitle: "MET PIONERO",
+    slide1Title: "Estado Pioneer",
+    slide1Body: "Eres uno de los primeros 500 en unirte a Met. Tu estado Pioneer es permanente — un reconocimiento de que estabas aquí desde el principio, dando forma a la comunidad desde el primer día.",
+    slide2Title: "Superpoderes Pioneer",
+    slide2Body: "Tus check-ins ganan 1.5× más puntos que los miembros regulares. También apareces con prioridad en el radar de Met, siendo naturalmente más visible para las personas cercanas.",
+    slide3Title: "Recompensas Mensuales",
+    slide3Body: "Los mejores contribuidores en el Clasificación Pioneer ganan sorprendentes recompensas cada mes — un agradecimiento personal del equipo de Met por ayudar a construir esta comunidad.",
+    back: "Atrás",
+    next: "Siguiente",
+    gotIt: "Entendido",
     dashboardTitle: "Clasificación Pioneer",
     dashboardSub: "Top 50 Pioneros por puntuación",
     formula: "Referencias ×20 · Check-ins ×2 · Chats ×5",

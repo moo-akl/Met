@@ -54,6 +54,17 @@ router.post("/users/record-chat-connection", requireUid, async (req, res): Promi
     })
     .where(eq(profilesTable.uid, uid));
 
+  // Keep pioneer_score current after every chat connection.
+  await db.execute(sql`
+    UPDATE profiles
+    SET pioneer_score = (
+      (referral_count * 20)
+      + (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid)
+      + (chat_connections * 5)
+    )
+    WHERE uid = ${uid} AND is_pioneer = true
+  `);
+
   res.json({ ok: true });
 });
 

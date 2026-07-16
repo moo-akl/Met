@@ -2,12 +2,14 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 
 import { ActionSheet } from "@/components/ActionSheet";
 import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { api } from "@/lib/api/client";
 import type { Encounter } from "@/lib/types";
 
 function timeAgo(
@@ -34,9 +36,22 @@ export function EncounterRow({ encounter }: Props) {
   const colors = useColors();
   const router = useRouter();
   const { t } = useT();
-  const { removeEncounter, setBlocked, profile } = useApp();
+  const { removeEncounter, setBlocked, profile, authedUid } = useApp();
 
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const verified = !!(encounter.photoUri && encounter.photoUri !== "");
+
+  const { data: standing } = useQuery({
+    queryKey: ["communityStanding", encounter.id],
+    queryFn: () => api.getCommunityStanding({ uid: authedUid ?? "" }, encounter.id),
+    enabled: !!authedUid && !!encounter.id,
+    staleTime: 5 * 60 * 1000,
+  });
+  const averageRating =
+    standing?.hasEnough && standing?.averageRating != null
+      ? standing.averageRating
+      : null;
 
   const sharedInterest = useMemo(() => {
     const myInterests = profile?.interests;
@@ -89,9 +104,20 @@ export function EncounterRow({ encounter }: Props) {
           ring={encounter.status === "request_received"}
         />
         <View style={styles.body}>
-          <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
-            {encounter.realName}
-          </Text>
+          <View style={styles.nameRow}>
+            <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
+              {encounter.realName}
+            </Text>
+            {verified ? (
+              <Feather name="check-circle" size={13} color="#22C55E" />
+            ) : null}
+            {averageRating != null ? (
+              <View style={styles.ratingPill}>
+                <Feather name="star" size={10} color="#FFD700" />
+                <Text style={styles.ratingText}>{averageRating.toFixed(1)}</Text>
+              </View>
+            ) : null}
+          </View>
           <Text
             style={[styles.meta, { color: colors.mutedForeground }]}
             numberOfLines={1}
@@ -175,35 +201,53 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    flexShrink: 1,
+  },
   name: {
     fontFamily: "Inter_700Bold",
     fontSize: 16,
+    flexShrink: 1,
+  },
+  ratingPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#FEF9C3",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  ratingText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    color: "#92400E",
   },
   meta: {
     fontFamily: "Inter_400Regular",
     fontSize: 13,
   },
   status: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 12,
-    marginTop: 2,
-  },
-  menuBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
   },
   repeatPill: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    marginTop: 4,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignSelf: "flex-start",
   },
   repeatText: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 11,
+  },
+  menuBtn: {
+    padding: 4,
   },
 });

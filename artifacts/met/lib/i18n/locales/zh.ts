@@ -1188,6 +1188,16 @@ export const zh: LocaleTree = {
   },
 
   pioneer: {
+    modalTitle: "先驱者",
+    slide1Title: "先驱者身份",
+    slide1Body: "您是最早加入 Met 的500人之一。您的先驱者身份是永久的——这是对您从一开始就在这里、从第一天起就塑造这个社区的认可。",
+    slide2Title: "先驱者超能力",
+    slide2Body: "您的签到积分是普通成员的1.5倍。您还会在 Met 雷达上优先显示，让附近的人更容易发现您。",
+    slide3Title: "每月奖励",
+    slide3Body: "先驱者排行榜上的顶级贡献者每月都会赢得惊喜奖励——这是 Met 团队对您帮助建设这个社区的个人致谢。",
+    back: "返回",
+    next: "下一步",
+    gotIt: "明白了",
     dashboardTitle: "先驱者排行榜",
     dashboardSub: "按积分排名的前50位先驱者",
     formula: "推荐 ×20 · 签到 ×2 · 聊天 ×5",

@@ -1237,6 +1237,19 @@ export const en = {
   },
 
   pioneer: {
+    modalTitle: "MET PIONEER",
+    slide1Title: "Pioneer Status",
+    slide1Body:
+      "You're one of the first 500 people to join Met. Your Pioneer status is permanent — a recognition that you were here when it all started, shaping the community from day one.",
+    slide2Title: "Pioneer Superpowers",
+    slide2Body:
+      "Your check-ins earn 1.5× more points than regular members. You also appear with priority on the Met radar, making you naturally more visible to people nearby.",
+    slide3Title: "Monthly Rewards",
+    slide3Body:
+      "Top contributors on the Pioneer Leaderboard win surprising rewards every month — a personal thank-you from the Met team for helping build this community.",
+    back: "Back",
+    next: "Next",
+    gotIt: "Got it",
     dashboardTitle: "Pioneer Leaderboard",
     dashboardSub: "Top 50 Pioneers ranked by score",
     formula: "Referrals ×20 · Check-ins ×2 · Chats ×5",

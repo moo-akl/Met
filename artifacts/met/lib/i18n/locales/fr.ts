@@ -1243,6 +1243,16 @@ export const fr: LocaleTree = {
   },
 
   pioneer: {
+    modalTitle: "MET PIONNIER",
+    slide1Title: "Statut Pioneer",
+    slide1Body: "Tu fais partie des 500 premières personnes à rejoindre Met. Ton statut Pioneer est permanent — une reconnaissance que tu étais là depuis le début, façonnant la communauté dès le premier jour.",
+    slide2Title: "Super-pouvoirs Pioneer",
+    slide2Body: "Tes enregistrements rapportent 1.5× plus de points que les membres ordinaires. Tu apparais aussi en priorité sur le radar de Met, ce qui te rend naturellement plus visible pour les personnes proches.",
+    slide3Title: "Récompenses Mensuelles",
+    slide3Body: "Les meilleurs contributeurs du Classement Pioneer gagnent des récompenses surprises chaque mois — un merci personnel de l'équipe Met pour avoir aidé à construire cette communauté.",
+    back: "Retour",
+    next: "Suivant",
+    gotIt: "Compris",
     dashboardTitle: "Classement Pioneer",
     dashboardSub: "Top 50 Pionniers classés par score",
     formula: "Références ×20 · Check-ins ×2 · Chats ×5",
