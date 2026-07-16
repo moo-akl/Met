@@ -55,6 +55,14 @@ export const profilesTable = pgTable(
     // Denormalised count of successful referral redemptions. Kept in sync
     // by the referrals route whenever a redemption is processed.
     referralCount: integer("referral_count").notNull().default(0),
+    // Pre-computed Pioneer Score for the leaderboard.
+    // Formula: referrals×20 + check-ins×2 + chat_connections×5.
+    // Refreshed by the monthly crown job and the admin recalculate endpoint.
+    // Indexed so the top-50 leaderboard query is a fast index-scan.
+    pioneerScore: integer("pioneer_score").notNull().default(0),
+    // Count of new one-on-one chat connections started by this user.
+    // Incremented via POST /api/users/record-chat-connection.
+    chatConnections: integer("chat_connections").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -64,6 +72,7 @@ export const profilesTable = pgTable(
   },
   (table) => ({
     uidHashIdx: index("profiles_uid_hash_idx").on(table.uidHash),
+    pioneerScoreIdx: index("profiles_pioneer_score_idx").on(table.pioneerScore),
   }),
 );
 

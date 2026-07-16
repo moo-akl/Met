@@ -1169,6 +1169,7 @@ export const ar: LocaleTree = {
     checkinCountA11y: "{{count}} تسجيلات",
     rankA11y: "الترتيب {{rank}}",
     championA11y: "بطل الشهر",
+    trophyWinnerA11y: "فائز سابق بالكأس",
   },
 
   venue: {
@@ -1218,6 +1219,22 @@ export const ar: LocaleTree = {
   connectionsWalkthrough: {
     step1: "تصل طلبات الكشف هنا — انقر على أحدها للقبول أو الرفض والتواصل.",
     step2: "جميع الأشخاص الذين تواصلت معهم بشكل متبادل موجودون هنا. انقر على اسم لعرض ملفه الشخصي أو بدء محادثة.",
+  },
+
+  trophies: {
+    title: "خزانة الكؤوس",
+    empty: "احتل المراكز الثلاثة الأولى في أي مركز خلال أي شهر لتحصل على كأسك الأول.",
+    loading: "جار تحميل الكؤوس...",
+  },
+
+  pioneer: {
+    dashboardTitle: "لوحة المبتكرين",
+    dashboardSub: "أفضل 50 مؤسساً مرتبين حسب النقاط",
+    formula: "الإحالات ×20 · تسجيلات الدخول ×2 · المحادثات ×5",
+    topContributor: "أفضل مساهم",
+    scoreBreakdown: "{{referrals}} إحالة · {{chats}} محادثة",
+    loadError: "تعذّر التحميل — انقر للمحاولة مجدداً",
+    viewLeaderboard: "عرض لوحة المبتكرين ←",
   },
 
   interestLabels: interestLocales.ar,

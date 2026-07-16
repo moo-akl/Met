@@ -1176,6 +1176,7 @@ export const fr: LocaleTree = {
     checkinCountA11y: "{{count}} enregistrements",
     rankA11y: "Rang {{rank}}",
     championA11y: "Champion mensuel",
+    trophyWinnerA11y: "Ancien gagnant de trophée",
   },
 
   venue: {
@@ -1225,6 +1226,22 @@ export const fr: LocaleTree = {
   connectionsWalkthrough: {
     step1: "Les demandes de révélation arrivent ici — appuie sur une pour l'accepter ou la refuser et te connecter.",
     step2: "Toutes les personnes avec lesquelles tu es mutuellement connecté(e) sont ici. Appuie sur un nom pour voir son profil ou démarrer une conversation.",
+  },
+
+  trophies: {
+    title: "Vitrine des trophées",
+    empty: "Gagnez le top 3 dans un Hub n'importe quel mois pour décrocher votre premier trophée.",
+    loading: "Chargement des trophées…",
+  },
+
+  pioneer: {
+    dashboardTitle: "Classement Pioneer",
+    dashboardSub: "Top 50 Fondateurs classés par score",
+    formula: "Références ×20 · Check-ins ×2 · Chats ×5",
+    topContributor: "Contributeur Principal",
+    scoreBreakdown: "{{referrals}} références · {{chats}} chats",
+    loadError: "Impossible de charger — appuyez pour réessayer",
+    viewLeaderboard: "Voir le Classement Pioneer →",
   },
 
   interestLabels: interestLocales.fr,

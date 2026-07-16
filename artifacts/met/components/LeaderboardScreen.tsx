@@ -74,6 +74,7 @@ interface LeaderboardEntry {
   displayName: string;
   photoUrl: string | null;
   checkinCount: number;
+  hasTrophy?: boolean;
 }
 
 interface ChampionBadge {
@@ -379,6 +380,14 @@ function LeaderboardRow({
             )}
             {isChampion && (
               <ChampionPulse label={t("leaderboard.championA11y")} />
+            )}
+            {item.hasTrophy && !isChampion && (
+              <Text
+                style={styles.trophyIcon}
+                accessibilityLabel={t("leaderboard.trophyWinnerA11y")}
+              >
+                🏆
+              </Text>
             )}
           </View>
         </View>
@@ -787,6 +796,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFD700",
   },
   championIcon: {
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  trophyIcon: {
     fontSize: 14,
     lineHeight: 18,
   },

@@ -2,41 +2,36 @@
  * Pioneer routes
  *
  * GET /api/pioneer-leaderboard
- *   Returns the top 50 pioneers ranked by referral_count.
+ *   Returns the top 50 pioneers ranked by pre-computed pioneer_score.
+ *   Score formula: referrals×20 + check-ins×2 + chat_connections×5.
+ *   Scores are refreshed by the monthly crown job and the
+ *   POST /api/admin/recalculate-pioneer-scores endpoint.
  *   The top 5 are flagged with random_prize_eligibility: true.
+ *   Rank #1 receives isTopContributor: true for the "Top Contributor" badge.
  */
 
 import { Router, type IRouter } from "express";
-import { desc, eq, sql } from "drizzle-orm";
-import {
-  db,
-  profilesTable,
-  referralCodesTable,
-  referralRedemptionsTable,
-} from "@workspace/db";
+import { desc, eq } from "drizzle-orm";
+import { db, profilesTable } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 
 const router: IRouter = Router();
 
 router.get("/pioneer-leaderboard", requireUid, async (req, res): Promise<void> => {
-  // Count referral redemptions per pioneer (joined via referral_codes).
-  // Only users who are marked is_pioneer = true appear in this leaderboard.
+  // Read the pre-computed pioneer_score column — backed by an index so this
+  // is a fast index-scan + limit, with no aggregation at query time.
   const rows = await db
     .select({
       uid: profilesTable.uid,
       displayName: profilesTable.displayName,
       photoUrl: profilesTable.photoUrl,
-      referralCount: sql<number>`cast(count(${referralRedemptionsTable.redeemerUid}) as int)`,
+      pioneerScore: profilesTable.pioneerScore,
+      referralCount: profilesTable.referralCount,
+      chatConnections: profilesTable.chatConnections,
     })
     .from(profilesTable)
-    .leftJoin(referralCodesTable, eq(referralCodesTable.uid, profilesTable.uid))
-    .leftJoin(
-      referralRedemptionsTable,
-      eq(referralRedemptionsTable.code, referralCodesTable.code),
-    )
     .where(eq(profilesTable.isPioneer, true))
-    .groupBy(profilesTable.uid, profilesTable.displayName, profilesTable.photoUrl)
-    .orderBy(desc(sql`count(${referralRedemptionsTable.redeemerUid})`))
+    .orderBy(desc(profilesTable.pioneerScore))
     .limit(50);
 
   const leaderboard = rows.map((r, i) => ({
@@ -44,7 +39,10 @@ router.get("/pioneer-leaderboard", requireUid, async (req, res): Promise<void> =
     uid: r.uid,
     displayName: r.displayName,
     photoUrl: r.photoUrl ?? null,
-    referralCount: Number(r.referralCount),
+    pioneerScore: r.pioneerScore,
+    referralCount: r.referralCount,
+    chatConnections: r.chatConnections,
+    isTopContributor: i === 0,
     random_prize_eligibility: i < 5,
     prize_label: i < 5 ? "Eligible for Founder's Surprise Prize" : null,
   }));

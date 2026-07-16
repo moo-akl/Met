@@ -652,6 +652,7 @@ export const api = {
         displayName: string;
         photoUrl: string | null;
         checkinCount: number;
+        hasTrophy: boolean;
       }>
     >(
       "GET",
@@ -755,8 +756,10 @@ export const api = {
   },
 
   /**
-   * Fetch the top 50 Pioneers ranked by referral count.
+   * Fetch the top 50 Pioneers ranked by pioneer_score.
+   * Score = referrals×20 + check-ins×2 + chats×5.
    * The top 5 entries have random_prize_eligibility: true.
+   * Rank #1 has isTopContributor: true.
    */
   getPioneerLeaderboard: (opts: ApiOptions) =>
     request<{
@@ -765,9 +768,36 @@ export const api = {
         uid: string;
         displayName: string;
         photoUrl: string | null;
+        pioneerScore: number;
         referralCount: number;
+        chatConnections: number;
+        isTopContributor: boolean;
         random_prize_eligibility: boolean;
         prize_label: string | null;
       }>;
     }>("GET", "/api/pioneer-leaderboard", opts),
+
+  /**
+   * Fetch the caller's trophy collection (rank 1–3 monthly hub wins).
+   * Results are ordered newest-first.
+   */
+  getTrophies: (opts: ApiOptions) =>
+    request<{
+      trophies: Array<{
+        id: number;
+        hubId: string;
+        hubName: string | null;
+        monthYear: string;
+        rankAchieved: number;
+        trophyType: string;
+        awardedAt: string;
+      }>;
+    }>("GET", "/api/profiles/me/trophies", opts),
+
+  /**
+   * Notify the server that the caller started a new one-on-one chat.
+   * Increments chat_connections for pioneer score calculation.
+   */
+  recordChatConnection: (opts: ApiOptions) =>
+    request<{ ok: boolean }>("POST", "/api/users/record-chat-connection", opts),
 };

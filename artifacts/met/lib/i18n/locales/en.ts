@@ -1170,6 +1170,7 @@ export const en = {
     checkinCountA11y: "{{count}} check-ins",
     rankA11y: "Rank {{rank}}",
     championA11y: "Monthly champion",
+    trophyWinnerA11y: "Previous trophy winner",
   },
 
   venue: {
@@ -1219,6 +1220,22 @@ export const en = {
   connectionsWalkthrough: {
     step1: "Reveal requests land here — tap one to accept or decline and connect.",
     step2: "Everyone you've mutually connected with lives here. Tap a name to view their profile or start a chat.",
+  },
+
+  trophies: {
+    title: "Trophy Case",
+    empty: "Win top 3 at a Hub in any month to earn your first trophy.",
+    loading: "Loading trophies…",
+  },
+
+  pioneer: {
+    dashboardTitle: "Pioneer Leaderboard",
+    dashboardSub: "Top 50 Founders ranked by score",
+    formula: "Referrals ×20 · Check-ins ×2 · Chats ×5",
+    topContributor: "Top Contributor",
+    scoreBreakdown: "{{referrals}} referrals · {{chats}} chats",
+    loadError: "Couldn't load — tap to retry",
+    viewLeaderboard: "View Pioneer Leaderboard →",
   },
 };
 

@@ -5,4 +5,5 @@ export * from "./reveals";
 export * from "./referrals";
 export * from "./networks";
 export * from "./engagement";
+export * from "./trophies";
 

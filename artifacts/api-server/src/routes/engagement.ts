@@ -18,6 +18,7 @@ import {
   reviewsTable,
   profilesTable,
   monthlyChampionsTable,
+  trophiesTable,
   subscriptionsTable,
   revealRequestsTable,
 } from "@workspace/db";
@@ -611,6 +612,14 @@ router.get(
       .orderBy(desc(sql`count(${hubCheckinsTable.id})`))
       .limit(20);
 
+    // Fetch UIDs that have won any trophy at this place (any month, any rank).
+    // Allows the UI to show a "legendary" trophy icon next to past winners.
+    const trophyRows = await db
+      .selectDistinct({ userUid: trophiesTable.userUid })
+      .from(trophiesTable)
+      .where(eq(trophiesTable.hubId, placeId));
+    const trophyWinnerUids = new Set(trophyRows.map((t) => t.userUid));
+
     res.json(
       rows.map((r, i) => ({
         rank: i + 1,
@@ -618,6 +627,7 @@ router.get(
         displayName: r.displayName ?? "Unknown",
         photoUrl: r.photoUrl ?? null,
         checkinCount: Number(r.checkinCount),
+        hasTrophy: trophyWinnerUids.has(r.userUid),
       })),
     );
   },
@@ -709,52 +719,101 @@ router.post(
       );
 
     if (rankings.length === 0) {
-      res.json({ crowned: 0, month: monthStr });
+      res.json({ crowned: 0, trophies: 0, month: monthStr });
       return;
     }
 
-    // Pick the top user per place (rank 1 only).
-    const championsMap = new Map<
+    // Pick the top 3 users per place (ranks 1, 2, 3).
+    // rankings is already sorted by (placeId ASC, checkin_count DESC).
+    const placeRankings = new Map<
       string,
-      { placeId: string; placeName: string | null; userUid: string; checkinCount: number }
+      Array<{ placeId: string; placeName: string | null; userUid: string; checkinCount: number; rank: number }>
     >();
     for (const row of rankings) {
-      if (!championsMap.has(row.placeId)) {
-        championsMap.set(row.placeId, {
+      if (!placeRankings.has(row.placeId)) {
+        placeRankings.set(row.placeId, []);
+      }
+      const arr = placeRankings.get(row.placeId)!;
+      if (arr.length < 3) {
+        arr.push({
           placeId: row.placeId,
           placeName: row.placeName ?? null,
           userUid: row.userUid,
           checkinCount: Number(row.checkinCount),
+          rank: arr.length + 1,
         });
       }
     }
 
-    const toInsert = Array.from(championsMap.values());
+    const TROPHY_TYPE: Record<number, string> = { 1: "Gold", 2: "Silver", 3: "Bronze" };
+    // "YYYY-MM" format for trophy month_year
+    const monthYear = monthStr.slice(0, 7);
 
-    // Upsert: if a champion row already exists for this place+month (e.g. job
-    // re-run), skip rather than error.
     let crowned = 0;
-    for (const champ of toInsert) {
-      try {
-        await db
-          .insert(monthlyChampionsTable)
-          .values({
-            placeId: champ.placeId,
-            placeName: champ.placeName,
-            userUid: champ.userUid,
-            month: monthStr,
-            rank: 1,
-            checkinCount: champ.checkinCount,
-          })
-          .onConflictDoNothing();
-        crowned++;
-      } catch (err) {
-        logger.warn({ err, placeId: champ.placeId }, "champion insert skipped");
+    let trophiesAwarded = 0;
+    for (const entries of placeRankings.values()) {
+      for (const entry of entries) {
+        // Upsert monthly_champions (skip if job re-runs)
+        try {
+          await db
+            .insert(monthlyChampionsTable)
+            .values({
+              placeId: entry.placeId,
+              placeName: entry.placeName,
+              userUid: entry.userUid,
+              month: monthStr,
+              rank: entry.rank,
+              checkinCount: entry.checkinCount,
+            })
+            .onConflictDoNothing();
+          if (entry.rank === 1) crowned++;
+        } catch (err) {
+          logger.warn({ err, placeId: entry.placeId, rank: entry.rank }, "champion insert skipped");
+        }
+
+        // Award trophy (skip on re-run via unique constraint)
+        try {
+          await db
+            .insert(trophiesTable)
+            .values({
+              userUid: entry.userUid,
+              hubId: entry.placeId,
+              hubName: entry.placeName,
+              monthYear,
+              rankAchieved: entry.rank,
+              trophyType: TROPHY_TYPE[entry.rank]!,
+            })
+            .onConflictDoNothing();
+          trophiesAwarded++;
+        } catch (err) {
+          logger.warn({ err, placeId: entry.placeId, rank: entry.rank }, "trophy insert skipped");
+        }
       }
     }
 
-    logger.info({ crowned, month: monthStr }, "Monthly champions crowned");
-    res.json({ crowned, month: monthStr });
+    // Recalculate pioneer_score for all pioneers after awarding trophies.
+    // Formula: referral_count×20 + hub_checkin_count×2 + chat_connections×5
+    try {
+      await db.execute(sql`
+        UPDATE profiles
+        SET pioneer_score = (
+          (referral_count * 20)
+          + (
+              COALESCE(
+                (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid),
+                0
+              ) * 2
+            )
+          + (chat_connections * 5)
+        )
+        WHERE is_pioneer = true
+      `);
+    } catch (err) {
+      logger.warn({ err }, "pioneer score recalculation failed — non-fatal");
+    }
+
+    logger.info({ crowned, trophiesAwarded, month: monthStr }, "Monthly champions crowned");
+    res.json({ crowned, trophiesAwarded, month: monthStr });
   },
 );
 

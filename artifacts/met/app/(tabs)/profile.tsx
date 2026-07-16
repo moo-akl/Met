@@ -31,6 +31,8 @@ import { SettingsSheet } from "@/components/SettingsSheet";
 import { SocialLinkRow } from "@/components/SocialLinkRow";
 import { GoldShimmerBorder } from "@/components/GoldShimmerBorder";
 import { PioneerModal, loadPioneerModalSeen } from "@/components/PioneerModal";
+import { TrophyCase, type Trophy } from "@/components/TrophyCase";
+import { PioneerDashboard } from "@/components/PioneerDashboard";
 import { useApp } from "@/contexts/AppContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
@@ -112,9 +114,13 @@ export default function ProfileScreen() {
     checkinCount: number;
   }[]>([]);
 
+  const [myTrophies, setMyTrophies] = useState<Trophy[]>([]);
+  const [myTrophiesLoading, setMyTrophiesLoading] = useState(false);
+
   const [isPioneer, setIsPioneer] = useState(profile?.isPioneer ?? false);
   const [prizeEligible, setPrizeEligible] = useState(false);
   const [pioneerModalVisible, setPioneerModalVisible] = useState(false);
+  const [pioneerDashboardVisible, setPioneerDashboardVisible] = useState(false);
 
   // Photo verification overlay state. `pendingIntent` distinguishes a
   // main-photo replacement (handled in edit mode, awaits Save) from an extra
@@ -249,6 +255,17 @@ export default function ProfileScreen() {
       .getChampionBadges({ uid: authedUid }, authedUid)
       .then((badges) => setTrophies(badges))
       .catch(() => {});
+  }, [authedUid]);
+
+  // Fetch the new trophy collection (rank 1–3 monthly wins).
+  useEffect(() => {
+    if (!authedUid) return;
+    setMyTrophiesLoading(true);
+    api
+      .getTrophies({ uid: authedUid })
+      .then((data) => setMyTrophies(data.trophies))
+      .catch(() => {})
+      .finally(() => setMyTrophiesLoading(false));
   }, [authedUid]);
 
   // Fetch trust score for the current user.
@@ -596,13 +613,23 @@ export default function ProfileScreen() {
                 </View>
               ) : null}
               {isPioneer ? (
-                <Pressable
-                  onPress={() => setPioneerModalVisible(true)}
-                  style={styles.pioneerBadge}
-                >
-                  <Feather name="award" size={11} color="#D4AF37" />
-                  <Text style={styles.pioneerBadgeText}>MET FOUNDER</Text>
-                </Pressable>
+                <>
+                  <Pressable
+                    onPress={() => setPioneerModalVisible(true)}
+                    style={styles.pioneerBadge}
+                  >
+                    <Feather name="award" size={11} color="#D4AF37" />
+                    <Text style={styles.pioneerBadgeText}>MET FOUNDER</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setPioneerDashboardVisible(true)}
+                    style={styles.pioneerLeaderboardLink}
+                  >
+                    <Text style={styles.pioneerLeaderboardLinkText}>
+                      {t("pioneer.viewLeaderboard")}
+                    </Text>
+                  </Pressable>
+                </>
               ) : null}
               {prizeEligible ? (
                 <View style={styles.prizeBadge}>
@@ -1141,6 +1168,9 @@ export default function ProfileScreen() {
 
         {!editing ? (
           <>
+            {(myTrophies.length > 0 || myTrophiesLoading) && (
+              <TrophyCase trophies={myTrophies} loading={myTrophiesLoading} />
+            )}
             <ReputationRadar summary={reviewSummary} />
             {tier === "free" ? (
               <Pressable
@@ -1240,6 +1270,11 @@ export default function ProfileScreen() {
         visible={pioneerModalVisible}
         onClose={() => setPioneerModalVisible(false)}
       />
+
+      <PioneerDashboard
+        visible={pioneerDashboardVisible}
+        onClose={() => setPioneerDashboardVisible(false)}
+      />
     </View>
   );
 }
@@ -1290,6 +1325,15 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     color: "#D4AF37",
     textTransform: "uppercase",
+  },
+  pioneerLeaderboardLink: {
+    paddingVertical: 2,
+  },
+  pioneerLeaderboardLinkText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    color: "#D4AF37",
+    opacity: 0.8,
   },
   prizeBadge: {
     flexDirection: "row",

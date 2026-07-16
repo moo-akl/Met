@@ -1160,6 +1160,7 @@ export const es: LocaleTree = {
     checkinCountA11y: "{{count}} registros",
     rankA11y: "Rango {{rank}}",
     championA11y: "Campeón mensual",
+    trophyWinnerA11y: "Ganador previo de trofeo",
   },
 
   venue: {
@@ -1209,6 +1210,22 @@ export const es: LocaleTree = {
   connectionsWalkthrough: {
     step1: "Las solicitudes de revelación llegan aquí — toca una para aceptar o rechazar y conectarte.",
     step2: "Todas las personas con las que te has conectado mutuamente están aquí. Toca un nombre para ver su perfil o iniciar un chat.",
+  },
+
+  trophies: {
+    title: "Vitrina de trofeos",
+    empty: "Gana el top 3 en un Hub durante cualquier mes para ganar tu primer trofeo.",
+    loading: "Cargando trofeos…",
+  },
+
+  pioneer: {
+    dashboardTitle: "Clasificación Pioneer",
+    dashboardSub: "Top 50 Fundadores por puntuación",
+    formula: "Referencias ×20 · Check-ins ×2 · Chats ×5",
+    topContributor: "Colaborador Principal",
+    scoreBreakdown: "{{referrals}} referencias · {{chats}} chats",
+    loadError: "No se pudo cargar — toca para reintentar",
+    viewLeaderboard: "Ver Clasificación Pioneer →",
   },
 
   interestLabels: interestLocales.es,
