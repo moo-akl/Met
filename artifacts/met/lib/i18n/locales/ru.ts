@@ -811,6 +811,7 @@ export const ru: LocaleTree = {
     deleteAccountConfirmSub:
       "Это сотрёт ваш профиль, историю, знакомых и предпочтения с этого устройства. Вы вернётесь на экран приветствия и сможете начать заново. Это нельзя отменить.",
     confirmDelete: "Удалить аккаунт",
+    deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Политика конфиденциальности",
     termsOfService: "Условия использования",
     contactSupport: "Связаться с поддержкой",

@@ -834,11 +834,12 @@ export const en = {
     verifiedOn: "Verified on {{date}}",
     notVerified: "Not verified yet",
     deleteAccount: "Delete account",
-    deleteAccountSub: "Wipe everything from this device",
+    deleteAccountSub: "Permanently delete your account and all data",
     deleteAccountConfirmTitle: "Delete account?",
     deleteAccountConfirmSub:
       "This wipes your profile, encounter history, connections, and preferences from this device. You'll be returned to the welcome screen and can start fresh. This cannot be undone.",
     confirmDelete: "Delete account",
+    deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Privacy policy",
     termsOfService: "Terms of service",
     contactSupport: "Contact support",

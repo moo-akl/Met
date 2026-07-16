@@ -816,6 +816,7 @@ export const fr: LocaleTree = {
     deleteAccountConfirmSub:
       "Cela efface votre profil, l'historique, les connexions et préférences de cet appareil. Vous reviendrez à l'accueil et pourrez repartir à zéro. Irréversible.",
     confirmDelete: "Supprimer le compte",
+    deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Politique de confidentialité",
     termsOfService: "Conditions d'utilisation",
     contactSupport: "Contacter le support",

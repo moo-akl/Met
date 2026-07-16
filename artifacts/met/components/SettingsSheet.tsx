@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import * as Updates from "expo-updates";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   DevSettings,
   Modal,
   Platform,
@@ -348,6 +349,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
   const [view, setView] = useState<SheetView>("menu");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [reverifying, setReverifying] = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -389,6 +391,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const close = () => {
     setView("menu");
     setConfirmDelete(false);
+    setDeletingAccount(false);
     setReverifying(false);
     setSignOutConfirm(false);
     setSigningOut(false);
@@ -977,25 +980,44 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     </Pressable>
                     <Pressable
                       onPress={async () => {
-                        // resetAll wipes profile/encounters/preferences/perm
-                        // flag. ProfileGate redirects to onboarding when
-                        // profile becomes null, so no manual nav needed.
-                        await resetAll();
-                        close();
+                        if (deletingAccount) return;
+                        setDeletingAccount(true);
+                        try {
+                          // Wipe Postgres, Firestore, and Firebase Auth
+                          // server-side first. If the call fails, surface
+                          // an error and keep the account intact so the
+                          // user can retry.
+                          if (authedUid && api.isConfigured()) {
+                            await api.deleteMe({ uid: authedUid });
+                          }
+                          // Clear local storage and sign out of Firebase.
+                          // ProfileGate then routes to /onboarding.
+                          await signOutAndClear();
+                          close();
+                        } catch {
+                          setDeletingAccount(false);
+                          Alert.alert(
+                            "Couldn't delete account",
+                            "Something went wrong. Please check your connection and try again.",
+                          );
+                        }
                       }}
+                      disabled={deletingAccount}
                       style={({ pressed }) => [
                         styles.confirmBtn,
                         {
                           backgroundColor: colors.destructive,
                           borderColor: colors.destructive,
-                          opacity: pressed ? 0.85 : 1,
+                          opacity: pressed || deletingAccount ? 0.85 : 1,
                         },
                       ]}
                     >
                       <Text
                         style={[styles.confirmBtnText, { color: "#FFFFFF" }]}
                       >
-                        {t("settings.deleteAccountConfirmAction")}
+                        {deletingAccount
+                          ? t("settings.deleteAccountDeleting")
+                          : t("settings.deleteAccountConfirmAction")}
                       </Text>
                     </Pressable>
                   </View>

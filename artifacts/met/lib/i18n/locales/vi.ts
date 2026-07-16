@@ -808,6 +808,7 @@ export const vi: LocaleTree = {
     deleteAccountConfirmSub:
       "Việc này xoá hồ sơ, lịch sử, kết nối và tuỳ chọn khỏi thiết bị. Bạn sẽ trở về màn hình chào và có thể bắt đầu lại. Không thể hoàn tác.",
     confirmDelete: "Xoá tài khoản",
+    deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Chính sách quyền riêng tư",
     termsOfService: "Điều khoản dịch vụ",
     contactSupport: "Liên hệ hỗ trợ",

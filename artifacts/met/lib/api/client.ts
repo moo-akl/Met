@@ -275,6 +275,12 @@ export const api = {
   upsertMyProfile: (opts: ApiOptions, input: UpsertProfileInput) =>
     request<RemoteProfile>("PUT", "/api/profiles/me", opts, input),
   /**
+   * Permanently delete the caller's account — removes all data from
+   * Postgres, Firestore, and Firebase Auth. Cannot be undone.
+   */
+  deleteMe: (opts: ApiOptions) =>
+    request<void>("DELETE", "/api/profiles/me", opts),
+  /**
    * Upload a profile photo as raw base64 (no `data:` prefix). Server
    * stores it in Firebase Storage at `profile-photos/{uid}.{ext}` and
    * returns a tokenised public download URL that can be saved as the

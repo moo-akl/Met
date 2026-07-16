@@ -767,6 +767,7 @@ export const zh: LocaleTree = {
     deleteAccountConfirmSub:
       "这将从此设备清除你的资料、历史、联系人和偏好。你将返回欢迎屏幕,可重新开始。此操作无法撤销。",
     confirmDelete: "删除账户",
+    deleteAccountDeleting: "Deleting…",
     privacyPolicy: "隐私政策",
     termsOfService: "服务条款",
     contactSupport: "联系支持",

@@ -808,6 +808,7 @@ export const nl: LocaleTree = {
     deleteAccountConfirmSub:
       "Dit wist je profiel, geschiedenis, connecties en voorkeuren van dit apparaat. Je gaat terug naar het welkomstscherm en kunt opnieuw beginnen. Niet ongedaan te maken.",
     confirmDelete: "Account verwijderen",
+    deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Privacybeleid",
     termsOfService: "Servicevoorwaarden",
     contactSupport: "Contact opnemen met support",

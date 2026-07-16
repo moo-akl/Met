@@ -806,6 +806,7 @@ export const pt: LocaleTree = {
     deleteAccountConfirmSub:
       "Isso apaga seu perfil, histórico, conexões e preferências deste aparelho. Você volta para a tela de boas-vindas e pode começar do zero. Não tem como desfazer.",
     confirmDelete: "Excluir conta",
+    deleteAccountDeleting: "Deleting…",
     privacyPolicy: "Política de privacidade",
     termsOfService: "Termos de serviço",
     contactSupport: "Falar com o suporte",

@@ -809,6 +809,7 @@ export const ar: LocaleTree = {
     deleteAccountConfirmSub:
       "هذا يمحو ملفك وسجلك ومعارفك وتفضيلاتك من هذا الجهاز. ستعود إلى شاشة الترحيب وتستطيع البدء من جديد. لا يمكن التراجع.",
     confirmDelete: "حذف الحساب",
+    deleteAccountDeleting: "Deleting…",
     privacyPolicy: "سياسة الخصوصية",
     termsOfService: "شروط الخدمة",
     contactSupport: "تواصل مع الدعم",
