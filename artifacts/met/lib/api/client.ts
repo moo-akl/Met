@@ -624,6 +624,8 @@ export const api = {
       hasEnough: boolean;
       averageRating?: number;
       communityStanding?: number;
+      isPioneer?: boolean;
+      trophyCount?: number;
     }>("GET", `/api/users/${encodeURIComponent(uid)}/community-standing`, opts),
   /**
    * Fetch hub streaks, trust score, and average rating for any user.

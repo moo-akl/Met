@@ -380,6 +380,12 @@ function ConnectionRow({
     standing?.hasEnough && standing?.averageRating != null
       ? standing.averageRating
       : null;
+  const trustScore =
+    standing?.hasEnough && standing?.communityStanding != null
+      ? standing.communityStanding
+      : null;
+  const isPioneer = standing?.isPioneer ?? false;
+  const trophyCount = standing?.trophyCount ?? 0;
 
   const om = c.openingMessage;
   let preview: string;
@@ -532,6 +538,33 @@ function ConnectionRow({
                   #{tag}
                 </Text>
               ))}
+            </View>
+          ) : null}
+
+          {(isPioneer || trophyCount > 0 || trustScore !== null) ? (
+            <View style={styles.badgesRow}>
+              {isPioneer ? (
+                <View style={styles.badgePill}>
+                  <Feather name="award" size={10} color="#F59E0B" />
+                  <Text style={[styles.badgeText, { color: "#92400E" }]}>Pioneer</Text>
+                </View>
+              ) : null}
+              {trophyCount > 0 ? (
+                <View style={[styles.badgePill, { backgroundColor: "#FEF3C7" }]}>
+                  <Feather name="target" size={10} color="#D97706" />
+                  <Text style={[styles.badgeText, { color: "#92400E" }]}>
+                    {trophyCount} {trophyCount === 1 ? "Trophy" : "Trophies"}
+                  </Text>
+                </View>
+              ) : null}
+              {trustScore !== null ? (
+                <View style={[styles.badgePill, { backgroundColor: "#EFF6FF" }]}>
+                  <Feather name="shield" size={10} color="#3B82F6" />
+                  <Text style={[styles.badgeText, { color: "#1E40AF" }]}>
+                    {trustScore}% Trust
+                  </Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -727,6 +760,25 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
     overflow: "hidden",
+  },
+  badgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 3,
+  },
+  badgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#FEF9C3",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgeText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 10,
   },
   chatIconWrap: {
     width: 32,
