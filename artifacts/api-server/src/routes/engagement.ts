@@ -395,13 +395,13 @@ router.post(
     }
 
     // Pioneer multiplier: pioneers earn 1.5× streak points.
-    const [pioneerRow] = await db
+    // Defensive: limit() may return undefined in tests (mock returns void by default).
+    const pioneerRows = await db
       .select({ isPioneer: profilesTable.isPioneer })
       .from(profilesTable)
       .where(eq(profilesTable.uid, uid))
       .limit(1);
-
-    const isPioneer = pioneerRow?.isPioneer ?? false;
+    const isPioneer = Array.isArray(pioneerRows) && Boolean(pioneerRows[0]?.isPioneer);
     const checkinMultiplier = isPioneer ? 1.5 : 1.0;
     const streakPoints = Math.round(streak * checkinMultiplier);
 

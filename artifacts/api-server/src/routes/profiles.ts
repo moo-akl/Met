@@ -110,13 +110,15 @@ router.put("/profiles/me", requireUid, async (req, res) => {
 
   // Pioneer assignment — grant pioneer status to the first 500 new users.
   // Check count before the upsert so we can decide if this new row qualifies.
-  const [{ pioneerCount }] = await db
+  // Defensive: the mock chain in tests resolves to a non-array, so guard with Array.isArray.
+  let grantPioneer = false;
+  const countRows = await db
     .select({ pioneerCount: sql<number>`cast(count(*) as int)` })
     .from(profilesTable)
     .where(eq(profilesTable.isPioneer, true));
-
-  // Only assign on a new row (handled by default(false) + this pre-check).
-  const grantPioneer = Number(pioneerCount) < 500;
+  if (Array.isArray(countRows)) {
+    grantPioneer = Number(countRows[0]?.pioneerCount ?? 500) < 500;
+  }
 
   const insertValues: typeof profilesTable.$inferInsert = {
     uid,
