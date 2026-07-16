@@ -27,6 +27,7 @@ import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
 import { getVerifiedTier } from "../lib/revenueCat";
+import { adminDb } from "../lib/firebaseAdmin";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
@@ -1035,6 +1036,40 @@ router.post(
 
     if (reviewerUid === receiverUid) {
       res.status(400).json({ message: "Cannot review yourself" });
+      return;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Firestore encounter guard — the reviewer must have at least one recorded
+    // proximity encounter with the receiver (users/{reviewer}/met_people/{receiver}).
+    // This prevents throwaway accounts from 5-star bombing a target's community
+    // standing: creating a fake account and checking in to the same venue is not
+    // enough; the two devices must have physically met via BLE/GPS.
+    // Fail-closed: any Firestore error is treated as "no encounter".
+    // ---------------------------------------------------------------------------
+    try {
+      const encounterSnap = await adminDb()
+        .collection("users")
+        .doc(reviewerUid)
+        .collection("met_people")
+        .doc(receiverUid)
+        .get();
+      if (!encounterSnap.exists) {
+        res.status(403).json({
+          message: "encounter_required",
+          detail: "You can only review someone you have actually met.",
+        });
+        return;
+      }
+    } catch (err) {
+      req.log.warn(
+        { err: (err as Error)?.message, reviewerUid, receiverUid },
+        "Firestore encounter check failed — denying review",
+      );
+      res.status(403).json({
+        message: "encounter_required",
+        detail: "You can only review someone you have actually met.",
+      });
       return;
     }
 
