@@ -16,6 +16,7 @@ import {
 import { requireUid } from "../middlewares/requireUid";
 import { uidToHash } from "../lib/uidHash";
 import { mirrorProfileToFirestore } from "../lib/firestoreMirror";
+import { deleteUserData } from "../lib/deleteUserData";
 
 const router: IRouter = Router();
 
@@ -406,6 +407,16 @@ router.get("/profiles/:uid", requireUid, async (req, res) => {
     return;
   }
   res.json(GetProfileResponse.parse(serialize(row)));
+});
+
+// DELETE /api/profiles/me
+// Permanently deletes the authenticated user's account and all associated data
+// from Postgres, Firestore, and Firebase Auth. Irreversible.
+router.delete("/profiles/me", requireUid, async (req, res) => {
+  const uid = req.uid!;
+  await deleteUserData(uid);
+  req.log.info({ uid }, "User account fully deleted");
+  res.status(204).send();
 });
 
 export default router;

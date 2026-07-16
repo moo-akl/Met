@@ -13,6 +13,7 @@ import networksRouter from "./networks";
 import chatsRouter from "./chats";
 import engagementRouter from "./engagement";
 import pioneerRouter from "./pioneer";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(networksRouter);
 router.use(chatsRouter);
 router.use(engagementRouter);
 router.use(pioneerRouter);
+router.use(adminRouter);
 
 export default router;
