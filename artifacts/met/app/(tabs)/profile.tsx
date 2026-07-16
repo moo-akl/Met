@@ -29,6 +29,8 @@ import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { SocialLinkRow } from "@/components/SocialLinkRow";
+import { GoldShimmerBorder } from "@/components/GoldShimmerBorder";
+import { PioneerModal, loadPioneerModalSeen } from "@/components/PioneerModal";
 import { useApp } from "@/contexts/AppContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
@@ -110,6 +112,10 @@ export default function ProfileScreen() {
     checkinCount: number;
   }[]>([]);
 
+  const [isPioneer, setIsPioneer] = useState(profile?.isPioneer ?? false);
+  const [prizeEligible, setPrizeEligible] = useState(false);
+  const [pioneerModalVisible, setPioneerModalVisible] = useState(false);
+
   // Photo verification overlay state. `pendingIntent` distinguishes a
   // main-photo replacement (handled in edit mode, awaits Save) from an extra
   // photo (writes to profile immediately on verified).
@@ -143,6 +149,33 @@ export default function ProfileScreen() {
       return () => { cancelled = true; };
     }
   }, [editing]);
+
+  useEffect(() => {
+    if (!authedUid || !api.isConfigured()) return;
+    let cancelled = false;
+    api.getMyProfile({ uid: authedUid }).then((remote) => {
+      if (cancelled) return;
+      const pioneer = remote.isPioneer ?? false;
+      setIsPioneer(pioneer);
+      if (pioneer && profile) {
+        void setProfile({ ...profile, isPioneer: true });
+      }
+      if (pioneer) {
+        // Check prize eligibility via leaderboard
+        api.getPioneerLeaderboard({ uid: authedUid }).then((lb) => {
+          if (cancelled) return;
+          const entry = lb.leaderboard.find((e) => e.uid === authedUid);
+          setPrizeEligible(entry?.random_prize_eligibility ?? false);
+        }).catch(() => {});
+        // Auto-show modal if not seen before
+        loadPioneerModalSeen().then((seen) => {
+          if (!cancelled && !seen) setPioneerModalVisible(true);
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authedUid]);
 
   const handleInterestsReorder = useCallback((newItems: string[]) => {
     setInterests((prev) => {
@@ -487,25 +520,35 @@ export default function ProfileScreen() {
             onPress={editing ? handleMainPhotoPress : undefined}
             style={styles.photoTarget}
           >
-            <View
-              style={[
-                styles.photoFrame,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              {photoUri ? (
+            {isPioneer && !editing && photoUri ? (
+              <GoldShimmerBorder size={130}>
                 <Image
                   source={{ uri: photoUri }}
                   style={styles.photoImg}
                   contentFit="cover"
                 />
-              ) : (
-                <Feather name="camera" size={28} color={colors.mutedForeground} />
-              )}
-            </View>
+              </GoldShimmerBorder>
+            ) : (
+              <View
+                style={[
+                  styles.photoFrame,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                {photoUri ? (
+                  <Image
+                    source={{ uri: photoUri }}
+                    style={styles.photoImg}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Feather name="camera" size={28} color={colors.mutedForeground} />
+                )}
+              </View>
+            )}
             {editing ? (
               <View
                 style={[
@@ -550,6 +593,21 @@ export default function ProfileScreen() {
                   <Text style={{ fontFamily: "Inter_500Medium", fontSize: 12, color: colors.mutedForeground }}>
                     {averageRating.toFixed(1)}
                   </Text>
+                </View>
+              ) : null}
+              {isPioneer ? (
+                <Pressable
+                  onPress={() => setPioneerModalVisible(true)}
+                  style={styles.pioneerBadge}
+                >
+                  <Feather name="award" size={11} color="#D4AF37" />
+                  <Text style={styles.pioneerBadgeText}>MET FOUNDER</Text>
+                </Pressable>
+              ) : null}
+              {prizeEligible ? (
+                <View style={styles.prizeBadge}>
+                  <Feather name="gift" size={11} color="#FFD700" />
+                  <Text style={styles.prizeBadgeText}>Eligible for Founder's Surprise Prize</Text>
                 </View>
               ) : null}
             </View>
@@ -1177,6 +1235,11 @@ export default function ProfileScreen() {
         visible={upgradeModalVisible}
         onDismiss={() => setUpgradeModalVisible(false)}
       />
+
+      <PioneerModal
+        visible={pioneerModalVisible}
+        onClose={() => setPioneerModalVisible(false)}
+      />
     </View>
   );
 }
@@ -1209,6 +1272,40 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     fontSize: 24,
     marginTop: 4,
+  },
+  pioneerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: "rgba(212,175,55,0.12)",
+    borderWidth: 1,
+    borderColor: "#D4AF37",
+  },
+  pioneerBadgeText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: "#D4AF37",
+    textTransform: "uppercase",
+  },
+  prizeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,215,0,0.10)",
+    borderWidth: 1,
+    borderColor: "#FFD700",
+  },
+  prizeBadgeText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    color: "#FFD700",
   },
   bio: {
     fontFamily: "Inter_400Regular",

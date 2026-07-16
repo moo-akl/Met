@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq, or, inArray } from "drizzle-orm";
+import { and, eq, or, inArray, sql } from "drizzle-orm";
 import {
   db,
   profilesTable,
@@ -49,7 +49,11 @@ router.get("/profiles/me", requireUid, async (req, res) => {
     res.status(404).json({ message: "Profile not found" });
     return;
   }
-  res.json(GetMyProfileResponse.parse(serialize(row)));
+  res.json({
+    ...GetMyProfileResponse.parse(serialize(row)),
+    isPioneer: row.isPioneer,
+    referralCount: row.referralCount,
+  });
 });
 
 router.put("/profiles/me", requireUid, async (req, res) => {
@@ -104,6 +108,16 @@ router.put("/profiles/me", requireUid, async (req, res) => {
         }
       : undefined;
 
+  // Pioneer assignment — grant pioneer status to the first 500 new users.
+  // Check count before the upsert so we can decide if this new row qualifies.
+  const [{ pioneerCount }] = await db
+    .select({ pioneerCount: sql<number>`cast(count(*) as int)` })
+    .from(profilesTable)
+    .where(eq(profilesTable.isPioneer, true));
+
+  // Only assign on a new row (handled by default(false) + this pre-check).
+  const grantPioneer = Number(pioneerCount) < 500;
+
   const insertValues: typeof profilesTable.$inferInsert = {
     uid,
     uidHash,
@@ -114,6 +128,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
     interests: cleanInterests ?? [],
     isVisible: body.isVisible ?? true,
     preferredLocale: cleanLocale ?? null,
+    isPioneer: grantPioneer,
   };
   const updateValues: Partial<typeof profilesTable.$inferInsert> = {
     uidHash,

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
-import { db, presenceTable, type Presence } from "@workspace/db";
+import { eq, sql, inArray } from "drizzle-orm";
+import { db, presenceTable, profilesTable, type Presence } from "@workspace/db";
 import {
   UpdatePresenceBody,
   UpdatePresenceResponse,
@@ -92,13 +92,44 @@ router.get("/presence/nearby", requireUid, async (req, res) => {
     LIMIT 100
   `);
 
-  const items = rows.rows.map((r) => ({
+  const rawItems = rows.rows.map((r) => ({
     uid: r.uid,
     distanceM: Number(r.distance_m),
     updatedAt: new Date(r.updated_at).toISOString(),
   }));
 
-  res.json(NearbyPresenceResponse.parse(items));
+  // Batch-lookup pioneer status so we can tag and sort pioneers to the top.
+  let pioneerUids = new Set<string>();
+  if (rawItems.length > 0) {
+    const uids = rawItems.map((r) => r.uid);
+    const nearbySet = new Set(uids);
+    // Fetch all pioneers and intersect with the nearby uid set.
+    const pioneerRows = await db
+      .select({ uid: profilesTable.uid })
+      .from(profilesTable)
+      .where(inArray(profilesTable.uid, [...nearbySet]));
+    for (const p of pioneerRows) {
+      if (p.uid && nearbySet.has(p.uid)) pioneerUids.add(p.uid);
+    }
+    // Re-filter to only actual pioneers (isPioneer=true).
+    const allPioneers = await db
+      .select({ uid: profilesTable.uid })
+      .from(profilesTable)
+      .where(eq(profilesTable.isPioneer, true));
+    const allPioneerSet = new Set(allPioneers.map((p) => p.uid));
+    pioneerUids = new Set([...pioneerUids].filter((uid) => allPioneerSet.has(uid)));
+  }
+
+  // Sort: pioneers first (lowest distanceM within each group).
+  const enriched = rawItems
+    .map((r) => ({ ...r, priority_radar: pioneerUids.has(r.uid) }))
+    .sort((a, b) => {
+      if (a.priority_radar && !b.priority_radar) return -1;
+      if (!a.priority_radar && b.priority_radar) return 1;
+      return a.distanceM - b.distanceM;
+    });
+
+  res.json(enriched);
 });
 
 export default router;

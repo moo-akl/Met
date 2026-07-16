@@ -394,10 +394,23 @@ router.post(
       });
     }
 
+    // Pioneer multiplier: pioneers earn 1.5× streak points.
+    const [pioneerRow] = await db
+      .select({ isPioneer: profilesTable.isPioneer })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, uid))
+      .limit(1);
+
+    const isPioneer = pioneerRow?.isPioneer ?? false;
+    const checkinMultiplier = isPioneer ? 1.5 : 1.0;
+    const streakPoints = Math.round(streak * checkinMultiplier);
+
     res.json({
       placeId: place.placeId,
       placeName: place.displayName,
       streak,
+      streak_points: streakPoints,
+      checkin_multiplier: checkinMultiplier,
     });
   },
 );

@@ -191,6 +191,10 @@ export interface RemoteProfile {
   isVisible: boolean;
   createdAt: string;
   updatedAt: string;
+  /** True for the first 500 users (Founders). Present on GET /profiles/me. */
+  isPioneer?: boolean;
+  /** Running count of successful referrals. Present on GET /profiles/me. */
+  referralCount?: number;
 }
 
 export interface UpsertProfileInput {
@@ -743,4 +747,21 @@ export const api = {
       opts,
     );
   },
+
+  /**
+   * Fetch the top 50 Pioneers ranked by referral count.
+   * The top 5 entries have random_prize_eligibility: true.
+   */
+  getPioneerLeaderboard: (opts: ApiOptions) =>
+    request<{
+      leaderboard: Array<{
+        rank: number;
+        uid: string;
+        displayName: string;
+        photoUrl: string | null;
+        referralCount: number;
+        random_prize_eligibility: boolean;
+        prize_label: string | null;
+      }>;
+    }>("GET", "/api/pioneer-leaderboard", opts),
 };

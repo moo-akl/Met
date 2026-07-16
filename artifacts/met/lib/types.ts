@@ -28,6 +28,9 @@ export type Profile = {
   // Whether the Rewards Collection (trophies) is visible to other users
   // on the public profile. Defaults to true (public) when absent.
   rewardsPublic?: boolean;
+  // Pioneer status — true for the first 500 users. Grants gold shimmer
+  // border, 1.5× check-in multiplier, and radar priority.
+  isPioneer?: boolean;
 };
 
 export type EncounterStatus =

@@ -5,6 +5,9 @@ import {
   jsonb,
   boolean,
   index,
+  integer,
+  serial,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -46,6 +49,12 @@ export const profilesTable = pgTable(
       notifyReencounter?: boolean;
       notifyChat?: boolean;
     }>(),
+    // Pioneer status — set to true for the first 500 users who register.
+    // Grants 1.5× check-in multiplier and radar priority.
+    isPioneer: boolean("is_pioneer").notNull().default(false),
+    // Denormalised count of successful referral redemptions. Kept in sync
+    // by the referrals route whenever a redemption is processed.
+    referralCount: integer("referral_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -57,6 +66,30 @@ export const profilesTable = pgTable(
     uidHashIdx: index("profiles_uid_hash_idx").on(table.uidHash),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// pioneer_referrals
+// Records each referral that a pioneer makes. One row per referred user.
+// ---------------------------------------------------------------------------
+export const pioneerReferralsTable = pgTable(
+  "pioneer_referrals",
+  {
+    id: serial("id").primaryKey(),
+    pioneerUid: text("pioneer_uid").notNull(),
+    referredUserUid: text("referred_user_uid").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    pioneerIdx: index("pioneer_referrals_pioneer_idx").on(t.pioneerUid),
+    referredUniq: uniqueIndex("pioneer_referrals_referred_uniq").on(
+      t.referredUserUid,
+    ),
+  }),
+);
+
+export type PioneerReferral = typeof pioneerReferralsTable.$inferSelect;
 
 export const insertProfileSchema = createInsertSchema(profilesTable).omit({
   createdAt: true,

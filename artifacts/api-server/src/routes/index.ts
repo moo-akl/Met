@@ -12,6 +12,7 @@ import referralsRouter from "./referrals";
 import networksRouter from "./networks";
 import chatsRouter from "./chats";
 import engagementRouter from "./engagement";
+import pioneerRouter from "./pioneer";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(referralsRouter);
 router.use(networksRouter);
 router.use(chatsRouter);
 router.use(engagementRouter);
+router.use(pioneerRouter);
 
 export default router;
