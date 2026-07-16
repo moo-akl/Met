@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { and, eq, or } from "drizzle-orm";
-import { db, revealRequestsTable } from "@workspace/db";
+import { db, revealRequestsTable, reviewsTable } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { mirrorConnectionRemoval } from "../lib/firestoreMirror";
+import { recalcUserRating } from "../lib/reviewRecalc";
 
 const router: IRouter = Router();
 
@@ -17,6 +18,10 @@ const RemoveConnectionBody = z.object({
 // pair cannot reappear via inbox/outbox listings. Then mirrors the
 // removal to Firestore on both sides so each device's listener can drop
 // the encounter from its local UI immediately, without polling.
+//
+// Any reviews exchanged between the two users are also hard-deleted so
+// that ghost ratings cannot persist after a connection ends. Both users'
+// averageRating and communityStanding are recalculated immediately.
 //
 // Idempotent: if no rows exist for the pair, we still attempt the
 // Firestore mirror so a peer who got into a stale state earlier can
@@ -44,6 +49,30 @@ router.post("/connections/remove", requireUid, async (req, res) => {
         ),
       ),
     );
+
+  // Remove reviews in both directions between the two users.
+  // Without this, a rating written during the connection would continue to
+  // influence the receiver's community standing after the connection is gone.
+  await db
+    .delete(reviewsTable)
+    .where(
+      or(
+        and(
+          eq(reviewsTable.reviewerUid, callerUid),
+          eq(reviewsTable.receiverUid, body.peerUid),
+        ),
+        and(
+          eq(reviewsTable.reviewerUid, body.peerUid),
+          eq(reviewsTable.receiverUid, callerUid),
+        ),
+      ),
+    );
+
+  // Recalculate both users' community standing now that the reviews are gone.
+  await Promise.all([
+    recalcUserRating(callerUid),
+    recalcUserRating(body.peerUid),
+  ]);
 
   await mirrorConnectionRemoval({ uidA: callerUid, uidB: body.peerUid });
 
