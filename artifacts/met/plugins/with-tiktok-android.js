@@ -139,6 +139,45 @@ const withTikTokAndroid = (config) => {
     },
   ]);
 
+  // 5. Patch TikTokBusinessModule.kt: comment out `configBuilder.disableAutoIapTrack()`
+  //    which references a method that does not exist in the native SDK version used
+  //    (react-native-tiktok-business-sdk 1.6.x vs the JitPack 1.5.x native AAR).
+  config = withDangerousMod(config, [
+    "android",
+    (cfg) => {
+      const ktSymlink = path.join(
+        cfg.modRequest.projectRoot,
+        "node_modules",
+        "react-native-tiktok-business-sdk",
+        "android",
+        "src",
+        "main",
+        "java",
+        "com",
+        "tiktokbusiness",
+        "TikTokBusinessModule.kt",
+      );
+
+      let ktPath;
+      try {
+        ktPath = fs.realpathSync(ktSymlink);
+      } catch (_) {
+        return cfg;
+      }
+
+      let kt = fs.readFileSync(ktPath, "utf-8");
+      if (kt.includes("// configBuilder.disableAutoIapTrack")) return cfg;
+
+      kt = kt.replace(
+        "configBuilder.disableAutoIapTrack()",
+        "// configBuilder.disableAutoIapTrack() // method removed in native SDK 1.5.x",
+      );
+
+      fs.writeFileSync(ktPath, kt);
+      return cfg;
+    },
+  ]);
+
   return config;
 };
 

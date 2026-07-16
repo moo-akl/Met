@@ -14,6 +14,7 @@ import {
   View,
   type ListRenderItemInfo,
 } from "react-native";
+import Svg, { Path, Rect } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 
@@ -35,17 +36,54 @@ export interface Trophy {
 // Constants
 // ---------------------------------------------------------------------------
 
-const TROPHY_EMOJI: Record<string, string> = {
-  Gold: "🥇",
-  Silver: "🥈",
-  Bronze: "🥉",
-};
-
 const TROPHY_COLORS: Record<string, { bg: string; border: string; text: string; glow: string }> = {
   Gold: { bg: "#2A1F00", border: "#FFD700", text: "#FFD700", glow: "rgba(255,215,0,0.35)" },
   Silver: { bg: "#1A1A22", border: "#C0C0C0", text: "#D8D8D8", glow: "rgba(192,192,192,0.25)" },
   Bronze: { bg: "#1E1200", border: "#CD7F32", text: "#CD7F32", glow: "rgba(205,127,50,0.25)" },
 };
+
+// ---------------------------------------------------------------------------
+// SVG Trophy Cup icon
+// ---------------------------------------------------------------------------
+
+function TrophyCupIcon({ color, size = 28 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Cup bowl */}
+      <Path
+        d="M6 2 H18 V10 C18 15.5 12 17 12 17 C12 17 6 15.5 6 10 Z"
+        fill={color}
+        opacity={0.95}
+      />
+      {/* Left handle */}
+      <Path
+        d="M6 5 C2.5 5 2.5 12 6 12"
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        fill="none"
+        opacity={0.7}
+      />
+      {/* Right handle */}
+      <Path
+        d="M18 5 C21.5 5 21.5 12 18 12"
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        fill="none"
+        opacity={0.7}
+      />
+      {/* Stem */}
+      <Rect x="11" y="17" width="2" height="3" fill={color} opacity={0.85} />
+      {/* Base */}
+      <Path
+        d="M8 20 H16 A1 1 0 0 1 16 22 H8 A1 1 0 0 1 8 20 Z"
+        fill={color}
+        opacity={0.85}
+      />
+    </Svg>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Gold Shine animation component
@@ -99,7 +137,6 @@ function GoldShine({ children }: { children: React.ReactNode }) {
 
 function TrophyCard({ trophy }: { trophy: Trophy }) {
   const colors = TROPHY_COLORS[trophy.trophyType] ?? TROPHY_COLORS.Bronze!;
-  const emoji = TROPHY_EMOJI[trophy.trophyType] ?? "🏆";
   const [year, month] = trophy.monthYear.split("-");
   const date = new Date(Number(year), Number(month) - 1);
   const monthLabel = date.toLocaleString("default", { month: "short", year: "2-digit" });
@@ -111,7 +148,7 @@ function TrophyCard({ trophy }: { trophy: Trophy }) {
         { backgroundColor: colors.bg, borderColor: colors.border, shadowColor: colors.glow },
       ]}
     >
-      <Text style={styles.emoji}>{emoji}</Text>
+      <TrophyCupIcon color={colors.text} size={32} />
       <Text style={[styles.hubName, { color: colors.text }]} numberOfLines={2}>
         {trophy.hubName ?? trophy.hubId}
       </Text>
@@ -162,15 +199,24 @@ export function TrophyCase({ trophies, loading }: Props) {
           <Text style={[styles.howToTitle, { color: colors.foreground }]}>
             {t("trophies.howToWinTitle")}
           </Text>
-          <Text style={[styles.howToRow, { color: colors.mutedForeground }]}>
-            {t("trophies.howToWinGold")}
-          </Text>
-          <Text style={[styles.howToRow, { color: colors.mutedForeground }]}>
-            {t("trophies.howToWinSilver")}
-          </Text>
-          <Text style={[styles.howToRow, { color: colors.mutedForeground }]}>
-            {t("trophies.howToWinBronze")}
-          </Text>
+          <View style={styles.howToRow}>
+            <TrophyCupIcon color={TROPHY_COLORS.Gold!.text} size={18} />
+            <Text style={[styles.howToRowText, { color: colors.mutedForeground }]}>
+              {t("trophies.howToWinGold")}
+            </Text>
+          </View>
+          <View style={styles.howToRow}>
+            <TrophyCupIcon color={TROPHY_COLORS.Silver!.text} size={18} />
+            <Text style={[styles.howToRowText, { color: colors.mutedForeground }]}>
+              {t("trophies.howToWinSilver")}
+            </Text>
+          </View>
+          <View style={styles.howToRow}>
+            <TrophyCupIcon color={TROPHY_COLORS.Bronze!.text} size={18} />
+            <Text style={[styles.howToRowText, { color: colors.mutedForeground }]}>
+              {t("trophies.howToWinBronze")}
+            </Text>
+          </View>
           <View style={[styles.howToDivider, { backgroundColor: colors.border }]} />
           <Text style={[styles.howToNote, { color: colors.mutedForeground }]}>
             {t("trophies.howToWinNote")}
@@ -231,9 +277,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  emoji: {
-    fontSize: 28,
-  },
   hubName: {
     fontSize: 10,
     fontWeight: "600",
@@ -284,8 +327,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   howToRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  howToRowText: {
     fontSize: 13,
     lineHeight: 19,
+    flex: 1,
   },
   howToDivider: {
     height: 1,

@@ -22,11 +22,39 @@ import {
   type ListRenderItemInfo,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
+
+// ---------------------------------------------------------------------------
+// Icons
+// ---------------------------------------------------------------------------
+
+function ReferralShareIcon({ size = 20, color = "rgba(255,215,0,0.85)" }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Arrow pointing up */}
+      <Path
+        d="M12 3 L7.5 7.5 M12 3 L16.5 7.5 M12 3 V15"
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Open-top box */}
+      <Path
+        d="M7 10 H5 A1 1 0 0 0 4 11 V19 A1 1 0 0 0 5 20 H19 A1 1 0 0 0 20 19 V11 A1 1 0 0 0 19 10 H17"
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -241,7 +269,9 @@ export function PioneerDashboard({ visible, onClose }: Props) {
           <Text style={styles.howScoreTitle}>{t("pioneer.howScoreTitle")}</Text>
           <View style={styles.howScoreRows}>
             <View style={styles.howScoreRow}>
-              <Text style={styles.howScoreEmoji}>👥</Text>
+              <View style={styles.howScoreIconWrap}>
+                <ReferralShareIcon size={18} color="rgba(255,215,0,0.85)" />
+              </View>
               <Text style={styles.howScoreText}>{t("pioneer.howScoreReferrals")}</Text>
             </View>
             <View style={styles.howScoreRow}>
@@ -475,6 +505,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     width: 24,
     textAlign: "center",
+  },
+  howScoreIconWrap: {
+    width: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   howScoreText: {
     color: "rgba(255,255,255,0.65)",
