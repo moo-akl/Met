@@ -17,6 +17,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
+import { VerificationBadge } from "@/components/VerificationBadge";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { useQuery } from "@tanstack/react-query";
 import { useApp } from "@/contexts/AppContext";
@@ -66,16 +67,6 @@ export default function ConnectionsScreen() {
   const { encounters, profile, authedUid } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
 
-  // Fetch the current user's own community standing once for the whole list.
-  const { data: myStanding } = useQuery({
-    queryKey: ["communityStanding", authedUid, "self"],
-    queryFn: () => api.getCommunityStanding({ uid: authedUid ?? "" }, authedUid ?? ""),
-    enabled: !!authedUid,
-    staleTime: 5 * 60 * 1000,
-  });
-  const myIsPioneer = myStanding?.isPioneer ?? profile?.isPioneer ?? false;
-  const myTrophyCount = myStanding?.trophyCount ?? 0;
-  const myTrustScore = myStanding?.trustScore ?? null;
   const unreadChatCount = useUnreadChatCount();
   const webBot = Platform.OS === "web" ? 34 : 0;
 
@@ -327,9 +318,6 @@ export default function ConnectionsScreen() {
                     key={c.id}
                     connection={c}
                     myUid={authedUid ?? profile?.id}
-                    myIsPioneer={myIsPioneer}
-                    myTrophyCount={myTrophyCount}
-                    myTrustScore={myTrustScore}
                     isLast={idx === group.items.length - 1}
                     colors={colors}
                     t={t}
@@ -369,9 +357,6 @@ export default function ConnectionsScreen() {
 function ConnectionRow({
   connection: c,
   myUid,
-  myIsPioneer,
-  myTrophyCount,
-  myTrustScore,
   isLast,
   colors,
   t,
@@ -380,9 +365,6 @@ function ConnectionRow({
 }: {
   connection: Encounter;
   myUid: string | undefined;
-  myIsPioneer: boolean;
-  myTrophyCount: number;
-  myTrustScore: number | null;
   isLast: boolean;
   colors: ReturnType<typeof useColors>;
   t: (k: string, opts?: Record<string, unknown>) => string;
@@ -493,9 +475,12 @@ function ConnectionRow({
               >
                 {c.realName}
               </Text>
-              {verified ? (
-                <Feather name="check-circle" size={13} color="#22C55E" />
-              ) : null}
+              <VerificationBadge
+                isPioneer={isPioneer}
+                trustScore={peerTrustScore ?? 0}
+                isSubscriber={standing?.isSubscriber ?? false}
+                size="sm"
+              />
               {averageRating != null ? (
                 <View style={styles.ratingPill}>
                   <Feather name="star" size={10} color="#FFD700" />
@@ -559,48 +544,9 @@ function ConnectionRow({
             </View>
           ) : null}
 
-          {(isPioneer || trophyCount > 0 || peerTrustScore !== null) ? (
+          {peerTrustScore !== null ? (
             <View style={styles.badgesRow}>
-              {isPioneer ? (
-                <View style={styles.pioneerBadge}>
-                  <Feather name="award" size={11} color="#D4AF37" />
-                  <Text style={styles.pioneerBadgeText}>MET PIONEER</Text>
-                </View>
-              ) : null}
-              {trophyCount > 0 ? (
-                <View style={styles.trophyBadge}>
-                  <Feather name="award" size={11} color="#D4AF37" />
-                  <Text style={styles.trophyBadgeText}>
-                    {trophyCount} {trophyCount === 1 ? "Trophy" : "Trophies"}
-                  </Text>
-                </View>
-              ) : null}
-              {peerTrustScore !== null ? (
-                <TrustScoreBadge score={peerTrustScore} size="sm" showScore />
-              ) : null}
-            </View>
-          ) : null}
-
-          {(myIsPioneer || myTrophyCount > 0 || myTrustScore !== null) ? (
-            <View style={styles.myBadgesRow}>
-              <Text style={[styles.myBadgesYouLabel, { color: colors.mutedForeground }]}>You</Text>
-              {myIsPioneer ? (
-                <View style={styles.pioneerBadge}>
-                  <Feather name="award" size={11} color="#D4AF37" />
-                  <Text style={styles.pioneerBadgeText}>MET PIONEER</Text>
-                </View>
-              ) : null}
-              {myTrophyCount > 0 ? (
-                <View style={styles.trophyBadge}>
-                  <Feather name="award" size={11} color="#D4AF37" />
-                  <Text style={styles.trophyBadgeText}>
-                    {myTrophyCount} {myTrophyCount === 1 ? "Trophy" : "Trophies"}
-                  </Text>
-                </View>
-              ) : null}
-              {myTrustScore !== null ? (
-                <TrustScoreBadge score={myTrustScore} size="sm" showScore />
-              ) : null}
+              <TrustScoreBadge score={peerTrustScore} size="sm" showScore />
             </View>
           ) : null}
         </View>

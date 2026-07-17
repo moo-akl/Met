@@ -59,7 +59,12 @@ router.post("/users/record-chat-connection", requireUid, async (req, res): Promi
     UPDATE profiles
     SET pioneer_score = (
       (referral_count * 20)
-      + (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid)
+      + (
+          COALESCE(
+            (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid),
+            0
+          ) * 2
+        )
       + (chat_connections * 5)
     )
     WHERE uid = ${uid} AND is_pioneer = true

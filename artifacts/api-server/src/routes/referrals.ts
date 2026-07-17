@@ -111,7 +111,12 @@ router.post("/referrals/redeem", requireUid, async (req, res) => {
     UPDATE profiles
     SET pioneer_score = (
       (referral_count * 20)
-      + (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid)
+      + (
+          COALESCE(
+            (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid),
+            0
+          ) * 2
+        )
       + (chat_connections * 5)
     )
     WHERE uid = ${owner.uid} AND is_pioneer = true

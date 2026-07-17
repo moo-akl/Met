@@ -414,7 +414,12 @@ router.post(
         UPDATE profiles
         SET pioneer_score = (
           (referral_count * 20)
-          + (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid)
+          + (
+              COALESCE(
+                (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid),
+                0
+              ) * 2
+            )
           + (chat_connections * 5)
         )
         WHERE uid = ${uid}
@@ -1372,8 +1377,15 @@ router.get(
       .limit(1);
     const trustScore = statsRow?.trustScore ?? 100;
 
+    const [subRow] = await db
+      .select({ tier: subscriptionsTable.tier, status: subscriptionsTable.status })
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.userUid, uid))
+      .limit(1);
+    const isSubscriber = (subRow?.tier === "plus" || subRow?.tier === "pro") && subRow?.status === "active";
+
     if (reviewCount < 3) {
-      res.json({ count: reviewCount, hasEnough: false, isPioneer, trophyCount, trustScore });
+      res.json({ count: reviewCount, hasEnough: false, isPioneer, trophyCount, trustScore, isSubscriber });
       return;
     }
 
@@ -1402,6 +1414,7 @@ router.get(
       isPioneer,
       trophyCount,
       trustScore,
+      isSubscriber,
     });
   },
 );

@@ -627,6 +627,8 @@ export const api = {
       isPioneer?: boolean;
       trophyCount?: number;
       trustScore?: number;
+      /** True when the peer has an active Plus or Pro subscription. */
+      isSubscriber?: boolean;
     }>("GET", `/api/users/${encodeURIComponent(uid)}/community-standing`, opts),
   /**
    * Fetch hub streaks, trust score, and average rating for any user.
