@@ -195,6 +195,10 @@ export interface RemoteProfile {
   isPioneer?: boolean;
   /** Running count of successful referrals. Present on GET /profiles/me. */
   referralCount?: number;
+  /** Subscription tier from server. Present on GET /profiles/me. */
+  subscriptionTier?: "free" | "plus" | "pro" | null;
+  /** True when the user has an active Plus or Pro subscription. Present on GET /profiles/me. */
+  isSubscribed?: boolean;
 }
 
 export interface UpsertProfileInput {

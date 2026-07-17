@@ -514,6 +514,10 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
 
   useEffect(() => {
     void fetchLeaderboard(period);
+    const timer = setInterval(() => {
+      void fetchLeaderboard(period);
+    }, 30_000);
+    return () => clearInterval(timer);
   }, [period, fetchLeaderboard]);
 
   const renderItem = useCallback(

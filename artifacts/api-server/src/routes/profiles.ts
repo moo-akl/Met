@@ -4,6 +4,7 @@ import {
   db,
   profilesTable,
   revealRequestsTable,
+  subscriptionsTable,
   type Profile,
 } from "@workspace/db";
 import {
@@ -50,10 +51,21 @@ router.get("/profiles/me", requireUid, async (req, res) => {
     res.status(404).json({ message: "Profile not found" });
     return;
   }
+  const [subRow] = await db
+    .select({ tier: subscriptionsTable.tier, status: subscriptionsTable.status })
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userUid, uid))
+    .limit(1);
+  const subscriptionTier = (subRow?.tier ?? "free") as "free" | "plus" | "pro";
+  const isSubscribed =
+    (subRow?.tier === "plus" || subRow?.tier === "pro") &&
+    subRow?.status === "active";
   res.json({
     ...GetMyProfileResponse.parse(serialize(row)),
     isPioneer: row.isPioneer,
     referralCount: row.referralCount,
+    subscriptionTier,
+    isSubscribed,
   });
 });
 
