@@ -14,6 +14,7 @@ import {
   signOut as firebaseSignOut,
   subscribeToAuthState,
 } from "@/lib/auth";
+import Purchases from "react-native-purchases";
 import { getLanguage } from "@/lib/i18n";
 import { clearReferrals, initReferrals } from "@/lib/referrals";
 import { buildSeedEncounters } from "@/lib/seed";
@@ -444,6 +445,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // place would leak the previous user's data to whoever signs in next.
   const signOutAndClear = useCallback(async () => {
     const previousUid = profileRef.current?.id ?? null;
+    await Purchases.logOut().catch(() => {});
     await firebaseSignOut();
     await clearProfile();
     await clearEncounters();
@@ -617,7 +619,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const upsertProximityRef = useRef(upsertEncounterFromProximity);
   upsertProximityRef.current = upsertEncounterFromProximity;
   useEffect(() => {
-    const unsub = subscribeToAuthState((uid) => setAuthedUid(uid));
+    const unsub = subscribeToAuthState((uid) => {
+      setAuthedUid(uid);
+      if (uid) {
+        Purchases.logIn(uid).catch(() => {});
+      } else {
+        Purchases.logOut().catch(() => {});
+      }
+    });
     return () => unsub();
   }, []);
 
