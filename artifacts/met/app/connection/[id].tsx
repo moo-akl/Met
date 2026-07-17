@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionSheet } from "@/components/ActionSheet";
 import { ReputationRadar } from "@/components/ReputationRadar";
 import { Avatar } from "@/components/Avatar";
+import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { SocialChip } from "@/components/SocialChip";
 import { useApp } from "@/contexts/AppContext";
@@ -48,6 +49,7 @@ export default function ConnectionScreen() {
   const [reportConfirmation, setReportConfirmation] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [liveInterests, setLiveInterests] = useState<string[] | undefined>(undefined);
+  const [peerIsPioneer, setPeerIsPioneer] = useState(false);
   const [mutualCount, setMutualCount] = useState(0);
   const [mutualNames, setMutualNames] = useState<string[]>([]);
   const [reviewSummary, setReviewSummary] = useState<{
@@ -84,6 +86,7 @@ export default function ConnectionScreen() {
         if (p.interests && p.interests.length > 0) {
           setLiveInterests(p.interests);
         }
+        if (p.isPioneer) setPeerIsPioneer(true);
       })
       .catch(() => {});
     return () => ctrl.abort();
@@ -277,6 +280,25 @@ export default function ConnectionScreen() {
               <Text style={[styles.detailsName, { color: colors.foreground }]}>
                 {encounter.realName}
               </Text>
+              {/* Status badges */}
+              {(peerIsPioneer || !!encounter.photoUri || (reviewSummary?.hasEnough && reviewSummary.communityStanding != null)) ? (
+                <View style={styles.badgeRow}>
+                  {peerIsPioneer ? (
+                    <View style={styles.pioneerBadge}>
+                      <Text style={styles.pioneerBadgeText}>★ Pioneer</Text>
+                    </View>
+                  ) : null}
+                  {!!encounter.photoUri ? (
+                    <View style={styles.verifiedBadge}>
+                      <Feather name="check-circle" size={11} color="#0369A1" />
+                      <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    </View>
+                  ) : null}
+                  {reviewSummary?.hasEnough && reviewSummary.communityStanding != null ? (
+                    <TrustScoreBadge score={reviewSummary.communityStanding} size="sm" />
+                  ) : null}
+                </View>
+              ) : null}
               <View style={styles.detailsMetaRow}>
                 <Feather name="repeat" size={14} color={colors.primary} />
                 <Text style={[styles.detailsMeta, { color: colors.primary }]}>
@@ -723,6 +745,41 @@ const styles = StyleSheet.create({
   detailsAvatarPlaceholder: { alignItems: "center", justifyContent: "center" },
   detailsAvatarInitial: { fontFamily: "Inter_700Bold", fontSize: 26 },
   detailsName: { fontFamily: "Inter_700Bold", fontSize: 22 },
+  badgeRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  pioneerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(212,175,55,0.15)",
+    borderWidth: 1,
+    borderColor: "#D4AF37",
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: "flex-start",
+  },
+  pioneerBadgeText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    color: "#B8860B",
+    letterSpacing: 0.4,
+  },
+  verifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#E0F2FE",
+    borderWidth: 1,
+    borderColor: "#7DD3FC",
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: "flex-start",
+  },
+  verifiedBadgeText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    color: "#0369A1",
+  },
   detailsMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   detailsMeta: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   bio: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20 },
