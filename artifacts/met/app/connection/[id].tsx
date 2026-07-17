@@ -51,7 +51,7 @@ export default function ConnectionScreen() {
   const [liveInterests, setLiveInterests] = useState<string[] | undefined>(undefined);
   const [peerStanding, setPeerStanding] = useState<{
     isPioneer: boolean;
-    trustScore: number;
+    pioneerScore: number;
     isSubscriber: boolean;
   } | null>(null);
   const [mutualCount, setMutualCount] = useState(0);
@@ -104,7 +104,7 @@ export default function ConnectionScreen() {
       .then((s) => {
         setPeerStanding({
           isPioneer: s.isPioneer ?? false,
-          trustScore: s.trustScore ?? 0,
+          pioneerScore: s.pioneerScore ?? 0,
           isSubscriber: s.isSubscriber ?? false,
         });
       })
@@ -303,7 +303,7 @@ export default function ConnectionScreen() {
               {peerStanding ? (
                 <VerificationBadge
                   isPioneer={peerStanding.isPioneer}
-                  trustScore={peerStanding.trustScore}
+                  pioneerScore={peerStanding.pioneerScore}
                   isSubscriber={peerStanding.isSubscriber}
                   size="sm"
                 />

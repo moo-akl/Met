@@ -625,6 +625,8 @@ export const api = {
       averageRating?: number;
       communityStanding?: number;
       isPioneer?: boolean;
+      /** Activity score: referrals×20 + check-ins×2 + chat connections×5. Grows with usage. */
+      pioneerScore?: number;
       trophyCount?: number;
       trustScore?: number;
       /** True when the peer has an active Plus or Pro subscription. */

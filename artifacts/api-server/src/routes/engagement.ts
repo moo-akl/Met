@@ -1358,11 +1358,12 @@ router.get(
     const reviewCount = reviews.length;
 
     const [pioneerRow] = await db
-      .select({ isPioneer: profilesTable.isPioneer })
+      .select({ isPioneer: profilesTable.isPioneer, pioneerScore: profilesTable.pioneerScore })
       .from(profilesTable)
       .where(eq(profilesTable.uid, uid))
       .limit(1);
     const isPioneer = Boolean(pioneerRow?.isPioneer);
+    const pioneerScore = Number(pioneerRow?.pioneerScore ?? 0);
 
     const [trophyRow] = await db
       .select({ cnt: count() })
@@ -1385,7 +1386,7 @@ router.get(
     const isSubscriber = (subRow?.tier === "plus" || subRow?.tier === "pro") && subRow?.status === "active";
 
     if (reviewCount < 3) {
-      res.json({ count: reviewCount, hasEnough: false, isPioneer, trophyCount, trustScore, isSubscriber });
+      res.json({ count: reviewCount, hasEnough: false, isPioneer, pioneerScore, trophyCount, trustScore, isSubscriber });
       return;
     }
 
@@ -1412,6 +1413,7 @@ router.get(
       averageRating: round2(avgRating),
       communityStanding: Math.round(communityStanding),
       isPioneer,
+      pioneerScore,
       trophyCount,
       trustScore,
       isSubscriber,
