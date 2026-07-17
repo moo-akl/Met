@@ -479,6 +479,7 @@ function ConnectionRow({
                 isPioneer={isPioneer}
                 pioneerScore={standing?.pioneerScore ?? 0}
                 isSubscriber={standing?.isSubscriber ?? false}
+                hasPhoto={!!(c.photoUri && c.photoUri !== "")}
                 size="sm"
               />
               {averageRating != null ? (

@@ -300,14 +300,13 @@ export default function ConnectionScreen() {
               <Text style={[styles.detailsName, { color: colors.foreground }]}>
                 {encounter.realName}
               </Text>
-              {peerStanding ? (
-                <VerificationBadge
-                  isPioneer={peerStanding.isPioneer}
-                  pioneerScore={peerStanding.pioneerScore}
-                  isSubscriber={peerStanding.isSubscriber}
-                  size="sm"
-                />
-              ) : null}
+              <VerificationBadge
+                isPioneer={peerStanding?.isPioneer ?? false}
+                pioneerScore={peerStanding?.pioneerScore ?? 0}
+                isSubscriber={peerStanding?.isSubscriber ?? false}
+                hasPhoto={!!(encounter?.photoUri && encounter.photoUri !== "")}
+                size="sm"
+              />
               <View style={styles.detailsMetaRow}>
                 <Feather name="repeat" size={14} color={colors.primary} />
                 <Text style={[styles.detailsMeta, { color: colors.primary }]}>
