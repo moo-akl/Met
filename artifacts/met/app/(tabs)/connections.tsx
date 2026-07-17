@@ -17,7 +17,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
-import { VerificationBadge } from "@/components/VerificationBadge";
+import { UserNameHeader } from "@/components/UserNameHeader";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { useQuery } from "@tanstack/react-query";
 import { useApp } from "@/contexts/AppContext";
@@ -469,18 +469,13 @@ function ConnectionRow({
         <View style={styles.body}>
           <View style={styles.topLine}>
             <View style={styles.nameGroup}>
-              <Text
-                style={[styles.name, { color: colors.foreground }]}
-                numberOfLines={1}
-              >
-                {c.realName}
-              </Text>
-              <VerificationBadge
+              <UserNameHeader
+                name={c.realName}
+                nameStyle={[styles.name, { color: colors.foreground }]}
                 isPioneer={isPioneer}
                 trustScore={standing?.trustScore ?? 0}
                 isSubscriber={standing?.isSubscriber ?? false}
                 hasPhoto={!!(c.photoUri && c.photoUri !== "")}
-                size="sm"
               />
               {averageRating != null ? (
                 <View style={styles.ratingPill}>

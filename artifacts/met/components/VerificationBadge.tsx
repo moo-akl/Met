@@ -24,6 +24,11 @@ export interface VerificationBadgeProps {
   /** True when the peer has a non-empty profile photo — the base verified tier. */
   hasPhoto?: boolean;
   size?: "sm" | "md";
+  /**
+   * compact (default) — icon pill only, for inline name rows.
+   * expanded — icon + text label, for profile headers.
+   */
+  viewMode?: "compact" | "expanded";
 }
 
 export function VerificationBadge({
@@ -32,53 +37,58 @@ export function VerificationBadge({
   isSubscriber = false,
   hasPhoto = false,
   size = "sm",
+  viewMode = "compact",
 }: VerificationBadgeProps) {
   const iconSize = size === "sm" ? 12 : 15;
+  const labelSize = size === "sm" ? 10 : 12;
+
+  const pad = size === "sm" ? styles.smPad : styles.mdPad;
+  const expanded = viewMode === "expanded";
 
   if (isPioneer) {
     return (
-      <View
-        style={[styles.badge, styles.gold, size === "sm" ? styles.smPad : styles.mdPad]}
-        accessibilityLabel="Met Pioneer"
-        accessibilityRole="text"
-      >
+      <View style={[styles.badge, styles.gold, pad, expanded && styles.expandedRow]}
+        accessibilityLabel="Met Pioneer" accessibilityRole="text">
         <Text style={[styles.star, size === "sm" ? styles.smStar : styles.mdStar]}>★</Text>
+        {expanded && (
+          <Text style={[styles.label, { color: "#B8860B", fontSize: labelSize }]}>PIONEER</Text>
+        )}
       </View>
     );
   }
 
   if (trustScore >= 250) {
     return (
-      <View
-        style={[styles.badge, styles.green, size === "sm" ? styles.smPad : styles.mdPad]}
-        accessibilityLabel="Highly trusted"
-        accessibilityRole="text"
-      >
+      <View style={[styles.badge, styles.green, pad, expanded && styles.expandedRow]}
+        accessibilityLabel="Highly trusted" accessibilityRole="text">
         <Feather name="check-circle" size={iconSize} color="#15803D" />
+        {expanded && (
+          <Text style={[styles.label, { color: "#15803D", fontSize: labelSize }]}>TRUSTED</Text>
+        )}
       </View>
     );
   }
 
   if (isSubscriber) {
     return (
-      <View
-        style={[styles.badge, styles.blue, size === "sm" ? styles.smPad : styles.mdPad]}
-        accessibilityLabel="Met subscriber"
-        accessibilityRole="text"
-      >
+      <View style={[styles.badge, styles.blue, pad, expanded && styles.expandedRow]}
+        accessibilityLabel="Met subscriber" accessibilityRole="text">
         <Feather name="check-circle" size={iconSize} color="#0369A1" />
+        {expanded && (
+          <Text style={[styles.label, { color: "#0369A1", fontSize: labelSize }]}>MEMBER</Text>
+        )}
       </View>
     );
   }
 
   if (hasPhoto) {
     return (
-      <View
-        style={[styles.badge, styles.gray, size === "sm" ? styles.smPad : styles.mdPad]}
-        accessibilityLabel="Photo verified"
-        accessibilityRole="text"
-      >
+      <View style={[styles.badge, styles.gray, pad, expanded && styles.expandedRow]}
+        accessibilityLabel="Photo verified" accessibilityRole="text">
         <Feather name="check-circle" size={iconSize} color="#6B7280" />
+        {expanded && (
+          <Text style={[styles.label, { color: "#6B7280", fontSize: labelSize }]}>VERIFIED</Text>
+        )}
       </View>
     );
   }
@@ -92,6 +102,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
+  },
+  expandedRow: {
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 8,
+  },
+  label: {
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.5,
   },
   smPad: { padding: 2 },
   mdPad: { padding: 3 },

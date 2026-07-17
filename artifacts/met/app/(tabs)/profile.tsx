@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
 import { SortableChips } from "@/components/SortableChips";
-import { TierBadge } from "@/components/TierBadge";
+import { UserNameHeader } from "@/components/UserNameHeader";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { ReputationRadar, StarDisplay } from "@/components/ReputationRadar";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
@@ -580,12 +580,14 @@ export default function ProfileScreen() {
             />
           ) : (
             <View style={{ alignItems: "center", gap: 6 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={[styles.name, { color: colors.foreground }]}>
-                  {profile?.name ?? ""}
-                </Text>
-                {tier !== "free" ? <TierBadge tier={tier} size="sm" /> : null}
-              </View>
+              <UserNameHeader
+                name={profile?.name ?? ""}
+                nameStyle={[styles.name, { color: colors.foreground }]}
+                isPioneer={isPioneer}
+                trustScore={trustScore ?? 0}
+                isSubscriber={tier !== "free"}
+                hasPhoto={!!photoUri}
+              />
               {trustScore !== null ? (
                 <TrustScoreBadge score={trustScore} size="sm" showScore />
               ) : null}

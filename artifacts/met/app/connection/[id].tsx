@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionSheet } from "@/components/ActionSheet";
 import { ReputationRadar } from "@/components/ReputationRadar";
 import { Avatar } from "@/components/Avatar";
-import { VerificationBadge } from "@/components/VerificationBadge";
+import { UserNameHeader } from "@/components/UserNameHeader";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { SocialChip } from "@/components/SocialChip";
 import { useApp } from "@/contexts/AppContext";
@@ -297,15 +297,13 @@ export default function ConnectionScreen() {
               </View>
             )}
             <View style={{ flex: 1, gap: 4 }}>
-              <Text style={[styles.detailsName, { color: colors.foreground }]}>
-                {encounter.realName}
-              </Text>
-              <VerificationBadge
+              <UserNameHeader
+                name={encounter.realName}
+                nameStyle={[styles.detailsName, { color: colors.foreground }]}
                 isPioneer={peerStanding?.isPioneer ?? false}
                 trustScore={peerStanding?.trustScore ?? 0}
                 isSubscriber={peerStanding?.isSubscriber ?? false}
                 hasPhoto={!!(encounter?.photoUri && encounter.photoUri !== "")}
-                size="sm"
               />
               <View style={styles.detailsMetaRow}>
                 <Feather name="repeat" size={14} color={colors.primary} />
