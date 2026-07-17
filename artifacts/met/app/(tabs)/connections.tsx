@@ -65,6 +65,17 @@ export default function ConnectionsScreen() {
   const { t } = useT();
   const { encounters, profile, authedUid } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
+
+  // Fetch the current user's own community standing once for the whole list.
+  const { data: myStanding } = useQuery({
+    queryKey: ["communityStanding", authedUid, "self"],
+    queryFn: () => api.getCommunityStanding({ uid: authedUid ?? "" }, authedUid ?? ""),
+    enabled: !!authedUid,
+    staleTime: 5 * 60 * 1000,
+  });
+  const myIsPioneer = myStanding?.isPioneer ?? profile?.isPioneer ?? false;
+  const myTrophyCount = myStanding?.trophyCount ?? 0;
+  const myTrustScore = myStanding?.trustScore ?? null;
   const unreadChatCount = useUnreadChatCount();
   const webBot = Platform.OS === "web" ? 34 : 0;
 
@@ -316,6 +327,9 @@ export default function ConnectionsScreen() {
                     key={c.id}
                     connection={c}
                     myUid={authedUid ?? profile?.id}
+                    myIsPioneer={myIsPioneer}
+                    myTrophyCount={myTrophyCount}
+                    myTrustScore={myTrustScore}
                     isLast={idx === group.items.length - 1}
                     colors={colors}
                     t={t}
@@ -355,6 +369,9 @@ export default function ConnectionsScreen() {
 function ConnectionRow({
   connection: c,
   myUid,
+  myIsPioneer,
+  myTrophyCount,
+  myTrustScore,
   isLast,
   colors,
   t,
@@ -363,6 +380,9 @@ function ConnectionRow({
 }: {
   connection: Encounter;
   myUid: string | undefined;
+  myIsPioneer: boolean;
+  myTrophyCount: number;
+  myTrustScore: number | null;
   isLast: boolean;
   colors: ReturnType<typeof useColors>;
   t: (k: string, opts?: Record<string, unknown>) => string;
@@ -557,6 +577,29 @@ function ConnectionRow({
               ) : null}
               {peerTrustScore !== null ? (
                 <TrustScoreBadge score={peerTrustScore} size="sm" showScore />
+              ) : null}
+            </View>
+          ) : null}
+
+          {(myIsPioneer || myTrophyCount > 0 || myTrustScore !== null) ? (
+            <View style={styles.myBadgesRow}>
+              <Text style={[styles.myBadgesYouLabel, { color: colors.mutedForeground }]}>You</Text>
+              {myIsPioneer ? (
+                <View style={styles.pioneerBadge}>
+                  <Feather name="award" size={11} color="#D4AF37" />
+                  <Text style={styles.pioneerBadgeText}>MET PIONEER</Text>
+                </View>
+              ) : null}
+              {myTrophyCount > 0 ? (
+                <View style={styles.trophyBadge}>
+                  <Feather name="award" size={11} color="#D4AF37" />
+                  <Text style={styles.trophyBadgeText}>
+                    {myTrophyCount} {myTrophyCount === 1 ? "Trophy" : "Trophies"}
+                  </Text>
+                </View>
+              ) : null}
+              {myTrustScore !== null ? (
+                <TrustScoreBadge score={myTrustScore} size="sm" showScore />
               ) : null}
             </View>
           ) : null}
@@ -795,6 +838,18 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: "#92400E",
     textTransform: "uppercase",
+  },
+  myBadgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 5,
+  },
+  myBadgesYouLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 10,
+    marginRight: 2,
   },
   chatIconWrap: {
     width: 32,

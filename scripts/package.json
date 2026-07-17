@@ -8,6 +8,7 @@
     "check-firebase-keys": "tsx ./src/check-firebase-key-restrictions.ts",
     "check-i18n-keys": "tsx ./src/check-i18n-keys.ts",
     "simulate-month-end": "tsx ./src/simulate-month-end.ts",
+    "seed-marketing": "tsx ./src/seed-marketing.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
@@ -16,6 +17,8 @@
   },
   "dependencies": {
     "@replit/revenuecat-sdk": "4.0.0",
-    "@workspace/interests": "workspace:*"
+    "@workspace/db": "workspace:*",
+    "@workspace/interests": "workspace:*",
+    "drizzle-orm": "catalog:"
   }
 }

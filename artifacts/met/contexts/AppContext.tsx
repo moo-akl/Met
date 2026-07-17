@@ -785,7 +785,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Firebase bridge isn't linked — the legacy loop above carries the
   // load there.
   useEffect(() => {
-    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+    // Guard: don't start GPS presence when the user has set themselves
+    // invisible. BLE advertising is stopped by useVisibility; this stops
+    // the Firestore location-push loop so invisible users never write
+    // their geohash to Firestore (read rules alone aren't sufficient —
+    // the write itself should be suppressed).
+    if (!authedUid || !permissionsCompleted || !api.isConfigured() || !profile?.isVisible) {
       stopFirestoreProximity();
       return;
     }
@@ -812,7 +817,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       stopFirestoreProximity();
     };
-  }, [authedUid, permissionsCompleted]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authedUid, permissionsCompleted, profile?.isVisible]);
 
   // Per-peer watermarks track the latest reveal `updatedAt` (epoch ms)
   // we've already applied to local state. They protect against two
