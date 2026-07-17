@@ -477,7 +477,7 @@ function ConnectionRow({
               </Text>
               <VerificationBadge
                 isPioneer={isPioneer}
-                pioneerScore={standing?.pioneerScore ?? 0}
+                trustScore={standing?.trustScore ?? 0}
                 isSubscriber={standing?.isSubscriber ?? false}
                 hasPhoto={!!(c.photoUri && c.photoUri !== "")}
                 size="sm"

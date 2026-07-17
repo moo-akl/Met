@@ -5,7 +5,7 @@
  * Four tiers (highest wins — only one shows):
  *
  *   ★ Gold   — Met Pioneer            (isPioneer = true)
- *   ✓ Green  — Highly Trusted         (pioneerScore ≥ 250)
+ *   ✓ Green  — Highly Trusted         (trustScore ≥ 250)
  *   ✓ Blue   — Active subscriber      (Plus / Pro)
  *   ✓ Gray   — Photo-verified profile (hasPhoto = true, base tier)
  *
@@ -19,8 +19,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 export interface VerificationBadgeProps {
   isPioneer?: boolean;
-  /** Activity score from server: referrals×20 + check-ins×2 + chat connections×5. */
-  pioneerScore?: number;
+  trustScore?: number;
   isSubscriber?: boolean;
   /** True when the peer has a non-empty profile photo — the base verified tier. */
   hasPhoto?: boolean;
@@ -29,7 +28,7 @@ export interface VerificationBadgeProps {
 
 export function VerificationBadge({
   isPioneer = false,
-  pioneerScore = 0,
+  trustScore = 0,
   isSubscriber = false,
   hasPhoto = false,
   size = "sm",
@@ -48,7 +47,7 @@ export function VerificationBadge({
     );
   }
 
-  if (pioneerScore >= 250) {
+  if (trustScore >= 250) {
     return (
       <View
         style={[styles.badge, styles.green, size === "sm" ? styles.smPad : styles.mdPad]}
