@@ -335,3 +335,27 @@ id = "VRVw-tHk-Shp3Tj1-G4kX"
 uri = "file://screenshots/met-screenshot-3.jpg"
 type = "image"
 title = "Screenshot 3 — Pioneer (1284×2778)"
+
+[[outputs]]
+id = "GPeq5tslRV72gu7WtsQ3X"
+uri = "file://screenshots/appstore-chat.jpg"
+type = "image"
+title = "Chat — 1242×2688"
+
+[[outputs]]
+id = "ClSp1zUQqCsGdSBqIFZdI"
+uri = "file://screenshots/appstore-leaderboard.jpg"
+type = "image"
+title = "Leaderboard — 1242×2688"
+
+[[outputs]]
+id = "XVT98TLw4XUNyqroZA9ZP"
+uri = "file://screenshots/appstore-profile.jpg"
+type = "image"
+title = "Profile — 1242×2688"
+
+[[outputs]]
+id = "00Sit3TEc1iTpKlspI4w6"
+uri = "file://screenshots/appstore-heatmap.jpg"
+type = "image"
+title = "Heatmap — 1242×2688"

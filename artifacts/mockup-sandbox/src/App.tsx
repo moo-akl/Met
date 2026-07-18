@@ -225,16 +225,129 @@ function getPreviewPath(): string | null {
   return match ? match[1] : null;
 }
 
+function getScreenshotPath(): string | null {
+  const basePath = getBasePath();
+  const { pathname } = window.location;
+  const local =
+    basePath && pathname.startsWith(basePath)
+      ? pathname.slice(basePath.length) || "/"
+      : pathname;
+  const match = local.match(/^\/screenshot\/(.+)$/);
+  return match ? match[1] : null;
+}
+
+// 390×844 is the design canvas size; 1242/390 = 3.1846… fills exactly 1242×2688
+const SCALE = 1242 / 390;
+const DESIGN_W = 390;
+const DESIGN_H = 844;
+
+/**
+ * FrameRenderer — renders the component directly with no outer wrapper.
+ * This is served inside an iframe so that 100vh = DESIGN_H (844px).
+ */
+function FrameRenderer({
+  componentPath,
+  modules,
+}: {
+  componentPath: string;
+  modules: ModuleMap;
+}) {
+  const [Component, setComponent] = useState<ComponentType | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const key = `./components/mockups/${componentPath}.tsx`;
+      const loader = modules[key];
+      if (!loader) { setError(`No component at ${componentPath}.tsx`); return; }
+      try {
+        const mod = await loader();
+        if (cancelled) return;
+        const name = componentPath.split("/").pop()!;
+        const comp = _resolveComponent(mod, name);
+        if (!comp) { setError(`No exported component in ${componentPath}.tsx`); return; }
+        setComponent(() => comp);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, [componentPath, modules]);
+
+  if (error) return <pre style={{ color: "red" }}>{error}</pre>;
+  if (!Component) return null;
+  return <Component />;
+}
+
+/**
+ * ScreenshotRenderer — renders the component inside an iframe that has its own
+ * 390×844 viewport (so min-h-screen = 844px), then scales the iframe up to
+ * 1242×2688 using CSS transform.
+ */
+function ScreenshotRenderer({ componentPath }: { componentPath: string }) {
+  const basePath = getBasePath();
+  // Route through /preview/screenshot-frame/ so the proxy can reach it
+  const src = `${basePath}/preview/screenshot-frame/${componentPath}`;
+
+  return (
+    <div style={{
+      width: DESIGN_W * SCALE,
+      height: DESIGN_H * SCALE,
+      overflow: "hidden",
+      position: "relative",
+      margin: 0,
+      padding: 0,
+      background: "#fff",
+    }}>
+      <iframe
+        src={src}
+        width={DESIGN_W}
+        height={DESIGN_H}
+        scrolling="no"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          border: "none",
+          transform: `scale(${SCALE})`,
+          transformOrigin: "top left",
+          display: "block",
+        }}
+      />
+    </div>
+  );
+}
+
 function App() {
   const previewPath = getPreviewPath();
 
   if (previewPath) {
+    // /preview/screenshot/ads/ChatAd → scaled screenshot capture
+    if (previewPath.startsWith("screenshot/")) {
+      return <ScreenshotRenderer componentPath={previewPath.slice("screenshot/".length)} />;
+    }
+    // /preview/screenshot-frame/ads/ChatAd → bare component for iframe
+    if (previewPath.startsWith("screenshot-frame/")) {
+      return (
+        <FrameRenderer
+          componentPath={previewPath.slice("screenshot-frame/".length)}
+          modules={discoveredModules}
+        />
+      );
+    }
     return (
       <PreviewRenderer
         componentPath={previewPath}
         modules={discoveredModules}
       />
     );
+  }
+
+  const screenshotPath = getScreenshotPath();
+  if (screenshotPath) {
+    return <ScreenshotRenderer componentPath={screenshotPath} />;
   }
 
   return <Gallery />;
