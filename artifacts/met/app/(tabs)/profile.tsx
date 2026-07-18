@@ -192,9 +192,12 @@ export default function ProfileScreen() {
   }, [showDragHint]);
 
   const pickPhoto = async (intent: PhotoIntent) => {
+    // On Android the native UCrop "Done" button is hidden behind the gesture
+    // navigation bar, so we skip the in-picker crop UI there.  The image is
+    // displayed clipped to a circle/square via borderRadius on the view side.
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
+      allowsEditing: Platform.OS === "ios",
       aspect: [1, 1],
       quality: 0.8,
     });

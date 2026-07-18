@@ -335,7 +335,7 @@ export default function CreateNetworkScreen() {
         <Pressable
           style={[
             styles.submitBtn,
-            { backgroundColor: canSubmit ? colors.primary : colors.muted },
+            { backgroundColor: canSubmit ? "#22C55E" : colors.muted },
           ]}
           onPress={handleSubmit}
           disabled={!canSubmit}

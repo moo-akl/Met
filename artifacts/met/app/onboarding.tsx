@@ -257,9 +257,11 @@ export default function OnboardingScreen() {
   const bottomPad = insets.bottom + webBot + 24;
 
   const pickPhoto = async () => {
+    // On Android the native UCrop "Done" button is hidden behind the gesture
+    // navigation bar, so we skip the in-picker crop UI there.
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
+      allowsEditing: Platform.OS === "ios",
       aspect: [1, 1],
       quality: 0.8,
     });
