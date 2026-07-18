@@ -242,6 +242,10 @@ export async function sendMessage(
       )
       .catch(() => {});
 
+    // Increment message_count for the connection row so the server-side
+    // quality threshold stays accurate. Fire-and-forget — never blocks UX.
+    api.incrementMessageCount({ uid: fromUid }, toUid).catch(() => {});
+
     return null;
   } catch (err) {
     const code = (err as { code?: string })?.code ?? "unknown";

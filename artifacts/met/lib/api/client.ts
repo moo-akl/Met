@@ -812,4 +812,34 @@ export const api = {
    */
   recordChatConnection: (opts: ApiOptions) =>
     request<{ ok: boolean }>("POST", "/api/users/record-chat-connection", opts),
+
+  /**
+   * Best-effort: increment the shared message_count for the connection
+   * between the caller and peerUid. Called after each successful message send.
+   * Never throws — failure must not block the chat UX.
+   */
+  incrementMessageCount: (opts: ApiOptions, peerUid: string) =>
+    request<{ ok: boolean }>("POST", "/api/chats/message-count", opts, {
+      peerUid,
+    }),
+
+  /**
+   * Confirm that the caller and peerUid met in real life.
+   * Sets has_met_in_real_life = true on the shared connection row.
+   */
+  markAsMet: (opts: ApiOptions, peerUid: string) =>
+    request<{ ok: boolean }>("POST", "/api/connections/mark-met", opts, {
+      peerUid,
+    }),
+
+  /**
+   * Fetch the quality-threshold fields for the connection with peerUid.
+   * Returns messageCount and hasMetInRealLife used to gate the review prompt.
+   */
+  getConnectionQuality: (opts: ApiOptions, peerUid: string) =>
+    request<{ messageCount: number; hasMetInRealLife: boolean }>(
+      "GET",
+      `/api/chats/quality?peerUid=${encodeURIComponent(peerUid)}`,
+      opts,
+    ),
 };

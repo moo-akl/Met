@@ -1,9 +1,11 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Audio } from "expo-av";
 import { ReviewModal } from "@/components/ReviewModal";
 import type { RecordingOptions } from "expo-av/build/Audio/Recording.types";
+import { api } from "@/lib/api/client";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   useCallback,
@@ -658,6 +660,10 @@ export default function ChatScreen() {
   const { t } = useT();
   const { allEncounters, authedUid, profile } = useApp();
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [connectionQuality, setConnectionQuality] = useState<{
+    messageCount: number;
+    hasMetInRealLife: boolean;
+  } | null>(null);
 
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const peerUid = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -807,6 +813,16 @@ export default function ChatScreen() {
     if (!myUid || !peerUid || visibleMessages.length === 0) return;
     void markChatRead(myUid, peerUid);
   }, [myUid, peerUid, visibleMessages.length]);
+
+  // Fetch quality-threshold data when entering the chat so the Rate button
+  // can check the 10-message or "met in real life" gate immediately.
+  useEffect(() => {
+    if (!myUid || !peerUid) return;
+    api
+      .getConnectionQuality({ uid: myUid }, peerUid)
+      .then((q) => setConnectionQuality(q))
+      .catch(() => {});
+  }, [myUid, peerUid]);
 
   const handlePickImage = useCallback(async () => {
     if (!isMyTurn || sending) return;
@@ -966,6 +982,40 @@ export default function ChatScreen() {
     setSending(false);
   }, [canSend, myUid, peerUid, text, pendingMedia, pendingAudio, pendingAudioMs, replyingTo, t]);
 
+  // AsyncStorage key for the 14-day frequency cap per connection.
+  const reviewPromptKey = `@met/review_prompt_${peerUid ?? "unknown"}_last_date`;
+
+  const handleRateConnection = useCallback(async () => {
+    const threshold =
+      (connectionQuality?.messageCount ?? 0) >= 10 ||
+      connectionQuality?.hasMetInRealLife === true;
+
+    if (!threshold) {
+      Alert.alert(
+        "Keep chatting! 💬",
+        "The more you connect, the more accurate your rating will be. You can rate after 10 messages or once you've met in person.",
+        [{ text: "Got it" }],
+      );
+      return;
+    }
+
+    // 14-day frequency cap
+    const raw = await AsyncStorage.getItem(reviewPromptKey).catch(() => null);
+    if (raw) {
+      const daysSince = (Date.now() - Number(raw)) / (1000 * 60 * 60 * 24);
+      if (daysSince < 14) {
+        Alert.alert(
+          "Already rated recently",
+          "You can rate this connection again in a few weeks.",
+          [{ text: "OK" }],
+        );
+        return;
+      }
+    }
+
+    setShowReviewModal(true);
+  }, [connectionQuality, reviewPromptKey]);
+
   const handleClearHistory = useCallback(() => {
     Alert.alert(
       t("chat.clearHistoryTitle"),
@@ -1015,6 +1065,18 @@ export default function ChatScreen() {
       undefined,
       [
         {
+          text: "We met in real life! 🤝",
+          onPress: () => {
+            if (!myUid || !peerUid) return;
+            api.markAsMet({ uid: myUid }, peerUid).then(() => {
+              setConnectionQuality((q) =>
+                q ? { ...q, hasMetInRealLife: true } : q,
+              );
+              Alert.alert("Marked as met! ✅", "Your connection is now verified as a real-life meeting.");
+            }).catch(() => {});
+          },
+        },
+        {
           text: t("chat.clearHistoryAction"),
           style: "destructive",
           onPress: handleClearHistory,
@@ -1027,7 +1089,7 @@ export default function ChatScreen() {
         { text: t("common.cancel"), style: "cancel" },
       ],
     );
-  }, [handleClearHistory, handleDeleteConversation, t]);
+  }, [handleClearHistory, handleDeleteConversation, myUid, peerUid, t]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: ListItem; index: number }) => {
@@ -1097,13 +1159,7 @@ export default function ChatScreen() {
         ]}
       >
         <Pressable
-          onPress={() => {
-            if (messages.length > 0 && peerUid) {
-              setShowReviewModal(true);
-            } else {
-              router.back();
-            }
-          }}
+          onPress={() => router.back()}
           hitSlop={12}
           style={styles.headerBtn}
           accessibilityLabel={t("common.back")}
@@ -1140,6 +1196,25 @@ export default function ChatScreen() {
                   : t("chat.theirTurnShort", { name: peerName })}
             </Text>
           </View>
+        </Pressable>
+
+        {/* Rate Connection button — subtle star icon in the header */}
+        <Pressable
+          onPress={handleRateConnection}
+          hitSlop={12}
+          style={styles.headerBtn}
+          accessibilityLabel="Rate connection"
+        >
+          <Feather
+            name="star"
+            size={20}
+            color={
+              (connectionQuality?.messageCount ?? 0) >= 10 ||
+              connectionQuality?.hasMetInRealLife
+                ? "#FFB800"
+                : colors.mutedForeground
+            }
+          />
         </Pressable>
 
         {/* Chat options button */}
@@ -1542,14 +1617,17 @@ export default function ChatScreen() {
         onDeleteDone={() => setActionMessage(null)}
       />
 
-      {/* ── Post-chat vibe review ── */}
+      {/* ── Vibe review (triggered via Rate Connection button) ── */}
       <ReviewModal
         visible={showReviewModal}
         receiverUid={peerUid ?? ""}
         receiverName={peerName}
         onDone={() => {
           setShowReviewModal(false);
-          router.back();
+          // Record timestamp for 14-day frequency cap.
+          AsyncStorage.setItem(reviewPromptKey, String(Date.now())).catch(
+            () => {},
+          );
         }}
       />
     </View>

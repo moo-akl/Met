@@ -5,6 +5,8 @@ import {
   timestamp,
   uniqueIndex,
   index,
+  integer,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -40,6 +42,12 @@ export const revealRequestsTable = pgTable(
       .defaultNow(),
     // Stamped when the recipient acts (accept/decline). Null while pending.
     respondedAt: timestamp("responded_at", { withTimezone: true }),
+    // Quality-threshold fields for review gating.
+    // messageCount is incremented server-side each time either participant sends
+    // a message; used to surface the review prompt only after ≥10 exchanges.
+    messageCount: integer("message_count").notNull().default(0),
+    // Set to true when either participant confirms "We met in real life".
+    hasMetInRealLife: boolean("has_met_in_real_life").notNull().default(false),
   },
   (t) => ({
     senderRecipientUniq: uniqueIndex("reveals_sender_recipient_uniq").on(

@@ -79,4 +79,44 @@ router.post("/connections/remove", requireUid, async (req, res) => {
   res.json({ success: true });
 });
 
+/**
+ * POST /api/connections/mark-met
+ *
+ * Lets either participant confirm "We met in real life!".
+ * Sets has_met_in_real_life = true on the shared connection row.
+ * Idempotent — calling it multiple times is harmless.
+ */
+const MarkMetBody = z.object({ peerUid: z.string().min(1) });
+
+router.post("/connections/mark-met", requireUid, async (req, res) => {
+  const callerUid = req.uid!;
+  const body = MarkMetBody.parse(req.body);
+
+  if (body.peerUid === callerUid) {
+    res.status(400).json({ message: "Cannot mark yourself as met" });
+    return;
+  }
+
+  await db
+    .update(revealRequestsTable)
+    .set({ hasMetInRealLife: true, updatedAt: new Date() })
+    .where(
+      and(
+        eq(revealRequestsTable.status, "accepted"),
+        or(
+          and(
+            eq(revealRequestsTable.senderUid, callerUid),
+            eq(revealRequestsTable.recipientUid, body.peerUid),
+          ),
+          and(
+            eq(revealRequestsTable.senderUid, body.peerUid),
+            eq(revealRequestsTable.recipientUid, callerUid),
+          ),
+        ),
+      ),
+    );
+
+  res.json({ ok: true });
+});
+
 export default router;
