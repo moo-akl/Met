@@ -317,3 +317,21 @@ id = "1CkZkoKAVLSEBQjeVdZjg"
 uri = "file://screenshots/ad-connections.jpg"
 type = "image"
 title = "Ad 5 — Connections"
+
+[[outputs]]
+id = "0htj2GdtE4u1pxhdC9TUr"
+uri = "file://screenshots/met-screenshot-1.jpg"
+type = "image"
+title = "Screenshot 1 — Discover (1284×2778)"
+
+[[outputs]]
+id = "oM0smjJQYzapCqUn8bbYA"
+uri = "file://screenshots/met-screenshot-2.jpg"
+type = "image"
+title = "Screenshot 2 — Connect (1284×2778)"
+
+[[outputs]]
+id = "VRVw-tHk-Shp3Tj1-G4kX"
+uri = "file://screenshots/met-screenshot-3.jpg"
+type = "image"
+title = "Screenshot 3 — Pioneer (1284×2778)"

@@ -5,12 +5,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Landing from "./pages/Landing";
+import Screenshots from "./pages/Screenshots";
 
 const queryClient = new QueryClient();
 
 function Router() {
   return (
     <Switch>
+      <Route path="/screenshots" component={Screenshots} />
       <Route path="/" component={Landing} />
       <Route component={NotFound} />
     </Switch>
