@@ -18,6 +18,7 @@ import {
   type HeatmapVenueResult,
 } from "@/lib/api/client";
 import { EnhancedHubSheet } from "@/components/EnhancedHubSheet";
+import { resolveIsPartner } from "@/lib/hubPartner";
 
 // Refetch heatmap if the map center moved more than ~500 m (~0.005°)
 const SIGNIFICANT_PAN_DEG = 0.005;
@@ -321,7 +322,7 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
       activeVenues
         .filter((v) => !isNaN(v.lat) && !isNaN(v.lng))
         .map((venue) => {
-          const isPartner = venue.businessProfile?.isActiveSubscription === true;
+          const isPartner = resolveIsPartner(venue.businessProfile);
           return (
             <PulsingMarker
               key={`active-${venue.placeId}`}
