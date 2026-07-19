@@ -121,6 +121,7 @@ function InteractiveStarPicker({
 function SkeletonRow({ colors }: { colors: ReturnType<typeof useColors> }) {
   return (
     <View
+      testID="skeleton-row"
       style={[
         styles.skeletonRow,
         { backgroundColor: colors.muted },
@@ -318,6 +319,7 @@ export function EnhancedHubSheet({
                   <View style={styles.header}>
                     {businessProfile.logoUrl ? (
                       <Image
+                        testID="hub-logo"
                         source={{ uri: businessProfile.logoUrl }}
                         style={styles.logo}
                         resizeMode="cover"
