@@ -9,9 +9,11 @@ import {
   serial,
   uniqueIndex,
   uuid,
+  foreignKey,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { profilesTable } from "./profiles";
 
 // ---------------------------------------------------------------------------
 // business_profiles
@@ -22,7 +24,9 @@ export const businessProfilesTable = pgTable(
   "business_profiles",
   {
     businessId: uuid("business_id").primaryKey().defaultRandom(),
-    ownerId: text("owner_id").notNull(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => profilesTable.uid, { onDelete: "cascade" }),
     placeId: text("place_id").notNull(),
     name: text("name").notNull(),
     description: text("description"),
@@ -65,7 +69,9 @@ export const businessEventsTable = pgTable(
   "business_events",
   {
     eventId: serial("event_id").primaryKey(),
-    businessId: uuid("business_id").notNull(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businessProfilesTable.businessId, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
     startTime: timestamp("start_time", { withTimezone: true }).notNull(),
@@ -96,8 +102,12 @@ export const businessReviewsTable = pgTable(
   "business_reviews",
   {
     reviewId: serial("review_id").primaryKey(),
-    businessId: uuid("business_id").notNull(),
-    reviewerId: text("reviewer_id").notNull(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businessProfilesTable.businessId, { onDelete: "cascade" }),
+    reviewerId: text("reviewer_id")
+      .notNull()
+      .references(() => profilesTable.uid, { onDelete: "cascade" }),
     rating: integer("rating").notNull(),
     comment: text("comment"),
     createdAt: timestamp("created_at", { withTimezone: true })

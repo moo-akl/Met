@@ -1426,26 +1426,42 @@ export const SubmitAnnouncementAnswersResponse = zod.object({
 });
 
 /**
- * @summary Get business profile for a hub
+ * @summary Get business profile (with events) for a hub
  */
 export const GetBusinessByPlaceIdParams = zod.object({
   placeId: zod.coerce.string(),
 });
 
-export const GetBusinessByPlaceIdResponse = zod.object({
-  businessId: zod.string(),
-  ownerId: zod.string(),
-  placeId: zod.string(),
-  name: zod.string(),
-  description: zod.string().nullish(),
-  logoUrl: zod.string().nullish(),
-  mediaUrls: zod.array(zod.string()),
-  isActiveSubscription: zod.boolean(),
-  subscriptionEndDate: zod.coerce.date().nullish(),
-  salesAgentId: zod.string().nullish(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
+export const GetBusinessByPlaceIdResponse = zod
+  .object({
+    businessId: zod.string(),
+    ownerId: zod.string(),
+    placeId: zod.string(),
+    name: zod.string(),
+    description: zod.string().nullish(),
+    logoUrl: zod.string().nullish(),
+    mediaUrls: zod.array(zod.string()),
+    isActiveSubscription: zod.boolean(),
+    subscriptionEndDate: zod.coerce.date().nullish(),
+    salesAgentId: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      events: zod.array(
+        zod.object({
+          eventId: zod.number(),
+          businessId: zod.string(),
+          title: zod.string(),
+          description: zod.string().nullish(),
+          startTime: zod.coerce.date(),
+          endTime: zod.coerce.date(),
+          createdAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  );
 
 /**
  * @summary Create a new business profile
@@ -1597,23 +1613,28 @@ export const GenerateSalesLinkResponse = zod.object({
 });
 
 /**
- * @summary List all businesses (grouped by sales agent)
+ * @summary List all businesses grouped by sales agent
  */
 export const AdminListBusinessesResponse = zod.object({
-  businesses: zod.array(
+  grouped: zod.array(
     zod.object({
-      businessId: zod.string(),
-      ownerId: zod.string(),
-      placeId: zod.string(),
-      name: zod.string(),
-      description: zod.string().nullish(),
-      logoUrl: zod.string().nullish(),
-      mediaUrls: zod.array(zod.string()),
-      isActiveSubscription: zod.boolean(),
-      subscriptionEndDate: zod.coerce.date().nullish(),
-      salesAgentId: zod.string().nullish(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
+      salesAgentId: zod.string().nullable(),
+      businesses: zod.array(
+        zod.object({
+          businessId: zod.string(),
+          ownerId: zod.string(),
+          placeId: zod.string(),
+          name: zod.string(),
+          description: zod.string().nullish(),
+          logoUrl: zod.string().nullish(),
+          mediaUrls: zod.array(zod.string()),
+          isActiveSubscription: zod.boolean(),
+          subscriptionEndDate: zod.coerce.date().nullish(),
+          salesAgentId: zod.string().nullish(),
+          createdAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
+        }),
+      ),
     }),
   ),
   total: zod.number(),

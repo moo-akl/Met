@@ -434,6 +434,20 @@ export interface BusinessProfile {
   updatedAt: string;
 }
 
+export interface BusinessEvent {
+  eventId: number;
+  businessId: string;
+  title: string;
+  description?: string | null;
+  startTime: string;
+  endTime: string;
+  createdAt: string;
+}
+
+export type BusinessProfileWithEvents = BusinessProfile & {
+  events: BusinessEvent[];
+};
+
 export interface GenerateSalesLinkRequest {
   agentId: string;
 }
@@ -452,16 +466,6 @@ export interface UpdateBusinessRequest {
   description?: string;
   logoUrl?: string | null;
   mediaUrls?: string[];
-}
-
-export interface BusinessEvent {
-  eventId: number;
-  businessId: string;
-  title: string;
-  description?: string | null;
-  startTime: string;
-  endTime: string;
-  createdAt: string;
 }
 
 export interface CreateBusinessEventRequest {
@@ -642,7 +646,12 @@ export type GenerateSalesLink200 = {
   agentId: string;
 };
 
-export type AdminListBusinesses200 = {
+export type AdminListBusinesses200GroupedItem = {
+  salesAgentId: string | null;
   businesses: BusinessProfile[];
+};
+
+export type AdminListBusinesses200 = {
+  grouped: AdminListBusinesses200GroupedItem[];
   total: number;
 };

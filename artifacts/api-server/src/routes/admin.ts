@@ -196,12 +196,25 @@ router.get(
       ownerMap[p.uid] = p.displayName;
     }
 
-    const result = businesses.map((b) => ({
+    const enriched = businesses.map((b) => ({
       ...b,
       ownerDisplayName: ownerMap[b.ownerId] ?? null,
     }));
 
-    res.json({ businesses: result, total: result.length });
+    // Group by salesAgentId (null → unassigned)
+    const groupMap = new Map<string | null, typeof enriched>();
+    for (const b of enriched) {
+      const key = b.salesAgentId ?? null;
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(b);
+    }
+
+    const grouped = Array.from(groupMap.entries()).map(([salesAgentId, items]) => ({
+      salesAgentId,
+      businesses: items,
+    }));
+
+    res.json({ grouped, total: enriched.length });
   },
 );
 

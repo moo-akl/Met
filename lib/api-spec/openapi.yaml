@@ -1570,11 +1570,11 @@ paths:
         "401":
           description: Unauthorized
 
-  /business/place/{placeId}:
+  /business/{placeId}:
     get:
       operationId: getBusinessByPlaceId
       tags: [business]
-      summary: Get business profile for a hub
+      summary: Get business profile (with events) for a hub
       security:
         - MetUid: []
       parameters:
@@ -1585,11 +1585,11 @@ paths:
             type: string
       responses:
         "200":
-          description: Business profile
+          description: Business profile with embedded events
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BusinessProfile"
+                $ref: "#/components/schemas/BusinessProfileWithEvents"
         "404":
           description: No business profile for this hub
 
@@ -1807,24 +1807,35 @@ paths:
     get:
       operationId: adminListBusinesses
       tags: [admin]
-      summary: List all businesses (grouped by sales agent)
+      summary: List all businesses grouped by sales agent
       security:
         - MetUid: []
       responses:
         "200":
-          description: Businesses list
+          description: Businesses grouped by salesAgentId
           content:
             application/json:
               schema:
                 type: object
                 required:
-                  - businesses
+                  - grouped
                   - total
                 properties:
-                  businesses:
+                  grouped:
                     type: array
                     items:
-                      $ref: "#/components/schemas/BusinessProfile"
+                      type: object
+                      required:
+                        - salesAgentId
+                        - businesses
+                      properties:
+                        salesAgentId:
+                          type: string
+                          nullable: true
+                        businesses:
+                          type: array
+                          items:
+                            $ref: "#/components/schemas/BusinessProfile"
                   total:
                     type: integer
         "403":
@@ -2581,6 +2592,17 @@ components:
             type: string
             minLength: 1
             maxLength: 200
+    BusinessProfileWithEvents:
+      allOf:
+        - $ref: "#/components/schemas/BusinessProfile"
+        - type: object
+          required:
+            - events
+          properties:
+            events:
+              type: array
+              items:
+                $ref: "#/components/schemas/BusinessEvent"
     BusinessProfile:
       type: object
       required:

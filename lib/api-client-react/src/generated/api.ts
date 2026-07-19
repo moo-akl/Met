@@ -26,6 +26,7 @@ import type {
   BleResolveRequest,
   BusinessEvent,
   BusinessProfile,
+  BusinessProfileWithEvents,
   BusinessReview,
   BusinessReviewsResponse,
   CastVoteRequest,
@@ -3991,24 +3992,27 @@ export const useSubmitAnnouncementAnswers = <
 };
 
 /**
- * @summary Get business profile for a hub
+ * @summary Get business profile (with events) for a hub
  */
 export const getGetBusinessByPlaceIdUrl = (placeId: string) => {
-  return `/api/business/place/${placeId}`;
+  return `/api/business/${placeId}`;
 };
 
 export const getBusinessByPlaceId = async (
   placeId: string,
   options?: RequestInit,
-): Promise<BusinessProfile> => {
-  return customFetch<BusinessProfile>(getGetBusinessByPlaceIdUrl(placeId), {
-    ...options,
-    method: "GET",
-  });
+): Promise<BusinessProfileWithEvents> => {
+  return customFetch<BusinessProfileWithEvents>(
+    getGetBusinessByPlaceIdUrl(placeId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
 };
 
 export const getGetBusinessByPlaceIdQueryKey = (placeId: string) => {
-  return [`/api/business/place/${placeId}`] as const;
+  return [`/api/business/${placeId}`] as const;
 };
 
 export const getGetBusinessByPlaceIdQueryOptions = <
@@ -4053,7 +4057,7 @@ export type GetBusinessByPlaceIdQueryResult = NonNullable<
 export type GetBusinessByPlaceIdQueryError = ErrorType<void>;
 
 /**
- * @summary Get business profile for a hub
+ * @summary Get business profile (with events) for a hub
  */
 
 export function useGetBusinessByPlaceId<
@@ -4774,7 +4778,7 @@ export const useGenerateSalesLink = <
 };
 
 /**
- * @summary List all businesses (grouped by sales agent)
+ * @summary List all businesses grouped by sales agent
  */
 export const getAdminListBusinessesUrl = () => {
   return `/api/admin/businesses`;
@@ -4825,7 +4829,7 @@ export type AdminListBusinessesQueryResult = NonNullable<
 export type AdminListBusinessesQueryError = ErrorType<void>;
 
 /**
- * @summary List all businesses (grouped by sales agent)
+ * @summary List all businesses grouped by sales agent
  */
 
 export function useAdminListBusinesses<

@@ -1,18 +1,18 @@
 /**
  * Business Partner routes
  *
- * GET  /api/business/place/:placeId    — get business profile by hub place ID
- * POST /api/business                   — create a new business profile
- * PUT  /api/business/:id               — update business profile (owner only)
- * POST /api/business/:id/events        — create an event
- * GET  /api/business/:id/events        — list events (upcoming first)
+ * GET  /api/business/:placeId        — get business profile + events by hub place ID
+ * POST /api/business                 — create a new business profile
+ * PUT  /api/business/:id             — update business profile (owner only)
+ * POST /api/business/:id/events      — create an event
+ * GET  /api/business/:id/events      — list events (upcoming first)
  * DELETE /api/business/:id/events/:eventId — delete an event (owner only)
- * POST /api/business/:id/reviews       — create/upsert a business review
- * GET  /api/business/:id/reviews       — list reviews with avg rating
+ * POST /api/business/:id/reviews     — create/upsert a business review
+ * GET  /api/business/:id/reviews     — list reviews with avg rating
  */
 
 import { Router, type IRouter } from "express";
-import { eq, and, desc, gte, avg, count, sql } from "drizzle-orm";
+import { eq, and, desc, asc, avg, count, sql } from "drizzle-orm";
 import {
   db,
   businessProfilesTable,
@@ -43,6 +43,7 @@ const UpdateBusinessBody = z.object({
   description: z.string().max(1000).optional(),
   logoUrl: z.string().url().nullable().optional(),
   mediaUrls: z.array(z.string().url()).max(6).optional(),
+  salesAgentId: z.string().nullable().optional(),
 });
 
 const CreateEventBody = z.object({
@@ -70,14 +71,29 @@ async function getBusinessById(businessId: string) {
   return biz ?? null;
 }
 
+async function getEventsForBusiness(businessId: string) {
+  return db
+    .select()
+    .from(businessEventsTable)
+    .where(eq(businessEventsTable.businessId, businessId))
+    .orderBy(
+      // Upcoming events (start_time >= NOW) appear first, sorted soonest first.
+      // Past events appear after, sorted most-recently-started first.
+      sql`CASE WHEN ${businessEventsTable.startTime} >= NOW() THEN 0 ELSE 1 END`,
+      sql`CASE WHEN ${businessEventsTable.startTime} >= NOW() THEN ${businessEventsTable.startTime} END NULLS LAST`,
+      desc(businessEventsTable.startTime),
+    )
+    .limit(50);
+}
+
 // ---------------------------------------------------------------------------
-// GET /api/business/place/:placeId
-// Returns the active business profile for a hub (by Google Places place_id).
+// GET /api/business/:placeId
+// Returns the active business profile (with upcoming events) for a hub.
 // Open to any authenticated user.
 // ---------------------------------------------------------------------------
 
 router.get(
-  "/business/place/:placeId",
+  "/business/:placeId",
   requireUid,
   async (req, res): Promise<void> => {
     const { placeId } = req.params as { placeId: string };
@@ -93,7 +109,9 @@ router.get(
       return;
     }
 
-    res.json(biz);
+    const events = await getEventsForBusiness(biz.businessId);
+
+    res.json({ ...biz, events });
   },
 );
 
@@ -152,7 +170,7 @@ router.post(
 
 // ---------------------------------------------------------------------------
 // PUT /api/business/:id
-// Update name, description, logo, and media. Owner only.
+// Update name, description, logo, media, and salesAgentId. Owner only.
 // ---------------------------------------------------------------------------
 
 router.put(
@@ -183,6 +201,7 @@ router.put(
     if (parsed.data.description !== undefined) updates.description = parsed.data.description;
     if (parsed.data.logoUrl !== undefined) updates.logoUrl = parsed.data.logoUrl ?? null;
     if (parsed.data.mediaUrls !== undefined) updates.mediaUrls = parsed.data.mediaUrls;
+    if (parsed.data.salesAgentId !== undefined) updates.salesAgentId = parsed.data.salesAgentId ?? null;
 
     const [updated] = await db
       .update(businessProfilesTable)
@@ -211,13 +230,7 @@ router.get(
       return;
     }
 
-    const events = await db
-      .select()
-      .from(businessEventsTable)
-      .where(eq(businessEventsTable.businessId, id))
-      .orderBy(desc(businessEventsTable.startTime))
-      .limit(50);
-
+    const events = await getEventsForBusiness(id);
     res.json({ events });
   },
 );

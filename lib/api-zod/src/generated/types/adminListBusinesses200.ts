@@ -5,9 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { BusinessProfile } from "./businessProfile";
+import type { AdminListBusinesses200GroupedItem } from "./adminListBusinesses200GroupedItem";
 
 export type AdminListBusinesses200 = {
-  businesses: BusinessProfile[];
+  grouped: AdminListBusinesses200GroupedItem[];
   total: number;
 };

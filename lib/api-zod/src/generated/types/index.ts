@@ -7,6 +7,7 @@
  */
 
 export * from "./adminListBusinesses200";
+export * from "./adminListBusinesses200GroupedItem";
 export * from "./announcement";
 export * from "./announcementQuestionAnswer";
 export * from "./announcementQuestionWithAnswers";
@@ -17,6 +18,7 @@ export * from "./bleResolveEntry";
 export * from "./bleResolveRequest";
 export * from "./businessEvent";
 export * from "./businessProfile";
+export * from "./businessProfileWithEvents";
 export * from "./businessReview";
 export * from "./businessReviewsResponse";
 export * from "./castVoteRequest";
