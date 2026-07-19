@@ -25,6 +25,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && (window as { __PLAYWRIGHT_TEST_USER__?: unknown }).__PLAYWRIGHT_TEST_USER__ !== undefined) {
+      setUser((window as { __PLAYWRIGHT_TEST_USER__?: User | null }).__PLAYWRIGHT_TEST_USER__ ?? null);
+      setLoading(false);
+      return;
+    }
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
