@@ -23,6 +23,7 @@ vi.mock("@workspace/db", () => ({
   profilesTable: {},
   encountersTable: {},
   revealRequestsTable: {},
+  subscriptionsTable: {},
 }));
 
 vi.mock("../lib/firestoreMirror", () => ({
@@ -81,6 +82,10 @@ beforeEach(() => {
   dbMocks.chain.insert.mockReturnThis();
   dbMocks.chain.values.mockReturnThis();
   dbMocks.chain.onConflictDoUpdate.mockReturnThis();
+  // Default limit to resolve with an empty array so routes that make a second
+  // DB query (e.g. subscriptions lookup in GET /profiles/me) don't throw on
+  // array destructuring when no per-test override is set.
+  dbMocks.chain.limit.mockResolvedValue([]);
 });
 
 // ---------------------------------------------------------------------------
