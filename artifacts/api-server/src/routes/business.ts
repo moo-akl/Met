@@ -11,6 +11,7 @@
  * POST /api/business/:id/reviews     — create/upsert a business review
  * GET  /api/business/:id/reviews     — list reviews with avg rating
  * GET  /api/business/:id/my-checkin  — whether the caller has ever checked in at this hub
+ * GET  /api/business/:id/analytics   — 30-day check-in trend and peak-hours breakdown (owner only)
  */
 
 import { Router, type IRouter } from "express";
@@ -557,6 +558,91 @@ router.get(
       .limit(1);
 
     res.json({ hasCheckedIn: row !== undefined });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/business/:id/analytics
+// Returns 30-day daily check-in trend + peak-hours breakdown. Owner only.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/business/:id/analytics",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const { id } = req.params as { id: string };
+
+    const biz = await getBusinessById(id);
+    if (!biz) {
+      res.status(404).json({ message: "Business not found" });
+      return;
+    }
+    if (biz.ownerId !== uid) {
+      res.status(403).json({ message: "Not the business owner" });
+      return;
+    }
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [dailyRows, peakHourRows, totals] = await Promise.all([
+      db
+        .select({
+          date: sql<string>`DATE(${hubCheckinsTable.createdAt} AT TIME ZONE 'UTC')`,
+          count: count(),
+        })
+        .from(hubCheckinsTable)
+        .where(
+          and(
+            eq(hubCheckinsTable.placeId, biz.placeId),
+            gte(hubCheckinsTable.createdAt, thirtyDaysAgo),
+          ),
+        )
+        .groupBy(sql`DATE(${hubCheckinsTable.createdAt} AT TIME ZONE 'UTC')`)
+        .orderBy(sql`DATE(${hubCheckinsTable.createdAt} AT TIME ZONE 'UTC')`),
+
+      db
+        .select({
+          hour: sql<number>`EXTRACT(HOUR FROM ${hubCheckinsTable.createdAt} AT TIME ZONE 'UTC')::int`,
+          count: count(),
+        })
+        .from(hubCheckinsTable)
+        .where(
+          and(
+            eq(hubCheckinsTable.placeId, biz.placeId),
+            gte(hubCheckinsTable.createdAt, thirtyDaysAgo),
+          ),
+        )
+        .groupBy(sql`EXTRACT(HOUR FROM ${hubCheckinsTable.createdAt} AT TIME ZONE 'UTC')`)
+        .orderBy(sql`EXTRACT(HOUR FROM ${hubCheckinsTable.createdAt} AT TIME ZONE 'UTC')`),
+
+      db
+        .select({
+          totalCheckins: count(),
+          uniqueVisitors: sql<number>`COUNT(DISTINCT ${hubCheckinsTable.userUid})::int`,
+        })
+        .from(hubCheckinsTable)
+        .where(
+          and(
+            eq(hubCheckinsTable.placeId, biz.placeId),
+            gte(hubCheckinsTable.createdAt, thirtyDaysAgo),
+          ),
+        ),
+    ]);
+
+    res.json({
+      dailyCheckins: dailyRows.map((r) => ({
+        date: r.date,
+        count: Number(r.count),
+      })),
+      peakHours: peakHourRows.map((r) => ({
+        hour: r.hour,
+        count: Number(r.count),
+      })),
+      totalCheckins: Number(totals[0]?.totalCheckins ?? 0),
+      uniqueVisitors: Number(totals[0]?.uniqueVisitors ?? 0),
+    });
   },
 );
 

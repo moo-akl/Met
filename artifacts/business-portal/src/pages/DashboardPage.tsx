@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EngagementAnalytics } from "@/components/EngagementAnalytics";
 import {
   Building2,
   CalendarDays,
@@ -17,6 +18,8 @@ import {
   AlertCircle,
   Zap,
   CheckCircle2,
+  ChevronDown,
+  BarChart2,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -27,6 +30,19 @@ export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
   const [businesses, setBusinesses] = useState<BusinessProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expandedAnalytics, setExpandedAnalytics] = useState<Set<string>>(new Set());
+
+  function toggleAnalytics(businessId: string) {
+    setExpandedAnalytics((prev) => {
+      const next = new Set(prev);
+      if (next.has(businessId)) {
+        next.delete(businessId);
+      } else {
+        next.add(businessId);
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -119,65 +135,91 @@ export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
           )}
 
           <div className="space-y-3">
-            {businesses.map((biz) => (
-              <Card
-                key={biz.businessId}
-                className="bg-card border-card-border hover:border-primary/30 transition-colors"
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  {biz.logoUrl ? (
-                    <img
-                      src={biz.logoUrl}
-                      alt={biz.name}
-                      className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Building2 className="w-5 h-5 text-primary" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className="font-semibold text-foreground text-sm truncate">{biz.name}</h3>
-                      {biz.isActiveSubscription ? (
-                        <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20 text-xs shrink-0">
-                          <CheckCircle2 className="w-3 h-3 mr-1" />
-                          Active
-                        </Badge>
+            {businesses.map((biz) => {
+              const analyticsOpen = expandedAnalytics.has(biz.businessId);
+              return (
+                <Card
+                  key={biz.businessId}
+                  className="bg-card border-card-border hover:border-primary/30 transition-colors"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-4">
+                      {biz.logoUrl ? (
+                        <img
+                          src={biz.logoUrl}
+                          alt={biz.name}
+                          className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                        />
                       ) : (
-                        <Badge
-                          variant="outline"
-                          className="border-primary/30 text-primary/70 text-xs shrink-0 cursor-pointer hover:bg-primary/10"
-                          onClick={() => window.open("https://met-app.org", "_blank")}
-                        >
-                          <Zap className="w-3 h-3 mr-1" />
-                          Upgrade
-                        </Badge>
+                        <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Building2 className="w-5 h-5 text-primary" />
+                        </div>
                       )}
-                      <Badge variant="secondary" className="text-xs shrink-0">
-                        {biz.events?.length ?? 0} events
-                      </Badge>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <h3 className="font-semibold text-foreground text-sm truncate">{biz.name}</h3>
+                          {biz.isActiveSubscription ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20 text-xs shrink-0">
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="border-primary/30 text-primary/70 text-xs shrink-0 cursor-pointer hover:bg-primary/10"
+                              onClick={() => window.open("https://met-app.org", "_blank")}
+                            >
+                              <Zap className="w-3 h-3 mr-1" />
+                              Upgrade
+                            </Badge>
+                          )}
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            {biz.events?.length ?? 0} events
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {biz.description ?? "No description"}
+                        </p>
+                        {biz.isActiveSubscription && biz.subscriptionEndDate && (
+                          <p className="text-xs text-muted-foreground/60 mt-0.5">
+                            Renews {format(new Date(biz.subscriptionEndDate), "MMM d, yyyy")}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground/40 mt-0.5 font-mono truncate">
+                          {biz.placeId}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`gap-1 text-xs h-8 px-2 transition-colors ${analyticsOpen ? "text-primary bg-primary/10" : "text-muted-foreground"}`}
+                          onClick={() => toggleAnalytics(biz.businessId)}
+                          title="Toggle engagement analytics"
+                        >
+                          <BarChart2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Analytics</span>
+                          <ChevronDown
+                            className={`w-3 h-3 transition-transform ${analyticsOpen ? "rotate-180" : ""}`}
+                          />
+                        </Button>
+                        <Link href="/profile">
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground w-8 h-8">
+                            <ArrowRight className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {biz.description ?? "No description"}
-                    </p>
-                    {biz.isActiveSubscription && biz.subscriptionEndDate && (
-                      <p className="text-xs text-muted-foreground/60 mt-0.5">
-                        Renews {format(new Date(biz.subscriptionEndDate), "MMM d, yyyy")}
-                      </p>
+
+                    {analyticsOpen && (
+                      <div className="mt-4 border-t border-border/40 pt-4">
+                        <EngagementAnalytics businessId={biz.businessId} />
+                      </div>
                     )}
-                    <p className="text-xs text-muted-foreground/40 mt-0.5 font-mono truncate">
-                      {biz.placeId}
-                    </p>
-                  </div>
-                  <Link href="/profile">
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
 

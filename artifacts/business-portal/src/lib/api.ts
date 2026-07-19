@@ -97,3 +97,10 @@ export type PlaceSuggestion = {
   name: string;
   address: string;
 };
+
+export type BusinessAnalytics = {
+  dailyCheckins: { date: string; count: number }[];
+  peakHours: { hour: number; count: number }[];
+  totalCheckins: number;
+  uniqueVisitors: number;
+};
