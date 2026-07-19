@@ -21,7 +21,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
-import { HeatmapMap } from "@/components/HeatmapMap";
 import { HubStatusBadge } from "@/components/HubStatusBadge";
 import { Avatar } from "@/components/Avatar";
 import { GridOverlay } from "@/components/GridOverlay";
@@ -43,6 +42,10 @@ import {
 } from "@/lib/i18n";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
+
+const HeatmapMap = React.lazy(() =>
+  import("@/components/HeatmapMap").then((m) => ({ default: m.HeatmapMap })),
+);
 
 const CHECKIN_CTA_KEY = "met:checkin_cta_last_shown";
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
@@ -494,7 +497,11 @@ export default function HomeScreen() {
             { borderColor: colors.border },
           ]}
         >
-          {mapReady && <HeatmapMap style={{ flex: 1 }} />}
+          {mapReady && (
+            <React.Suspense fallback={null}>
+              <HeatmapMap style={{ flex: 1 }} />
+            </React.Suspense>
+          )}
         </View>
 
         {checkinCtaVisible && <View style={styles.checkinCtaWrapper}>

@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "207",
+      "buildNumber": "208",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "app.met.founders",
-      "versionCode": 207,
+      "versionCode": 208,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#92C977"
@@ -129,9 +129,12 @@
           "androidMode": "default"
         }
       ],
-      ["react-native-maps", {
-        "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
-      }],
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
+        }
+      ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-firebase/messaging",

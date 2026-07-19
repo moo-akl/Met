@@ -392,7 +392,7 @@ export const HeatmapMap = React.memo(HeatmapMapInner);
 
 const styles = StyleSheet.create({
   map: {
-    width: "100%",
-    height: "100%",
+    flex: 1,
+    alignSelf: "stretch",
   },
 });
