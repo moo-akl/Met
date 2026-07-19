@@ -29,7 +29,17 @@ type BizRow = {
   mediaUrls: string[];
 };
 
-let store: { biz: BizRow | null } = { biz: null };
+type EventRow = {
+  eventId: number;
+  businessId: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  startTime: Date;
+  endTime: Date;
+};
+
+let store: { biz: BizRow | null; events: EventRow[] } = { biz: null, events: [] };
 
 // ---------------------------------------------------------------------------
 // Hoisted DB mock — must be defined before vi.mock() factory runs.
@@ -152,6 +162,7 @@ beforeAll(() => {
 beforeEach(() => {
   vi.resetAllMocks();
   store.biz = null;
+  store.events = [];
 
   dbMocks.chain.select.mockReturnThis();
   dbMocks.chain.from.mockReturnThis();
@@ -221,6 +232,79 @@ function setupHubsActiveFromStore(extraCheckins?: typeof checkinRow[]) {
       return Promise.resolve(store.biz ? [store.biz] : []);
     });
   }
+}
+
+/**
+ * Seeds store.biz directly (skipping the POST round-trip) so that
+ * GET /api/business/:placeId and POST /api/business/:id/events have a
+ * valid business to work against.
+ */
+function seedStoreBiz(overrides: Partial<BizRow> = {}) {
+  store.biz = {
+    placeId: PLACE_ID,
+    businessId: BIZ_ID,
+    ownerId: OWNER_UID,
+    name: "Event Cafe",
+    logoUrl: null,
+    description: null,
+    isActiveSubscription: false,
+    mediaUrls: [],
+    ...overrides,
+  };
+}
+
+/**
+ * Sets up db mocks for POST /api/business/:id/events:
+ *  1. getBusinessById → limit resolves with store.biz
+ *  2. db.insert().values() captures the new event into store.events.
+ *     No fallback for businessId — if the route passes the wrong field name
+ *     businessId will be "" and assertions will fail immediately.
+ *  3. db.returning() returns the captured event
+ */
+function setupEventInsert() {
+  dbMocks.chain.limit.mockResolvedValueOnce(store.biz ? [store.biz] : []);
+
+  dbMocks.chain.values.mockImplementationOnce((data: Record<string, unknown>) => {
+    const event: EventRow = {
+      eventId: store.events.length + 1,
+      // No ?? BIZ_ID fallback — a wrong field name produces "" and the test fails.
+      businessId: String(data["businessId"] ?? ""),
+      title: String(data["title"] ?? ""),
+      description: (data["description"] as string | null | undefined) ?? null,
+      imageUrl: (data["imageUrl"] as string | null | undefined) ?? null,
+      startTime: data["startTime"] instanceof Date ? data["startTime"] : new Date(String(data["startTime"] ?? "")),
+      endTime: data["endTime"] instanceof Date ? data["endTime"] : new Date(String(data["endTime"] ?? "")),
+    };
+    store.events.push(event);
+    return dbMocks.chain;
+  });
+
+  dbMocks.chain.returning.mockImplementationOnce(() => {
+    return Promise.resolve(store.events.length ? [store.events[store.events.length - 1]] : []);
+  });
+}
+
+/**
+ * Sets up db mocks for GET /api/business/:placeId:
+ *  1. Biz lookup: limit resolves with store.biz ONLY if store.biz.placeId === requestedPlaceId.
+ *     A mismatch produces [] → route returns 404, catching wrong-key lookups.
+ *  2. Events lookup: limit resolves with events ONLY for store.biz.businessId,
+ *     so events belonging to a different businessId are never returned.
+ *
+ * This enforces the placeId → businessId → events linkage end-to-end.
+ */
+function setupGetByPlaceId(requestedPlaceId: string = PLACE_ID) {
+  // Biz lookup (limit(1)) — placeId-sensitive
+  dbMocks.chain.limit.mockImplementationOnce(() => {
+    const match = store.biz?.placeId === requestedPlaceId ? [store.biz] : [];
+    return Promise.resolve(match);
+  });
+
+  // Events lookup (limit(50)) — businessId-sensitive
+  dbMocks.chain.limit.mockImplementationOnce(() => {
+    const bizId = store.biz?.businessId;
+    return Promise.resolve(store.events.filter((e) => e.businessId === bizId));
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +558,182 @@ describe("Business Portal → EnhancedHubSheet sync", () => {
         .set("x-met-uid", OWNER_UID);
 
       expect(hubsRes.body.venues[0].businessProfile.logoUrl).toBeNull();
+    });
+  });
+
+  describe("POST /api/business/:id/events → GET /api/business/:placeId round-trip", () => {
+    it("event created via POST appears in GET /api/business/:placeId events array", async () => {
+      seedStoreBiz();
+      setupEventInsert();
+
+      const START = "2027-03-01T18:00:00.000Z";
+      const END = "2027-03-01T20:00:00.000Z";
+
+      const postRes = await request(app)
+        .post(`/api/business/${BIZ_ID}/events`)
+        .set("x-met-uid", OWNER_UID)
+        .send({ title: "Grand Opening Night", startTime: START, endTime: END });
+
+      expect(postRes.status).toBe(201);
+      expect(postRes.body.title).toBe("Grand Opening Night");
+      expect(postRes.body.businessId).toBe(BIZ_ID);
+
+      setupGetByPlaceId();
+
+      const getRes = await request(app)
+        .get(`/api/business/${PLACE_ID}`)
+        .set("x-met-uid", OWNER_UID);
+
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.events).toHaveLength(1);
+      expect(getRes.body.events[0]).toMatchObject({
+        title: "Grand Opening Night",
+        businessId: BIZ_ID,
+        startTime: new Date(START).toISOString(),
+        endTime: new Date(END).toISOString(),
+      });
+    });
+
+    it("event startTime and endTime stored by POST match exactly what GET returns", async () => {
+      seedStoreBiz();
+      setupEventInsert();
+
+      const START = "2027-06-15T09:00:00.000Z";
+      const END = "2027-06-15T11:30:00.000Z";
+
+      await request(app)
+        .post(`/api/business/${BIZ_ID}/events`)
+        .set("x-met-uid", OWNER_UID)
+        .send({ title: "Morning Workshop", startTime: START, endTime: END });
+
+      setupGetByPlaceId();
+
+      const getRes = await request(app)
+        .get(`/api/business/${PLACE_ID}`)
+        .set("x-met-uid", OWNER_UID);
+
+      expect(getRes.status).toBe(200);
+      const ev = getRes.body.events[0] as { startTime: string; endTime: string };
+      expect(new Date(ev.startTime).toISOString()).toBe(new Date(START).toISOString());
+      expect(new Date(ev.endTime).toISOString()).toBe(new Date(END).toISOString());
+    });
+
+    it("businessId on the event matches the placeId-linked business — no orphan", async () => {
+      seedStoreBiz();
+      setupEventInsert();
+
+      await request(app)
+        .post(`/api/business/${BIZ_ID}/events`)
+        .set("x-met-uid", OWNER_UID)
+        .send({
+          title: "Orphan Guard Test",
+          startTime: "2027-04-10T10:00:00.000Z",
+          endTime: "2027-04-10T12:00:00.000Z",
+        });
+
+      // The captured event must carry the same businessId that the biz profile uses.
+      expect(store.events[0]?.businessId).toBe(BIZ_ID);
+
+      // GET /api/business/:placeId must look up the biz by placeId and then fetch
+      // events using that same businessId — verify the link is intact end-to-end.
+      setupGetByPlaceId();
+
+      const getRes = await request(app)
+        .get(`/api/business/${PLACE_ID}`)
+        .set("x-met-uid", OWNER_UID);
+
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.placeId).toBe(PLACE_ID);
+      expect(getRes.body.businessId).toBe(BIZ_ID);
+      expect(getRes.body.events[0]?.businessId).toBe(BIZ_ID);
+    });
+
+    it("multiple events created by POST all appear in GET response", async () => {
+      seedStoreBiz();
+
+      const events = [
+        { title: "Event Alpha", startTime: "2027-05-01T10:00:00.000Z", endTime: "2027-05-01T12:00:00.000Z" },
+        { title: "Event Beta",  startTime: "2027-05-08T14:00:00.000Z", endTime: "2027-05-08T16:00:00.000Z" },
+        { title: "Event Gamma", startTime: "2027-05-15T18:00:00.000Z", endTime: "2027-05-15T20:00:00.000Z" },
+      ];
+
+      for (const ev of events) {
+        setupEventInsert();
+        const res = await request(app)
+          .post(`/api/business/${BIZ_ID}/events`)
+          .set("x-met-uid", OWNER_UID)
+          .send(ev);
+        expect(res.status).toBe(201);
+      }
+
+      expect(store.events).toHaveLength(3);
+
+      setupGetByPlaceId();
+
+      const getRes = await request(app)
+        .get(`/api/business/${PLACE_ID}`)
+        .set("x-met-uid", OWNER_UID);
+
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.events).toHaveLength(3);
+      const titles = (getRes.body.events as Array<{ title: string }>).map((e) => e.title);
+      expect(titles).toContain("Event Alpha");
+      expect(titles).toContain("Event Beta");
+      expect(titles).toContain("Event Gamma");
+    });
+
+    it("GET /api/business/:placeId returns 404 when placeId has no matching business (events cannot be orphaned)", async () => {
+      // No store.biz — simulates a placeId with no registered business.
+      setupGetByPlaceId("place-UNKNOWN");
+
+      const getRes = await request(app)
+        .get(`/api/business/place-UNKNOWN`)
+        .set("x-met-uid", OWNER_UID);
+
+      expect(getRes.status).toBe(404);
+    });
+
+    it("GET /api/business/:placeId returns 404 when the registered biz is at a different placeId (no cross-leak)", async () => {
+      // Biz exists but for a different placeId — the mock only returns it when the
+      // requestedPlaceId matches store.biz.placeId, so a mismatched request gets 404.
+      seedStoreBiz({ placeId: "place-OTHER" });
+      setupEventInsert();
+
+      await request(app)
+        .post(`/api/business/${BIZ_ID}/events`)
+        .set("x-met-uid", OWNER_UID)
+        .send({
+          title: "Wrong Place Event",
+          startTime: "2027-08-01T10:00:00.000Z",
+          endTime: "2027-08-01T12:00:00.000Z",
+        });
+
+      // Request for PLACE_ID ("place-sync-abc") but biz is at "place-OTHER"
+      // → the placeId-sensitive mock returns [] → route returns 404
+      setupGetByPlaceId(PLACE_ID);
+
+      const getRes = await request(app)
+        .get(`/api/business/${PLACE_ID}`)
+        .set("x-met-uid", OWNER_UID);
+
+      expect(getRes.status).toBe(404);
+    });
+
+    it("POST /api/business/:id/events returns 404 when businessId does not exist", async () => {
+      // store.biz is null → getBusinessById returns nothing
+      dbMocks.chain.limit.mockResolvedValueOnce([]);
+
+      const postRes = await request(app)
+        .post(`/api/business/nonexistent-biz/events`)
+        .set("x-met-uid", OWNER_UID)
+        .send({
+          title: "Ghost Event",
+          startTime: "2027-07-01T10:00:00.000Z",
+          endTime: "2027-07-01T12:00:00.000Z",
+        });
+
+      expect(postRes.status).toBe(404);
+      expect(store.events).toHaveLength(0);
     });
   });
 
