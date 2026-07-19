@@ -170,7 +170,8 @@ export function EnhancedHubSheet({
   const [hasCheckedInBefore, setHasCheckedInBefore] = useState(false);
 
   const myExistingReview = reviews.find((r) => r.reviewerId === authedUid) ?? null;
-  const canReview = isCheckedIn || hasCheckedInBefore || myExistingReview !== null;
+  const isOwner = authedUid === businessProfile.ownerId;
+  const canReview = !isOwner && (isCheckedIn || hasCheckedInBefore || myExistingReview !== null);
 
   const fetchData = useCallback(() => {
     if (!authedUid) return;
@@ -496,6 +497,13 @@ export function EnhancedHubSheet({
                         </View>
                       ) : null}
                     </View>
+
+                    {/* Owner cannot review their own hub */}
+                    {isOwner ? (
+                      <Text style={[styles.ownerReviewNote, { color: colors.mutedForeground }]}>
+                        {"You can't review your own hub"}
+                      </Text>
+                    ) : null}
 
                     {/* Write a review button — only when eligible */}
                     {canReview && !showReviewForm ? (
@@ -879,6 +887,13 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 13,
     lineHeight: 18,
+  },
+  ownerReviewNote: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: 8,
   },
   writeReviewBtn: {
     flexDirection: "row",

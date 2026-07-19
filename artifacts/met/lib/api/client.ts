@@ -101,6 +101,7 @@ export interface ApiOptions {
 /** Business profile summary returned alongside hub/venue data. */
 export interface BusinessProfileSummary {
   businessId: string;
+  ownerId: string;
   name: string;
   logoUrl: string | null;
   description: string | null;
