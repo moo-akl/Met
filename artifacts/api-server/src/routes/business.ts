@@ -87,6 +87,58 @@ async function getEventsForBusiness(businessId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/business/places-search?q=...
+// Proxy for Google Places Text Search. Returns up to 5 place suggestions.
+// Requires the authenticated user (requireUid). Does not require admin.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/business/places-search",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const q = String(req.query["q"] ?? "").trim();
+    if (!q) {
+      res.status(400).json({ message: "q param required" });
+      return;
+    }
+    const apiKey = process.env["GOOGLE_API_KEY"];
+    if (!apiKey) {
+      res.json({ places: [] });
+      return;
+    }
+    try {
+      const resp = await fetch(
+        "https://places.googleapis.com/v1/places:searchText",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress",
+          },
+          body: JSON.stringify({ textQuery: q, maxResultCount: 5 }),
+        },
+      );
+      if (!resp.ok) {
+        res.json({ places: [] });
+        return;
+      }
+      const data = (await resp.json()) as {
+        places?: Array<{ id?: string; displayName?: { text?: string }; formattedAddress?: string }>;
+      };
+      const places = (data.places ?? []).map((p) => ({
+        placeId: p.id ?? "",
+        name: p.displayName?.text ?? "Unknown",
+        address: p.formattedAddress ?? "",
+      }));
+      res.json({ places });
+    } catch {
+      res.json({ places: [] });
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
 // GET /api/business/mine
 // Returns all business profiles owned by the authenticated user (with events).
 // Must be registered BEFORE GET /api/business/:placeId to avoid Express

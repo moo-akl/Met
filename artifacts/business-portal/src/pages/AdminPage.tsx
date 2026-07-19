@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { api, type AdminGroup } from "@/lib/api";
+import { api, type AdminGroup, type AdminBusiness } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -22,108 +22,38 @@ import {
   Link as LinkIcon,
   Copy,
   Check,
-  ChevronDown,
-  ChevronUp,
+  Search,
+  CheckCircle2,
+  XCircle,
   Users,
+  Zap,
 } from "lucide-react";
 import { format } from "date-fns";
 
 type AdminResponse = { grouped: AdminGroup[]; total: number };
 type SalesLinkResponse = { url: string; agentId: string };
 
-function GroupCard({
-  group,
-  onGenerateLink,
-}: {
-  group: AdminGroup;
-  onGenerateLink: (agentId: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(true);
-  const agentId = group.salesAgentId ?? "(unassigned)";
-
+function SubscriptionCell({ biz }: { biz: AdminBusiness }) {
+  if (biz.isActiveSubscription) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20 text-xs whitespace-nowrap">
+          <CheckCircle2 className="w-3 h-3 mr-1" />
+          Active
+        </Badge>
+        {biz.subscriptionEndDate && (
+          <span className="text-xs text-muted-foreground hidden xl:inline">
+            until {format(new Date(biz.subscriptionEndDate), "MMM d, yyyy")}
+          </span>
+        )}
+      </div>
+    );
+  }
   return (
-    <Card className="bg-card border-card-border">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary" />
-            <CardTitle className="text-sm font-semibold">
-              Agent:{" "}
-              <span className={group.salesAgentId ? "text-primary" : "text-muted-foreground italic"}>
-                {agentId}
-              </span>
-            </CardTitle>
-            <Badge variant="secondary" className="text-xs">
-              {group.businesses.length}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            {group.salesAgentId && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs h-7"
-                onClick={() => onGenerateLink(group.salesAgentId!)}
-              >
-                <LinkIcon className="w-3 h-3" />
-                Generate Link
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-7 h-7"
-              onClick={() => setExpanded((v) => !v)}
-            >
-              {expanded ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-
-      {expanded && (
-        <CardContent className="pt-0 space-y-2">
-          {group.businesses.map((biz) => (
-            <div
-              key={biz.businessId}
-              className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border border-border/50"
-            >
-              {biz.logoUrl ? (
-                <img
-                  src={biz.logoUrl}
-                  alt={biz.name}
-                  className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
-                />
-              ) : (
-                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Building2 className="w-4 h-4 text-primary" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-foreground truncate">{biz.name}</span>
-                  {biz.ownerDisplayName && (
-                    <span className="text-xs text-muted-foreground">
-                      by {biz.ownerDisplayName}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground/60 font-mono truncate mt-0.5">
-                  {biz.placeId}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Joined {format(new Date(biz.createdAt), "MMM d, yyyy")}
-                </p>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      )}
-    </Card>
+    <Badge variant="outline" className="border-muted text-muted-foreground text-xs whitespace-nowrap">
+      <XCircle className="w-3 h-3 mr-1" />
+      Free
+    </Badge>
   );
 }
 
@@ -132,6 +62,7 @@ export default function AdminPage({ isAdmin }: { isAdmin?: boolean }) {
   const [data, setData] = useState<AdminResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [agentFilter, setAgentFilter] = useState("");
 
   const [linkDialog, setLinkDialog] = useState(false);
   const [agentId, setAgentId] = useState("");
@@ -147,13 +78,29 @@ export default function AdminPage({ isAdmin }: { isAdmin?: boolean }) {
       .then(setData)
       .catch((err: Error) => {
         if (err.message.includes("403") || err.message.includes("Forbidden")) {
-          setError("You don't have admin access. Contact the team to be added to the admin list.");
+          setError("You don't have admin access.");
         } else {
           setError(err.message ?? "Failed to load admin data");
         }
       })
       .finally(() => setLoading(false));
   }, [user]);
+
+  const allBusinesses: AdminBusiness[] = (data?.grouped ?? []).flatMap((g) => g.businesses);
+  const filtered = agentFilter
+    ? allBusinesses.filter(
+        (b) =>
+          (b.salesAgentId ?? "").toLowerCase().includes(agentFilter.toLowerCase())
+      )
+    : allBusinesses;
+
+  const groupedFiltered: AdminGroup[] = agentFilter
+    ? [{ salesAgentId: agentFilter || null, businesses: filtered }]
+    : (data?.grouped ?? []).sort((a, b) => {
+        if (!a.salesAgentId) return 1;
+        if (!b.salesAgentId) return -1;
+        return a.salesAgentId.localeCompare(b.salesAgentId);
+      });
 
   const openLinkDialog = (prefilledAgent = "") => {
     setAgentId(prefilledAgent);
@@ -188,22 +135,19 @@ export default function AdminPage({ isAdmin }: { isAdmin?: boolean }) {
 
   return (
     <Layout isAdmin={isAdmin}>
-      <div className="space-y-6 max-w-4xl">
-        <div className="flex items-start justify-between">
+      <div className="space-y-6 max-w-full">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ShieldCheck className="w-5 h-5 text-primary" />
               <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
             </div>
             <p className="text-muted-foreground text-sm">
-              Overview of all registered businesses grouped by sales agent.
+              All registered businesses, grouped by sales agent.
             </p>
           </div>
-          <Button
-            size="sm"
-            className="gap-1.5 shrink-0"
-            onClick={() => openLinkDialog()}
-          >
+          <Button size="sm" className="gap-1.5" onClick={() => openLinkDialog()}>
             <LinkIcon className="w-3.5 h-3.5" />
             Generate Sales Link
           </Button>
@@ -218,63 +162,145 @@ export default function AdminPage({ isAdmin }: { isAdmin?: boolean }) {
         {error && (
           <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 rounded-lg px-4 py-3">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{error}</span>
+            {error}
           </div>
         )}
 
         {data && (
           <>
             {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <Card className="bg-card border-card-border">
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Total Businesses</p>
-                  <p className="text-2xl font-bold text-foreground">{data.total}</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-card border-card-border">
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Sales Agents</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {data.grouped.filter((g) => g.salesAgentId).length}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="bg-card border-card-border">
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Unassigned</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {data.grouped.find((g) => !g.salesAgentId)?.businesses.length ?? 0}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Groups */}
-            <div className="space-y-4">
-              {data.grouped
-                .sort((a, b) => {
-                  if (!a.salesAgentId) return 1;
-                  if (!b.salesAgentId) return -1;
-                  return a.salesAgentId.localeCompare(b.salesAgentId);
-                })
-                .map((group) => (
-                  <GroupCard
-                    key={group.salesAgentId ?? "__unassigned__"}
-                    group={group}
-                    onGenerateLink={(id) => openLinkDialog(id)}
-                  />
-                ))}
-
-              {data.grouped.length === 0 && (
-                <Card className="bg-card border-card-border border-dashed">
-                  <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-                    <Building2 className="w-8 h-8 text-muted-foreground/40 mb-3" />
-                    <p className="text-sm text-muted-foreground">No businesses registered yet</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Total Businesses", value: data.total },
+                { label: "Active Subscriptions", value: allBusinesses.filter((b) => b.isActiveSubscription).length },
+                { label: "Sales Agents", value: data.grouped.filter((g) => g.salesAgentId).length },
+                { label: "Unassigned", value: data.grouped.find((g) => !g.salesAgentId)?.businesses.length ?? 0 },
+              ].map((s) => (
+                <Card key={s.label} className="bg-card border-card-border">
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">{s.label}</p>
+                    <p className="text-2xl font-bold text-foreground">{s.value}</p>
                   </CardContent>
                 </Card>
-              )}
+              ))}
             </div>
+
+            {/* Filter */}
+            <div className="relative max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={agentFilter}
+                onChange={(e) => setAgentFilter(e.target.value)}
+                placeholder="Filter by agent ID…"
+                className="bg-input border-input pl-9"
+              />
+            </div>
+
+            {/* Table(s) grouped by agent */}
+            {groupedFiltered.length === 0 ? (
+              <Card className="bg-card border-card-border border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+                  <Building2 className="w-8 h-8 text-muted-foreground/40 mb-3" />
+                  <p className="text-sm text-muted-foreground">No businesses match this filter</p>
+                </CardContent>
+              </Card>
+            ) : (
+              groupedFiltered.map((group) => {
+                const groupBizs = agentFilter
+                  ? group.businesses
+                  : group.businesses;
+                if (groupBizs.length === 0) return null;
+                return (
+                  <Card key={group.salesAgentId ?? "__none__"} className="bg-card border-card-border overflow-hidden">
+                    <CardHeader className="pb-2 border-b border-border">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-primary" />
+                          <CardTitle className="text-sm font-semibold">
+                            Agent:{" "}
+                            <span className={group.salesAgentId ? "text-primary font-mono" : "text-muted-foreground italic"}>
+                              {group.salesAgentId ?? "(unassigned)"}
+                            </span>
+                          </CardTitle>
+                          <Badge variant="secondary" className="text-xs">{groupBizs.length}</Badge>
+                        </div>
+                        {group.salesAgentId && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 text-xs h-7"
+                            onClick={() => openLinkDialog(group.salesAgentId!)}
+                          >
+                            <Zap className="w-3 h-3" />
+                            New Link
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0 overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border text-xs text-muted-foreground">
+                            <th className="text-left px-4 py-2.5 font-medium">Business</th>
+                            <th className="text-left px-4 py-2.5 font-medium">Owner</th>
+                            <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Hub (Place ID)</th>
+                            <th className="text-left px-4 py-2.5 font-medium">Subscription</th>
+                            <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">End Date</th>
+                            <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Joined</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {groupBizs.map((biz) => (
+                            <tr key={biz.businessId} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  {biz.logoUrl ? (
+                                    <img src={biz.logoUrl} alt={biz.name} className="w-7 h-7 rounded object-cover flex-shrink-0" />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                      <Building2 className="w-3.5 h-3.5 text-primary" />
+                                    </div>
+                                  )}
+                                  <span className="font-medium text-foreground truncate max-w-[120px]">{biz.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="min-w-0">
+                                  {biz.ownerDisplayName && (
+                                    <p className="text-xs font-medium text-foreground truncate max-w-[140px]">{biz.ownerDisplayName}</p>
+                                  )}
+                                  {biz.ownerEmail && (
+                                    <p className="text-xs text-muted-foreground truncate max-w-[140px]">{biz.ownerEmail}</p>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 hidden md:table-cell">
+                                <span className="text-xs font-mono text-muted-foreground/70 truncate max-w-[140px] block">{biz.placeId}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <SubscriptionCell biz={biz} />
+                              </td>
+                              <td className="px-4 py-3 hidden lg:table-cell">
+                                <span className="text-xs text-muted-foreground">
+                                  {biz.subscriptionEndDate
+                                    ? format(new Date(biz.subscriptionEndDate), "MMM d, yyyy")
+                                    : "—"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 hidden sm:table-cell">
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                  {format(new Date(biz.createdAt), "MMM d, yyyy")}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </>
         )}
       </div>
@@ -304,7 +330,7 @@ export default function AdminPage({ isAdmin }: { isAdmin?: boolean }) {
                 required
               />
               <p className="text-xs text-muted-foreground">
-                This ID will be embedded in the registration link.
+                The agent ID is embedded in the registration link as <code className="text-primary">?agent=</code>.
               </p>
             </div>
 
@@ -317,27 +343,15 @@ export default function AdminPage({ isAdmin }: { isAdmin?: boolean }) {
                     readOnly
                     className="bg-muted border-border text-xs font-mono text-muted-foreground flex-1"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="shrink-0"
-                    onClick={copyLink}
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-primary" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
+                  <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={copyLink}>
+                    {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
                   </Button>
                 </div>
               </div>
             )}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setLinkDialog(false)}>
-                Close
-              </Button>
+              <Button type="button" variant="outline" onClick={() => setLinkDialog(false)}>Close</Button>
               <Button type="submit" disabled={generating || !agentId.trim()}>
                 {generating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Generate

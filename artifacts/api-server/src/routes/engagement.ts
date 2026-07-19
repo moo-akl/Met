@@ -618,17 +618,23 @@ router.get(
     const period =
       req.query["period"] === "current_month" ? "current_month" : "all_time";
 
-    // For current_month, filter to rows from start of this month (UTC).
-    const monthStart =
-      period === "current_month"
-        ? new Date(
-            Date.UTC(
-              new Date().getUTCFullYear(),
-              new Date().getUTCMonth(),
-              1,
-            ),
-          )
-        : null;
+    // ?month=YYYY-MM — filter to a specific past month (overrides period)
+    const monthParam = String(req.query["month"] ?? "");
+    const monthMatch = monthParam.match(/^(\d{4})-(\d{2})$/);
+
+    let monthStart: Date | null = null;
+    let monthEnd: Date | null = null;
+
+    if (monthMatch) {
+      const year = parseInt(monthMatch[1]!, 10);
+      const month = parseInt(monthMatch[2]!, 10) - 1; // 0-indexed
+      monthStart = new Date(Date.UTC(year, month, 1));
+      monthEnd = new Date(Date.UTC(year, month + 1, 1));
+    } else if (period === "current_month") {
+      monthStart = new Date(
+        Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1),
+      );
+    }
 
     const rows = await db
       .select({
@@ -643,7 +649,13 @@ router.get(
         eq(profilesTable.uid, hubCheckinsTable.userUid),
       )
       .where(
-        monthStart
+        monthStart && monthEnd
+          ? and(
+              eq(hubCheckinsTable.placeId, placeId),
+              gte(hubCheckinsTable.createdAt, monthStart),
+              lt(hubCheckinsTable.createdAt, monthEnd),
+            )
+          : monthStart
           ? and(
               eq(hubCheckinsTable.placeId, placeId),
               gte(hubCheckinsTable.createdAt, monthStart),

@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -15,18 +17,28 @@ import NotFound from "@/pages/not-found";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 30_000,
-    },
-  },
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
 
 function AppRoutes() {
   const { user, loading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminChecked, setAdminChecked] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      setAdminChecked(true);
+      return;
+    }
+    api
+      .get<{ isAdmin: boolean }>("/api/admin/me")
+      .then((res) => setIsAdmin(res.isAdmin))
+      .catch(() => setIsAdmin(false))
+      .finally(() => setAdminChecked(true));
+  }, [user]);
+
+  if (loading || !adminChecked) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -37,13 +49,11 @@ function AppRoutes() {
   if (!user) {
     return (
       <Switch>
-        <Route path="/register" component={RegisterPage} />
+        <Route path="/business-register" component={RegisterPage} />
         <Route component={LoginPage} />
       </Switch>
     );
   }
-
-  const isAdmin = false;
 
   return (
     <Switch>
@@ -52,8 +62,10 @@ function AppRoutes() {
       <Route path="/events" component={() => <EventsPage isAdmin={isAdmin} />} />
       <Route path="/leaderboard" component={() => <LeaderboardPage isAdmin={isAdmin} />} />
       <Route path="/reviews" component={() => <ReviewsPage isAdmin={isAdmin} />} />
-      <Route path="/admin" component={() => <AdminPage isAdmin={true} />} />
-      <Route path="/register" component={RegisterPage} />
+      {isAdmin && (
+        <Route path="/admin" component={() => <AdminPage isAdmin={true} />} />
+      )}
+      <Route path="/business-register" component={RegisterPage} />
       <Route component={NotFound} />
     </Switch>
   );

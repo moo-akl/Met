@@ -1,23 +1,157 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
-import { api, type BusinessProfile } from "@/lib/api";
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useSearch } from "wouter";
+import { api, type BusinessProfile, type PlaceSuggestion } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Building2, Loader2, CheckCircle } from "lucide-react";
+import { AlertCircle, Building2, Loader2, CheckCircle, MapPin, X } from "lucide-react";
+
+type PlacesResponse = { places: PlaceSuggestion[] };
+
+function PlacesAutocomplete({
+  value,
+  onChange,
+}: {
+  value: PlaceSuggestion | null;
+  onChange: (p: PlaceSuggestion | null) => void;
+}) {
+  const [query, setQuery] = useState(value ? `${value.name} — ${value.address}` : "");
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [open, setOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const search = (q: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (q.length < 2) {
+      setSuggestions([]);
+      setOpen(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await api.get<PlacesResponse>(
+          `/api/business/places-search?q=${encodeURIComponent(q)}`
+        );
+        setSuggestions(res.places ?? []);
+        setOpen((res.places ?? []).length > 0);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+  };
+
+  const select = (p: PlaceSuggestion) => {
+    onChange(p);
+    setQuery(`${p.name} — ${p.address}`);
+    setOpen(false);
+    setSuggestions([]);
+  };
+
+  const clear = () => {
+    onChange(null);
+    setQuery("");
+    setSuggestions([]);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onChange(null);
+            search(e.target.value);
+          }}
+          onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
+          placeholder="Search for your venue by name…"
+          className="bg-input border-input pl-9 pr-9"
+        />
+        {(value || searching) && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            {searching ? (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            ) : value ? (
+              <button type="button" onClick={clear}>
+                <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {open && suggestions.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-card border border-card-border rounded-lg shadow-lg overflow-hidden">
+          {suggestions.map((p) => (
+            <button
+              key={p.placeId}
+              type="button"
+              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-muted/60 text-left transition-colors"
+              onMouseDown={(e) => { e.preventDefault(); select(p); }}
+            >
+              <MapPin className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{p.address}</p>
+                <p className="text-xs text-muted-foreground/40 font-mono truncate">{p.placeId}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {value && (
+        <p className="text-xs text-muted-foreground/60 font-mono mt-1 truncate">
+          Place ID: {value.placeId}
+        </p>
+      )}
+      {!value && (
+        <p className="text-xs text-muted-foreground mt-1">
+          Type your venue name or address to search. Can't find it?{" "}
+          <a
+            href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline"
+          >
+            Look up Place ID manually
+          </a>
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function RegisterPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
+  const search = useSearch();
 
-  const params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(search);
   const agentFromUrl = params.get("agent") ?? "";
 
+  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [form, setForm] = useState({
-    placeId: "",
     name: "",
     description: "",
     logoUrl: "",
@@ -30,18 +164,18 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!form.placeId.trim()) {
-      setError("Google Places ID is required");
+    if (!selectedPlace) {
+      setError("Please select a venue from the search results");
       return;
     }
     if (!form.name.trim()) {
-      setError("Business name is required");
+      setError("Business display name is required");
       return;
     }
     setLoading(true);
     try {
       await api.post<BusinessProfile>("/api/business", {
-        placeId: form.placeId.trim(),
+        placeId: selectedPlace.placeId,
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         logoUrl: form.logoUrl.trim() || undefined,
@@ -100,39 +234,24 @@ export default function RegisterPage() {
               )}
 
               <div className="space-y-1.5">
-                <Label htmlFor="placeId">Google Places ID *</Label>
-                <Input
-                  id="placeId"
-                  placeholder="ChIJ... (from Google Maps)"
-                  value={form.placeId}
-                  onChange={(e) => setForm({ ...form, placeId: e.target.value })}
-                  className="bg-input border-input font-mono text-sm"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Find your Places ID at{" "}
-                  <a
-                    href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline"
-                  >
-                    Google's Place ID Finder
-                  </a>
-                </p>
+                <Label>Venue Location *</Label>
+                <PlacesAutocomplete value={selectedPlace} onChange={setSelectedPlace} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="name">Business Name *</Label>
+                <Label htmlFor="name">Business Display Name *</Label>
                 <Input
                   id="name"
-                  placeholder="e.g. The Coffee Corner"
+                  placeholder={selectedPlace ? selectedPlace.name : "e.g. The Coffee Corner"}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="bg-input border-input"
                   maxLength={120}
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Name shown to Met users (defaults to venue name if left blank after selection).
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -162,7 +281,7 @@ export default function RegisterPage() {
 
               {agentFromUrl && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="agent">Referred by Agent</Label>
+                  <Label htmlFor="agent">Referred by Sales Agent</Label>
                   <Input
                     id="agent"
                     value={form.salesAgentId}
@@ -172,7 +291,7 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading || !selectedPlace}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Register Business
               </Button>

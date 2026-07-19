@@ -45,6 +45,8 @@ export type BusinessProfile = {
   description: string | null;
   logoUrl: string | null;
   mediaUrls: string[];
+  isActiveSubscription: boolean;
+  subscriptionEndDate: string | null;
   salesAgentId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -76,11 +78,21 @@ export type LeaderboardEntry = {
   displayName: string;
   photoUrl: string | null;
   checkinCount: number;
+  hasTrophy?: boolean;
 };
 
-export type AdminBusiness = BusinessProfile & { ownerDisplayName: string | null };
+export type AdminBusiness = BusinessProfile & {
+  ownerDisplayName: string | null;
+  ownerEmail: string | null;
+};
 
 export type AdminGroup = {
   salesAgentId: string | null;
   businesses: AdminBusiness[];
+};
+
+export type PlaceSuggestion = {
+  placeId: string;
+  name: string;
+  address: string;
 };

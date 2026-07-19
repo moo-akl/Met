@@ -4,7 +4,7 @@ import { api, type BusinessProfile } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Building2,
@@ -15,11 +15,12 @@ import {
   ArrowRight,
   Loader2,
   AlertCircle,
+  Zap,
+  CheckCircle2,
 } from "lucide-react";
+import { format } from "date-fns";
 
-type MyBusinessesResponse = {
-  businesses: BusinessProfile[];
-};
+type MyBusinessesResponse = { businesses: BusinessProfile[] };
 
 export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
   const { user } = useAuth();
@@ -31,16 +32,13 @@ export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
     if (!user) return;
     api
       .get<MyBusinessesResponse>("/api/business/mine")
-      .then((res) => {
-        setBusinesses(res.businesses ?? []);
-      })
-      .catch(() => {
-        setError("Failed to load your businesses");
-      })
+      .then((res) => setBusinesses(res.businesses ?? []))
+      .catch(() => setError("Failed to load your businesses"))
       .finally(() => setLoading(false));
   }, [user]);
 
   const totalEvents = businesses.reduce((acc, b) => acc + (b.events?.length ?? 0), 0);
+  const activeSubscriptions = businesses.filter((b) => b.isActiveSubscription).length;
 
   return (
     <Layout isAdmin={isAdmin}>
@@ -58,9 +56,9 @@ export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { label: "Businesses", value: businesses.length, icon: Building2, color: "text-primary" },
+            { label: "Active Plans", value: activeSubscriptions, icon: CheckCircle2, color: "text-emerald-400" },
             { label: "Events", value: totalEvents, icon: CalendarDays, color: "text-chart-2" },
-            { label: "Reviews", value: "—", icon: Star, color: "text-chart-4" },
-            { label: "Check-ins", value: "—", icon: Trophy, color: "text-chart-3" },
+            { label: "Leaderboards", value: businesses.length, icon: Trophy, color: "text-chart-3" },
           ].map((stat) => {
             const Icon = stat.icon;
             return (
@@ -81,7 +79,7 @@ export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-semibold text-foreground">Your Businesses</h2>
-            <Link href="/register">
+            <Link href="/business-register">
               <Button size="sm" className="gap-1.5 text-xs">
                 <Plus className="w-3.5 h-3.5" />
                 Add Business
@@ -110,7 +108,7 @@ export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
                 <p className="text-sm text-muted-foreground mb-4">
                   Register your venue to start connecting with Met users
                 </p>
-                <Link href="/register">
+                <Link href="/business-register">
                   <Button size="sm" className="gap-1.5">
                     <Plus className="w-3.5 h-3.5" />
                     Register Business
@@ -122,7 +120,10 @@ export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
 
           <div className="space-y-3">
             {businesses.map((biz) => (
-              <Card key={biz.businessId} className="bg-card border-card-border hover:border-primary/30 transition-colors">
+              <Card
+                key={biz.businessId}
+                className="bg-card border-card-border hover:border-primary/30 transition-colors"
+              >
                 <CardContent className="p-4 flex items-center gap-4">
                   {biz.logoUrl ? (
                     <img
@@ -136,8 +137,23 @@ export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h3 className="font-semibold text-foreground text-sm truncate">{biz.name}</h3>
+                      {biz.isActiveSubscription ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20 text-xs shrink-0">
+                          <CheckCircle2 className="w-3 h-3 mr-1" />
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="border-primary/30 text-primary/70 text-xs shrink-0 cursor-pointer hover:bg-primary/10"
+                          onClick={() => window.open("https://met-app.org", "_blank")}
+                        >
+                          <Zap className="w-3 h-3 mr-1" />
+                          Upgrade
+                        </Badge>
+                      )}
                       <Badge variant="secondary" className="text-xs shrink-0">
                         {biz.events?.length ?? 0} events
                       </Badge>
@@ -145,7 +161,12 @@ export default function DashboardPage({ isAdmin }: { isAdmin?: boolean }) {
                     <p className="text-xs text-muted-foreground truncate">
                       {biz.description ?? "No description"}
                     </p>
-                    <p className="text-xs text-muted-foreground/60 mt-0.5 font-mono truncate">
+                    {biz.isActiveSubscription && biz.subscriptionEndDate && (
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">
+                        Renews {format(new Date(biz.subscriptionEndDate), "MMM d, yyyy")}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground/40 mt-0.5 font-mono truncate">
                       {biz.placeId}
                     </p>
                   </div>

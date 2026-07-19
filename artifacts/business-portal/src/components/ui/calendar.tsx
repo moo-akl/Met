@@ -129,6 +129,7 @@ function Calendar({
           return (
             <div
               data-slot="calendar"
+              // @ts-ignore — dual @types/react versions in monorepo cause ref type mismatch
               ref={rootRef}
               className={cn(className)}
               {...props}

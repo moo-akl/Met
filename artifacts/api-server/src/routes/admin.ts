@@ -134,6 +134,23 @@ function requireAdminUid(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/admin/me
+// Returns { isAdmin: boolean } for the authenticated user.
+// Safe to call by any authenticated user — never returns 403.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/admin/me",
+  requireUid,
+  (req: Request, res: Response): void => {
+    const adminUidsEnv = process.env["ADMIN_UIDS"] ?? "";
+    const allowlist = new Set(adminUidsEnv.split(",").map((u) => u.trim()).filter(Boolean));
+    const uid = (req as Request & { uid?: string }).uid;
+    res.json({ isAdmin: !!(uid && allowlist.has(uid)) });
+  },
+);
+
+// ---------------------------------------------------------------------------
 // POST /api/admin/generate-sales-link
 // Generates a business registration URL with an embedded agent ID.
 // Requires Firebase Auth (requireUid) + admin UID allowlist.
@@ -196,9 +213,21 @@ router.get(
       ownerMap[p.uid] = p.displayName;
     }
 
+    // Fetch owner emails from Firebase Auth (best-effort)
+    const ownerEmailMap: Record<string, string> = {};
+    for (const uid of ownerUids) {
+      try {
+        const fbUser = await adminAuth().getUser(uid);
+        ownerEmailMap[uid] = fbUser.email ?? "";
+      } catch {
+        ownerEmailMap[uid] = "";
+      }
+    }
+
     const enriched = businesses.map((b) => ({
       ...b,
       ownerDisplayName: ownerMap[b.ownerId] ?? null,
+      ownerEmail: ownerEmailMap[b.ownerId] ?? null,
     }));
 
     // Group by salesAgentId (null → unassigned)
