@@ -54,6 +54,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
   const [deleting, setDeleting] = useState(false);
 
   const [form, setForm] = useState<EventForm>({ title: "", description: "", imageUrl: "", startTime: "", endTime: "" });
+  const [imageUrlStatus, setImageUrlStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
 
   useEffect(() => {
     if (!user) return;
@@ -80,6 +81,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
   function openCreateDialog() {
     setEditingEvent(null);
     setForm({ title: "", description: "", imageUrl: "", startTime: "", endTime: "" });
+    setImageUrlStatus("idle");
     setError("");
     setDialogOpen(true);
   }
@@ -93,6 +95,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
       startTime: toLocalDatetimeValue(event.startTime),
       endTime: toLocalDatetimeValue(event.endTime),
     });
+    setImageUrlStatus(event.imageUrl ? "checking" : "idle");
     setError("");
     setDialogOpen(true);
   }
@@ -100,6 +103,14 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
+    if (form.imageUrl.trim() && imageUrlStatus === "invalid") {
+      setError("The cover image URL could not be loaded. Please use a valid image URL or leave the field empty.");
+      return;
+    }
+    if (form.imageUrl.trim() && imageUrlStatus === "checking") {
+      setError("The cover image is still loading. Please wait a moment or clear the URL.");
+      return;
+    }
     setError("");
     setSaving(true);
     try {
@@ -355,20 +366,38 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
               <Label>Cover Image URL</Label>
               <Input
                 value={form.imageUrl}
-                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm({ ...form, imageUrl: val });
+                  setImageUrlStatus(val.trim() ? "checking" : "idle");
+                }}
                 placeholder="https://example.com/event-photo.jpg"
-                className="bg-input border-input"
+                className={`bg-input border-input ${imageUrlStatus === "invalid" ? "border-destructive" : ""}`}
                 type="url"
               />
               {form.imageUrl && (
-                <div className="mt-1.5 rounded-lg overflow-hidden border border-border h-28">
+                <div className={`mt-1.5 rounded-lg overflow-hidden border h-28 relative ${imageUrlStatus === "invalid" ? "border-destructive bg-destructive/5" : "border-border"}`}>
                   <img
+                    key={form.imageUrl}
                     src={form.imageUrl}
                     alt="Event cover preview"
                     className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    onLoad={() => setImageUrlStatus("valid")}
+                    onError={() => setImageUrlStatus("invalid")}
                   />
+                  {imageUrlStatus === "invalid" && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-destructive">
+                      <AlertCircle className="w-5 h-5" />
+                      <span className="text-xs font-medium">Image could not be loaded</span>
+                    </div>
+                  )}
                 </div>
+              )}
+              {form.imageUrl && imageUrlStatus === "invalid" && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  This URL doesn't point to a valid image. Clear it or use a different URL.
+                </p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
