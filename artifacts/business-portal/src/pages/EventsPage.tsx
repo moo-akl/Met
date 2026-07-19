@@ -292,6 +292,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          data-testid="edit-event-btn"
                           className="text-muted-foreground hover:text-foreground"
                           onClick={() => openEditDialog(event)}
                         >

@@ -311,6 +311,52 @@ describe("POST /api/business/:id/events", () => {
       );
       expect(dbMocks.chain.returning).toHaveBeenCalled();
     });
+
+    it("persists imageUrl when provided", async () => {
+      const imageUrl = "https://example.com/event-banner.jpg";
+      const createdEvent = {
+        eventId: 102,
+        businessId: BIZ_ID,
+        title: "Photo Event",
+        description: null,
+        imageUrl,
+        startTime: new Date("2030-06-01T10:00:00.000Z"),
+        endTime: new Date("2030-06-01T12:00:00.000Z"),
+      };
+
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+      dbMocks.chain.returning.mockResolvedValueOnce([createdEvent]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, {
+        ...VALID_CREATE_BODY,
+        imageUrl,
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ imageUrl });
+      expect(dbMocks.chain.values).toHaveBeenCalledWith(
+        expect.objectContaining({ imageUrl }),
+      );
+    });
+
+    it("does not include imageUrl in db.insert when omitted from the request", async () => {
+      const createdEvent = {
+        eventId: 103,
+        businessId: BIZ_ID,
+        title: "No Image",
+        description: null,
+        startTime: new Date("2030-06-01T10:00:00.000Z"),
+        endTime: new Date("2030-06-01T12:00:00.000Z"),
+      };
+
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+      dbMocks.chain.returning.mockResolvedValueOnce([createdEvent]);
+
+      await postEventAs(OWNER_UID, BIZ_ID, VALID_CREATE_BODY);
+
+      const insertedValues = dbMocks.chain.values.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(insertedValues).not.toHaveProperty("imageUrl");
+    });
   });
 });
 
@@ -438,6 +484,55 @@ describe("PUT /api/business/:id/events/:eventId", () => {
       expect(dbMocks.chain.update).toHaveBeenCalled();
       expect(dbMocks.chain.set).toHaveBeenCalled();
       expect(dbMocks.chain.returning).toHaveBeenCalled();
+    });
+
+    it("updates imageUrl when explicitly provided", async () => {
+      const imageUrl = "https://example.com/new-banner.jpg";
+      const updatedEvent = { ...eventFixture, imageUrl };
+
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+      dbMocks.chain.returning.mockResolvedValueOnce([updatedEvent]);
+
+      const res = await putEventAs(OWNER_UID, BIZ_ID, EVENT_ID, {
+        title: "Grand Re-opening",
+        imageUrl,
+        startTime: "2030-06-01T10:00:00.000Z",
+        endTime: "2030-06-01T13:00:00.000Z",
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ imageUrl });
+      const setArg = dbMocks.chain.set.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(setArg).toHaveProperty("imageUrl", imageUrl);
+    });
+
+    it("does NOT include imageUrl in db.update when omitted — preserves existing value", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+      dbMocks.chain.returning.mockResolvedValueOnce([{ ...eventFixture, title: "Grand Re-opening" }]);
+
+      await putEventAs(OWNER_UID, BIZ_ID, EVENT_ID, VALID_UPDATE_BODY);
+
+      const setArg = dbMocks.chain.set.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(setArg).not.toHaveProperty("imageUrl");
+    });
+
+    it("explicitly clears imageUrl when null is sent", async () => {
+      const updatedEvent = { ...eventFixture, imageUrl: null };
+
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+      dbMocks.chain.returning.mockResolvedValueOnce([updatedEvent]);
+
+      const res = await putEventAs(OWNER_UID, BIZ_ID, EVENT_ID, {
+        title: "Grand Re-opening",
+        imageUrl: null,
+        startTime: "2030-06-01T10:00:00.000Z",
+        endTime: "2030-06-01T13:00:00.000Z",
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.imageUrl).toBeNull();
+      const setArg = dbMocks.chain.set.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(setArg).toHaveProperty("imageUrl", null);
     });
   });
 });

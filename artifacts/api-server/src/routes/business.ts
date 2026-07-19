@@ -369,7 +369,7 @@ router.post(
         businessId: id,
         title,
         description,
-        imageUrl,
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
         startTime: new Date(startTime),
         endTime: new Date(endTime),
       })
