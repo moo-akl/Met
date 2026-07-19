@@ -74,6 +74,7 @@ export const businessEventsTable = pgTable(
       .references(() => businessProfilesTable.businessId, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
+    imageUrl: text("image_url"),
     startTime: timestamp("start_time", { withTimezone: true }).notNull(),
     endTime: timestamp("end_time", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })

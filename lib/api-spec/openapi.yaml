@@ -2742,6 +2742,11 @@ components:
         description:
           type: string
           nullable: true
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Optional cover image URL for the event
         startTime:
           type: string
           format: date-time
@@ -2762,6 +2767,10 @@ components:
           type: string
         description:
           type: string
+        imageUrl:
+          type: string
+          format: uri
+          description: Optional cover image URL for the event
         startTime:
           type: string
           format: date-time

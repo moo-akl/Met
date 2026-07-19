@@ -39,6 +39,7 @@ interface BusinessEvent {
   eventId: number;
   title: string;
   description: string | null;
+  imageUrl: string | null;
   startTime: string;
   endTime: string;
 }
@@ -434,7 +435,15 @@ export function EnhancedHubSheet({
                             { backgroundColor: colors.background, borderColor: colors.border },
                           ]}
                         >
-                          <View style={[styles.eventAccent, { backgroundColor: colors.primary }]} />
+                          {event.imageUrl ? (
+                            <Image
+                              source={{ uri: event.imageUrl }}
+                              style={styles.eventImage}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={[styles.eventAccent, { backgroundColor: colors.primary }]} />
+                          )}
                           <View style={styles.eventBody}>
                             <Text style={[styles.eventTitle, { color: colors.foreground }]}>
                               {event.title}
@@ -816,6 +825,11 @@ const styles = StyleSheet.create({
   },
   eventAccent: {
     width: 4,
+  },
+  eventImage: {
+    width: 72,
+    height: "100%" as unknown as number,
+    minHeight: 72,
   },
   eventBody: {
     flex: 1,

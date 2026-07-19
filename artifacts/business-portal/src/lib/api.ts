@@ -58,6 +58,7 @@ export type BusinessEvent = {
   businessId: string;
   title: string;
   description: string | null;
+  imageUrl: string | null;
   startTime: string;
   endTime: string;
   createdAt: string;

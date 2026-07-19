@@ -52,6 +52,7 @@ const UpdateBusinessBody = z.object({
 const CreateEventBody = z.object({
   title: z.string().min(1).max(120),
   description: z.string().max(1000).optional(),
+  imageUrl: z.string().url().optional(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
 });
@@ -59,6 +60,7 @@ const CreateEventBody = z.object({
 const UpdateEventBody = z.object({
   title: z.string().min(1).max(120).optional(),
   description: z.string().max(1000).optional(),
+  imageUrl: z.string().url().nullable().optional(),
   startTime: z.string().datetime().optional(),
   endTime: z.string().datetime().optional(),
 });
@@ -354,7 +356,7 @@ router.post(
       return;
     }
 
-    const { title, description, startTime, endTime } = parsed.data;
+    const { title, description, imageUrl, startTime, endTime } = parsed.data;
 
     if (new Date(endTime) <= new Date(startTime)) {
       res.status(400).json({ message: "endTime must be after startTime" });
@@ -367,6 +369,7 @@ router.post(
         businessId: id,
         title,
         description,
+        imageUrl,
         startTime: new Date(startTime),
         endTime: new Date(endTime),
       })
@@ -404,7 +407,7 @@ router.put(
       return;
     }
 
-    const { title, description, startTime, endTime } = parsed.data;
+    const { title, description, imageUrl, startTime, endTime } = parsed.data;
 
     if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
       res.status(400).json({ message: "endTime must be after startTime" });
@@ -414,6 +417,7 @@ router.put(
     const updateValues: Record<string, unknown> = {};
     if (title !== undefined) updateValues["title"] = title;
     if (description !== undefined) updateValues["description"] = description;
+    if (imageUrl !== undefined) updateValues["imageUrl"] = imageUrl;
     if (startTime !== undefined) updateValues["startTime"] = new Date(startTime);
     if (endTime !== undefined) updateValues["endTime"] = new Date(endTime);
 

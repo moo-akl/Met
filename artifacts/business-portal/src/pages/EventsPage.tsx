@@ -31,7 +31,7 @@ import { Link } from "wouter";
 
 type MyBusinessesResponse = { businesses: BusinessProfile[] };
 
-type EventForm = { title: string; description: string; startTime: string; endTime: string };
+type EventForm = { title: string; description: string; imageUrl: string; startTime: string; endTime: string };
 
 function toLocalDatetimeValue(iso: string): string {
   const d = new Date(iso);
@@ -53,7 +53,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const [form, setForm] = useState<EventForm>({ title: "", description: "", startTime: "", endTime: "" });
+  const [form, setForm] = useState<EventForm>({ title: "", description: "", imageUrl: "", startTime: "", endTime: "" });
 
   useEffect(() => {
     if (!user) return;
@@ -79,7 +79,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
 
   function openCreateDialog() {
     setEditingEvent(null);
-    setForm({ title: "", description: "", startTime: "", endTime: "" });
+    setForm({ title: "", description: "", imageUrl: "", startTime: "", endTime: "" });
     setError("");
     setDialogOpen(true);
   }
@@ -89,6 +89,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
     setForm({
       title: event.title,
       description: event.description ?? "",
+      imageUrl: event.imageUrl ?? "",
       startTime: toLocalDatetimeValue(event.startTime),
       endTime: toLocalDatetimeValue(event.endTime),
     });
@@ -108,6 +109,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
           {
             title: form.title,
             description: form.description || undefined,
+            imageUrl: form.imageUrl.trim() ? form.imageUrl.trim() : null,
             startTime: new Date(form.startTime).toISOString(),
             endTime: new Date(form.endTime).toISOString(),
           }
@@ -119,6 +121,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
           {
             title: form.title,
             description: form.description || undefined,
+            imageUrl: form.imageUrl.trim() || undefined,
             startTime: new Date(form.startTime).toISOString(),
             endTime: new Date(form.endTime).toISOString(),
           }
@@ -126,7 +129,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
         setEvents((prev) => [event, ...prev]);
       }
       setDialogOpen(false);
-      setForm({ title: "", description: "", startTime: "", endTime: "" });
+      setForm({ title: "", description: "", imageUrl: "", startTime: "", endTime: "" });
       setEditingEvent(null);
     } catch (err: unknown) {
       setError((err as Error)?.message ?? "Failed to save event");
@@ -241,8 +244,26 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
                     className={`bg-card border-card-border ${past ? "opacity-60" : ""}`}
                   >
                     <CardContent className="p-4 flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <CalendarDays className="w-4 h-4 text-primary" />
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {event.imageUrl ? (
+                          <img
+                            src={event.imageUrl}
+                            alt={event.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = "none";
+                              const parent = target.parentElement;
+                              if (parent) {
+                                const icon = document.createElement("span");
+                                icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M3 11h18M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>`;
+                                parent.appendChild(icon);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <CalendarDays className="w-4 h-4 text-primary" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
@@ -328,6 +349,26 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
                 rows={2}
                 maxLength={1000}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Cover Image URL</Label>
+              <Input
+                value={form.imageUrl}
+                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                placeholder="https://example.com/event-photo.jpg"
+                className="bg-input border-input"
+                type="url"
+              />
+              {form.imageUrl && (
+                <div className="mt-1.5 rounded-lg overflow-hidden border border-border h-28">
+                  <img
+                    src={form.imageUrl}
+                    alt="Event cover preview"
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
