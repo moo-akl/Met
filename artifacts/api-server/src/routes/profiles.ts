@@ -58,9 +58,10 @@ router.get("/profiles/me", requireUid, async (req, res) => {
       .from(subscriptionsTable)
       .where(eq(subscriptionsTable.userUid, uid))
       .limit(1);
-  } catch {
+  } catch (err) {
     // Subscription table unavailable (e.g. missing in test mocks or DB error).
     // Default to free tier so the profile response is never blocked.
+    req.log.warn({ err }, "subscription lookup failed for uid %s; defaulting to free tier", uid);
     subRow = undefined;
   }
   const subscriptionTier = (subRow?.tier ?? "free") as "free" | "plus" | "pro";
