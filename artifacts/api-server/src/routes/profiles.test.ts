@@ -221,6 +221,32 @@ describe("GET /api/profiles/me", () => {
     expect(res.status).toBe(200);
     expect(res.body.isSubscribed).toBe(false);
   });
+
+  it("returns isSubscribed false for a cancelled plus subscription", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([profileFixture])
+      .mockResolvedValueOnce([{ tier: "plus", status: "cancelled" }]);
+
+    const res = await request(app)
+      .get("/api/profiles/me")
+      .set("x-met-uid", "alice");
+
+    expect(res.status).toBe(200);
+    expect(res.body.isSubscribed).toBe(false);
+  });
+
+  it("returns isSubscribed false for an expired plus subscription", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([profileFixture])
+      .mockResolvedValueOnce([{ tier: "plus", status: "expired" }]);
+
+    const res = await request(app)
+      .get("/api/profiles/me")
+      .set("x-met-uid", "alice");
+
+    expect(res.status).toBe(200);
+    expect(res.body.isSubscribed).toBe(false);
+  });
 });
 
 describe("PUT /api/profiles/me", () => {
