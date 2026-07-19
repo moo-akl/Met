@@ -12,7 +12,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { eq, and, desc, asc, avg, count, sql } from "drizzle-orm";
+import { eq, and, desc, asc, avg, count, sql, gte } from "drizzle-orm";
 import {
   db,
   businessProfilesTable,
@@ -85,6 +85,35 @@ async function getEventsForBusiness(businessId: string) {
     )
     .limit(50);
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/business/mine
+// Returns all business profiles owned by the authenticated user (with events).
+// Must be registered BEFORE GET /api/business/:placeId to avoid Express
+// matching "mine" as a :placeId param.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/business/mine",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const businesses = await db
+      .select()
+      .from(businessProfilesTable)
+      .where(eq(businessProfilesTable.ownerId, uid))
+      .orderBy(asc(businessProfilesTable.createdAt));
+
+    const withEvents = await Promise.all(
+      businesses.map(async (biz) => ({
+        ...biz,
+        events: await getEventsForBusiness(biz.businessId),
+      })),
+    );
+
+    res.json({ businesses: withEvents });
+  },
+);
 
 // ---------------------------------------------------------------------------
 // GET /api/business/:placeId
