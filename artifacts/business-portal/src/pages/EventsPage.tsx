@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -25,11 +25,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CalendarDays, Plus, Trash2, Loader2, AlertCircle, Clock } from "lucide-react";
+import { CalendarDays, Plus, Trash2, Loader2, AlertCircle, Clock, Pencil } from "lucide-react";
 import { format, isPast } from "date-fns";
 import { Link } from "wouter";
 
 type MyBusinessesResponse = { businesses: BusinessProfile[] };
+
+type EventForm = { title: string; description: string; startTime: string; endTime: string };
+
+function toLocalDatetimeValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
   const { user } = useAuth();
@@ -40,11 +48,12 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
   const [error, setError] = useState("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<BusinessEvent | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const [form, setForm] = useState({ title: "", description: "", startTime: "", endTime: "" });
+  const [form, setForm] = useState<EventForm>({ title: "", description: "", startTime: "", endTime: "" });
 
   useEffect(() => {
     if (!user) return;
@@ -68,26 +77,59 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
     setError("");
   }
 
-  const handleCreate = async (e: React.FormEvent) => {
+  function openCreateDialog() {
+    setEditingEvent(null);
+    setForm({ title: "", description: "", startTime: "", endTime: "" });
+    setError("");
+    setDialogOpen(true);
+  }
+
+  function openEditDialog(event: BusinessEvent) {
+    setEditingEvent(event);
+    setForm({
+      title: event.title,
+      description: event.description ?? "",
+      startTime: toLocalDatetimeValue(event.startTime),
+      endTime: toLocalDatetimeValue(event.endTime),
+    });
+    setError("");
+    setDialogOpen(true);
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
     setError("");
     setSaving(true);
     try {
-      const event = await api.post<BusinessEvent>(
-        `/api/business/${selected.businessId}/events`,
-        {
-          title: form.title,
-          description: form.description || undefined,
-          startTime: new Date(form.startTime).toISOString(),
-          endTime: new Date(form.endTime).toISOString(),
-        }
-      );
-      setEvents((prev) => [event, ...prev]);
+      if (editingEvent) {
+        const updated = await api.put<BusinessEvent>(
+          `/api/business/${selected.businessId}/events/${editingEvent.eventId}`,
+          {
+            title: form.title,
+            description: form.description || undefined,
+            startTime: new Date(form.startTime).toISOString(),
+            endTime: new Date(form.endTime).toISOString(),
+          }
+        );
+        setEvents((prev) => prev.map((ev) => (ev.eventId === updated.eventId ? updated : ev)));
+      } else {
+        const event = await api.post<BusinessEvent>(
+          `/api/business/${selected.businessId}/events`,
+          {
+            title: form.title,
+            description: form.description || undefined,
+            startTime: new Date(form.startTime).toISOString(),
+            endTime: new Date(form.endTime).toISOString(),
+          }
+        );
+        setEvents((prev) => [event, ...prev]);
+      }
       setDialogOpen(false);
       setForm({ title: "", description: "", startTime: "", endTime: "" });
+      setEditingEvent(null);
     } catch (err: unknown) {
-      setError((err as Error)?.message ?? "Failed to create event");
+      setError((err as Error)?.message ?? "Failed to save event");
     } finally {
       setSaving(false);
     }
@@ -119,7 +161,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
           </div>
           {selected && (
             <Button
-              onClick={() => setDialogOpen(true)}
+              onClick={openCreateDialog}
               size="sm"
               className="gap-1.5"
             >
@@ -183,7 +225,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
                   <Button
                     size="sm"
                     className="mt-3 gap-1.5"
-                    onClick={() => setDialogOpen(true)}
+                    onClick={openCreateDialog}
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Create First Event
@@ -225,7 +267,15 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
                           </span>
                         </div>
                       </div>
-                      {!past && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => openEditDialog(event)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -234,7 +284,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
-                      )}
+                      </div>
                     </CardContent>
                   </Card>
                 );
@@ -244,13 +294,13 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
         )}
       </div>
 
-      {/* Create Event Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* Create / Edit Event Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditingEvent(null); }}>
         <DialogContent className="bg-card border-card-border max-w-md">
           <DialogHeader>
-            <DialogTitle>Create Event</DialogTitle>
+            <DialogTitle>{editingEvent ? "Edit Event" : "Create Event"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4 py-2">
+          <form onSubmit={handleSubmit} className="space-y-4 py-2">
             {error && dialogOpen && (
               <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 rounded-lg px-3 py-2.5">
                 <AlertCircle className="w-4 h-4" />
@@ -285,7 +335,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
                 <Input
                   type="datetime-local"
                   value={form.startTime}
-                  min={minStart}
+                  min={editingEvent ? undefined : minStart}
                   onChange={(e) => setForm({ ...form, startTime: e.target.value })}
                   className="bg-input border-input text-sm"
                   required
@@ -296,7 +346,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
                 <Input
                   type="datetime-local"
                   value={form.endTime}
-                  min={form.startTime || minStart}
+                  min={form.startTime || (editingEvent ? undefined : minStart)}
                   onChange={(e) => setForm({ ...form, endTime: e.target.value })}
                   className="bg-input border-input text-sm"
                   required
@@ -309,7 +359,7 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Create Event
+                {editingEvent ? "Save Changes" : "Create Event"}
               </Button>
             </DialogFooter>
           </form>

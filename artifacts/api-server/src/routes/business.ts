@@ -6,6 +6,7 @@
  * PUT  /api/business/:id             — update business profile (owner only)
  * POST /api/business/:id/events      — create an event
  * GET  /api/business/:id/events      — list events (upcoming first)
+ * PUT  /api/business/:id/events/:eventId — update an event (owner only)
  * DELETE /api/business/:id/events/:eventId — delete an event (owner only)
  * POST /api/business/:id/reviews     — create/upsert a business review
  * GET  /api/business/:id/reviews     — list reviews with avg rating
@@ -53,6 +54,13 @@ const CreateEventBody = z.object({
   description: z.string().max(1000).optional(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
+});
+
+const UpdateEventBody = z.object({
+  title: z.string().min(1).max(120).optional(),
+  description: z.string().max(1000).optional(),
+  startTime: z.string().datetime().optional(),
+  endTime: z.string().datetime().optional(),
 });
 
 const CreateReviewBody = z.object({
@@ -365,6 +373,72 @@ router.post(
       .returning();
 
     res.status(201).json(event);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// PUT /api/business/:id/events/:eventId
+// Update an event. Owner only.
+// ---------------------------------------------------------------------------
+
+router.put(
+  "/business/:id/events/:eventId",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const { id, eventId } = req.params as { id: string; eventId: string };
+
+    const biz = await getBusinessById(id);
+    if (!biz) {
+      res.status(404).json({ message: "Business not found" });
+      return;
+    }
+    if (biz.ownerId !== uid) {
+      res.status(403).json({ message: "Not the business owner" });
+      return;
+    }
+
+    const parsed = UpdateEventBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid request body", errors: parsed.error.issues });
+      return;
+    }
+
+    const { title, description, startTime, endTime } = parsed.data;
+
+    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+      res.status(400).json({ message: "endTime must be after startTime" });
+      return;
+    }
+
+    const updateValues: Record<string, unknown> = {};
+    if (title !== undefined) updateValues["title"] = title;
+    if (description !== undefined) updateValues["description"] = description;
+    if (startTime !== undefined) updateValues["startTime"] = new Date(startTime);
+    if (endTime !== undefined) updateValues["endTime"] = new Date(endTime);
+
+    if (Object.keys(updateValues).length === 0) {
+      res.status(400).json({ message: "No fields to update" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(businessEventsTable)
+      .set(updateValues)
+      .where(
+        and(
+          eq(businessEventsTable.eventId, parseInt(eventId, 10)),
+          eq(businessEventsTable.businessId, id),
+        ),
+      )
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+
+    res.json(updated);
   },
 );
 

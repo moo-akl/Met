@@ -1703,6 +1703,40 @@ paths:
           description: Not the business owner
 
   /business/{id}/events/{eventId}:
+    put:
+      operationId: updateBusinessEvent
+      tags: [business]
+      summary: Update an event (owner only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBusinessEventRequest"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessEvent"
+        "403":
+          description: Not the business owner
+        "404":
+          description: Event not found
     delete:
       operationId: deleteBusinessEvent
       tags: [business]
