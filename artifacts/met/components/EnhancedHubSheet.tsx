@@ -19,6 +19,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
@@ -90,6 +91,28 @@ function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
   );
 }
 
+function InteractiveStarPicker({
+  value,
+  onChange,
+  size = 32,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  size?: number;
+}) {
+  return (
+    <View style={{ flexDirection: "row", gap: 4 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Pressable key={i} onPress={() => onChange(i)} hitSlop={6}>
+          <Text style={{ fontSize: size, color: i <= value ? "#F59E0B" : "#D1D5DB" }}>
+            ★
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Section: Skeleton placeholder
 // ---------------------------------------------------------------------------
@@ -138,6 +161,17 @@ export function EnhancedHubSheet({
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState(false);
 
+  // Review form state
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [draftRating, setDraftRating] = useState(0);
+  const [draftComment, setDraftComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [hasCheckedInBefore, setHasCheckedInBefore] = useState(false);
+
+  const myExistingReview = reviews.find((r) => r.reviewerId === authedUid) ?? null;
+  const canReview = isCheckedIn || hasCheckedInBefore || myExistingReview !== null;
+
   const fetchData = useCallback(() => {
     if (!authedUid) return;
     const uid = authedUid;
@@ -163,13 +197,76 @@ export function EnhancedHubSheet({
       })
       .catch(() => { setReviewsError(true); })
       .finally(() => { setReviewsLoading(false); });
-  }, [authedUid, businessProfile]);
+
+    // Best-effort: check if the user has ever checked in here before (gates
+    // the review button for past visitors who aren't currently checked in).
+    if (!isCheckedIn) {
+      api
+        .getMyBusinessCheckin({ uid }, businessId)
+        .then((data) => { setHasCheckedInBefore(data.hasCheckedIn); })
+        .catch(() => { /* leave false — fail-safe */ });
+    }
+  }, [authedUid, businessProfile, isCheckedIn]);
+
+  // Reset check-in eligibility whenever the business changes so a previous
+  // hub's hasCheckedInBefore never leaks across to a different hub.
+  useEffect(() => {
+    setHasCheckedInBefore(false);
+  }, [businessProfile.businessId]);
 
   // Fetch events + reviews when sheet opens
   useEffect(() => {
     if (!visible) return;
     fetchData();
   }, [visible, fetchData]);
+
+  // Pre-populate form with existing review when reviews load
+  useEffect(() => {
+    if (myExistingReview && !showReviewForm) {
+      setDraftRating(myExistingReview.rating);
+      setDraftComment(myExistingReview.comment ?? "");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myExistingReview?.reviewId]);
+
+  const handleOpenReviewForm = () => {
+    if (myExistingReview) {
+      setDraftRating(myExistingReview.rating);
+      setDraftComment(myExistingReview.comment ?? "");
+    } else {
+      setDraftRating(0);
+      setDraftComment("");
+    }
+    setSubmitError(null);
+    setShowReviewForm(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!authedUid || draftRating === 0) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const submitted = await api.submitBusinessReview(
+        { uid: authedUid },
+        businessProfile.businessId,
+        { rating: draftRating, comment: draftComment.trim() || null },
+      );
+      // Update reviews list immediately — upsert into current list
+      setReviews((prev) => {
+        const filtered = prev.filter((r) => r.reviewerId !== authedUid);
+        return [submitted, ...filtered];
+      });
+      // Refresh aggregate rating
+      fetchData();
+      setShowReviewForm(false);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to submit review";
+      setSubmitError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const upcomingEvents = events.filter(
     (e) => new Date(e.startTime) >= new Date(),
@@ -400,6 +497,102 @@ export function EnhancedHubSheet({
                       ) : null}
                     </View>
 
+                    {/* Write a review button — only when eligible */}
+                    {canReview && !showReviewForm ? (
+                      <Pressable
+                        onPress={handleOpenReviewForm}
+                        style={({ pressed }) => [
+                          styles.writeReviewBtn,
+                          {
+                            backgroundColor: colors.primary,
+                            opacity: pressed ? 0.8 : 1,
+                          },
+                        ]}
+                      >
+                        <Feather name="edit-2" size={14} color={colors.primaryForeground} />
+                        <Text style={[styles.writeReviewBtnText, { color: colors.primaryForeground }]}>
+                          {myExistingReview ? "Edit your review" : "Write a review"}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+
+                    {/* Inline review form */}
+                    {showReviewForm ? (
+                      <View
+                        style={[
+                          styles.reviewForm,
+                          { backgroundColor: colors.background, borderColor: colors.border },
+                        ]}
+                      >
+                        <Text style={[styles.reviewFormTitle, { color: colors.foreground }]}>
+                          {myExistingReview ? "Edit your review" : "Write a review"}
+                        </Text>
+
+                        <InteractiveStarPicker value={draftRating} onChange={setDraftRating} />
+
+                        <TextInput
+                          value={draftComment}
+                          onChangeText={setDraftComment}
+                          placeholder="Share your experience (optional)"
+                          placeholderTextColor={colors.mutedForeground}
+                          multiline
+                          numberOfLines={3}
+                          style={[
+                            styles.reviewTextInput,
+                            {
+                              color: colors.foreground,
+                              backgroundColor: colors.muted,
+                              borderColor: colors.border,
+                            },
+                          ]}
+                          maxLength={1000}
+                        />
+
+                        {submitError ? (
+                          <Text style={styles.reviewFormError}>{submitError}</Text>
+                        ) : null}
+
+                        <View style={styles.reviewFormActions}>
+                          <Pressable
+                            onPress={() => setShowReviewForm(false)}
+                            style={({ pressed }) => [
+                              styles.reviewFormCancelBtn,
+                              {
+                                backgroundColor: colors.muted,
+                                borderColor: colors.border,
+                                opacity: pressed ? 0.7 : 1,
+                              },
+                            ]}
+                          >
+                            <Text style={[styles.reviewFormCancelText, { color: colors.foreground }]}>
+                              Cancel
+                            </Text>
+                          </Pressable>
+
+                          <Pressable
+                            onPress={handleSubmitReview}
+                            disabled={submitting || draftRating === 0}
+                            style={({ pressed }) => [
+                              styles.reviewFormSubmitBtn,
+                              {
+                                backgroundColor: colors.primary,
+                                opacity: submitting || draftRating === 0 ? 0.5 : pressed ? 0.8 : 1,
+                                flex: 1,
+                              },
+                            ]}
+                          >
+                            {submitting ? (
+                              <ActivityIndicator size="small" color={colors.primaryForeground} />
+                            ) : (
+                              <Text style={[styles.reviewFormSubmitText, { color: colors.primaryForeground }]}>
+                                {myExistingReview ? "Update review" : "Submit review"}
+                              </Text>
+                            )}
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : null}
+
                     {reviewsLoading ? (
                       <>
                         <SkeletonRow colors={colors} />
@@ -429,17 +622,24 @@ export function EnhancedHubSheet({
                           key={review.reviewId}
                           style={[
                             styles.reviewCard,
-                            { backgroundColor: colors.background, borderColor: colors.border },
+                            review.reviewerId === authedUid
+                              ? { backgroundColor: colors.background, borderColor: colors.primary }
+                              : { backgroundColor: colors.background, borderColor: colors.border },
                           ]}
                         >
                           <View style={styles.reviewTop}>
                             <StarRating rating={review.rating} />
-                            <Text style={[styles.reviewDate, { color: colors.mutedForeground }]}>
-                              {new Date(review.createdAt).toLocaleDateString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </Text>
+                            <View style={styles.reviewTopRight}>
+                              {review.reviewerId === authedUid ? (
+                                <Text style={[styles.reviewYouLabel, { color: colors.primary }]}>You</Text>
+                              ) : null}
+                              <Text style={[styles.reviewDate, { color: colors.mutedForeground }]}>
+                                {new Date(review.createdAt).toLocaleDateString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </Text>
+                            </View>
                           </View>
                           {review.comment ? (
                             <Text style={[styles.reviewComment, { color: colors.foreground }]}>
@@ -662,6 +862,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  reviewTopRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reviewYouLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+  },
   reviewDate: {
     fontFamily: "Inter_400Regular",
     fontSize: 12,
@@ -670,6 +879,71 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 13,
     lineHeight: 18,
+  },
+  writeReviewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  writeReviewBtnText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
+  reviewForm: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+  },
+  reviewFormTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+  },
+  reviewTextInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  reviewFormError: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    color: "#EF4444",
+  },
+  reviewFormActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  reviewFormCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewFormCancelText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
+  reviewFormSubmitBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewFormSubmitText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
   },
   skeletonRow: {
     height: 52,

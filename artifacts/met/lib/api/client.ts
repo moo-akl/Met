@@ -881,6 +881,42 @@ export const api = {
     }>("GET", `/api/business/${encodeURIComponent(businessId)}/reviews`, opts),
 
   /**
+   * Returns whether the authenticated user has ever checked in at the
+   * given business hub (based on the hub_checkins table). Use this to
+   * gate the review UI for users who visited in the past but aren't
+   * currently checked in.
+   */
+  getMyBusinessCheckin: (opts: ApiOptions, businessId: string) =>
+    request<{ hasCheckedIn: boolean }>(
+      "GET",
+      `/api/business/${encodeURIComponent(businessId)}/my-checkin`,
+      opts,
+    ),
+
+  /**
+   * Upsert a review for a business partner hub.
+   * One review per user per business — submitting again updates the existing one.
+   */
+  submitBusinessReview: (
+    opts: ApiOptions,
+    businessId: string,
+    input: { rating: number; comment?: string | null },
+  ) =>
+    request<{
+      reviewId: number;
+      businessId: string;
+      reviewerId: string;
+      rating: number;
+      comment: string | null;
+      createdAt: string;
+    }>(
+      "POST",
+      `/api/business/${encodeURIComponent(businessId)}/reviews`,
+      opts,
+      input,
+    ),
+
+  /**
    * Best-effort: increment the shared message_count for the connection
    * between the caller and peerUid. Called after each successful message send.
    * Never throws — failure must not block the chat UX.

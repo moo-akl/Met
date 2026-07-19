@@ -9,6 +9,7 @@
  * DELETE /api/business/:id/events/:eventId — delete an event (owner only)
  * POST /api/business/:id/reviews     — create/upsert a business review
  * GET  /api/business/:id/reviews     — list reviews with avg rating
+ * GET  /api/business/:id/my-checkin  — whether the caller has ever checked in at this hub
  */
 
 import { Router, type IRouter } from "express";
@@ -18,6 +19,7 @@ import {
   businessProfilesTable,
   businessEventsTable,
   businessReviewsTable,
+  hubCheckinsTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { logger } from "../lib/logger";
@@ -443,6 +445,40 @@ router.get(
       page,
       reviews,
     });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/business/:id/my-checkin
+// Returns whether the authenticated caller has ever checked in at this
+// business hub (i.e. any row in hub_checkins for (userUid, placeId)).
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/business/:id/my-checkin",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const { id } = req.params as { id: string };
+
+    const biz = await getBusinessById(id);
+    if (!biz) {
+      res.status(404).json({ message: "Business not found" });
+      return;
+    }
+
+    const [row] = await db
+      .select({ id: hubCheckinsTable.id })
+      .from(hubCheckinsTable)
+      .where(
+        and(
+          eq(hubCheckinsTable.userUid, uid),
+          eq(hubCheckinsTable.placeId, biz.placeId),
+        ),
+      )
+      .limit(1);
+
+    res.json({ hasCheckedIn: row !== undefined });
   },
 );
 
