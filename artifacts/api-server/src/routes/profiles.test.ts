@@ -125,6 +125,24 @@ describe("GET /api/profiles/me", () => {
       displayName: "Alice Wonderland",
     });
   });
+
+  it("returns 200 with subscriptionTier 'free' when the subscriptions query throws", async () => {
+    // First call (profile lookup) resolves, second call (subscriptions) throws.
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([profileFixture])
+      .mockRejectedValueOnce(new Error("subscriptionsTable not found in mock"));
+
+    const res = await request(app)
+      .get("/api/profiles/me")
+      .set("x-met-uid", "alice");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      uid: "alice",
+      subscriptionTier: "free",
+      isSubscribed: false,
+    });
+  });
 });
 
 describe("PUT /api/profiles/me", () => {
