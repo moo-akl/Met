@@ -18,12 +18,37 @@ const dbMocks = vi.hoisted(() => {
   return { chain };
 });
 
+const logMocks = vi.hoisted(() => {
+  const warnSpy = vi.fn();
+  const childLogger = {
+    warn: warnSpy,
+    info: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    fatal: vi.fn(),
+    trace: vi.fn(),
+    child: vi.fn(),
+  };
+  childLogger.child.mockReturnValue(childLogger);
+  return { childLogger, warnSpy };
+});
+
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
   profilesTable: {},
   encountersTable: {},
   revealRequestsTable: {},
   subscriptionsTable: {},
+}));
+
+// Replace pino-http with a bare middleware that attaches our spy logger to
+// req.log — avoids pino's internal symbol requirements while still letting
+// route handlers call req.log.warn / req.log.info normally.
+vi.mock("pino-http", () => ({
+  default: () => (req: any, _res: any, next: any) => {
+    req.log = logMocks.childLogger;
+    next();
+  },
 }));
 
 vi.mock("../lib/firestoreMirror", () => ({
@@ -86,6 +111,9 @@ beforeEach(() => {
   // DB query (e.g. subscriptions lookup in GET /profiles/me) don't throw on
   // array destructuring when no per-test override is set.
   dbMocks.chain.limit.mockResolvedValue([]);
+  // Restore childLogger methods after clearAllMocks resets them.
+  logMocks.childLogger.warn = logMocks.warnSpy;
+  logMocks.childLogger.child.mockReturnValue(logMocks.childLogger);
 });
 
 // ---------------------------------------------------------------------------
@@ -142,6 +170,11 @@ describe("GET /api/profiles/me", () => {
       subscriptionTier: "free",
       isSubscribed: false,
     });
+    // The catch block must log a warning so the silent failure is observable.
+    expect(logMocks.warnSpy).toHaveBeenCalledOnce();
+    const [bindings, message] = logMocks.warnSpy.mock.calls[0] as [unknown, string];
+    expect(bindings).toMatchObject({ err: expect.any(Error) });
+    expect(message).toContain("subscription lookup failed");
   });
 });
 
