@@ -583,8 +583,11 @@ router.get(
       return;
     }
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const rawDays = parseInt(String(req.query["days"] ?? ""), 10);
+    const days = isNaN(rawDays) ? 30 : Math.min(90, Math.max(1, rawDays));
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
 
     const [dailyRows, peakHourRows, totals] = await Promise.all([
       db
@@ -596,7 +599,7 @@ router.get(
         .where(
           and(
             eq(hubCheckinsTable.placeId, biz.placeId),
-            gte(hubCheckinsTable.createdAt, thirtyDaysAgo),
+            gte(hubCheckinsTable.createdAt, cutoff),
           ),
         )
         .groupBy(sql`DATE(${hubCheckinsTable.createdAt} AT TIME ZONE 'UTC')`)
@@ -611,7 +614,7 @@ router.get(
         .where(
           and(
             eq(hubCheckinsTable.placeId, biz.placeId),
-            gte(hubCheckinsTable.createdAt, thirtyDaysAgo),
+            gte(hubCheckinsTable.createdAt, cutoff),
           ),
         )
         .groupBy(sql`EXTRACT(HOUR FROM ${hubCheckinsTable.createdAt} AT TIME ZONE 'UTC')`)
@@ -626,7 +629,7 @@ router.get(
         .where(
           and(
             eq(hubCheckinsTable.placeId, biz.placeId),
-            gte(hubCheckinsTable.createdAt, thirtyDaysAgo),
+            gte(hubCheckinsTable.createdAt, cutoff),
           ),
         ),
     ]);

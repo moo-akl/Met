@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Hoisted DB mock — must be defined before vi.mock() factory runs.
@@ -16,10 +16,28 @@ const dbMocks = vi.hoisted(() => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
+    groupBy: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
   };
   return { chain };
+});
+
+// ---------------------------------------------------------------------------
+// Hoisted gte spy — allows us to assert what cutoff Date was passed to queries.
+// We hold a reference to the real gte so we can restore it after resetAllMocks.
+// ---------------------------------------------------------------------------
+
+const { gteSpy, realGteHolder } = vi.hoisted(() => {
+  const realGteHolder: { fn: ((...args: unknown[]) => unknown) | undefined } = { fn: undefined };
+  const gteSpy = vi.fn((...args: unknown[]) => realGteHolder.fn?.(...args));
+  return { gteSpy, realGteHolder };
+});
+
+vi.mock("drizzle-orm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  realGteHolder.fn = actual.gte as (...args: unknown[]) => unknown;
+  return { ...actual, gte: gteSpy };
 });
 
 vi.mock("@workspace/db", () => ({
@@ -100,8 +118,12 @@ beforeEach(() => {
   dbMocks.chain.update.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
   dbMocks.chain.delete.mockReturnThis();
+  dbMocks.chain.groupBy.mockReturnThis();
   dbMocks.chain.orderBy.mockReturnThis();
   dbMocks.chain.onConflictDoUpdate.mockResolvedValue(undefined);
+
+  // Restore gte call-through after vi.resetAllMocks() clears the implementation.
+  gteSpy.mockImplementation((...args: unknown[]) => realGteHolder.fn?.(...args));
 });
 
 // ---------------------------------------------------------------------------
@@ -533,6 +555,215 @@ describe("PUT /api/business/:id/events/:eventId", () => {
       expect(res.body.imageUrl).toBeNull();
       const setArg = dbMocks.chain.set.mock.calls[0]?.[0] as Record<string, unknown>;
       expect(setArg).toHaveProperty("imageUrl", null);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/business/:id/analytics
+// ---------------------------------------------------------------------------
+
+function getAnalyticsAs(uid: string | null, bizId: string, query?: Record<string, string>) {
+  const qs = query ? "?" + new URLSearchParams(query).toString() : "";
+  const req = request(app).get(`/api/business/${bizId}/analytics${qs}`);
+  if (uid !== null) {
+    req.set("x-met-uid", uid);
+  }
+  return req;
+}
+
+function setupAnalyticsMocks() {
+  dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+  dbMocks.chain.orderBy.mockResolvedValueOnce([]);
+  dbMocks.chain.orderBy.mockResolvedValueOnce([]);
+}
+
+describe("GET /api/business/:id/analytics", () => {
+  describe("authentication and ownership", () => {
+    it("returns 401 when no uid is provided", async () => {
+      const res = await getAnalyticsAs(null, BIZ_ID);
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 403 when the caller is not the business owner", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+      const res = await getAnalyticsAs(OTHER_UID, BIZ_ID);
+      expect(res.status).toBe(403);
+      expect(res.body).toHaveProperty("message");
+    });
+
+    it("returns 404 when the business does not exist", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([]);
+      const res = await getAnalyticsAs(OWNER_UID, BIZ_ID);
+      expect(res.status).toBe(404);
+      expect(res.body).toHaveProperty("message");
+    });
+  });
+
+  describe("valid days values", () => {
+    it("returns 200 with the expected shape when days=7", async () => {
+      setupAnalyticsMocks();
+
+      const res = await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "7" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("dailyCheckins");
+      expect(res.body).toHaveProperty("peakHours");
+      expect(res.body).toHaveProperty("totalCheckins");
+      expect(res.body).toHaveProperty("uniqueVisitors");
+      expect(Array.isArray(res.body.dailyCheckins)).toBe(true);
+      expect(Array.isArray(res.body.peakHours)).toBe(true);
+    });
+
+    it("returns 200 with the expected shape when days=30 (default)", async () => {
+      setupAnalyticsMocks();
+
+      const res = await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "30" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("dailyCheckins");
+      expect(res.body).toHaveProperty("peakHours");
+      expect(res.body).toHaveProperty("totalCheckins");
+      expect(res.body).toHaveProperty("uniqueVisitors");
+    });
+
+    it("returns 200 with the expected shape when days=90", async () => {
+      setupAnalyticsMocks();
+
+      const res = await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "90" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("dailyCheckins");
+      expect(res.body).toHaveProperty("peakHours");
+      expect(res.body).toHaveProperty("totalCheckins");
+      expect(res.body).toHaveProperty("uniqueVisitors");
+    });
+
+    it("returns 200 without a days param, defaulting to 30 days", async () => {
+      setupAnalyticsMocks();
+
+      const res = await getAnalyticsAs(OWNER_UID, BIZ_ID);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("dailyCheckins");
+      expect(res.body).toHaveProperty("peakHours");
+    });
+  });
+
+  describe("out-of-range days values are clamped gracefully", () => {
+    it("returns 200 when days=0 (clamped to 1)", async () => {
+      setupAnalyticsMocks();
+
+      const res = await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "0" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("dailyCheckins");
+      expect(res.body).toHaveProperty("peakHours");
+    });
+
+    it("returns 200 when days=-5 (clamped to 1)", async () => {
+      setupAnalyticsMocks();
+
+      const res = await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "-5" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("dailyCheckins");
+      expect(res.body).toHaveProperty("peakHours");
+    });
+
+    it("returns 200 when days=999 (clamped to 90)", async () => {
+      setupAnalyticsMocks();
+
+      const res = await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "999" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("dailyCheckins");
+      expect(res.body).toHaveProperty("peakHours");
+    });
+
+    it("returns 200 when days=abc (non-numeric, defaults to 30)", async () => {
+      setupAnalyticsMocks();
+
+      const res = await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "abc" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("dailyCheckins");
+      expect(res.body).toHaveProperty("peakHours");
+    });
+  });
+
+  describe("cutoff date is computed correctly from the clamped days value", () => {
+    // Fixed reference point: 2026-01-15T12:00:00.000Z
+    // Expected cutoffs (UTC date string YYYY-MM-DD):
+    //   days=7   → 2026-01-08
+    //   days=30  → 2025-12-16
+    //   days=90  → 2025-10-17
+    //   days=0   (clamped to 1)  → 2026-01-14
+    //   days=-5  (clamped to 1)  → 2026-01-14
+    //   days=999 (clamped to 90) → 2025-10-17
+    //   days=abc (defaulted to 30) → 2025-12-16
+
+    const FIXED_NOW = new Date("2026-01-15T12:00:00.000Z");
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function cutoffDateFromSpy(): string {
+      const dateArg = gteSpy.mock.calls
+        .map((call: unknown[]) => call[1])
+        .find((v): v is Date => v instanceof Date);
+      if (!dateArg) throw new Error("gte was not called with a Date argument");
+      return dateArg.toISOString().slice(0, 10);
+    }
+
+    it("passes a 7-day cutoff to the database when days=7", async () => {
+      vi.useFakeTimers({ now: FIXED_NOW });
+      setupAnalyticsMocks();
+      await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "7" });
+      expect(cutoffDateFromSpy()).toBe("2026-01-08");
+    });
+
+    it("passes a 30-day cutoff to the database when days=30", async () => {
+      vi.useFakeTimers({ now: FIXED_NOW });
+      setupAnalyticsMocks();
+      await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "30" });
+      expect(cutoffDateFromSpy()).toBe("2025-12-16");
+    });
+
+    it("passes a 90-day cutoff to the database when days=90", async () => {
+      vi.useFakeTimers({ now: FIXED_NOW });
+      setupAnalyticsMocks();
+      await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "90" });
+      expect(cutoffDateFromSpy()).toBe("2025-10-17");
+    });
+
+    it("clamps days=0 to 1 — passes a 1-day cutoff to the database", async () => {
+      vi.useFakeTimers({ now: FIXED_NOW });
+      setupAnalyticsMocks();
+      await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "0" });
+      expect(cutoffDateFromSpy()).toBe("2026-01-14");
+    });
+
+    it("clamps days=-5 to 1 — passes a 1-day cutoff to the database", async () => {
+      vi.useFakeTimers({ now: FIXED_NOW });
+      setupAnalyticsMocks();
+      await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "-5" });
+      expect(cutoffDateFromSpy()).toBe("2026-01-14");
+    });
+
+    it("clamps days=999 to 90 — passes a 90-day cutoff to the database", async () => {
+      vi.useFakeTimers({ now: FIXED_NOW });
+      setupAnalyticsMocks();
+      await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "999" });
+      expect(cutoffDateFromSpy()).toBe("2025-10-17");
+    });
+
+    it("defaults days=abc to 30 — passes a 30-day cutoff to the database", async () => {
+      vi.useFakeTimers({ now: FIXED_NOW });
+      setupAnalyticsMocks();
+      await getAnalyticsAs(OWNER_UID, BIZ_ID, { days: "abc" });
+      expect(cutoffDateFromSpy()).toBe("2025-12-16");
     });
   });
 });
