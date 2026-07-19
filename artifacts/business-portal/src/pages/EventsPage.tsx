@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type BusinessProfile, type BusinessEvent } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/Layout";
@@ -25,9 +25,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CalendarDays, Plus, Trash2, Loader2, AlertCircle, Clock, Pencil } from "lucide-react";
+import { CalendarDays, Plus, Trash2, Loader2, AlertCircle, Clock, Pencil, Upload, X, ImageIcon } from "lucide-react";
 import { format, isPast } from "date-fns";
 import { Link } from "wouter";
+import { auth } from "@/lib/firebase";
 
 type MyBusinessesResponse = { businesses: BusinessProfile[] };
 
@@ -54,7 +55,44 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
   const [deleting, setDeleting] = useState(false);
 
   const [form, setForm] = useState<EventForm>({ title: "", description: "", imageUrl: "", startTime: "", endTime: "" });
-  const [imageUrlStatus, setImageUrlStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  async function uploadFile(file: File) {
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const metaRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
+      });
+      if (!metaRes.ok) {
+        const body = await metaRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Failed to get upload URL (${metaRes.status})`);
+      }
+      const { uploadURL, objectPath } = (await metaRes.json()) as { uploadURL: string; objectPath: string };
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+      });
+      if (!putRes.ok) throw new Error("Upload to storage failed");
+      const servingUrl = `${window.location.origin}/api/storage${objectPath}`;
+      setForm((prev) => ({ ...prev, imageUrl: servingUrl }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      setUploadError(msg);
+      setError(`Image upload failed: ${msg}`);
+    } finally {
+      setIsUploading(false);
+    }
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -81,7 +119,6 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
   function openCreateDialog() {
     setEditingEvent(null);
     setForm({ title: "", description: "", imageUrl: "", startTime: "", endTime: "" });
-    setImageUrlStatus("idle");
     setError("");
     setDialogOpen(true);
   }
@@ -95,20 +132,27 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
       startTime: toLocalDatetimeValue(event.startTime),
       endTime: toLocalDatetimeValue(event.endTime),
     });
-    setImageUrlStatus(event.imageUrl ? "checking" : "idle");
     setError("");
     setDialogOpen(true);
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError("");
+    await uploadFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function clearImage() {
+    setForm((prev) => ({ ...prev, imageUrl: "" }));
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
-    if (form.imageUrl.trim() && imageUrlStatus === "invalid") {
-      setError("The cover image URL could not be loaded. Please use a valid image URL or leave the field empty.");
-      return;
-    }
-    if (form.imageUrl.trim() && imageUrlStatus === "checking") {
-      setError("The cover image is still loading. Please wait a moment or clear the URL.");
+    if (isUploading) {
+      setError("Image is still uploading. Please wait.");
       return;
     }
     setError("");
@@ -362,44 +406,78 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
                 maxLength={1000}
               />
             </div>
+
+            {/* Cover Image Upload */}
             <div className="space-y-1.5">
-              <Label>Cover Image URL</Label>
-              <Input
-                value={form.imageUrl}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setForm({ ...form, imageUrl: val });
-                  setImageUrlStatus(val.trim() ? "checking" : "idle");
-                }}
-                placeholder="https://example.com/event-photo.jpg"
-                className={`bg-input border-input ${imageUrlStatus === "invalid" ? "border-destructive" : ""}`}
-                type="url"
+              <Label>Cover Image</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={isUploading}
               />
+              {!form.imageUrl && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="w-full h-24 rounded-lg border-2 border-dashed border-border bg-input hover:bg-muted/50 transition-colors flex flex-col items-center justify-center gap-1.5 text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-xs">Uploading…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5" />
+                      <span className="text-xs font-medium">Click to upload a photo</span>
+                      <span className="text-xs opacity-70">JPG, PNG, WebP, GIF</span>
+                    </>
+                  )}
+                </button>
+              )}
               {form.imageUrl && (
-                <div className={`mt-1.5 rounded-lg overflow-hidden border h-28 relative ${imageUrlStatus === "invalid" ? "border-destructive bg-destructive/5" : "border-border"}`}>
+                <div className="relative rounded-lg overflow-hidden border border-border h-32 group">
                   <img
-                    key={form.imageUrl}
                     src={form.imageUrl}
                     alt="Event cover preview"
                     className="w-full h-full object-cover"
-                    onLoad={() => setImageUrlStatus("valid")}
-                    onError={() => setImageUrlStatus("invalid")}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
                   />
-                  {imageUrlStatus === "invalid" && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-destructive">
-                      <AlertCircle className="w-5 h-5" />
-                      <span className="text-xs font-medium">Image could not be loaded</span>
-                    </div>
-                  )}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-white/90 text-xs font-medium text-foreground hover:bg-white transition-colors"
+                    >
+                      {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+                      Change
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-white/90 text-xs font-medium text-foreground hover:bg-white transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Remove
+                    </button>
+                  </div>
                 </div>
               )}
-              {form.imageUrl && imageUrlStatus === "invalid" && (
+              {uploadError && (
                 <p className="text-xs text-destructive flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
-                  This URL doesn't point to a valid image. Clear it or use a different URL.
+                  {uploadError}
                 </p>
               )}
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Start Time *</Label>
@@ -428,8 +506,8 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              <Button type="submit" disabled={saving || isUploading}>
+                {(saving || isUploading) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 {editingEvent ? "Save Changes" : "Create Event"}
               </Button>
             </DialogFooter>

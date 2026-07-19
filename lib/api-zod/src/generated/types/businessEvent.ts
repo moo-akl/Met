@@ -11,6 +11,8 @@ export interface BusinessEvent {
   businessId: string;
   title: string;
   description?: string | null;
+  /** Optional cover image URL for the event */
+  imageUrl?: string | null;
   startTime: Date;
   endTime: Date;
   createdAt: Date;

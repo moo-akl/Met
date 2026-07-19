@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import storageRouter from "./storage";
 import profilesRouter from "./profiles";
 import profilePhotoRouter from "./profilePhoto";
 import encountersRouter from "./encounters";
@@ -21,6 +22,7 @@ import webhooksRouter from "./webhooks";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(storageRouter);
 router.use(profilesRouter);
 router.use(profilePhotoRouter);
 router.use(encountersRouter);

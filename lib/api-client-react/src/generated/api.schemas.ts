@@ -5,6 +5,25 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata?: UploadUrlRequest;
+}
+
+export interface ErrorEnvelope {
+  error: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -439,6 +458,8 @@ export interface BusinessEvent {
   businessId: string;
   title: string;
   description?: string | null;
+  /** Optional cover image URL for the event */
+  imageUrl?: string | null;
   startTime: string;
   endTime: string;
   createdAt: string;
@@ -471,6 +492,8 @@ export interface UpdateBusinessRequest {
 export interface CreateBusinessEventRequest {
   title: string;
   description?: string;
+  /** Optional cover image URL for the event */
+  imageUrl?: string;
   startTime: string;
   endTime: string;
 }

@@ -9,6 +9,8 @@
 export interface CreateBusinessEventRequest {
   title: string;
   description?: string;
+  /** Optional cover image URL for the event */
+  imageUrl?: string;
   startTime: Date;
   endTime: Date;
 }
