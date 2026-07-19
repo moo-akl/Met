@@ -11,6 +11,7 @@ import { Building2, Loader2, AlertCircle, CheckCircle, Plus, X } from "lucide-re
 import { Link } from "wouter";
 
 type MyBusinessesResponse = { businesses: BusinessProfile[] };
+type ImageUrlStatus = "idle" | "checking" | "valid" | "invalid";
 
 export default function ProfilePage({ isAdmin }: { isAdmin?: boolean }) {
   const { user } = useAuth();
@@ -28,7 +29,9 @@ export default function ProfilePage({ isAdmin }: { isAdmin?: boolean }) {
     mediaUrls: [] as string[],
     salesAgentId: "",
   });
+  const [logoUrlStatus, setLogoUrlStatus] = useState<ImageUrlStatus>("idle");
   const [newMedia, setNewMedia] = useState("");
+  const [newMediaStatus, setNewMediaStatus] = useState<ImageUrlStatus>("idle");
 
   useEffect(() => {
     if (!user) return;
@@ -52,6 +55,9 @@ export default function ProfilePage({ isAdmin }: { isAdmin?: boolean }) {
       mediaUrls: biz.mediaUrls ?? [],
       salesAgentId: biz.salesAgentId ?? "",
     });
+    setLogoUrlStatus(biz.logoUrl ? "checking" : "idle");
+    setNewMedia("");
+    setNewMediaStatus("idle");
     setSuccess(false);
     setError("");
   }
@@ -59,6 +65,16 @@ export default function ProfilePage({ isAdmin }: { isAdmin?: boolean }) {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
+
+    if (form.logoUrl.trim() && logoUrlStatus === "invalid") {
+      setError("The logo URL could not be loaded. Please use a valid image URL or leave the field empty.");
+      return;
+    }
+    if (form.logoUrl.trim() && logoUrlStatus === "checking") {
+      setError("The logo image is still loading. Please wait a moment or clear the URL.");
+      return;
+    }
+
     setError("");
     setSaving(true);
     try {
@@ -84,8 +100,11 @@ export default function ProfilePage({ isAdmin }: { isAdmin?: boolean }) {
 
   const addMedia = () => {
     if (!newMedia.trim() || form.mediaUrls.length >= 6) return;
+    if (newMediaStatus === "invalid") return;
+    if (newMediaStatus === "checking") return;
     setForm({ ...form, mediaUrls: [...form.mediaUrls, newMedia.trim()] });
     setNewMedia("");
+    setNewMediaStatus("idle");
   };
 
   const removeMedia = (idx: number) => {
@@ -199,17 +218,40 @@ export default function ProfilePage({ isAdmin }: { isAdmin?: boolean }) {
                     id="logoUrl"
                     type="url"
                     value={form.logoUrl}
-                    onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
-                    className="bg-input border-input"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setForm({ ...form, logoUrl: val });
+                      setLogoUrlStatus(val.trim() ? "checking" : "idle");
+                    }}
+                    className={`bg-input border-input ${logoUrlStatus === "invalid" ? "border-destructive" : ""}`}
                     placeholder="https://example.com/logo.png"
                   />
                   {form.logoUrl && (
-                    <img
-                      src={form.logoUrl}
-                      alt="Logo preview"
-                      className="w-16 h-16 rounded-lg object-cover mt-2"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
+                    <div
+                      className={`mt-1.5 rounded-lg overflow-hidden border relative w-16 h-16 ${
+                        logoUrlStatus === "invalid" ? "border-destructive bg-destructive/5" : "border-border"
+                      }`}
+                    >
+                      <img
+                        key={form.logoUrl}
+                        src={form.logoUrl}
+                        alt="Logo preview"
+                        className="w-full h-full object-cover"
+                        onLoad={() => setLogoUrlStatus("valid")}
+                        onError={() => setLogoUrlStatus("invalid")}
+                      />
+                      {logoUrlStatus === "invalid" && (
+                        <div className="absolute inset-0 flex items-center justify-center text-destructive">
+                          <AlertCircle className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {form.logoUrl && logoUrlStatus === "invalid" && (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      This URL doesn't point to a valid image. Clear it or use a different URL.
+                    </p>
                   )}
                 </div>
 
@@ -235,23 +277,67 @@ export default function ProfilePage({ isAdmin }: { isAdmin?: boolean }) {
                       </div>
                     ))}
                     {form.mediaUrls.length < 6 && (
-                      <div className="flex gap-2">
-                        <Input
-                          type="url"
-                          value={newMedia}
-                          onChange={(e) => setNewMedia(e.target.value)}
-                          className="bg-input border-input text-sm flex-1"
-                          placeholder="https://example.com/photo.jpg"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              addMedia();
-                            }
-                          }}
-                        />
-                        <Button type="button" variant="outline" size="sm" onClick={addMedia}>
-                          <Plus className="w-4 h-4" />
-                        </Button>
+                      <div className="space-y-1.5">
+                        <div className="flex gap-2">
+                          <Input
+                            type="url"
+                            value={newMedia}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewMedia(val);
+                              setNewMediaStatus(val.trim() ? "checking" : "idle");
+                            }}
+                            className={`bg-input border-input text-sm flex-1 ${
+                              newMediaStatus === "invalid" ? "border-destructive" : ""
+                            }`}
+                            placeholder="https://example.com/photo.jpg"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                addMedia();
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={addMedia}
+                            disabled={newMediaStatus === "invalid" || newMediaStatus === "checking"}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        {newMedia && (
+                          <div
+                            className={`rounded-lg overflow-hidden border h-28 relative ${
+                              newMediaStatus === "invalid"
+                                ? "border-destructive bg-destructive/5"
+                                : "border-border"
+                            }`}
+                          >
+                            <img
+                              key={newMedia}
+                              src={newMedia}
+                              alt="Media preview"
+                              className="w-full h-full object-cover"
+                              onLoad={() => setNewMediaStatus("valid")}
+                              onError={() => setNewMediaStatus("invalid")}
+                            />
+                            {newMediaStatus === "invalid" && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-destructive">
+                                <AlertCircle className="w-5 h-5" />
+                                <span className="text-xs font-medium">Image could not be loaded</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {newMedia && newMediaStatus === "invalid" && (
+                          <p className="text-xs text-destructive flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            This URL doesn't point to a valid image. Clear it or use a different URL.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
