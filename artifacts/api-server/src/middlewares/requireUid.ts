@@ -16,10 +16,30 @@ const IS_PROD = process.env["NODE_ENV"] === "production";
  * Verifies a Firebase ID token from the `Authorization: Bearer <token>`
  * header and attaches the resulting uid to `req.uid`.
  *
- * In non-production environments we also accept a fallback `X-Met-Uid`
- * header so existing dev curls and the Replit web preview keep working
- * during the Firestore migration. Once every client sends ID tokens we
- * can drop the fallback.
+ * ## X-Met-Uid fallback (non-production only)
+ *
+ * In non-production environments the middleware also accepts a plain
+ * `X-Met-Uid` header as a convenience for local dev `curl` calls and the
+ * automated test suite, which sets the header directly rather than minting
+ * a real Firebase ID token.
+ *
+ * **Security note:** this fallback is intentionally blocked in production
+ * (`NODE_ENV === "production"`), so it can never be abused in the deployed
+ * app. The business portal already sends `Authorization: Bearer <token>`
+ * on every request (see `artifacts/business-portal/src/lib/api.ts`) and
+ * never relies on this path.
+ *
+ * **Removal plan:** once the automated test suite migrates to use mock
+ * Firebase ID tokens (e.g. via `firebase-admin` custom tokens or the
+ * Firebase Auth Emulator) this entire `!IS_PROD` block can be deleted.
+ * Tracking criteria:
+ *   1. All `*.test.ts` files that currently `.set("x-met-uid", uid)` have
+ *      been updated to use a Bearer token instead.
+ *   2. The Expo web preview no longer needs a non-token fallback (it already
+ *      uses Bearer tokens on native; the web path is dev-only).
+ * Until then the fallback is acceptable because it is unreachable in
+ * production and the set of dev UIDs it can impersonate is contained to
+ * the local / CI environment.
  */
 export async function requireUid(
   req: Request,
@@ -46,6 +66,7 @@ export async function requireUid(
     }
   }
 
+  // Dev/test convenience fallback — see removal plan in the JSDoc above.
   if (!IS_PROD) {
     const raw = req.header("x-met-uid");
     const uid = typeof raw === "string" ? raw.trim() : "";
