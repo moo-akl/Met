@@ -9,7 +9,7 @@
  */
 
 import { Feather } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -130,51 +130,46 @@ export function EnhancedHubSheet({
 
   const [events, setEvents] = useState<BusinessEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState(false);
 
   const [avgRating, setAvgRating] = useState<number | null>(null);
   const [totalReviews, setTotalReviews] = useState(0);
   const [reviews, setReviews] = useState<BusinessReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState(false);
 
-  // Fetch events + reviews when sheet opens
-  useEffect(() => {
-    if (!visible || !authedUid) return;
-
-    let cancelled = false;
+  const fetchData = useCallback(() => {
+    if (!authedUid) return;
     const uid = authedUid;
     const { businessId } = businessProfile;
 
     setEventsLoading(true);
+    setEventsError(false);
     setReviewsLoading(true);
+    setReviewsError(false);
 
     api
       .getBusinessEvents({ uid }, businessId)
-      .then((data) => {
-        if (!cancelled) setEvents(data.events);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setEventsLoading(false);
-      });
+      .then((data) => { setEvents(data.events); })
+      .catch(() => { setEventsError(true); })
+      .finally(() => { setEventsLoading(false); });
 
     api
       .getBusinessReviews({ uid }, businessId)
       .then((data) => {
-        if (!cancelled) {
-          setAvgRating(data.averageRating);
-          setTotalReviews(data.totalReviews);
-          setReviews(data.reviews.slice(0, 5));
-        }
+        setAvgRating(data.averageRating);
+        setTotalReviews(data.totalReviews);
+        setReviews(data.reviews.slice(0, 5));
       })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setReviewsLoading(false);
-      });
+      .catch(() => { setReviewsError(true); })
+      .finally(() => { setReviewsLoading(false); });
+  }, [authedUid, businessProfile]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, authedUid, businessProfile]);
+  // Fetch events + reviews when sheet opens
+  useEffect(() => {
+    if (!visible) return;
+    fetchData();
+  }, [visible, fetchData]);
 
   const upcomingEvents = events.filter(
     (e) => new Date(e.startTime) >= new Date(),
@@ -315,6 +310,16 @@ export function EnhancedHubSheet({
                         <SkeletonRow colors={colors} />
                         <SkeletonRow colors={colors} />
                       </>
+                    ) : eventsError ? (
+                      <Pressable
+                        onPress={fetchData}
+                        style={[styles.emptyBox, { backgroundColor: colors.muted, borderColor: colors.border }]}
+                      >
+                        <Feather name="refresh-cw" size={18} color={colors.mutedForeground} />
+                        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                          Couldn't load events — tap to retry
+                        </Text>
+                      </Pressable>
                     ) : upcomingEvents.length === 0 ? (
                       <View style={[styles.emptyBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                         <Feather name="calendar" size={18} color={colors.mutedForeground} />
@@ -401,6 +406,16 @@ export function EnhancedHubSheet({
                         <SkeletonRow colors={colors} />
                         <SkeletonRow colors={colors} />
                       </>
+                    ) : reviewsError ? (
+                      <Pressable
+                        onPress={fetchData}
+                        style={[styles.emptyBox, { backgroundColor: colors.muted, borderColor: colors.border }]}
+                      >
+                        <Feather name="refresh-cw" size={18} color={colors.mutedForeground} />
+                        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                          Couldn't load reviews — tap to retry
+                        </Text>
+                      </Pressable>
                     ) : reviews.length === 0 ? (
                       <View style={[styles.emptyBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                         <Feather name="message-square" size={18} color={colors.mutedForeground} />

@@ -205,6 +205,20 @@ function HubStatusBadgeInner({
     }).start(() => setTooltipVisible(false));
   }, [tooltipOpacity]);
 
+  // Must be declared before early returns to obey the Rules of Hooks.
+  const [partnerSheetOpen, setPartnerSheetOpen] = React.useState(false);
+
+  const handleLeaderboardFromSheet = React.useCallback(() => {
+    setPartnerSheetOpen(false);
+    setTimeout(() => {
+      if (!hubState) return;
+      router.push({
+        pathname: "/leaderboard/[placeId]",
+        params: { placeId: hubState.placeId, placeName: hubState.placeName },
+      } as never);
+    }, 120);
+  }, [hubState, router]);
+
   // Cooldown pill — shown when the server rejected a re-check-in (403 cooldown)
   // and there is no active hub state to display.
   if (!hubState && cooldownMinutes !== null && cooldownMinutes > 0) {
@@ -259,8 +273,6 @@ function HubStatusBadgeInner({
     );
   }
 
-  const [partnerSheetOpen, setPartnerSheetOpen] = React.useState(false);
-
   const handlePress = () => {
     // Tapping the badge is user intent — permanently dismiss both hints
     dismissDiscoveryHints();
@@ -275,16 +287,6 @@ function HubStatusBadgeInner({
       params: { placeId: hubState.placeId, placeName: hubState.placeName },
     } as never);
   };
-
-  const handleLeaderboardFromSheet = React.useCallback(() => {
-    setPartnerSheetOpen(false);
-    setTimeout(() => {
-      router.push({
-        pathname: "/leaderboard/[placeId]",
-        params: { placeId: hubState.placeId, placeName: hubState.placeName },
-      } as never);
-    }, 120);
-  }, [hubState.placeId, hubState.placeName, router]);
 
   return (
     <>
