@@ -21,6 +21,7 @@ import {
   trophiesTable,
   subscriptionsTable,
   revealRequestsTable,
+  businessProfilesTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
@@ -473,7 +474,32 @@ router.get(
       return;
     }
 
-    res.json({ venues });
+    // Attach business profile info (if any) to each venue
+    const placeIds = venues.map((v) => v.placeId);
+    const businessProfiles =
+      placeIds.length > 0
+        ? await db
+            .select({
+              placeId: businessProfilesTable.placeId,
+              businessId: businessProfilesTable.businessId,
+              name: businessProfilesTable.name,
+              logoUrl: businessProfilesTable.logoUrl,
+              description: businessProfilesTable.description,
+              isActiveSubscription: businessProfilesTable.isActiveSubscription,
+              mediaUrls: businessProfilesTable.mediaUrls,
+            })
+            .from(businessProfilesTable)
+            .where(inArray(businessProfilesTable.placeId, placeIds))
+        : [];
+
+    const bizByPlaceId = new Map(businessProfiles.map((b) => [b.placeId, b]));
+
+    res.json({
+      venues: venues.map((v) => ({
+        ...v,
+        businessProfile: bizByPlaceId.get(v.placeId) ?? null,
+      })),
+    });
   },
 );
 

@@ -1570,6 +1570,275 @@ paths:
         "401":
           description: Unauthorized
 
+  /business/place/{placeId}:
+    get:
+      operationId: getBusinessByPlaceId
+      tags: [business]
+      summary: Get business profile for a hub
+      security:
+        - MetUid: []
+      parameters:
+        - name: placeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Business profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessProfile"
+        "404":
+          description: No business profile for this hub
+
+  /business:
+    post:
+      operationId: createBusiness
+      tags: [business]
+      summary: Create a new business profile
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBusinessRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessProfile"
+        "409":
+          description: Business already exists at this hub
+
+  /business/{id}:
+    put:
+      operationId: updateBusiness
+      tags: [business]
+      summary: Update business profile (owner only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBusinessRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessProfile"
+        "403":
+          description: Not the business owner
+        "404":
+          description: Business not found
+
+  /business/{id}/events:
+    get:
+      operationId: listBusinessEvents
+      tags: [business]
+      summary: List events for a business
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Events list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - events
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BusinessEvent"
+    post:
+      operationId: createBusinessEvent
+      tags: [business]
+      summary: Create an event (owner only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBusinessEventRequest"
+      responses:
+        "201":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessEvent"
+        "403":
+          description: Not the business owner
+
+  /business/{id}/events/{eventId}:
+    delete:
+      operationId: deleteBusinessEvent
+      tags: [business]
+      summary: Delete an event (owner only)
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+        "403":
+          description: Not the business owner
+
+  /business/{id}/reviews:
+    get:
+      operationId: listBusinessReviews
+      tags: [business]
+      summary: List reviews for a business
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessReviewsResponse"
+    post:
+      operationId: createBusinessReview
+      tags: [business]
+      summary: Create or update a business review
+      security:
+        - MetUid: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBusinessReviewRequest"
+      responses:
+        "200":
+          description: Review saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessReview"
+
+  /admin/generate-sales-link:
+    post:
+      operationId: generateSalesLink
+      tags: [admin]
+      summary: Generate a business registration URL for a sales agent
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateSalesLinkRequest"
+      responses:
+        "200":
+          description: Generated link
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - url
+                  - agentId
+                properties:
+                  url:
+                    type: string
+                  agentId:
+                    type: string
+        "403":
+          description: Forbidden
+
+  /admin/businesses:
+    get:
+      operationId: adminListBusinesses
+      tags: [admin]
+      summary: List all businesses (grouped by sales agent)
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Businesses list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - businesses
+                  - total
+                properties:
+                  businesses:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BusinessProfile"
+                  total:
+                    type: integer
+        "403":
+          description: Forbidden
+
+  /webhooks/revenuecat:
+    post:
+      operationId: revenueCatWebhook
+      tags: [webhooks]
+      summary: Handle RevenueCat subscription lifecycle events
+      responses:
+        "200":
+          description: Processed
+
 components:
   securitySchemes:
     MetUid:
@@ -2312,6 +2581,192 @@ components:
             type: string
             minLength: 1
             maxLength: 200
+    BusinessProfile:
+      type: object
+      required:
+        - businessId
+        - ownerId
+        - placeId
+        - name
+        - isActiveSubscription
+        - mediaUrls
+        - createdAt
+        - updatedAt
+      properties:
+        businessId:
+          type: string
+        ownerId:
+          type: string
+        placeId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+        mediaUrls:
+          type: array
+          items:
+            type: string
+        isActiveSubscription:
+          type: boolean
+        subscriptionEndDate:
+          type: string
+          format: date-time
+          nullable: true
+        salesAgentId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    GenerateSalesLinkRequest:
+      type: object
+      required:
+        - agentId
+      properties:
+        agentId:
+          type: string
+    CreateBusinessRequest:
+      type: object
+      required:
+        - placeId
+        - name
+      properties:
+        placeId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        logoUrl:
+          type: string
+        mediaUrls:
+          type: array
+          items:
+            type: string
+        salesAgentId:
+          type: string
+    UpdateBusinessRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        logoUrl:
+          type: string
+          nullable: true
+        mediaUrls:
+          type: array
+          items:
+            type: string
+    BusinessEvent:
+      type: object
+      required:
+        - eventId
+        - businessId
+        - title
+        - startTime
+        - endTime
+        - createdAt
+      properties:
+        eventId:
+          type: integer
+        businessId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    CreateBusinessEventRequest:
+      type: object
+      required:
+        - title
+        - startTime
+        - endTime
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+    BusinessReview:
+      type: object
+      required:
+        - reviewId
+        - businessId
+        - reviewerId
+        - rating
+        - createdAt
+      properties:
+        reviewId:
+          type: integer
+        businessId:
+          type: string
+        reviewerId:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    CreateBusinessReviewRequest:
+      type: object
+      required:
+        - rating
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+    BusinessReviewsResponse:
+      type: object
+      required:
+        - totalReviews
+        - page
+        - reviews
+      properties:
+        averageRating:
+          type: number
+          format: float
+          nullable: true
+        totalReviews:
+          type: integer
+        page:
+          type: integer
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/BusinessReview"
     CastVoteRequest:
       type: object
       required:

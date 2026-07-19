@@ -15,6 +15,8 @@ import engagementRouter from "./engagement";
 import pioneerRouter from "./pioneer";
 import adminRouter from "./admin";
 import trophiesRouter from "./trophies";
+import businessRouter from "./business";
+import webhooksRouter from "./webhooks";
 
 const router: IRouter = Router();
 
@@ -34,5 +36,7 @@ router.use(engagementRouter);
 router.use(pioneerRouter);
 router.use(adminRouter);
 router.use(trophiesRouter);
+router.use(businessRouter);
+router.use(webhooksRouter);
 
 export default router;

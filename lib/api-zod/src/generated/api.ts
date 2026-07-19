@@ -1424,3 +1424,197 @@ export const SubmitAnnouncementAnswersResponse = zod.object({
     .nullish(),
   hasAnswered: zod.boolean().nullish(),
 });
+
+/**
+ * @summary Get business profile for a hub
+ */
+export const GetBusinessByPlaceIdParams = zod.object({
+  placeId: zod.coerce.string(),
+});
+
+export const GetBusinessByPlaceIdResponse = zod.object({
+  businessId: zod.string(),
+  ownerId: zod.string(),
+  placeId: zod.string(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  logoUrl: zod.string().nullish(),
+  mediaUrls: zod.array(zod.string()),
+  isActiveSubscription: zod.boolean(),
+  subscriptionEndDate: zod.coerce.date().nullish(),
+  salesAgentId: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Create a new business profile
+ */
+export const CreateBusinessBody = zod.object({
+  placeId: zod.string(),
+  name: zod.string(),
+  description: zod.string().optional(),
+  logoUrl: zod.string().optional(),
+  mediaUrls: zod.array(zod.string()).optional(),
+  salesAgentId: zod.string().optional(),
+});
+
+/**
+ * @summary Update business profile (owner only)
+ */
+export const UpdateBusinessParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateBusinessBody = zod.object({
+  name: zod.string().optional(),
+  description: zod.string().optional(),
+  logoUrl: zod.string().nullish(),
+  mediaUrls: zod.array(zod.string()).optional(),
+});
+
+export const UpdateBusinessResponse = zod.object({
+  businessId: zod.string(),
+  ownerId: zod.string(),
+  placeId: zod.string(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  logoUrl: zod.string().nullish(),
+  mediaUrls: zod.array(zod.string()),
+  isActiveSubscription: zod.boolean(),
+  subscriptionEndDate: zod.coerce.date().nullish(),
+  salesAgentId: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List events for a business
+ */
+export const ListBusinessEventsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ListBusinessEventsResponse = zod.object({
+  events: zod.array(
+    zod.object({
+      eventId: zod.number(),
+      businessId: zod.string(),
+      title: zod.string(),
+      description: zod.string().nullish(),
+      startTime: zod.coerce.date(),
+      endTime: zod.coerce.date(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create an event (owner only)
+ */
+export const CreateBusinessEventParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const CreateBusinessEventBody = zod.object({
+  title: zod.string(),
+  description: zod.string().optional(),
+  startTime: zod.coerce.date(),
+  endTime: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete an event (owner only)
+ */
+export const DeleteBusinessEventParams = zod.object({
+  id: zod.coerce.string(),
+  eventId: zod.coerce.number(),
+});
+
+/**
+ * @summary List reviews for a business
+ */
+export const ListBusinessReviewsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const listBusinessReviewsResponseReviewsItemRatingMax = 5;
+
+export const ListBusinessReviewsResponse = zod.object({
+  averageRating: zod.number().nullish(),
+  totalReviews: zod.number(),
+  page: zod.number(),
+  reviews: zod.array(
+    zod.object({
+      reviewId: zod.number(),
+      businessId: zod.string(),
+      reviewerId: zod.string(),
+      rating: zod
+        .number()
+        .min(1)
+        .max(listBusinessReviewsResponseReviewsItemRatingMax),
+      comment: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create or update a business review
+ */
+export const CreateBusinessReviewParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const createBusinessReviewBodyRatingMax = 5;
+
+export const CreateBusinessReviewBody = zod.object({
+  rating: zod.number().min(1).max(createBusinessReviewBodyRatingMax),
+  comment: zod.string().optional(),
+});
+
+export const createBusinessReviewResponseRatingMax = 5;
+
+export const CreateBusinessReviewResponse = zod.object({
+  reviewId: zod.number(),
+  businessId: zod.string(),
+  reviewerId: zod.string(),
+  rating: zod.number().min(1).max(createBusinessReviewResponseRatingMax),
+  comment: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Generate a business registration URL for a sales agent
+ */
+export const GenerateSalesLinkBody = zod.object({
+  agentId: zod.string(),
+});
+
+export const GenerateSalesLinkResponse = zod.object({
+  url: zod.string(),
+  agentId: zod.string(),
+});
+
+/**
+ * @summary List all businesses (grouped by sales agent)
+ */
+export const AdminListBusinessesResponse = zod.object({
+  businesses: zod.array(
+    zod.object({
+      businessId: zod.string(),
+      ownerId: zod.string(),
+      placeId: zod.string(),
+      name: zod.string(),
+      description: zod.string().nullish(),
+      logoUrl: zod.string().nullish(),
+      mediaUrls: zod.array(zod.string()),
+      isActiveSubscription: zod.boolean(),
+      subscriptionEndDate: zod.coerce.date().nullish(),
+      salesAgentId: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+});

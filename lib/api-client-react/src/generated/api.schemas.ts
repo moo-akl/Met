@@ -419,6 +419,87 @@ export interface CreateAnnouncementRequest {
   questions?: string[] | null;
 }
 
+export interface BusinessProfile {
+  businessId: string;
+  ownerId: string;
+  placeId: string;
+  name: string;
+  description?: string | null;
+  logoUrl?: string | null;
+  mediaUrls: string[];
+  isActiveSubscription: boolean;
+  subscriptionEndDate?: string | null;
+  salesAgentId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GenerateSalesLinkRequest {
+  agentId: string;
+}
+
+export interface CreateBusinessRequest {
+  placeId: string;
+  name: string;
+  description?: string;
+  logoUrl?: string;
+  mediaUrls?: string[];
+  salesAgentId?: string;
+}
+
+export interface UpdateBusinessRequest {
+  name?: string;
+  description?: string;
+  logoUrl?: string | null;
+  mediaUrls?: string[];
+}
+
+export interface BusinessEvent {
+  eventId: number;
+  businessId: string;
+  title: string;
+  description?: string | null;
+  startTime: string;
+  endTime: string;
+  createdAt: string;
+}
+
+export interface CreateBusinessEventRequest {
+  title: string;
+  description?: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface BusinessReview {
+  reviewId: number;
+  businessId: string;
+  reviewerId: string;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+}
+
+export interface CreateBusinessReviewRequest {
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  rating: number;
+  comment?: string;
+}
+
+export interface BusinessReviewsResponse {
+  averageRating?: number | null;
+  totalReviews: number;
+  page: number;
+  reviews: BusinessReview[];
+}
+
 export interface CastVoteRequest {
   optionId: number;
 }
@@ -550,4 +631,18 @@ export type InviteToNetwork200 = {
 
 export type DeleteAnnouncement200 = {
   success: boolean;
+};
+
+export type ListBusinessEvents200 = {
+  events: BusinessEvent[];
+};
+
+export type GenerateSalesLink200 = {
+  url: string;
+  agentId: string;
+};
+
+export type AdminListBusinesses200 = {
+  businesses: BusinessProfile[];
+  total: number;
 };
