@@ -19,6 +19,17 @@ const objectStorageService = new ObjectStorageService();
  * Then uploads the file directly to the returned presigned URL.
  * Requires authentication.
  */
+const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+  "image/heic",
+  "image/heif",
+]);
+const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
+
 router.post("/storage/uploads/request-url", requireUid, async (req: Request, res: Response) => {
   const parsed = RequestUploadUrlBody.safeParse(req.body);
   if (!parsed.success) {
@@ -28,6 +39,16 @@ router.post("/storage/uploads/request-url", requireUid, async (req: Request, res
 
   try {
     const { name, size, contentType } = parsed.data;
+
+    if (!ALLOWED_UPLOAD_CONTENT_TYPES.has(contentType)) {
+      res.status(400).json({ error: "Only image files are allowed (JPG, PNG, WebP, GIF, AVIF, HEIC)." });
+      return;
+    }
+
+    if (size > MAX_UPLOAD_SIZE) {
+      res.status(400).json({ error: "Image must be 5 MB or smaller." });
+      return;
+    }
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);

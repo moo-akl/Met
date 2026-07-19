@@ -136,10 +136,31 @@ export default function EventsPage({ isAdmin }: { isAdmin?: boolean }) {
     setDialogOpen(true);
   }
 
+  const MAX_FILE_SIZE = 5 * 1024 * 1024;
+  const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif", "image/heic", "image/heif"];
+
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError("");
+    setUploadError(null);
+
+    if (!file.type.startsWith("image/") || !ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      const msg = "Only image files are allowed (JPG, PNG, WebP, GIF, AVIF, HEIC).";
+      setUploadError(msg);
+      setError(`Image upload failed: ${msg}`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      const msg = "Image must be 5 MB or smaller.";
+      setUploadError(msg);
+      setError(`Image upload failed: ${msg}`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     await uploadFile(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
