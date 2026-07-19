@@ -17,8 +17,13 @@ import {
   type ActiveVenueResult,
   type HeatmapVenueResult,
 } from "@/lib/api/client";
-import { EnhancedHubSheet } from "@/components/EnhancedHubSheet";
 import { resolveIsPartner } from "@/lib/hubPartner";
+
+const EnhancedHubSheet = React.lazy(() =>
+  import("@/components/EnhancedHubSheet").then((m) => ({
+    default: m.EnhancedHubSheet,
+  })),
+);
 
 // Refetch heatmap if the map center moved more than ~500 m (~0.005°)
 const SIGNIFICANT_PAN_DEG = 0.005;
@@ -365,14 +370,16 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
       </MapView>
 
       {selectedVenue?.businessProfile ? (
-        <EnhancedHubSheet
-          visible
-          onClose={() => setSelectedVenue(null)}
-          businessProfile={selectedVenue.businessProfile}
-          placeName={selectedVenue.placeName}
-          isCheckedIn={false}
-          onViewLeaderboard={handleLeaderboard}
-        />
+        <React.Suspense fallback={null}>
+          <EnhancedHubSheet
+            visible
+            onClose={() => setSelectedVenue(null)}
+            businessProfile={selectedVenue.businessProfile}
+            placeName={selectedVenue.placeName}
+            isCheckedIn={false}
+            onViewLeaderboard={handleLeaderboard}
+          />
+        </React.Suspense>
       ) : null}
     </>
   );

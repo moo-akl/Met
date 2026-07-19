@@ -482,6 +482,7 @@ router.get(
             .select({
               placeId: businessProfilesTable.placeId,
               businessId: businessProfilesTable.businessId,
+              ownerId: businessProfilesTable.ownerId,
               name: businessProfilesTable.name,
               logoUrl: businessProfilesTable.logoUrl,
               description: businessProfilesTable.description,
@@ -547,6 +548,7 @@ router.get(
             .select({
               placeId: businessProfilesTable.placeId,
               businessId: businessProfilesTable.businessId,
+              ownerId: businessProfilesTable.ownerId,
               name: businessProfilesTable.name,
               logoUrl: businessProfilesTable.logoUrl,
               description: businessProfilesTable.description,

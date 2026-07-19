@@ -12,6 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Image,
   Modal,
   Platform,
@@ -679,6 +680,8 @@ export function EnhancedHubSheet({
   );
 }
 
+const WINDOW_HEIGHT = Dimensions.get("window").height;
+
 const styles = StyleSheet.create({
   backdropWrapper: { flex: 1 },
   backdrop: {
@@ -690,7 +693,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 10,
-    maxHeight: "92%",
+    maxHeight: Math.round(WINDOW_HEIGHT * 0.92),
   },
   handle: {
     width: 44,
@@ -830,7 +833,7 @@ const styles = StyleSheet.create({
   },
   eventImage: {
     width: 72,
-    height: "100%" as unknown as number,
+    alignSelf: "stretch",
     minHeight: 72,
   },
   eventBody: {

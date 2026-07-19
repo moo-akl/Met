@@ -25,7 +25,6 @@ import React from "react";
 import { View, Text, StyleSheet, Animated, Pressable } from "react-native";
 import { type HubState, type VenueResult } from "@/hooks/useHubCheckin";
 import { SelectVenueModal } from "@/components/SelectVenueModal";
-import { EnhancedHubSheet } from "@/components/EnhancedHubSheet";
 import { useColors } from "@/hooks/useColors";
 import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
@@ -35,6 +34,12 @@ import {
   isDiscoveryDismissedSync,
   subscribeDiscovery,
 } from "@/lib/discoveryHints";
+
+const EnhancedHubSheet = React.lazy(() =>
+  import("@/components/EnhancedHubSheet").then((m) => ({
+    default: m.EnhancedHubSheet,
+  })),
+);
 
 // Re-export so callers can import both from one file if needed.
 export { useHubCheckin } from "@/hooks/useHubCheckin";
@@ -299,14 +304,16 @@ function HubStatusBadgeInner({
       />
 
       {hubState.businessProfile?.isActiveSubscription ? (
-        <EnhancedHubSheet
-          visible={partnerSheetOpen}
-          onClose={() => setPartnerSheetOpen(false)}
-          businessProfile={hubState.businessProfile}
-          placeName={hubState.placeName}
-          isCheckedIn
-          onViewLeaderboard={handleLeaderboardFromSheet}
-        />
+        <React.Suspense fallback={null}>
+          <EnhancedHubSheet
+            visible={partnerSheetOpen}
+            onClose={() => setPartnerSheetOpen(false)}
+            businessProfile={hubState.businessProfile}
+            placeName={hubState.placeName}
+            isCheckedIn
+            onViewLeaderboard={handleLeaderboardFromSheet}
+          />
+        </React.Suspense>
       ) : null}
       <Animated.View
         style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
