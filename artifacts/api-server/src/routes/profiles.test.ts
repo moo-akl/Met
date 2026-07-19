@@ -176,6 +176,25 @@ describe("GET /api/profiles/me", () => {
     expect(bindings).toMatchObject({ err: expect.any(Error) });
     expect(message).toContain("subscription lookup failed");
   });
+
+  it("returns subscriptionTier 'pro' and isSubscribed true for an active pro subscriber", async () => {
+    // First call (profile lookup) resolves with the profile.
+    // Second call (subscriptions lookup) resolves with an active pro row.
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([profileFixture])
+      .mockResolvedValueOnce([{ tier: "pro", status: "active" }]);
+
+    const res = await request(app)
+      .get("/api/profiles/me")
+      .set("x-met-uid", "alice");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      uid: "alice",
+      subscriptionTier: "pro",
+      isSubscribed: true,
+    });
+  });
 });
 
 describe("PUT /api/profiles/me", () => {
