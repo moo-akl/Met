@@ -108,6 +108,16 @@ beforeEach(() => {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function postEventAs(uid: string | null, bizId: string, body: Record<string, unknown>) {
+  const req = request(app)
+    .post(`/api/business/${bizId}/events`)
+    .send(body);
+  if (uid !== null) {
+    req.set("x-met-uid", uid);
+  }
+  return req;
+}
+
 function putEventAs(uid: string | null, bizId: string, eventId: string, body: Record<string, unknown>) {
   const req = request(app)
     .put(`/api/business/${bizId}/events/${eventId}`)
@@ -118,9 +128,191 @@ function putEventAs(uid: string | null, bizId: string, eventId: string, body: Re
   return req;
 }
 
+const VALID_CREATE_BODY = {
+  title: "Grand Opening",
+  startTime: "2030-06-01T10:00:00.000Z",
+  endTime: "2030-06-01T12:00:00.000Z",
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+describe("POST /api/business/:id/events", () => {
+  describe("authentication", () => {
+    it("returns 401 when no auth header or x-met-uid is provided", async () => {
+      const res = await request(app)
+        .post(`/api/business/${BIZ_ID}/events`)
+        .send(VALID_CREATE_BODY);
+
+      expect(res.status).toBe(401);
+      expect(res.body).toHaveProperty("message");
+    });
+  });
+
+  describe("owner-only access", () => {
+    it("returns 403 when the caller is not the business owner", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+
+      const res = await postEventAs(OTHER_UID, BIZ_ID, VALID_CREATE_BODY);
+
+      expect(res.status).toBe(403);
+      expect(res.body).toHaveProperty("message");
+    });
+
+    it("returns 404 when the business does not exist", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, VALID_CREATE_BODY);
+
+      expect(res.status).toBe(404);
+      expect(res.body).toHaveProperty("message");
+    });
+  });
+
+  describe("input validation", () => {
+    it("returns 400 when endTime is before startTime", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, {
+        title: "Bad Event",
+        startTime: "2030-06-01T12:00:00.000Z",
+        endTime: "2030-06-01T10:00:00.000Z",
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/endTime must be after startTime/i);
+    });
+
+    it("returns 400 when endTime equals startTime", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, {
+        title: "Bad Event",
+        startTime: "2030-06-01T10:00:00.000Z",
+        endTime: "2030-06-01T10:00:00.000Z",
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/endTime must be after startTime/i);
+    });
+
+    it("returns 400 when title is missing", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, {
+        startTime: "2030-06-01T10:00:00.000Z",
+        endTime: "2030-06-01T12:00:00.000Z",
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty("message");
+    });
+
+    it("returns 400 when title is an empty string", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, {
+        title: "",
+        startTime: "2030-06-01T10:00:00.000Z",
+        endTime: "2030-06-01T12:00:00.000Z",
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty("message");
+    });
+
+    it("returns 400 when startTime is not a valid datetime string", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, {
+        title: "Bad Event",
+        startTime: "not-a-date",
+        endTime: "2030-06-01T12:00:00.000Z",
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty("message");
+    });
+
+    it("returns 400 when endTime is missing", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, {
+        title: "Bad Event",
+        startTime: "2030-06-01T10:00:00.000Z",
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty("message");
+    });
+  });
+
+  describe("happy path", () => {
+    it("returns 201 with the created event when all inputs are valid", async () => {
+      const createdEvent = {
+        eventId: 99,
+        businessId: BIZ_ID,
+        title: "Grand Opening",
+        description: null,
+        startTime: new Date("2030-06-01T10:00:00.000Z"),
+        endTime: new Date("2030-06-01T12:00:00.000Z"),
+      };
+
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+      dbMocks.chain.returning.mockResolvedValueOnce([createdEvent]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, VALID_CREATE_BODY);
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ title: "Grand Opening", businessId: BIZ_ID });
+    });
+
+    it("accepts an optional description field", async () => {
+      const createdEvent = {
+        eventId: 100,
+        businessId: BIZ_ID,
+        title: "Grand Opening",
+        description: "Come and join us!",
+        startTime: new Date("2030-06-01T10:00:00.000Z"),
+        endTime: new Date("2030-06-01T12:00:00.000Z"),
+      };
+
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+      dbMocks.chain.returning.mockResolvedValueOnce([createdEvent]);
+
+      const res = await postEventAs(OWNER_UID, BIZ_ID, {
+        ...VALID_CREATE_BODY,
+        description: "Come and join us!",
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ description: "Come and join us!" });
+    });
+
+    it("calls db.insert with the correct businessId and parsed dates", async () => {
+      const createdEvent = {
+        eventId: 101,
+        businessId: BIZ_ID,
+        title: "Grand Opening",
+        description: null,
+        startTime: new Date("2030-06-01T10:00:00.000Z"),
+        endTime: new Date("2030-06-01T12:00:00.000Z"),
+      };
+
+      dbMocks.chain.limit.mockResolvedValueOnce([bizFixture]);
+      dbMocks.chain.returning.mockResolvedValueOnce([createdEvent]);
+
+      await postEventAs(OWNER_UID, BIZ_ID, VALID_CREATE_BODY);
+
+      expect(dbMocks.chain.insert).toHaveBeenCalled();
+      expect(dbMocks.chain.values).toHaveBeenCalledWith(
+        expect.objectContaining({ businessId: BIZ_ID, title: "Grand Opening" }),
+      );
+      expect(dbMocks.chain.returning).toHaveBeenCalled();
+    });
+  });
+});
 
 describe("PUT /api/business/:id/events/:eventId", () => {
   describe("authentication", () => {
