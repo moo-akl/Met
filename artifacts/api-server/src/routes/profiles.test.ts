@@ -195,6 +195,32 @@ describe("GET /api/profiles/me", () => {
       isSubscribed: true,
     });
   });
+
+  it("returns isSubscribed false for a cancelled pro subscription", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([profileFixture])
+      .mockResolvedValueOnce([{ tier: "pro", status: "cancelled" }]);
+
+    const res = await request(app)
+      .get("/api/profiles/me")
+      .set("x-met-uid", "alice");
+
+    expect(res.status).toBe(200);
+    expect(res.body.isSubscribed).toBe(false);
+  });
+
+  it("returns isSubscribed false for an expired pro subscription", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([profileFixture])
+      .mockResolvedValueOnce([{ tier: "pro", status: "expired" }]);
+
+    const res = await request(app)
+      .get("/api/profiles/me")
+      .set("x-met-uid", "alice");
+
+    expect(res.status).toBe(200);
+    expect(res.body.isSubscribed).toBe(false);
+  });
 });
 
 describe("PUT /api/profiles/me", () => {
