@@ -134,6 +134,7 @@ import app from "../app";
 // ---------------------------------------------------------------------------
 
 const OWNER_UID = "owner-alice";
+const OTHER_UID = "other-bob";
 const BIZ_ID = "biz-sync-001";
 const PLACE_ID = "place-sync-abc";
 
@@ -251,6 +252,24 @@ function seedStoreBiz(overrides: Partial<BizRow> = {}) {
     mediaUrls: [],
     ...overrides,
   };
+}
+
+/**
+ * Seeds store.events directly with a pre-existing event (skips POST round-trip).
+ * Useful for PUT/DELETE non-owner tests that need an event to be already present.
+ */
+function seedStoreEvent(overrides: Partial<EventRow> = {}) {
+  const event: EventRow = {
+    eventId: 1,
+    businessId: BIZ_ID,
+    title: "Existing Event",
+    description: null,
+    imageUrl: null,
+    startTime: new Date("2030-08-01T10:00:00.000Z"),
+    endTime: new Date("2030-08-01T12:00:00.000Z"),
+    ...overrides,
+  };
+  store.events.push(event);
 }
 
 /**
@@ -734,6 +753,50 @@ describe("Business Portal → EnhancedHubSheet sync", () => {
 
       expect(postRes.status).toBe(404);
       expect(store.events).toHaveLength(0);
+    });
+
+    it("POST by a non-owner returns 403 and store.events stays empty", async () => {
+      seedStoreBiz();
+      // getBusinessById returns the biz (owned by OWNER_UID), then the route
+      // checks ownerId — since OTHER_UID !== OWNER_UID it must short-circuit with 403.
+      dbMocks.chain.limit.mockResolvedValueOnce([store.biz]);
+
+      const postRes = await request(app)
+        .post(`/api/business/${BIZ_ID}/events`)
+        .set("x-met-uid", OTHER_UID)
+        .send({
+          title: "Unauthorized Event",
+          startTime: "2027-09-01T10:00:00.000Z",
+          endTime: "2027-09-01T12:00:00.000Z",
+        });
+
+      expect(postRes.status).toBe(403);
+      expect(postRes.body).toHaveProperty("message");
+      // No insert should have reached the store.
+      expect(store.events).toHaveLength(0);
+    });
+  });
+
+  describe("PUT /api/business/:id/events/:eventId — authorization", () => {
+    it("PUT by a non-owner returns 403 and the event is unchanged", async () => {
+      seedStoreBiz();
+      seedStoreEvent({ title: "Untouched Event" });
+      const originalTitle = store.events[0]!.title;
+
+      // getBusinessById returns the biz (owned by OWNER_UID); the route checks
+      // ownerId → OTHER_UID !== OWNER_UID → must return 403 before any update.
+      dbMocks.chain.limit.mockResolvedValueOnce([store.biz]);
+
+      const putRes = await request(app)
+        .put(`/api/business/${BIZ_ID}/events/1`)
+        .set("x-met-uid", OTHER_UID)
+        .send({ title: "Hijacked Title" });
+
+      expect(putRes.status).toBe(403);
+      expect(putRes.body).toHaveProperty("message");
+      // db.update should never have been called — the event title must be unchanged.
+      expect(dbMocks.chain.update).not.toHaveBeenCalled();
+      expect(store.events[0]!.title).toBe(originalTitle);
     });
   });
 
