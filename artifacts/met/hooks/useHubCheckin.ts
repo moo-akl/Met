@@ -27,9 +27,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
 import { useApp } from "@/contexts/AppContext";
-import { api, ApiError, type VenueResult } from "@/lib/api/client";
+import { api, ApiError, type VenueResult, type BusinessProfileSummary } from "@/lib/api/client";
 
-export type { VenueResult };
+export type { VenueResult, BusinessProfileSummary };
 
 const CHECKIN_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -38,6 +38,8 @@ export interface HubState {
   placeName: string;
   streak: number;
   isMock: boolean;
+  /** Business profile if this hub is a verified partner, null otherwise. */
+  businessProfile?: BusinessProfileSummary | null;
 }
 
 const MOCK_HUB_STATE: HubState = {
@@ -45,6 +47,7 @@ const MOCK_HUB_STATE: HubState = {
   placeName: "Mock Check-in",
   streak: 3,
   isMock: true,
+  businessProfile: null,
 };
 
 export function useHubCheckin(): {
@@ -114,6 +117,7 @@ export function useHubCheckin(): {
             placeName: result.placeName,
             streak: result.streak,
             isMock: false,
+            businessProfile: venue.businessProfile ?? null,
           });
           setCooldownMinutes(null);
         }

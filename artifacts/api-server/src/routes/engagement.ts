@@ -539,6 +539,25 @@ router.get(
       .orderBy(desc(count(hubCheckinsTable.id)))
       .limit(50);
 
+    // Enrich with business profile data (if any verified partner hubs are active)
+    const activePlaceIds = rows.map((r) => r.placeId);
+    const activeBusinessProfiles =
+      activePlaceIds.length > 0
+        ? await db
+            .select({
+              placeId: businessProfilesTable.placeId,
+              businessId: businessProfilesTable.businessId,
+              name: businessProfilesTable.name,
+              logoUrl: businessProfilesTable.logoUrl,
+              description: businessProfilesTable.description,
+              isActiveSubscription: businessProfilesTable.isActiveSubscription,
+              mediaUrls: businessProfilesTable.mediaUrls,
+            })
+            .from(businessProfilesTable)
+            .where(inArray(businessProfilesTable.placeId, activePlaceIds))
+        : [];
+    const activeBizByPlaceId = new Map(activeBusinessProfiles.map((b) => [b.placeId, b]));
+
     res.json({
       venues: rows.map((r) => ({
         placeId: r.placeId,
@@ -546,6 +565,7 @@ router.get(
         lat: Number(r.lat),
         lng: Number(r.lng),
         checkinCount: Number(r.checkinCount),
+        businessProfile: activeBizByPlaceId.get(r.placeId) ?? null,
       })),
     });
   },

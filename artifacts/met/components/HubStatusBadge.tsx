@@ -25,6 +25,7 @@ import React from "react";
 import { View, Text, StyleSheet, Animated, Pressable } from "react-native";
 import { type HubState, type VenueResult } from "@/hooks/useHubCheckin";
 import { SelectVenueModal } from "@/components/SelectVenueModal";
+import { EnhancedHubSheet } from "@/components/EnhancedHubSheet";
 import { useColors } from "@/hooks/useColors";
 import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
@@ -258,15 +259,32 @@ function HubStatusBadgeInner({
     );
   }
 
+  const [partnerSheetOpen, setPartnerSheetOpen] = React.useState(false);
+
   const handlePress = () => {
     // Tapping the badge is user intent — permanently dismiss both hints
     dismissDiscoveryHints();
     if (hubState.isMock) return;
+    // Verified partner hub → open the Enhanced Hub Sheet
+    if (hubState.businessProfile?.isActiveSubscription) {
+      setPartnerSheetOpen(true);
+      return;
+    }
     router.push({
       pathname: "/leaderboard/[placeId]",
       params: { placeId: hubState.placeId, placeName: hubState.placeName },
     } as never);
   };
+
+  const handleLeaderboardFromSheet = React.useCallback(() => {
+    setPartnerSheetOpen(false);
+    setTimeout(() => {
+      router.push({
+        pathname: "/leaderboard/[placeId]",
+        params: { placeId: hubState.placeId, placeName: hubState.placeName },
+      } as never);
+    }, 120);
+  }, [hubState.placeId, hubState.placeName, router]);
 
   return (
     <>
@@ -277,6 +295,17 @@ function HubStatusBadgeInner({
         onSelect={confirmVenue}
         onDismiss={cancelVenueSelection}
       />
+
+      {hubState.businessProfile?.isActiveSubscription ? (
+        <EnhancedHubSheet
+          visible={partnerSheetOpen}
+          onClose={() => setPartnerSheetOpen(false)}
+          businessProfile={hubState.businessProfile}
+          placeName={hubState.placeName}
+          isCheckedIn
+          onViewLeaderboard={handleLeaderboardFromSheet}
+        />
+      ) : null}
       <Animated.View
         style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
       >
