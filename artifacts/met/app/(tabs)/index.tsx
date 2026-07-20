@@ -21,7 +21,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
-import { HubStatusBadge } from "@/components/HubStatusBadge";
 import { Avatar } from "@/components/Avatar";
 import { GridOverlay } from "@/components/GridOverlay";
 import { PermissionDisclosureDialog } from "@/components/PermissionDisclosureDialog";
@@ -45,6 +44,9 @@ import { useHubCheckin } from "@/hooks/useHubCheckin";
 
 const HeatmapMap = React.lazy(() =>
   import("@/components/HeatmapMap").then((m) => ({ default: m.HeatmapMap })),
+);
+const HubStatusBadge = React.lazy(() =>
+  import("@/components/HubStatusBadge").then((m) => ({ default: m.HubStatusBadge })),
 );
 
 const CHECKIN_CTA_KEY = "met:checkin_cta_last_shown";
@@ -593,13 +595,15 @@ export default function HomeScreen() {
           <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
         </Pressable>
 
-        <HubStatusBadge
-          hubState={hubState}
-          cooldownMinutes={cooldownMinutes}
-          pendingVenues={pendingVenues}
-          confirmVenue={confirmVenue}
-          cancelVenueSelection={cancelVenueSelection}
-        />
+        <React.Suspense fallback={null}>
+          <HubStatusBadge
+            hubState={hubState}
+            cooldownMinutes={cooldownMinutes}
+            pendingVenues={pendingVenues}
+            confirmVenue={confirmVenue}
+            cancelVenueSelection={cancelVenueSelection}
+          />
+        </React.Suspense>
 
         <View
           style={[

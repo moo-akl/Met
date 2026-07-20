@@ -1,3 +1,4 @@
+import "./error-setup";
 import messaging from "@react-native-firebase/messaging";
 
 messaging().setBackgroundMessageHandler(async (_remoteMessage) => {
