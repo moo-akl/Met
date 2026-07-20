@@ -1,19 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useHasUnreadChats } from "@/hooks/useHasUnreadChats";
-import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
-import {
-  dismissDiscoveryHints,
-  initDiscoveryState,
-  isDiscoveryDismissedSync,
-  subscribeDiscovery,
-} from "@/lib/discoveryHints";
 
 function ChatTabIcon({ color }: { color: string }) {
   const { authedUid } = useApp();
@@ -32,23 +25,6 @@ function ChatTabIcon({ color }: { color: string }) {
 }
 
 function HomeTabIcon({ color }: { color: string }) {
-  const sessionCount = useSessionCount();
-  const [discoveryDismissed, setDiscoveryDismissed] = useState(
-    isDiscoveryDismissedSync,
-  );
-
-  useEffect(() => {
-    initDiscoveryState().then(() => {
-      if (isDiscoveryDismissedSync()) setDiscoveryDismissed(true);
-    }).catch(() => {});
-    return subscribeDiscovery(() => setDiscoveryDismissed(true));
-  }, []);
-
-  // Pulse ring temporarily removed for diagnostic build 210.
-  // sessionCount and discoveryDismissed kept to isolate Reanimated as crash variable.
-  void sessionCount;
-  void discoveryDismissed;
-
   return (
     <View style={styles.tabIconWrap}>
       <Feather name="home" size={22} color={color} />
@@ -93,14 +69,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: t("tabs.home"),
-          // HomeTabIcon shows the pulsing discovery ring; tapping the tab
-          // permanently dismisses both the ring and the HubStatusBadge tooltip.
           tabBarIcon: ({ color }) => <HomeTabIcon color={color} />,
-        }}
-        listeners={{
-          tabPress: () => {
-            dismissDiscoveryHints();
-          },
         }}
       />
       <Tabs.Screen
