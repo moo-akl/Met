@@ -92,22 +92,53 @@ const _origCrashHandler =
 );
 // ────────────────────────────────────────────────────────────────────────────
 
+// ─── Startup breadcrumb logger (build 215) ───────────────────────────────────
+// Sends fire-and-forget HTTP POSTs so we can trace the last step before a
+// crash. If NO pings arrive → crash is native (before any JS runs).
+// If "module-start" arrives → all static imports resolved OK.
+const _SLOG_URL =
+  (process.env.EXPO_PUBLIC_API_URL ?? "https://metapp.replit.app") +
+  "/api/debug/startup";
+const _SLOG_BUILD = "215";
+function slog(step: string, data?: Record<string, unknown>): void {
+  try {
+    fetch(_SLOG_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ step, build: _SLOG_BUILD, data }),
+    }).catch(() => {});
+  } catch {}
+}
+slog("module-start");
+// ─────────────────────────────────────────────────────────────────────────────
+
 const queryClient = new QueryClient();
+slog("query-client-created");
 
 // Configure expo-notifications once at module load. Idempotent — sets
 // the foreground presentation handler and Android default channel.
+slog("notifications-init-start");
 try {
   configureNotifications();
+  slog("notifications-init-done");
 } catch (err) {
+  slog("notifications-init-error", {
+    msg: err instanceof Error ? err.message : String(err),
+  });
   console.warn(
     "Notifications init failed:",
     err instanceof Error ? err.message : err,
   );
 }
 
+slog("revenuecat-init-start");
 try {
   initializeRevenueCat();
+  slog("revenuecat-init-done");
 } catch (err) {
+  slog("revenuecat-init-error", {
+    msg: err instanceof Error ? err.message : String(err),
+  });
   console.warn(
     "RevenueCat unavailable:",
     err instanceof Error ? err.message : err,
@@ -120,6 +151,7 @@ try {
 // in Events Manager → Test Events. Controlled via EXPO_PUBLIC_TIKTOK_DEBUG
 // so it can be toggled per-build without a code change. Falls back to
 // __DEV__ so local/simulator runs also use debug mode automatically.
+slog("tiktok-init-start");
 const tikTokDebug =
   process.env.EXPO_PUBLIC_TIKTOK_DEBUG === "true" || __DEV__;
 void initTikTok(
@@ -128,11 +160,17 @@ void initTikTok(
   process.env.EXPO_PUBLIC_TIKTOK_ACCESS_TOKEN ?? "",
   tikTokDebug,
 ).then(() => {
+  slog("tiktok-init-done");
   tiktokTrackLaunch();
+}).catch((err: unknown) => {
+  slog("tiktok-init-error", {
+    msg: err instanceof Error ? err.message : String(err),
+  });
 });
 
 // Initialize @workspace/api-client-react so network-screen hooks can reach
 // the API server with the correct base URL and a live Firebase ID token.
+slog("api-client-setup-start");
 setBaseUrl(process.env.EXPO_PUBLIC_API_URL ?? "");
 setAuthTokenGetter(async () => {
   try {
@@ -144,22 +182,32 @@ setAuthTokenGetter(async () => {
     return null;
   }
 });
+slog("api-client-setup-done");
 
 // Kick off i18n + referrals state load before the first paint we care about.
 // They're idempotent and resolve quickly; failures fall back to defaults.
-void initI18n();
-void initReferrals();
+slog("i18n-referrals-start");
+void initI18n().then(() => slog("i18n-done")).catch(() => {});
+void initReferrals().then(() => slog("referrals-done")).catch(() => {});
 
 // Warm up Firestore + App Check so the first encounter / nearby query
 // doesn't pay the cold-start cost. Resolves to false on web preview /
 // Expo Go (no native bridge); the proximity service falls back to its
 // legacy api-server-backed path in that case.
-void initializeFirestore().catch((err) => {
+slog("firestore-init-start");
+void initializeFirestore().then(() => {
+  slog("firestore-init-done");
+}).catch((err) => {
+  slog("firestore-init-error", {
+    msg: err instanceof Error ? err.message : String(err),
+  });
   console.warn(
     "Firestore unavailable:",
     err instanceof Error ? err.message : err,
   );
 });
+
+slog("module-body-done");
 
 // Stash a referral code that came in via deep link (`met://r/CODE` or
 // universal link with `/r/CODE`) so onboarding can pre-fill it.
@@ -406,6 +454,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  slog("root-layout-render");
   const router = useRouter();
   const pathname = usePathname();
   const [fontsLoaded, fontError] = useFonts({
@@ -469,6 +518,7 @@ export default function RootLayout() {
   // Increment session count once per cold start so session-gated features
   // (value tour, leaderboard pulse, hub tooltip) can track how new the user is.
   useEffect(() => {
+    slog("root-layout-mounted");
     incrementSessionCount().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

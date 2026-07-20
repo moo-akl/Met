@@ -18,9 +18,11 @@ import adminRouter from "./admin";
 import trophiesRouter from "./trophies";
 import businessRouter from "./business";
 import webhooksRouter from "./webhooks";
+import debugRouter from "./debug";
 
 const router: IRouter = Router();
 
+router.use(debugRouter);
 router.use(healthRouter);
 router.use(storageRouter);
 router.use(profilesRouter);
