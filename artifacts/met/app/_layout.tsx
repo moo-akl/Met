@@ -29,6 +29,14 @@ function slog(step: string, data?: Record<string, unknown>): void {
 }
 slog("module-start");
 
+// Stub for onboarding.tsx which imports this from _layout
+let pendingDeepLinkReferral: string | null = null;
+export function consumePendingReferral(): string | null {
+  const v = pendingDeepLinkReferral;
+  pendingDeepLinkReferral = null;
+  return v;
+}
+
 export default function RootLayout() {
   slog("root-layout-render");
   const [fontsLoaded, fontError] = useFonts({
