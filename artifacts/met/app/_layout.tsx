@@ -71,8 +71,9 @@ FileSystem.readAsStringAsync(CRASH_LOG_PATH).then((msg) => {
 }).catch(() => {});
 
 // Hook the global error handler to capture the crash message before native kill.
-const _originalHandler = (global as { ErrorUtils?: { getGlobalHandler: () => ((e: Error, isFatal: boolean) => void) | null, setGlobalHandler: (h: (e: Error, isFatal: boolean) => void) => void } }).ErrorUtils?.getGlobalHandler?.() ?? null;
-(global as { ErrorUtils?: { setGlobalHandler: (h: (e: Error, isFatal: boolean) => void) => void } }).ErrorUtils?.setGlobalHandler?.((error: Error, isFatal: boolean) => {
+type ErrorUtilsGlobal = { ErrorUtils?: { getGlobalHandler: () => ((e: Error, isFatal: boolean) => void) | null; setGlobalHandler: (h: (e: Error, isFatal: boolean) => void) => void } };
+const _originalHandler = (globalThis as unknown as ErrorUtilsGlobal).ErrorUtils?.getGlobalHandler?.() ?? null;
+(globalThis as unknown as ErrorUtilsGlobal).ErrorUtils?.setGlobalHandler?.((error: Error, isFatal: boolean) => {
   const msg = `[Met crash 212] fatal=${isFatal}\n${error?.message ?? "(no message)"}\n${error?.stack ?? "(no stack)"}`;
   console.error(msg);
   // Best-effort write — may fail if FS not ready yet.
