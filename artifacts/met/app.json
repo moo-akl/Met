@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "216",
+      "buildNumber": "217",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "app.met.founders",
-      "versionCode": 216,
+      "versionCode": 217,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#92C977"
@@ -163,9 +163,5 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "updates": {
-      "enabled": false,
-      "url": "https://u.expo.dev/f9d35bdb-e890-408f-b9d9-4ca36cbeae23"
-    }
   }
 }

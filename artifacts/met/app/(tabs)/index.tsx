@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import * as Updates from "expo-updates";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -79,7 +78,6 @@ export default function HomeScreen() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       try { window.location.reload(); return; } catch {}
     } else {
-      try { await Updates.reloadAsync(); return; } catch {}
       try { DevSettings.reload(); return; } catch {}
     }
     setReloadingLang(false);

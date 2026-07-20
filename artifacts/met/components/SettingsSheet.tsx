@@ -3,7 +3,6 @@ import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { useRouter } from "expo-router";
-import * as Updates from "expo-updates";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -323,15 +322,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
         return;
       } catch {}
     } else {
-      // Try expo-updates first (works in production builds and in Expo Go).
-      // reloadAsync returns a Promise that may reject if the Updates module
-      // is unavailable in this build, so we await + catch instead of relying
-      // on a sync try/catch.
-      try {
-        await Updates.reloadAsync();
-        return;
-      } catch {}
-      // Dev-client / Expo Go fallback.
       try {
         DevSettings.reload();
         return;
