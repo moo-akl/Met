@@ -131,19 +131,21 @@ try {
   );
 }
 
-slog("revenuecat-init-start");
-try {
-  initializeRevenueCat();
-  slog("revenuecat-init-done");
-} catch (err) {
-  slog("revenuecat-init-error", {
-    msg: err instanceof Error ? err.message : String(err),
-  });
-  console.warn(
-    "RevenueCat unavailable:",
-    err instanceof Error ? err.message : err,
-  );
-}
+// DEBUG: Disabled for build 218 to test if RevenueCat configure() is the crash.
+// Re-enable once the root cause is confirmed.
+slog("revenuecat-init-skipped");
+// try {
+//   initializeRevenueCat();
+//   slog("revenuecat-init-done");
+// } catch (err) {
+//   slog("revenuecat-init-error", {
+//     msg: err instanceof Error ? err.message : String(err),
+//   });
+//   console.warn(
+//     "RevenueCat unavailable:",
+//     err instanceof Error ? err.message : err,
+//   );
+// }
 
 // Initialize TikTok Business SDK (Android only; no-op on iOS).
 // All three env vars must be set in EXPO_PUBLIC_* for tracking to work.
