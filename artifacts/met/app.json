@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "met",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
