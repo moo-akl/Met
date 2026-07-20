@@ -6,11 +6,13 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Alert } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -47,6 +49,38 @@ import { initTikTok, tiktokTrackLaunch } from "@/lib/tiktok";
 import { incrementSessionCount } from "@/lib/storage";
 
 SplashScreen.preventAutoHideAsync();
+
+// ─── Crash diagnostics (build 212) ──────────────────────────────────────────
+// Intercept the global JS error handler before React Native's default handler
+// kills the process. Writes the error to a persistent file so the NEXT launch
+// can show it in an Alert — giving us the crash message without needing Xcode.
+const CRASH_LOG_PATH = `${FileSystem.documentDirectory}met_crash_log.txt`;
+
+// On every launch, check if the previous run left a crash log and show it.
+FileSystem.readAsStringAsync(CRASH_LOG_PATH).then((msg) => {
+  if (!msg) return;
+  void FileSystem.deleteAsync(CRASH_LOG_PATH, { idempotent: true });
+  // Defer until the JS thread is idle so Alert can render.
+  setTimeout(() => {
+    Alert.alert(
+      "Previous crash reason",
+      msg.slice(0, 2000),
+      [{ text: "OK" }],
+    );
+  }, 1500);
+}).catch(() => {});
+
+// Hook the global error handler to capture the crash message before native kill.
+const _originalHandler = (global as { ErrorUtils?: { getGlobalHandler: () => ((e: Error, isFatal: boolean) => void) | null, setGlobalHandler: (h: (e: Error, isFatal: boolean) => void) => void } }).ErrorUtils?.getGlobalHandler?.() ?? null;
+(global as { ErrorUtils?: { setGlobalHandler: (h: (e: Error, isFatal: boolean) => void) => void } }).ErrorUtils?.setGlobalHandler?.((error: Error, isFatal: boolean) => {
+  const msg = `[Met crash 212] fatal=${isFatal}\n${error?.message ?? "(no message)"}\n${error?.stack ?? "(no stack)"}`;
+  console.error(msg);
+  // Best-effort write — may fail if FS not ready yet.
+  FileSystem.writeAsStringAsync(CRASH_LOG_PATH, msg).catch(() => {}).finally(() => {
+    if (_originalHandler) _originalHandler(error, isFatal);
+  });
+});
+// ────────────────────────────────────────────────────────────────────────────
 
 const queryClient = new QueryClient();
 
