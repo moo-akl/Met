@@ -30,4 +30,5 @@
 - [encounter/connection verified+rating](encounter-verified-rating.md) — verified = photoUri non-empty; averageRating from getCommunityStanding (useQuery, staleTime 5 min, only shown when hasEnough=true); no new DB columns needed.
 - [Invisible mode — GPS push loop must stop](invisible-gps-gap.md) — BLE advertising stops via useVisibility, but AppContext Firestore proximity must also check profile?.isVisible; add it to the effect dependency array or invisible users keep writing geohash.
 - [seed-marketing script](seed-marketing.md) — scripts/src/seed-marketing.ts seeds dev DB for App Store screenshots; needs MARKETING_UID env var; uses @workspace/db (now in scripts deps) + drizzle-orm catalog.
+- [EAS ASC auth needs EXPO_APPLE_TEAM_TYPE](eas-asc-auth-team-type.md) — without all 5 ASC env vars, EAS skips Apple profile validation and reuses stale provisioning profiles in CI.
 - [Lazy-load heavy sheet components](lazy-load-sheet-components.md) — components with complex StyleSheet.create (percentage strings, type hacks) can crash on startup via New Architecture style processor; fix is React.lazy() + Suspense to defer module evaluation.
