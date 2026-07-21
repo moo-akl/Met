@@ -58,29 +58,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select latest Xcode with installed iOS SDK
+      - name: Select Xcode 16.4 (stable for Expo SDK 54 + RN 0.81.5)
         run: |
-          # The macos-15 runner ships several Xcode versions, but only some
-          # have the iOS platform SDK installed. Pick the newest one that does.
-          BEST=""
-          BEST_VER=""
-          for app in $(ls -d /Applications/Xcode_*.app /Applications/Xcode.app 2>/dev/null | sort -Vr); do
-            DEV="$app/Contents/Developer"
-            if [ -d "$DEV/Platforms/iPhoneOS.platform/Developer/SDKs" ] && \
-               ls "$DEV/Platforms/iPhoneOS.platform/Developer/SDKs/" 2>/dev/null | grep -q "iPhoneOS.*\.sdk"; then
-              VER=$("$DEV/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-              echo "Candidate: $app  (Xcode $VER, iOS SDK present)"
-              if [ -z "$BEST" ]; then BEST="$app"; BEST_VER="$VER"; fi
-            else
-              echo "Skip:      $app  (no iOS SDK)"
-            fi
-          done
-          if [ -z "$BEST" ]; then
-            echo "::error::No Xcode with iOS SDK found on this runner."
+          # The macos-15 runner ships multiple Xcode versions. We MUST pin to
+          # Xcode 16.4 because Expo SDK 54 + React Native 0.81.5 + New
+          # Architecture is not compatible with Xcode 26.x on iOS 26.
+          # Using Xcode 26.x causes a SIGABRT on com.meta.react.turbomodulemanager.queue
+          # during app startup. See GitHub issue discussion #276.
+          TARGET="/Applications/Xcode_16.4.app"
+          if [ ! -d "$TARGET" ]; then
+            TARGET="/Applications/Xcode.app"
+          fi
+          DEV="$TARGET/Contents/Developer"
+          if [ ! -d "$DEV" ]; then
+            echo "::error::Xcode 16.4 not found on this runner."
             exit 1
           fi
-          echo "Selected:  $BEST  (Xcode $BEST_VER)"
-          sudo xcode-select -s "$BEST/Contents/Developer"
+          VER=$("$DEV/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
+          echo "Selected:  $TARGET  (Xcode $VER)"
+          sudo xcode-select -s "$DEV"
 
       - name: Show toolchain
         run: |
