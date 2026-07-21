@@ -1,23 +1,13 @@
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  useFonts,
-} from "@expo-google-fonts/inter";
 import { Stack } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { View, Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-SplashScreen.preventAutoHideAsync();
-
-// Startup breadcrumb logger (build 219)
+// Startup breadcrumb logger (build 220)
 const _SLOG_URL =
   (process.env.EXPO_PUBLIC_API_URL ?? "https://metapp.replit.app") +
   "/api/debug/startup";
-const _SLOG_BUILD = "219";
+const _SLOG_BUILD = "220";
 function slog(step: string, data?: Record<string, unknown>): void {
   try {
     fetch(_SLOG_URL, {
@@ -39,25 +29,11 @@ export function consumePendingReferral(): string | null {
 
 export default function RootLayout() {
   slog("root-layout-render");
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
 
   useEffect(() => {
     slog("root-layout-mounted");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
-
-  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>
@@ -68,7 +44,7 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: "#000" },
           }}
         >
-          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="debug-only" />
         </Stack>
         <View
           style={{
@@ -80,7 +56,7 @@ export default function RootLayout() {
           }}
         >
           <Text style={{ color: "#fff", fontSize: 14 }}>
-            Build 219 — minimal layout test
+            Build 220 — no fonts / no splash / debug-only route
           </Text>
         </View>
       </View>
