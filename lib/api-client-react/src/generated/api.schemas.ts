@@ -5,25 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface UploadUrlRequest {
-  /** @minLength 1 */
-  name: string;
-  /** @minimum 1 */
-  size: number;
-  /** @minLength 1 */
-  contentType: string;
-}
-
-export interface UploadUrlResponse {
-  uploadURL: string;
-  objectPath: string;
-  metadata?: UploadUrlRequest;
-}
-
-export interface ErrorEnvelope {
-  error: string;
-}
-
 export interface HealthStatus {
   status: string;
 }
@@ -438,95 +419,6 @@ export interface CreateAnnouncementRequest {
   questions?: string[] | null;
 }
 
-export interface BusinessProfile {
-  businessId: string;
-  ownerId: string;
-  placeId: string;
-  name: string;
-  description?: string | null;
-  logoUrl?: string | null;
-  mediaUrls: string[];
-  isActiveSubscription: boolean;
-  subscriptionEndDate?: string | null;
-  salesAgentId?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface BusinessEvent {
-  eventId: number;
-  businessId: string;
-  title: string;
-  description?: string | null;
-  /** Optional cover image URL for the event */
-  imageUrl?: string | null;
-  startTime: string;
-  endTime: string;
-  createdAt: string;
-}
-
-export type BusinessProfileWithEvents = BusinessProfile & {
-  events: BusinessEvent[];
-};
-
-export interface GenerateSalesLinkRequest {
-  agentId: string;
-}
-
-export interface CreateBusinessRequest {
-  placeId: string;
-  name: string;
-  description?: string;
-  logoUrl?: string;
-  mediaUrls?: string[];
-  salesAgentId?: string;
-}
-
-export interface UpdateBusinessRequest {
-  name?: string;
-  description?: string;
-  logoUrl?: string | null;
-  mediaUrls?: string[];
-}
-
-export interface CreateBusinessEventRequest {
-  title: string;
-  description?: string;
-  /** Optional cover image URL for the event */
-  imageUrl?: string;
-  startTime: string;
-  endTime: string;
-}
-
-export interface BusinessReview {
-  reviewId: number;
-  businessId: string;
-  reviewerId: string;
-  /**
-   * @minimum 1
-   * @maximum 5
-   */
-  rating: number;
-  comment?: string | null;
-  createdAt: string;
-}
-
-export interface CreateBusinessReviewRequest {
-  /**
-   * @minimum 1
-   * @maximum 5
-   */
-  rating: number;
-  comment?: string;
-}
-
-export interface BusinessReviewsResponse {
-  averageRating?: number | null;
-  totalReviews: number;
-  page: number;
-  reviews: BusinessReview[];
-}
-
 export interface CastVoteRequest {
   optionId: number;
 }
@@ -658,23 +550,4 @@ export type InviteToNetwork200 = {
 
 export type DeleteAnnouncement200 = {
   success: boolean;
-};
-
-export type ListBusinessEvents200 = {
-  events: BusinessEvent[];
-};
-
-export type GenerateSalesLink200 = {
-  url: string;
-  agentId: string;
-};
-
-export type AdminListBusinesses200GroupedItem = {
-  salesAgentId: string | null;
-  businesses: BusinessProfile[];
-};
-
-export type AdminListBusinesses200 = {
-  grouped: AdminListBusinesses200GroupedItem[];
-  total: number;
 };

@@ -14,9 +14,6 @@
     },
     {
       "path": "./lib/interests"
-    },
-    {
-      "path": "./lib/object-storage-web"
     }
   ]
 }

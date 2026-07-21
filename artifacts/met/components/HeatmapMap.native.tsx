@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import MapView, { Circle, Marker, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
@@ -17,13 +16,6 @@ import {
   type ActiveVenueResult,
   type HeatmapVenueResult,
 } from "@/lib/api/client";
-import { resolveIsPartner } from "@/lib/hubPartner";
-
-const EnhancedHubSheet = React.lazy(() =>
-  import("@/components/EnhancedHubSheet").then((m) => ({
-    default: m.EnhancedHubSheet,
-  })),
-);
 
 // Refetch heatmap if the map center moved more than ~500 m (~0.005°)
 const SIGNIFICANT_PAN_DEG = 0.005;
@@ -67,24 +59,15 @@ interface PulsingMarkerProps {
   coordinate: { latitude: number; longitude: number };
   checkinCount: number;
   primaryColor: string;
-  /** True when this hub is a verified business partner — renders gold marker. */
-  isVerifiedPartner?: boolean;
-  onPress?: () => void;
 }
 
 function PulsingMarker({
   coordinate,
   checkinCount,
   primaryColor,
-  isVerifiedPartner = false,
-  onPress,
 }: PulsingMarkerProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(0.55)).current;
-
-  // Gold for verified partners, green for regular hubs
-  const markerColor = isVerifiedPartner ? "#F59E0B" : primaryColor;
-  const dotBorderColor = isVerifiedPartner ? "#92400E" : "#ffffff";
 
   useEffect(() => {
     const anim = Animated.loop(
@@ -122,7 +105,7 @@ function PulsingMarker({
   const dotSize = Math.min(28, 14 + Math.min(checkinCount - 1, 4) * 3);
 
   return (
-    <Marker coordinate={coordinate} anchor={{ x: 0.5, y: 0.5 }} onPress={onPress}>
+    <Marker coordinate={coordinate} anchor={{ x: 0.5, y: 0.5 }}>
       <View
         style={{
           alignItems: "center",
@@ -137,7 +120,7 @@ function PulsingMarker({
             width: dotSize * 2,
             height: dotSize * 2,
             borderRadius: dotSize,
-            backgroundColor: markerColor,
+            backgroundColor: primaryColor,
             opacity,
             transform: [{ scale }],
           }}
@@ -147,9 +130,9 @@ function PulsingMarker({
             width: dotSize,
             height: dotSize,
             borderRadius: dotSize / 2,
-            backgroundColor: markerColor,
-            borderWidth: isVerifiedPartner ? 2.5 : 2,
-            borderColor: dotBorderColor,
+            backgroundColor: primaryColor,
+            borderWidth: 2,
+            borderColor: "#ffffff",
           }}
         />
       </View>
@@ -160,13 +143,10 @@ function PulsingMarker({
 function HeatmapMapInner({ style }: HeatmapMapProps) {
   const { authedUid } = useApp();
   const colors = useColors();
-  const router = useRouter();
 
   const mapRef = useRef<MapView>(null);
   const [activeVenues, setActiveVenues] = useState<ActiveVenueResult[]>([]);
   const [heatmapVenues, setHeatmapVenues] = useState<HeatmapVenueResult[]>([]);
-  // Selected venue for Enhanced Hub Sheet (verified partner hubs only)
-  const [selectedVenue, setSelectedVenue] = useState<ActiveVenueResult | null>(null);
   // Tracks the current visible region so heatCircles can scale with zoom.
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   // Tracks the region at which we last fetched heatmap data to avoid
@@ -316,72 +296,34 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
     });
   }, [heatmapVenues, region.latitudeDelta]);
 
-  const handleMarkerPress = useCallback((venue: ActiveVenueResult) => {
-    if (venue.businessProfile?.isActiveSubscription) {
-      setSelectedVenue(venue);
-    }
-  }, []);
-
   const activeMarkers = useMemo(
     () =>
       activeVenues
         .filter((v) => !isNaN(v.lat) && !isNaN(v.lng))
-        .map((venue) => {
-          const isPartner = resolveIsPartner(venue.businessProfile);
-          return (
-            <PulsingMarker
-              key={`active-${venue.placeId}`}
-              coordinate={{ latitude: venue.lat, longitude: venue.lng }}
-              checkinCount={venue.checkinCount}
-              primaryColor="#34C759"
-              isVerifiedPartner={isPartner}
-              onPress={isPartner ? () => handleMarkerPress(venue) : undefined}
-            />
-          );
-        }),
-    [activeVenues, handleMarkerPress],
+        .map((venue) => (
+          <PulsingMarker
+            key={`active-${venue.placeId}`}
+            coordinate={{ latitude: venue.lat, longitude: venue.lng }}
+            checkinCount={venue.checkinCount}
+            primaryColor="#34C759"
+          />
+        )),
+    [activeVenues],
   );
 
-  const handleLeaderboard = useCallback(() => {
-    if (!selectedVenue) return;
-    setSelectedVenue(null);
-    router.push({
-      pathname: "/leaderboard/[placeId]",
-      params: {
-        placeId: selectedVenue.placeId,
-        placeName: selectedVenue.placeName,
-      },
-    } as never);
-  }, [selectedVenue, router]);
-
   return (
-    <>
-      <MapView
-        ref={mapRef}
-        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
-        style={[styles.map, style]}
-        initialRegion={DEFAULT_REGION}
-        showsUserLocation
-        showsMyLocationButton={false}
-        onRegionChangeComplete={handleRegionChangeComplete}
-      >
-        {heatCircles}
-        {activeMarkers}
-      </MapView>
-
-      {selectedVenue?.businessProfile ? (
-        <React.Suspense fallback={null}>
-          <EnhancedHubSheet
-            visible
-            onClose={() => setSelectedVenue(null)}
-            businessProfile={selectedVenue.businessProfile}
-            placeName={selectedVenue.placeName}
-            isCheckedIn={false}
-            onViewLeaderboard={handleLeaderboard}
-          />
-        </React.Suspense>
-      ) : null}
-    </>
+    <MapView
+      ref={mapRef}
+      provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
+      style={[styles.map, style]}
+      initialRegion={DEFAULT_REGION}
+      showsUserLocation
+      showsMyLocationButton={false}
+      onRegionChangeComplete={handleRegionChangeComplete}
+    >
+      {heatCircles}
+      {activeMarkers}
+    </MapView>
   );
 }
 
@@ -392,7 +334,7 @@ export const HeatmapMap = React.memo(HeatmapMapInner);
 
 const styles = StyleSheet.create({
   map: {
-    flex: 1,
-    alignSelf: "stretch",
+    width: "100%",
+    height: "100%",
   },
 });

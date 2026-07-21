@@ -98,25 +98,12 @@ export interface ApiOptions {
   signal?: AbortSignal;
 }
 
-/** Business profile summary returned alongside hub/venue data. */
-export interface BusinessProfileSummary {
-  businessId: string;
-  ownerId: string;
-  name: string;
-  logoUrl: string | null;
-  description: string | null;
-  isActiveSubscription: boolean;
-  mediaUrls: string[];
-}
-
 /** A venue returned by GET /api/hubs/nearby. */
 export interface VenueResult {
   placeId: string;
   displayName: string;
   /** Haversine distance in metres from the queried GPS point. */
   distanceM: number;
-  /** Business profile if this hub is a verified partner, null otherwise. */
-  businessProfile: BusinessProfileSummary | null;
 }
 
 /** A venue returned by GET /api/hubs/active (check-ins in the last 30 min). */
@@ -126,8 +113,6 @@ export interface ActiveVenueResult {
   lat: number;
   lng: number;
   checkinCount: number;
-  /** Business profile if this hub is a verified partner, null otherwise. */
-  businessProfile: BusinessProfileSummary | null;
 }
 
 /** A venue returned by GET /api/hubs/heatmap (nearby places with popularity). */
@@ -827,96 +812,6 @@ export const api = {
    */
   recordChatConnection: (opts: ApiOptions) =>
     request<{ ok: boolean }>("POST", "/api/users/record-chat-connection", opts),
-
-  /**
-   * Fetch the business profile for a hub by its Google Places ID.
-   * Returns 404 when no business profile exists for this hub.
-   */
-  getBusinessByPlaceId: (opts: ApiOptions, placeId: string) =>
-    request<
-      BusinessProfileSummary & {
-        placeId: string;
-        ownerId: string;
-        events: Array<{
-          eventId: number;
-          businessId: string;
-          title: string;
-          description: string | null;
-          startTime: string;
-          endTime: string;
-        }>;
-      }
-    >("GET", `/api/business/${encodeURIComponent(placeId)}`, opts),
-
-  /**
-   * Fetch upcoming events for a business partner hub.
-   */
-  getBusinessEvents: (opts: ApiOptions, businessId: string) =>
-    request<{
-      events: Array<{
-        eventId: number;
-        businessId: string;
-        title: string;
-        description: string | null;
-        imageUrl: string | null;
-        startTime: string;
-        endTime: string;
-      }>;
-    }>("GET", `/api/business/${encodeURIComponent(businessId)}/events`, opts),
-
-  /**
-   * Fetch reviews for a business partner hub (up to 20 most recent).
-   */
-  getBusinessReviews: (opts: ApiOptions, businessId: string) =>
-    request<{
-      averageRating: number | null;
-      totalReviews: number;
-      page: number;
-      reviews: Array<{
-        reviewId: number;
-        businessId: string;
-        reviewerId: string;
-        rating: number;
-        comment: string | null;
-        createdAt: string;
-      }>;
-    }>("GET", `/api/business/${encodeURIComponent(businessId)}/reviews`, opts),
-
-  /**
-   * Returns whether the authenticated user has ever checked in at the
-   * given business hub (based on the hub_checkins table). Use this to
-   * gate the review UI for users who visited in the past but aren't
-   * currently checked in.
-   */
-  getMyBusinessCheckin: (opts: ApiOptions, businessId: string) =>
-    request<{ hasCheckedIn: boolean }>(
-      "GET",
-      `/api/business/${encodeURIComponent(businessId)}/my-checkin`,
-      opts,
-    ),
-
-  /**
-   * Upsert a review for a business partner hub.
-   * One review per user per business — submitting again updates the existing one.
-   */
-  submitBusinessReview: (
-    opts: ApiOptions,
-    businessId: string,
-    input: { rating: number; comment?: string | null },
-  ) =>
-    request<{
-      reviewId: number;
-      businessId: string;
-      reviewerId: string;
-      rating: number;
-      comment: string | null;
-      createdAt: string;
-    }>(
-      "POST",
-      `/api/business/${encodeURIComponent(businessId)}/reviews`,
-      opts,
-      input,
-    ),
 
   /**
    * Best-effort: increment the shared message_count for the connection

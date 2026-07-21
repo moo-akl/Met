@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Updates from "expo-updates";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -20,6 +21,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
+import { HeatmapMap } from "@/components/HeatmapMap";
+import { HubStatusBadge } from "@/components/HubStatusBadge";
 import { Avatar } from "@/components/Avatar";
 import { GridOverlay } from "@/components/GridOverlay";
 import { PermissionDisclosureDialog } from "@/components/PermissionDisclosureDialog";
@@ -39,6 +42,10 @@ import {
   useT,
 } from "@/lib/i18n";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
+import { useHubCheckin } from "@/hooks/useHubCheckin";
+
+const CHECKIN_CTA_KEY = "met:checkin_cta_last_shown";
+const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -78,11 +85,35 @@ export default function HomeScreen() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       try { window.location.reload(); return; } catch {}
     } else {
+      try { await Updates.reloadAsync(); return; } catch {}
       try { DevSettings.reload(); return; } catch {}
     }
     setReloadingLang(false);
   };
   const { encounters, preferences, profile, authedUid } = useApp();
+
+  const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin } =
+    useHubCheckin();
+
+  // Show the check-in CTA banner at most once every 6 hours.
+  const [checkinCtaVisible, setCheckinCtaVisible] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(CHECKIN_CTA_KEY).then((raw) => {
+      if (!raw) { setCheckinCtaVisible(true); return; }
+      setCheckinCtaVisible(Date.now() - Number(raw) >= SIX_HOURS_MS);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCheckinPress = useCallback(() => {
+    // Save timestamp and hide the banner for 6 hours.
+    void AsyncStorage.setItem(CHECKIN_CTA_KEY, String(Date.now()));
+    setCheckinCtaVisible(false);
+    // Trigger a real location + nearby-hub lookup (bypasses the 5-min debounce).
+    // Single-venue → auto-confirms; multiple venues → opens SelectVenueModal;
+    // no nearby hub → badge stays hidden (user sees nothing changed yet).
+    attemptCheckin();
+  }, [attemptCheckin]);
 
   const blips = useMemo<RadarBlip[]>(
     () =>
@@ -457,6 +488,63 @@ export default function HomeScreen() {
           )}
         </View>
 
+        <View
+          style={[
+            styles.heatmapSection,
+            { borderColor: colors.border },
+          ]}
+        >
+          {mapReady && <HeatmapMap style={{ flex: 1 }} />}
+        </View>
+
+        {checkinCtaVisible && <View style={styles.checkinCtaWrapper}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.checkinCta,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                opacity: pressed ? 0.82 : 1,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              },
+            ]}
+            accessibilityRole="button"
+            onPress={handleCheckinPress}
+          >
+            <Feather name="map-pin" size={18} color={colors.primary} />
+            <Text style={[styles.checkinCtaText, { color: colors.foreground, flex: 1 }]}>
+              {t("home.checkInCta")}
+            </Text>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </Pressable>
+        </View>}
+
+        <Pressable
+          onPress={() => {
+            if (hubState?.placeId) {
+              router.push(`/leaderboard/${hubState.placeId}`);
+            } else {
+              Alert.alert("Check in first", "Check in to a venue to view its leaderboard.");
+            }
+          }}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.leaderboardBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: pressed ? 0.82 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
+          ]}
+        >
+          <Feather name="award" size={18} color={colors.primary} />
+          <Text style={[styles.checkinCtaText, { color: colors.foreground, flex: 1 }]}>
+            Check leaderboards
+          </Text>
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+        </Pressable>
+
         <Pressable
           onPress={() => router.push("/(tabs)/recent")}
           accessibilityRole="button"
@@ -498,6 +586,13 @@ export default function HomeScreen() {
           <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
         </Pressable>
 
+        <HubStatusBadge
+          hubState={hubState}
+          cooldownMinutes={cooldownMinutes}
+          pendingVenues={pendingVenues}
+          confirmVenue={confirmVenue}
+          cancelVenueSelection={cancelVenueSelection}
+        />
 
         <View
           style={[

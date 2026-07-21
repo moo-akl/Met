@@ -27,7 +27,7 @@
         "EXPO_PUBLIC_TIKTOK_DEBUG": "true"
       },
       "ios": {
-        "image": "macos-sequoia-15.5-xcode-16.4",
+        "image": "macos-sequoia-15.6-xcode-26.0",
         "simulator": true
       },
       "android": {
@@ -48,7 +48,7 @@
         "EXPO_PUBLIC_TIKTOK_DEBUG": "true"
       },
       "ios": {
-        "image": "macos-sequoia-15.5-xcode-16.4",
+        "image": "macos-sequoia-15.6-xcode-26.0",
         "simulator": true
       },
       "android": {
@@ -69,7 +69,7 @@
         "EXPO_PUBLIC_TIKTOK_DEBUG": "true"
       },
       "ios": {
-        "image": "macos-sequoia-15.5-xcode-16.4"
+        "image": "macos-sequoia-15.6-xcode-26.0"
       },
       "android": {
         "buildType": "apk"
@@ -88,7 +88,7 @@
         "EXPO_PUBLIC_TIKTOK_ACCESS_TOKEN": "TTqJ0VkNIQTcBysFo0kNom5rsjWGiDqJ"
       },
       "ios": {
-        "image": "macos-sequoia-15.5-xcode-16.4"
+        "image": "macos-sequoia-15.6-xcode-26.0"
       },
       "android": {
         "buildType": "app-bundle"

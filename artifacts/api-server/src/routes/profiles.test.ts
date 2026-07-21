@@ -18,37 +18,11 @@ const dbMocks = vi.hoisted(() => {
   return { chain };
 });
 
-const logMocks = vi.hoisted(() => {
-  const warnSpy = vi.fn();
-  const childLogger = {
-    warn: warnSpy,
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    fatal: vi.fn(),
-    trace: vi.fn(),
-    child: vi.fn(),
-  };
-  childLogger.child.mockReturnValue(childLogger);
-  return { childLogger, warnSpy };
-});
-
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
   profilesTable: {},
   encountersTable: {},
   revealRequestsTable: {},
-  subscriptionsTable: {},
-}));
-
-// Replace pino-http with a bare middleware that attaches our spy logger to
-// req.log — avoids pino's internal symbol requirements while still letting
-// route handlers call req.log.warn / req.log.info normally.
-vi.mock("pino-http", () => ({
-  default: () => (req: any, _res: any, next: any) => {
-    req.log = logMocks.childLogger;
-    next();
-  },
 }));
 
 vi.mock("../lib/firestoreMirror", () => ({
@@ -107,13 +81,6 @@ beforeEach(() => {
   dbMocks.chain.insert.mockReturnThis();
   dbMocks.chain.values.mockReturnThis();
   dbMocks.chain.onConflictDoUpdate.mockReturnThis();
-  // Default limit to resolve with an empty array so routes that make a second
-  // DB query (e.g. subscriptions lookup in GET /profiles/me) don't throw on
-  // array destructuring when no per-test override is set.
-  dbMocks.chain.limit.mockResolvedValue([]);
-  // Restore childLogger methods after clearAllMocks resets them.
-  logMocks.childLogger.warn = logMocks.warnSpy;
-  logMocks.childLogger.child.mockReturnValue(logMocks.childLogger);
 });
 
 // ---------------------------------------------------------------------------
@@ -152,100 +119,6 @@ describe("GET /api/profiles/me", () => {
       uid: "alice",
       displayName: "Alice Wonderland",
     });
-  });
-
-  it("returns 200 with subscriptionTier 'free' when the subscriptions query throws", async () => {
-    // First call (profile lookup) resolves, second call (subscriptions) throws.
-    dbMocks.chain.limit
-      .mockResolvedValueOnce([profileFixture])
-      .mockRejectedValueOnce(new Error("subscriptionsTable not found in mock"));
-
-    const res = await request(app)
-      .get("/api/profiles/me")
-      .set("x-met-uid", "alice");
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
-      uid: "alice",
-      subscriptionTier: "free",
-      isSubscribed: false,
-    });
-    // The catch block must log a warning so the silent failure is observable.
-    expect(logMocks.warnSpy).toHaveBeenCalledOnce();
-    const [bindings, message] = logMocks.warnSpy.mock.calls[0] as [unknown, string];
-    expect(bindings).toMatchObject({ err: expect.any(Error) });
-    expect(message).toContain("subscription lookup failed");
-  });
-
-  it("returns subscriptionTier 'pro' and isSubscribed true for an active pro subscriber", async () => {
-    // First call (profile lookup) resolves with the profile.
-    // Second call (subscriptions lookup) resolves with an active pro row.
-    dbMocks.chain.limit
-      .mockResolvedValueOnce([profileFixture])
-      .mockResolvedValueOnce([{ tier: "pro", status: "active" }]);
-
-    const res = await request(app)
-      .get("/api/profiles/me")
-      .set("x-met-uid", "alice");
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
-      uid: "alice",
-      subscriptionTier: "pro",
-      isSubscribed: true,
-    });
-  });
-
-  it("returns isSubscribed false for a cancelled pro subscription", async () => {
-    dbMocks.chain.limit
-      .mockResolvedValueOnce([profileFixture])
-      .mockResolvedValueOnce([{ tier: "pro", status: "cancelled" }]);
-
-    const res = await request(app)
-      .get("/api/profiles/me")
-      .set("x-met-uid", "alice");
-
-    expect(res.status).toBe(200);
-    expect(res.body.isSubscribed).toBe(false);
-  });
-
-  it("returns isSubscribed false for an expired pro subscription", async () => {
-    dbMocks.chain.limit
-      .mockResolvedValueOnce([profileFixture])
-      .mockResolvedValueOnce([{ tier: "pro", status: "expired" }]);
-
-    const res = await request(app)
-      .get("/api/profiles/me")
-      .set("x-met-uid", "alice");
-
-    expect(res.status).toBe(200);
-    expect(res.body.isSubscribed).toBe(false);
-  });
-
-  it("returns isSubscribed false for a cancelled plus subscription", async () => {
-    dbMocks.chain.limit
-      .mockResolvedValueOnce([profileFixture])
-      .mockResolvedValueOnce([{ tier: "plus", status: "cancelled" }]);
-
-    const res = await request(app)
-      .get("/api/profiles/me")
-      .set("x-met-uid", "alice");
-
-    expect(res.status).toBe(200);
-    expect(res.body.isSubscribed).toBe(false);
-  });
-
-  it("returns isSubscribed false for an expired plus subscription", async () => {
-    dbMocks.chain.limit
-      .mockResolvedValueOnce([profileFixture])
-      .mockResolvedValueOnce([{ tier: "plus", status: "expired" }]);
-
-    const res = await request(app)
-      .get("/api/profiles/me")
-      .set("x-met-uid", "alice");
-
-    expect(res.status).toBe(200);
-    expect(res.body.isSubscribed).toBe(false);
   });
 });
 

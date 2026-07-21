@@ -35,12 +35,6 @@ import {
   subscribeDiscovery,
 } from "@/lib/discoveryHints";
 
-const EnhancedHubSheet = React.lazy(() =>
-  import("@/components/EnhancedHubSheet").then((m) => ({
-    default: m.EnhancedHubSheet,
-  })),
-);
-
 // Re-export so callers can import both from one file if needed.
 export { useHubCheckin } from "@/hooks/useHubCheckin";
 
@@ -210,20 +204,6 @@ function HubStatusBadgeInner({
     }).start(() => setTooltipVisible(false));
   }, [tooltipOpacity]);
 
-  // Must be declared before early returns to obey the Rules of Hooks.
-  const [partnerSheetOpen, setPartnerSheetOpen] = React.useState(false);
-
-  const handleLeaderboardFromSheet = React.useCallback(() => {
-    setPartnerSheetOpen(false);
-    setTimeout(() => {
-      if (!hubState) return;
-      router.push({
-        pathname: "/leaderboard/[placeId]",
-        params: { placeId: hubState.placeId, placeName: hubState.placeName },
-      } as never);
-    }, 120);
-  }, [hubState, router]);
-
   // Cooldown pill — shown when the server rejected a re-check-in (403 cooldown)
   // and there is no active hub state to display.
   if (!hubState && cooldownMinutes !== null && cooldownMinutes > 0) {
@@ -282,11 +262,6 @@ function HubStatusBadgeInner({
     // Tapping the badge is user intent — permanently dismiss both hints
     dismissDiscoveryHints();
     if (hubState.isMock) return;
-    // Verified partner hub → open the Enhanced Hub Sheet
-    if (hubState.businessProfile?.isActiveSubscription) {
-      setPartnerSheetOpen(true);
-      return;
-    }
     router.push({
       pathname: "/leaderboard/[placeId]",
       params: { placeId: hubState.placeId, placeName: hubState.placeName },
@@ -302,19 +277,6 @@ function HubStatusBadgeInner({
         onSelect={confirmVenue}
         onDismiss={cancelVenueSelection}
       />
-
-      {hubState.businessProfile?.isActiveSubscription ? (
-        <React.Suspense fallback={null}>
-          <EnhancedHubSheet
-            visible={partnerSheetOpen}
-            onClose={() => setPartnerSheetOpen(false)}
-            businessProfile={hubState.businessProfile}
-            placeName={hubState.placeName}
-            isCheckedIn
-            onViewLeaderboard={handleLeaderboardFromSheet}
-          />
-        </React.Suspense>
-      ) : null}
       <Animated.View
         style={{ opacity: badgeOpacity, marginHorizontal: 20, marginTop: 12 }}
       >
@@ -421,6 +383,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: -7,
     alignSelf: "center",
+    left: "50%",
+    marginLeft: -7,
     width: 0,
     height: 0,
     borderLeftWidth: 7,
@@ -447,7 +411,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 999,
     borderWidth: 1,
-    maxWidth: 360,
+    maxWidth: "100%",
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowRadius: 8,

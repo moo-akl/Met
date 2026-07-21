@@ -359,9 +359,3 @@ id = "00Sit3TEc1iTpKlspI4w6"
 uri = "file://screenshots/appstore-heatmap.jpg"
 type = "image"
 title = "Heatmap — 1242×2688"
-
-[[outputs]]
-id = "ahXJ8_mW0-Z0cedQOMZie"
-uri = "file://docs/auth-and-roles-architecture.md"
-type = "text"
-title = "Auth & Role-Based Access Architecture"

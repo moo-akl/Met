@@ -149,59 +149,6 @@ function main() {
     ensureSymlink(found[0], rootBinPath);
   }
 
-  // 3. Apply iOS 26 TurboModule fix directly (patch-package is unreliable in CI,
-  //    and pnpm patchedDependencies creates paths with '=' that break Android's
-  //    Prefab CLI. We apply the fix by editing the file directly after install.)
-  // We walk node_modules/.pnpm/ ourselves - glob is not always available.
-  const targets = [];
-  const pnpmStore = path.join(root, "node_modules/.pnpm");
-  try {
-    const entries = fs.readdirSync(pnpmStore);
-    for (const entry of entries) {
-      if (entry.startsWith("react-native@0.81.5_") && !entry.includes("patch_hash")) {
-        const candidate = path.join(
-          pnpmStore, entry,
-          "node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm"
-        );
-        if (fs.existsSync(candidate)) {
-          targets.push(candidate);
-        }
-      }
-    }
-  } catch {
-    /* store may not exist in all environments */
-  }
-
-  const oldBlock = `    } @catch (NSException *exception) {
-      throw convertNSExceptionToJSError(runtime, exception, std::string{moduleName}, methodNameStr);
-    } @finally {`;
-  const newBlock = `    } @catch (NSException *exception) {
-      // PATCH: Do NOT rethrow NSExceptions from void async methods.
-      // Void methods return nothing to JS, so rethrowing here causes an
-      // uncatchable C++ exception on background queues -> SIGABRT on iOS 26.
-      // See: https://github.com/facebook/react-native/issues/54859
-      // See: https://github.com/reactwg/react-native-new-architecture/discussions/276
-      RCTLogError(@"[TurboModule] Exception in void method %s::%s - %@",
-                  moduleName, methodNameStr.c_str(), exception);
-    } @finally {`;
-
-  for (const target of targets) {
-    let fileContent = fs.readFileSync(target, "utf8");
-    if (fileContent.includes(oldBlock)) {
-      const i = fileContent.indexOf(oldBlock);
-      fileContent = fileContent.slice(0, i) + newBlock + fileContent.slice(i + oldBlock.length);
-      fs.writeFileSync(target, fileContent);
-      console.log(`[eas-post-install] Applied iOS 26 TurboModule fix to ${target}`);
-    } else if (fileContent.includes(newBlock)) {
-      console.log(`[eas-post-install] TurboModule fix already applied in ${target}`);
-    } else {
-      console.warn(`[eas-post-install] Could not find target code block in ${target}`);
-    }
-  }
-
-  if (targets.length === 0) {
-    console.warn("[eas-post-install] RCTTurboModule.mm not found in any pnpm store entry");
-  }
   console.log("[eas-post-install] Done.");
 }
 

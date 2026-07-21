@@ -1,12 +1,26 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
+import Animated, {
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+} from "react-native-reanimated";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useHasUnreadChats } from "@/hooks/useHasUnreadChats";
+import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
+import {
+  dismissDiscoveryHints,
+  initDiscoveryState,
+  isDiscoveryDismissedSync,
+  subscribeDiscovery,
+} from "@/lib/discoveryHints";
 
 function ChatTabIcon({ color }: { color: string }) {
   const { authedUid } = useApp();
@@ -25,8 +39,58 @@ function ChatTabIcon({ color }: { color: string }) {
 }
 
 function HomeTabIcon({ color }: { color: string }) {
+  const sessionCount = useSessionCount();
+  const colors = useColors();
+  const [discoveryDismissed, setDiscoveryDismissed] = useState(
+    isDiscoveryDismissedSync,
+  );
+
+  useEffect(() => {
+    initDiscoveryState().then(() => {
+      if (isDiscoveryDismissedSync()) setDiscoveryDismissed(true);
+    }).catch(() => {});
+    return subscribeDiscovery(() => setDiscoveryDismissed(true));
+  }, []);
+
+  const showPulse =
+    !discoveryDismissed && sessionCount > 0 && sessionCount <= 3;
+
+  const scaleAnim = useSharedValue(1);
+  const opacityAnim = useSharedValue(0.6);
+
+  useEffect(() => {
+    if (!showPulse) {
+      cancelAnimation(scaleAnim);
+      cancelAnimation(opacityAnim);
+      scaleAnim.value = 1;
+      opacityAnim.value = 0.6;
+      return;
+    }
+    scaleAnim.value = withRepeat(
+      withSpring(1.7, { damping: 10, stiffness: 60 }),
+      -1,
+      true,
+    );
+    opacityAnim.value = withRepeat(
+      withSpring(0, { damping: 20, stiffness: 80 }),
+      -1,
+      true,
+    );
+  }, [showPulse, scaleAnim, opacityAnim]);
+
+  const pulseAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scaleAnim.value }],
+    opacity: opacityAnim.value,
+  }));
+
   return (
     <View style={styles.tabIconWrap}>
+      {showPulse && (
+        <Animated.View
+          style={[styles.pulseRing, { borderColor: colors.primary }, pulseAnimStyle]}
+          pointerEvents="none"
+        />
+      )}
       <Feather name="home" size={22} color={color} />
     </View>
   );
@@ -69,7 +133,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: t("tabs.home"),
+          // HomeTabIcon shows the pulsing discovery ring; tapping the tab
+          // permanently dismisses both the ring and the HubStatusBadge tooltip.
           tabBarIcon: ({ color }) => <HomeTabIcon color={color} />,
+        }}
+        listeners={{
+          tabPress: () => {
+            dismissDiscoveryHints();
+          },
         }}
       />
       <Tabs.Screen
@@ -125,5 +196,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 36,
     height: 36,
+  },
+  pulseRing: {
+    position: "absolute",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
   },
 });

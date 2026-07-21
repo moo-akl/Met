@@ -1,6 +1,5 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
-import storageRouter from "./storage";
 import profilesRouter from "./profiles";
 import profilePhotoRouter from "./profilePhoto";
 import encountersRouter from "./encounters";
@@ -16,15 +15,10 @@ import engagementRouter from "./engagement";
 import pioneerRouter from "./pioneer";
 import adminRouter from "./admin";
 import trophiesRouter from "./trophies";
-import businessRouter from "./business";
-import webhooksRouter from "./webhooks";
-import debugRouter from "./debug";
 
 const router: IRouter = Router();
 
-router.use(debugRouter);
 router.use(healthRouter);
-router.use(storageRouter);
 router.use(profilesRouter);
 router.use(profilePhotoRouter);
 router.use(encountersRouter);
@@ -40,7 +34,5 @@ router.use(engagementRouter);
 router.use(pioneerRouter);
 router.use(adminRouter);
 router.use(trophiesRouter);
-router.use(businessRouter);
-router.use(webhooksRouter);
 
 export default router;

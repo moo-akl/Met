@@ -21,7 +21,6 @@ import {
   trophiesTable,
   subscriptionsTable,
   revealRequestsTable,
-  businessProfilesTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
@@ -474,33 +473,7 @@ router.get(
       return;
     }
 
-    // Attach business profile info (if any) to each venue
-    const placeIds = venues.map((v) => v.placeId);
-    const businessProfiles =
-      placeIds.length > 0
-        ? await db
-            .select({
-              placeId: businessProfilesTable.placeId,
-              businessId: businessProfilesTable.businessId,
-              ownerId: businessProfilesTable.ownerId,
-              name: businessProfilesTable.name,
-              logoUrl: businessProfilesTable.logoUrl,
-              description: businessProfilesTable.description,
-              isActiveSubscription: businessProfilesTable.isActiveSubscription,
-              mediaUrls: businessProfilesTable.mediaUrls,
-            })
-            .from(businessProfilesTable)
-            .where(inArray(businessProfilesTable.placeId, placeIds))
-        : [];
-
-    const bizByPlaceId = new Map(businessProfiles.map((b) => [b.placeId, b]));
-
-    res.json({
-      venues: venues.map((v) => ({
-        ...v,
-        businessProfile: bizByPlaceId.get(v.placeId) ?? null,
-      })),
-    });
+    res.json({ venues });
   },
 );
 
@@ -540,26 +513,6 @@ router.get(
       .orderBy(desc(count(hubCheckinsTable.id)))
       .limit(50);
 
-    // Enrich with business profile data (if any verified partner hubs are active)
-    const activePlaceIds = rows.map((r) => r.placeId);
-    const activeBusinessProfiles =
-      activePlaceIds.length > 0
-        ? await db
-            .select({
-              placeId: businessProfilesTable.placeId,
-              businessId: businessProfilesTable.businessId,
-              ownerId: businessProfilesTable.ownerId,
-              name: businessProfilesTable.name,
-              logoUrl: businessProfilesTable.logoUrl,
-              description: businessProfilesTable.description,
-              isActiveSubscription: businessProfilesTable.isActiveSubscription,
-              mediaUrls: businessProfilesTable.mediaUrls,
-            })
-            .from(businessProfilesTable)
-            .where(inArray(businessProfilesTable.placeId, activePlaceIds))
-        : [];
-    const activeBizByPlaceId = new Map(activeBusinessProfiles.map((b) => [b.placeId, b]));
-
     res.json({
       venues: rows.map((r) => ({
         placeId: r.placeId,
@@ -567,7 +520,6 @@ router.get(
         lat: Number(r.lat),
         lng: Number(r.lng),
         checkinCount: Number(r.checkinCount),
-        businessProfile: activeBizByPlaceId.get(r.placeId) ?? null,
       })),
     });
   },
@@ -640,23 +592,17 @@ router.get(
     const period =
       req.query["period"] === "current_month" ? "current_month" : "all_time";
 
-    // ?month=YYYY-MM — filter to a specific past month (overrides period)
-    const monthParam = String(req.query["month"] ?? "");
-    const monthMatch = monthParam.match(/^(\d{4})-(\d{2})$/);
-
-    let monthStart: Date | null = null;
-    let monthEnd: Date | null = null;
-
-    if (monthMatch) {
-      const year = parseInt(monthMatch[1]!, 10);
-      const month = parseInt(monthMatch[2]!, 10) - 1; // 0-indexed
-      monthStart = new Date(Date.UTC(year, month, 1));
-      monthEnd = new Date(Date.UTC(year, month + 1, 1));
-    } else if (period === "current_month") {
-      monthStart = new Date(
-        Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1),
-      );
-    }
+    // For current_month, filter to rows from start of this month (UTC).
+    const monthStart =
+      period === "current_month"
+        ? new Date(
+            Date.UTC(
+              new Date().getUTCFullYear(),
+              new Date().getUTCMonth(),
+              1,
+            ),
+          )
+        : null;
 
     const rows = await db
       .select({
@@ -671,13 +617,7 @@ router.get(
         eq(profilesTable.uid, hubCheckinsTable.userUid),
       )
       .where(
-        monthStart && monthEnd
-          ? and(
-              eq(hubCheckinsTable.placeId, placeId),
-              gte(hubCheckinsTable.createdAt, monthStart),
-              lt(hubCheckinsTable.createdAt, monthEnd),
-            )
-          : monthStart
+        monthStart
           ? and(
               eq(hubCheckinsTable.placeId, placeId),
               gte(hubCheckinsTable.createdAt, monthStart),
