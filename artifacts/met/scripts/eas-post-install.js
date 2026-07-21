@@ -149,6 +149,56 @@ function main() {
     ensureSymlink(found[0], rootBinPath);
   }
 
+  // 3. Apply iOS 26 TurboModule fix directly (patch-package is unreliable in CI,
+  //    and pnpm patchedDependencies creates paths with '=' that break Android's
+  //    Prefab CLI. We apply the fix by editing the file directly after install.)
+  // We walk node_modules/.pnpm/ ourselves — glob is not always available.
+  let target = null;
+  const pnpmStore = path.join(root, "node_modules/.pnpm");
+  try {
+    const entries = fs.readdirSync(pnpmStore);
+    for (const entry of entries) {
+      // Look for react-native@0.81.5_... but NOT patch_hash variants
+      if (entry.startsWith("react-native@0.81.5_") && !entry.includes("patch_hash")) {
+        const candidate = path.join(
+          pnpmStore, entry,
+          "node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm"
+        );
+        if (fs.existsSync(candidate)) {
+          target = candidate;
+          break;
+        }
+      }
+    }
+  } catch {
+    /* store may not exist in all environments */
+  }
+
+  if (target) {
+    let content = fs.readFileSync(target, "utf8");
+    const oldBlock = `    } @catch (NSException *exception) {\n      throw convertNSExceptionToJSError(runtime, exception, std::string{moduleName}, methodNameStr);\n    } @finally {`;
+    const newBlock = `    } @catch (NSException *exception) {\n      // PATCH: Do NOT rethrow NSExceptions from void async methods.\n      // Void methods return nothing to JS, so rethrowing here causes an\n      // uncatchable C++ exception on background queues -> SIGABRT on iOS 26.\n      // See: https://github.com/facebook/react-native/issues/54859\n      // See: https://github.com/reactwg/react-native-new-architecture/discussions/276\n      RCTLogError(@"[TurboModule] Exception in void method %s::%s - %@",\n                  moduleName, methodNameStr.c_str(), exception);\n    } @finally {`;
+    if (content.includes(oldBlock)) {
+      const idx = content.indexOf(oldBlock);
+      // Only replace the SECOND occurrence (the one in performVoidMethodInvocation,
+      // not the sync method)
+      const secondIdx = content.indexOf(oldBlock, idx + 1);
+      if (secondIdx !== -1) {
+        content = content.slice(0, secondIdx) + newBlock + content.slice(secondIdx + oldBlock.length);
+        fs.writeFileSync(target, content);
+        console.log(`[eas-post-install] Applied iOS 26 TurboModule fix to ${target}`);
+      } else {
+        console.warn("[eas-post-install] Could not find second occurrence of target block");
+      }
+    } else if (content.includes(newBlock)) {
+      console.log("[eas-post-install] TurboModule fix already applied");
+    } else {
+      console.warn("[eas-post-install] Could not find target code block in RCTTurboModule.mm");
+    }
+  } else {
+    console.warn("[eas-post-install] RCTTurboModule.mm not found in pnpm store");
+  }
+
   console.log("[eas-post-install] Done.");
 }
 
