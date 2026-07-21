@@ -130,22 +130,24 @@ jobs:
           echo "name=${PROFILE}" >> "$GITHUB_OUTPUT"
           echo "Selected EAS profile: ${PROFILE}"
 
-      - name: Build .ipa locally (no EAS credits)
+      - name: Build .ipa via EAS cloud (regenerates provisioning profile)
         working-directory: artifacts/met
         run: |
+          # Temporary: cloud build forces EAS to regenerate the provisioning
+          # profile with Push Notifications entitlement. After this succeeds
+          # we revert to --local to save EAS credits.
           eas build \
             --platform ios \
             --profile "${{ steps.profile.outputs.name }}" \
-            --local \
-            --output "$(pwd)/met-ios.ipa" \
             --non-interactive
 
       - name: Verify output
         run: |
-          ls -lh artifacts/met/met-ios.ipa
-          file artifacts/met/met-ios.ipa
+          # Cloud builds don't produce a local .ipa; artifact is on EAS servers
+          echo "Cloud build completed. Artifact available via Expo Dashboard."
 
       - name: Upload .ipa artifact
+        if: false  # Cloud build artifact is on EAS servers, not local
         uses: actions/upload-artifact@v4
         with:
           name: met-ios-build-${{ github.run_number }}
