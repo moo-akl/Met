@@ -1,7 +1,7 @@
-diff --git a/node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm b/node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
---- a/node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
-+++ b/node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
-@@ -435,7 +435,12 @@ void ObjCTurboModule::performVoidMethodInvocation(
+diff --git a/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm b/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
+--- a/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
++++ b/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
+@@ -435,7 +435,13 @@
      @try {
        [inv invokeWithTarget:strongModule];
      } @catch (NSException *exception) {
@@ -13,6 +13,6 @@ diff --git a/node_modules/react-native/ReactCommon/react/nativemodule/core/platf
 +      // See: https://github.com/reactwg/react-native-new-architecture/discussions/276
 +      RCTLogError(@"[TurboModule] Exception in void method %s::%s - %@",
 +                  moduleName, methodNameStr.c_str(), exception);
+     } @finally {
+       [retainedObjectsForInvocation removeAllObjects];
      }
-   });
- }

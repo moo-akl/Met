@@ -58,20 +58,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 16.4 (stable for Expo SDK 54 + RN 0.81.5)
+      - name: Select Xcode 26.0.1 (required for App Store + stable for Expo SDK 54)
         run: |
-          # The macos-15 runner ships multiple Xcode versions. We MUST pin to
-          # Xcode 16.4 because Expo SDK 54 + React Native 0.81.5 + New
-          # Architecture is not compatible with Xcode 26.x on iOS 26.
-          # Using Xcode 26.x causes a SIGABRT on com.meta.react.turbomodulemanager.queue
-          # during app startup. See GitHub issue discussion #276.
-          TARGET="/Applications/Xcode_16.4.app"
+          # Apple requires iOS 26 SDK (Xcode 26+) for App Store submissions.
+          # Expo SDK 54 + RN 0.81.5 crashes with Xcode 26.3 due to a Hermes
+          # memory-layout incompatibility (expo/expo#44606). We pin to 26.0.1
+          # which is known to work, and apply a patch to RCTTurboModule.mm
+          # that prevents the NSException->SIGABRT path.
+          TARGET="/Applications/Xcode_26.0.1.app"
+          if [ ! -d "$TARGET" ]; then
+            TARGET="/Applications/Xcode_26.0.app"
+          fi
+          if [ ! -d "$TARGET" ]; then
+            TARGET="/Applications/Xcode_26.2.app"
+          fi
+          if [ ! -d "$TARGET" ]; then
+            TARGET="/Applications/Xcode_26.1.1.app"
+          fi
           if [ ! -d "$TARGET" ]; then
             TARGET="/Applications/Xcode.app"
           fi
           DEV="$TARGET/Contents/Developer"
           if [ ! -d "$DEV" ]; then
-            echo "::error::Xcode 16.4 not found on this runner."
+            echo "::error::No Xcode 26.x found on this runner."
             exit 1
           fi
           VER=$("$DEV/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
@@ -100,6 +109,10 @@ jobs:
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Apply iOS 26 TurboModule fix
+        working-directory: artifacts/met
+        run: node scripts/apply-ios-turbomodule-fix.js
 
       - name: Install EAS CLI
         run: npm install -g eas-cli@18.9.1
