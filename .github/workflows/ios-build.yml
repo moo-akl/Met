@@ -110,10 +110,6 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply iOS 26 TurboModule fix
-        working-directory: artifacts/met
-        run: node scripts/apply-ios-turbomodule-fix.js
-
       - name: Install EAS CLI
         run: npm install -g eas-cli@18.9.1
 

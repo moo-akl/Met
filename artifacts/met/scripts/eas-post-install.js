@@ -149,23 +149,6 @@ function main() {
     ensureSymlink(found[0], rootBinPath);
   }
 
-  // Apply patch-package patches (e.g. RCTTurboModule.mm fix for iOS 26 SIGABRT)
-  const patchPackagePath = path.join(root, "artifacts/met/node_modules/.bin/patch-package");
-  if (fs.existsSync(patchPackagePath)) {
-    try {
-      execSync(`${patchPackagePath} --patch-dir artifacts/met/patches`, {
-        cwd: root,
-        stdio: "inherit",
-      });
-      console.log("[eas-post-install] patch-package applied successfully");
-    } catch (err) {
-      console.error("[eas-post-install] patch-package failed:", err.message);
-      process.exit(1);
-    }
-  } else {
-    console.warn("[eas-post-install] patch-package binary not found, skipping patches");
-  }
-
   console.log("[eas-post-install] Done.");
 }
 
