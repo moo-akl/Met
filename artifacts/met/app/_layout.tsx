@@ -1,13 +1,11 @@
-import { Stack } from "expo-router";
 import React, { useEffect } from "react";
 import { View, Text } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
 
-// Startup breadcrumb logger (build 220)
+// Startup breadcrumb logger (build 221)
 const _SLOG_URL =
   (process.env.EXPO_PUBLIC_API_URL ?? "https://metapp.replit.app") +
   "/api/debug/startup";
-const _SLOG_BUILD = "220";
+const _SLOG_BUILD = "221";
 function slog(step: string, data?: Record<string, unknown>): void {
   try {
     fetch(_SLOG_URL, {
@@ -36,30 +34,10 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: "#000" },
-          }}
-        >
-          <Stack.Screen name="debug-only" />
-        </Stack>
-        <View
-          style={{
-            position: "absolute",
-            bottom: 40,
-            left: 0,
-            right: 0,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "#fff", fontSize: 14 }}>
-            Build 220 — no fonts / no splash / debug-only route
-          </Text>
-        </View>
-      </View>
-    </SafeAreaProvider>
+    <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
+      <Text style={{ color: "#fff", fontSize: 20 }}>
+        Build 221 — zero native imports
+      </Text>
+    </View>
   );
 }
