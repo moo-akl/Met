@@ -27,7 +27,7 @@
         "EXPO_PUBLIC_TIKTOK_DEBUG": "true"
       },
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.0",
+        "image": "macos-sequoia-15.5-xcode-16.4",
         "simulator": true
       },
       "android": {
@@ -48,7 +48,7 @@
         "EXPO_PUBLIC_TIKTOK_DEBUG": "true"
       },
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.0",
+        "image": "macos-sequoia-15.5-xcode-16.4",
         "simulator": true
       },
       "android": {
