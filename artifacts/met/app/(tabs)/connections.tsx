@@ -746,7 +746,7 @@ function ConnectionRow({
                     styles.rowTag,
                     {
                       color: colors.primary,
-                      backgroundColor: "#DCFCE7",
+                      backgroundColor: colors.secondary,
                     },
                   ]}
                 >

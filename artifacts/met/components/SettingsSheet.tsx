@@ -479,7 +479,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   styles.plusRow,
                   {
                     borderColor: colors.primary,
-                    backgroundColor: tier === "pro" ? "#1B7A23" : "#3DCC44",
+                    backgroundColor: tier === "pro" ? colors.secondary : colors.primary,
                     opacity: pressed ? 0.85 : 1,
                   },
                 ]}
@@ -1812,7 +1812,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1,
-    backgroundColor: "#3DCC44",
   },
   plusIcon: {
     width: 36,

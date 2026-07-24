@@ -296,7 +296,7 @@ export default function RecentScreen() {
               },
             ]}
           >
-            <View style={styles.limitIcon}>
+            <View style={[styles.limitIcon, { backgroundColor: colors.primary }]}>
               <Feather name="lock" size={20} color="#FFFFFF" />
             </View>
             <View style={{ flex: 1 }}>
@@ -385,7 +385,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#3DCC44",
     alignItems: "center",
     justifyContent: "center",
   },

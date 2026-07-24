@@ -137,7 +137,7 @@ export function EncounterRow({ encounter }: Props) {
             </View>
           ) : encounter.status === "encounter" && encounter.encounterCount > 1 ? (
             <View
-              style={[styles.repeatPill, { backgroundColor: "#DCFCE7" }]}
+              style={[styles.repeatPill, { backgroundColor: colors.secondary }]}
             >
               <Feather name="repeat" size={10} color={colors.primary} />
               <Text style={[styles.repeatText, { color: colors.primary }]}>

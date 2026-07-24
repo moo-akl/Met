@@ -1,58 +1,63 @@
 const colors = {
+  // ── Dark theme: Cyber-Social ──────────────────────────────────────────────
+  // Near-black ground, amber/gold primary, cyan accent. Futuristic nightlife.
   dark: {
-    text: "#EEF7EF",
-    tint: "#3AE06A",
+    text: "#F9FAFB",
+    tint: "#F59E0B",
 
-    background: "#122B1A",
-    foreground: "#EEF7EF",
+    background: "#080B0F",
+    foreground: "#F9FAFB",
 
-    card: "#1A3D24",
-    cardForeground: "#EEF7EF",
+    card: "#0F1318",
+    cardForeground: "#F9FAFB",
 
-    primary: "#3AE06A",
-    primaryForeground: "#FFFFFF",
+    primary: "#F59E0B",
+    primaryForeground: "#000000",
 
-    secondary: "#152E1C",
-    secondaryForeground: "#8EBA97",
+    secondary: "#1A1F2A",
+    secondaryForeground: "#9CA3AF",
 
-    muted: "#152E1C",
-    mutedForeground: "rgba(210,235,213,0.55)",
+    muted: "#0F1318",
+    mutedForeground: "#4B5563",
 
-    accent: "#3AE06A",
-    accentForeground: "#FFFFFF",
+    accent: "#22D3EE",
+    accentForeground: "#000000",
 
     destructive: "#EF4444",
     destructiveForeground: "#FFFFFF",
 
-    border: "rgba(58,224,106,0.14)",
-    input: "#1A3D24",
+    border: "rgba(255,255,255,0.06)",
+    input: "#1A1F2A",
   },
-  light: {
-    text: "#16161E",
-    tint: "#3DCC44",
 
-    background: "#F1F8F0",
-    foreground: "#16161E",
+  // ── Light theme: Premium Lifestyle ────────────────────────────────────────
+  // Warm cream parchment, champagne bronze primary, soft gold accent. Members-club.
+  light: {
+    text: "#1C1510",
+    tint: "#B5935A",
+
+    background: "#F8F4EF",
+    foreground: "#1C1510",
 
     card: "#FFFFFF",
-    cardForeground: "#16161E",
+    cardForeground: "#1C1510",
 
-    primary: "#3DCC44",
+    primary: "#B5935A",
     primaryForeground: "#FFFFFF",
 
-    secondary: "#E2F5E3",
-    secondaryForeground: "#166534",
+    secondary: "#F0E8DC",
+    secondaryForeground: "#8B6914",
 
-    muted: "#F3F4F6",
-    mutedForeground: "#6B7280",
+    muted: "#F0E8DC",
+    mutedForeground: "#9C8B75",
 
-    accent: "#3DCC44",
+    accent: "#D4AF37",
     accentForeground: "#FFFFFF",
 
     destructive: "#EF4444",
     destructiveForeground: "#FFFFFF",
 
-    border: "#D1FAE5",
+    border: "rgba(181,147,90,0.20)",
     input: "#FFFFFF",
   },
   radius: 12,

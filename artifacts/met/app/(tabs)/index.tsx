@@ -334,7 +334,7 @@ export default function HomeScreen() {
                     styles.avatarStack,
                     {
                       marginLeft: i === 0 ? 0 : -10,
-                      borderColor: "#DCFCE7",
+                      borderColor: colors.background,
                       zIndex: 10 - i,
                     },
                   ]}
