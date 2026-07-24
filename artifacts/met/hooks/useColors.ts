@@ -4,12 +4,15 @@ import { useTheme } from "@/contexts/ThemeContext";
 /**
  * Returns the design tokens for the currently active theme.
  *
- * The user can toggle between "dark" (radar/military palette) and "light"
- * (original bright green palette) via ThemeContext. The preference is
- * persisted to AsyncStorage so it survives app restarts.
+ * Three themes are supported:
+ *   "dark"  — Cyber-Social (near-black, amber/gold, cyan)
+ *   "light" — Premium Green (light surfaces, logo-green #3DCC44)
+ *   "game"  — Gamified Modern (lavender, indigo, pink)
+ *
+ * The user cycles through them via Settings → Appearance.
+ * The preference is persisted to AsyncStorage so it survives app restarts.
  */
 export function useColors() {
-  const { isDark } = useTheme();
-  const palette = isDark ? colors.dark : colors.light;
-  return { ...palette, radius: colors.radius };
+  const { theme } = useTheme();
+  return { ...colors[theme], radius: colors.radius };
 }

@@ -1,11 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export type ThemeMode = "dark" | "light";
+export type ThemeMode = "dark" | "light" | "game";
 
 type ThemeContextType = {
   theme: ThemeMode;
   toggleTheme: () => void;
+  /** True only when theme === "dark". Kept for backward compatibility. */
   isDark: boolean;
 };
 
@@ -23,19 +24,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(THEME_KEY)
       .then((val) => {
-        if (val === "light" || val === "dark") setTheme(val);
+        if (val === "light" || val === "dark" || val === "game") setTheme(val);
       })
       .catch(() => {});
   }, []);
 
+  // Cycles: dark → light → game → dark
   const toggleTheme = () => {
-    const next: ThemeMode = theme === "dark" ? "light" : "dark";
+    const next: ThemeMode =
+      theme === "dark" ? "light" : theme === "light" ? "game" : "dark";
     setTheme(next);
     AsyncStorage.setItem(THEME_KEY, next).catch(() => {});
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, isDark: theme === "dark" }}>
+    <ThemeContext.Provider
+      value={{ theme, toggleTheme, isDark: theme === "dark" }}
+    >
       {children}
     </ThemeContext.Provider>
   );

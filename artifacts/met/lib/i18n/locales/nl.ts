@@ -200,6 +200,7 @@ export const nl: LocaleTree = {
     timeDay: "{{count}}d",
     timeWeek: "{{count}}w",
     recentSection: "Recente ontmoetingen",
+    connectionsSection: "Verbindingen",
   },
   requests: {
     title: "Verzoeken",
@@ -799,6 +800,7 @@ export const nl: LocaleTree = {
     appearanceSub: "Auto, licht of donker",
     themeDark: "Donkere modus",
     themeLight: "Lichte modus",
+    themeGame: "Spelmodus",
     referralsRow: "Vrienden uitnodigen",
     referralsRowSub: "3 vrienden = 1 maand Plus, gratis",
     subscriptionRow: "Abonnement",

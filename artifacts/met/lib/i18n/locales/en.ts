@@ -203,6 +203,7 @@ export const en = {
     timeDay: "{{count}}d",
     timeWeek: "{{count}}w",
     recentSection: "Recent Encounters",
+    connectionsSection: "Connections",
   },
 
   requests: {
@@ -830,6 +831,7 @@ export const en = {
     appearanceSub: "Auto, light, or dark",
     themeDark: "Dark mode",
     themeLight: "Light mode",
+    themeGame: "Game mode",
     referralsRow: "Invite friends",
     referralsRowSub: "3 friends = 1 month Plus, free",
     subscriptionRow: "Subscription",

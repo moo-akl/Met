@@ -204,6 +204,7 @@ export const fr: LocaleTree = {
     timeDay: "{{count}}j",
     timeWeek: "{{count}}sem",
     recentSection: "Rencontres récentes",
+    connectionsSection: "Connexions",
   },
   requests: {
     title: "Demandes",
@@ -806,6 +807,7 @@ export const fr: LocaleTree = {
     appearanceSub: "Auto, clair ou sombre",
     themeDark: "Mode sombre",
     themeLight: "Mode clair",
+    themeGame: "Mode jeu",
     referralsRow: "Inviter des amis",
     referralsRowSub: "3 amis = 1 mois Plus, gratuit",
     subscriptionRow: "Abonnement",

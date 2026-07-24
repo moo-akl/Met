@@ -223,7 +223,7 @@ function formatVerifiedDate(
 
 export function SettingsSheet({ visible, onClose }: Props) {
   const colors = useColors();
-  const { isDark, toggleTheme } = useTheme();
+  const { theme, toggleTheme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const webBot = Platform.OS === "web" ? 34 : 0;
   const { t, lang } = useT();
@@ -591,12 +591,19 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 colors={colors}
               />
 
-              <ToggleRow
-                icon={isDark ? "moon" : "sun"}
+              <NavRow
+                icon={
+                  theme === "dark" ? "moon" : theme === "light" ? "sun" : "zap"
+                }
                 label={t("settings.appearance")}
-                sub={isDark ? t("settings.themeDark") : t("settings.themeLight")}
-                value={isDark}
-                onValueChange={() => toggleTheme()}
+                sub={
+                  theme === "dark"
+                    ? t("settings.themeDark")
+                    : theme === "light"
+                      ? t("settings.themeLight")
+                      : t("settings.themeGame")
+                }
+                onPress={() => toggleTheme()}
                 colors={colors}
               />
 

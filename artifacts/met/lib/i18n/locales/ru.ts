@@ -200,6 +200,7 @@ export const ru: LocaleTree = {
     timeDay: "{{count}}д",
     timeWeek: "{{count}}нед",
     recentSection: "Недавние встречи",
+    connectionsSection: "Связи",
   },
   requests: {
     title: "Запросы",
@@ -801,6 +802,7 @@ export const ru: LocaleTree = {
     appearanceSub: "Авто, светлый или тёмный",
     themeDark: "Тёмная тема",
     themeLight: "Светлая тема",
+    themeGame: "Игровая тема",
     referralsRow: "Пригласить друзей",
     referralsRowSub: "3 друга = 1 месяц Plus, бесплатно",
     subscriptionRow: "Подписка",

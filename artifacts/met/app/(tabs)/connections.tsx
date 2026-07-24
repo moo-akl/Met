@@ -480,6 +480,16 @@ export default function ConnectionsScreen() {
           </View>
         ) : null}
 
+        {recentEncounters.length > 0 && connections.length > 0 ? (
+          <View style={styles.sectionSplit}>
+            <View style={[styles.sectionSplitLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.sectionSplitLabel, { color: colors.mutedForeground }]}>
+              {t("connections.connectionsSection")}
+            </Text>
+            <View style={[styles.sectionSplitLine, { backgroundColor: colors.border }]} />
+          </View>
+        ) : null}
+
         {connections.length === 0 ? (
           // Brand-new user (no encounters at all) → big visual welcome.
           // Active user with encounters but no connections yet → slim
@@ -1088,4 +1098,22 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
   },
   separator: { height: 1, marginLeft: 70 },
+  sectionSplit: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  sectionSplitLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  sectionSplitLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 2,
+  },
 });

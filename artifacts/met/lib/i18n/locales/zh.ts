@@ -190,6 +190,7 @@ export const zh: LocaleTree = {
     timeDay: "{{count}}天",
     timeWeek: "{{count}}周",
     recentSection: "近期相遇",
+    connectionsSection: "联系人",
   },
   requests: {
     title: "请求",
@@ -758,6 +759,7 @@ export const zh: LocaleTree = {
     appearanceSub: "自动、浅色或深色",
     themeDark: "深色模式",
     themeLight: "浅色模式",
+    themeGame: "游戏模式",
     referralsRow: "邀请朋友",
     referralsRowSub: "3 位朋友 = 1 个月 Plus,免费",
     subscriptionRow: "订阅",

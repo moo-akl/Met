@@ -200,6 +200,7 @@ export const vi: LocaleTree = {
     timeDay: "{{count}}n",
     timeWeek: "{{count}}tu",
     recentSection: "Gặp gỡ gần đây",
+    connectionsSection: "Kết nối",
   },
   requests: {
     title: "Yêu cầu",
@@ -798,6 +799,7 @@ export const vi: LocaleTree = {
     appearanceSub: "Tự động, sáng hoặc tối",
     themeDark: "Chế độ tối",
     themeLight: "Chế độ sáng",
+    themeGame: "Chế độ trò chơi",
     referralsRow: "Mời bạn bè",
     referralsRowSub: "3 bạn = 1 tháng Plus, miễn phí",
     subscriptionRow: "Đăng ký",

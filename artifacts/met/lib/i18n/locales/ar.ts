@@ -205,6 +205,7 @@ export const ar: LocaleTree = {
     timeDay: "{{count}}ي",
     timeWeek: "{{count}}أ",
     recentSection: "اللقاءات الأخيرة",
+    connectionsSection: "الاتصالات",
   },
   requests: {
     title: "الطلبات",
@@ -799,6 +800,7 @@ export const ar: LocaleTree = {
     appearanceSub: "تلقائي أو فاتح أو داكن",
     themeDark: "الوضع الداكن",
     themeLight: "الوضع الفاتح",
+    themeGame: "وضع اللعبة",
     referralsRow: "ادعُ أصدقاء",
     referralsRowSub: "3 أصدقاء = شهر Plus مجانًا",
     subscriptionRow: "الاشتراك",
