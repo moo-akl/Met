@@ -129,6 +129,12 @@ export const en = {
     profileBannerNoInterests: "Add some interests so people can see what you have in common.",
     profileBannerCta: "Set up profile →",
     checkInCta: "Check in nearby",
+    myRankingsTitle: "My Rankings",
+    myRankingsSubtitle: "Last week",
+    myRankingsEmpty: "No venues checked in last week",
+    myRankingsEmptySub: "Check in at your favorite spots and climb the leaderboard.",
+    checkinCount_one: "{{count}} check-in",
+    checkinCount_other: "{{count}} check-ins",
   },
 
   visibility: {

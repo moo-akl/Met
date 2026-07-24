@@ -2,6 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
+import { type RadarBlip, RadarView } from "@/components/RadarView";
 import { EmptyState } from "@/components/EmptyState";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { UserNameHeader } from "@/components/UserNameHeader";
@@ -23,6 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
+import { useCountUp } from "@/hooks/useCountUp";
 import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 import { useT } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
@@ -33,6 +37,31 @@ import {
   type ConnectionsSort,
 } from "@/lib/storage";
 import type { Encounter } from "@/lib/types";
+
+function tickerLine(
+  e: {
+    realName: string;
+    lastSeenAt: number;
+    status: string;
+    encounterCount: number;
+  },
+  t: (k: string, opts?: Record<string, unknown>) => string,
+): string {
+  const minsAgo = Math.max(1, Math.round((Date.now() - e.lastSeenAt) / 60000));
+  const when =
+    minsAgo < 60
+      ? t("home.minAgo", { count: minsAgo })
+      : minsAgo < 60 * 24
+        ? t("home.hourAgo", { count: Math.round(minsAgo / 60) })
+        : t("home.dayAgo", { count: Math.round(minsAgo / (60 * 24)) });
+  if (e.status === "connected") {
+    return t("home.tickerReconnected", { name: e.realName, when });
+  }
+  if (e.encounterCount > 1) {
+    return t("home.tickerCrossedAgain", { name: e.realName, when });
+  }
+  return t("home.tickerJustCrossed", { name: e.realName, when });
+}
 
 function timeAgo(ts: number, t: (k: string, opts?: Record<string, unknown>) => string) {
   const diff = Math.max(1, Math.floor((Date.now() - ts) / 1000));
@@ -69,6 +98,86 @@ export default function ConnectionsScreen() {
 
   const unreadChatCount = useUnreadChatCount();
   const webBot = Platform.OS === "web" ? 34 : 0;
+
+  // Radar blips: non-connections nearby (live).
+  const DISCOVERY_RANGE_METERS = [15, 30, 60, 100];
+  const preferences = { discoveryRange: 1 };
+  const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
+  const nonConnections = useMemo(
+    () =>
+      encounters.filter(
+        (e) => e.status !== "connected" && e.lastDistanceM <= rangeM,
+      ),
+    [encounters, rangeM],
+  );
+  const blips: RadarBlip[] = useMemo(
+    () =>
+      nonConnections.map((e) => ({
+        initials: e.realName.slice(0, 2).toUpperCase(),
+        angle: Math.random() * Math.PI * 2,
+        radiusFraction: Math.min(e.lastDistanceM / rangeM, 1),
+        spotlight: e.status === "request_received",
+      })),
+    [nonConnections, rangeM],
+  );
+  const withinRange = useMemo(
+    () => encounters.filter((e) => e.lastDistanceM <= rangeM).length,
+    [encounters, rangeM],
+  );
+  const animatedWithin = useCountUp(isVisible ? withinRange : 0, 700);
+
+  // "LIVE" pulse dot near BEACON ACTIVE — opacity loop.
+  const livePulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!isVisible) {
+      livePulse.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, {
+          toValue: 0.25,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(livePulse, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isVisible, livePulse]);
+
+  // Recent non-connections (last 24h) for ticker-style preview on connections tab.
+  const recent = useMemo(() => {
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    return encounters
+      .filter((e) => e.status !== "connected" && e.lastSeenAt >= dayAgo)
+      .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
+      .slice(0, 5);
+  }, [encounters]);
+
+  // Ticker: cycle through recent encounters every 4s.
+  const [tickerIdx, setTickerIdx] = useState(0);
+  const tickerOpacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (recent.length === 0) return;
+    const id = setInterval(() => {
+      setTickerIdx((i) => (i + 1) % recent.length);
+      tickerOpacity.setValue(0);
+      Animated.timing(tickerOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }, 4000);
+    return () => clearInterval(id);
+  }, [recent.length, tickerOpacity]);
 
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<ConnectionsSort>("recent");
@@ -182,6 +291,76 @@ export default function ConnectionsScreen() {
           { icon: "sliders", onPress: () => setSortMenuOpen(true) },
         ]}
       />
+
+      {/* Radar section: live proximity blips + encounter ticker */}
+      <View style={[styles.radarSection, { borderBottomColor: colors.border }]}>
+        <View style={styles.radarCompact}>
+          <View style={styles.radarStatusRow}>
+            {isVisible ? (
+              <Animated.View
+                style={[
+                  styles.liveDot,
+                  { backgroundColor: "#EF4444", opacity: livePulse },
+                ]}
+              />
+            ) : (
+              <View style={[styles.liveDot, { backgroundColor: colors.mutedForeground }]} />
+            )}
+            <Text
+              style={[
+                styles.radarLabel,
+                { color: isVisible ? colors.primary : colors.mutedForeground },
+              ]}
+            >
+              {isVisible ? t("home.beaconActive") : t("home.beaconOff")}
+            </Text>
+          </View>
+
+          {isVisible ? (
+            <>
+              <View style={styles.radarVisualRow}>
+                <RadarView size={140} blips={blips} />
+              </View>
+
+              <Text style={[styles.radarHeadline, { color: colors.foreground }]}>
+                <Text style={{ color: colors.primary }}>{animatedWithin}</Text>{" "}
+                {t("home.peopleWithinSuffix", {
+                  label: t(withinRange === 1 ? "home.person" : "home.people"),
+                  m: rangeM,
+                })}
+              </Text>
+
+              {recent.length > 0 ? (
+                <Animated.View
+                  style={[
+                    styles.tickerRow,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      opacity: tickerOpacity,
+                    },
+                  ]}
+                >
+                  <Avatar
+                    uri={recent[Math.min(tickerIdx, recent.length - 1)].photoUri}
+                    size={26}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.tickerText, { color: colors.foreground }]}
+                  >
+                    {tickerLine(recent[Math.min(tickerIdx, recent.length - 1)], t)}
+                  </Text>
+                </Animated.View>
+              ) : null}
+            </>
+          ) : (
+            <Text style={[styles.radarSub, { color: colors.mutedForeground }]}>
+              {t("home.invisibleSub")}
+            </Text>
+          )}
+        </View>
+      </View>
 
       {connections.length > 0 ? (
         <View style={styles.searchWrap}>
@@ -616,6 +795,66 @@ function TagPill({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   listWrapper: { flex: 1 },
+  radarSection: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  radarCompact: {
+    alignItems: "center",
+    gap: 6,
+  },
+  radarStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  radarLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    letterSpacing: 4,
+  },
+  radarVisualRow: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radarHeadline: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 18,
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  radarSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    maxWidth: 280,
+    marginTop: 4,
+  },
+  tickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    maxWidth: 320,
+  },
+  tickerText: {
+    flex: 1,
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+  },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",

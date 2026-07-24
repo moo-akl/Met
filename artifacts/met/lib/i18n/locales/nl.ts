@@ -128,6 +128,12 @@ export const nl: LocaleTree = {
     profileBannerNoInterests: "Voeg interesses toe zodat mensen zien wat jullie gemeen hebben.",
     profileBannerCta: "Profiel instellen →",
     checkInCta: "Inchecken",
+    myRankingsTitle: "Mijn Ranglijst",
+    myRankingsSubtitle: "Vorige week",
+    myRankingsEmpty: "Geen locaties ingecheckt vorige week",
+    myRankingsEmptySub: "Check in bij je favoriete spots en klim op de ranglijst.",
+    checkinCount_one: "{{count}} check-in",
+    checkinCount_other: "{{count}} check-ins",
   },
 
   visibility: {

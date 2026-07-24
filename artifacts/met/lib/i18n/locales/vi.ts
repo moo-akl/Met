@@ -128,6 +128,12 @@ export const vi: LocaleTree = {
     profileBannerNoInterests: "Thêm một số sở thích để mọi người thấy điểm chung giữa các bạn.",
     profileBannerCta: "Thiết lập hồ sơ →",
     checkInCta: "Check-in gần đây",
+    myRankingsTitle: "Xếp Hạng Của Tôi",
+    myRankingsSubtitle: "Tuần trước",
+    myRankingsEmpty: "Không có địa điểm check-in tuần trước",
+    myRankingsEmptySub: "Check-in tại những địa điểm yêu thích và leo bảng xếp hạng.",
+    checkinCount_one: "{{count}} lần check-in",
+    checkinCount_other: "{{count}} lần check-in",
   },
 
   visibility: {

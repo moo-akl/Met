@@ -129,6 +129,12 @@ export const ar: LocaleTree = {
     profileBannerNoInterests: "أضف بعض الاهتمامات حتى يرى الآخرون ما تشتركون فيه.",
     profileBannerCta: "إعداد الملف الشخصي →",
     checkInCta: "سجّل حضورك",
+    myRankingsTitle: "ترتيبي",
+    myRankingsSubtitle: "الأسبوع الماضي",
+    myRankingsEmpty: "لا توجد أماكن مسجلة في الأسبوع الماضي",
+    myRankingsEmptySub: "سجّل حضورك في أماكنك المفضلة وتسلّق الترتيب.",
+    checkinCount_one: "{{count}} تسجيل",
+    checkinCount_other: "{{count}} تسجيلات",
   },
 
   visibility: {

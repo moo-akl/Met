@@ -128,6 +128,12 @@ export const ru: LocaleTree = {
     profileBannerNoInterests: "Добавь несколько интересов, чтобы люди видели, что у вас общего.",
     profileBannerCta: "Настроить профиль →",
     checkInCta: "Отметиться",
+    myRankingsTitle: "Мои Рейтинги",
+    myRankingsSubtitle: "На прошлой неделе",
+    myRankingsEmpty: "Нет мест с отметкой на прошлой неделе",
+    myRankingsEmptySub: "Отмечайся в любимых местах и поднимайся в рейтинге.",
+    checkinCount_one: "{{count}} отметка",
+    checkinCount_other: "{{count}} отметок",
   },
 
   visibility: {

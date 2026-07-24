@@ -122,6 +122,12 @@ export const zh: LocaleTree = {
     profileBannerNoInterests: "添加一些兴趣，让大家看看你们有什么共同点。",
     profileBannerCta: "设置资料 →",
     checkInCta: "附近签到",
+    myRankingsTitle: "我的排名",
+    myRankingsSubtitle: "上周",
+    myRankingsEmpty: "上周没有签到的地点",
+    myRankingsEmptySub: "在你喜欢的地点签到，提升排名。",
+    checkinCount_one: "{{count}} 次签到",
+    checkinCount_other: "{{count}} 次签到",
   },
 
   visibility: {

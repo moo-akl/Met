@@ -21,19 +21,20 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/AppHeader";
+import { Avatar } from "@/components/Avatar";
 import { HeatmapMap } from "@/components/HeatmapMap";
 import { HubStatusBadge } from "@/components/HubStatusBadge";
-import { Avatar } from "@/components/Avatar";
 import { GridOverlay } from "@/components/GridOverlay";
 import { PermissionDisclosureDialog } from "@/components/PermissionDisclosureDialog";
-import { type RadarBlip, RadarView } from "@/components/RadarView";
 import { RequestsSheet } from "@/components/RequestsSheet";
+import { MyRankings } from "@/components/MyRankings";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useCountUp } from "@/hooks/useCountUp";
 import { usePermissionReminders } from "@/hooks/usePermissionReminders";
 import { usePermissionStatus } from "@/hooks/usePermissionStatus";
 import { useVisibility } from "@/hooks/useVisibility";
+import { useWeeklyRankings } from "@/hooks/useWeeklyRankings";
 import {
   type LangCode,
   getLanguage,
@@ -115,15 +116,8 @@ export default function HomeScreen() {
     attemptCheckin();
   }, [attemptCheckin]);
 
-  const blips = useMemo<RadarBlip[]>(
-    () =>
-      encounters.slice(0, 6).map((e, i) => ({
-        initials: (e.realName ?? "??").slice(0, 2).toUpperCase(),
-        angle: (i * 73 + 22) % 360,
-        radiusFraction: 0.38 + (i % 3) * 0.18,
-      })),
-    [encounters],
-  );
+  // Weekly rankings hook
+  const { data: weeklyRankings, isLoading: rankingsLoading, error: rankingsError, refetch: refetchRankings } = useWeeklyRankings();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
@@ -201,16 +195,6 @@ export default function HomeScreen() {
     [encounters, rangeM],
   );
 
-  // Recent encounters drive the rotating activity ticker beneath the hero.
-  // Cap to the most-recent 5 so the cycle stays digestible.
-  const recent = useMemo(
-    () =>
-      [...encounters]
-        .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
-        .slice(0, 5),
-    [encounters],
-  );
-
   // Animated count-up for the hero number.
   const animatedWithin = useCountUp(isVisible ? withinRange : 0, 700);
 
@@ -241,31 +225,13 @@ export default function HomeScreen() {
     return () => loop.stop();
   }, [isVisible, livePulse]);
 
-  // Activity ticker: rotates through `recent` every 4s with a fade.
-  const [tickerIdx, setTickerIdx] = useState(0);
-  const tickerOpacity = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (recent.length <= 1) return;
-    const id = setInterval(() => {
-      Animated.timing(tickerOpacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }).start(() => {
-        setTickerIdx((i) => (i + 1) % recent.length);
-        Animated.timing(tickerOpacity, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 4000);
-    return () => clearInterval(id);
-  }, [recent.length, tickerOpacity]);
-  // Snap back to a valid index whenever the source list shrinks.
-  useEffect(() => {
-    if (tickerIdx >= recent.length && recent.length > 0) setTickerIdx(0);
-  }, [recent.length, tickerIdx]);
+  // Refresh weekly rankings on focus
+  useFocusEffect(
+    useCallback(() => {
+      if (!authedUid) return;
+      refetchRankings();
+    }, [authedUid]),
+  );
 
   const vibe = isVisible ? deriveVibe(withinRange) : null;
 
@@ -394,35 +360,31 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
 
+        {/* Compact hero — beacon status + stats */}
         <View style={styles.heroSection}>
-          {/* Radar glow orb */}
-          <View style={[styles.radarGlow, { shadowColor: colors.primary }]} pointerEvents="none" />
-
-          <View>
-            <RadarView size={220} blips={blips} />
-          </View>
-
-          <View style={styles.beaconLabelRow}>
-            {isVisible ? (
-              <Animated.View
+          <View style={styles.heroCompact}>
+            <View style={styles.heroStatusRow}>
+              {isVisible ? (
+                <Animated.View
+                  style={[
+                    styles.liveDot,
+                    { backgroundColor: "#EF4444", opacity: livePulse },
+                  ]}
+                />
+              ) : (
+                <View style={[styles.liveDot, { backgroundColor: colors.mutedForeground }]} />
+              )}
+              <Text
                 style={[
-                  styles.liveDot,
-                  { backgroundColor: "#EF4444", opacity: livePulse },
+                  styles.beaconLabel,
+                  { color: isVisible ? colors.primary : colors.mutedForeground },
                 ]}
-              />
-            ) : null}
-            <Text
-              style={[
-                styles.beaconLabel,
-                { color: isVisible ? colors.primary : colors.mutedForeground },
-              ]}
-            >
-              {isVisible ? t("home.beaconActive") : t("home.beaconOff")}
-            </Text>
-          </View>
+              >
+                {isVisible ? t("home.beaconActive") : t("home.beaconOff")}
+              </Text>
+            </View>
 
-          {isVisible ? (
-            <>
+            {isVisible ? (
               <Text style={[styles.headline, { color: colors.foreground }]}>
                 <Text style={{ color: colors.primary }}>{animatedWithin}</Text>{" "}
                 {t("home.peopleWithinSuffix", {
@@ -430,62 +392,29 @@ export default function HomeScreen() {
                   m: rangeM,
                 })}
               </Text>
-
-              {vibe ? (
-                <View
-                  style={[
-                    styles.vibePill,
-                    {
-                      backgroundColor: colors.border,
-                      borderColor: colors.primary,
-                    },
-                  ]}
-                >
-                  <Feather name={vibe.icon} size={12} color={colors.primary} />
-                  <Text style={[styles.vibeText, { color: colors.primary }]}>
-                    {t(vibe.labelKey)}
-                  </Text>
-                </View>
-              ) : null}
-
-              <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-                {t("home.metListening")}
-              </Text>
-
-              {recent.length > 0 ? (
-                <Animated.View
-                  style={[
-                    styles.tickerRow,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      opacity: tickerOpacity,
-                    },
-                  ]}
-                >
-                  <Avatar
-                    uri={recent[Math.min(tickerIdx, recent.length - 1)].photoUri}
-                    size={26}
-                  />
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.tickerText, { color: colors.foreground }]}
-                  >
-                    {tickerLine(recent[Math.min(tickerIdx, recent.length - 1)], t)}
-                  </Text>
-                </Animated.View>
-              ) : null}
-            </>
-          ) : (
-            <>
+            ) : (
               <Text style={[styles.headline, { color: colors.foreground }]}>
                 {t("home.invisibleHeadline")}
               </Text>
-              <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-                {t("home.invisibleSub")}
-              </Text>
-            </>
-          )}
+            )}
+
+            {vibe && isVisible ? (
+              <View
+                style={[
+                  styles.vibePill,
+                  {
+                    backgroundColor: colors.border,
+                    borderColor: colors.primary,
+                  },
+                ]}
+              >
+                <Feather name={vibe.icon} size={12} color={colors.primary} />
+                <Text style={[styles.vibeText, { color: colors.primary }]}>
+                  {t(vibe.labelKey)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         <View
@@ -545,46 +474,13 @@ export default function HomeScreen() {
           <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
         </Pressable>
 
-        <Pressable
-          onPress={() => router.push("/(tabs)/recent")}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.leaderboardBtn,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-              opacity: pressed ? 0.82 : 1,
-              transform: [{ scale: pressed ? 0.98 : 1 }],
-            },
-          ]}
-        >
-          <Feather name="users" size={18} color={colors.primary} />
-          <Text style={[styles.checkinCtaText, { color: colors.foreground, flex: 1 }]}>
-            {t("tabs.recent")}
-          </Text>
-          {encounters.length > 0 && (
-            <View
-              style={{
-                backgroundColor: colors.primary,
-                borderRadius: 12,
-                paddingHorizontal: 7,
-                paddingVertical: 2,
-                marginRight: 4,
-              }}
-            >
-              <Text
-                style={{
-                  color: colors.primaryForeground,
-                  fontSize: 11,
-                  fontFamily: "Inter_700Bold",
-                }}
-              >
-                {encounters.length}
-              </Text>
-            </View>
-          )}
-          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-        </Pressable>
+        {/* My Rankings — weekly leaderboard recap with live jump */}
+        <MyRankings
+          data={weeklyRankings ?? []}
+          isLoading={rankingsLoading}
+          error={rankingsError}
+          onRetry={() => refetchRankings()}
+        />
 
         <HubStatusBadge
           hubState={hubState}
@@ -840,31 +736,6 @@ function deriveVibe(count: number): {
   };
 }
 
-function tickerLine(
-  e: {
-    realName: string;
-    lastSeenAt: number;
-    status: string;
-    encounterCount: number;
-  },
-  t: (k: string, opts?: Record<string, unknown>) => string,
-): string {
-  const minsAgo = Math.max(1, Math.round((Date.now() - e.lastSeenAt) / 60000));
-  const when =
-    minsAgo < 60
-      ? t("home.minAgo", { count: minsAgo })
-      : minsAgo < 60 * 24
-        ? t("home.hourAgo", { count: Math.round(minsAgo / 60) })
-        : t("home.dayAgo", { count: Math.round(minsAgo / (60 * 24)) });
-  if (e.status === "connected") {
-    return t("home.tickerReconnected", { name: e.realName, when });
-  }
-  if (e.encounterCount > 1) {
-    return t("home.tickerCrossedAgain", { name: e.realName, when });
-  }
-  return t("home.tickerJustCrossed", { name: e.realName, when });
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   banner: {
@@ -903,31 +774,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   heroSection: {
-    alignItems: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 12,
+  },
+  heroCompact: {
+    alignItems: "flex-start",
     gap: 4,
-    position: "relative",
   },
-  radarGlow: {
-    position: "absolute",
-    top: 0,
-    left: "50%",
-    width: 300,
-    height: 300,
-    marginLeft: -150,
-    borderRadius: 150,
-    backgroundColor: "transparent",
-    shadowOpacity: 0.08,
-    shadowRadius: 60,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  beaconLabelRow: {
+  heroStatusRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 6,
   },
   liveDot: {
     width: 8,
@@ -960,30 +819,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.5,
     textTransform: "uppercase",
-  },
-  sub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-    marginTop: 8,
-    maxWidth: 320,
-  },
-  tickerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    maxWidth: 320,
-  },
-  tickerText: {
-    flex: 1,
-    fontFamily: "Inter_500Medium",
-    fontSize: 12,
   },
   weeklyCard: {
     marginHorizontal: 20,

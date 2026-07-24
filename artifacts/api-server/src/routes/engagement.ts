@@ -687,6 +687,115 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
+// GET /api/users/:uid/weekly-rankings
+// Returns the user's final rank and check-in count for every venue they
+// visited during the previous calendar week (Mon–Sun).
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/users/:uid/weekly-rankings",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const { uid } = req.params as { uid: string };
+
+    const now = new Date();
+    const dow = now.getUTCDay(); // 0=Sun, 1=Mon, ... 6=Sat
+    // Previous Monday
+    const daysSinceMon = dow === 0 ? 6 : dow - 1;
+    const prevMon = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - daysSinceMon - 7,
+      ),
+    );
+    // Previous Sunday (exclusive upper bound)
+    const prevSun = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - daysSinceMon,
+      ),
+    );
+
+    const rows = await db
+      .select({
+        placeId: hubCheckinsTable.placeId,
+        placeName: hubCheckinsTable.placeName,
+        userUid: hubCheckinsTable.userUid,
+        checkinCount: count(hubCheckinsTable.id).as("checkin_count"),
+      })
+      .from(hubCheckinsTable)
+      .where(
+        and(
+          gte(hubCheckinsTable.createdAt, prevMon),
+          lt(hubCheckinsTable.createdAt, prevSun),
+        ),
+      )
+      .groupBy(
+        hubCheckinsTable.placeId,
+        hubCheckinsTable.placeName,
+        hubCheckinsTable.userUid,
+      )
+      .orderBy(
+        hubCheckinsTable.placeId,
+        desc(sql`count(${hubCheckinsTable.id})`),
+      );
+
+    // Compute rank per venue
+    const venueMap = new Map<
+      string,
+      Array<{
+        userUid: string;
+        placeName: string | null;
+        checkinCount: number;
+        rank: number;
+      }>
+    >();
+
+    for (const row of rows) {
+      if (!venueMap.has(row.placeId)) {
+        venueMap.set(row.placeId, []);
+      }
+      const arr = venueMap.get(row.placeId)!;
+      arr.push({
+        userUid: row.userUid,
+        placeName: row.placeName ?? null,
+        checkinCount: Number(row.checkinCount),
+        rank: arr.length + 1,
+      });
+    }
+
+    // Extract user's entries
+    const userRankings: Array<{
+      placeId: string;
+      placeName: string | null;
+      rank: number;
+      checkinCount: number;
+      weekStart: string;
+    }> = [];
+
+    for (const [placeId, entries] of venueMap) {
+      const userEntry = entries.find((e) => e.userUid === uid);
+      if (userEntry) {
+        userRankings.push({
+          placeId,
+          placeName: userEntry.placeName,
+          rank: userEntry.rank,
+          checkinCount: userEntry.checkinCount,
+          weekStart: prevMon.toISOString().slice(0, 10),
+        });
+      }
+    }
+
+    // Sort by rank ascending (best rank first), then by checkin count
+    userRankings.sort((a, b) => a.rank - b.rank || b.checkinCount - a.checkinCount);
+
+    res.json(userRankings);
+  },
+);
+
+// ---------------------------------------------------------------------------
 // POST /api/hubs/crown-monthly-champions
 // Internal endpoint — called by the cron job on the 1st of each month.
 // Identifies top visitor(s) for the previous month across all hubs and inserts

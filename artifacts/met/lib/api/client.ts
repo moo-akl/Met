@@ -686,6 +686,21 @@ export const api = {
       }>
     >("GET", `/api/users/${encodeURIComponent(uid)}/champion-badges`, opts),
   /**
+   * Fetch the user's weekly rankings for the previous calendar week.
+   * Returns one entry per venue the user checked into last week,
+   * including their rank and total check-ins at that venue.
+   */
+  getWeeklyRankings: (opts: ApiOptions, uid: string) =>
+    request<
+      Array<{
+        placeId: string;
+        placeName: string | null;
+        rank: number;
+        checkinCount: number;
+        weekStart: string;
+      }>
+    >("GET", `/api/users/${encodeURIComponent(uid)}/weekly-rankings`, opts),
+  /**
    * Get server-side subscription record for a user.
    */
   getSubscription: (opts: ApiOptions) =>

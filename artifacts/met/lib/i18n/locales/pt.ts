@@ -128,6 +128,12 @@ export const pt: LocaleTree = {
     profileBannerNoInterests: "Adiciona alguns interesses para que as pessoas vejam o que têm em comum contigo.",
     profileBannerCta: "Configurar perfil →",
     checkInCta: "Fazer check-in",
+    myRankingsTitle: "Minhas Classificações",
+    myRankingsSubtitle: "Semana passada",
+    myRankingsEmpty: "Sem locais registados na semana passada",
+    myRankingsEmptySub: "Regista-te nos teus spots favoritos e sobe na classificação.",
+    checkinCount_one: "{{count}} check-in",
+    checkinCount_other: "{{count}} check-ins",
   },
 
   visibility: {
