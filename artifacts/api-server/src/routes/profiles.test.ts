@@ -23,6 +23,7 @@ vi.mock("@workspace/db", () => ({
   profilesTable: {},
   encountersTable: {},
   revealRequestsTable: {},
+  subscriptionsTable: {},
 }));
 
 vi.mock("../lib/firestoreMirror", () => ({
@@ -109,6 +110,8 @@ describe("GET /api/profiles/me", () => {
 
   it("returns 200 with the profile when the user exists", async () => {
     dbMocks.chain.limit.mockResolvedValueOnce([profileFixture]);
+    // Second query: subscription lookup — return no row (defaults to free tier).
+    dbMocks.chain.limit.mockResolvedValueOnce([]);
 
     const res = await request(app)
       .get("/api/profiles/me")
@@ -261,6 +264,8 @@ describe("PUT /api/profiles/me", () => {
   it("includes interests in the GET /profiles/me response", async () => {
     const withInterests = { ...profileFixture, interests: ["Hiking", "Dogs"] };
     dbMocks.chain.limit.mockResolvedValueOnce([withInterests]);
+    // Second query: subscription lookup — return no row (defaults to free tier).
+    dbMocks.chain.limit.mockResolvedValueOnce([]);
 
     const res = await request(app)
       .get("/api/profiles/me")
