@@ -199,6 +199,7 @@ export const vi: LocaleTree = {
     timeHour: "{{count}}g",
     timeDay: "{{count}}n",
     timeWeek: "{{count}}tu",
+    recentSection: "Gặp gỡ gần đây",
   },
   requests: {
     title: "Yêu cầu",

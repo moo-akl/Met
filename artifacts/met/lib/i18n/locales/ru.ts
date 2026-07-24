@@ -199,6 +199,7 @@ export const ru: LocaleTree = {
     timeHour: "{{count}}ч",
     timeDay: "{{count}}д",
     timeWeek: "{{count}}нед",
+    recentSection: "Недавние встречи",
   },
   requests: {
     title: "Запросы",

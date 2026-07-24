@@ -189,6 +189,7 @@ export const zh: LocaleTree = {
     timeHour: "{{count}}时",
     timeDay: "{{count}}天",
     timeWeek: "{{count}}周",
+    recentSection: "近期相遇",
   },
   requests: {
     title: "请求",

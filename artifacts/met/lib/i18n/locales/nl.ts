@@ -199,6 +199,7 @@ export const nl: LocaleTree = {
     timeHour: "{{count}}u",
     timeDay: "{{count}}d",
     timeWeek: "{{count}}w",
+    recentSection: "Recente ontmoetingen",
   },
   requests: {
     title: "Verzoeken",

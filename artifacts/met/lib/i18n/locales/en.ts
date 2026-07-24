@@ -202,6 +202,7 @@ export const en = {
     timeHour: "{{count}}h",
     timeDay: "{{count}}d",
     timeWeek: "{{count}}w",
+    recentSection: "Recent Encounters",
   },
 
   requests: {

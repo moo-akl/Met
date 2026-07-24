@@ -197,6 +197,7 @@ export const es: LocaleTree = {
     timeHour: "{{count}}h",
     timeDay: "{{count}}d",
     timeWeek: "{{count}}sem",
+    recentSection: "Encuentros recientes",
   },
   requests: {
     title: "Solicitudes",

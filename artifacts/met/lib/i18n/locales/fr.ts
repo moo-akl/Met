@@ -203,6 +203,7 @@ export const fr: LocaleTree = {
     timeHour: "{{count}}h",
     timeDay: "{{count}}j",
     timeWeek: "{{count}}sem",
+    recentSection: "Rencontres récentes",
   },
   requests: {
     title: "Demandes",

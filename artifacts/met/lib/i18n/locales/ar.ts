@@ -204,6 +204,7 @@ export const ar: LocaleTree = {
     timeHour: "{{count}}س",
     timeDay: "{{count}}ي",
     timeWeek: "{{count}}أ",
+    recentSection: "اللقاءات الأخيرة",
   },
   requests: {
     title: "الطلبات",

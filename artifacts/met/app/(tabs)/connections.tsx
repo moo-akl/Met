@@ -19,6 +19,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { type RadarBlip, RadarView } from "@/components/RadarView";
 import { EmptyState } from "@/components/EmptyState";
+import { EncounterRow } from "@/components/EncounterRow";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { UserNameHeader } from "@/components/UserNameHeader";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
@@ -32,6 +33,7 @@ import { useT } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
 import { subscribeToChatMeta } from "@/lib/firestore/chat";
 import {
+  DISCOVERY_RANGE_METERS,
   loadConnectionsSort,
   saveConnectionsSort,
   type ConnectionsSort,
@@ -93,15 +95,13 @@ export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
-  const { encounters, profile, authedUid } = useApp();
+  const { encounters, preferences, profile, authedUid } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
 
   const unreadChatCount = useUnreadChatCount();
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   // Radar blips: non-connections nearby (live).
-  const DISCOVERY_RANGE_METERS = [15, 30, 60, 100];
-  const preferences = { discoveryRange: 1 };
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
   const nonConnections = useMemo(
     () =>
@@ -152,6 +152,25 @@ export default function ConnectionsScreen() {
     loop.start();
     return () => loop.stop();
   }, [isVisible, livePulse]);
+
+  // Full list of non-connected encounters (for the Recent Encounters section).
+  const recentEncounters = useMemo(() => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const cutoff =
+      preferences.autoCleanupDays > 0
+        ? Date.now() - preferences.autoCleanupDays * DAY_MS
+        : 0;
+    return encounters
+      .filter((e) => {
+        if (e.status === "connected") return false;
+        if (e.status === "encounter") {
+          if (e.lastDistanceM > rangeM) return false;
+          if (cutoff > 0 && e.lastSeenAt < cutoff) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+  }, [encounters, preferences.discoveryRange, preferences.autoCleanupDays, rangeM]);
 
   // Recent non-connections (last 24h) for ticker-style preview on connections tab.
   const recent = useMemo(() => {
@@ -443,11 +462,29 @@ export default function ConnectionsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {recentEncounters.length > 0 ? (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={[styles.groupHeader, { color: colors.mutedForeground }]}>
+              {t("connections.recentSection")}
+            </Text>
+            <View style={styles.list}>
+              {recentEncounters.map((e, idx) => (
+                <View key={e.id}>
+                  <EncounterRow encounter={e} />
+                  {idx < recentEncounters.length - 1 ? (
+                    <View style={[styles.separator, { backgroundColor: colors.border }]} />
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {connections.length === 0 ? (
           // Brand-new user (no encounters at all) → big visual welcome.
           // Active user with encounters but no connections yet → slim
           // contextual hint that they just need someone to reveal back.
-          encounters.length === 0 ? (
+          encounters.length === 0 && recentEncounters.length === 0 ? (
             <WelcomeEmptyState
               title={t("connections.welcomeTitle")}
               description={t("connections.welcomeDesc")}
