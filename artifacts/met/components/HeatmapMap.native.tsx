@@ -9,13 +9,16 @@ import {
 } from "react-native";
 import MapView, { Circle, Marker, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 import * as Location from "expo-location";
+import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
   api,
   type ActiveVenueResult,
   type HeatmapVenueResult,
+  type VenueOwnerMapPoint,
 } from "@/lib/api/client";
+import { VenueOwnerMarker } from "@/components/VenueOwnerMarker";
 
 // Refetch heatmap if the map center moved more than ~500 m (~0.005°)
 const SIGNIFICANT_PAN_DEG = 0.005;
@@ -143,10 +146,12 @@ function PulsingMarker({
 function HeatmapMapInner({ style }: HeatmapMapProps) {
   const { authedUid } = useApp();
   const colors = useColors();
+  const router = useRouter();
 
   const mapRef = useRef<MapView>(null);
   const [activeVenues, setActiveVenues] = useState<ActiveVenueResult[]>([]);
   const [heatmapVenues, setHeatmapVenues] = useState<HeatmapVenueResult[]>([]);
+  const [venueOwnerPoints, setVenueOwnerPoints] = useState<VenueOwnerMapPoint[]>([]);
   // Tracks the current visible region so heatCircles can scale with zoom.
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   // Tracks the region at which we last fetched heatmap data to avoid
@@ -171,6 +176,14 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
     try {
       const { venues } = await api.hubActive({ uid: authedUid });
       if (mountedRef.current) setActiveVenues(venues);
+    } catch {}
+  }, [authedUid]);
+
+  const fetchVenueOwners = useCallback(async () => {
+    if (!authedUid || !mountedRef.current) return;
+    try {
+      const { venues } = await api.getVenueOwnerMapPoints({ uid: authedUid });
+      if (mountedRef.current) setVenueOwnerPoints(venues);
     } catch {}
   }, [authedUid]);
 
@@ -250,16 +263,23 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
 
     void init();
     void fetchActive();
+    void fetchVenueOwners();
 
     const pollId = setInterval(() => {
       void fetchActive();
     }, POLL_MS);
 
+    // Venue owner map points refresh every 5 minutes (they change infrequently)
+    const voPollId = setInterval(() => {
+      void fetchVenueOwners();
+    }, 5 * POLL_MS);
+
     return () => {
       cancelled = true;
       clearInterval(pollId);
+      clearInterval(voPollId);
     };
-  }, [authedUid, centerOn, fetchActive, fetchHeatmap]);
+  }, [authedUid, centerOn, fetchActive, fetchHeatmap, fetchVenueOwners]);
 
   // Memoize Circle and Marker children so MapView's child tree is stable
   // between renders and doesn't trigger unnecessary Google Maps SDK redraws.
@@ -311,6 +331,23 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
     [activeVenues],
   );
 
+  // Layer 3 — approved venue owner branded pins (gold stars, top layer)
+  const venueOwnerMarkers = useMemo(
+    () =>
+      venueOwnerPoints
+        .filter((v) => v.lat !== null && v.lng !== null)
+        .map((venue) => (
+          <VenueOwnerMarker
+            key={`vo-${venue.placeId}`}
+            venue={venue}
+            onPress={(placeId) =>
+              router.push({ pathname: "/venue/[placeId]", params: { placeId } } as never)
+            }
+          />
+        )),
+    [venueOwnerPoints, router],
+  );
+
   return (
     <MapView
       ref={mapRef}
@@ -323,6 +360,7 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
     >
       {heatCircles}
       {activeMarkers}
+      {venueOwnerMarkers}
     </MapView>
   );
 }

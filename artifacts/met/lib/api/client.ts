@@ -98,6 +98,100 @@ export interface ApiOptions {
   signal?: AbortSignal;
 }
 
+// ---------------------------------------------------------------------------
+// Venue Owner Portal types
+// ---------------------------------------------------------------------------
+
+export interface VenueOwnerProfile {
+  id: number;
+  ownerUid: string;
+  placeId: string;
+  placeName: string;
+  businessName: string;
+  tagline: string | null;
+  description: string | null;
+  coverPhotoUrl: string | null;
+  logoUrl: string | null;
+  lat: string | null;
+  lng: string | null;
+  verificationDocUrl: string | null;
+  registrationNotes: string | null;
+  isApproved: boolean;
+  isVerified: boolean;
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VenueEvent {
+  id: number;
+  ownerUid: string;
+  placeId: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  capacityLimit: number | null;
+  rsvpCount: number;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VenueReward {
+  id: number;
+  ownerUid: string;
+  placeId: string;
+  title: string;
+  description: string | null;
+  prizeDescription: string;
+  rewardType: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  winnerUid: string | null;
+  winnerSelectedAt: string | null;
+  venueTimezone: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VenueAnnouncement {
+  id: number;
+  ownerUid: string;
+  placeId: string;
+  title: string;
+  body: string;
+  imageUrl: string | null;
+  isPinned: boolean;
+  meta: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VenueOwnerMapPoint {
+  placeId: string;
+  placeName: string;
+  businessName: string;
+  tagline: string | null;
+  logoUrl: string | null;
+  lat: number;
+  lng: number;
+  hasActiveReward: boolean;
+  hasUpcomingEvent: boolean;
+}
+
+export interface VenueOwnerDashboard {
+  placeId: string;
+  placeName: string;
+  businessName: string;
+  checkInTrend: Array<{ day: string; count: number }>;
+  topVisitors: Array<{ userUid: string; displayName: string; photoUrl: string | null; checkinCount: number }>;
+  eventRsvpCounts: Array<{ eventId: number; title: string; startsAt: string; going: number; maybe: number }>;
+  activeReward: VenueReward | null;
+}
+
 /** A venue returned by GET /api/hubs/nearby. */
 export interface VenueResult {
   placeId: string;
@@ -857,4 +951,229 @@ export const api = {
       `/api/chats/quality?peerUid=${encodeURIComponent(peerUid)}`,
       opts,
     ),
+
+  // ---------------------------------------------------------------------------
+  // Venue Owner Portal
+  // ---------------------------------------------------------------------------
+
+  /** Register a venue owner claim. */
+  registerVenueOwner: (
+    opts: ApiOptions,
+    body: {
+      placeId: string;
+      placeName: string;
+      businessName: string;
+      lat?: string;
+      lng?: string;
+      tagline?: string;
+      description?: string;
+      verificationDocUrl?: string;
+      registrationNotes?: string;
+    },
+  ) =>
+    request<{ profile: VenueOwnerProfile }>(
+      "POST",
+      "/venue-owner/register",
+      opts,
+      body,
+    ),
+
+  /** Fetch the caller's own venue owner profile. Throws 404 if not registered. */
+  getMyVenueOwnerProfile: (opts: ApiOptions) =>
+    request<{ profile: VenueOwnerProfile }>("GET", "/venue-owner/me", opts),
+
+  /** Update the caller's own venue owner profile. */
+  updateMyVenueOwnerProfile: (
+    opts: ApiOptions,
+    body: {
+      businessName?: string;
+      tagline?: string | null;
+      description?: string | null;
+      coverPhotoUrl?: string | null;
+      logoUrl?: string | null;
+    },
+  ) =>
+    request<{ profile: VenueOwnerProfile }>("PUT", "/venue-owner/me", opts, body),
+
+  /** Fetch a public venue owner profile (approved venues only). */
+  getVenueOwnerProfile: (opts: ApiOptions, placeId: string) =>
+    request<{ profile: VenueOwnerProfile }>(
+      "GET",
+      `/venue-owner/${encodeURIComponent(placeId)}`,
+      opts,
+    ),
+
+  /** Create an event at the caller's venue. */
+  createVenueEvent: (
+    opts: ApiOptions,
+    body: {
+      title: string;
+      description?: string | null;
+      imageUrl?: string | null;
+      startsAt: string;
+      endsAt?: string | null;
+      capacityLimit?: number | null;
+      isPublished?: boolean;
+    },
+  ) =>
+    request<{ event: VenueEvent }>(
+      "POST",
+      "/venue-owner/me/events",
+      opts,
+      body,
+    ),
+
+  /** List events for a venue (public). */
+  getVenueEvents: (opts: ApiOptions, placeId: string) =>
+    request<{ events: VenueEvent[] }>(
+      "GET",
+      `/venue-owner/${encodeURIComponent(placeId)}/events`,
+      opts,
+    ),
+
+  /** Update an event owned by the caller. */
+  updateVenueEvent: (
+    opts: ApiOptions,
+    eventId: number,
+    body: {
+      title?: string;
+      description?: string | null;
+      imageUrl?: string | null;
+      startsAt?: string;
+      endsAt?: string | null;
+      capacityLimit?: number | null;
+      isPublished?: boolean;
+    },
+  ) =>
+    request<{ event: VenueEvent }>(
+      "PUT",
+      `/venue-owner/me/events/${eventId}`,
+      opts,
+      body,
+    ),
+
+  /** Delete an event owned by the caller. */
+  deleteVenueEvent: (opts: ApiOptions, eventId: number) =>
+    request<{ success: boolean }>(
+      "DELETE",
+      `/venue-owner/me/events/${eventId}`,
+      opts,
+    ),
+
+  /** RSVP to an event. */
+  rsvpEvent: (
+    opts: ApiOptions,
+    eventId: number,
+    status: "going" | "maybe" | "not_going",
+  ) =>
+    request<{ success: boolean; status: string }>(
+      "POST",
+      `/venue-events/${eventId}/rsvp`,
+      opts,
+      { status },
+    ),
+
+  /** Get the caller's RSVP for an event. */
+  getMyEventRsvp: (opts: ApiOptions, eventId: number) =>
+    request<{ rsvp: { status: string } | null }>(
+      "GET",
+      `/venue-events/${eventId}/rsvp`,
+      opts,
+    ),
+
+  /** Create a reward campaign at the caller's venue. */
+  createVenueReward: (
+    opts: ApiOptions,
+    body: {
+      title: string;
+      description?: string | null;
+      prizeDescription: string;
+      rewardType?: "free_drink" | "discount" | "experience" | "custom";
+      status?: "draft" | "active";
+      startDate: string;
+      endDate: string;
+      venueTimezone?: string;
+    },
+  ) =>
+    request<{ reward: VenueReward }>(
+      "POST",
+      "/venue-owner/me/rewards",
+      opts,
+      body,
+    ),
+
+  /** List rewards for a venue (public, excludes cancelled). */
+  getVenueRewards: (opts: ApiOptions, placeId: string) =>
+    request<{ rewards: VenueReward[] }>(
+      "GET",
+      `/venue-owner/${encodeURIComponent(placeId)}/rewards`,
+      opts,
+    ),
+
+  /** Update a reward owned by the caller. */
+  updateVenueReward: (
+    opts: ApiOptions,
+    rewardId: number,
+    body: {
+      title?: string;
+      description?: string | null;
+      prizeDescription?: string;
+      rewardType?: "free_drink" | "discount" | "experience" | "custom";
+      status?: "draft" | "active" | "cancelled";
+      startDate?: string;
+      endDate?: string;
+      venueTimezone?: string;
+    },
+  ) =>
+    request<{ reward: VenueReward }>(
+      "PUT",
+      `/venue-owner/me/rewards/${rewardId}`,
+      opts,
+      body,
+    ),
+
+  /** Create an announcement at the caller's venue. */
+  createVenueAnnouncement: (
+    opts: ApiOptions,
+    body: {
+      title: string;
+      body: string;
+      imageUrl?: string | null;
+      isPinned?: boolean;
+    },
+  ) =>
+    request<{ announcement: VenueAnnouncement }>(
+      "POST",
+      "/venue-owner/me/announcements",
+      opts,
+      body,
+    ),
+
+  /** List announcements for a venue (public). Pinned first, then newest. */
+  getVenueAnnouncements: (opts: ApiOptions, placeId: string) =>
+    request<{ announcements: VenueAnnouncement[] }>(
+      "GET",
+      `/venue-owner/${encodeURIComponent(placeId)}/announcements`,
+      opts,
+    ),
+
+  /** Delete an announcement owned by the caller. */
+  deleteVenueAnnouncement: (opts: ApiOptions, announcementId: number) =>
+    request<{ success: boolean }>(
+      "DELETE",
+      `/venue-owner/me/announcements/${announcementId}`,
+      opts,
+    ),
+
+  /** Fetch approved+verified venue owner map points for the map layer. */
+  getVenueOwnerMapPoints: (opts: ApiOptions) =>
+    request<{ venues: VenueOwnerMapPoint[] }>(
+      "GET",
+      "/api/hubs/venue-owners",
+      opts,
+    ),
+
+  /** Fetch owner analytics dashboard. */
+  getVenueOwnerDashboard: (opts: ApiOptions) =>
+    request<VenueOwnerDashboard>("GET", "/venue-owner/me/dashboard", opts),
 };

@@ -33,8 +33,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MetGradient } from "@/components/MetGradient";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { api } from "@/lib/api/client";
+import { api, type VenueReward } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
+import { VenueRewardBanner } from "@/components/VenueRewardBanner";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -430,6 +431,7 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
   const [championUids, setChampionUids] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [activeReward, setActiveReward] = useState<VenueReward | null>(null);
 
   // Per-row animation values keyed by uid
   const rowAnims = useRef(
@@ -496,6 +498,24 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
     [authedUid, placeId],
   );
 
+  // Active venue reward — shown as a banner above the leaderboard
+  useEffect(() => {
+    if (!authedUid) return;
+    const now = new Date();
+    api
+      .getVenueRewards({ uid: authedUid }, placeId)
+      .then(({ rewards }) => {
+        const active = rewards.find(
+          (r) =>
+            r.status === "active" &&
+            new Date(r.startDate) <= now &&
+            new Date(r.endDate) >= now,
+        );
+        setActiveReward(active ?? null);
+      })
+      .catch(() => {});
+  }, [authedUid, placeId]);
+
   // Champion badges
   useEffect(() => {
     if (!authedUid) return;
@@ -556,6 +576,20 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
           </Text>
         </View>
       </View>
+
+      {/* Active reward banner */}
+      {activeReward && (
+        <VenueRewardBanner
+          reward={{
+            id: activeReward.id,
+            placeId: activeReward.placeId,
+            title: activeReward.title,
+            prizeDescription: activeReward.prizeDescription,
+            rewardType: activeReward.rewardType,
+            endDate: activeReward.endDate,
+          }}
+        />
+      )}
 
       {/* Animated tab bar */}
       <View style={styles.tabsContainer}>

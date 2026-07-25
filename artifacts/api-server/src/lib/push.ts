@@ -8,9 +8,13 @@
 import { logger } from "./logger";
 
 export interface PushData {
-  type?: "reveal_request" | "reveal_accepted" | "encounter" | "reencounter";
+  type?: "reveal_request" | "reveal_accepted" | "encounter" | "reencounter"
+    | "venue_reward_winner" | "venue_reward_owner_notification"
+    | "venue_owner_approved" | "venue_owner_rejected"
+    | string;
   fromUid?: string;
   encounterId?: string;
+  [key: string]: string | undefined;
 }
 
 export interface PushPayload {
