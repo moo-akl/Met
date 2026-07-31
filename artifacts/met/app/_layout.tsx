@@ -146,6 +146,15 @@ function parseNetworkInviteFromUrl(url: string | null): string | null {
   }
 }
 
+function isVenueOwnerUrl(url: string | null): boolean {
+  if (!url) return false;
+  try {
+    return /(?:\/\/|\/)venue-owner(?:\/setup)?(?:[/?#]|$)/.test(url);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Manages the foreground chat notification banner. Lives inside AppProvider
  * so it can resolve the peer's photo URL from allEncounters.
@@ -357,6 +366,14 @@ function RootLayoutNav() {
         name="leaderboard/[placeId]"
         options={{ presentation: "card", animation: "slide_from_right" }}
       />
+      <Stack.Screen
+        name="venue-owner/setup"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
+      <Stack.Screen
+        name="venue-owner/dashboard"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
     </Stack>
   );
 }
@@ -377,31 +394,22 @@ export default function RootLayout() {
   // Android heads-up) doesn't also pop up as a banner.
   const tappedIdsRef = useRef<Set<string>>(new Set());
 
-  // Capture initial / live deep link → stash any embedded referral code so
-  // onboarding (and the referrals screen) can pre-fill it on cold or warm start.
-  // Also handles met://n/CODE invite links → navigate to join screen.
+  // Capture initial / live deep links. Referrals are stashed for onboarding;
+  // network invites and venue-owner registration links navigate directly.
   useEffect(() => {
-    Linking.getInitialURL()
-      .then((url) => {
-        const referral = parseReferralFromUrl(url);
-        if (referral) pendingDeepLinkReferral = referral;
-        const networkCode = parseNetworkInviteFromUrl(url);
-        if (networkCode) {
-          setTimeout(() => {
-            try {
-              router.push({
-                pathname: "/network/join/[code]",
-                params: { code: networkCode },
-              } as never);
-            } catch {}
-          }, 100);
-        }
-      })
-      .catch(() => {});
-    const sub = Linking.addEventListener("url", (e) => {
-      const referral = parseReferralFromUrl(e.url);
+    const handleUrl = (url: string | null, delay: number) => {
+      if (isVenueOwnerUrl(url)) {
+        setTimeout(() => {
+          try {
+            router.push("/onboarding?venueOwner=1");
+          } catch {}
+        }, delay);
+        return;
+      }
+
+      const referral = parseReferralFromUrl(url);
       if (referral) pendingDeepLinkReferral = referral;
-      const networkCode = parseNetworkInviteFromUrl(e.url);
+      const networkCode = parseNetworkInviteFromUrl(url);
       if (networkCode) {
         setTimeout(() => {
           try {
@@ -410,8 +418,15 @@ export default function RootLayout() {
               params: { code: networkCode },
             } as never);
           } catch {}
-        }, 50);
+        }, delay);
       }
+    };
+
+    Linking.getInitialURL()
+      .then((url) => handleUrl(url, 100))
+      .catch(() => {});
+    const sub = Linking.addEventListener("url", (e) => {
+      handleUrl(e.url, 50);
     });
     return () => sub.remove();
   }, [router]);

@@ -28,6 +28,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { api } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
+import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { type AccountInfo, getCurrentUserAccount } from "@/lib/auth";
 import {
   type LangCode,
@@ -259,6 +260,10 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const { tier, promoPlusActive } = useSubscription();
   const referrals = useReferrals();
   const router = useRouter();
+  const {
+    profile: venueOwnerProfile,
+    isLoading: venueOwnerLoading,
+  } = useVenueOwner();
   // App Store Review Guideline 5.1.2(i): the visibility toggle MUST go
   // through the shared `useVisibility` hook so the first-time consent
   // dialog fires for every hidden→visible transition (header pill AND
@@ -733,6 +738,35 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 }}
                 colors={colors}
               />
+
+              {!venueOwnerLoading ? (
+                <NavRow
+                  icon="briefcase"
+                  label={
+                    venueOwnerProfile
+                      ? t("settings.venueOwnerDashboard")
+                      : t("settings.registerVenue")
+                  }
+                  sub={
+                    venueOwnerProfile
+                      ? venueOwnerProfile.isApproved
+                        ? t("settings.venueOwnerApproved")
+                        : t("settings.venueOwnerPending")
+                      : t("settings.registerVenueSub")
+                  }
+                  onPress={() => {
+                    close();
+                    setTimeout(() => {
+                      router.push(
+                        venueOwnerProfile
+                          ? "/venue-owner/dashboard"
+                          : "/venue-owner/setup",
+                      );
+                    }, 50);
+                  }}
+                  colors={colors}
+                />
+              ) : null}
 
               <Pressable
                 onPress={() => {

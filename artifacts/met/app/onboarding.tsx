@@ -134,8 +134,16 @@ export default function OnboardingScreen() {
   // `?startAt=permissions`, we skip the full signup flow and land
   // directly on the activateBeacon step so the user can grant
   // permissions without re-doing onboarding.
-  const { startAt } = useLocalSearchParams<{ startAt?: string }>();
+  const { startAt, venueOwner } = useLocalSearchParams<{
+    startAt?: string;
+    venueOwner?: string;
+  }>();
   const permissionsOnly = startAt === "permissions";
+  // The registration form needs a Firebase account and a completed Met
+  // profile. This intent survives those required steps, then opens setup.
+  const [venueOwnerIntent, setVenueOwnerIntent] = useState(
+    venueOwner === "1",
+  );
 
   const [phase, setPhase] = useState<Phase>(
     permissionsOnly ? "invite" : "language",
@@ -330,7 +338,20 @@ export default function OnboardingScreen() {
       await setProfile(restored);
       await setPermissionsCompleted(true);
       await ensureMyCode();
-      router.replace("/(tabs)");
+      if (venueOwnerIntent) {
+        try {
+          await api.getMyVenueOwnerProfile({ uid });
+          router.replace("/venue-owner/dashboard");
+        } catch (err) {
+          if ((err as ApiError).status === 404) {
+            router.replace("/venue-owner/setup");
+          } else {
+            router.replace("/(tabs)");
+          }
+        }
+      } else {
+        router.replace("/(tabs)");
+      }
       return true;
     } catch {
       return false;
@@ -706,7 +727,15 @@ export default function OnboardingScreen() {
       // Navigate directly to the correct screen rather than relying on
       // ProfileGate to redirect — avoids the race where ProfileGate and
       // handleFinish both call router.replace in the same render cycle.
-      router.replace(permissionsCompleted ? "/(tabs)" : "/permissions");
+      if (venueOwnerIntent) {
+        router.replace(
+          permissionsCompleted
+            ? "/venue-owner/setup"
+            : "/permissions?venueOwner=1",
+        );
+      } else {
+        router.replace(permissionsCompleted ? "/(tabs)" : "/permissions");
+      }
     } catch (err) {
       Alert.alert(t("common.error"), t("common.tryAgain"));
     } finally {
@@ -1510,6 +1539,34 @@ export default function OnboardingScreen() {
               loading={authBusy}
             />
 
+            <Pressable
+              onPress={() => {
+                setVenueOwnerIntent(true);
+                setAuthMode("signup");
+              }}
+              disabled={authBusy}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.venueOwnerLink,
+                { opacity: pressed || authBusy ? 0.65 : 1 },
+              ]}
+            >
+              <Feather name="briefcase" size={15} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.venueOwnerLinkTitle, { color: colors.primary }]}>
+                  {t("onboarding.venueOwnerCta")}
+                </Text>
+                <Text
+                  style={[
+                    styles.venueOwnerLinkSub,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  {t("onboarding.venueOwnerCtaSub")}
+                </Text>
+              </View>
+            </Pressable>
+
             {authMode === "signin" ? (
               <Pressable onPress={handleForgotPassword} hitSlop={8}>
                 <Text style={[styles.forgotText, { color: colors.primary }]}>
@@ -2133,6 +2190,18 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 15,
   },
+  venueOwnerLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(146, 201, 119, 0.35)",
+  },
+  venueOwnerLinkTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  venueOwnerLinkSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   inputMulti: {
     height: 96,
     paddingTop: 14,

@@ -1,7 +1,7 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Camera } from "expo-camera";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   PermissionsAndroid,
@@ -51,6 +51,8 @@ export default function PermissionsScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const { setPermissionsCompleted, permissionsCompleted, authedUid } = useApp();
+  const { venueOwner } = useLocalSearchParams<{ venueOwner?: string }>();
+  const continueToVenueOwner = venueOwner === "1";
 
   const [statuses, setStatuses] = useState<Record<PermKey, Status>>({
     location: "idle",
@@ -200,13 +202,13 @@ export default function PermissionsScreen() {
   const handleContinue = async () => {
     await setPermissionsCompleted(true);
     if (permissionsCompleted) router.back();
-    else router.replace("/(tabs)");
+    else router.replace(continueToVenueOwner ? "/venue-owner/setup" : "/(tabs)");
   };
 
   const handleSkip = async () => {
     await setPermissionsCompleted(true);
     if (permissionsCompleted) router.back();
-    else router.replace("/(tabs)");
+    else router.replace(continueToVenueOwner ? "/venue-owner/setup" : "/(tabs)");
   };
 
   const allDecided = (Object.values(statuses) as Status[]).every(

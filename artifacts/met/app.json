@@ -56,6 +56,11 @@
               "scheme": "https",
               "host": "metapp.replit.app",
               "pathPrefix": "/join"
+            },
+            {
+              "scheme": "https",
+              "host": "metapp.replit.app",
+              "pathPrefix": "/venue-owner"
             }
           ],
           "category": [
