@@ -238,7 +238,52 @@ const assetLinks = JSON.stringify(
   2,
 );
 
+// iOS Universal Links verification file.
+// Apple's servers fetch this at:
+//   https://<domain>/.well-known/apple-app-site-association
+// to confirm the app is allowed to claim the listed paths.
+// Team ID + bundle identifier must match the values in eas.json / app.json.
+const appleAppSiteAssociation = JSON.stringify(
+  {
+    applinks: {
+      apps: [],
+      details: [
+        {
+          appID: "AWHU9BTQQX.app.met.founders",
+          paths: [
+            // Referral links  e.g. /r/ABC123
+            "/r/*",
+            // Network invite links  e.g. /join/CODE1234
+            "/join/*",
+            // Venue-owner registration / dashboard entry point
+            "/venue-owner",
+            "/venue-owner/*",
+          ],
+        },
+      ],
+    },
+  },
+  null,
+  2,
+);
+
 const router: IRouter = Router();
+
+// Serve without a file extension too — both variants are required.  Apple's
+// crawler requests the no-extension form; some older tools use the .json form.
+router.get(
+  [
+    "/.well-known/apple-app-site-association",
+    "/.well-known/apple-app-site-association.json",
+  ],
+  (_req: Request, res: Response) => {
+    res
+      .status(200)
+      .type("application/json")
+      .set("Cache-Control", "public, max-age=3600")
+      .send(appleAppSiteAssociation);
+  },
+);
 
 router.get("/.well-known/assetlinks.json", (_req: Request, res: Response) => {
   res

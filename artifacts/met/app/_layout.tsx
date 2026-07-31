@@ -126,7 +126,7 @@ export function consumePendingReferral(): string | null {
   return v;
 }
 
-function parseReferralFromUrl(url: string | null): string | null {
+export function parseReferralFromUrl(url: string | null): string | null {
   if (!url) return null;
   try {
     const m = url.match(/\/r\/([A-Za-z2-9]{6})(?:[/?#]|$)/);
@@ -136,7 +136,7 @@ function parseReferralFromUrl(url: string | null): string | null {
   }
 }
 
-function parseNetworkInviteFromUrl(url: string | null): string | null {
+export function parseNetworkInviteFromUrl(url: string | null): string | null {
   if (!url) return null;
   try {
     const m = url.match(/\/join\/([A-Za-z2-9]{8})(?:[/?#]|$)/);
@@ -146,10 +146,10 @@ function parseNetworkInviteFromUrl(url: string | null): string | null {
   }
 }
 
-function isVenueOwnerUrl(url: string | null): boolean {
+export function isVenueOwnerUrl(url: string | null): boolean {
   if (!url) return false;
   try {
-    return /(?:\/\/|\/)venue-owner(?:\/setup)?(?:[/?#]|$)/.test(url);
+    return /(?:\/\/|\/)venue-owner(?:[/?#]|$)/.test(url);
   } catch {
     return false;
   }

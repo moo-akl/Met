@@ -14,6 +14,7 @@
       "buildNumber": "257",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
+      "associatedDomains": ["applinks:metapp.replit.app"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Met uses your microphone to record and send voice messages.",
