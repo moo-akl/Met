@@ -109,6 +109,8 @@ import {
   isVenueOwnerUrl,
   parseReferralFromUrl,
   parseNetworkInviteFromUrl,
+  routeDeepLink,
+  consumePendingReferral,
 } from "../../app/_layout";
 
 // ---------------------------------------------------------------------------
@@ -253,5 +255,153 @@ describe("URL type disambiguation", () => {
     const url = "https://metapp.replit.app/join/ABCD2345";
     expect(isVenueOwnerUrl(url)).toBe(false);
     expect(parseNetworkInviteFromUrl(url)).toBe("ABCD2345");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// routeDeepLink — end-to-end routing assertions
+//
+// These tests confirm that each URL path claimed by the AASA / assetlinks
+// files actually routes to the correct in-app screen via router.push.
+// Delay is set to 0 so setTimeout fires synchronously after a microtask tick.
+// ---------------------------------------------------------------------------
+
+/** Flush all zero-delay timers and pending microtasks. */
+async function flushTimers(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+describe("routeDeepLink — screen routing", () => {
+  // Drain any leftover referral from prior tests.
+  beforeEach(() => {
+    consumePendingReferral();
+  });
+
+  // ── /r/* referral links ──────────────────────────────────────────────────
+
+  describe("/r/<code> referral links", () => {
+    it("stashes the referral code so onboarding can consume it", () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://metapp.replit.app/r/AB2C3D", router, 0);
+      expect(consumePendingReferral()).toBe("AB2C3D");
+    });
+
+    it("does NOT push a router navigation for referral links", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://metapp.replit.app/r/AB2C3D", router, 0);
+      await flushTimers();
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it("handles custom-scheme referral links", () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("met://r/xy2z89", router, 0);
+      expect(consumePendingReferral()).toBe("XY2Z89");
+    });
+
+    it("consumePendingReferral returns null after the code has been consumed", () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://metapp.replit.app/r/AB2C3D", router, 0);
+      consumePendingReferral(); // first call consumes it
+      expect(consumePendingReferral()).toBeNull(); // second call returns null
+    });
+  });
+
+  // ── /join/* network-invite links ─────────────────────────────────────────
+
+  describe("/join/<code> network-invite links", () => {
+    it("navigates to /network/join/[code] with the uppercased code", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://metapp.replit.app/join/abcd2345", router, 0);
+      await flushTimers();
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: "/network/join/[code]",
+        params: { code: "ABCD2345" },
+      });
+    });
+
+    it("handles custom-scheme network-invite links", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("met://join/ABCD2345", router, 0);
+      await flushTimers();
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: "/network/join/[code]",
+        params: { code: "ABCD2345" },
+      });
+    });
+
+    it("does NOT stash a referral for /join/ links", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://metapp.replit.app/join/ABCD2345", router, 0);
+      await flushTimers();
+      expect(consumePendingReferral()).toBeNull();
+    });
+  });
+
+  // ── /venue-owner/* links ─────────────────────────────────────────────────
+
+  describe("/venue-owner/* links", () => {
+    it("navigates to /onboarding?venueOwner=1", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://metapp.replit.app/venue-owner", router, 0);
+      await flushTimers();
+      expect(router.push).toHaveBeenCalledWith("/onboarding?venueOwner=1");
+    });
+
+    it("handles sub-paths like /venue-owner/setup", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://metapp.replit.app/venue-owner/setup", router, 0);
+      await flushTimers();
+      expect(router.push).toHaveBeenCalledWith("/onboarding?venueOwner=1");
+    });
+
+    it("handles /venue-owner/dashboard", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://metapp.replit.app/venue-owner/dashboard", router, 0);
+      await flushTimers();
+      expect(router.push).toHaveBeenCalledWith("/onboarding?venueOwner=1");
+    });
+
+    it("handles custom-scheme venue-owner links", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("met://venue-owner/setup", router, 0);
+      await flushTimers();
+      expect(router.push).toHaveBeenCalledWith("/onboarding?venueOwner=1");
+    });
+
+    it("venue-owner routing takes priority — does not also stash a referral", async () => {
+      const router = { push: jest.fn() };
+      // A URL can't simultaneously be a venue-owner URL and a /r/ URL, but
+      // the priority rule is: venue-owner check runs first.
+      routeDeepLink("https://metapp.replit.app/venue-owner", router, 0);
+      await flushTimers();
+      expect(consumePendingReferral()).toBeNull();
+    });
+  });
+
+  // ── Unrecognised / unrelated URLs ────────────────────────────────────────
+
+  describe("unrecognised URLs", () => {
+    it("does not navigate or stash a referral for an unrelated path", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://metapp.replit.app/paywall", router, 0);
+      await flushTimers();
+      expect(router.push).not.toHaveBeenCalled();
+      expect(consumePendingReferral()).toBeNull();
+    });
+
+    it("does not navigate for a null URL", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink(null, router, 0);
+      await flushTimers();
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it("does not navigate for an empty string", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("", router, 0);
+      await flushTimers();
+      expect(router.push).not.toHaveBeenCalled();
+    });
   });
 });

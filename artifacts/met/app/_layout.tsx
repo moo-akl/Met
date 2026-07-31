@@ -156,6 +156,59 @@ export function isVenueOwnerUrl(url: string | null): boolean {
 }
 
 /**
+ * A minimal router interface — matches the subset of expo-router's router
+ * that deep-link routing uses. Using an interface rather than the full
+ * expo-router type makes this function easily testable without native modules.
+ */
+export interface MinimalRouter {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  push: (url: any) => void;
+}
+
+/**
+ * Route a deep-link URL to the appropriate in-app screen.
+ *
+ * Priority order (matches handleUrl in RootLayout):
+ *   1. venue-owner URL  → /onboarding?venueOwner=1
+ *   2. /r/<code>        → stash pendingDeepLinkReferral (no navigation; consumed at onboarding)
+ *   3. /join/<code>     → /network/join/[code]
+ *
+ * Navigation is deferred by `delay` ms so the router is mounted before the
+ * push fires (relevant for cold-start deep links).  Tests should pass delay=0.
+ *
+ * Exported so it can be unit-tested without rendering the full component tree.
+ */
+export function routeDeepLink(
+  url: string | null,
+  router: MinimalRouter,
+  delay = 50,
+): void {
+  if (isVenueOwnerUrl(url)) {
+    setTimeout(() => {
+      try {
+        router.push("/onboarding?venueOwner=1");
+      } catch {}
+    }, delay);
+    return;
+  }
+
+  const referral = parseReferralFromUrl(url);
+  if (referral) pendingDeepLinkReferral = referral;
+
+  const networkCode = parseNetworkInviteFromUrl(url);
+  if (networkCode) {
+    setTimeout(() => {
+      try {
+        router.push({
+          pathname: "/network/join/[code]",
+          params: { code: networkCode },
+        } as never);
+      } catch {}
+    }, delay);
+  }
+}
+
+/**
  * Manages the foreground chat notification banner. Lives inside AppProvider
  * so it can resolve the peer's photo URL from allEncounters.
  */
@@ -397,36 +450,11 @@ export default function RootLayout() {
   // Capture initial / live deep links. Referrals are stashed for onboarding;
   // network invites and venue-owner registration links navigate directly.
   useEffect(() => {
-    const handleUrl = (url: string | null, delay: number) => {
-      if (isVenueOwnerUrl(url)) {
-        setTimeout(() => {
-          try {
-            router.push("/onboarding?venueOwner=1");
-          } catch {}
-        }, delay);
-        return;
-      }
-
-      const referral = parseReferralFromUrl(url);
-      if (referral) pendingDeepLinkReferral = referral;
-      const networkCode = parseNetworkInviteFromUrl(url);
-      if (networkCode) {
-        setTimeout(() => {
-          try {
-            router.push({
-              pathname: "/network/join/[code]",
-              params: { code: networkCode },
-            } as never);
-          } catch {}
-        }, delay);
-      }
-    };
-
     Linking.getInitialURL()
-      .then((url) => handleUrl(url, 100))
+      .then((url) => routeDeepLink(url, router, 100))
       .catch(() => {});
     const sub = Linking.addEventListener("url", (e) => {
-      handleUrl(e.url, 50);
+      routeDeepLink(e.url, router, 50);
     });
     return () => sub.remove();
   }, [router]);
