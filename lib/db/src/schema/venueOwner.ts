@@ -9,6 +9,7 @@ import {
   uniqueIndex,
   jsonb,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -97,7 +98,15 @@ export const venueOwnerProfilesTable = pgTable(
   },
   (t) => ({
     ownerUidUniq: uniqueIndex("venue_owner_profiles_owner_uid_uniq").on(t.ownerUid),
-    placeIdUniq: uniqueIndex("venue_owner_profiles_place_id_uniq").on(t.placeId),
+    /**
+     * Only an *active* claim reserves a place. Terminal applications
+     * (`withdrawn`, `expired`) intentionally release the venue so another owner
+     * — or the same owner — can claim it again. A global unique index here
+     * would contradict the lifecycle and make reclaim impossible.
+     */
+    activePlaceIdUniq: uniqueIndex("venue_owner_profiles_active_place_id_uniq")
+      .on(t.placeId)
+      .where(sql`${t.applicationStatus} NOT IN ('withdrawn', 'expired')`),
     isApprovedIdx: index("venue_owner_profiles_is_approved_idx").on(t.isApproved),
     applicationStatusIdx: index("venue_owner_profiles_application_status_idx").on(
       t.applicationStatus,
