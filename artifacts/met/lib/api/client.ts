@@ -978,7 +978,7 @@ export const api = {
     }
     return request<{ places: VenueSearchPlace[] }>(
       "GET",
-      `/venue-owner/places/search?${params.toString()}`,
+      `/api/venue-owner/places/search?${params.toString()}`,
       opts,
     ).then((response) => ({
       places: Array.isArray(response?.places) ? response.places : [],
@@ -1002,14 +1002,14 @@ export const api = {
   ) =>
     request<{ profile: VenueOwnerProfile }>(
       "POST",
-      "/venue-owner/register",
+      "/api/venue-owner/register",
       opts,
       body,
     ),
 
   /** Fetch the caller's own venue owner profile. Throws 404 if not registered. */
   getMyVenueOwnerProfile: (opts: ApiOptions) =>
-    request<{ profile: VenueOwnerProfile }>("GET", "/venue-owner/me", opts),
+    request<{ profile: VenueOwnerProfile }>("GET", "/api/venue-owner/me", opts),
 
   /** Re-submit a rejected venue owner application with updated details. */
   reapplyVenueOwner: (
@@ -1028,7 +1028,7 @@ export const api = {
   ) =>
     request<{ profile: VenueOwnerProfile }>(
       "POST",
-      "/venue-owner/reapply",
+      "/api/venue-owner/reapply",
       opts,
       body,
     ),
@@ -1044,13 +1044,13 @@ export const api = {
       logoUrl?: string | null;
     },
   ) =>
-    request<{ profile: VenueOwnerProfile }>("PUT", "/venue-owner/me", opts, body),
+    request<{ profile: VenueOwnerProfile }>("PUT", "/api/venue-owner/me", opts, body),
 
   /** Fetch a public venue owner profile (approved venues only). */
   getVenueOwnerProfile: (opts: ApiOptions, placeId: string) =>
     request<{ profile: VenueOwnerProfile }>(
       "GET",
-      `/venue-owner/${encodeURIComponent(placeId)}`,
+      `/api/venue-owner/${encodeURIComponent(placeId)}`,
       opts,
     ),
 
@@ -1069,7 +1069,7 @@ export const api = {
   ) =>
     request<{ event: VenueEvent }>(
       "POST",
-      "/venue-owner/me/events",
+      "/api/venue-owner/me/events",
       opts,
       body,
     ),
@@ -1078,7 +1078,7 @@ export const api = {
   getVenueEvents: (opts: ApiOptions, placeId: string) =>
     request<{ events: VenueEvent[] }>(
       "GET",
-      `/venue-owner/${encodeURIComponent(placeId)}/events`,
+      `/api/venue-owner/${encodeURIComponent(placeId)}/events`,
       opts,
     ),
 
@@ -1098,7 +1098,7 @@ export const api = {
   ) =>
     request<{ event: VenueEvent }>(
       "PUT",
-      `/venue-owner/me/events/${eventId}`,
+      `/api/venue-owner/me/events/${eventId}`,
       opts,
       body,
     ),
@@ -1107,7 +1107,7 @@ export const api = {
   deleteVenueEvent: (opts: ApiOptions, eventId: number) =>
     request<{ success: boolean }>(
       "DELETE",
-      `/venue-owner/me/events/${eventId}`,
+      `/api/venue-owner/me/events/${eventId}`,
       opts,
     ),
 
@@ -1119,7 +1119,7 @@ export const api = {
   ) =>
     request<{ success: boolean; status: string }>(
       "POST",
-      `/venue-events/${eventId}/rsvp`,
+      `/api/venue-events/${eventId}/rsvp`,
       opts,
       { status },
     ),
@@ -1128,7 +1128,7 @@ export const api = {
   getMyEventRsvp: (opts: ApiOptions, eventId: number) =>
     request<{ rsvp: { status: string } | null }>(
       "GET",
-      `/venue-events/${eventId}/rsvp`,
+      `/api/venue-events/${eventId}/rsvp`,
       opts,
     ),
 
@@ -1148,7 +1148,7 @@ export const api = {
   ) =>
     request<{ reward: VenueReward }>(
       "POST",
-      "/venue-owner/me/rewards",
+      "/api/venue-owner/me/rewards",
       opts,
       body,
     ),
@@ -1157,7 +1157,7 @@ export const api = {
   getVenueRewards: (opts: ApiOptions, placeId: string) =>
     request<{ rewards: VenueReward[] }>(
       "GET",
-      `/venue-owner/${encodeURIComponent(placeId)}/rewards`,
+      `/api/venue-owner/${encodeURIComponent(placeId)}/rewards`,
       opts,
     ),
 
@@ -1178,7 +1178,7 @@ export const api = {
   ) =>
     request<{ reward: VenueReward }>(
       "PUT",
-      `/venue-owner/me/rewards/${rewardId}`,
+      `/api/venue-owner/me/rewards/${rewardId}`,
       opts,
       body,
     ),
@@ -1195,7 +1195,7 @@ export const api = {
   ) =>
     request<{ announcement: VenueAnnouncement }>(
       "POST",
-      "/venue-owner/me/announcements",
+      "/api/venue-owner/me/announcements",
       opts,
       body,
     ),
@@ -1204,7 +1204,7 @@ export const api = {
   getVenueAnnouncements: (opts: ApiOptions, placeId: string) =>
     request<{ announcements: VenueAnnouncement[] }>(
       "GET",
-      `/venue-owner/${encodeURIComponent(placeId)}/announcements`,
+      `/api/venue-owner/${encodeURIComponent(placeId)}/announcements`,
       opts,
     ),
 
@@ -1212,7 +1212,7 @@ export const api = {
   deleteVenueAnnouncement: (opts: ApiOptions, announcementId: number) =>
     request<{ success: boolean }>(
       "DELETE",
-      `/venue-owner/me/announcements/${announcementId}`,
+      `/api/venue-owner/me/announcements/${announcementId}`,
       opts,
     ),
 
@@ -1226,5 +1226,5 @@ export const api = {
 
   /** Fetch owner analytics dashboard. */
   getVenueOwnerDashboard: (opts: ApiOptions) =>
-    request<VenueOwnerDashboard>("GET", "/venue-owner/me/dashboard", opts),
+    request<VenueOwnerDashboard>("GET", "/api/venue-owner/me/dashboard", opts),
 };

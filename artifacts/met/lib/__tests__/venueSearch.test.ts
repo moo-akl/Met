@@ -37,6 +37,10 @@ describe("venue search API client", () => {
     await expect(api.searchVenuePlaces({ uid: "test-uid" }, "Blue Parrot")).resolves.toEqual({
       places: [],
     });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.test/api/venue-owner/places/search?query=Blue+Parrot",
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 
   it("preserves a valid places array", async () => {
