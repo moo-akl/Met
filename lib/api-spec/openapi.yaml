@@ -1619,6 +1619,48 @@ paths:
         "204":
           description: Session ended
 
+  /venue-owner/me/application:
+    get:
+      operationId: getMyVenueApplication
+      tags: [venue-owner]
+      summary: Get my venue application's current lifecycle status and history
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Current application and applicant-safe history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueApplicationStatusResponse"
+        "404":
+          description: No venue application exists for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /venue-owner/me/application/withdraw:
+    post:
+      operationId: withdrawMyVenueApplication
+      tags: [venue-owner]
+      summary: Withdraw my submitted venue application
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Withdrawn application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueApplicationStatusMutationResponse"
+        "409":
+          description: Application cannot be withdrawn in its current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /admin/venue-owner/applications:
     get:
       operationId: listPendingVenueApplications
@@ -1760,6 +1802,7 @@ components:
         - businessName
         - isApproved
         - isVerified
+        - applicationStatus
         - createdAt
         - updatedAt
       properties:
@@ -1777,6 +1820,19 @@ components:
         isApproved: { type: boolean }
         isVerified: { type: boolean }
         rejectionReason: { type: ["string", "null"] }
+        applicationStatus:
+          type: string
+          enum: [draft, submitted, under_review, rejected, resubmitted, approved, withdrawn, expired]
+        status:
+          type: string
+          enum: [draft, submitted, under_review, rejected, resubmitted, approved, withdrawn, expired]
+        statusLabel: { type: string }
+        submittedAt: { type: ["string", "null"], format: date-time }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        approvedAt: { type: ["string", "null"], format: date-time }
+        rejectedAt: { type: ["string", "null"], format: date-time }
+        withdrawnAt: { type: ["string", "null"], format: date-time }
+        expiredAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     VenueApplicationList:
@@ -1801,6 +1857,36 @@ components:
           type: string
           minLength: 3
           maxLength: 500
+    VenueApplicationHistoryEntry:
+      type: object
+      required: [id, eventType, createdAt]
+      properties:
+        id: { type: integer }
+        eventType: { type: string }
+        fromStatus:
+          type: ["string", "null"]
+          enum: [draft, submitted, under_review, rejected, resubmitted, approved, withdrawn, expired, null]
+        toStatus:
+          type: ["string", "null"]
+          enum: [draft, submitted, under_review, rejected, resubmitted, approved, withdrawn, expired, null]
+        applicantMessage: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    VenueApplicationStatusResponse:
+      type: object
+      required: [application, history]
+      properties:
+        application:
+          $ref: "#/components/schemas/VenueApplication"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/VenueApplicationHistoryEntry"
+    VenueApplicationStatusMutationResponse:
+      type: object
+      required: [application]
+      properties:
+        application:
+          $ref: "#/components/schemas/VenueApplication"
     Profile:
       type: object
       properties:

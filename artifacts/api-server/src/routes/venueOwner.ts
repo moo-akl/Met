@@ -48,6 +48,7 @@ import {
 import {
   db,
   venueOwnerProfilesTable,
+  venueApplicationHistoryTable,
   venueEventsTable,
   venueEventRsvpsTable,
   venueRewardsTable,
@@ -61,6 +62,43 @@ import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
 import { z } from "zod/v4";
 import crypto from "node:crypto";
+
+const venueApplicationStatuses = [
+  "draft",
+  "submitted",
+  "under_review",
+  "rejected",
+  "resubmitted",
+  "approved",
+  "withdrawn",
+  "expired",
+] as const;
+type VenueApplicationStatus = (typeof venueApplicationStatuses)[number];
+
+const APPLICATION_STATUS_LABELS: Record<VenueApplicationStatus, string> = {
+  draft: "Draft",
+  submitted: "Submitted",
+  under_review: "Under review",
+  rejected: "Not approved",
+  resubmitted: "Resubmitted",
+  approved: "Approved",
+  withdrawn: "Withdrawn",
+  expired: "Expired",
+};
+
+const venueApplicationInputSchema = z.object({
+  placeId: z.string().trim().min(1).max(255),
+  placeName: z.string().trim().min(1).max(255),
+  businessName: z.string().trim().min(1).max(255),
+  lat: z.coerce.number().finite().gte(-90).lte(90),
+  lng: z.coerce.number().finite().gte(-180).lte(180),
+  tagline: z.string().trim().max(160).optional().nullable(),
+  description: z.string().trim().max(1000).optional().nullable(),
+  verificationDocUrl: z.string().trim().url().max(2000),
+  registrationNotes: z.string().trim().max(500).optional().nullable(),
+});
+
+type VenueApplicationInput = z.infer<typeof venueApplicationInputSchema>;
 
 const router: IRouter = Router();
 const ADMIN_SESSION_COOKIE = "met_venue_admin";
@@ -160,6 +198,78 @@ const venueOwnerPlaceSearchLimit = createUserRateLimiter({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function serializeApplicationProfile(
+  profile: typeof venueOwnerProfilesTable.$inferSelect,
+) {
+  return {
+    ...profile,
+    status: profile.applicationStatus,
+    statusLabel: APPLICATION_STATUS_LABELS[profile.applicationStatus],
+  };
+}
+
+async function appendApplicationHistory(input: {
+  venueOwnerProfileId: number;
+  eventType: typeof venueApplicationHistoryTable.$inferInsert["eventType"];
+  fromStatus?: VenueApplicationStatus | null;
+  toStatus?: VenueApplicationStatus | null;
+  actorRole: "applicant" | "admin" | "system";
+  actorUid?: string | null;
+  applicantMessage?: string | null;
+  internalNote?: string | null;
+  metadata?: Record<string, unknown> | null;
+}): Promise<void> {
+  await db.insert(venueApplicationHistoryTable).values({
+    ...input,
+    fromStatus: input.fromStatus ?? null,
+    toStatus: input.toStatus ?? null,
+    actorUid: input.actorUid ?? null,
+    applicantMessage: input.applicantMessage ?? null,
+    internalNote: input.internalNote ?? null,
+    metadata: input.metadata ?? null,
+  });
+}
+
+async function placeIsClaimedByAnotherOwner(placeId: string, ownerUid: string): Promise<boolean> {
+  const conflict = await db
+    .select({ id: venueOwnerProfilesTable.id })
+    .from(venueOwnerProfilesTable)
+    .where(
+      and(
+        eq(venueOwnerProfilesTable.placeId, placeId),
+        ne(venueOwnerProfilesTable.ownerUid, ownerUid),
+        ne(venueOwnerProfilesTable.applicationStatus, "withdrawn"),
+        ne(venueOwnerProfilesTable.applicationStatus, "expired"),
+      ),
+    )
+    .limit(1);
+  return conflict.length > 0;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "23505"
+  );
+}
+
+async function getApplicationHistoryForApplicant(profileId: number) {
+  return db
+    .select({
+      id: venueApplicationHistoryTable.id,
+      eventType: venueApplicationHistoryTable.eventType,
+      fromStatus: venueApplicationHistoryTable.fromStatus,
+      toStatus: venueApplicationHistoryTable.toStatus,
+      applicantMessage: venueApplicationHistoryTable.applicantMessage,
+      createdAt: venueApplicationHistoryTable.createdAt,
+    })
+    .from(venueApplicationHistoryTable)
+    .where(eq(venueApplicationHistoryTable.venueOwnerProfileId, profileId))
+    .orderBy(venueApplicationHistoryTable.createdAt);
+}
 
 /** Recalculate and update the denormalized rsvpCount on a venue event. */
 async function syncRsvpCount(eventId: number): Promise<void> {
@@ -279,20 +389,7 @@ router.post(
   venueOwnerWriteLimit,
   async (req: Request, res: Response) => {
     const uid = req.uid!;
-
-    const schema = z.object({
-      placeId: z.string().min(1),
-      placeName: z.string().min(1),
-      businessName: z.string().min(1),
-      lat: z.string().optional(),
-      lng: z.string().optional(),
-      tagline: z.string().max(160).optional(),
-      description: z.string().max(1000).optional(),
-      verificationDocUrl: z.string().url().optional(),
-      registrationNotes: z.string().max(500).optional(),
-    });
-
-    const parsed = schema.safeParse(req.body);
+    const parsed = venueApplicationInputSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: "Invalid input", errors: parsed.error.issues });
       return;
@@ -310,36 +407,48 @@ router.post(
       return;
     }
 
-    // Check if placeId is already claimed (any non-expired profile)
-    const placeConflict = await db
-      .select({ id: venueOwnerProfilesTable.id })
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.placeId, data.placeId))
-      .limit(1);
-    if (placeConflict.length > 0) {
+    if (await placeIsClaimedByAnotherOwner(data.placeId, uid)) {
       res.status(409).json({ message: "This venue is already claimed" });
       return;
     }
 
-    const [profile] = await db
-      .insert(venueOwnerProfilesTable)
-      .values({
-        ownerUid: uid,
-        placeId: data.placeId,
-        placeName: data.placeName,
-        businessName: data.businessName,
-        lat: data.lat,
-        lng: data.lng,
-        tagline: data.tagline ?? null,
-        description: data.description ?? null,
-        verificationDocUrl: data.verificationDocUrl ?? null,
-        registrationNotes: data.registrationNotes ?? null,
-        isApproved: false,
-        isVerified: false,
-      })
-      .returning();
-
-    res.status(201).json({ profile });
+    try {
+      const now = new Date();
+      const [profile] = await db
+        .insert(venueOwnerProfilesTable)
+        .values({
+          ownerUid: uid,
+          placeId: data.placeId,
+          placeName: data.placeName,
+          businessName: data.businessName,
+          lat: String(data.lat),
+          lng: String(data.lng),
+          tagline: data.tagline ?? null,
+          description: data.description ?? null,
+          verificationDocUrl: data.verificationDocUrl,
+          registrationNotes: data.registrationNotes ?? null,
+          applicationStatus: "submitted",
+          submittedAt: now,
+          isApproved: false,
+          isVerified: false,
+        })
+        .returning();
+      await appendApplicationHistory({
+        venueOwnerProfileId: profile.id,
+        eventType: "submitted",
+        toStatus: "submitted",
+        actorRole: "applicant",
+        actorUid: uid,
+        applicantMessage: "Application submitted for review.",
+      });
+      res.status(201).json({ profile: serializeApplicationProfile(profile) });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        res.status(409).json({ message: "This venue is already claimed" });
+        return;
+      }
+      throw error;
+    }
   },
 );
 
@@ -361,7 +470,31 @@ router.get(
       res.status(404).json({ message: "No venue owner profile found" });
       return;
     }
-    res.json({ profile });
+    res.json({ profile: serializeApplicationProfile(profile) });
+  },
+);
+
+/**
+ * GET /venue-owner/me/application
+ * The authoritative applicant-safe lifecycle response. Internal reviewer notes
+ * are intentionally excluded from the history returned here.
+ */
+router.get(
+  "/venue-owner/me/application",
+  requireUid,
+  venueOwnerReadLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const [profile] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.ownerUid, req.uid!))
+      .limit(1);
+    if (!profile) {
+      res.status(404).json({ message: "No venue application found" });
+      return;
+    }
+    const history = await getApplicationHistoryForApplicant(profile.id);
+    res.json({ application: serializeApplicationProfile(profile), history });
   },
 );
 
@@ -378,19 +511,7 @@ router.post(
   async (req: Request, res: Response) => {
     const uid = req.uid!;
 
-    const schema = z.object({
-      placeId: z.string().min(1),
-      placeName: z.string().min(1),
-      businessName: z.string().min(1),
-      lat: z.string().optional(),
-      lng: z.string().optional(),
-      tagline: z.string().max(160).optional(),
-      description: z.string().max(1000).optional(),
-      verificationDocUrl: z.string().url().optional(),
-      registrationNotes: z.string().max(500).optional(),
-    });
-
-    const parsed = schema.safeParse(req.body);
+    const parsed = venueApplicationInputSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: "Invalid input", errors: parsed.error.issues });
       return;
@@ -400,8 +521,7 @@ router.post(
     const [existing] = await db
       .select({
         id: venueOwnerProfilesTable.id,
-        isApproved: venueOwnerProfilesTable.isApproved,
-        rejectionReason: venueOwnerProfilesTable.rejectionReason,
+        applicationStatus: venueOwnerProfilesTable.applicationStatus,
       })
       .from(venueOwnerProfilesTable)
       .where(eq(venueOwnerProfilesTable.ownerUid, uid))
@@ -411,36 +531,93 @@ router.post(
       res.status(404).json({ message: "No venue owner profile found" });
       return;
     }
-    if (existing.isApproved) {
-      res.status(409).json({ message: "Your venue is already approved" });
-      return;
-    }
-    if (!existing.rejectionReason) {
+    if (existing.applicationStatus !== "rejected") {
       res.status(409).json({
-        message: "Your application is still under review. Please wait for a decision before reapplying.",
+        message: "Only a rejected application can be resubmitted.",
       });
       return;
     }
+    if (await placeIsClaimedByAnotherOwner(data.placeId, uid)) {
+      res.status(409).json({ message: "This venue is already claimed" });
+      return;
+    }
+    try {
+      const now = new Date();
+      const [profile] = await db
+        .update(venueOwnerProfilesTable)
+        .set({
+          placeId: data.placeId,
+          placeName: data.placeName,
+          businessName: data.businessName,
+          lat: String(data.lat),
+          lng: String(data.lng),
+          tagline: data.tagline ?? null,
+          description: data.description ?? null,
+          verificationDocUrl: data.verificationDocUrl,
+          registrationNotes: data.registrationNotes ?? null,
+          rejectionReason: null,
+          applicationStatus: "resubmitted",
+          submittedAt: now,
+          reviewedAt: null,
+          updatedAt: now,
+        })
+        .where(eq(venueOwnerProfilesTable.ownerUid, uid))
+        .returning();
+      await appendApplicationHistory({
+        venueOwnerProfileId: profile.id,
+        eventType: "resubmitted",
+        fromStatus: "rejected",
+        toStatus: "resubmitted",
+        actorRole: "applicant",
+        actorUid: uid,
+        applicantMessage: "Updated application resubmitted for review.",
+      });
+      res.json({ profile: serializeApplicationProfile(profile) });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        res.status(409).json({ message: "This venue is already claimed" });
+        return;
+      }
+      throw error;
+    }
+  },
+);
 
+router.post(
+  "/venue-owner/me/application/withdraw",
+  requireUid,
+  venueOwnerWriteLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const uid = req.uid!;
+    const [existing] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ message: "No venue application found" });
+      return;
+    }
+    if (!["submitted", "under_review", "resubmitted"].includes(existing.applicationStatus)) {
+      res.status(409).json({ message: "This application cannot be withdrawn in its current state" });
+      return;
+    }
+    const now = new Date();
     const [profile] = await db
       .update(venueOwnerProfilesTable)
-      .set({
-        placeId: data.placeId,
-        placeName: data.placeName,
-        businessName: data.businessName,
-        lat: data.lat ?? null,
-        lng: data.lng ?? null,
-        tagline: data.tagline ?? null,
-        description: data.description ?? null,
-        verificationDocUrl: data.verificationDocUrl ?? null,
-        registrationNotes: data.registrationNotes ?? null,
-        rejectionReason: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
+      .set({ applicationStatus: "withdrawn", withdrawnAt: now, updatedAt: now })
+      .where(eq(venueOwnerProfilesTable.id, existing.id))
       .returning();
-
-    res.json({ profile });
+    await appendApplicationHistory({
+      venueOwnerProfileId: profile.id,
+      eventType: "withdrawn",
+      fromStatus: existing.applicationStatus,
+      toStatus: "withdrawn",
+      actorRole: "applicant",
+      actorUid: uid,
+      applicantMessage: "Application withdrawn.",
+    });
+    res.json({ application: serializeApplicationProfile(profile) });
   },
 );
 
@@ -1386,8 +1563,8 @@ router.get(
 /**
  * POST /venue-owner/expire-pending-claims
  * Cron endpoint (X-Cron-Secret required).
- * Deletes pending (unapproved) venue owner profiles older than 14 days so
- * the locked placeId is released back into the pool.
+ * Expires stale applications older than 14 days. Records remain for audit
+ * history, while expired place IDs become available for a future claim.
  */
 router.post(
   "/venue-owner/expire-pending-claims",
@@ -1395,20 +1572,41 @@ router.post(
   async (_req: Request, res: Response) => {
     const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const expired = await db
-      .select({ id: venueOwnerProfilesTable.id, placeId: venueOwnerProfilesTable.placeId })
+      .select({
+        id: venueOwnerProfilesTable.id,
+        placeId: venueOwnerProfilesTable.placeId,
+        applicationStatus: venueOwnerProfilesTable.applicationStatus,
+      })
       .from(venueOwnerProfilesTable)
       .where(
         and(
-          eq(venueOwnerProfilesTable.isApproved, false),
-          lt(venueOwnerProfilesTable.createdAt, cutoff),
+          lt(venueOwnerProfilesTable.submittedAt, cutoff),
+          sql`${venueOwnerProfilesTable.applicationStatus} IN ('submitted', 'under_review', 'resubmitted')`,
         ),
       );
 
     if (expired.length > 0) {
       const ids = expired.map((e) => e.id);
       await db
-        .delete(venueOwnerProfilesTable)
+        .update(venueOwnerProfilesTable)
+        .set({
+          applicationStatus: "expired",
+          expiredAt: new Date(),
+          updatedAt: new Date(),
+        })
         .where(sql`${venueOwnerProfilesTable.id} = ANY(${ids})`);
+      await Promise.all(
+        expired.map((application) =>
+          appendApplicationHistory({
+            venueOwnerProfileId: application.id,
+            eventType: "expired",
+            fromStatus: application.applicationStatus,
+            toStatus: "expired",
+            actorRole: "system",
+            applicantMessage: "Application expired because it was not reviewed in time.",
+          }),
+        ),
+      );
     }
 
     logger.info({ count: expired.length }, "Expired pending venue owner claims");
@@ -1487,9 +1685,11 @@ router.get(
     const pending = await db
       .select()
       .from(venueOwnerProfilesTable)
-      .where(and(eq(venueOwnerProfilesTable.isApproved, false), isNull(venueOwnerProfilesTable.rejectionReason)))
+      .where(
+        sql`${venueOwnerProfilesTable.applicationStatus} IN ('submitted', 'under_review', 'resubmitted')`,
+      )
       .orderBy(venueOwnerProfilesTable.createdAt);
-    res.json({ pending });
+    res.json({ pending: pending.map(serializeApplicationProfile) });
   },
 );
 
@@ -1516,11 +1716,41 @@ router.post(
       return;
     }
 
+    if (!["submitted", "under_review", "resubmitted"].includes(existing.applicationStatus)) {
+      res.status(409).json({ message: "This application is no longer awaiting review" });
+      return;
+    }
+    const now = new Date();
     const [updated] = await db
       .update(venueOwnerProfilesTable)
-      .set({ isApproved: true, isVerified: true, rejectionReason: null, updatedAt: new Date() })
-      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .set({
+        applicationStatus: "approved",
+        isApproved: true,
+        isVerified: true,
+        rejectionReason: null,
+        reviewedAt: now,
+        approvedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.id, profileId),
+          sql`${venueOwnerProfilesTable.applicationStatus} IN ('submitted', 'under_review', 'resubmitted')`,
+        ),
+      )
       .returning();
+    if (!updated) {
+      res.status(409).json({ message: "This application was already reviewed" });
+      return;
+    }
+    await appendApplicationHistory({
+      venueOwnerProfileId: updated.id,
+      eventType: "approved",
+      fromStatus: existing.applicationStatus,
+      toStatus: "approved",
+      actorRole: "admin",
+      applicantMessage: "Your venue application has been approved.",
+    });
 
     try {
       await sendPush(existing.ownerUid, {
@@ -1532,7 +1762,7 @@ router.post(
       req.log?.warn({ profileId }, "Venue approval notification could not be delivered");
     }
 
-    res.json({ profile: updated });
+    res.json({ profile: serializeApplicationProfile(updated) });
   },
 );
 
@@ -1564,11 +1794,41 @@ router.post(
       return;
     }
 
+    if (!["submitted", "under_review", "resubmitted"].includes(existing.applicationStatus)) {
+      res.status(409).json({ message: "This application is no longer awaiting review" });
+      return;
+    }
+    const now = new Date();
     const [updated] = await db
       .update(venueOwnerProfilesTable)
-      .set({ isApproved: false, rejectionReason: parsed.data.reason, updatedAt: new Date() })
-      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .set({
+        applicationStatus: "rejected",
+        isApproved: false,
+        isVerified: false,
+        rejectionReason: parsed.data.reason,
+        reviewedAt: now,
+        rejectedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.id, profileId),
+          sql`${venueOwnerProfilesTable.applicationStatus} IN ('submitted', 'under_review', 'resubmitted')`,
+        ),
+      )
       .returning();
+    if (!updated) {
+      res.status(409).json({ message: "This application was already reviewed" });
+      return;
+    }
+    await appendApplicationHistory({
+      venueOwnerProfileId: updated.id,
+      eventType: "rejected",
+      fromStatus: existing.applicationStatus,
+      toStatus: "rejected",
+      actorRole: "admin",
+      applicantMessage: parsed.data.reason,
+    });
 
     try {
       await sendPush(existing.ownerUid, {
@@ -1580,110 +1840,7 @@ router.post(
       req.log?.warn({ profileId }, "Venue rejection notification could not be delivered");
     }
 
-    res.json({ profile: updated });
-  },
-);
-
-/**
- * GET /admin/venue-owner/pending
- */
-router.get(
-  "/admin/venue-owner/pending",
-  requireAdminSecret,
-  async (_req: Request, res: Response) => {
-    const pending = await db
-      .select()
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.isApproved, false))
-      .orderBy(venueOwnerProfilesTable.createdAt);
-    res.json({ pending });
-  },
-);
-
-/**
- * POST /admin/venue-owner/approve/:id
- */
-router.post(
-  "/admin/venue-owner/approve/:id",
-  requireAdminSecret,
-  async (req: Request, res: Response) => {
-    const profileId = parseInt(String(req.params["id"] ?? ""), 10);
-    if (isNaN(profileId)) {
-      res.status(400).json({ message: "Invalid profile id" });
-      return;
-    }
-
-    const [existing] = await db
-      .select()
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.id, profileId))
-      .limit(1);
-    if (!existing) {
-      res.status(404).json({ message: "Profile not found" });
-      return;
-    }
-
-    const [updated] = await db
-      .update(venueOwnerProfilesTable)
-      .set({ isApproved: true, isVerified: true, rejectionReason: null, updatedAt: new Date() })
-      .where(eq(venueOwnerProfilesTable.id, profileId))
-      .returning();
-
-    // Notify the owner
-    try {
-      await sendPush(existing.ownerUid, {
-        title: "✅ Venue approved!",
-        body: `Your venue "${existing.businessName}" has been approved. You can now create events, rewards, and announcements.`,
-        data: { type: "venue_owner_approved", placeId: existing.placeId },
-      });
-    } catch {}
-
-    res.json({ profile: updated });
-  },
-);
-
-/**
- * POST /admin/venue-owner/reject/:id
- * Body: { reason?: string }
- */
-router.post(
-  "/admin/venue-owner/reject/:id",
-  requireAdminSecret,
-  async (req: Request, res: Response) => {
-    const profileId = parseInt(String(req.params["id"] ?? ""), 10);
-    if (isNaN(profileId)) {
-      res.status(400).json({ message: "Invalid profile id" });
-      return;
-    }
-
-    const [existing] = await db
-      .select()
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.id, profileId))
-      .limit(1);
-    if (!existing) {
-      res.status(404).json({ message: "Profile not found" });
-      return;
-    }
-
-    const reason = typeof req.body?.reason === "string" ? req.body.reason : "Your application did not meet our requirements.";
-
-    const [updated] = await db
-      .update(venueOwnerProfilesTable)
-      .set({ isApproved: false, rejectionReason: reason, updatedAt: new Date() })
-      .where(eq(venueOwnerProfilesTable.id, profileId))
-      .returning();
-
-    // Notify the owner
-    try {
-      await sendPush(existing.ownerUid, {
-        title: "Venue application update",
-        body: `Your venue application for "${existing.businessName}" was not approved. Reason: ${reason}`,
-        data: { type: "venue_owner_rejected", placeId: existing.placeId },
-      });
-    } catch {}
-
-    res.json({ profile: updated });
+    res.json({ profile: serializeApplicationProfile(updated) });
   },
 );
 

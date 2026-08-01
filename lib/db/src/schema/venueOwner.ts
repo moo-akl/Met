@@ -14,16 +14,39 @@ import { z } from "zod/v4";
 
 // ---------------------------------------------------------------------------
 // venue_owner_profiles
-// One row per approved venue owner. ownerUid + placeId each carry a unique
-// constraint — a single user may only claim one venue, and each venue may
-// only be owned by one user.
-//
-// Approval flow:
-//   1. User submits registration → isApproved=false, isVerified=false.
-//   2. Admin reviews docs → sets isApproved=true, isVerified=true.
-//   3. If no admin action within 14 days the cron endpoint cleans up the
-//      pending row so the placeId becomes available again.
+// A profile is the current, mutable venue application. `applicationStatus`
+// is the source of truth; the older approval fields remain populated during
+// migration so existing public venue, event, reward, and map code continues
+// to behave correctly.
 // ---------------------------------------------------------------------------
+export const venueApplicationStatuses = [
+  "draft",
+  "submitted",
+  "under_review",
+  "rejected",
+  "resubmitted",
+  "approved",
+  "withdrawn",
+  "expired",
+] as const;
+
+export type VenueApplicationStatus = (typeof venueApplicationStatuses)[number];
+
+export const venueApplicationHistoryEventTypes = [
+  "draft_saved",
+  "submitted",
+  "under_review",
+  "rejected",
+  "resubmitted",
+  "approved",
+  "withdrawn",
+  "expired",
+  "review_note_added",
+] as const;
+
+export type VenueApplicationHistoryEventType =
+  (typeof venueApplicationHistoryEventTypes)[number];
+
 export const venueOwnerProfilesTable = pgTable(
   "venue_owner_profiles",
   {
@@ -51,6 +74,20 @@ export const venueOwnerProfilesTable = pgTable(
     isVerified: boolean("is_verified").notNull().default(false),
     /** Admin-supplied rejection reason. Surfaced to owner so they can re-apply. */
     rejectionReason: text("rejection_reason"),
+    /**
+     * Explicit lifecycle source of truth. Existing rows are backfilled from
+     * approval/rejection fields during schema rollout.
+     */
+    applicationStatus: text("application_status")
+      .$type<VenueApplicationStatus>()
+      .notNull()
+      .default("submitted"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    expiredAt: timestamp("expired_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -62,6 +99,9 @@ export const venueOwnerProfilesTable = pgTable(
     ownerUidUniq: uniqueIndex("venue_owner_profiles_owner_uid_uniq").on(t.ownerUid),
     placeIdUniq: uniqueIndex("venue_owner_profiles_place_id_uniq").on(t.placeId),
     isApprovedIdx: index("venue_owner_profiles_is_approved_idx").on(t.isApproved),
+    applicationStatusIdx: index("venue_owner_profiles_application_status_idx").on(
+      t.applicationStatus,
+    ),
     createdAtIdx: index("venue_owner_profiles_created_at_idx").on(t.createdAt),
   }),
 );
@@ -72,6 +112,45 @@ export const insertVenueOwnerProfileSchema = createInsertSchema(
 
 export type InsertVenueOwnerProfile = z.infer<typeof insertVenueOwnerProfileSchema>;
 export type VenueOwnerProfile = typeof venueOwnerProfilesTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// venue_application_history
+// Append-only audit log for every applicant and reviewer lifecycle action.
+// `actorUid` is populated for applicant-originated events. Admin activity is
+// represented by `actorRole = admin` without storing a shared admin secret.
+// ---------------------------------------------------------------------------
+export const venueApplicationHistoryTable = pgTable(
+  "venue_application_history",
+  {
+    id: serial("id").primaryKey(),
+    venueOwnerProfileId: integer("venue_owner_profile_id").notNull(),
+    eventType: text("event_type")
+      .$type<VenueApplicationHistoryEventType>()
+      .notNull(),
+    fromStatus: text("from_status").$type<VenueApplicationStatus>(),
+    toStatus: text("to_status").$type<VenueApplicationStatus>(),
+    actorRole: text("actor_role").notNull(),
+    actorUid: text("actor_uid"),
+    /** Visible to the applicant for decision events; null for internal notes. */
+    applicantMessage: text("applicant_message"),
+    /** Review-only context, never returned by applicant status APIs. */
+    internalNote: text("internal_note"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    profileCreatedAtIdx: index("venue_application_history_profile_created_at_idx").on(
+      t.venueOwnerProfileId,
+      t.createdAt,
+    ),
+    eventTypeIdx: index("venue_application_history_event_type_idx").on(t.eventType),
+  }),
+);
+
+export type VenueApplicationHistoryEntry =
+  typeof venueApplicationHistoryTable.$inferSelect;
 
 // ---------------------------------------------------------------------------
 // venue_events

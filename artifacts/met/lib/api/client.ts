@@ -102,6 +102,16 @@ export interface ApiOptions {
 // Venue Owner Portal types
 // ---------------------------------------------------------------------------
 
+export type VenueApplicationStatus =
+  | "draft"
+  | "submitted"
+  | "under_review"
+  | "rejected"
+  | "resubmitted"
+  | "approved"
+  | "withdrawn"
+  | "expired";
+
 export interface VenueOwnerProfile {
   id: number;
   ownerUid: string;
@@ -119,8 +129,32 @@ export interface VenueOwnerProfile {
   isApproved: boolean;
   isVerified: boolean;
   rejectionReason: string | null;
+  applicationStatus: VenueApplicationStatus;
+  /** Stable alias included by the lifecycle API. */
+  status?: VenueApplicationStatus;
+  statusLabel?: string;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  withdrawnAt: string | null;
+  expiredAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface VenueApplicationHistoryEntry {
+  id: number;
+  eventType: string;
+  fromStatus: VenueApplicationStatus | null;
+  toStatus: VenueApplicationStatus | null;
+  applicantMessage: string | null;
+  createdAt: string;
+}
+
+export interface VenueApplicationStatusResponse {
+  application: VenueOwnerProfile;
+  history: VenueApplicationHistoryEntry[];
 }
 
 export interface VenueSearchPlace {
@@ -1010,6 +1044,22 @@ export const api = {
   /** Fetch the caller's own venue owner profile. Throws 404 if not registered. */
   getMyVenueOwnerProfile: (opts: ApiOptions) =>
     request<{ profile: VenueOwnerProfile }>("GET", "/api/venue-owner/me", opts),
+
+  /** Fetches the canonical application status plus applicant-safe history. */
+  getMyVenueApplication: (opts: ApiOptions) =>
+    request<VenueApplicationStatusResponse>(
+      "GET",
+      "/api/venue-owner/me/application",
+      opts,
+    ),
+
+  /** Withdraw a submitted application before it is decided. */
+  withdrawMyVenueApplication: (opts: ApiOptions) =>
+    request<{ application: VenueOwnerProfile }>(
+      "POST",
+      "/api/venue-owner/me/application/withdraw",
+      opts,
+    ),
 
   /** Re-submit a rejected venue owner application with updated details. */
   reapplyVenueOwner: (
