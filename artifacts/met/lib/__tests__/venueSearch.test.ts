@@ -31,7 +31,7 @@ describe("venue search API client", () => {
       ok: true,
       text: async () => JSON.stringify({}),
     });
-    global.fetch = fetchMock as typeof fetch;
+    globalThis.fetch = fetchMock as typeof fetch;
 
     const { api } = require("../api/client") as typeof import("../api/client");
     await expect(api.searchVenuePlaces({ uid: "test-uid" }, "Blue Parrot")).resolves.toEqual({
@@ -55,7 +55,7 @@ describe("venue search API client", () => {
       ok: true,
       text: async () => JSON.stringify({ places }),
     });
-    global.fetch = fetchMock as typeof fetch;
+    globalThis.fetch = fetchMock as typeof fetch;
 
     const { api } = require("../api/client") as typeof import("../api/client");
     await expect(api.searchVenuePlaces({ uid: "test-uid" }, "Blue Parrot")).resolves.toEqual({
