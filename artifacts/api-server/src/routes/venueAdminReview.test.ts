@@ -412,6 +412,12 @@ describe("decisions are single-shot", () => {
         internalNote: "Third attempt from this owner",
       }),
     );
+    expect(pushMock).toHaveBeenCalledWith(
+      "venue-owner-uid",
+      expect.objectContaining({
+        data: { type: "venue_owner_rejected", placeId: "google-place-1" },
+      }),
+    );
   });
 
   it("hands an application back for changes without ending the claim", async () => {
@@ -433,6 +439,12 @@ describe("decisions are single-shot", () => {
         eventType: "changes_requested",
         toStatus: "changes_requested",
         applicantMessage: "Send a utility bill showing the venue address.",
+      }),
+    );
+    expect(pushMock).toHaveBeenCalledWith(
+      "venue-owner-uid",
+      expect.objectContaining({
+        data: { type: "venue_owner_changes_requested", placeId: "google-place-1" },
       }),
     );
   });
@@ -460,6 +472,12 @@ describe("decisions are single-shot", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.profile.status).toBe("withdrawn");
+    expect(pushMock).toHaveBeenCalledWith(
+      "venue-owner-uid",
+      expect.objectContaining({
+        data: { type: "venue_owner_withdrawn", placeId: "google-place-1" },
+      }),
+    );
   });
 
   it("cannot withdraw an approved venue", async () => {

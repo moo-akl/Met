@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const dbMocks = vi.hoisted(() => {
   const chain = {
@@ -204,5 +204,142 @@ describe("venue application lifecycle", () => {
       .set("x-admin-secret", "anything");
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe("venue search and expiry safeguards", () => {
+  const originalGoogleApiKey = process.env["GOOGLE_API_KEY"];
+  const originalCronSecret = process.env["CRON_SECRET"];
+
+  afterAll(() => {
+    if (originalGoogleApiKey === undefined) delete process.env["GOOGLE_API_KEY"];
+    else process.env["GOOGLE_API_KEY"] = originalGoogleApiKey;
+    if (originalCronSecret === undefined) delete process.env["CRON_SECRET"];
+    else process.env["CRON_SECRET"] = originalCronSecret;
+  });
+
+  it("returns a deliberate configuration error when Google Places is unavailable", async () => {
+    delete process.env["GOOGLE_API_KEY"];
+
+    const response = await request(app)
+      .get("/api/venue-owner/places/search")
+      .query({ query: "Corner Social" });
+
+    expect(response.status).toBe(503);
+    expect(response.body.message).toMatch(/not configured/i);
+  });
+
+  it("returns a deliberate upstream error when Google Places fails", async () => {
+    process.env["GOOGLE_API_KEY"] = "test-google-key";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: vi.fn(),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await request(app)
+      .get("/api/venue-owner/places/search")
+      .query({ query: "Corner Social" });
+
+    expect(response.status).toBe(503);
+    expect(response.body.message).toMatch(/temporarily unavailable/i);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://places.googleapis.com/v1/places:searchText",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "X-Goog-Api-Key": "test-google-key" }),
+      }),
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("maps valid Google Places results and drops incomplete places", async () => {
+    process.env["GOOGLE_API_KEY"] = "test-google-key";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        places: [
+          {
+            id: "place-complete",
+            displayName: { text: "The Corner" },
+            formattedAddress: "1 Main Street",
+            primaryTypeDisplayName: { text: "Bar" },
+            googleMapsUri: "https://maps.google.com/?cid=1",
+            location: { latitude: 40.7, longitude: -74 },
+          },
+          {
+            id: "place-without-location",
+            displayName: { text: "Incomplete Result" },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await request(app)
+      .get("/api/venue-owner/places/search")
+      .query({ query: "Corner Social", lat: "40.7", lng: "-74" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.places).toEqual([
+      expect.objectContaining({
+        placeId: "place-complete",
+        placeName: "The Corner",
+        lat: 40.7,
+        lng: -74,
+      }),
+    ]);
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toContain("locationBias");
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects invalid search input before contacting Google Places", async () => {
+    process.env["GOOGLE_API_KEY"] = "test-google-key";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await request(app)
+      .get("/api/venue-owner/places/search")
+      .query({ query: "x", lat: "not-a-number" });
+
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("requires the cron secret for stale-application expiry", async () => {
+    delete process.env["CRON_SECRET"];
+
+    const response = await request(app).post("/api/venue-owner/expire-pending-claims");
+
+    expect(response.status).toBe(503);
+    expect(dbMocks.chain.select).not.toHaveBeenCalled();
+  });
+
+  it("expires stale submitted applications and appends an audit event", async () => {
+    process.env["CRON_SECRET"] = "test-cron-secret";
+    dbMocks.chain.where.mockResolvedValueOnce([
+      { id: 7, placeId: "google-place-1", applicationStatus: "submitted" },
+    ]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/expire-pending-claims")
+      .set("x-cron-secret", "test-cron-secret");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      expired: 1,
+      placeIds: ["google-place-1"],
+    });
+    expect(dbMocks.chain.update).toHaveBeenCalled();
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "expired",
+        fromStatus: "submitted",
+        toStatus: "expired",
+        actorRole: "system",
+      }),
+    );
   });
 });

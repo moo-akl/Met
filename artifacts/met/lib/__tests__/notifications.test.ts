@@ -3,6 +3,7 @@
  *
  * Covers:
  * - routeNotifTap: each notification type maps to the correct router.push path
+ * - routeNotifTap: venue-owner decisions route to the correct recovery screen
  * - routeNotifTap: missing uid fields → returns false, push not called
  * - setupNotificationListeners: foreground tap fires onTap with correct data
  * - setupNotificationListeners: cold-start tap fires onTap with correct data
@@ -146,6 +147,17 @@ describe("routeNotifTap", () => {
     expect(push).toHaveBeenCalledWith("/encounter/enc-id");
   });
 
+  it.each([
+    ["venue_owner_approved", "/venue-owner/dashboard"],
+    ["venue_owner_rejected", "/venue-owner/rejected"],
+    ["venue_owner_changes_requested", "/venue-owner/setup?reapply=true"],
+    ["venue_owner_withdrawn", "/onboarding?venueOwner=1"],
+  ] as const)("routes %s to %s", (type, path) => {
+    const result = routeNotifTap({ type, placeId: "google-place-1" }, { push });
+    expect(result).toBe(true);
+    expect(push).toHaveBeenCalledWith(path);
+  });
+
   it("returns false and does not push when chat_message has no chatPeerUid", () => {
     const data: NotifData = { type: "chat_message" };
     const result = routeNotifTap(data, { push });
@@ -171,6 +183,13 @@ describe("routeNotifTap", () => {
     const result = routeNotifTap({}, { push });
     expect(result).toBe(false);
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not fall through a venue-owner decision notification to encounter routing", () => {
+    const result = routeNotifTap({ type: "venue_owner_rejected" }, { push });
+    expect(result).toBe(true);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).not.toHaveBeenCalledWith(expect.stringContaining("/encounter/"));
   });
 });
 
@@ -236,6 +255,25 @@ describe("setupNotificationListeners", () => {
     );
   });
 
+  it("foreground tap — calls onTap with an approved venue decision", () => {
+    const onTap = jest.fn();
+    setupNotificationListeners(onTap);
+
+    capturedForegroundListener()(
+      makeResponse("venue-approved-1", {
+        type: "venue_owner_approved",
+        placeId: "google-place-1",
+      }),
+    );
+
+    expect(onTap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "venue_owner_approved",
+        placeId: "google-place-1",
+      }),
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Cold-start tap
   // -------------------------------------------------------------------------
@@ -283,6 +321,27 @@ describe("setupNotificationListeners", () => {
 
     expect(onTap).toHaveBeenCalledWith(
       expect.objectContaining({ type: "encounter", encounterId: "enc-cold" }),
+    );
+  });
+
+  it("cold-start tap — calls onTap with a rejected venue decision", async () => {
+    (Notifications.getLastNotificationResponseAsync as jest.Mock).mockResolvedValue(
+      makeResponse("venue-rejected-cold", {
+        type: "venue_owner_rejected",
+        placeId: "google-place-1",
+      }),
+    );
+
+    const onTap = jest.fn();
+    setupNotificationListeners(onTap);
+
+    await flushPromises();
+
+    expect(onTap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "venue_owner_rejected",
+        placeId: "google-place-1",
+      }),
     );
   });
 

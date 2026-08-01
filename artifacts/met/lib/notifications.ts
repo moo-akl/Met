@@ -152,10 +152,19 @@ export async function registerAndUploadPushToken(
  * tap-handler can deep-link to the right place.
  */
 export type NotifData = {
-  type?: "reveal_request" | "reveal_accepted" | "encounter" | "chat_message";
+  type?:
+    | "reveal_request"
+    | "reveal_accepted"
+    | "encounter"
+    | "chat_message"
+    | "venue_owner_approved"
+    | "venue_owner_rejected"
+    | "venue_owner_changes_requested"
+    | "venue_owner_withdrawn";
   fromUid?: string;
   encounterId?: string;
   chatPeerUid?: string;
+  placeId?: string;
 };
 
 /**
@@ -174,11 +183,31 @@ export interface NotifRouter {
  *
  * - chat_message   → /chat/<chatPeerUid>
  * - reveal_accepted → /connection/<fromUid>
+ * - venue_owner_approved → /venue-owner/dashboard
+ * - venue_owner_rejected → /venue-owner/rejected
+ * - venue_owner_changes_requested → /venue-owner/setup?reapply=true
+ * - venue_owner_withdrawn → /onboarding?venueOwner=1
  * - reveal_request / encounter / unknown → /encounter/<encounterId ?? fromUid>
  *
  * Returns false (and does nothing) when the payload lacks the required uid.
  */
 export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
+  if (data.type === "venue_owner_approved") {
+    router.push("/venue-owner/dashboard");
+    return true;
+  }
+  if (data.type === "venue_owner_rejected") {
+    router.push("/venue-owner/rejected");
+    return true;
+  }
+  if (data.type === "venue_owner_changes_requested") {
+    router.push("/venue-owner/setup?reapply=true");
+    return true;
+  }
+  if (data.type === "venue_owner_withdrawn") {
+    router.push("/onboarding?venueOwner=1");
+    return true;
+  }
   if (data.type === "chat_message") {
     if (!data.chatPeerUid) return false;
     router.push(`/chat/${data.chatPeerUid}`);
