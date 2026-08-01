@@ -13,6 +13,58 @@ export interface Error {
   message: string;
 }
 
+export interface VenueAdminUnlock {
+  /** @minLength 1 */
+  secret: string;
+}
+
+export interface VenueAdminSession {
+  authenticated: boolean;
+  expiresAt: string;
+}
+
+export interface VenueApplication {
+  id: number;
+  ownerUid: string;
+  placeId: string;
+  placeName: string;
+  businessName: string;
+  /** @nullable */
+  lat?: string | null;
+  /** @nullable */
+  lng?: string | null;
+  /** @nullable */
+  tagline?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  verificationDocUrl?: string | null;
+  /** @nullable */
+  registrationNotes?: string | null;
+  isApproved: boolean;
+  isVerified: boolean;
+  /** @nullable */
+  rejectionReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VenueApplicationList {
+  pending: VenueApplication[];
+}
+
+export interface VenueApplicationResponse {
+  profile: VenueApplication;
+}
+
+export interface VenueApplicationRejection {
+  /**
+   * @minLength 3
+   * @maxLength 500
+   */
+  reason: string;
+}
+
 export type ProfileSocials = { [key: string]: string };
 
 export interface Profile {

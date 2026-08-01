@@ -5,6 +5,7 @@ import express, {
   type NextFunction,
 } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import { ZodError } from "zod";
 import router from "./routes";
@@ -46,6 +47,7 @@ app.use(
   }),
 );
 app.use(cors());
+app.use(cookieParser(process.env["SESSION_SECRET"]));
 // Raised limit to comfortably fit base64-encoded profile photos sent
 // to POST /api/profiles/me/photo. Default ~100KB rejects most real
 // images with 413 before they ever reach route validation.

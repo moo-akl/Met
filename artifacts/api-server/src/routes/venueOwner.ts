@@ -60,8 +60,22 @@ import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
 import { z } from "zod/v4";
+import crypto from "node:crypto";
 
 const router: IRouter = Router();
+const ADMIN_SESSION_COOKIE = "met_venue_admin";
+const ADMIN_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
+
+function adminSessionOptions(req: Request) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: req.secure || process.env["NODE_ENV"] === "production",
+    signed: true,
+    maxAge: ADMIN_SESSION_MAX_AGE_MS,
+    path: "/api/admin/venue-owner",
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Security helpers
@@ -79,6 +93,32 @@ function requireAdminSecret(req: Request, res: Response, next: NextFunction): vo
     return;
   }
   next();
+}
+
+function hasValidAdminSession(req: Request): boolean {
+  if (!process.env["SESSION_SECRET"]) return false;
+  const rawExpiry = req.signedCookies?.[ADMIN_SESSION_COOKIE];
+  const expiresAt = typeof rawExpiry === "string" ? Number(rawExpiry) : NaN;
+  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+}
+
+function requireAdminSession(req: Request, res: Response, next: NextFunction): void {
+  if (!process.env["SESSION_SECRET"]) {
+    res.status(503).json({ message: "Admin sessions are not enabled" });
+    return;
+  }
+  if (!hasValidAdminSession(req)) {
+    res.status(401).json({ message: "Your admin session has expired. Unlock the dashboard again." });
+    return;
+  }
+  next();
+}
+
+function adminSecretsMatch(submitted: string, expected: string): boolean {
+  const submittedBuffer = Buffer.from(submitted);
+  const expectedBuffer = Buffer.from(expected);
+  return submittedBuffer.length === expectedBuffer.length &&
+    crypto.timingSafeEqual(submittedBuffer, expectedBuffer);
 }
 
 /** Guards cron-only endpoints: X-Cron-Secret header must match CRON_SECRET env. */
@@ -1209,6 +1249,170 @@ router.post(
 // ---------------------------------------------------------------------------
 // Admin endpoints
 // ---------------------------------------------------------------------------
+
+/**
+ * POST /admin/venue-owner/session
+ * Validates the server-held admin credential, then stores only a signed expiry
+ * timestamp in an HttpOnly cookie. The credential never reaches browser storage.
+ */
+router.post(
+  "/admin/venue-owner/session",
+  async (req: Request, res: Response): Promise<void> => {
+    const schema = z.object({ secret: z.string().min(1) });
+    const parsed = schema.safeParse(req.body);
+    const expected = process.env["ADMIN_SECRET"];
+
+    if (!expected) {
+      res.status(503).json({ message: "Admin endpoints are not enabled" });
+      return;
+    }
+    if (!process.env["SESSION_SECRET"]) {
+      res.status(503).json({ message: "Admin sessions are not enabled" });
+      return;
+    }
+    if (!parsed.success || !adminSecretsMatch(parsed.data.secret, expected)) {
+      res.status(401).json({ message: "Invalid admin credential" });
+      return;
+    }
+
+    const expiresAt = Date.now() + ADMIN_SESSION_MAX_AGE_MS;
+    res.cookie(ADMIN_SESSION_COOKIE, String(expiresAt), adminSessionOptions(req));
+    res.json({ authenticated: true, expiresAt: new Date(expiresAt).toISOString() });
+  },
+);
+
+/**
+ * GET /admin/venue-owner/session
+ */
+router.get(
+  "/admin/venue-owner/session",
+  (req: Request, res: Response): void => {
+    if (!hasValidAdminSession(req)) {
+      res.status(401).json({ message: "No active admin session" });
+      return;
+    }
+    const expiresAt = Number(req.signedCookies?.[ADMIN_SESSION_COOKIE]);
+    res.json({ authenticated: true, expiresAt: new Date(expiresAt).toISOString() });
+  },
+);
+
+/**
+ * DELETE /admin/venue-owner/session
+ */
+router.delete(
+  "/admin/venue-owner/session",
+  (req: Request, res: Response): void => {
+    res.clearCookie(ADMIN_SESSION_COOKIE, adminSessionOptions(req));
+    res.status(204).send();
+  },
+);
+
+/**
+ * GET /admin/venue-owner/applications
+ */
+router.get(
+  "/admin/venue-owner/applications",
+  requireAdminSession,
+  async (_req: Request, res: Response): Promise<void> => {
+    const pending = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(and(eq(venueOwnerProfilesTable.isApproved, false), isNull(venueOwnerProfilesTable.rejectionReason)))
+      .orderBy(venueOwnerProfilesTable.createdAt);
+    res.json({ pending });
+  },
+);
+
+/**
+ * POST /admin/venue-owner/applications/:id/approve
+ */
+router.post(
+  "/admin/venue-owner/applications/:id/approve",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseInt(String(req.params["id"] ?? ""), 10);
+    if (isNaN(profileId)) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+
+    const [existing] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ message: "Profile not found" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(venueOwnerProfilesTable)
+      .set({ isApproved: true, isVerified: true, rejectionReason: null, updatedAt: new Date() })
+      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .returning();
+
+    try {
+      await sendPush(existing.ownerUid, {
+        title: "Venue approved",
+        body: `Your venue "${existing.businessName}" has been approved. You can now create events, rewards, and announcements.`,
+        data: { type: "venue_owner_approved", placeId: existing.placeId },
+      });
+    } catch {
+      req.log?.warn({ profileId }, "Venue approval notification could not be delivered");
+    }
+
+    res.json({ profile: updated });
+  },
+);
+
+/**
+ * POST /admin/venue-owner/applications/:id/reject
+ */
+router.post(
+  "/admin/venue-owner/applications/:id/reject",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseInt(String(req.params["id"] ?? ""), 10);
+    const parsed = z.object({ reason: z.string().trim().min(3).max(500) }).safeParse(req.body);
+    if (isNaN(profileId)) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+    if (!parsed.success) {
+      res.status(400).json({ message: "A rejection reason of at least 3 characters is required" });
+      return;
+    }
+
+    const [existing] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ message: "Profile not found" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(venueOwnerProfilesTable)
+      .set({ isApproved: false, rejectionReason: parsed.data.reason, updatedAt: new Date() })
+      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .returning();
+
+    try {
+      await sendPush(existing.ownerUid, {
+        title: "Venue application update",
+        body: `Your venue application for "${existing.businessName}" was not approved. Reason: ${parsed.data.reason}`,
+        data: { type: "venue_owner_rejected", placeId: existing.placeId },
+      });
+    } catch {
+      req.log?.warn({ profileId }, "Venue rejection notification could not be delivered");
+    }
+
+    res.json({ profile: updated });
+  },
+);
 
 /**
  * GET /admin/venue-owner/pending

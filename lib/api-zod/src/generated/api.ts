@@ -1424,3 +1424,118 @@ export const SubmitAnnouncementAnswersResponse = zod.object({
     .nullish(),
   hasAnswered: zod.boolean().nullish(),
 });
+
+/**
+ * @summary Check the current venue-approval admin session
+ */
+export const GetVenueAdminSessionResponse = zod.object({
+  authenticated: zod.boolean(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Start a short-lived venue-approval admin session
+ */
+
+export const CreateVenueAdminSessionBody = zod.object({
+  secret: zod.string().min(1),
+});
+
+export const CreateVenueAdminSessionResponse = zod.object({
+  authenticated: zod.boolean(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List venue applications awaiting review
+ */
+export const ListPendingVenueApplicationsResponse = zod.object({
+  pending: zod.array(
+    zod.object({
+      id: zod.number(),
+      ownerUid: zod.string(),
+      placeId: zod.string(),
+      placeName: zod.string(),
+      businessName: zod.string(),
+      lat: zod.string().nullish(),
+      lng: zod.string().nullish(),
+      tagline: zod.string().nullish(),
+      description: zod.string().nullish(),
+      verificationDocUrl: zod.string().url().nullish(),
+      registrationNotes: zod.string().nullish(),
+      isApproved: zod.boolean(),
+      isVerified: zod.boolean(),
+      rejectionReason: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Approve a venue application
+ */
+
+export const ApproveVenueApplicationParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const ApproveVenueApplicationResponse = zod.object({
+  profile: zod.object({
+    id: zod.number(),
+    ownerUid: zod.string(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    lat: zod.string().nullish(),
+    lng: zod.string().nullish(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    verificationDocUrl: zod.string().url().nullish(),
+    registrationNotes: zod.string().nullish(),
+    isApproved: zod.boolean(),
+    isVerified: zod.boolean(),
+    rejectionReason: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+});
+
+/**
+ * @summary Reject a venue application with a reason
+ */
+
+export const RejectVenueApplicationParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const rejectVenueApplicationBodyReasonMin = 3;
+export const rejectVenueApplicationBodyReasonMax = 500;
+
+export const RejectVenueApplicationBody = zod.object({
+  reason: zod
+    .string()
+    .min(rejectVenueApplicationBodyReasonMin)
+    .max(rejectVenueApplicationBodyReasonMax),
+});
+
+export const RejectVenueApplicationResponse = zod.object({
+  profile: zod.object({
+    id: zod.number(),
+    ownerUid: zod.string(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    lat: zod.string().nullish(),
+    lng: zod.string().nullish(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    verificationDocUrl: zod.string().url().nullish(),
+    registrationNotes: zod.string().nullish(),
+    isApproved: zod.boolean(),
+    isVerified: zod.boolean(),
+    rejectionReason: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+});

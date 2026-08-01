@@ -1570,7 +1570,149 @@ paths:
         "401":
           description: Unauthorized
 
+  /admin/venue-owner/session:
+    get:
+      operationId: getVenueAdminSession
+      tags: [admin]
+      summary: Check the current venue-approval admin session
+      responses:
+        "200":
+          description: Session state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueAdminSession"
+        "401":
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createVenueAdminSession
+      tags: [admin]
+      summary: Start a short-lived venue-approval admin session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueAdminUnlock"
+      responses:
+        "200":
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueAdminSession"
+        "401":
+          description: Invalid admin credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteVenueAdminSession
+      tags: [admin]
+      summary: End the current venue-approval admin session
+      responses:
+        "204":
+          description: Session ended
+
+  /admin/venue-owner/applications:
+    get:
+      operationId: listPendingVenueApplications
+      tags: [admin]
+      summary: List venue applications awaiting review
+      responses:
+        "200":
+          description: Pending applications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueApplicationList"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /admin/venue-owner/applications/{id}/approve:
+    post:
+      operationId: approveVenueApplication
+      tags: [admin]
+      summary: Approve a venue application
+      parameters:
+        - $ref: "#/components/parameters/VenueApplicationId"
+      responses:
+        "200":
+          description: Approved application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueApplicationResponse"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /admin/venue-owner/applications/{id}/reject:
+    post:
+      operationId: rejectVenueApplication
+      tags: [admin]
+      summary: Reject a venue application with a reason
+      parameters:
+        - $ref: "#/components/parameters/VenueApplicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueApplicationRejection"
+      responses:
+        "200":
+          description: Rejected application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueApplicationResponse"
+        "400":
+          description: Rejection reason is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
+  parameters:
+    VenueApplicationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
   securitySchemes:
     MetUid:
       type: apiKey
@@ -1592,6 +1734,73 @@ components:
           type: string
       required:
         - message
+    VenueAdminUnlock:
+      type: object
+      required: [secret]
+      properties:
+        secret:
+          type: string
+          minLength: 1
+    VenueAdminSession:
+      type: object
+      required: [authenticated, expiresAt]
+      properties:
+        authenticated:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+    VenueApplication:
+      type: object
+      required:
+        - id
+        - ownerUid
+        - placeId
+        - placeName
+        - businessName
+        - isApproved
+        - isVerified
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: integer }
+        ownerUid: { type: string }
+        placeId: { type: string }
+        placeName: { type: string }
+        businessName: { type: string }
+        lat: { type: ["string", "null"] }
+        lng: { type: ["string", "null"] }
+        tagline: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        verificationDocUrl: { type: ["string", "null"], format: uri }
+        registrationNotes: { type: ["string", "null"] }
+        isApproved: { type: boolean }
+        isVerified: { type: boolean }
+        rejectionReason: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    VenueApplicationList:
+      type: object
+      required: [pending]
+      properties:
+        pending:
+          type: array
+          items:
+            $ref: "#/components/schemas/VenueApplication"
+    VenueApplicationResponse:
+      type: object
+      required: [profile]
+      properties:
+        profile:
+          $ref: "#/components/schemas/VenueApplication"
+    VenueApplicationRejection:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
     Profile:
       type: object
       properties:

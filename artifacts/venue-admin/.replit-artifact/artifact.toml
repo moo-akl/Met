@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/venue-admin/"
+title = "Met Venue Admin"
+description = "A private operations dashboard for reviewing, approving, and rejecting venue-owner applications for Met."
+version = "1.0.0"
+id = "artifacts/venue-admin"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/venue-admin/" ]
+localPort = 20696
+
+[services.development]
+run = "pnpm --filter @workspace/venue-admin run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/venue-admin", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/venue-admin/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20696"
+BASE_PATH = "/venue-admin/"
