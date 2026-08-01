@@ -6,9 +6,10 @@
  * that takes them back through the setup flow with their existing data
  * pre-filled where possible.
  */
-import React from "react";
+import React, { useCallback, useEffect } from "react";
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 
@@ -23,9 +25,35 @@ export default function VenueOwnerRejectedScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { profile } = useVenueOwner();
+  const { profile, history, isLoading, error, refetch } = useVenueOwner();
 
-  const rejectionReason = profile?.rejectionReason ?? null;
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
+
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.isApproved || profile.applicationStatus === "approved") {
+      router.replace("/venue-owner/dashboard");
+    } else if (
+      profile.applicationStatus === "submitted" ||
+      profile.applicationStatus === "under_review" ||
+      profile.applicationStatus === "resubmitted"
+    ) {
+      router.replace("/venue-owner/pending");
+    }
+  }, [profile, router]);
+
+  const isChangesRequested = profile?.applicationStatus === "changes_requested";
+  const rejectionReason =
+    profile?.rejectionReason ??
+    history
+      .slice()
+      .reverse()
+      .find((entry) => entry.applicantMessage)?.applicantMessage ??
+    null;
 
   return (
     <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
@@ -41,30 +69,38 @@ export default function VenueOwnerRejectedScreen() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={colors.primary} />}
       >
         {/* Status badge */}
         <View style={styles.badgeRow}>
           <View style={styles.rejectedBadge}>
-            <Text style={styles.rejectedBadgeText}>Application Not Approved</Text>
+            <Text style={styles.rejectedBadgeText}>
+              {isChangesRequested ? "Changes Requested" : "Application Not Approved"}
+            </Text>
           </View>
         </View>
 
-        <Text style={styles.heading}>We couldn't approve your venue</Text>
+        <Text style={styles.heading}>
+          {isChangesRequested ? "Your application needs an update" : "We couldn't approve your venue"}
+        </Text>
         <Text style={styles.body}>
-          Our team reviewed your application and was unable to approve it at this time.
-          Please see the reason below, address any issues, then submit a new application.
+          {isChangesRequested
+            ? "Our team needs a little more information before they can continue reviewing your venue."
+            : "Our team reviewed your application and was unable to approve it at this time. Please see the reason below, address any issues, then submit a new application."}
         </Text>
 
         {/* Rejection reason box */}
         <View style={styles.reasonBox}>
           <Text style={styles.reasonLabel}>REASON FROM OUR TEAM</Text>
           <Text style={styles.reasonText}>
-            {rejectionReason ?? "No specific reason was provided."}
+            {error
+              ? "We couldn’t refresh the latest decision. Pull down to try again."
+              : rejectionReason ?? "No specific reason was provided."}
           </Text>
         </View>
 
         <Text style={styles.hint}>
-          Once you've addressed the issue above, you can re-submit your application.
+            Once you've addressed the issue above, you can re-submit your application.
           Our team will review the updated information within a few days.
         </Text>
       </ScrollView>
@@ -75,7 +111,9 @@ export default function VenueOwnerRejectedScreen() {
           style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
           onPress={() => router.push("/venue-owner/setup?reapply=true")}
         >
-          <Text style={styles.primaryBtnText}>Re-apply Now →</Text>
+          <Text style={styles.primaryBtnText}>
+            {isChangesRequested ? "Update Application →" : "Re-apply Now →"}
+          </Text>
         </Pressable>
       </View>
     </View>

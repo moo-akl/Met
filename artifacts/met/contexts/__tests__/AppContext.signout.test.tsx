@@ -49,6 +49,13 @@ jest.mock("@/lib/auth", () => ({
   subscribeToAuthState: jest.fn(() => jest.fn()),
 }));
 
+jest.mock("react-native-purchases", () => ({
+  __esModule: true,
+  default: {
+    logOut: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 jest.mock("@/lib/referrals", () => ({
   clearReferrals: jest.fn().mockResolvedValue(undefined),
   initReferrals: jest.fn().mockResolvedValue(undefined),

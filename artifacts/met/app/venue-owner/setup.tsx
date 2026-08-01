@@ -23,6 +23,12 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError, type VenueSearchPlace } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
+import { useVenueOwner } from "@/hooks/useVenueOwner";
+import {
+  clearVenueOwnerDraft,
+  loadVenueOwnerDraft,
+  saveVenueOwnerDraft,
+} from "@/lib/venueOwnerDraft";
 
 type Step = 1 | 2 | 3;
 
@@ -33,6 +39,12 @@ export default function VenueOwnerSetupScreen() {
   const router = useRouter();
   const { reapply } = useLocalSearchParams<{ reapply?: string }>();
   const isReapply = reapply === "true";
+  const {
+    profile: existingApplication,
+    isLoading: loadingApplication,
+    error: applicationError,
+    refetch,
+  } = useVenueOwner();
 
   const [step, setStep] = useState<Step>(1);
   const [submitting, setSubmitting] = useState(false);
@@ -56,6 +68,8 @@ export default function VenueOwnerSetupScreen() {
   // Step 3 — Verification
   const [verificationDocUrl, setVerificationDocUrl] = useState("");
   const [registrationNotes, setRegistrationNotes] = useState("");
+  const [prefilled, setPrefilled] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const stepTitles: Record<Step, string> = {
     1: "Your Venue",
@@ -74,9 +88,106 @@ export default function VenueOwnerSetupScreen() {
         3: "Submit proof of ownership for review",
       };
 
-  const canAdvanceStep1 = placeId.trim().length > 0 && placeName.trim().length > 0;
+  const hasCoordinates = lat.trim().length > 0 && lng.trim().length > 0;
+  const canAdvanceStep1 =
+    placeId.trim().length > 0 &&
+    placeName.trim().length > 0 &&
+    (selectedVenue !== null || hasCoordinates);
   const canAdvanceStep2 = businessName.trim().length > 0;
   const canSubmit = verificationDocUrl.trim().length > 0;
+
+  useEffect(() => {
+    if (!isReapply || !existingApplication || prefilled) return;
+    setPlaceId(existingApplication.placeId);
+    setPlaceName(existingApplication.placeName);
+    setLat(existingApplication.lat ?? "");
+    setLng(existingApplication.lng ?? "");
+    setVenueQuery(existingApplication.placeName);
+    setBusinessName(existingApplication.businessName);
+    setTagline(existingApplication.tagline ?? "");
+    setDescription(existingApplication.description ?? "");
+    setVerificationDocUrl(existingApplication.verificationDocUrl ?? "");
+    setRegistrationNotes(existingApplication.registrationNotes ?? "");
+    setPrefilled(true);
+  }, [existingApplication, isReapply, prefilled]);
+
+  useEffect(() => {
+    if (!authedUid || isReapply) {
+      setDraftRestored(true);
+      return;
+    }
+    let active = true;
+    loadVenueOwnerDraft(authedUid)
+      .then((draft) => {
+        if (!active || !draft) return;
+        setStep(draft.step);
+        setPlaceId(draft.placeId);
+        setPlaceName(draft.placeName);
+        setLat(draft.lat);
+        setLng(draft.lng);
+        setVenueQuery(draft.venueQuery);
+        setBusinessName(draft.businessName);
+        setTagline(draft.tagline);
+        setDescription(draft.description);
+        setVerificationDocUrl(draft.verificationDocUrl);
+        setRegistrationNotes(draft.registrationNotes);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setDraftRestored(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [authedUid, isReapply]);
+
+  useEffect(() => {
+    if (!authedUid || isReapply || !draftRestored || submitting) return;
+    const timer = setTimeout(() => {
+      saveVenueOwnerDraft(authedUid, {
+        step,
+        placeId,
+        placeName,
+        lat,
+        lng,
+        venueQuery,
+        businessName,
+        tagline,
+        description,
+        verificationDocUrl,
+        registrationNotes,
+      }).catch(() => {});
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [
+    authedUid,
+    businessName,
+    description,
+    draftRestored,
+    isReapply,
+    lat,
+    lng,
+    placeId,
+    placeName,
+    registrationNotes,
+    step,
+    submitting,
+    tagline,
+    venueQuery,
+    verificationDocUrl,
+  ]);
+
+  useEffect(() => {
+    if (!isReapply || loadingApplication || !existingApplication) return;
+    const canReapply =
+      existingApplication.applicationStatus === "rejected" ||
+      existingApplication.applicationStatus === "changes_requested";
+    if (!canReapply) {
+      router.replace(
+        existingApplication.isApproved ? "/venue-owner/dashboard" : "/venue-owner/pending",
+      );
+    }
+  }, [existingApplication, isReapply, loadingApplication, router]);
 
   useEffect(() => {
     const query = venueQuery.trim();
@@ -144,6 +255,7 @@ export default function VenueOwnerSetupScreen() {
       } else {
         await api.registerVenueOwner({ uid: authedUid }, body);
       }
+      await clearVenueOwnerDraft(authedUid);
       router.replace("/venue-owner/pending");
     } catch (err) {
       const msg =
@@ -196,6 +308,20 @@ export default function VenueOwnerSetupScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
         keyboardShouldPersistTaps="handled"
       >
+        {isReapply && loadingApplication ? (
+          <View style={styles.searchStatus}>
+            <ActivityIndicator color={colors.primary} size="small" />
+            <Text style={styles.searchStatusText}>Loading your previous application…</Text>
+          </View>
+        ) : null}
+        {isReapply && applicationError ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.searchError}>We couldn’t load your previous application.</Text>
+            <Pressable onPress={refetch}>
+              <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <Text style={styles.stepTitle}>{stepTitles[step]}</Text>
         <Text style={styles.stepSubtitle}>{stepSubtitles[step]}</Text>
 
@@ -239,7 +365,9 @@ export default function VenueOwnerSetupScreen() {
                 {selectedVenue.address ? <Text style={styles.selectedAddress}>{selectedVenue.address}</Text> : null}
               </View>
             ) : null}
-            <Text style={styles.manualHint}>Or enter Google details manually</Text>
+            <Text style={styles.manualHint}>
+              Or enter Google details manually. Include both coordinates when adding a venue yourself.
+            </Text>
             <Field
               label="Google Place ID *"
               value={placeId}
@@ -256,7 +384,7 @@ export default function VenueOwnerSetupScreen() {
               colors={colors}
             />
             <Field
-              label="Latitude (optional)"
+              label="Latitude (required for manual entry)"
               value={lat}
               onChangeText={setLat}
               placeholder="51.5074"
@@ -264,7 +392,7 @@ export default function VenueOwnerSetupScreen() {
               colors={colors}
             />
             <Field
-              label="Longitude (optional)"
+              label="Longitude (required for manual entry)"
               value={lng}
               onChangeText={setLng}
               placeholder="-0.1278"
@@ -481,6 +609,8 @@ const styles = StyleSheet.create({
   searchStatus: { flexDirection: "row", alignItems: "center", gap: 8 },
   searchStatusText: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontFamily: "Inter_400Regular" },
   searchError: { color: "#FCA5A5", fontSize: 13, fontFamily: "Inter_400Regular" },
+  errorBox: { gap: 8, marginBottom: 12 },
+  retryText: { fontSize: 14, fontFamily: "Inter_700Bold" },
   resultCard: { backgroundColor: "#19191D", borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", borderRadius: 10, padding: 13, gap: 4 },
   resultName: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
   resultAddress: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
