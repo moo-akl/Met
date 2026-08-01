@@ -22,6 +22,7 @@ import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, type VenueOwnerDashboard } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
+import { useVenueOwner } from "@/hooks/useVenueOwner";
 
 export default function VenueOwnerDashboardScreen() {
   const { authedUid } = useApp();
@@ -32,6 +33,31 @@ export default function VenueOwnerDashboardScreen() {
   const [data, setData] = useState<VenueOwnerDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  // Lifecycle guard — the dashboard is only for approved venue owners.
+  // A direct link (deep link, stale notification) must land the user on
+  // the screen matching their real application state instead.
+  const { profile: application, isLoading: appLoading } = useVenueOwner();
+  useEffect(() => {
+    if (appLoading) return;
+    if (!authedUid) {
+      router.replace("/onboarding?venueOwner=1");
+      return;
+    }
+    if (!application) {
+      router.replace("/venue-owner/setup");
+      return;
+    }
+    const status = application.applicationStatus;
+    if (application.isApproved || status === "approved") return;
+    if (status === "rejected" || status === "changes_requested") {
+      router.replace("/venue-owner/rejected");
+    } else if (status === "withdrawn" || status === "expired") {
+      router.replace("/venue-owner/setup");
+    } else {
+      router.replace("/venue-owner/pending");
+    }
+  }, [appLoading, application, authedUid, router]);
 
   useEffect(() => {
     if (!authedUid) return;

@@ -48,6 +48,11 @@ import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
 import { consumePendingReferral } from "./_layout";
 import {
+  clearVenueOwnerIntent,
+  loadVenueOwnerIntent,
+  saveVenueOwnerIntent,
+} from "@/lib/venueOwnerIntent";
+import {
   tiktokIdentify,
   tiktokTrackRegistration,
 } from "@/lib/tiktok";
@@ -141,10 +146,28 @@ export default function OnboardingScreen() {
   const permissionsOnly = startAt === "permissions";
   // The registration form needs a Firebase account, but venue applicants
   // should not be forced through the optional personal-profile setup first.
-  // This intent survives authentication and email verification.
+  // This intent survives authentication and email verification, and is
+  // persisted to storage so a force-quit mid-auth can't drop it.
   const [venueOwnerIntent, setVenueOwnerIntent] = useState(
     venueOwner === "1",
   );
+
+  useEffect(() => {
+    if (venueOwner === "1") {
+      void saveVenueOwnerIntent();
+      return;
+    }
+    // Cold-start resume: restore a stored intent left by an interrupted
+    // venue-owner sign-up (set before auth completed, never consumed).
+    let cancelled = false;
+    loadVenueOwnerIntent().then((stored) => {
+      if (!cancelled && stored) setVenueOwnerIntent(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [phase, setPhase] = useState<Phase>(
     permissionsOnly ? "invite" : "language",
@@ -340,6 +363,7 @@ export default function OnboardingScreen() {
       await setPermissionsCompleted(true);
       await ensureMyCode();
       if (venueOwnerIntent) {
+        void clearVenueOwnerIntent();
         try {
           await api.getMyVenueOwnerProfile({ uid });
           router.replace("/venue-owner/dashboard");
@@ -365,6 +389,7 @@ export default function OnboardingScreen() {
       // New user — registration is complete (they passed auth).
       tiktokTrackRegistration(method);
       if (venueOwnerIntent) {
+        void clearVenueOwnerIntent();
         router.replace("/venue-owner/setup");
       } else {
         setPhase("photo");

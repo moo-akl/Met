@@ -70,6 +70,7 @@ import {
   saveProfileBannerDismissed,
   type Preferences,
 } from "@/lib/storage";
+import { clearVenueOwnerIntent } from "@/lib/venueOwnerIntent";
 import type { Encounter, EncounterStatus, Profile } from "@/lib/types";
 
 type AppContextValue = {
@@ -424,6 +425,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (previousUid) await clearCooldownsFor(previousUid);
     if (previousUid) await saveProfileBannerDismissed(previousUid, false);
     await savePermissionsCompleted(false);
+    await clearVenueOwnerIntent();
     await clearDragHintDismissed();
     await saveDisclosureAccepted("location", false);
     await saveDisclosureAccepted("bluetooth", false);
@@ -454,6 +456,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (previousUid) await clearCooldownsFor(previousUid);
     if (previousUid) await saveProfileBannerDismissed(previousUid, false);
     await savePermissionsCompleted(false);
+    await clearVenueOwnerIntent();
     await clearDragHintDismissed();
     await saveDisclosureAccepted("location", false);
     await saveDisclosureAccepted("bluetooth", false);

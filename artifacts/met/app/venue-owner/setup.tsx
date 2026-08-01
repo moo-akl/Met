@@ -29,6 +29,7 @@ import {
   loadVenueOwnerDraft,
   saveVenueOwnerDraft,
 } from "@/lib/venueOwnerDraft";
+import { clearVenueOwnerIntent } from "@/lib/venueOwnerIntent";
 
 type Step = 1 | 2 | 3;
 
@@ -95,6 +96,12 @@ export default function VenueOwnerSetupScreen() {
     (selectedVenue !== null || hasCoordinates);
   const canAdvanceStep2 = businessName.trim().length > 0;
   const canSubmit = verificationDocUrl.trim().length > 0;
+
+  // Reaching venue setup consumes any stored pre-auth sign-up intent —
+  // the user is now inside the venue flow, so the resume flag is stale.
+  useEffect(() => {
+    void clearVenueOwnerIntent();
+  }, []);
 
   useEffect(() => {
     if (!isReapply || !existingApplication || prefilled) return;
