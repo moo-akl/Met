@@ -5,7 +5,7 @@
  * Step 2: Business details (name, tagline, description)
  * Step 3: Verification (doc URL, notes) + submit
  */
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,7 +21,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
-import { api, ApiError } from "@/lib/api/client";
+import { api, ApiError, type VenueSearchPlace } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 
 type Step = 1 | 2 | 3;
@@ -42,6 +42,11 @@ export default function VenueOwnerSetupScreen() {
   const [placeName, setPlaceName] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
+  const [venueQuery, setVenueQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<VenueSearchPlace[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [selectedVenue, setSelectedVenue] = useState<VenueSearchPlace | null>(null);
 
   // Step 2 — Business details
   const [businessName, setBusinessName] = useState("");
@@ -64,7 +69,7 @@ export default function VenueOwnerSetupScreen() {
         3: "Provide updated proof of ownership",
       }
     : {
-        1: "Enter the Google Place ID for your venue",
+        1: "Search for your venue on Google, or enter its Place ID manually",
         2: "Tell us about your business",
         3: "Submit proof of ownership for review",
       };
@@ -72,6 +77,47 @@ export default function VenueOwnerSetupScreen() {
   const canAdvanceStep1 = placeId.trim().length > 0 && placeName.trim().length > 0;
   const canAdvanceStep2 = businessName.trim().length > 0;
   const canSubmit = verificationDocUrl.trim().length > 0;
+
+  useEffect(() => {
+    const query = venueQuery.trim();
+    if (!authedUid || query.length < 2) {
+      setSearchResults([]);
+      setSearchError(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setSearching(true);
+      setSearchError(null);
+      api.searchVenuePlaces({ uid: authedUid }, query)
+        .then(({ places }) => {
+          if (!cancelled) setSearchResults(places);
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            setSearchResults([]);
+            setSearchError(error instanceof ApiError ? error.message : "Couldn’t search Google Places right now.");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [authedUid, venueQuery]);
+
+  const chooseVenue = (venue: VenueSearchPlace) => {
+    setSelectedVenue(venue);
+    setVenueQuery(venue.placeName);
+    setPlaceId(venue.placeId);
+    setPlaceName(venue.placeName);
+    setLat(String(venue.lat));
+    setLng(String(venue.lng));
+    setSearchResults([]);
+  };
 
   const handleSubmit = async () => {
     if (!authedUid || !canSubmit || submitting) return;
@@ -90,19 +136,10 @@ export default function VenueOwnerSetupScreen() {
       };
       if (isReapply) {
         await api.reapplyVenueOwner({ uid: authedUid }, body);
-        Alert.alert(
-          "Re-application submitted!",
-          "Our team will review your updated application within a few days. You'll get a notification once approved.",
-          [{ text: "Done", onPress: () => router.back() }],
-        );
       } else {
         await api.registerVenueOwner({ uid: authedUid }, body);
-        Alert.alert(
-          "Application submitted!",
-          "Our team will review your venue within a few days. You'll get a notification once approved.",
-          [{ text: "Done", onPress: () => router.back() }],
-        );
       }
+      router.replace("/venue-owner/pending");
     } catch (err) {
       const msg =
         err instanceof ApiError
@@ -160,6 +197,44 @@ export default function VenueOwnerSetupScreen() {
         {/* ── Step 1 ── */}
         {step === 1 && (
           <View style={styles.fields}>
+            <Field
+              label="Find your venue on Google"
+              value={venueQuery}
+              onChangeText={(value) => {
+                setVenueQuery(value);
+                setSelectedVenue(null);
+              }}
+              placeholder="Search by name and city"
+              colors={colors}
+              testID="venue-search-input"
+            />
+            {searching ? (
+              <View style={styles.searchStatus}>
+                <ActivityIndicator color={colors.primary} size="small" />
+                <Text style={styles.searchStatusText}>Searching Google Places…</Text>
+              </View>
+            ) : null}
+            {searchError ? <Text style={styles.searchError}>{searchError}</Text> : null}
+            {searchResults.map((venue) => (
+              <Pressable
+                testID={`venue-search-result-${venue.placeId}`}
+                key={venue.placeId}
+                style={styles.resultCard}
+                onPress={() => chooseVenue(venue)}
+              >
+                <Text style={styles.resultName}>{venue.placeName}</Text>
+                {venue.address ? <Text style={styles.resultAddress}>{venue.address}</Text> : null}
+                {venue.category ? <Text style={[styles.resultCategory, { color: colors.primary }]}>{venue.category}</Text> : null}
+              </Pressable>
+            ))}
+            {selectedVenue ? (
+              <View style={[styles.selectedCard, { borderColor: colors.primary + "80" }]}>
+                <Text style={styles.selectedLabel}>SELECTED GOOGLE VENUE</Text>
+                <Text style={styles.selectedName}>{selectedVenue.placeName}</Text>
+                {selectedVenue.address ? <Text style={styles.selectedAddress}>{selectedVenue.address}</Text> : null}
+              </View>
+            ) : null}
+            <Text style={styles.manualHint}>Or enter Google details manually</Text>
             <Field
               label="Google Place ID *"
               value={placeId}
@@ -310,6 +385,7 @@ interface FieldProps {
   keyboardType?: "default" | "decimal-pad" | "url";
   autoCapitalize?: "none" | "sentences";
   colors: { primary: string };
+  testID?: string;
 }
 
 function Field({
@@ -323,6 +399,7 @@ function Field({
   keyboardType = "default",
   autoCapitalize = "sentences",
   colors,
+  testID,
 }: FieldProps) {
   return (
     <View style={styles.fieldWrapper}>
@@ -337,6 +414,7 @@ function Field({
         maxLength={maxLength}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
+        testID={testID}
         style={[
           styles.fieldInput,
           multiline && { height: (numberOfLines ?? 1) * 24 + 20, textAlignVertical: "top" },
@@ -395,6 +473,18 @@ const styles = StyleSheet.create({
   },
   fields: { gap: 18 },
   fieldWrapper: {},
+  searchStatus: { flexDirection: "row", alignItems: "center", gap: 8 },
+  searchStatusText: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontFamily: "Inter_400Regular" },
+  searchError: { color: "#FCA5A5", fontSize: 13, fontFamily: "Inter_400Regular" },
+  resultCard: { backgroundColor: "#19191D", borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", borderRadius: 10, padding: 13, gap: 4 },
+  resultName: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  resultAddress: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  resultCategory: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 2 },
+  selectedCard: { backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderRadius: 10, padding: 13, gap: 4 },
+  selectedLabel: { color: "rgba(255,255,255,0.48)", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.7 },
+  selectedName: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+  selectedAddress: { color: "rgba(255,255,255,0.58)", fontSize: 13, fontFamily: "Inter_400Regular" },
+  manualHint: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8 },
   fieldLabel: {
     color: "rgba(255,255,255,0.6)",
     fontSize: 12,

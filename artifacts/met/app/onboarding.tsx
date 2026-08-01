@@ -139,8 +139,9 @@ export default function OnboardingScreen() {
     venueOwner?: string;
   }>();
   const permissionsOnly = startAt === "permissions";
-  // The registration form needs a Firebase account and a completed Met
-  // profile. This intent survives those required steps, then opens setup.
+  // The registration form needs a Firebase account, but venue applicants
+  // should not be forced through the optional personal-profile setup first.
+  // This intent survives authentication and email verification.
   const [venueOwnerIntent, setVenueOwnerIntent] = useState(
     venueOwner === "1",
   );
@@ -363,7 +364,11 @@ export default function OnboardingScreen() {
     if (!restored) {
       // New user — registration is complete (they passed auth).
       tiktokTrackRegistration(method);
-      setPhase("photo");
+      if (venueOwnerIntent) {
+        router.replace("/venue-owner/setup");
+      } else {
+        setPhase("photo");
+      }
     }
     // Identify the user for both new and returning sessions.
     try {

@@ -151,6 +151,12 @@ const venueOwnerReadLimit = createUserRateLimiter({
   name: "venue-owner-read",
 });
 
+const venueOwnerPlaceSearchLimit = createUserRateLimiter({
+  windowMs: 60_000,
+  max: 20,
+  name: "venue-owner-place-search",
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -176,6 +182,91 @@ async function syncRsvpCount(eventId: number): Promise<void> {
 // ---------------------------------------------------------------------------
 // Phase 1 — Registration & Profile
 // ---------------------------------------------------------------------------
+
+interface VenueSearchPlace {
+  placeId: string;
+  placeName: string;
+  address: string | null;
+  category: string | null;
+  googleMapsUri: string | null;
+  lat: number;
+  lng: number;
+}
+
+async function searchGoogleVenues(
+  query: string,
+  latitude?: number,
+  longitude?: number,
+): Promise<VenueSearchPlace[]> {
+  const apiKey = process.env["GOOGLE_API_KEY"];
+  if (!apiKey) throw new Error("Google Places search is not configured");
+
+  const body: Record<string, unknown> = { textQuery: query, maxResultCount: 8 };
+  if (latitude != null && longitude != null) {
+    body.locationBias = {
+      circle: { center: { latitude, longitude }, radius: 30_000 },
+    };
+  }
+  const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.primaryTypeDisplayName,places.googleMapsUri,places.location",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    logger.warn({ status: response.status }, "Venue Google Places search failed");
+    throw new Error("Google Places search is temporarily unavailable");
+  }
+  const payload = (await response.json()) as {
+    places?: Array<{
+      id?: string;
+      displayName?: { text?: string };
+      formattedAddress?: string;
+      primaryTypeDisplayName?: { text?: string };
+      googleMapsUri?: string;
+      location?: { latitude?: number; longitude?: number };
+    }>;
+  };
+  return (payload.places ?? [])
+    .filter((place) => place.id && place.displayName?.text && place.location?.latitude != null && place.location?.longitude != null)
+    .map((place) => ({
+      placeId: place.id!,
+      placeName: place.displayName!.text!,
+      address: place.formattedAddress ?? null,
+      category: place.primaryTypeDisplayName?.text ?? null,
+      googleMapsUri: place.googleMapsUri ?? null,
+      lat: place.location!.latitude!,
+      lng: place.location!.longitude!,
+    }));
+}
+
+router.get(
+  "/venue-owner/places/search",
+  requireUid,
+  venueOwnerPlaceSearchLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const query = typeof req.query["query"] === "string" ? req.query["query"].trim() : "";
+    const latitude = typeof req.query["lat"] === "string" ? Number(req.query["lat"]) : undefined;
+    const longitude = typeof req.query["lng"] === "string" ? Number(req.query["lng"]) : undefined;
+    if (query.length < 2) {
+      res.status(400).json({ message: "Enter at least two characters to search" });
+      return;
+    }
+    if ((latitude != null && !Number.isFinite(latitude)) || (longitude != null && !Number.isFinite(longitude))) {
+      res.status(400).json({ message: "Invalid location bias" });
+      return;
+    }
+    try {
+      const places = await searchGoogleVenues(query, latitude, longitude);
+      res.json({ places });
+    } catch (error) {
+      res.status(503).json({ message: (error as Error).message });
+    }
+  },
+);
 
 /**
  * POST /venue-owner/register

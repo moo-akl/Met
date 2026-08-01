@@ -123,6 +123,16 @@ export interface VenueOwnerProfile {
   updatedAt: string;
 }
 
+export interface VenueSearchPlace {
+  placeId: string;
+  placeName: string;
+  address: string | null;
+  category: string | null;
+  googleMapsUri: string | null;
+  lat: number;
+  lng: number;
+}
+
 export interface VenueEvent {
   id: number;
   ownerUid: string;
@@ -955,6 +965,23 @@ export const api = {
   // ---------------------------------------------------------------------------
   // Venue Owner Portal
   // ---------------------------------------------------------------------------
+
+  searchVenuePlaces: (
+    opts: ApiOptions,
+    query: string,
+    location?: { lat: number; lng: number },
+  ) => {
+    const params = new URLSearchParams({ query });
+    if (location) {
+      params.set("lat", String(location.lat));
+      params.set("lng", String(location.lng));
+    }
+    return request<{ places: VenueSearchPlace[] }>(
+      "GET",
+      `/venue-owner/places/search?${params.toString()}`,
+      opts,
+    );
+  },
 
   /** Register a venue owner claim. */
   registerVenueOwner: (

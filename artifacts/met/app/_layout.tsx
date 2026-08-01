@@ -342,7 +342,7 @@ function PushTokenRegistrar() {
 }
 
 function ProfileGate() {
-  const { ready, profile, permissionsCompleted } = useApp();
+  const { ready, profile, permissionsCompleted, authedUid } = useApp();
   const router = useRouter();
   const segments = useSegments();
 
@@ -351,8 +351,12 @@ function ProfileGate() {
     const root = segments[0];
     const inOnboarding = root === "onboarding";
     const inPermissions = root === "permissions";
+    const inVenueOwner = root === "venue-owner";
 
     if (!profile) {
+      // Venue setup is an authenticated business-registration flow. It does
+      // not depend on an optional personal Met profile or device permissions.
+      if (authedUid && inVenueOwner) return;
       if (!inOnboarding) router.replace("/onboarding");
       return;
     }
@@ -362,7 +366,7 @@ function ProfileGate() {
     }
     // Fully set-up users may visit /permissions or /onboarding voluntarily
     // (e.g. from the home-page banner). Don't redirect them away.
-  }, [ready, profile, permissionsCompleted, segments, router]);
+  }, [ready, profile, permissionsCompleted, authedUid, segments, router]);
 
   return null;
 }
@@ -421,6 +425,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="venue-owner/setup"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
+      <Stack.Screen
+        name="venue-owner/pending"
         options={{ presentation: "card", animation: "slide_from_right" }}
       />
       <Stack.Screen
