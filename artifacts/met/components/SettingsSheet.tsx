@@ -751,17 +751,23 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     venueOwnerProfile
                       ? venueOwnerProfile.isApproved
                         ? t("settings.venueOwnerApproved")
-                        : t("settings.venueOwnerPending")
+                        : venueOwnerProfile.rejectionReason
+                          ? t("settings.venueOwnerRejected")
+                          : t("settings.venueOwnerPending")
                       : t("settings.registerVenueSub")
                   }
                   onPress={() => {
                     close();
                     setTimeout(() => {
-                      router.push(
-                        venueOwnerProfile
-                          ? "/venue-owner/dashboard"
-                          : "/venue-owner/setup",
-                      );
+                      if (!venueOwnerProfile) {
+                        router.push("/venue-owner/setup");
+                      } else if (venueOwnerProfile.isApproved) {
+                        router.push("/venue-owner/dashboard");
+                      } else if (venueOwnerProfile.rejectionReason) {
+                        router.push("/venue-owner/rejected");
+                      } else {
+                        router.push("/venue-owner/setup");
+                      }
                     }, 50);
                   }}
                   colors={colors}

@@ -982,6 +982,28 @@ export const api = {
   getMyVenueOwnerProfile: (opts: ApiOptions) =>
     request<{ profile: VenueOwnerProfile }>("GET", "/venue-owner/me", opts),
 
+  /** Re-submit a rejected venue owner application with updated details. */
+  reapplyVenueOwner: (
+    opts: ApiOptions,
+    body: {
+      placeId: string;
+      placeName: string;
+      businessName: string;
+      lat?: string;
+      lng?: string;
+      tagline?: string;
+      description?: string;
+      verificationDocUrl?: string;
+      registrationNotes?: string;
+    },
+  ) =>
+    request<{ profile: VenueOwnerProfile }>(
+      "POST",
+      "/venue-owner/reapply",
+      opts,
+      body,
+    ),
+
   /** Update the caller's own venue owner profile. */
   updateMyVenueOwnerProfile: (
     opts: ApiOptions,

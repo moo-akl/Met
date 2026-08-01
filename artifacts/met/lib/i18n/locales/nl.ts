@@ -751,6 +751,7 @@ export const nl: LocaleTree = {
     venueOwnerDashboard: "Dashboard locatie-eigenaar",
     venueOwnerApproved: "Je locatie is goedgekeurd",
     venueOwnerPending: "Je registratie wacht op beoordeling",
+    venueOwnerRejected: "Je aanvraag is niet goedgekeurd — tik om te zien waarom",
     verifiedPhotoLast: "Laatst geverifieerd {{date}}",
     verifiedPhotoTapReverify:
       "Geverifieerd — tik om de gezichtscheck opnieuw uit te voeren",

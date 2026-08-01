@@ -744,6 +744,7 @@ export const es: LocaleTree = {
     venueOwnerDashboard: "Panel del propietario",
     venueOwnerApproved: "Tu local está aprobado",
     venueOwnerPending: "Tu registro está pendiente de revisión",
+    venueOwnerRejected: "Tu solicitud no fue aprobada — toca para ver por qué",
     verifiedPhotoLast: "Última verificación {{date}}",
     verifiedPhotoTapReverify:
       "Verificada — toca para repetir el chequeo facial",

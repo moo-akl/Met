@@ -712,6 +712,7 @@ export const zh: LocaleTree = {
     venueOwnerDashboard: "场所所有者面板",
     venueOwnerApproved: "您的场所已获批准",
     venueOwnerPending: "您的注册正在等待审核",
+    venueOwnerRejected: "您的申请未获批准 — 点击查看原因",
     verifiedPhotoLast: "上次验证 {{date}}",
     verifiedPhotoTapReverify: "已验证 — 点按重新进行人脸检查",
     verifiedPhotoTapVerify: "点按为照片进行人脸检查",

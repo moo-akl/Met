@@ -19,7 +19,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
@@ -31,6 +31,8 @@ export default function VenueOwnerSetupScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { reapply } = useLocalSearchParams<{ reapply?: string }>();
+  const isReapply = reapply === "true";
 
   const [step, setStep] = useState<Step>(1);
   const [submitting, setSubmitting] = useState(false);
@@ -55,11 +57,17 @@ export default function VenueOwnerSetupScreen() {
     2: "Business Details",
     3: "Verification",
   };
-  const stepSubtitles: Record<Step, string> = {
-    1: "Enter the Google Place ID for your venue",
-    2: "Tell us about your business",
-    3: "Submit proof of ownership for review",
-  };
+  const stepSubtitles: Record<Step, string> = isReapply
+    ? {
+        1: "Update your venue details before resubmitting",
+        2: "Update your business information",
+        3: "Provide updated proof of ownership",
+      }
+    : {
+        1: "Enter the Google Place ID for your venue",
+        2: "Tell us about your business",
+        3: "Submit proof of ownership for review",
+      };
 
   const canAdvanceStep1 = placeId.trim().length > 0 && placeName.trim().length > 0;
   const canAdvanceStep2 = businessName.trim().length > 0;
@@ -69,25 +77,32 @@ export default function VenueOwnerSetupScreen() {
     if (!authedUid || !canSubmit || submitting) return;
     setSubmitting(true);
     try {
-      await api.registerVenueOwner(
-        { uid: authedUid },
-        {
-          placeId: placeId.trim(),
-          placeName: placeName.trim(),
-          businessName: businessName.trim(),
-          lat: lat.trim() || undefined,
-          lng: lng.trim() || undefined,
-          tagline: tagline.trim() || undefined,
-          description: description.trim() || undefined,
-          verificationDocUrl: verificationDocUrl.trim() || undefined,
-          registrationNotes: registrationNotes.trim() || undefined,
-        },
-      );
-      Alert.alert(
-        "Application submitted!",
-        "Our team will review your venue within a few days. You'll get a notification once approved.",
-        [{ text: "Done", onPress: () => router.back() }],
-      );
+      const body = {
+        placeId: placeId.trim(),
+        placeName: placeName.trim(),
+        businessName: businessName.trim(),
+        lat: lat.trim() || undefined,
+        lng: lng.trim() || undefined,
+        tagline: tagline.trim() || undefined,
+        description: description.trim() || undefined,
+        verificationDocUrl: verificationDocUrl.trim() || undefined,
+        registrationNotes: registrationNotes.trim() || undefined,
+      };
+      if (isReapply) {
+        await api.reapplyVenueOwner({ uid: authedUid }, body);
+        Alert.alert(
+          "Re-application submitted!",
+          "Our team will review your updated application within a few days. You'll get a notification once approved.",
+          [{ text: "Done", onPress: () => router.back() }],
+        );
+      } else {
+        await api.registerVenueOwner({ uid: authedUid }, body);
+        Alert.alert(
+          "Application submitted!",
+          "Our team will review your venue within a few days. You'll get a notification once approved.",
+          [{ text: "Done", onPress: () => router.back() }],
+        );
+      }
     } catch (err) {
       const msg =
         err instanceof ApiError
@@ -273,7 +288,9 @@ export default function VenueOwnerSetupScreen() {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.primaryBtnText}>Submit Application</Text>
+              <Text style={styles.primaryBtnText}>
+                {isReapply ? "Submit Re-application" : "Submit Application"}
+              </Text>
             )}
           </Pressable>
         )}

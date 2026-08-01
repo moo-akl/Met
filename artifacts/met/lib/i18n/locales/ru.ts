@@ -753,6 +753,7 @@ export const ru: LocaleTree = {
     venueOwnerDashboard: "Панель владельца заведения",
     venueOwnerApproved: "Ваше заведение одобрено",
     venueOwnerPending: "Заявка ожидает проверки",
+    venueOwnerRejected: "Ваша заявка не одобрена — нажмите, чтобы узнать причину",
     verifiedPhotoLast: "Последняя проверка {{date}}",
     verifiedPhotoTapReverify:
       "Проверено — нажмите, чтобы снова пройти проверку лица",

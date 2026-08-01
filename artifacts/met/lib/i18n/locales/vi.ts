@@ -750,6 +750,7 @@ export const vi: LocaleTree = {
     venueOwnerDashboard: "Bảng điều khiển chủ địa điểm",
     venueOwnerApproved: "Địa điểm của bạn đã được phê duyệt",
     venueOwnerPending: "Đăng ký của bạn đang chờ xét duyệt",
+    venueOwnerRejected: "Đơn của bạn không được chấp thuận — nhấn để xem lý do",
     verifiedPhotoLast: "Lần xác minh cuối {{date}}",
     verifiedPhotoTapReverify:
       "Đã xác minh — chạm để chạy lại kiểm tra khuôn mặt",

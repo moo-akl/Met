@@ -275,6 +275,85 @@ router.get(
 );
 
 /**
+ * POST /venue-owner/reapply
+ * Allows a rejected applicant to update their submission and re-enter the review queue.
+ * Only permitted when the caller has an existing profile with isApproved=false and a
+ * rejectionReason set.
+ */
+router.post(
+  "/venue-owner/reapply",
+  requireUid,
+  venueOwnerWriteLimit,
+  async (req: Request, res: Response) => {
+    const uid = req.uid!;
+
+    const schema = z.object({
+      placeId: z.string().min(1),
+      placeName: z.string().min(1),
+      businessName: z.string().min(1),
+      lat: z.string().optional(),
+      lng: z.string().optional(),
+      tagline: z.string().max(160).optional(),
+      description: z.string().max(1000).optional(),
+      verificationDocUrl: z.string().url().optional(),
+      registrationNotes: z.string().max(500).optional(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input", errors: parsed.error.issues });
+      return;
+    }
+    const data = parsed.data;
+
+    const [existing] = await db
+      .select({
+        id: venueOwnerProfilesTable.id,
+        isApproved: venueOwnerProfilesTable.isApproved,
+        rejectionReason: venueOwnerProfilesTable.rejectionReason,
+      })
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ message: "No venue owner profile found" });
+      return;
+    }
+    if (existing.isApproved) {
+      res.status(409).json({ message: "Your venue is already approved" });
+      return;
+    }
+    if (!existing.rejectionReason) {
+      res.status(409).json({
+        message: "Your application is still under review. Please wait for a decision before reapplying.",
+      });
+      return;
+    }
+
+    const [profile] = await db
+      .update(venueOwnerProfilesTable)
+      .set({
+        placeId: data.placeId,
+        placeName: data.placeName,
+        businessName: data.businessName,
+        lat: data.lat ?? null,
+        lng: data.lng ?? null,
+        tagline: data.tagline ?? null,
+        description: data.description ?? null,
+        verificationDocUrl: data.verificationDocUrl ?? null,
+        registrationNotes: data.registrationNotes ?? null,
+        rejectionReason: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
+      .returning();
+
+    res.json({ profile });
+  },
+);
+
+/**
  * PUT /venue-owner/me
  * Body: { businessName?, tagline?, description?, coverPhotoUrl?, logoUrl? }
  */

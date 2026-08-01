@@ -757,6 +757,7 @@ export const fr: LocaleTree = {
     venueOwnerDashboard: "Tableau de bord établissement",
     venueOwnerApproved: "Votre établissement est approuvé",
     venueOwnerPending: "Votre demande est en attente d'examen",
+    venueOwnerRejected: "Votre demande n'a pas été approuvée — touchez pour savoir pourquoi",
     verifiedPhotoLast: "Dernière vérification {{date}}",
     verifiedPhotoTapReverify:
       "Vérifiée — touchez pour relancer le contrôle facial",

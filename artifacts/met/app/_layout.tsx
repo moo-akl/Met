@@ -424,6 +424,10 @@ function RootLayoutNav() {
         options={{ presentation: "card", animation: "slide_from_right" }}
       />
       <Stack.Screen
+        name="venue-owner/rejected"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
+      <Stack.Screen
         name="venue-owner/dashboard"
         options={{ presentation: "card", animation: "slide_from_right" }}
       />

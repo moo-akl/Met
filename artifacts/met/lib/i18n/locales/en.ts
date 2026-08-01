@@ -784,6 +784,7 @@ export const en = {
     venueOwnerDashboard: "Venue owner dashboard",
     venueOwnerApproved: "Your venue is approved",
     venueOwnerPending: "Your registration is awaiting review",
+    venueOwnerRejected: "Your application was not approved — tap to see why",
     verifiedPhotoLast: "Last verified {{date}}",
     verifiedPhotoTapReverify: "Verified — tap to re-run face check",
     verifiedPhotoTapVerify: "Tap to run face check on your photo",

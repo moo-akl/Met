@@ -751,6 +751,7 @@ export const ar: LocaleTree = {
     venueOwnerDashboard: "لوحة مالك المكان",
     venueOwnerApproved: "تمت الموافقة على مكانك",
     venueOwnerPending: "طلب التسجيل قيد المراجعة",
+    venueOwnerRejected: "لم تتم الموافقة على طلبك — اضغط لمعرفة السبب",
     verifiedPhotoLast: "آخر توثيق {{date}}",
     verifiedPhotoTapReverify:
       "موثّقة — اضغط لإعادة فحص الوجه",
