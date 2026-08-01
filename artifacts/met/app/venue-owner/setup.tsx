@@ -90,8 +90,13 @@ export default function VenueOwnerSetupScreen() {
       setSearching(true);
       setSearchError(null);
       api.searchVenuePlaces({ uid: authedUid }, query)
-        .then(({ places }) => {
-          if (!cancelled) setSearchResults(places);
+        .then((response) => {
+          if (!cancelled) {
+            // Keep the screen resilient if an older API deployment or an
+            // unexpected response omits `places`. Rendering must never be
+            // allowed to call `.map()` on an undefined server value.
+            setSearchResults(Array.isArray(response?.places) ? response.places : []);
+          }
         })
         .catch((error: unknown) => {
           if (!cancelled) {
@@ -215,7 +220,7 @@ export default function VenueOwnerSetupScreen() {
               </View>
             ) : null}
             {searchError ? <Text style={styles.searchError}>{searchError}</Text> : null}
-            {searchResults.map((venue) => (
+            {(Array.isArray(searchResults) ? searchResults : []).map((venue) => (
               <Pressable
                 testID={`venue-search-result-${venue.placeId}`}
                 key={venue.placeId}

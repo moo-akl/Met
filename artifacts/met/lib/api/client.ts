@@ -980,7 +980,9 @@ export const api = {
       "GET",
       `/venue-owner/places/search?${params.toString()}`,
       opts,
-    );
+    ).then((response) => ({
+      places: Array.isArray(response?.places) ? response.places : [],
+    }));
   },
 
   /** Register a venue owner claim. */
