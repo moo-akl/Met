@@ -1547,24 +1547,21 @@ export default function OnboardingScreen() {
               disabled={authBusy}
               accessibilityRole="button"
               style={({ pressed }) => [
-                styles.venueOwnerLink,
+                styles.venueOwnerSentence,
                 { opacity: pressed || authBusy ? 0.65 : 1 },
               ]}
             >
-              <Feather name="briefcase" size={15} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.venueOwnerLinkTitle, { color: colors.primary }]}>
-                  {t("onboarding.venueOwnerCta")}
-                </Text>
-                <Text
-                  style={[
-                    styles.venueOwnerLinkSub,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
-                  {t("onboarding.venueOwnerCtaSub")}
-                </Text>
-              </View>
+              <Text style={[styles.forgotText, { color: colors.primary }]}>
+                {t("onboarding.venueOwnerCta")}
+              </Text>
+              <Text
+                style={[
+                  styles.venueOwnerSentenceSub,
+                  { color: colors.mutedForeground },
+                ]}
+              >
+                {t("onboarding.venueOwnerCtaSub")}
+              </Text>
             </Pressable>
 
             {authMode === "signin" ? (
@@ -2190,18 +2187,17 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 15,
   },
-  venueOwnerLink: {
-    flexDirection: "row",
+  venueOwnerSentence: {
     alignItems: "center",
-    gap: 10,
+    gap: 4,
     marginTop: 14,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(146, 201, 119, 0.35)",
+    paddingVertical: 2,
   },
-  venueOwnerLinkTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  venueOwnerLinkSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  venueOwnerSentenceSub: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
   inputMulti: {
     height: 96,
     paddingTop: 14,

@@ -4,10 +4,9 @@ import { useTheme } from "@/contexts/ThemeContext";
 /**
  * Returns the design tokens for the currently active theme.
  *
- * Three themes are supported:
+ * Two themes are supported:
  *   "dark"  — Cyber-Social (near-black, amber/gold, cyan)
  *   "light" — Premium Green (light surfaces, logo-green #3DCC44)
- *   "game"  — Gamified Modern (lavender, indigo, pink)
  *
  * The user cycles through them via Settings → Appearance.
  * The preference is persisted to AsyncStorage so it survives app restarts.

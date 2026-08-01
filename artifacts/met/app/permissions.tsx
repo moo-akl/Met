@@ -357,16 +357,10 @@ function PermRow({
   const granted = status === "granted";
   const denied = status === "denied";
 
-  const statusBg = granted
-    ? colors.primary
-    : denied
-      ? "#F3F4F6"
-      : "#F3F4F6";
+  const statusBg = granted ? colors.primary : colors.actionButton;
   const statusColor = granted
     ? "#FFFFFF"
-    : denied
-      ? colors.destructive
-      : colors.foreground;
+    : "#FFFFFF";
   const statusLabel = granted
     ? t("permissions.statusGranted")
     : denied

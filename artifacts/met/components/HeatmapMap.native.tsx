@@ -149,6 +149,10 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
   const router = useRouter();
 
   const mapRef = useRef<MapView>(null);
+  const mapReadyRef = useRef(false);
+  const pendingCenterRef = useRef<{ latitude: number; longitude: number } | null>(
+    null,
+  );
   const [activeVenues, setActiveVenues] = useState<ActiveVenueResult[]>([]);
   const [heatmapVenues, setHeatmapVenues] = useState<HeatmapVenueResult[]>([]);
   const [venueOwnerPoints, setVenueOwnerPoints] = useState<VenueOwnerMapPoint[]>([]);
@@ -167,8 +171,11 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
   }, []);
 
   const centerOn = useCallback((latitude: number, longitude: number) => {
+    pendingCenterRef.current = { latitude, longitude };
     const r: Region = { latitude, longitude, latitudeDelta: 0.015, longitudeDelta: 0.015 };
-    mapRef.current?.animateToRegion(r, 400);
+    if (mapReadyRef.current) {
+      mapRef.current?.animateToRegion(r, 400);
+    }
   }, []);
 
   const fetchActive = useCallback(async () => {
@@ -354,6 +361,19 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
       provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
       style={[styles.map, style]}
       initialRegion={DEFAULT_REGION}
+      onMapReady={() => {
+        mapReadyRef.current = true;
+        const pending = pendingCenterRef.current;
+        if (pending) {
+          const r: Region = {
+            latitude: pending.latitude,
+            longitude: pending.longitude,
+            latitudeDelta: 0.015,
+            longitudeDelta: 0.015,
+          };
+          mapRef.current?.animateToRegion(r, 400);
+        }
+      }}
       showsUserLocation
       showsMyLocationButton={false}
       onRegionChangeComplete={handleRegionChangeComplete}

@@ -597,17 +597,9 @@ export function SettingsSheet({ visible, onClose }: Props) {
               />
 
               <NavRow
-                icon={
-                  theme === "dark" ? "moon" : theme === "light" ? "sun" : "zap"
-                }
+                icon={theme === "dark" ? "moon" : "sun"}
                 label={t("settings.appearance")}
-                sub={
-                  theme === "dark"
-                    ? t("settings.themeDark")
-                    : theme === "light"
-                      ? t("settings.themeLight")
-                      : t("settings.themeGame")
-                }
+                sub={theme === "dark" ? t("settings.themeDark") : t("settings.themeLight")}
                 onPress={() => toggleTheme()}
                 colors={colors}
               />

@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export type ThemeMode = "dark" | "light" | "game";
+export type ThemeMode = "dark" | "light";
 
 type ThemeContextType = {
   theme: ThemeMode;
@@ -24,15 +24,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(THEME_KEY)
       .then((val) => {
-        if (val === "light" || val === "dark" || val === "game") setTheme(val);
+        if (val === "light" || val === "dark") setTheme(val);
       })
       .catch(() => {});
   }, []);
 
-  // Cycles: dark → light → game → dark
+  // Cycles between the two supported product themes.
   const toggleTheme = () => {
-    const next: ThemeMode =
-      theme === "dark" ? "light" : theme === "light" ? "game" : "dark";
+    const next: ThemeMode = theme === "dark" ? "light" : "dark";
     setTheme(next);
     AsyncStorage.setItem(THEME_KEY, next).catch(() => {});
   };
