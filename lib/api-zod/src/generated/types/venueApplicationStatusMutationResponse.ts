@@ -7,6 +7,6 @@
  */
 import type { VenueApplication } from "./venueApplication";
 
-export interface VenueApplicationList {
-  pending: VenueApplication[];
+export interface VenueApplicationStatusMutationResponse {
+  application: VenueApplication;
 }

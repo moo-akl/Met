@@ -30,4 +30,5 @@
 - [encounter/connection verified+rating](encounter-verified-rating.md) — verified = photoUri non-empty; averageRating from getCommunityStanding (useQuery, staleTime 5 min, only shown when hasEnough=true); no new DB columns needed.
 - [Invisible mode — GPS push loop must stop](invisible-gps-gap.md) — BLE advertising stops via useVisibility, but AppContext Firestore proximity must also check profile?.isVisible; add it to the effect dependency array or invisible users keep writing geohash.
 - [Lifecycle terminal states vs unique indexes](lifecycle-status-vs-unique-index.md) — soft-terminal statuses that "release" a claim need a PARTIAL unique index, or reclaim fails with 23505; Drizzle puts the code on error.cause
+- [Secret-free e2e admin login](e2e-secret-free-admin-login.md) — have the testing subagent restart the workflow with a throwaway secret override; never pass real secret values into test plans.
 - [seed-marketing script](seed-marketing.md) — scripts/src/seed-marketing.ts seeds dev DB for App Store screenshots; needs MARKETING_UID env var; uses @workspace/db (now in scripts deps) + drizzle-orm catalog.

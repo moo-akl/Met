@@ -40,6 +40,7 @@ import type {
   JoinNetworkByCode200,
   LeaveNetwork200,
   ListNetworksParams,
+  ListVenueApplicationsParams,
   LogEncounter,
   NearbyEntry,
   NearbyPresenceParams,
@@ -69,9 +70,18 @@ import type {
   UpsertProfile,
   VenueAdminSession,
   VenueAdminUnlock,
-  VenueApplicationList,
+  VenueApplicationChangeRequest,
+  VenueApplicationConflict,
+  VenueApplicationDecision,
+  VenueApplicationNote,
+  VenueApplicationNoteOnly,
+  VenueApplicationQueue,
   VenueApplicationRejection,
   VenueApplicationResponse,
+  VenueApplicationReviewDetail,
+  VenueApplicationStatusMutationResponse,
+  VenueApplicationStatusResponse,
+  VenueApplicationWithdrawal,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -4226,17 +4236,17 @@ export const useDeleteVenueAdminSession = <
 };
 
 /**
- * @summary List venue applications awaiting review
+ * @summary Get my venue application's current lifecycle status and history
  */
-export const getListPendingVenueApplicationsUrl = () => {
-  return `/api/admin/venue-owner/applications`;
+export const getGetMyVenueApplicationUrl = () => {
+  return `/api/venue-owner/me/application`;
 };
 
-export const listPendingVenueApplications = async (
+export const getMyVenueApplication = async (
   options?: RequestInit,
-): Promise<VenueApplicationList> => {
-  return customFetch<VenueApplicationList>(
-    getListPendingVenueApplicationsUrl(),
+): Promise<VenueApplicationStatusResponse> => {
+  return customFetch<VenueApplicationStatusResponse>(
+    getGetMyVenueApplicationUrl(),
     {
       ...options,
       method: "GET",
@@ -4244,16 +4254,16 @@ export const listPendingVenueApplications = async (
   );
 };
 
-export const getListPendingVenueApplicationsQueryKey = () => {
-  return [`/api/admin/venue-owner/applications`] as const;
+export const getGetMyVenueApplicationQueryKey = () => {
+  return [`/api/venue-owner/me/application`] as const;
 };
 
-export const getListPendingVenueApplicationsQueryOptions = <
-  TData = Awaited<ReturnType<typeof listPendingVenueApplications>>,
+export const getGetMyVenueApplicationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyVenueApplication>>,
   TError = ErrorType<Error>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listPendingVenueApplications>>,
+    Awaited<ReturnType<typeof getMyVenueApplication>>,
     TError,
     TData
   >;
@@ -4261,42 +4271,40 @@ export const getListPendingVenueApplicationsQueryOptions = <
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getListPendingVenueApplicationsQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetMyVenueApplicationQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listPendingVenueApplications>>
-  > = ({ signal }) =>
-    listPendingVenueApplications({ signal, ...requestOptions });
+    Awaited<ReturnType<typeof getMyVenueApplication>>
+  > = ({ signal }) => getMyVenueApplication({ signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listPendingVenueApplications>>,
+    Awaited<ReturnType<typeof getMyVenueApplication>>,
     TError,
     TData
   > & { queryKey: QueryKey };
 };
 
-export type ListPendingVenueApplicationsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listPendingVenueApplications>>
+export type GetMyVenueApplicationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyVenueApplication>>
 >;
-export type ListPendingVenueApplicationsQueryError = ErrorType<Error>;
+export type GetMyVenueApplicationQueryError = ErrorType<Error>;
 
 /**
- * @summary List venue applications awaiting review
+ * @summary Get my venue application's current lifecycle status and history
  */
 
-export function useListPendingVenueApplications<
-  TData = Awaited<ReturnType<typeof listPendingVenueApplications>>,
+export function useGetMyVenueApplication<
+  TData = Awaited<ReturnType<typeof getMyVenueApplication>>,
   TError = ErrorType<Error>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listPendingVenueApplications>>,
+    Awaited<ReturnType<typeof getMyVenueApplication>>,
     TError,
     TData
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListPendingVenueApplicationsQueryOptions(options);
+  const queryOptions = getGetMyVenueApplicationQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -4304,6 +4312,388 @@ export function useListPendingVenueApplications<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Withdraw my submitted venue application
+ */
+export const getWithdrawMyVenueApplicationUrl = () => {
+  return `/api/venue-owner/me/application/withdraw`;
+};
+
+export const withdrawMyVenueApplication = async (
+  options?: RequestInit,
+): Promise<VenueApplicationStatusMutationResponse> => {
+  return customFetch<VenueApplicationStatusMutationResponse>(
+    getWithdrawMyVenueApplicationUrl(),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getWithdrawMyVenueApplicationMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof withdrawMyVenueApplication>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof withdrawMyVenueApplication>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["withdrawMyVenueApplication"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof withdrawMyVenueApplication>>,
+    void
+  > = () => {
+    return withdrawMyVenueApplication(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WithdrawMyVenueApplicationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof withdrawMyVenueApplication>>
+>;
+
+export type WithdrawMyVenueApplicationMutationError = ErrorType<Error>;
+
+/**
+ * @summary Withdraw my submitted venue application
+ */
+export const useWithdrawMyVenueApplication = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof withdrawMyVenueApplication>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof withdrawMyVenueApplication>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getWithdrawMyVenueApplicationMutationOptions(options));
+};
+
+/**
+ * Defaults to the live review queue (submitted, under_review,
+resubmitted). Pass `status=all`, or a comma-separated list of
+lifecycle statuses, to audit decided applications.
+
+ * @summary List venue applications for review
+ */
+export const getListVenueApplicationsUrl = (
+  params?: ListVenueApplicationsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/venue-owner/applications?${stringifiedParams}`
+    : `/api/admin/venue-owner/applications`;
+};
+
+export const listVenueApplications = async (
+  params?: ListVenueApplicationsParams,
+  options?: RequestInit,
+): Promise<VenueApplicationQueue> => {
+  return customFetch<VenueApplicationQueue>(
+    getListVenueApplicationsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListVenueApplicationsQueryKey = (
+  params?: ListVenueApplicationsParams,
+) => {
+  return [
+    `/api/admin/venue-owner/applications`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListVenueApplicationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listVenueApplications>>,
+  TError = ErrorType<Error>,
+>(
+  params?: ListVenueApplicationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueApplications>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListVenueApplicationsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listVenueApplications>>
+  > = ({ signal }) =>
+    listVenueApplications(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listVenueApplications>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListVenueApplicationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listVenueApplications>>
+>;
+export type ListVenueApplicationsQueryError = ErrorType<Error>;
+
+/**
+ * @summary List venue applications for review
+ */
+
+export function useListVenueApplications<
+  TData = Awaited<ReturnType<typeof listVenueApplications>>,
+  TError = ErrorType<Error>,
+>(
+  params?: ListVenueApplicationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueApplications>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListVenueApplicationsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Reviewer-only view. Unlike the applicant status endpoint, the history
+returned here includes internal reviewer notes.
+
+ * @summary Get one application with its full audit trail
+ */
+export const getGetVenueApplicationForReviewUrl = (id: number) => {
+  return `/api/admin/venue-owner/applications/${id}`;
+};
+
+export const getVenueApplicationForReview = async (
+  id: number,
+  options?: RequestInit,
+): Promise<VenueApplicationReviewDetail> => {
+  return customFetch<VenueApplicationReviewDetail>(
+    getGetVenueApplicationForReviewUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetVenueApplicationForReviewQueryKey = (id: number) => {
+  return [`/api/admin/venue-owner/applications/${id}`] as const;
+};
+
+export const getGetVenueApplicationForReviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVenueApplicationForReview>>,
+  TError = ErrorType<Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVenueApplicationForReview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetVenueApplicationForReviewQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getVenueApplicationForReview>>
+  > = ({ signal }) =>
+    getVenueApplicationForReview(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueApplicationForReview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVenueApplicationForReviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVenueApplicationForReview>>
+>;
+export type GetVenueApplicationForReviewQueryError = ErrorType<Error>;
+
+/**
+ * @summary Get one application with its full audit trail
+ */
+
+export function useGetVenueApplicationForReview<
+  TData = Awaited<ReturnType<typeof getVenueApplicationForReview>>,
+  TError = ErrorType<Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVenueApplicationForReview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVenueApplicationForReviewQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Mark an application as actively under review
+ */
+export const getStartVenueApplicationReviewUrl = (id: number) => {
+  return `/api/admin/venue-owner/applications/${id}/start-review`;
+};
+
+export const startVenueApplicationReview = async (
+  id: number,
+  venueApplicationNoteOnly?: VenueApplicationNoteOnly,
+  options?: RequestInit,
+): Promise<VenueApplicationResponse> => {
+  return customFetch<VenueApplicationResponse>(
+    getStartVenueApplicationReviewUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueApplicationNoteOnly),
+    },
+  );
+};
+
+export const getStartVenueApplicationReviewMutationOptions = <
+  TError = ErrorType<Error | VenueApplicationConflict>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startVenueApplicationReview>>,
+    TError,
+    { id: number; data: BodyType<VenueApplicationNoteOnly> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startVenueApplicationReview>>,
+  TError,
+  { id: number; data: BodyType<VenueApplicationNoteOnly> },
+  TContext
+> => {
+  const mutationKey = ["startVenueApplicationReview"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startVenueApplicationReview>>,
+    { id: number; data: BodyType<VenueApplicationNoteOnly> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return startVenueApplicationReview(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartVenueApplicationReviewMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startVenueApplicationReview>>
+>;
+export type StartVenueApplicationReviewMutationBody =
+  BodyType<VenueApplicationNoteOnly>;
+export type StartVenueApplicationReviewMutationError = ErrorType<
+  Error | VenueApplicationConflict
+>;
+
+/**
+ * @summary Mark an application as actively under review
+ */
+export const useStartVenueApplicationReview = <
+  TError = ErrorType<Error | VenueApplicationConflict>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startVenueApplicationReview>>,
+    TError,
+    { id: number; data: BodyType<VenueApplicationNoteOnly> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof startVenueApplicationReview>>,
+  TError,
+  { id: number; data: BodyType<VenueApplicationNoteOnly> },
+  TContext
+> => {
+  return useMutation(getStartVenueApplicationReviewMutationOptions(options));
+};
 
 /**
  * @summary Approve a venue application
@@ -4314,6 +4704,7 @@ export const getApproveVenueApplicationUrl = (id: number) => {
 
 export const approveVenueApplication = async (
   id: number,
+  venueApplicationDecision?: VenueApplicationDecision,
   options?: RequestInit,
 ): Promise<VenueApplicationResponse> => {
   return customFetch<VenueApplicationResponse>(
@@ -4321,25 +4712,27 @@ export const approveVenueApplication = async (
     {
       ...options,
       method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueApplicationDecision),
     },
   );
 };
 
 export const getApproveVenueApplicationMutationOptions = <
-  TError = ErrorType<Error>,
+  TError = ErrorType<Error | VenueApplicationConflict>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof approveVenueApplication>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<VenueApplicationDecision> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof approveVenueApplication>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<VenueApplicationDecision> },
   TContext
 > => {
   const mutationKey = ["approveVenueApplication"];
@@ -4353,11 +4746,11 @@ export const getApproveVenueApplicationMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof approveVenueApplication>>,
-    { id: number }
+    { id: number; data: BodyType<VenueApplicationDecision> }
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, data } = props ?? {};
 
-    return approveVenueApplication(id, requestOptions);
+    return approveVenueApplication(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -4366,27 +4759,30 @@ export const getApproveVenueApplicationMutationOptions = <
 export type ApproveVenueApplicationMutationResult = NonNullable<
   Awaited<ReturnType<typeof approveVenueApplication>>
 >;
-
-export type ApproveVenueApplicationMutationError = ErrorType<Error>;
+export type ApproveVenueApplicationMutationBody =
+  BodyType<VenueApplicationDecision>;
+export type ApproveVenueApplicationMutationError = ErrorType<
+  Error | VenueApplicationConflict
+>;
 
 /**
  * @summary Approve a venue application
  */
 export const useApproveVenueApplication = <
-  TError = ErrorType<Error>,
+  TError = ErrorType<Error | VenueApplicationConflict>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof approveVenueApplication>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<VenueApplicationDecision> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof approveVenueApplication>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<VenueApplicationDecision> },
   TContext
 > => {
   return useMutation(getApproveVenueApplicationMutationOptions(options));
@@ -4416,7 +4812,7 @@ export const rejectVenueApplication = async (
 };
 
 export const getRejectVenueApplicationMutationOptions = <
-  TError = ErrorType<Error>,
+  TError = ErrorType<Error | VenueApplicationConflict>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -4458,13 +4854,15 @@ export type RejectVenueApplicationMutationResult = NonNullable<
 >;
 export type RejectVenueApplicationMutationBody =
   BodyType<VenueApplicationRejection>;
-export type RejectVenueApplicationMutationError = ErrorType<Error>;
+export type RejectVenueApplicationMutationError = ErrorType<
+  Error | VenueApplicationConflict
+>;
 
 /**
  * @summary Reject a venue application with a reason
  */
 export const useRejectVenueApplication = <
-  TError = ErrorType<Error>,
+  TError = ErrorType<Error | VenueApplicationConflict>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -4481,4 +4879,286 @@ export const useRejectVenueApplication = <
   TContext
 > => {
   return useMutation(getRejectVenueApplicationMutationOptions(options));
+};
+
+/**
+ * Keeps the venue claim reserved for the applicant while they fix what
+the reviewer flagged, then resubmit.
+
+ * @summary Send an application back to the applicant for changes
+ */
+export const getRequestVenueApplicationChangesUrl = (id: number) => {
+  return `/api/admin/venue-owner/applications/${id}/request-changes`;
+};
+
+export const requestVenueApplicationChanges = async (
+  id: number,
+  venueApplicationChangeRequest: VenueApplicationChangeRequest,
+  options?: RequestInit,
+): Promise<VenueApplicationResponse> => {
+  return customFetch<VenueApplicationResponse>(
+    getRequestVenueApplicationChangesUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueApplicationChangeRequest),
+    },
+  );
+};
+
+export const getRequestVenueApplicationChangesMutationOptions = <
+  TError = ErrorType<Error | VenueApplicationConflict>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestVenueApplicationChanges>>,
+    TError,
+    { id: number; data: BodyType<VenueApplicationChangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestVenueApplicationChanges>>,
+  TError,
+  { id: number; data: BodyType<VenueApplicationChangeRequest> },
+  TContext
+> => {
+  const mutationKey = ["requestVenueApplicationChanges"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestVenueApplicationChanges>>,
+    { id: number; data: BodyType<VenueApplicationChangeRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return requestVenueApplicationChanges(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestVenueApplicationChangesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestVenueApplicationChanges>>
+>;
+export type RequestVenueApplicationChangesMutationBody =
+  BodyType<VenueApplicationChangeRequest>;
+export type RequestVenueApplicationChangesMutationError = ErrorType<
+  Error | VenueApplicationConflict
+>;
+
+/**
+ * @summary Send an application back to the applicant for changes
+ */
+export const useRequestVenueApplicationChanges = <
+  TError = ErrorType<Error | VenueApplicationConflict>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestVenueApplicationChanges>>,
+    TError,
+    { id: number; data: BodyType<VenueApplicationChangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestVenueApplicationChanges>>,
+  TError,
+  { id: number; data: BodyType<VenueApplicationChangeRequest> },
+  TContext
+> => {
+  return useMutation(getRequestVenueApplicationChangesMutationOptions(options));
+};
+
+/**
+ * @summary Withdraw an application on the applicant's behalf
+ */
+export const getWithdrawVenueApplicationAsAdminUrl = (id: number) => {
+  return `/api/admin/venue-owner/applications/${id}/withdraw`;
+};
+
+export const withdrawVenueApplicationAsAdmin = async (
+  id: number,
+  venueApplicationWithdrawal: VenueApplicationWithdrawal,
+  options?: RequestInit,
+): Promise<VenueApplicationResponse> => {
+  return customFetch<VenueApplicationResponse>(
+    getWithdrawVenueApplicationAsAdminUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueApplicationWithdrawal),
+    },
+  );
+};
+
+export const getWithdrawVenueApplicationAsAdminMutationOptions = <
+  TError = ErrorType<Error | VenueApplicationConflict>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof withdrawVenueApplicationAsAdmin>>,
+    TError,
+    { id: number; data: BodyType<VenueApplicationWithdrawal> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof withdrawVenueApplicationAsAdmin>>,
+  TError,
+  { id: number; data: BodyType<VenueApplicationWithdrawal> },
+  TContext
+> => {
+  const mutationKey = ["withdrawVenueApplicationAsAdmin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof withdrawVenueApplicationAsAdmin>>,
+    { id: number; data: BodyType<VenueApplicationWithdrawal> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return withdrawVenueApplicationAsAdmin(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WithdrawVenueApplicationAsAdminMutationResult = NonNullable<
+  Awaited<ReturnType<typeof withdrawVenueApplicationAsAdmin>>
+>;
+export type WithdrawVenueApplicationAsAdminMutationBody =
+  BodyType<VenueApplicationWithdrawal>;
+export type WithdrawVenueApplicationAsAdminMutationError = ErrorType<
+  Error | VenueApplicationConflict
+>;
+
+/**
+ * @summary Withdraw an application on the applicant's behalf
+ */
+export const useWithdrawVenueApplicationAsAdmin = <
+  TError = ErrorType<Error | VenueApplicationConflict>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof withdrawVenueApplicationAsAdmin>>,
+    TError,
+    { id: number; data: BodyType<VenueApplicationWithdrawal> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof withdrawVenueApplicationAsAdmin>>,
+  TError,
+  { id: number; data: BodyType<VenueApplicationWithdrawal> },
+  TContext
+> => {
+  return useMutation(
+    getWithdrawVenueApplicationAsAdminMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Add an internal reviewer note without changing the decision
+ */
+export const getAddVenueApplicationNoteUrl = (id: number) => {
+  return `/api/admin/venue-owner/applications/${id}/notes`;
+};
+
+export const addVenueApplicationNote = async (
+  id: number,
+  venueApplicationNote: VenueApplicationNote,
+  options?: RequestInit,
+): Promise<VenueApplicationResponse> => {
+  return customFetch<VenueApplicationResponse>(
+    getAddVenueApplicationNoteUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueApplicationNote),
+    },
+  );
+};
+
+export const getAddVenueApplicationNoteMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addVenueApplicationNote>>,
+    TError,
+    { id: number; data: BodyType<VenueApplicationNote> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addVenueApplicationNote>>,
+  TError,
+  { id: number; data: BodyType<VenueApplicationNote> },
+  TContext
+> => {
+  const mutationKey = ["addVenueApplicationNote"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addVenueApplicationNote>>,
+    { id: number; data: BodyType<VenueApplicationNote> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return addVenueApplicationNote(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddVenueApplicationNoteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addVenueApplicationNote>>
+>;
+export type AddVenueApplicationNoteMutationBody =
+  BodyType<VenueApplicationNote>;
+export type AddVenueApplicationNoteMutationError = ErrorType<Error>;
+
+/**
+ * @summary Add an internal reviewer note without changing the decision
+ */
+export const useAddVenueApplicationNote = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addVenueApplicationNote>>,
+    TError,
+    { id: number; data: BodyType<VenueApplicationNote> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addVenueApplicationNote>>,
+  TError,
+  { id: number; data: BodyType<VenueApplicationNote> },
+  TContext
+> => {
+  return useMutation(getAddVenueApplicationNoteMutationOptions(options));
 };

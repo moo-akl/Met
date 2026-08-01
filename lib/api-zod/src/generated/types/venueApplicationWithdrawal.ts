@@ -7,7 +7,7 @@
  */
 import type { VenueApplicationStatusValue } from "./venueApplicationStatusValue";
 
-export interface VenueApplicationRejection {
+export interface VenueApplicationWithdrawal {
   /**
    * @minLength 3
    * @maxLength 500

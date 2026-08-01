@@ -11,6 +11,7 @@ import {
 import Unlock from './pages/unlock';
 import Dashboard from './pages/dashboard';
 import { Skeleton } from './components/ui/skeleton';
+import { ShieldCheck } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
@@ -26,9 +27,14 @@ function AuthGuard() {
   if (isLoading || (isFetching && !isError && !session)) {
     return (
       <div className="h-[100dvh] w-full flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Skeleton className="w-16 h-16 rounded-full" />
-          <Skeleton className="w-48 h-4" />
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center ring-1 ring-primary/20 animate-pulse">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div className="space-y-2 flex flex-col items-center">
+            <Skeleton className="w-48 h-4 rounded-full" />
+            <Skeleton className="w-32 h-3 rounded-full" />
+          </div>
         </div>
       </div>
     );

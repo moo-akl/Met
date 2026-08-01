@@ -160,7 +160,7 @@ describe("venue application lifecycle", () => {
     expect(response.body.history[0].internalNote).toBeUndefined();
   });
 
-  it("allows only rejected applications to be resubmitted", async () => {
+  it("refuses to resubmit an application that is still awaiting review", async () => {
     dbMocks.chain.limit.mockResolvedValueOnce([
       { id: 7, applicationStatus: "submitted" },
     ]);
@@ -170,7 +170,32 @@ describe("venue application lifecycle", () => {
       .send(validApplication);
 
     expect(response.status).toBe(409);
-    expect(response.body.message).toMatch(/rejected/i);
+    expect(response.body.message).toMatch(/declined or sent back for changes/i);
+  });
+
+  it("lets an applicant resubmit after the reviewer asked for changes", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([{ id: 7, applicationStatus: "changes_requested" }])
+      // No other owner holds the place.
+      .mockResolvedValueOnce([]);
+    dbMocks.chain.returning.mockReset();
+    dbMocks.chain.returning.mockResolvedValue([
+      { ...submittedProfile, applicationStatus: "resubmitted" },
+    ]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/reapply")
+      .send(validApplication);
+
+    expect(response.status).toBe(200);
+    expect(response.body.profile.status).toBe("resubmitted");
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "resubmitted",
+        fromStatus: "changes_requested",
+        toStatus: "resubmitted",
+      }),
+    );
   });
 
   it("does not expose legacy header-secret review endpoints", async () => {

@@ -23,6 +23,36 @@ export interface VenueAdminSession {
   expiresAt: string;
 }
 
+export type VenueApplicationApplicationStatus =
+  (typeof VenueApplicationApplicationStatus)[keyof typeof VenueApplicationApplicationStatus];
+
+export const VenueApplicationApplicationStatus = {
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  changes_requested: "changes_requested",
+  rejected: "rejected",
+  resubmitted: "resubmitted",
+  approved: "approved",
+  withdrawn: "withdrawn",
+  expired: "expired",
+} as const;
+
+export type VenueApplicationStatus =
+  (typeof VenueApplicationStatus)[keyof typeof VenueApplicationStatus];
+
+export const VenueApplicationStatus = {
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  changes_requested: "changes_requested",
+  rejected: "rejected",
+  resubmitted: "resubmitted",
+  approved: "approved",
+  withdrawn: "withdrawn",
+  expired: "expired",
+} as const;
+
 export interface VenueApplication {
   id: number;
   ownerUid: string;
@@ -45,16 +75,118 @@ export interface VenueApplication {
   isVerified: boolean;
   /** @nullable */
   rejectionReason?: string | null;
+  applicationStatus: VenueApplicationApplicationStatus;
+  status?: VenueApplicationStatus;
+  statusLabel?: string;
+  /** @nullable */
+  submittedAt?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  /** @nullable */
+  approvedAt?: string | null;
+  /** @nullable */
+  rejectedAt?: string | null;
+  /** @nullable */
+  withdrawnAt?: string | null;
+  /** @nullable */
+  expiredAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface VenueApplicationList {
-  pending: VenueApplication[];
+/**
+ * Total applications per lifecycle status, ignoring the current filters.
+ */
+export type VenueApplicationQueueCounts = { [key: string]: number };
+
+export interface VenueApplicationQueue {
+  applications: VenueApplication[];
+  /** Total applications per lifecycle status, ignoring the current filters. */
+  counts: VenueApplicationQueueCounts;
 }
 
 export interface VenueApplicationResponse {
   profile: VenueApplication;
+}
+
+export type VenueApplicationStatusValue =
+  (typeof VenueApplicationStatusValue)[keyof typeof VenueApplicationStatusValue];
+
+export const VenueApplicationStatusValue = {
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  changes_requested: "changes_requested",
+  rejected: "rejected",
+  resubmitted: "resubmitted",
+  approved: "approved",
+  withdrawn: "withdrawn",
+  expired: "expired",
+} as const;
+
+/**
+ * Shared reviewer decision envelope. `expectedStatus` is an optimistic
+concurrency guard: when supplied and the application has since moved on,
+the decision is refused with 409 instead of overwriting a newer one.
+
+ */
+export interface VenueApplicationDecision {
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  internalNote?: string;
+  expectedStatus?: VenueApplicationStatusValue;
+}
+
+export interface VenueApplicationNoteOnly {
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  internalNote?: string;
+}
+
+export interface VenueApplicationNote {
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  internalNote: string;
+}
+
+export interface VenueApplicationConflict {
+  message: string;
+  currentStatus?: VenueApplicationStatusValue;
+}
+
+export interface VenueApplicationChangeRequest {
+  /**
+   * Shown to the applicant — say exactly what to fix.
+   * @minLength 3
+   * @maxLength 500
+   */
+  message: string;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  internalNote?: string;
+  expectedStatus?: VenueApplicationStatusValue;
+}
+
+export interface VenueApplicationWithdrawal {
+  /**
+   * @minLength 3
+   * @maxLength 500
+   */
+  reason: string;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  internalNote?: string;
+  expectedStatus?: VenueApplicationStatusValue;
 }
 
 export interface VenueApplicationRejection {
@@ -63,6 +195,143 @@ export interface VenueApplicationRejection {
    * @maxLength 500
    */
   reason: string;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  internalNote?: string;
+  expectedStatus?: VenueApplicationStatusValue;
+}
+
+/**
+ * @nullable
+ */
+export type VenueApplicationHistoryEntryFromStatus =
+  | (typeof VenueApplicationHistoryEntryFromStatus)[keyof typeof VenueApplicationHistoryEntryFromStatus]
+  | null;
+
+export const VenueApplicationHistoryEntryFromStatus = {
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  changes_requested: "changes_requested",
+  rejected: "rejected",
+  resubmitted: "resubmitted",
+  approved: "approved",
+  withdrawn: "withdrawn",
+  expired: "expired",
+} as const;
+
+/**
+ * @nullable
+ */
+export type VenueApplicationHistoryEntryToStatus =
+  | (typeof VenueApplicationHistoryEntryToStatus)[keyof typeof VenueApplicationHistoryEntryToStatus]
+  | null;
+
+export const VenueApplicationHistoryEntryToStatus = {
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  changes_requested: "changes_requested",
+  rejected: "rejected",
+  resubmitted: "resubmitted",
+  approved: "approved",
+  withdrawn: "withdrawn",
+  expired: "expired",
+} as const;
+
+export interface VenueApplicationHistoryEntry {
+  id: number;
+  eventType: string;
+  /** @nullable */
+  fromStatus?: VenueApplicationHistoryEntryFromStatus;
+  /** @nullable */
+  toStatus?: VenueApplicationHistoryEntryToStatus;
+  /** @nullable */
+  applicantMessage?: string | null;
+  createdAt: string;
+}
+
+export interface VenueApplicationStatusResponse {
+  application: VenueApplication;
+  history: VenueApplicationHistoryEntry[];
+}
+
+/**
+ * @nullable
+ */
+export type VenueApplicationReviewHistoryEntryFromStatus =
+  | (typeof VenueApplicationReviewHistoryEntryFromStatus)[keyof typeof VenueApplicationReviewHistoryEntryFromStatus]
+  | null;
+
+export const VenueApplicationReviewHistoryEntryFromStatus = {
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  changes_requested: "changes_requested",
+  rejected: "rejected",
+  resubmitted: "resubmitted",
+  approved: "approved",
+  withdrawn: "withdrawn",
+  expired: "expired",
+} as const;
+
+/**
+ * @nullable
+ */
+export type VenueApplicationReviewHistoryEntryToStatus =
+  | (typeof VenueApplicationReviewHistoryEntryToStatus)[keyof typeof VenueApplicationReviewHistoryEntryToStatus]
+  | null;
+
+export const VenueApplicationReviewHistoryEntryToStatus = {
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  changes_requested: "changes_requested",
+  rejected: "rejected",
+  resubmitted: "resubmitted",
+  approved: "approved",
+  withdrawn: "withdrawn",
+  expired: "expired",
+} as const;
+
+export type VenueApplicationReviewHistoryEntryActorRole =
+  (typeof VenueApplicationReviewHistoryEntryActorRole)[keyof typeof VenueApplicationReviewHistoryEntryActorRole];
+
+export const VenueApplicationReviewHistoryEntryActorRole = {
+  applicant: "applicant",
+  admin: "admin",
+  system: "system",
+} as const;
+
+/**
+ * Reviewer-facing audit entry. Includes internal notes.
+ */
+export interface VenueApplicationReviewHistoryEntry {
+  id: number;
+  eventType: string;
+  /** @nullable */
+  fromStatus?: VenueApplicationReviewHistoryEntryFromStatus;
+  /** @nullable */
+  toStatus?: VenueApplicationReviewHistoryEntryToStatus;
+  actorRole: VenueApplicationReviewHistoryEntryActorRole;
+  /** @nullable */
+  actorUid?: string | null;
+  /** @nullable */
+  applicantMessage?: string | null;
+  /** @nullable */
+  internalNote?: string | null;
+  createdAt: string;
+}
+
+export interface VenueApplicationReviewDetail {
+  application: VenueApplication;
+  history: VenueApplicationReviewHistoryEntry[];
+}
+
+export interface VenueApplicationStatusMutationResponse {
+  application: VenueApplication;
 }
 
 export type ProfileSocials = { [key: string]: string };
@@ -602,4 +871,19 @@ export type InviteToNetwork200 = {
 
 export type DeleteAnnouncement200 = {
   success: boolean;
+};
+
+export type ListVenueApplicationsParams = {
+  /**
+   * `queue` (default), `all`, or a comma-separated list of lifecycle statuses.
+   */
+  status?: string;
+  /**
+   * Only include applications created at or after this instant.
+   */
+  from?: string;
+  /**
+   * Only include applications created before this instant.
+   */
+  to?: string;
 };

@@ -7,12 +7,13 @@
  */
 import type { VenueApplicationStatusValue } from "./venueApplicationStatusValue";
 
-export interface VenueApplicationRejection {
+export interface VenueApplicationChangeRequest {
   /**
+   * Shown to the applicant — say exactly what to fix.
    * @minLength 3
    * @maxLength 500
    */
-  reason: string;
+  message: string;
   /**
    * @minLength 1
    * @maxLength 1000

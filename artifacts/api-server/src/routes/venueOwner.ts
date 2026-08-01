@@ -43,6 +43,7 @@ import {
   sql,
   count,
   isNull,
+  inArray,
   ne,
 } from "drizzle-orm";
 import {
@@ -67,6 +68,7 @@ const venueApplicationStatuses = [
   "draft",
   "submitted",
   "under_review",
+  "changes_requested",
   "rejected",
   "resubmitted",
   "approved",
@@ -79,12 +81,27 @@ const APPLICATION_STATUS_LABELS: Record<VenueApplicationStatus, string> = {
   draft: "Draft",
   submitted: "Submitted",
   under_review: "Under review",
+  changes_requested: "Changes requested",
   rejected: "Not approved",
   resubmitted: "Resubmitted",
   approved: "Approved",
   withdrawn: "Withdrawn",
   expired: "Expired",
 };
+
+/**
+ * Statuses where the application is sitting in the reviewer's queue. Every
+ * admin decision transitions *out* of this set, which is what makes a repeated
+ * or concurrent decision a no-op conflict rather than an overwrite.
+ */
+const REVIEWABLE_STATUSES = ["submitted", "under_review", "resubmitted"] as const;
+
+/** Statuses where the applicant still holds the venue but owes us an update. */
+const APPLICANT_ACTION_STATUSES = ["rejected", "changes_requested"] as const;
+
+function isReviewable(status: string): boolean {
+  return (REVIEWABLE_STATUSES as readonly string[]).includes(status);
+}
 
 const venueApplicationInputSchema = z.object({
   placeId: z.string().trim().min(1).max(255),
@@ -118,20 +135,6 @@ function adminSessionOptions(req: Request) {
 // ---------------------------------------------------------------------------
 // Security helpers
 // ---------------------------------------------------------------------------
-
-/** Guards admin-only endpoints: X-Admin-Secret header must match ADMIN_SECRET env. */
-function requireAdminSecret(req: Request, res: Response, next: NextFunction): void {
-  const secret = process.env["ADMIN_SECRET"];
-  if (!secret) {
-    res.status(503).json({ message: "Admin endpoints are not enabled" });
-    return;
-  }
-  if (req.header("x-admin-secret") !== secret) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
-  next();
-}
 
 function hasValidAdminSession(req: Request): boolean {
   if (!process.env["SESSION_SECRET"]) return false;
@@ -209,18 +212,26 @@ function serializeApplicationProfile(
   };
 }
 
-async function appendApplicationHistory(input: {
-  venueOwnerProfileId: number;
-  eventType: typeof venueApplicationHistoryTable.$inferInsert["eventType"];
-  fromStatus?: VenueApplicationStatus | null;
-  toStatus?: VenueApplicationStatus | null;
-  actorRole: "applicant" | "admin" | "system";
-  actorUid?: string | null;
-  applicantMessage?: string | null;
-  internalNote?: string | null;
-  metadata?: Record<string, unknown> | null;
-}): Promise<void> {
-  await db.insert(venueApplicationHistoryTable).values({
+type HistoryEventType = typeof venueApplicationHistoryTable.$inferInsert["eventType"];
+
+/** Minimal surface shared by `db` and a Drizzle transaction handle. */
+type DbExecutor = Pick<typeof db, "insert">;
+
+async function appendApplicationHistory(
+  input: {
+    venueOwnerProfileId: number;
+    eventType: HistoryEventType;
+    fromStatus?: VenueApplicationStatus | null;
+    toStatus?: VenueApplicationStatus | null;
+    actorRole: "applicant" | "admin" | "system";
+    actorUid?: string | null;
+    applicantMessage?: string | null;
+    internalNote?: string | null;
+    metadata?: Record<string, unknown> | null;
+  },
+  executor: DbExecutor = db,
+): Promise<void> {
+  await executor.insert(venueApplicationHistoryTable).values({
     ...input,
     fromStatus: input.fromStatus ?? null,
     toStatus: input.toStatus ?? null,
@@ -531,12 +542,13 @@ router.post(
       res.status(404).json({ message: "No venue owner profile found" });
       return;
     }
-    if (existing.applicationStatus !== "rejected") {
+    if (!(APPLICANT_ACTION_STATUSES as readonly string[]).includes(existing.applicationStatus)) {
       res.status(409).json({
-        message: "Only a rejected application can be resubmitted.",
+        message: "Only an application that was declined or sent back for changes can be resubmitted.",
       });
       return;
     }
+    const previousStatus = existing.applicationStatus as VenueApplicationStatus;
     if (await placeIsClaimedByAnotherOwner(data.placeId, uid)) {
       res.status(409).json({ message: "This venue is already claimed" });
       return;
@@ -566,7 +578,7 @@ router.post(
       await appendApplicationHistory({
         venueOwnerProfileId: profile.id,
         eventType: "resubmitted",
-        fromStatus: "rejected",
+        fromStatus: previousStatus,
         toStatus: "resubmitted",
         actorRole: "applicant",
         actorUid: uid,
@@ -598,7 +610,7 @@ router.post(
       res.status(404).json({ message: "No venue application found" });
       return;
     }
-    if (!["submitted", "under_review", "resubmitted"].includes(existing.applicationStatus)) {
+    if (!isReviewable(existing.applicationStatus)) {
       res.status(409).json({ message: "This application cannot be withdrawn in its current state" });
       return;
     }
@@ -1676,20 +1688,278 @@ router.delete(
 );
 
 /**
+ * Applies a reviewer decision as a single conditional update plus an
+ * append-only history row.
+ *
+ * The UPDATE carries its own `status IN (allowedFrom)` predicate, so two
+ * reviewers acting on the same application race at the database rather than in
+ * route code: the first decision matches, the second matches zero rows and is
+ * reported as a conflict instead of silently overwriting a newer decision.
+ */
+type TransitionResult =
+  | { ok: true; profile: typeof venueOwnerProfilesTable.$inferSelect; fromStatus: VenueApplicationStatus }
+  | { ok: false; status: 404 | 409; message: string; currentStatus?: VenueApplicationStatus };
+
+async function transitionApplication(input: {
+  profileId: number;
+  allowedFrom: readonly VenueApplicationStatus[];
+  expectedStatus?: VenueApplicationStatus | undefined;
+  toStatus: VenueApplicationStatus;
+  eventType: HistoryEventType;
+  patch: Partial<typeof venueOwnerProfilesTable.$inferInsert>;
+  applicantMessage?: string | null;
+  internalNote?: string | null;
+  conflictMessage: string;
+}): Promise<TransitionResult> {
+  const [existing] = await db
+    .select()
+    .from(venueOwnerProfilesTable)
+    .where(eq(venueOwnerProfilesTable.id, input.profileId))
+    .limit(1);
+  if (!existing) {
+    return { ok: false, status: 404, message: "Application not found" };
+  }
+
+  const currentStatus = existing.applicationStatus as VenueApplicationStatus;
+
+  // Optimistic concurrency: the reviewer decided while looking at a specific
+  // state. If it moved underneath them, make them re-read before deciding.
+  if (input.expectedStatus && input.expectedStatus !== currentStatus) {
+    return {
+      ok: false,
+      status: 409,
+      message: `This application changed to "${APPLICATION_STATUS_LABELS[currentStatus]}" while you were reviewing it. Refresh to see the latest decision.`,
+      currentStatus,
+    };
+  }
+  if (!input.allowedFrom.includes(currentStatus)) {
+    return { ok: false, status: 409, message: input.conflictMessage, currentStatus };
+  }
+
+  const now = new Date();
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(venueOwnerProfilesTable)
+      .set({ ...input.patch, applicationStatus: input.toStatus, updatedAt: now })
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.id, input.profileId),
+          inArray(venueOwnerProfilesTable.applicationStatus, [...input.allowedFrom]),
+        ),
+      )
+      .returning();
+    if (!row) return null;
+
+    await appendApplicationHistory(
+      {
+        venueOwnerProfileId: row.id,
+        eventType: input.eventType,
+        fromStatus: currentStatus,
+        toStatus: input.toStatus,
+        actorRole: "admin",
+        applicantMessage: input.applicantMessage ?? null,
+        internalNote: input.internalNote ?? null,
+      },
+      tx,
+    );
+    return row;
+  });
+
+  if (!updated) {
+    return { ok: false, status: 409, message: input.conflictMessage, currentStatus };
+  }
+  return { ok: true, profile: updated, fromStatus: currentStatus };
+}
+
+function parseProfileId(raw: unknown): number | null {
+  const id = Number.parseInt(String(raw ?? ""), 10);
+  return Number.isNaN(id) || id < 1 ? null : id;
+}
+
+async function notifyApplicant(
+  req: Request,
+  profile: typeof venueOwnerProfilesTable.$inferSelect,
+  payload: { title: string; body: string; type: string },
+): Promise<void> {
+  try {
+    await sendPush(profile.ownerUid, {
+      title: payload.title,
+      body: payload.body,
+      data: { type: payload.type, placeId: profile.placeId },
+    });
+  } catch {
+    req.log?.warn(
+      { profileId: profile.id, type: payload.type },
+      "Venue review notification could not be delivered",
+    );
+  }
+}
+
+const reviewNoteSchema = z.string().trim().min(1).max(1000);
+
+const adminListQuerySchema = z.object({
+  status: z.string().trim().optional(),
+  from: z.string().trim().optional(),
+  to: z.string().trim().optional(),
+});
+
+/**
  * GET /admin/venue-owner/applications
+ * Query: ?status=submitted,under_review | ?status=all &from=ISO &to=ISO
+ *
+ * Defaults to the review queue (applications actually awaiting a decision) so
+ * the portal never presents an already-decided application as actionable.
  */
 router.get(
   "/admin/venue-owner/applications",
   requireAdminSession,
-  async (_req: Request, res: Response): Promise<void> => {
-    const pending = await db
+  async (req: Request, res: Response): Promise<void> => {
+    const parsedQuery = adminListQuerySchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      res.status(400).json({ message: "Invalid filters" });
+      return;
+    }
+    const { status, from, to } = parsedQuery.data;
+
+    let statuses: VenueApplicationStatus[] = [...REVIEWABLE_STATUSES];
+    if (status && status !== "queue") {
+      if (status === "all") {
+        statuses = [...venueApplicationStatuses];
+      } else {
+        const requested = status.split(",").map((value) => value.trim()).filter(Boolean);
+        const invalid = requested.filter(
+          (value) => !(venueApplicationStatuses as readonly string[]).includes(value),
+        );
+        if (invalid.length > 0 || requested.length === 0) {
+          res.status(400).json({ message: `Unknown application status: ${invalid.join(", ") || "(none)"}` });
+          return;
+        }
+        statuses = requested as VenueApplicationStatus[];
+      }
+    }
+
+    const filters = [inArray(venueOwnerProfilesTable.applicationStatus, statuses)];
+    if (from) {
+      const fromDate = new Date(from);
+      if (Number.isNaN(fromDate.getTime())) {
+        res.status(400).json({ message: "Invalid 'from' date" });
+        return;
+      }
+      filters.push(gte(venueOwnerProfilesTable.createdAt, fromDate));
+    }
+    if (to) {
+      const toDate = new Date(to);
+      if (Number.isNaN(toDate.getTime())) {
+        res.status(400).json({ message: "Invalid 'to' date" });
+        return;
+      }
+      filters.push(lt(venueOwnerProfilesTable.createdAt, toDate));
+    }
+
+    const applications = await db
       .select()
       .from(venueOwnerProfilesTable)
-      .where(
-        sql`${venueOwnerProfilesTable.applicationStatus} IN ('submitted', 'under_review', 'resubmitted')`,
-      )
-      .orderBy(venueOwnerProfilesTable.createdAt);
-    res.json({ pending: pending.map(serializeApplicationProfile) });
+      .where(and(...filters))
+      .orderBy(desc(venueOwnerProfilesTable.createdAt));
+
+    const countRows = await db
+      .select({ status: venueOwnerProfilesTable.applicationStatus, total: count() })
+      .from(venueOwnerProfilesTable)
+      .groupBy(venueOwnerProfilesTable.applicationStatus);
+
+    const counts: Record<string, number> = {};
+    for (const row of countRows ?? []) {
+      counts[row.status] = Number(row.total);
+    }
+
+    res.json({
+      applications: applications.map(serializeApplicationProfile),
+      counts,
+    });
+  },
+);
+
+/**
+ * GET /admin/venue-owner/applications/:id
+ * Full reviewer view: current application plus the complete audit trail,
+ * including internal notes that are never exposed to the applicant.
+ */
+router.get(
+  "/admin/venue-owner/applications/:id",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+    const [profile] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .limit(1);
+    if (!profile) {
+      res.status(404).json({ message: "Application not found" });
+      return;
+    }
+    const history = await db
+      .select()
+      .from(venueApplicationHistoryTable)
+      .where(eq(venueApplicationHistoryTable.venueOwnerProfileId, profileId))
+      .orderBy(venueApplicationHistoryTable.createdAt);
+
+    res.json({
+      application: serializeApplicationProfile(profile),
+      history: (history ?? []).map((entry) => ({
+        id: entry.id,
+        eventType: entry.eventType,
+        fromStatus: entry.fromStatus,
+        toStatus: entry.toStatus,
+        actorRole: entry.actorRole,
+        actorUid: entry.actorUid,
+        applicantMessage: entry.applicantMessage,
+        internalNote: entry.internalNote,
+        createdAt: entry.createdAt,
+      })),
+    });
+  },
+);
+
+/**
+ * POST /admin/venue-owner/applications/:id/start-review
+ * Claims an application so the queue shows it is actively being looked at.
+ */
+router.post(
+  "/admin/venue-owner/applications/:id/start-review",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+    const parsed = z
+      .object({ internalNote: reviewNoteSchema.optional() })
+      .safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input" });
+      return;
+    }
+
+    const result = await transitionApplication({
+      profileId,
+      allowedFrom: ["submitted", "resubmitted"],
+      toStatus: "under_review",
+      eventType: "under_review",
+      patch: {},
+      internalNote: parsed.data.internalNote ?? null,
+      conflictMessage: "This application is no longer waiting to be picked up",
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ message: result.message, currentStatus: result.currentStatus });
+      return;
+    }
+    res.json({ profile: serializeApplicationProfile(result.profile) });
   },
 );
 
@@ -1700,69 +1970,52 @@ router.post(
   "/admin/venue-owner/applications/:id/approve",
   requireAdminSession,
   async (req: Request, res: Response): Promise<void> => {
-    const profileId = parseInt(String(req.params["id"] ?? ""), 10);
-    if (isNaN(profileId)) {
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
       res.status(400).json({ message: "Invalid profile id" });
       return;
     }
-
-    const [existing] = await db
-      .select()
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.id, profileId))
-      .limit(1);
-    if (!existing) {
-      res.status(404).json({ message: "Profile not found" });
+    const parsed = z
+      .object({
+        internalNote: reviewNoteSchema.optional(),
+        expectedStatus: z.enum(venueApplicationStatuses).optional(),
+      })
+      .safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input" });
       return;
     }
 
-    if (!["submitted", "under_review", "resubmitted"].includes(existing.applicationStatus)) {
-      res.status(409).json({ message: "This application is no longer awaiting review" });
-      return;
-    }
     const now = new Date();
-    const [updated] = await db
-      .update(venueOwnerProfilesTable)
-      .set({
-        applicationStatus: "approved",
+    const result = await transitionApplication({
+      profileId,
+      allowedFrom: REVIEWABLE_STATUSES,
+      expectedStatus: parsed.data.expectedStatus,
+      toStatus: "approved",
+      eventType: "approved",
+      patch: {
         isApproved: true,
         isVerified: true,
         rejectionReason: null,
         reviewedAt: now,
         approvedAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(venueOwnerProfilesTable.id, profileId),
-          sql`${venueOwnerProfilesTable.applicationStatus} IN ('submitted', 'under_review', 'resubmitted')`,
-        ),
-      )
-      .returning();
-    if (!updated) {
-      res.status(409).json({ message: "This application was already reviewed" });
+      },
+      applicantMessage: "Your venue application has been approved.",
+      internalNote: parsed.data.internalNote ?? null,
+      conflictMessage: "This application is no longer awaiting review",
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ message: result.message, currentStatus: result.currentStatus });
       return;
     }
-    await appendApplicationHistory({
-      venueOwnerProfileId: updated.id,
-      eventType: "approved",
-      fromStatus: existing.applicationStatus,
-      toStatus: "approved",
-      actorRole: "admin",
-      applicantMessage: "Your venue application has been approved.",
+
+    await notifyApplicant(req, result.profile, {
+      title: "Venue approved",
+      body: `Your venue "${result.profile.businessName}" has been approved. You can now create events, rewards, and announcements.`,
+      type: "venue_owner_approved",
     });
 
-    try {
-      await sendPush(existing.ownerUid, {
-        title: "Venue approved",
-        body: `Your venue "${existing.businessName}" has been approved. You can now create events, rewards, and announcements.`,
-        data: { type: "venue_owner_approved", placeId: existing.placeId },
-      });
-    } catch {
-      req.log?.warn({ profileId }, "Venue approval notification could not be delivered");
-    }
-
-    res.json({ profile: serializeApplicationProfile(updated) });
+    res.json({ profile: serializeApplicationProfile(result.profile) });
   },
 );
 
@@ -1773,74 +2026,211 @@ router.post(
   "/admin/venue-owner/applications/:id/reject",
   requireAdminSession,
   async (req: Request, res: Response): Promise<void> => {
-    const profileId = parseInt(String(req.params["id"] ?? ""), 10);
-    const parsed = z.object({ reason: z.string().trim().min(3).max(500) }).safeParse(req.body);
-    if (isNaN(profileId)) {
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
       res.status(400).json({ message: "Invalid profile id" });
       return;
     }
+    const parsed = z
+      .object({
+        reason: z.string().trim().min(3).max(500),
+        internalNote: reviewNoteSchema.optional(),
+        expectedStatus: z.enum(venueApplicationStatuses).optional(),
+      })
+      .safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ message: "A rejection reason of at least 3 characters is required" });
       return;
     }
 
-    const [existing] = await db
-      .select()
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.id, profileId))
-      .limit(1);
-    if (!existing) {
-      res.status(404).json({ message: "Profile not found" });
-      return;
-    }
-
-    if (!["submitted", "under_review", "resubmitted"].includes(existing.applicationStatus)) {
-      res.status(409).json({ message: "This application is no longer awaiting review" });
-      return;
-    }
     const now = new Date();
-    const [updated] = await db
-      .update(venueOwnerProfilesTable)
-      .set({
-        applicationStatus: "rejected",
+    const result = await transitionApplication({
+      profileId,
+      allowedFrom: REVIEWABLE_STATUSES,
+      expectedStatus: parsed.data.expectedStatus,
+      toStatus: "rejected",
+      eventType: "rejected",
+      patch: {
         isApproved: false,
         isVerified: false,
         rejectionReason: parsed.data.reason,
         reviewedAt: now,
         rejectedAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(venueOwnerProfilesTable.id, profileId),
-          sql`${venueOwnerProfilesTable.applicationStatus} IN ('submitted', 'under_review', 'resubmitted')`,
-        ),
-      )
-      .returning();
-    if (!updated) {
-      res.status(409).json({ message: "This application was already reviewed" });
+      },
+      applicantMessage: parsed.data.reason,
+      internalNote: parsed.data.internalNote ?? null,
+      conflictMessage: "This application is no longer awaiting review",
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ message: result.message, currentStatus: result.currentStatus });
       return;
     }
-    await appendApplicationHistory({
-      venueOwnerProfileId: updated.id,
-      eventType: "rejected",
-      fromStatus: existing.applicationStatus,
-      toStatus: "rejected",
-      actorRole: "admin",
-      applicantMessage: parsed.data.reason,
+
+    await notifyApplicant(req, result.profile, {
+      title: "Venue application update",
+      body: `Your venue application for "${result.profile.businessName}" was not approved. Reason: ${parsed.data.reason}`,
+      type: "venue_owner_rejected",
     });
 
-    try {
-      await sendPush(existing.ownerUid, {
-        title: "Venue application update",
-        body: `Your venue application for "${existing.businessName}" was not approved. Reason: ${parsed.data.reason}`,
-        data: { type: "venue_owner_rejected", placeId: existing.placeId },
+    res.json({ profile: serializeApplicationProfile(result.profile) });
+  },
+);
+
+/**
+ * POST /admin/venue-owner/applications/:id/request-changes
+ * Hands the application back to the applicant without burning the claim: the
+ * venue stays reserved for them while they fix what the reviewer flagged.
+ */
+router.post(
+  "/admin/venue-owner/applications/:id/request-changes",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+    const parsed = z
+      .object({
+        message: z.string().trim().min(3).max(500),
+        internalNote: reviewNoteSchema.optional(),
+        expectedStatus: z.enum(venueApplicationStatuses).optional(),
+      })
+      .safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({
+        message: "Tell the applicant what to change (at least 3 characters)",
       });
-    } catch {
-      req.log?.warn({ profileId }, "Venue rejection notification could not be delivered");
+      return;
     }
 
-    res.json({ profile: serializeApplicationProfile(updated) });
+    const result = await transitionApplication({
+      profileId,
+      allowedFrom: REVIEWABLE_STATUSES,
+      expectedStatus: parsed.data.expectedStatus,
+      toStatus: "changes_requested",
+      eventType: "changes_requested",
+      patch: {
+        isApproved: false,
+        isVerified: false,
+        rejectionReason: parsed.data.message,
+        reviewedAt: new Date(),
+      },
+      applicantMessage: parsed.data.message,
+      internalNote: parsed.data.internalNote ?? null,
+      conflictMessage: "This application is no longer awaiting review",
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ message: result.message, currentStatus: result.currentStatus });
+      return;
+    }
+
+    await notifyApplicant(req, result.profile, {
+      title: "Update needed for your venue application",
+      body: `We need a change before approving "${result.profile.businessName}": ${parsed.data.message}`,
+      type: "venue_owner_changes_requested",
+    });
+
+    res.json({ profile: serializeApplicationProfile(result.profile) });
+  },
+);
+
+/**
+ * POST /admin/venue-owner/applications/:id/withdraw
+ * Administrative withdrawal (duplicate submission, applicant asked by email,
+ * spam). Terminal, and releases the venue for a future claim.
+ */
+router.post(
+  "/admin/venue-owner/applications/:id/withdraw",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+    const parsed = z
+      .object({
+        reason: z.string().trim().min(3).max(500),
+        internalNote: reviewNoteSchema.optional(),
+        expectedStatus: z.enum(venueApplicationStatuses).optional(),
+      })
+      .safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "A withdrawal reason of at least 3 characters is required" });
+      return;
+    }
+
+    const result = await transitionApplication({
+      profileId,
+      allowedFrom: [...REVIEWABLE_STATUSES, "changes_requested"],
+      expectedStatus: parsed.data.expectedStatus,
+      toStatus: "withdrawn",
+      eventType: "withdrawn",
+      patch: {
+        isApproved: false,
+        isVerified: false,
+        withdrawnAt: new Date(),
+      },
+      applicantMessage: parsed.data.reason,
+      internalNote: parsed.data.internalNote ?? null,
+      conflictMessage: "This application can no longer be withdrawn",
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ message: result.message, currentStatus: result.currentStatus });
+      return;
+    }
+
+    await notifyApplicant(req, result.profile, {
+      title: "Venue application withdrawn",
+      body: `Your venue application for "${result.profile.businessName}" was withdrawn. Reason: ${parsed.data.reason}`,
+      type: "venue_owner_withdrawn",
+    });
+
+    res.json({ profile: serializeApplicationProfile(result.profile) });
+  },
+);
+
+/**
+ * POST /admin/venue-owner/applications/:id/notes
+ * Records an internal reviewer note without changing the application state.
+ * Never surfaced to the applicant.
+ */
+router.post(
+  "/admin/venue-owner/applications/:id/notes",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+    const parsed = z.object({ internalNote: reviewNoteSchema }).safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "An internal note is required" });
+      return;
+    }
+
+    const [profile] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .limit(1);
+    if (!profile) {
+      res.status(404).json({ message: "Application not found" });
+      return;
+    }
+
+    await appendApplicationHistory({
+      venueOwnerProfileId: profile.id,
+      eventType: "review_note_added",
+      fromStatus: profile.applicationStatus as VenueApplicationStatus,
+      toStatus: profile.applicationStatus as VenueApplicationStatus,
+      actorRole: "admin",
+      internalNote: parsed.data.internalNote,
+    });
+
+    res.status(201).json({ profile: serializeApplicationProfile(profile) });
   },
 );
 

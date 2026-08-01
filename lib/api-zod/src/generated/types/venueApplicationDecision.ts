@@ -7,12 +7,13 @@
  */
 import type { VenueApplicationStatusValue } from "./venueApplicationStatusValue";
 
-export interface VenueApplicationRejection {
-  /**
-   * @minLength 3
-   * @maxLength 500
-   */
-  reason: string;
+/**
+ * Shared reviewer decision envelope. `expectedStatus` is an optimistic
+concurrency guard: when supplied and the application has since moved on,
+the decision is refused with 409 instead of overwriting a newer one.
+
+ */
+export interface VenueApplicationDecision {
   /**
    * @minLength 1
    * @maxLength 1000

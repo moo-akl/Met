@@ -1447,10 +1447,177 @@ export const CreateVenueAdminSessionResponse = zod.object({
 });
 
 /**
- * @summary List venue applications awaiting review
+ * @summary Get my venue application's current lifecycle status and history
  */
-export const ListPendingVenueApplicationsResponse = zod.object({
-  pending: zod.array(
+export const GetMyVenueApplicationResponse = zod.object({
+  application: zod.object({
+    id: zod.number(),
+    ownerUid: zod.string(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    lat: zod.string().nullish(),
+    lng: zod.string().nullish(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    verificationDocUrl: zod.string().url().nullish(),
+    registrationNotes: zod.string().nullish(),
+    isApproved: zod.boolean(),
+    isVerified: zod.boolean(),
+    rejectionReason: zod.string().nullish(),
+    applicationStatus: zod.enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ]),
+    status: zod
+      .enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ])
+      .optional(),
+    statusLabel: zod.string().optional(),
+    submittedAt: zod.coerce.date().nullish(),
+    reviewedAt: zod.coerce.date().nullish(),
+    approvedAt: zod.coerce.date().nullish(),
+    rejectedAt: zod.coerce.date().nullish(),
+    withdrawnAt: zod.coerce.date().nullish(),
+    expiredAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+  history: zod.array(
+    zod.object({
+      id: zod.number(),
+      eventType: zod.string(),
+      fromStatus: zod
+        .union([
+          zod.literal("draft"),
+          zod.literal("submitted"),
+          zod.literal("under_review"),
+          zod.literal("changes_requested"),
+          zod.literal("rejected"),
+          zod.literal("resubmitted"),
+          zod.literal("approved"),
+          zod.literal("withdrawn"),
+          zod.literal("expired"),
+          zod.literal(null),
+        ])
+        .nullish(),
+      toStatus: zod
+        .union([
+          zod.literal("draft"),
+          zod.literal("submitted"),
+          zod.literal("under_review"),
+          zod.literal("changes_requested"),
+          zod.literal("rejected"),
+          zod.literal("resubmitted"),
+          zod.literal("approved"),
+          zod.literal("withdrawn"),
+          zod.literal("expired"),
+          zod.literal(null),
+        ])
+        .nullish(),
+      applicantMessage: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Withdraw my submitted venue application
+ */
+export const WithdrawMyVenueApplicationResponse = zod.object({
+  application: zod.object({
+    id: zod.number(),
+    ownerUid: zod.string(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    lat: zod.string().nullish(),
+    lng: zod.string().nullish(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    verificationDocUrl: zod.string().url().nullish(),
+    registrationNotes: zod.string().nullish(),
+    isApproved: zod.boolean(),
+    isVerified: zod.boolean(),
+    rejectionReason: zod.string().nullish(),
+    applicationStatus: zod.enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ]),
+    status: zod
+      .enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ])
+      .optional(),
+    statusLabel: zod.string().optional(),
+    submittedAt: zod.coerce.date().nullish(),
+    reviewedAt: zod.coerce.date().nullish(),
+    approvedAt: zod.coerce.date().nullish(),
+    rejectedAt: zod.coerce.date().nullish(),
+    withdrawnAt: zod.coerce.date().nullish(),
+    expiredAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+});
+
+/**
+ * Defaults to the live review queue (submitted, under_review,
+resubmitted). Pass `status=all`, or a comma-separated list of
+lifecycle statuses, to audit decided applications.
+
+ * @summary List venue applications for review
+ */
+export const ListVenueApplicationsQueryParams = zod.object({
+  status: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "`queue` (default), `all`, or a comma-separated list of lifecycle statuses.",
+    ),
+  from: zod
+    .date()
+    .optional()
+    .describe("Only include applications created at or after this instant."),
+  to: zod
+    .date()
+    .optional()
+    .describe("Only include applications created before this instant."),
+});
+
+export const ListVenueApplicationsResponse = zod.object({
+  applications: zod.array(
     zod.object({
       id: zod.number(),
       ownerUid: zod.string(),
@@ -1466,10 +1633,220 @@ export const ListPendingVenueApplicationsResponse = zod.object({
       isApproved: zod.boolean(),
       isVerified: zod.boolean(),
       rejectionReason: zod.string().nullish(),
+      applicationStatus: zod.enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ]),
+      status: zod
+        .enum([
+          "draft",
+          "submitted",
+          "under_review",
+          "changes_requested",
+          "rejected",
+          "resubmitted",
+          "approved",
+          "withdrawn",
+          "expired",
+        ])
+        .optional(),
+      statusLabel: zod.string().optional(),
+      submittedAt: zod.coerce.date().nullish(),
+      reviewedAt: zod.coerce.date().nullish(),
+      approvedAt: zod.coerce.date().nullish(),
+      rejectedAt: zod.coerce.date().nullish(),
+      withdrawnAt: zod.coerce.date().nullish(),
+      expiredAt: zod.coerce.date().nullish(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
   ),
+  counts: zod
+    .record(zod.string(), zod.number())
+    .describe(
+      "Total applications per lifecycle status, ignoring the current filters.",
+    ),
+});
+
+/**
+ * Reviewer-only view. Unlike the applicant status endpoint, the history
+returned here includes internal reviewer notes.
+
+ * @summary Get one application with its full audit trail
+ */
+
+export const GetVenueApplicationForReviewParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const GetVenueApplicationForReviewResponse = zod.object({
+  application: zod.object({
+    id: zod.number(),
+    ownerUid: zod.string(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    lat: zod.string().nullish(),
+    lng: zod.string().nullish(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    verificationDocUrl: zod.string().url().nullish(),
+    registrationNotes: zod.string().nullish(),
+    isApproved: zod.boolean(),
+    isVerified: zod.boolean(),
+    rejectionReason: zod.string().nullish(),
+    applicationStatus: zod.enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ]),
+    status: zod
+      .enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ])
+      .optional(),
+    statusLabel: zod.string().optional(),
+    submittedAt: zod.coerce.date().nullish(),
+    reviewedAt: zod.coerce.date().nullish(),
+    approvedAt: zod.coerce.date().nullish(),
+    rejectedAt: zod.coerce.date().nullish(),
+    withdrawnAt: zod.coerce.date().nullish(),
+    expiredAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+  history: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        eventType: zod.string(),
+        fromStatus: zod
+          .union([
+            zod.literal("draft"),
+            zod.literal("submitted"),
+            zod.literal("under_review"),
+            zod.literal("changes_requested"),
+            zod.literal("rejected"),
+            zod.literal("resubmitted"),
+            zod.literal("approved"),
+            zod.literal("withdrawn"),
+            zod.literal("expired"),
+            zod.literal(null),
+          ])
+          .nullish(),
+        toStatus: zod
+          .union([
+            zod.literal("draft"),
+            zod.literal("submitted"),
+            zod.literal("under_review"),
+            zod.literal("changes_requested"),
+            zod.literal("rejected"),
+            zod.literal("resubmitted"),
+            zod.literal("approved"),
+            zod.literal("withdrawn"),
+            zod.literal("expired"),
+            zod.literal(null),
+          ])
+          .nullish(),
+        actorRole: zod.enum(["applicant", "admin", "system"]),
+        actorUid: zod.string().nullish(),
+        applicantMessage: zod.string().nullish(),
+        internalNote: zod.string().nullish(),
+        createdAt: zod.coerce.date(),
+      })
+      .describe("Reviewer-facing audit entry. Includes internal notes."),
+  ),
+});
+
+/**
+ * @summary Mark an application as actively under review
+ */
+
+export const StartVenueApplicationReviewParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const startVenueApplicationReviewBodyInternalNoteMax = 1000;
+
+export const StartVenueApplicationReviewBody = zod.object({
+  internalNote: zod
+    .string()
+    .min(1)
+    .max(startVenueApplicationReviewBodyInternalNoteMax)
+    .optional(),
+});
+
+export const StartVenueApplicationReviewResponse = zod.object({
+  profile: zod.object({
+    id: zod.number(),
+    ownerUid: zod.string(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    lat: zod.string().nullish(),
+    lng: zod.string().nullish(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    verificationDocUrl: zod.string().url().nullish(),
+    registrationNotes: zod.string().nullish(),
+    isApproved: zod.boolean(),
+    isVerified: zod.boolean(),
+    rejectionReason: zod.string().nullish(),
+    applicationStatus: zod.enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ]),
+    status: zod
+      .enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ])
+      .optional(),
+    statusLabel: zod.string().optional(),
+    submittedAt: zod.coerce.date().nullish(),
+    reviewedAt: zod.coerce.date().nullish(),
+    approvedAt: zod.coerce.date().nullish(),
+    rejectedAt: zod.coerce.date().nullish(),
+    withdrawnAt: zod.coerce.date().nullish(),
+    expiredAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
 });
 
 /**
@@ -1479,6 +1856,33 @@ export const ListPendingVenueApplicationsResponse = zod.object({
 export const ApproveVenueApplicationParams = zod.object({
   id: zod.coerce.number().min(1),
 });
+
+export const approveVenueApplicationBodyInternalNoteMax = 1000;
+
+export const ApproveVenueApplicationBody = zod
+  .object({
+    internalNote: zod
+      .string()
+      .min(1)
+      .max(approveVenueApplicationBodyInternalNoteMax)
+      .optional(),
+    expectedStatus: zod
+      .enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ])
+      .optional(),
+  })
+  .describe(
+    "Shared reviewer decision envelope. `expectedStatus` is an optimistic\nconcurrency guard: when supplied and the application has since moved on,\nthe decision is refused with 409 instead of overwriting a newer one.\n",
+  );
 
 export const ApproveVenueApplicationResponse = zod.object({
   profile: zod.object({
@@ -1496,6 +1900,37 @@ export const ApproveVenueApplicationResponse = zod.object({
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),
+    applicationStatus: zod.enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ]),
+    status: zod
+      .enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ])
+      .optional(),
+    statusLabel: zod.string().optional(),
+    submittedAt: zod.coerce.date().nullish(),
+    reviewedAt: zod.coerce.date().nullish(),
+    approvedAt: zod.coerce.date().nullish(),
+    rejectedAt: zod.coerce.date().nullish(),
+    withdrawnAt: zod.coerce.date().nullish(),
+    expiredAt: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -1512,11 +1947,31 @@ export const RejectVenueApplicationParams = zod.object({
 export const rejectVenueApplicationBodyReasonMin = 3;
 export const rejectVenueApplicationBodyReasonMax = 500;
 
+export const rejectVenueApplicationBodyInternalNoteMax = 1000;
+
 export const RejectVenueApplicationBody = zod.object({
   reason: zod
     .string()
     .min(rejectVenueApplicationBodyReasonMin)
     .max(rejectVenueApplicationBodyReasonMax),
+  internalNote: zod
+    .string()
+    .min(1)
+    .max(rejectVenueApplicationBodyInternalNoteMax)
+    .optional(),
+  expectedStatus: zod
+    .enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ])
+    .optional(),
 });
 
 export const RejectVenueApplicationResponse = zod.object({
@@ -1535,7 +1990,239 @@ export const RejectVenueApplicationResponse = zod.object({
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),
+    applicationStatus: zod.enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ]),
+    status: zod
+      .enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ])
+      .optional(),
+    statusLabel: zod.string().optional(),
+    submittedAt: zod.coerce.date().nullish(),
+    reviewedAt: zod.coerce.date().nullish(),
+    approvedAt: zod.coerce.date().nullish(),
+    rejectedAt: zod.coerce.date().nullish(),
+    withdrawnAt: zod.coerce.date().nullish(),
+    expiredAt: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
+});
+
+/**
+ * Keeps the venue claim reserved for the applicant while they fix what
+the reviewer flagged, then resubmit.
+
+ * @summary Send an application back to the applicant for changes
+ */
+
+export const RequestVenueApplicationChangesParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const requestVenueApplicationChangesBodyMessageMin = 3;
+export const requestVenueApplicationChangesBodyMessageMax = 500;
+
+export const requestVenueApplicationChangesBodyInternalNoteMax = 1000;
+
+export const RequestVenueApplicationChangesBody = zod.object({
+  message: zod
+    .string()
+    .min(requestVenueApplicationChangesBodyMessageMin)
+    .max(requestVenueApplicationChangesBodyMessageMax)
+    .describe("Shown to the applicant — say exactly what to fix."),
+  internalNote: zod
+    .string()
+    .min(1)
+    .max(requestVenueApplicationChangesBodyInternalNoteMax)
+    .optional(),
+  expectedStatus: zod
+    .enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ])
+    .optional(),
+});
+
+export const RequestVenueApplicationChangesResponse = zod.object({
+  profile: zod.object({
+    id: zod.number(),
+    ownerUid: zod.string(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    lat: zod.string().nullish(),
+    lng: zod.string().nullish(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    verificationDocUrl: zod.string().url().nullish(),
+    registrationNotes: zod.string().nullish(),
+    isApproved: zod.boolean(),
+    isVerified: zod.boolean(),
+    rejectionReason: zod.string().nullish(),
+    applicationStatus: zod.enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ]),
+    status: zod
+      .enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ])
+      .optional(),
+    statusLabel: zod.string().optional(),
+    submittedAt: zod.coerce.date().nullish(),
+    reviewedAt: zod.coerce.date().nullish(),
+    approvedAt: zod.coerce.date().nullish(),
+    rejectedAt: zod.coerce.date().nullish(),
+    withdrawnAt: zod.coerce.date().nullish(),
+    expiredAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+});
+
+/**
+ * @summary Withdraw an application on the applicant's behalf
+ */
+
+export const WithdrawVenueApplicationAsAdminParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const withdrawVenueApplicationAsAdminBodyReasonMin = 3;
+export const withdrawVenueApplicationAsAdminBodyReasonMax = 500;
+
+export const withdrawVenueApplicationAsAdminBodyInternalNoteMax = 1000;
+
+export const WithdrawVenueApplicationAsAdminBody = zod.object({
+  reason: zod
+    .string()
+    .min(withdrawVenueApplicationAsAdminBodyReasonMin)
+    .max(withdrawVenueApplicationAsAdminBodyReasonMax),
+  internalNote: zod
+    .string()
+    .min(1)
+    .max(withdrawVenueApplicationAsAdminBodyInternalNoteMax)
+    .optional(),
+  expectedStatus: zod
+    .enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ])
+    .optional(),
+});
+
+export const WithdrawVenueApplicationAsAdminResponse = zod.object({
+  profile: zod.object({
+    id: zod.number(),
+    ownerUid: zod.string(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    lat: zod.string().nullish(),
+    lng: zod.string().nullish(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    verificationDocUrl: zod.string().url().nullish(),
+    registrationNotes: zod.string().nullish(),
+    isApproved: zod.boolean(),
+    isVerified: zod.boolean(),
+    rejectionReason: zod.string().nullish(),
+    applicationStatus: zod.enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "changes_requested",
+      "rejected",
+      "resubmitted",
+      "approved",
+      "withdrawn",
+      "expired",
+    ]),
+    status: zod
+      .enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ])
+      .optional(),
+    statusLabel: zod.string().optional(),
+    submittedAt: zod.coerce.date().nullish(),
+    reviewedAt: zod.coerce.date().nullish(),
+    approvedAt: zod.coerce.date().nullish(),
+    rejectedAt: zod.coerce.date().nullish(),
+    withdrawnAt: zod.coerce.date().nullish(),
+    expiredAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+});
+
+/**
+ * @summary Add an internal reviewer note without changing the decision
+ */
+
+export const AddVenueApplicationNoteParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const addVenueApplicationNoteBodyInternalNoteMax = 1000;
+
+export const AddVenueApplicationNoteBody = zod.object({
+  internalNote: zod
+    .string()
+    .min(1)
+    .max(addVenueApplicationNoteBodyInternalNoteMax),
 });

@@ -106,6 +106,8 @@ export type VenueApplicationStatus =
   | "draft"
   | "submitted"
   | "under_review"
+  /** Reviewer sent it back for edits; the venue stays claimed and it can be resubmitted. */
+  | "changes_requested"
   | "rejected"
   | "resubmitted"
   | "approved"

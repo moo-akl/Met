@@ -24,6 +24,8 @@ export const venueApplicationStatuses = [
   "draft",
   "submitted",
   "under_review",
+  /** Reviewer handed the application back for edits; applicant may resubmit. */
+  "changes_requested",
   "rejected",
   "resubmitted",
   "approved",
@@ -37,6 +39,7 @@ export const venueApplicationHistoryEventTypes = [
   "draft_saved",
   "submitted",
   "under_review",
+  "changes_requested",
   "rejected",
   "resubmitted",
   "approved",

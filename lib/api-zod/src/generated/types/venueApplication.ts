@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenueApplicationApplicationStatus } from "./venueApplicationApplicationStatus";
+import type { VenueApplicationStatus } from "./venueApplicationStatus";
 
 export interface VenueApplication {
   id: number;
@@ -28,6 +30,21 @@ export interface VenueApplication {
   isVerified: boolean;
   /** @nullable */
   rejectionReason?: string | null;
+  applicationStatus: VenueApplicationApplicationStatus;
+  status?: VenueApplicationStatus;
+  statusLabel?: string;
+  /** @nullable */
+  submittedAt?: Date | null;
+  /** @nullable */
+  reviewedAt?: Date | null;
+  /** @nullable */
+  approvedAt?: Date | null;
+  /** @nullable */
+  rejectedAt?: Date | null;
+  /** @nullable */
+  withdrawnAt?: Date | null;
+  /** @nullable */
+  expiredAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
