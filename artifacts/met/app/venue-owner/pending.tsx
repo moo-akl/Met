@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
+import { useApp } from "@/contexts/AppContext";
 
 function formatHistoryDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", {
@@ -27,6 +29,8 @@ export default function VenueOwnerPendingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { profile, history, isLoading, error, refetch } = useVenueOwner();
+  const { authedUid } = useApp();
+  const [withdrawing, setWithdrawing] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -70,6 +74,40 @@ export default function VenueOwnerPendingScreen() {
     );
   }
 
+  const canWithdraw =
+    profile?.applicationStatus === "submitted" ||
+    profile?.applicationStatus === "under_review" ||
+    profile?.applicationStatus === "resubmitted";
+  const withdraw = () => {
+    if (!authedUid || withdrawing) return;
+    // Avoid an accidental terminal action while still giving the applicant a
+    // clear way to regain control of an in-review application.
+    Alert.alert(
+      "Withdraw application?",
+      "You can start a new application later, but this one will no longer be reviewed.",
+      [
+        { text: "Keep application", style: "cancel" },
+        {
+          text: "Withdraw",
+          style: "destructive",
+          onPress: () => {
+            setWithdrawing(true);
+            import("@/lib/api/client")
+              .then(({ api }) => api.withdrawMyVenueApplication({ uid: authedUid }))
+              .then(() => refetch())
+              .catch(() =>
+                Alert.alert(
+                  "Couldn’t withdraw",
+                  "Your application is still active. Check your connection and try again.",
+                ),
+              )
+              .finally(() => setWithdrawing(false));
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <ScrollView
       style={styles.root}
@@ -108,6 +146,18 @@ export default function VenueOwnerPendingScreen() {
           ))}
         </View>
       ) : null}
+      {canWithdraw ? (
+        <Pressable
+          testID="withdraw-venue-application"
+          style={styles.withdrawButton}
+          disabled={withdrawing}
+          onPress={withdraw}
+        >
+          <Text style={styles.withdrawText}>
+            {withdrawing ? "Withdrawing…" : "Withdraw application"}
+          </Text>
+        </Pressable>
+      ) : null}
       <Pressable
         testID="venue-application-done"
         style={[styles.doneButton, { backgroundColor: colors.primary }]}
@@ -139,6 +189,8 @@ const styles = StyleSheet.create({
   timelineDate: { color: "rgba(255,255,255,0.42)", fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 },
   doneButton: { width: "100%", borderRadius: 12, alignItems: "center", paddingVertical: 15, marginTop: 22 },
   doneText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  withdrawButton: { marginTop: 24, paddingVertical: 10, alignItems: "center" },
+  withdrawText: { color: "#FCA5A5", fontSize: 14, fontFamily: "Inter_600SemiBold" },
   errorText: { color: "rgba(255,255,255,0.7)", fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", marginBottom: 12 },
   retryText: { fontSize: 15, fontFamily: "Inter_700Bold" },
 });

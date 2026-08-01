@@ -71,6 +71,11 @@ export default function VenueOwnerSetupScreen() {
   const [registrationNotes, setRegistrationNotes] = useState("");
   const [prefilled, setPrefilled] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const reapplyEligible =
+    isReapply &&
+    (existingApplication?.applicationStatus === "rejected" ||
+      existingApplication?.applicationStatus === "changes_requested");
 
   const stepTitles: Record<Step, string> = {
     1: "Your Venue",
@@ -103,8 +108,32 @@ export default function VenueOwnerSetupScreen() {
     void clearVenueOwnerIntent();
   }, []);
 
+  const validateSubmission = (): string | null => {
+    if (!placeId.trim() || !placeName.trim() || !businessName.trim()) {
+      return "Complete the required venue and business details before submitting.";
+    }
+    if (!selectedVenue && (!lat.trim() || !lng.trim())) {
+      return "Manual venue entries need both a latitude and longitude.";
+    }
+    if (
+      (lat.trim() && !Number.isFinite(Number(lat))) ||
+      (lng.trim() && !Number.isFinite(Number(lng)))
+    ) {
+      return "Enter valid numeric coordinates.";
+    }
+    try {
+      const url = new URL(verificationDocUrl.trim());
+      if (url.protocol !== "https:" && url.protocol !== "http:") {
+        return "Use a public http or https link to your verification document.";
+      }
+    } catch {
+      return "Enter a valid public link to your verification document.";
+    }
+    return null;
+  };
+
   useEffect(() => {
-    if (!isReapply || !existingApplication || prefilled) return;
+    if (!reapplyEligible || !existingApplication || prefilled) return;
     setPlaceId(existingApplication.placeId);
     setPlaceName(existingApplication.placeName);
     setLat(existingApplication.lat ?? "");
@@ -116,7 +145,7 @@ export default function VenueOwnerSetupScreen() {
     setVerificationDocUrl(existingApplication.verificationDocUrl ?? "");
     setRegistrationNotes(existingApplication.registrationNotes ?? "");
     setPrefilled(true);
-  }, [existingApplication, isReapply, prefilled]);
+  }, [existingApplication, prefilled, reapplyEligible]);
 
   useEffect(() => {
     if (!authedUid || isReapply) {
@@ -185,16 +214,24 @@ export default function VenueOwnerSetupScreen() {
   ]);
 
   useEffect(() => {
-    if (!isReapply || loadingApplication || !existingApplication) return;
-    const canReapply =
-      existingApplication.applicationStatus === "rejected" ||
-      existingApplication.applicationStatus === "changes_requested";
-    if (!canReapply) {
+    if (!isReapply || loadingApplication || applicationError) return;
+    if (!existingApplication) {
+      router.replace("/venue-owner/setup");
+      return;
+    }
+    if (!reapplyEligible) {
       router.replace(
         existingApplication.isApproved ? "/venue-owner/dashboard" : "/venue-owner/pending",
       );
     }
-  }, [existingApplication, isReapply, loadingApplication, router]);
+  }, [
+    applicationError,
+    existingApplication,
+    isReapply,
+    loadingApplication,
+    reapplyEligible,
+    router,
+  ]);
 
   useEffect(() => {
     const query = venueQuery.trim();
@@ -244,6 +281,12 @@ export default function VenueOwnerSetupScreen() {
 
   const handleSubmit = async () => {
     if (!authedUid || !canSubmit || submitting) return;
+    const problem = validateSubmission();
+    if (problem) {
+      setValidationError(problem);
+      return;
+    }
+    setValidationError(null);
     setSubmitting(true);
     try {
       const body = {
@@ -257,7 +300,7 @@ export default function VenueOwnerSetupScreen() {
         verificationDocUrl: verificationDocUrl.trim() || undefined,
         registrationNotes: registrationNotes.trim() || undefined,
       };
-      if (isReapply) {
+      if (reapplyEligible) {
         await api.reapplyVenueOwner({ uid: authedUid }, body);
       } else {
         await api.registerVenueOwner({ uid: authedUid }, body);
@@ -329,8 +372,11 @@ export default function VenueOwnerSetupScreen() {
             </Pressable>
           </View>
         ) : null}
-        <Text style={styles.stepTitle}>{stepTitles[step]}</Text>
-        <Text style={styles.stepSubtitle}>{stepSubtitles[step]}</Text>
+        {!isReapply || reapplyEligible ? (
+          <>
+            <Text style={styles.stepTitle}>{stepTitles[step]}</Text>
+            <Text style={styles.stepSubtitle}>{stepSubtitles[step]}</Text>
+            {validationError ? <Text style={styles.searchError}>{validationError}</Text> : null}
 
         {/* ── Step 1 ── */}
         {step === 1 && (
@@ -471,11 +517,13 @@ export default function VenueOwnerSetupScreen() {
             />
           </View>
         )}
+          </>
+        ) : null}
       </ScrollView>
 
       {/* Footer CTA */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        {step < 3 ? (
+        {(!isReapply || reapplyEligible) && step < 3 ? (
           <Pressable
             style={[
               styles.primaryBtn,
@@ -491,7 +539,7 @@ export default function VenueOwnerSetupScreen() {
           >
             <Text style={styles.primaryBtnText}>Continue →</Text>
           </Pressable>
-        ) : (
+        ) : (!isReapply || reapplyEligible) ? (
           <Pressable
             style={[
               styles.primaryBtn,
@@ -504,11 +552,11 @@ export default function VenueOwnerSetupScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.primaryBtnText}>
-                {isReapply ? "Submit Re-application" : "Submit Application"}
+                {reapplyEligible ? "Submit Re-application" : "Submit Application"}
               </Text>
             )}
           </Pressable>
-        )}
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );

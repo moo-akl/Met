@@ -183,29 +183,22 @@ export interface NotifRouter {
  *
  * - chat_message   → /chat/<chatPeerUid>
  * - reveal_accepted → /connection/<fromUid>
- * - venue_owner_approved → /venue-owner/dashboard
- * - venue_owner_rejected → /venue-owner/rejected
- * - venue_owner_changes_requested → /venue-owner/setup?reapply=true
- * - venue_owner_withdrawn → /onboarding?venueOwner=1
+ * - venue-owner decisions → /venue-owner
  * - reveal_request / encounter / unknown → /encounter/<encounterId ?? fromUid>
  *
  * Returns false (and does nothing) when the payload lacks the required uid.
  */
 export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
-  if (data.type === "venue_owner_approved") {
-    router.push("/venue-owner/dashboard");
-    return true;
-  }
-  if (data.type === "venue_owner_rejected") {
-    router.push("/venue-owner/rejected");
-    return true;
-  }
-  if (data.type === "venue_owner_changes_requested") {
-    router.push("/venue-owner/setup?reapply=true");
-    return true;
-  }
-  if (data.type === "venue_owner_withdrawn") {
-    router.push("/onboarding?venueOwner=1");
+  if (
+    data.type === "venue_owner_approved" ||
+    data.type === "venue_owner_rejected" ||
+    data.type === "venue_owner_changes_requested" ||
+    data.type === "venue_owner_withdrawn"
+  ) {
+    // A notification says what happened in the past, not what the currently
+    // signed-in account is allowed to see now. The lifecycle route loads the
+    // authoritative status after authentication and redirects safely.
+    router.push("/venue-owner");
     return true;
   }
   if (data.type === "chat_message") {

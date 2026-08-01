@@ -8,7 +8,13 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
-import { Stack, usePathname, useRouter, useSegments } from "expo-router";
+import {
+  Stack,
+  useLocalSearchParams,
+  usePathname,
+  useRouter,
+  useSegments,
+} from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -45,6 +51,8 @@ import {
 import { api } from "@/lib/api/client";
 import { initTikTok, tiktokTrackLaunch } from "@/lib/tiktok";
 import { incrementSessionCount } from "@/lib/storage";
+import { useVenueOwner } from "@/hooks/useVenueOwner";
+import { getVenueOwnerDestination } from "@/lib/venueOwnerLifecycle";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -169,7 +177,7 @@ export interface MinimalRouter {
  * Route a deep-link URL to the appropriate in-app screen.
  *
  * Priority order (matches handleUrl in RootLayout):
- *   1. venue-owner URL  → /onboarding?venueOwner=1
+ *   1. venue-owner URL  → /venue-owner (then authoritative lifecycle route)
  *   2. /r/<code>        → stash pendingDeepLinkReferral (no navigation; consumed at onboarding)
  *   3. /join/<code>     → /network/join/[code]
  *
@@ -186,7 +194,7 @@ export function routeDeepLink(
   if (isVenueOwnerUrl(url)) {
     setTimeout(() => {
       try {
-        router.push("/onboarding?venueOwner=1");
+        router.push("/venue-owner");
       } catch {}
     }, delay);
     return;
@@ -371,6 +379,44 @@ function ProfileGate() {
   return null;
 }
 
+/**
+ * Resolves every venue-owner entry point against the current signed-in
+ * account. Direct URLs and decision notifications cannot trust their old
+ * target screen because a reviewer may have changed the status since.
+ */
+function VenueOwnerLifecycleGate() {
+  const { ready, authedUid } = useApp();
+  const { profile, isLoading, error } = useVenueOwner();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { reapply } = useLocalSearchParams<{ reapply?: string }>();
+
+  useEffect(() => {
+    if (!ready || !pathname.startsWith("/venue-owner")) return;
+    if (!authedUid) {
+      router.replace("/onboarding?venueOwner=1");
+      return;
+    }
+    // A failed status load must never be interpreted as "no application".
+    // Stay on the safe loading/recovery route until a later refresh succeeds.
+    if (isLoading || error) return;
+    const target = getVenueOwnerDestination(profile);
+    // A rejected / changes-requested applicant explicitly asked to edit their
+    // application. Permit only this intentional setup route; all other setup
+    // URLs still resolve to the canonical lifecycle destination.
+    if (
+      pathname === "/venue-owner/setup" &&
+      reapply === "true" &&
+      target === "/venue-owner/rejected"
+    ) {
+      return;
+    }
+    if (pathname !== target) router.replace(target);
+  }, [authedUid, error, isLoading, pathname, profile, ready, reapply, router]);
+
+  return null;
+}
+
 function RootLayoutNav() {
   const colors = useColors();
   return (
@@ -383,6 +429,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="permissions" />
+      <Stack.Screen name="venue-owner/index" />
       <Stack.Screen
         name="encounter/[id]"
         options={{ presentation: "card", animation: "slide_from_right" }}
@@ -532,6 +579,7 @@ export default function RootLayout() {
                   <SubscriptionSyncer />
                   <PushTokenRegistrar />
                   <ProfileGate />
+                  <VenueOwnerLifecycleGate />
                   <RootLayoutNav />
                   <ChatBannerController
                     pathnameRef={pathnameRef}

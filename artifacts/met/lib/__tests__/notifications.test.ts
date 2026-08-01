@@ -148,10 +148,10 @@ describe("routeNotifTap", () => {
   });
 
   it.each([
-    ["venue_owner_approved", "/venue-owner/dashboard"],
-    ["venue_owner_rejected", "/venue-owner/rejected"],
-    ["venue_owner_changes_requested", "/venue-owner/setup?reapply=true"],
-    ["venue_owner_withdrawn", "/onboarding?venueOwner=1"],
+    ["venue_owner_approved", "/venue-owner"],
+    ["venue_owner_rejected", "/venue-owner"],
+    ["venue_owner_changes_requested", "/venue-owner"],
+    ["venue_owner_withdrawn", "/venue-owner"],
   ] as const)("routes %s to %s", (type, path) => {
     const result = routeNotifTap({ type, placeId: "google-place-1" }, { push });
     expect(result).toBe(true);

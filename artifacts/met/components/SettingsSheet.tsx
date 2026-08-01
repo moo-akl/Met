@@ -29,6 +29,7 @@ import { api } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
+import { getVenueOwnerDestination } from "@/lib/venueOwnerLifecycle";
 import { type AccountInfo, getCurrentUserAccount } from "@/lib/auth";
 import {
   type LangCode,
@@ -743,7 +744,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     venueOwnerProfile
                       ? venueOwnerProfile.isApproved
                         ? t("settings.venueOwnerApproved")
-                        : venueOwnerProfile.rejectionReason
+                        : venueOwnerProfile.applicationStatus === "rejected" ||
+                            venueOwnerProfile.applicationStatus === "changes_requested"
                           ? t("settings.venueOwnerRejected")
                           : t("settings.venueOwnerPending")
                       : t("settings.registerVenueSub")
@@ -751,15 +753,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   onPress={() => {
                     close();
                     setTimeout(() => {
-                      if (!venueOwnerProfile) {
-                        router.push("/venue-owner/setup");
-                      } else if (venueOwnerProfile.isApproved) {
-                        router.push("/venue-owner/dashboard");
-                      } else if (venueOwnerProfile.rejectionReason) {
-                        router.push("/venue-owner/rejected");
-                      } else {
-                        router.push("/venue-owner/setup");
-                      }
+                      router.push(getVenueOwnerDestination(venueOwnerProfile));
                     }, 50);
                   }}
                   colors={colors}

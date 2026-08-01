@@ -23,6 +23,7 @@ jest.mock("expo-router", () => ({
   useRouter: jest.fn(() => ({ push: jest.fn(), replace: jest.fn() })),
   usePathname: jest.fn(() => "/"),
   useSegments: jest.fn(() => []),
+  useLocalSearchParams: jest.fn(() => ({})),
 }));
 jest.mock("expo-notifications", () => ({
   addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
@@ -341,32 +342,32 @@ describe("routeDeepLink — screen routing", () => {
   // ── /venue-owner/* links ─────────────────────────────────────────────────
 
   describe("/venue-owner/* links", () => {
-    it("navigates to /onboarding?venueOwner=1", async () => {
+    it("navigates to the lifecycle resolver", async () => {
       const router = { push: jest.fn() };
       routeDeepLink("https://metapp.replit.app/venue-owner", router, 0);
       await flushTimers();
-      expect(router.push).toHaveBeenCalledWith("/onboarding?venueOwner=1");
+      expect(router.push).toHaveBeenCalledWith("/venue-owner");
     });
 
     it("handles sub-paths like /venue-owner/setup", async () => {
       const router = { push: jest.fn() };
       routeDeepLink("https://metapp.replit.app/venue-owner/setup", router, 0);
       await flushTimers();
-      expect(router.push).toHaveBeenCalledWith("/onboarding?venueOwner=1");
+      expect(router.push).toHaveBeenCalledWith("/venue-owner");
     });
 
     it("handles /venue-owner/dashboard", async () => {
       const router = { push: jest.fn() };
       routeDeepLink("https://metapp.replit.app/venue-owner/dashboard", router, 0);
       await flushTimers();
-      expect(router.push).toHaveBeenCalledWith("/onboarding?venueOwner=1");
+      expect(router.push).toHaveBeenCalledWith("/venue-owner");
     });
 
     it("handles custom-scheme venue-owner links", async () => {
       const router = { push: jest.fn() };
       routeDeepLink("met://venue-owner/setup", router, 0);
       await flushTimers();
-      expect(router.push).toHaveBeenCalledWith("/onboarding?venueOwner=1");
+      expect(router.push).toHaveBeenCalledWith("/venue-owner");
     });
 
     it("venue-owner routing takes priority — does not also stash a referral", async () => {

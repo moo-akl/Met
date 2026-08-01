@@ -14,6 +14,10 @@ import {
   type VenueApplicationStatusResponse,
   type VenueOwnerProfile,
 } from "@/lib/api/client";
+export {
+  getVenueOwnerDestination,
+  type VenueOwnerDestination,
+} from "@/lib/venueOwnerLifecycle";
 
 export { type VenueOwnerProfile };
 
@@ -44,6 +48,12 @@ export function useVenueOwner(): UseVenueOwnerResult {
 
   useEffect(() => {
     currentUidRef.current = authedUid;
+    // Never render the previous account's application while a newly signed-in
+    // account is loading. This also clears cached reviewer messages on sign-out.
+    setProfile(null);
+    setHistory([]);
+    setError(null);
+    setIsLoading(Boolean(authedUid));
   }, [authedUid]);
 
   const fetch = useCallback(async () => {
