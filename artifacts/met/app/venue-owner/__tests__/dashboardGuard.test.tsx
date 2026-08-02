@@ -6,7 +6,10 @@
  * `application: null` and `error` set — that must NOT be treated as
  * "no application" (which would misroute the user to setup).
  */
-import { resolveLifecycleRedirect } from "@/lib/venueOwnerLifecycle";
+import {
+  isVenueOwnerPathAllowed,
+  resolveLifecycleRedirect,
+} from "@/lib/venueOwnerLifecycle";
 
 const base = {
   authedUid: "uid-1",
@@ -90,5 +93,51 @@ describe("dashboard lifecycle guard (resolveLifecycleRedirect)", () => {
         application: { applicationStatus: "under_review", isApproved: false },
       }),
     ).toBe("/venue-owner/pending");
+  });
+
+  it("allows approved owners to use business subroutes", () => {
+    expect(
+      isVenueOwnerPathAllowed(
+        "/venue-owner/events",
+        "/venue-owner/dashboard",
+      ),
+    ).toBe(true);
+    expect(
+      isVenueOwnerPathAllowed(
+        "/venue-owner/rewards/new",
+        "/venue-owner/dashboard",
+      ),
+    ).toBe(true);
+    expect(
+      isVenueOwnerPathAllowed(
+        "/venue-owner/announcements/new",
+        "/venue-owner/dashboard",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not allow applicants to open approved business tools", () => {
+    expect(
+      isVenueOwnerPathAllowed(
+        "/venue-owner/events",
+        "/venue-owner/pending",
+      ),
+    ).toBe(false);
+  });
+
+  it("only allows rejected applicants to edit from the explicit reapply route", () => {
+    expect(
+      isVenueOwnerPathAllowed(
+        "/venue-owner/setup",
+        "/venue-owner/rejected",
+        "true",
+      ),
+    ).toBe(true);
+    expect(
+      isVenueOwnerPathAllowed(
+        "/venue-owner/setup",
+        "/venue-owner/rejected",
+      ),
+    ).toBe(false);
   });
 });

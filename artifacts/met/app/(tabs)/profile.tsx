@@ -37,9 +37,11 @@ import { useApp } from "@/contexts/AppContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
+import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { findBlockedTerm } from "@/lib/contentFilter";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { useT } from "@/lib/i18n";
+import { getVenueOwnerDestination } from "@/lib/venueOwnerLifecycle";
 import { useSubscription } from "@/lib/revenuecat";
 import { loadDragHintDismissed, MAX_EXTRA_PHOTOS_BY_TIER, saveDragHintDismissed } from "@/lib/storage";
 import { api } from "@/lib/api/client";
@@ -63,6 +65,11 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { t, lang } = useT();
   const { profile, setProfile, authedUid } = useApp();
+  const {
+    profile: venueOwnerProfile,
+    isLoading: venueOwnerLoading,
+    error: venueOwnerError,
+  } = useVenueOwner();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const { tier } = useSubscription();
 
@@ -518,6 +525,53 @@ export default function ProfileScreen() {
                         : t("home.profileBannerNoSocials")}
             </Text>
           </View>
+        ) : null}
+
+        {!venueOwnerLoading && !venueOwnerError ? (
+          <Pressable
+            testID="personal-to-business-profile"
+            onPress={() =>
+              router.push(getVenueOwnerDestination(venueOwnerProfile))
+            }
+            style={({ pressed }) => [
+              styles.businessSwitcher,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                opacity: pressed ? 0.72 : 1,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.businessSwitcherIcon,
+                { backgroundColor: colors.primary + "18" },
+              ]}
+            >
+              <Feather name="briefcase" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.businessSwitcherTitle, { color: colors.foreground }]}>
+                {venueOwnerProfile
+                  ? t("settings.venueOwnerDashboard")
+                  : t("settings.registerVenue")}
+              </Text>
+              <Text
+                style={[styles.businessSwitcherSub, { color: colors.mutedForeground }]}
+                numberOfLines={2}
+              >
+                {venueOwnerProfile
+                  ? venueOwnerProfile.isApproved
+                    ? t("settings.venueOwnerApproved")
+                    : venueOwnerProfile.applicationStatus === "rejected" ||
+                        venueOwnerProfile.applicationStatus === "changes_requested"
+                      ? t("settings.venueOwnerRejected")
+                      : t("settings.venueOwnerPending")
+                  : t("settings.registerVenueSub")}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+          </Pressable>
         ) : null}
 
         <View style={styles.photoArea}>
@@ -1480,5 +1534,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     fontFamily: "Inter_500Medium",
     fontSize: 15,
+  },
+  businessSwitcher: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  businessSwitcherIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  businessSwitcherTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
+  businessSwitcherSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
   },
 });

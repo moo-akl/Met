@@ -20,6 +20,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
+import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 
 export default function VenueOwnerRejectedScreen() {
   const colors = useColors();
@@ -57,14 +58,7 @@ export default function VenueOwnerRejectedScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable onPress={() => router.back()} style={styles.closeBtn} hitSlop={8}>
-          <Text style={styles.closeBtnText}>✕</Text>
-        </Pressable>
-        <Text style={styles.screenTitle}>Venue Owner Portal</Text>
-        <View style={styles.closeBtnPlaceholder} />
-      </View>
+      <VenueOwnerHeader title="Venue Owner Portal" onBack={() => router.back()} />
 
       <ScrollView
         style={styles.scroll}
@@ -122,21 +116,6 @@ export default function VenueOwnerRejectedScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  closeBtn: { padding: 4 },
-  closeBtnText: { color: "rgba(255,255,255,0.4)", fontSize: 18 },
-  closeBtnPlaceholder: { width: 26 },
-  screenTitle: {
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-  },
   scroll: { flex: 1 },
   content: { padding: 24 },
   badgeRow: {

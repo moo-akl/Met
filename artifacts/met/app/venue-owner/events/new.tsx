@@ -20,6 +20,7 @@ import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
+import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 
 export default function NewVenueEventScreen() {
   const { authedUid } = useApp();
@@ -64,13 +65,7 @@ export default function NewVenueEventScreen() {
       style={[styles.root, { backgroundColor: "#0F0F12" }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Text style={styles.backText}>← Cancel</Text>
-        </Pressable>
-        <Text style={styles.title}>New Event</Text>
-        <View style={{ width: 70 }} />
-      </View>
+      <VenueOwnerHeader title="New Event" onBack={() => router.back()} backLabel="Cancel" />
 
       <ScrollView
         style={styles.scroll}

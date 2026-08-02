@@ -264,6 +264,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const {
     profile: venueOwnerProfile,
     isLoading: venueOwnerLoading,
+    error: venueOwnerError,
   } = useVenueOwner();
   // App Store Review Guideline 5.1.2(i): the visibility toggle MUST go
   // through the shared `useVisibility` hook so the first-time consent
@@ -732,7 +733,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 colors={colors}
               />
 
-              {!venueOwnerLoading ? (
+              {!venueOwnerLoading && !venueOwnerError ? (
                 <NavRow
                   icon="briefcase"
                   label={
@@ -756,6 +757,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                       router.push(getVenueOwnerDestination(venueOwnerProfile));
                     }, 50);
                   }}
+                  testID="venue-owner-profile-switcher"
                   colors={colors}
                 />
               ) : null}
@@ -1559,16 +1561,19 @@ function NavRow({
   label,
   sub,
   onPress,
+  testID,
   colors,
 }: {
   icon: React.ComponentProps<typeof Feather>["name"];
   label: string;
   sub: string;
   onPress: () => void;
+  testID?: string;
   colors: ReturnType<typeof useColors>;
 }) {
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,

@@ -52,7 +52,10 @@ import { api } from "@/lib/api/client";
 import { initTikTok, tiktokTrackLaunch } from "@/lib/tiktok";
 import { incrementSessionCount } from "@/lib/storage";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
-import { getVenueOwnerDestination } from "@/lib/venueOwnerLifecycle";
+import {
+  getVenueOwnerDestination,
+  isVenueOwnerPathAllowed,
+} from "@/lib/venueOwnerLifecycle";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -397,21 +400,17 @@ function VenueOwnerLifecycleGate() {
       router.replace("/onboarding?venueOwner=1");
       return;
     }
-    // A failed status load must never be interpreted as "no application".
-    // Stay on the safe loading/recovery route until a later refresh succeeds.
-    if (isLoading || error) return;
-    const target = getVenueOwnerDestination(profile);
-    // A rejected / changes-requested applicant explicitly asked to edit their
-    // application. Permit only this intentional setup route; all other setup
-    // URLs still resolve to the canonical lifecycle destination.
-    if (
-      pathname === "/venue-owner/setup" &&
-      reapply === "true" &&
-      target === "/venue-owner/rejected"
-    ) {
+    // A failed or incomplete status load must never be interpreted as "no
+    // application", and must not leave a business screen visible. The index
+    // route is the only safe recovery surface until a refresh succeeds.
+    if (isLoading || error) {
+      if (pathname !== "/venue-owner") router.replace("/venue-owner");
       return;
     }
-    if (pathname !== target) router.replace(target);
+    const target = getVenueOwnerDestination(profile);
+    if (!isVenueOwnerPathAllowed(pathname, target, reapply)) {
+      router.replace(target);
+    }
   }, [authedUid, error, isLoading, pathname, profile, ready, reapply, router]);
 
   return null;

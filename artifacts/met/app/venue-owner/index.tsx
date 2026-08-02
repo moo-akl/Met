@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
+import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 
 /**
  * Safe landing route for notifications and direct links. The root lifecycle
@@ -12,6 +13,7 @@ export default function VenueOwnerIndexScreen() {
   const { error, refetch } = useVenueOwner();
   return (
     <View style={styles.root}>
+      <VenueOwnerHeader title="Venue Owner Portal" />
       {error ? (
         <>
           <Text style={styles.errorText}>

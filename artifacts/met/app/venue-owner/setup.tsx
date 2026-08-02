@@ -30,6 +30,7 @@ import {
   saveVenueOwnerDraft,
 } from "@/lib/venueOwnerDraft";
 import { clearVenueOwnerIntent } from "@/lib/venueOwnerIntent";
+import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 
 type Step = 1 | 2 | 3;
 
@@ -333,24 +334,12 @@ export default function VenueOwnerSetupScreen() {
       style={[styles.root, { backgroundColor: "#0F0F12" }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        {step > 1 && (
-          <Pressable
-            onPress={() => setStep((s) => (s - 1) as Step)}
-            style={styles.backBtn}
-            hitSlop={8}
-          >
-            <Text style={styles.backBtnText}>‹ Back</Text>
-          </Pressable>
-        )}
-        <View style={styles.headerCenter}>
-          <Text style={styles.screenTitle}>Venue Owner Portal</Text>
-          <Text style={styles.stepIndicator}>Step {step} of 3</Text>
-        </View>
-        <Pressable onPress={() => router.back()} style={styles.closeBtn} hitSlop={8}>
-          <Text style={styles.closeBtnText}>✕</Text>
-        </Pressable>
+      <VenueOwnerHeader
+        title="Venue Owner Portal"
+        onBack={step > 1 ? () => setStep((s) => (s - 1) as Step) : undefined}
+      />
+      <View style={styles.stepIndicatorWrap}>
+        <Text style={styles.stepIndicator}>Step {step} of 3</Text>
       </View>
 
       {/* Progress bar */}
@@ -625,20 +614,7 @@ function Field({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  backBtn: { paddingRight: 12 },
-  backBtnText: { color: "rgba(255,255,255,0.6)", fontSize: 16 },
-  headerCenter: { flex: 1, alignItems: "center" },
-  screenTitle: {
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-  },
+  stepIndicatorWrap: { alignItems: "center", paddingBottom: 8 },
   stepIndicator: {
     color: "rgba(255,255,255,0.4)",
     fontSize: 12,

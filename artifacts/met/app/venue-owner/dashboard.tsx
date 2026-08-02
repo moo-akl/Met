@@ -24,6 +24,7 @@ import { api, type VenueOwnerDashboard } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { resolveLifecycleRedirect } from "@/lib/venueOwnerLifecycle";
+import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 
 export default function VenueOwnerDashboardScreen() {
   const { authedUid } = useApp();
@@ -65,19 +66,25 @@ export default function VenueOwnerDashboardScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.center, { backgroundColor: "#0F0F12", paddingTop: insets.top }]}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+        <VenueOwnerHeader title="Dashboard" />
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
       </View>
     );
   }
 
   if (error || !data) {
     return (
-      <View style={[styles.center, { backgroundColor: "#0F0F12", paddingTop: insets.top }]}>
-        <Text style={styles.errorText}>Failed to load dashboard</Text>
-        <Pressable onPress={() => router.back()}>
-          <Text style={[styles.link, { color: colors.primary }]}>← Go back</Text>
-        </Pressable>
+      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+        <VenueOwnerHeader title="Dashboard" />
+        <View style={styles.center}>
+          <Text style={styles.errorText}>Failed to load dashboard</Text>
+          <Pressable onPress={() => router.back()}>
+            <Text style={[styles.link, { color: colors.primary }]}>← Go back</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -89,14 +96,7 @@ export default function VenueOwnerDashboardScreen() {
       style={[styles.root, { backgroundColor: "#0F0F12" }]}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
     >
-      {/* Nav row */}
-      <View style={styles.navRow}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Text style={styles.backText}>← Back</Text>
-        </Pressable>
-        <Text style={styles.navTitle}>Dashboard</Text>
-        <View style={{ width: 50 }} />
-      </View>
+      <VenueOwnerHeader title="Dashboard" onBack={() => router.back()} />
 
       {/* Venue identity */}
       <View style={styles.venueHeader}>

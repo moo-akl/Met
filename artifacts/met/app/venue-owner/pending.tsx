@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { useApp } from "@/contexts/AppContext";
+import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 
 function formatHistoryDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", {
@@ -57,19 +58,25 @@ export default function VenueOwnerPendingScreen() {
 
   if (isLoading && !profile) {
     return (
-      <View style={[styles.center, { backgroundColor: "#0F0F12" }]}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+        <VenueOwnerHeader title="Application status" />
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.center, { backgroundColor: "#0F0F12" }]}>
-        <Text style={styles.errorText}>We couldn’t refresh your application.</Text>
-        <Pressable onPress={refetch}>
-          <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
-        </Pressable>
+      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+        <VenueOwnerHeader title="Application status" />
+        <View style={styles.center}>
+          <Text style={styles.errorText}>We couldn’t refresh your application.</Text>
+          <Pressable onPress={refetch}>
+            <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -109,14 +116,15 @@ export default function VenueOwnerPendingScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 },
-      ]}
-      refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={colors.primary} />}
-    >
+    <View style={styles.root}>
+      <VenueOwnerHeader title="Application status" />
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: 24, paddingBottom: insets.bottom + 24 },
+        ]}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={colors.primary} />}
+      >
       <View style={[styles.icon, { backgroundColor: colors.primary + "22" }]}>
         <Text style={[styles.iconText, { color: colors.primary }]}>✓</Text>
       </View>
@@ -165,7 +173,8 @@ export default function VenueOwnerPendingScreen() {
       >
         <Text style={styles.doneText}>Done</Text>
       </Pressable>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

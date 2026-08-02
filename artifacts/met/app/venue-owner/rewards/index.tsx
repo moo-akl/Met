@@ -17,6 +17,7 @@ import { useApp } from "@/contexts/AppContext";
 import { api, type VenueReward } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
+import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 
 const STATUS_COLOR: Record<string, string> = {
   draft: "rgba(255,255,255,0.3)",
@@ -30,7 +31,7 @@ export default function VenueOwnerRewardsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { profile, isLoading: ownerLoading } = useVenueOwner();
+  const { profile, isLoading: ownerLoading, error: ownerError } = useVenueOwner();
   const [rewards, setRewards] = useState<VenueReward[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -70,26 +71,41 @@ export default function VenueOwnerRewardsScreen() {
 
   if (ownerLoading || loading) {
     return (
-      <View style={[styles.center, { backgroundColor: "#0F0F12", paddingTop: insets.top }]}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+        <VenueOwnerHeader title="Rewards" />
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
+  if (ownerError || !profile) {
+    return (
+      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+        <VenueOwnerHeader title="Rewards" />
+        <View style={styles.center}>
+          <Text style={styles.emptyText}>We couldn’t refresh your venue access.</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Text style={styles.backText}>← Back</Text>
-        </Pressable>
-        <Text style={styles.title}>Rewards</Text>
-        <Pressable
-          onPress={() => router.push("/venue-owner/rewards/new" as never)}
-          style={[styles.addBtn, { backgroundColor: colors.primary }]}
-        >
-          <Text style={styles.addBtnText}>+ New</Text>
-        </Pressable>
-      </View>
+      <VenueOwnerHeader
+        title="Rewards"
+        onBack={() => router.back()}
+        rightAction={
+          <Pressable
+            testID="venue-owner-new-reward"
+            onPress={() => router.push("/venue-owner/rewards/new" as never)}
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+          >
+            <Text style={styles.addBtnText}>+ New</Text>
+          </Pressable>
+        }
+      />
 
       <FlatList
         data={rewards}
