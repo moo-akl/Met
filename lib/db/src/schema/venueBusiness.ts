@@ -156,6 +156,31 @@ export const venueManagerTokensTable = pgTable(
   }),
 );
 
+/**
+ * One-time owner registration tokens issued from the admin portal.
+ * Unlike invitation tokens these don't pre-specify an email or role —
+ * the venue owner supplies those when they claim the token on the
+ * web portal.  There is no foreign key to venue_managers because the
+ * manager record doesn't exist yet when the token is created.
+ */
+export const venueManagerRegistrationTokensTable = pgTable(
+  "venue_manager_registration_tokens",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    businessId: integer("business_id").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    tokenHashUniq: uniqueIndex("vmrt_token_hash_uniq").on(t.tokenHash),
+    businessCreatedIdx: index("vmrt_business_created_idx").on(t.businessId, t.createdAt),
+  }),
+);
+export type VenueManagerRegistrationToken =
+  typeof venueManagerRegistrationTokensTable.$inferSelect;
+
 export const venueMembershipAuditEventTypes = [
   "backfilled",
   "granted",

@@ -130,6 +130,8 @@ export default function Dashboard() {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [regLinkResult, setRegLinkResult] = useState<{ token: string; expiresAt: string; appId: number } | null>(null);
+  const [regLinkLoading, setRegLinkLoading] = useState(false);
 
   const handleApiError = (error: unknown, fallbackMessage: string) => {
     if (isApiError(error)) {
@@ -357,6 +359,28 @@ export default function Dashboard() {
     setApplicantMessage("");
     setInternalNote("");
   };
+
+  async function generateRegistrationLink(appId: number) {
+    setRegLinkLoading(true);
+    try {
+      const res = await fetch(`/api/admin/venue-owner/applications/${appId}/registration-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { message?: string };
+        toast({ title: "Error", description: err.message ?? "Failed to generate link.", variant: "destructive" });
+        return;
+      }
+      const data = await res.json() as { token: string; expiresAt: string };
+      setRegLinkResult({ ...data, appId });
+    } catch {
+      toast({ title: "Error", description: "Failed to generate registration link.", variant: "destructive" });
+    } finally {
+      setRegLinkLoading(false);
+    }
+  }
 
   const isMessageRequired = decisionDialog === "reject" || decisionDialog === "changes" || decisionDialog === "withdraw";
   const isInternalNoteRequired = decisionDialog === "note";
@@ -790,6 +814,65 @@ export default function Dashboard() {
                         </div>
                       </CardContent>
                     </Card>
+
+                    {selectedApp.applicationStatus === "approved" && (
+                      <Card className="shadow-sm">
+                        <CardHeader className="pb-3 border-b border-border/50">
+                          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                            <KeyRound className="w-4 h-4" />
+                            Portal Access
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-5 text-sm space-y-3">
+                          <p className="text-muted-foreground text-xs leading-relaxed">
+                            Generate a one-time registration link. The venue owner uses it to create their
+                            Venue Manager account. Each link expires after 7 days.
+                          </p>
+                          {regLinkResult?.appId === selectedApp.id ? (
+                            <div className="space-y-2">
+                              <div className="font-mono text-[11px] break-all bg-muted p-2 rounded select-all leading-relaxed">
+                                {`${window.location.origin}/venue-manager/register?token=${regLinkResult.token}`}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Expires {format(new Date(regLinkResult.expiresAt), "MMM d, yyyy 'at' h:mm a")}
+                              </p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => {
+                                  void navigator.clipboard.writeText(
+                                    `${window.location.origin}/venue-manager/register?token=${regLinkResult.token}`,
+                                  );
+                                  toast({ title: "Copied", description: "Registration link copied to clipboard." });
+                                }}
+                              >
+                                Copy link
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="w-full text-muted-foreground"
+                                disabled={regLinkLoading}
+                                onClick={() => void generateRegistrationLink(selectedApp.id)}
+                              >
+                                {regLinkLoading ? "Generating…" : "Generate a new link"}
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full"
+                              disabled={regLinkLoading}
+                              onClick={() => void generateRegistrationLink(selectedApp.id)}
+                            >
+                              {regLinkLoading ? "Generating…" : "Generate registration link"}
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
 
                     <Card className="shadow-sm flex-1">
                       <CardHeader className="pb-3 border-b border-border/50">

@@ -152,7 +152,7 @@ function LoginPage({ sessionExpired = false, onSignedIn }: { sessionExpired?: bo
       <label>Password<input required name="password" type="password" autoComplete="current-password" placeholder="Your password" /></label>
       <button className="vm-primary" disabled={login.isPending}>{login.isPending ? "Signing in…" : "Sign in"}</button>
     </form>
-    <div className="vm-auth-links"><button type="button" onClick={() => navigate("/recover")}>Use a recovery link</button><button type="button" onClick={() => navigate("/invite")}>Accept an invitation</button></div>
+    <div className="vm-auth-links"><button type="button" onClick={() => navigate("/recover")}>Use a recovery link</button><button type="button" onClick={() => navigate("/invite")}>Accept an invitation</button><button type="button" onClick={() => navigate("/register")}>Register as venue owner</button></div>
   </AuthFrame>;
 }
 
@@ -197,6 +197,81 @@ function RecoveryPage() {
       <button className="vm-primary" disabled={recover.isPending}>{recover.isPending ? "Updating…" : "Update password"}</button>
     </form><div className="vm-auth-links"><button type="button" onClick={() => navigate("/")}>Back to sign in</button></div>
   </AuthFrame>;
+}
+
+function RegisterPage() {
+  const [, navigate] = useLocation();
+  const tokenFromUrl = new URLSearchParams(
+    typeof window !== "undefined" ? window.location.search : "",
+  ).get("token") ?? "";
+  const [message, setMessage] = useState("");
+  const register = useMutation({
+    mutationFn: async (data: { token: string; email: string; displayName: string; password: string }) => {
+      const res = await fetch("/api/venue-manager/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { message?: string };
+        throw Object.assign(new Error(err.message ?? "Registration failed"), { status: res.status });
+      }
+    },
+    onSuccess: () => { queryClient.clear(); navigate("/"); },
+    onError: (error) => setMessage(apiError(error)),
+  });
+  return (
+    <AuthFrame
+      title="Set up your venue account."
+      subtitle="Create your owner account to manage your approved venue on Met."
+    >
+      <form
+        className="vm-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          register.mutate({
+            token: String(form.get("token")).trim(),
+            email: String(form.get("email")).trim(),
+            displayName: String(form.get("displayName")).trim(),
+            password: String(form.get("password")),
+          });
+        }}
+      >
+        {message && <div className="vm-notice error">{message}</div>}
+        <label>
+          Registration code
+          <input required name="token" autoComplete="off" defaultValue={tokenFromUrl} />
+        </label>
+        <label>
+          Business email
+          <input required name="email" type="email" autoComplete="email" placeholder="you@yourvenue.com" />
+        </label>
+        <label>
+          Your name
+          <input required name="displayName" autoComplete="name" placeholder="How you'll appear to your team" />
+        </label>
+        <label>
+          Password
+          <input
+            required
+            minLength={12}
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            placeholder="12+ characters, upper/lowercase and number"
+          />
+        </label>
+        <button className="vm-primary" disabled={register.isPending}>
+          {register.isPending ? "Creating account…" : "Create account"}
+        </button>
+      </form>
+      <div className="vm-auth-links">
+        <button type="button" onClick={() => navigate("/")}>Back to sign in</button>
+      </div>
+    </AuthFrame>
+  );
 }
 
 function Portal({ session, onSessionChange }: { session: Session; onSessionChange: (session: Session | null) => void }) {
@@ -359,5 +434,5 @@ function Modal({ title, children, onClose }: { title: string; children: ReactNod
 function Empty({ text }: { text: string }) { return <div className="vm-empty">{text}</div>; }
 function SectionLoading() { return <div className="vm-section-loading"><div className="vm-spinner" /></div>; }
 
-function Routes() { return <Switch><Route path="/invite" component={InvitePage} /><Route path="/recover" component={RecoveryPage} /><Route component={SessionBootstrap} /></Switch>; }
+function Routes() { return <Switch><Route path="/invite" component={InvitePage} /><Route path="/recover" component={RecoveryPage} /><Route path="/register" component={RegisterPage} /><Route component={SessionBootstrap} /></Switch>; }
 export default function App() { return <QueryClientProvider client={queryClient}><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><Routes /></WouterRouter></QueryClientProvider>; }

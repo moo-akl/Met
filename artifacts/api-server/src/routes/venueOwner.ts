@@ -62,6 +62,7 @@ import {
   venueBusinessesTable,
   venueMembershipsTable,
   venueMembershipAuditTable,
+  venueManagerRegistrationTokensTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
@@ -2456,6 +2457,54 @@ router.post(
     });
 
     res.json({ profile: serializeApplicationProfile(result.profile) });
+  },
+);
+
+/**
+ * POST /admin/venue-owner/applications/:id/registration-link
+ * Generates a one-time owner registration token for an approved venue.
+ * The admin copies the returned token and sends it to the venue owner,
+ * who uses it on the Venue Manager portal to create their account.
+ */
+router.post(
+  "/admin/venue-owner/applications/:id/registration-link",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+    const [profile] = await db
+      .select({ id: venueOwnerProfilesTable.id, businessName: venueOwnerProfilesTable.businessName })
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.id, profileId),
+          eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+        ),
+      )
+      .limit(1);
+    if (!profile) {
+      res.status(404).json({ message: "Approved application not found." });
+      return;
+    }
+    const [business] = await db
+      .select({ id: venueBusinessesTable.id })
+      .from(venueBusinessesTable)
+      .where(eq(venueBusinessesTable.venueOwnerProfileId, profile.id))
+      .limit(1);
+    if (!business) {
+      res.status(409).json({ message: "Business record not set up yet — try again shortly." });
+      return;
+    }
+    const rawToken = crypto.randomBytes(32).toString("base64url");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await db
+      .insert(venueManagerRegistrationTokensTable)
+      .values({ businessId: business.id, tokenHash, expiresAt });
+    res.status(201).json({ token: rawToken, expiresAt: expiresAt.toISOString() });
   },
 );
 
