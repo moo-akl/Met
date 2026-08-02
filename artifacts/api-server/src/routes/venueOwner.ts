@@ -2569,6 +2569,7 @@ router.get(
         actorUid: entry.actorUid,
         applicantMessage: entry.applicantMessage,
         internalNote: entry.internalNote,
+        metadata: entry.metadata ?? null,
         createdAt: entry.createdAt,
       })),
     });
@@ -2681,6 +2682,15 @@ router.post(
         }
         try {
           await sendVenueApprovedEmail({ to: emailTo, businessName: emailBusinessName, registrationUrl });
+          await appendApplicationHistory({
+            venueOwnerProfileId: emailProfileId,
+            eventType: "email_sent",
+            actorRole: "system",
+            metadata: {
+              to: emailTo,
+              subject: `🎉 Your venue "${emailBusinessName}" has been approved`,
+            },
+          });
         } catch (err) {
           logger.warn({ err, profileId: emailProfileId }, "Failed to send venue approved email");
         }
@@ -2793,13 +2803,29 @@ router.post(
     });
 
     if (result.profile.contactEmail) {
-      sendVenueRejectedEmail({
-        to: result.profile.contactEmail,
-        businessName: result.profile.businessName,
-        reason: parsed.data.reason,
-      }).catch((err) => {
-        logger.warn({ err, profileId: result.profile.id }, "Failed to send venue rejected email");
-      });
+      const rejectedEmailTo = result.profile.contactEmail;
+      const rejectedEmailProfileId = result.profile.id;
+      const rejectedEmailBusinessName = result.profile.businessName;
+      (async () => {
+        try {
+          await sendVenueRejectedEmail({
+            to: rejectedEmailTo,
+            businessName: rejectedEmailBusinessName,
+            reason: parsed.data.reason,
+          });
+          await appendApplicationHistory({
+            venueOwnerProfileId: rejectedEmailProfileId,
+            eventType: "email_sent",
+            actorRole: "system",
+            metadata: {
+              to: rejectedEmailTo,
+              subject: `Update on your venue application for "${rejectedEmailBusinessName}"`,
+            },
+          });
+        } catch (err) {
+          logger.warn({ err, profileId: rejectedEmailProfileId }, "Failed to send venue rejected email");
+        }
+      })();
     }
 
     res.json({ profile: serializeApplicationProfile(result.profile) });
@@ -2862,13 +2888,29 @@ router.post(
     });
 
     if (result.profile.contactEmail) {
-      sendVenueChangesRequestedEmail({
-        to: result.profile.contactEmail,
-        businessName: result.profile.businessName,
-        notes: parsed.data.message,
-      }).catch((err) => {
-        logger.warn({ err, profileId: result.profile.id }, "Failed to send venue changes-requested email");
-      });
+      const changesEmailTo = result.profile.contactEmail;
+      const changesEmailProfileId = result.profile.id;
+      const changesEmailBusinessName = result.profile.businessName;
+      (async () => {
+        try {
+          await sendVenueChangesRequestedEmail({
+            to: changesEmailTo,
+            businessName: changesEmailBusinessName,
+            notes: parsed.data.message,
+          });
+          await appendApplicationHistory({
+            venueOwnerProfileId: changesEmailProfileId,
+            eventType: "email_sent",
+            actorRole: "system",
+            metadata: {
+              to: changesEmailTo,
+              subject: "Action needed: changes requested for your venue application",
+            },
+          });
+        } catch (err) {
+          logger.warn({ err, profileId: changesEmailProfileId }, "Failed to send venue changes-requested email");
+        }
+      })();
     }
 
     res.json({ profile: serializeApplicationProfile(result.profile) });

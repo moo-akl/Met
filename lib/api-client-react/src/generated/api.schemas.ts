@@ -813,6 +813,8 @@ export interface VenueApplicationReviewHistoryEntry {
   applicantMessage?: string | null;
   /** @nullable */
   internalNote?: string | null;
+  /** @nullable */
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
 }
 

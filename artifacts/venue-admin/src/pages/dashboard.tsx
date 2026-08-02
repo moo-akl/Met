@@ -42,7 +42,8 @@ import {
   CornerDownLeft,
   XCircle,
   RefreshCw,
-  KeyRound
+  KeyRound,
+  Mail
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -914,17 +915,23 @@ export default function Dashboard() {
                               history.map((entry: VenueApplicationReviewHistoryEntry) => (
                                 <div key={entry.id} className="relative z-10 flex items-start gap-4">
                                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 border-background shadow-sm
-                                    ${entry.actorRole === "applicant" ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" :
+                                    ${entry.eventType === "email_sent" ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400" :
+                                      entry.actorRole === "applicant" ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" :
                                       entry.actorRole === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-                                    {entry.actorRole === "applicant" ? <Building2 className="w-4 h-4" /> :
+                                    {entry.eventType === "email_sent" ? <Mail className="w-4 h-4" /> :
+                                     entry.actorRole === "applicant" ? <Building2 className="w-4 h-4" /> :
                                      entry.actorRole === "admin" ? <Shield className="w-4 h-4" /> : <Info className="w-4 h-4" />}
                                   </div>
                                   <div className="flex-1 bg-card border border-border/50 rounded-lg p-3 shadow-sm space-y-2">
                                     <div className="flex justify-between items-start gap-2">
                                       <div>
-                                        <p className="text-xs font-semibold capitalize text-muted-foreground">{entry.actorRole}</p>
+                                        <p className="text-xs font-semibold capitalize text-muted-foreground">
+                                          {entry.eventType === "email_sent" ? "system" : entry.actorRole}
+                                        </p>
                                         <p className="text-sm font-medium mt-0.5">
-                                          {entry.toStatus ? (
+                                          {entry.eventType === "email_sent" ? (
+                                            <>Email sent to <span className="font-bold text-foreground">{String(entry.metadata?.to ?? "applicant")}</span></>
+                                          ) : entry.toStatus ? (
                                             <>Changed status to <span className="font-bold text-foreground">{entry.toStatus}</span></>
                                           ) : (
                                             "Added note"
@@ -935,6 +942,13 @@ export default function Dashboard() {
                                         {format(new Date(entry.createdAt), "MMM d, h:mm a")}
                                       </span>
                                     </div>
+
+                                    {entry.eventType === "email_sent" && entry.metadata?.subject != null && (
+                                      <div className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 rounded p-2 text-sm text-indigo-900 dark:text-indigo-200">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider block mb-1 opacity-70">Subject</span>
+                                        {String(entry.metadata.subject)}
+                                      </div>
+                                    )}
                                     
                                     {entry.applicantMessage && (
                                       <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded p-2 text-sm text-blue-900 dark:text-blue-200">

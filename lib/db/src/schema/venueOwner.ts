@@ -46,6 +46,7 @@ export const venueApplicationHistoryEventTypes = [
   "withdrawn",
   "expired",
   "review_note_added",
+  "email_sent",
 ] as const;
 
 export type VenueApplicationHistoryEventType =
