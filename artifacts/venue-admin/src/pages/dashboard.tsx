@@ -92,6 +92,26 @@ function StatusBadge({ status, label }: { status: string, label: string }) {
   );
 }
 
+function getGoogleMapsUrl(application: VenueApplication): string {
+  const hasCoordinates = application.lat != null && application.lng != null;
+  const hasPlaceId = application.placeId.trim().length > 0;
+  const query = hasPlaceId
+    ? application.placeName || application.businessName
+    : hasCoordinates
+      ? `${application.lat},${application.lng}`
+      : application.placeName || application.businessName;
+  const params = new URLSearchParams({
+    api: "1",
+    query,
+  });
+
+  if (hasPlaceId) {
+    params.set("query_place_id", application.placeId);
+  }
+
+  return `https://www.google.com/maps/search/?${params.toString()}`;
+}
+
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -657,6 +677,18 @@ export default function Dashboard() {
                     <div className="flex items-center gap-1.5 font-mono bg-muted/50 px-2 py-1 rounded">
                       PID: {selectedApp.placeId}
                     </div>
+                     <Button asChild size="sm" variant="outline" className="h-8 gap-1.5">
+                       <a
+                         href={getGoogleMapsUrl(selectedApp)}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         aria-label={`Check ${selectedApp.placeName} on Google Maps`}
+                       >
+                         <MapPin className="w-3.5 h-3.5" />
+                         Check on Google Maps
+                         <ExternalLink className="w-3.5 h-3.5" />
+                       </a>
+                     </Button>
                   </div>
                 </div>
 
