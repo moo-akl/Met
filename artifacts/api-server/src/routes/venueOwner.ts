@@ -58,9 +58,10 @@ import {
   venueAnnouncementsTable,
   hubCheckinsTable,
   profilesTable,
+  venueAdminCredentialsTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
-import { createUserRateLimiter } from "../middlewares/rateLimit";
+import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
 import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
 import { z } from "zod/v4";
@@ -123,6 +124,15 @@ const router: IRouter = Router();
 const ADMIN_SESSION_COOKIE = "met_venue_admin";
 const ADMIN_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
+function deriveScryptKey(password: string, salt: string, keyLength: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, keyLength, { N: 16_384, r: 8, p: 1 }, (error, derivedKey) => {
+      if (error) reject(error);
+      else resolve(derivedKey);
+    });
+  });
+}
+
 function adminSessionOptions(req: Request) {
   return {
     httpOnly: true,
@@ -138,19 +148,38 @@ function adminSessionOptions(req: Request) {
 // Security helpers
 // ---------------------------------------------------------------------------
 
-function hasValidAdminSession(req: Request): boolean {
-  if (!process.env["SESSION_SECRET"]) return false;
-  const rawExpiry = req.signedCookies?.[ADMIN_SESSION_COOKIE];
-  const expiresAt = typeof rawExpiry === "string" ? Number(rawExpiry) : NaN;
-  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+type AdminSession = { credentialId: number; sessionVersion: number; expiresAt: number };
+
+function readAdminSession(req: Request): AdminSession | null {
+  if (!process.env["SESSION_SECRET"]) return null;
+  const raw = req.signedCookies?.[ADMIN_SESSION_COOKIE];
+  if (typeof raw !== "string") return null;
+  const [id, version, expiry] = raw.split(".");
+  const credentialId = Number(id);
+  const sessionVersion = Number(version);
+  const expiresAt = Number(expiry);
+  if (!Number.isInteger(credentialId) || !Number.isInteger(sessionVersion) ||
+      !Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null;
+  return { credentialId, sessionVersion, expiresAt };
 }
 
-function requireAdminSession(req: Request, res: Response, next: NextFunction): void {
+async function hasValidAdminSession(req: Request): Promise<AdminSession | null> {
+  const session = readAdminSession(req);
+  if (!session) return null;
+  const [credential] = await db
+    .select({ id: venueAdminCredentialsTable.id, sessionVersion: venueAdminCredentialsTable.sessionVersion })
+    .from(venueAdminCredentialsTable)
+    .where(eq(venueAdminCredentialsTable.id, session.credentialId))
+    .limit(1);
+  return credential?.sessionVersion === session.sessionVersion ? session : null;
+}
+
+async function requireAdminSession(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (!process.env["SESSION_SECRET"]) {
     res.status(503).json({ message: "Admin sessions are not enabled" });
     return;
   }
-  if (!hasValidAdminSession(req)) {
+  if (!(await hasValidAdminSession(req))) {
     res.status(401).json({ message: "Your admin session has expired. Unlock the dashboard again." });
     return;
   }
@@ -162,6 +191,37 @@ function adminSecretsMatch(submitted: string, expected: string): boolean {
   const expectedBuffer = Buffer.from(expected);
   return submittedBuffer.length === expectedBuffer.length &&
     crypto.timingSafeEqual(submittedBuffer, expectedBuffer);
+}
+
+function hasStrongPassword(password: string): boolean {
+  return password.length >= 12 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password);
+}
+
+async function hashAdminPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16).toString("base64url");
+  const hash = await deriveScryptKey(password, salt, 64);
+  return `scrypt$${salt}$${hash.toString("base64url")}`;
+}
+
+async function verifyAdminPassword(password: string, encoded: string): Promise<boolean> {
+  const [algorithm, salt, encodedHash] = encoded.split("$");
+  if (algorithm !== "scrypt" || !salt || !encodedHash) return false;
+  const expected = Buffer.from(encodedHash, "base64url");
+  const derived = await deriveScryptKey(password, salt, expected.length);
+  return derived.length === expected.length && crypto.timingSafeEqual(derived, expected);
+}
+
+function issueAdminSession(req: Request, res: Response, credential: { id: number; sessionVersion: number }): void {
+  const expiresAt = Date.now() + ADMIN_SESSION_MAX_AGE_MS;
+  res.cookie(
+    ADMIN_SESSION_COOKIE,
+    `${credential.id}.${credential.sessionVersion}.${expiresAt}`,
+    adminSessionOptions(req),
+  );
+  res.json({ authenticated: true, expiresAt: new Date(expiresAt).toISOString() });
 }
 
 /** Guards cron-only endpoints: X-Cron-Secret header must match CRON_SECRET env. */
@@ -198,6 +258,11 @@ const venueOwnerPlaceSearchLimit = createUserRateLimiter({
   windowMs: 60_000,
   max: 20,
   name: "venue-owner-place-search",
+});
+const venueAdminAuthLimit = createIpRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 10,
+  name: "venue-admin-auth",
 });
 
 // ---------------------------------------------------------------------------
@@ -1643,34 +1708,84 @@ router.post(
 // Admin endpoints
 // ---------------------------------------------------------------------------
 
+/** Returns only state needed to choose the unlock or bootstrap screen. */
+router.get(
+  "/admin/venue-owner/setup",
+  async (_req: Request, res: Response): Promise<void> => {
+    const [credential] = await db
+      .select({ id: venueAdminCredentialsTable.id })
+      .from(venueAdminCredentialsTable)
+      .limit(1);
+    // Normal sign-in only needs the session secret; the bootstrap secret is
+    // only required while setup (or recovery) is still pending.
+    const sessionReady = Boolean(process.env["SESSION_SECRET"]);
+    res.json({
+      setupRequired: !credential,
+      serverConfigured: credential ? sessionReady : sessionReady && Boolean(process.env["ADMIN_SECRET"]),
+    });
+  },
+);
+
 /**
- * POST /admin/venue-owner/session
- * Validates the server-held admin credential, then stores only a signed expiry
- * timestamp in an HttpOnly cookie. The credential never reaches browser storage.
+ * First setup is guarded by the deployment-only bootstrap secret. It becomes
+ * unavailable as soon as a credential exists.
  */
 router.post(
-  "/admin/venue-owner/session",
+  "/admin/venue-owner/setup",
+  venueAdminAuthLimit,
   async (req: Request, res: Response): Promise<void> => {
-    const schema = z.object({ secret: z.string().min(1) });
+    const parsed = z.object({
+      bootstrapCode: z.string().min(1),
+      password: z.string().min(12).max(256),
+    }).safeParse(req.body);
+    if (!process.env["SESSION_SECRET"] || !process.env["ADMIN_SECRET"]) {
+      res.status(503).json({ message: "Venue Admin setup is not configured on the server." });
+      return;
+    }
+    if (!parsed.success || !hasStrongPassword(parsed.data.password) ||
+        !adminSecretsMatch(parsed.data.bootstrapCode, process.env["ADMIN_SECRET"])) {
+      res.status(401).json({ message: "Setup could not be verified. Check the bootstrap code and password requirements." });
+      return;
+    }
+    const [existing] = await db.select({ id: venueAdminCredentialsTable.id })
+      .from(venueAdminCredentialsTable).limit(1);
+    if (existing) {
+      res.status(409).json({ message: "A Venue Admin password is already configured. Sign in or use the recovery form." });
+      return;
+    }
+    const passwordHash = await hashAdminPassword(parsed.data.password);
+    const [credential] = await db.insert(venueAdminCredentialsTable)
+      .values({ passwordHash })
+      .returning({ id: venueAdminCredentialsTable.id, sessionVersion: venueAdminCredentialsTable.sessionVersion });
+    issueAdminSession(req, res, credential);
+  },
+);
+
+/** Starts a session from the managed server-side password. */
+router.post(
+  "/admin/venue-owner/session",
+  venueAdminAuthLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const schema = z.object({ password: z.string().min(1).max(256) });
     const parsed = schema.safeParse(req.body);
-    const expected = process.env["ADMIN_SECRET"];
-
-    if (!expected) {
-      res.status(503).json({ message: "Admin endpoints are not enabled" });
-      return;
-    }
     if (!process.env["SESSION_SECRET"]) {
-      res.status(503).json({ message: "Admin sessions are not enabled" });
+      res.status(503).json({ message: "Venue Admin sessions are not configured on the server." });
       return;
     }
-    if (!parsed.success || !adminSecretsMatch(parsed.data.secret, expected)) {
-      res.status(401).json({ message: "Invalid admin credential" });
+    const [credential] = await db.select()
+      .from(venueAdminCredentialsTable)
+      .limit(1);
+    if (!credential) {
+      res.status(428).json({ message: "Venue Admin needs its first password set up before anyone can sign in." });
       return;
     }
-
-    const expiresAt = Date.now() + ADMIN_SESSION_MAX_AGE_MS;
-    res.cookie(ADMIN_SESSION_COOKIE, String(expiresAt), adminSessionOptions(req));
-    res.json({ authenticated: true, expiresAt: new Date(expiresAt).toISOString() });
+    if (!parsed.success || !(await verifyAdminPassword(parsed.data.password, credential.passwordHash))) {
+      res.status(401).json({ message: "Incorrect password. Try again or use password recovery." });
+      return;
+    }
+    await db.update(venueAdminCredentialsTable).set({ lastLoginAt: new Date(), updatedAt: new Date() })
+      .where(eq(venueAdminCredentialsTable.id, credential.id));
+    issueAdminSession(req, res, credential);
   },
 );
 
@@ -1679,13 +1794,13 @@ router.post(
  */
 router.get(
   "/admin/venue-owner/session",
-  (req: Request, res: Response): void => {
-    if (!hasValidAdminSession(req)) {
+  async (req: Request, res: Response): Promise<void> => {
+    const session = await hasValidAdminSession(req);
+    if (!session) {
       res.status(401).json({ message: "No active admin session" });
       return;
     }
-    const expiresAt = Number(req.signedCookies?.[ADMIN_SESSION_COOKIE]);
-    res.json({ authenticated: true, expiresAt: new Date(expiresAt).toISOString() });
+    res.json({ authenticated: true, expiresAt: new Date(session.expiresAt).toISOString() });
   },
 );
 
@@ -1696,6 +1811,74 @@ router.delete(
   "/admin/venue-owner/session",
   (req: Request, res: Response): void => {
     res.clearCookie(ADMIN_SESSION_COOKIE, adminSessionOptions(req));
+    res.status(204).send();
+  },
+);
+
+/** Authenticated password change. The session version rotation revokes all old cookies. */
+router.post(
+  "/admin/venue-owner/password",
+  requireAdminSession,
+  venueAdminAuthLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = z.object({
+      currentPassword: z.string().min(1).max(256),
+      newPassword: z.string().min(12).max(256),
+    }).safeParse(req.body);
+    if (!parsed.success || !hasStrongPassword(parsed.data.newPassword)) {
+      res.status(400).json({ message: "Use a password with at least 12 characters, including upper-case, lower-case, and a number." });
+      return;
+    }
+    const session = readAdminSession(req)!;
+    const [credential] = await db.select().from(venueAdminCredentialsTable)
+      .where(eq(venueAdminCredentialsTable.id, session.credentialId)).limit(1);
+    if (!credential || !(await verifyAdminPassword(parsed.data.currentPassword, credential.passwordHash))) {
+      res.status(401).json({ message: "Your current password is incorrect." });
+      return;
+    }
+    const passwordHash = await hashAdminPassword(parsed.data.newPassword);
+    const nextVersion = credential.sessionVersion + 1;
+    await db.update(venueAdminCredentialsTable).set({
+      passwordHash, sessionVersion: nextVersion, passwordChangedAt: new Date(), updatedAt: new Date(),
+    }).where(eq(venueAdminCredentialsTable.id, credential.id));
+    issueAdminSession(req, res, { id: credential.id, sessionVersion: nextVersion });
+  },
+);
+
+/**
+ * Emergency recovery remains deployment-secret protected rather than exposing
+ * an unauthenticated reset channel with no configured delivery mechanism.
+ */
+router.post(
+  "/admin/venue-owner/password/recover",
+  venueAdminAuthLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = z.object({
+      bootstrapCode: z.string().min(1),
+      newPassword: z.string().min(12).max(256),
+    }).safeParse(req.body);
+    const bootstrapSecret = process.env["ADMIN_SECRET"];
+    if (!bootstrapSecret) {
+      res.status(503).json({ message: "Password recovery is not configured on the server." });
+      return;
+    }
+    if (!parsed.success || !hasStrongPassword(parsed.data.newPassword) ||
+        !adminSecretsMatch(parsed.data.bootstrapCode, bootstrapSecret)) {
+      res.status(401).json({ message: "Recovery could not be verified. Check the recovery code and password requirements." });
+      return;
+    }
+    const [credential] = await db.select().from(venueAdminCredentialsTable).limit(1);
+    if (!credential) {
+      res.status(428).json({ message: "Set up the first Venue Admin password before using recovery." });
+      return;
+    }
+    const passwordHash = await hashAdminPassword(parsed.data.newPassword);
+    await db.update(venueAdminCredentialsTable).set({
+      passwordHash,
+      sessionVersion: credential.sessionVersion + 1,
+      passwordChangedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(venueAdminCredentialsTable.id, credential.id));
     res.status(204).send();
   },
 );

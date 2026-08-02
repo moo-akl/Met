@@ -6,7 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface VenueAdminUnlock {
-  /** @minLength 1 */
-  secret: string;
+export interface VenueAdminPasswordChange {
+  currentPassword: string;
+  /** @minLength 12 */
+  newPassword: string;
 }

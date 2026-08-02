@@ -68,8 +68,12 @@ import type {
   UpdateNetworkMemberRole200,
   UpdatePresence,
   UpsertProfile,
+  VenueAdminBootstrap,
+  VenueAdminPassword,
+  VenueAdminPasswordChange,
+  VenueAdminRecovery,
   VenueAdminSession,
-  VenueAdminUnlock,
+  VenueAdminSetupState,
   VenueApplicationChangeRequest,
   VenueApplicationConflict,
   VenueApplicationDecision,
@@ -4076,14 +4080,14 @@ export const getCreateVenueAdminSessionUrl = () => {
 };
 
 export const createVenueAdminSession = async (
-  venueAdminUnlock: VenueAdminUnlock,
+  venueAdminPassword: VenueAdminPassword,
   options?: RequestInit,
 ): Promise<VenueAdminSession> => {
   return customFetch<VenueAdminSession>(getCreateVenueAdminSessionUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(venueAdminUnlock),
+    body: JSON.stringify(venueAdminPassword),
   });
 };
 
@@ -4094,14 +4098,14 @@ export const getCreateVenueAdminSessionMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createVenueAdminSession>>,
     TError,
-    { data: BodyType<VenueAdminUnlock> },
+    { data: BodyType<VenueAdminPassword> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createVenueAdminSession>>,
   TError,
-  { data: BodyType<VenueAdminUnlock> },
+  { data: BodyType<VenueAdminPassword> },
   TContext
 > => {
   const mutationKey = ["createVenueAdminSession"];
@@ -4115,7 +4119,7 @@ export const getCreateVenueAdminSessionMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createVenueAdminSession>>,
-    { data: BodyType<VenueAdminUnlock> }
+    { data: BodyType<VenueAdminPassword> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -4128,7 +4132,7 @@ export const getCreateVenueAdminSessionMutationOptions = <
 export type CreateVenueAdminSessionMutationResult = NonNullable<
   Awaited<ReturnType<typeof createVenueAdminSession>>
 >;
-export type CreateVenueAdminSessionMutationBody = BodyType<VenueAdminUnlock>;
+export type CreateVenueAdminSessionMutationBody = BodyType<VenueAdminPassword>;
 export type CreateVenueAdminSessionMutationError = ErrorType<Error>;
 
 /**
@@ -4141,14 +4145,14 @@ export const useCreateVenueAdminSession = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createVenueAdminSession>>,
     TError,
-    { data: BodyType<VenueAdminUnlock> },
+    { data: BodyType<VenueAdminPassword> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof createVenueAdminSession>>,
   TError,
-  { data: BodyType<VenueAdminUnlock> },
+  { data: BodyType<VenueAdminPassword> },
   TContext
 > => {
   return useMutation(getCreateVenueAdminSessionMutationOptions(options));
@@ -4233,6 +4237,342 @@ export const useDeleteVenueAdminSession = <
   TContext
 > => {
   return useMutation(getDeleteVenueAdminSessionMutationOptions(options));
+};
+
+/**
+ * @summary Check whether first-time Venue Admin setup is required
+ */
+export const getGetVenueAdminSetupStateUrl = () => {
+  return `/api/admin/venue-owner/setup`;
+};
+
+export const getVenueAdminSetupState = async (
+  options?: RequestInit,
+): Promise<VenueAdminSetupState> => {
+  return customFetch<VenueAdminSetupState>(getGetVenueAdminSetupStateUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetVenueAdminSetupStateQueryKey = () => {
+  return [`/api/admin/venue-owner/setup`] as const;
+};
+
+export const getGetVenueAdminSetupStateQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVenueAdminSetupState>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueAdminSetupState>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetVenueAdminSetupStateQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getVenueAdminSetupState>>
+  > = ({ signal }) => getVenueAdminSetupState({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueAdminSetupState>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVenueAdminSetupStateQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVenueAdminSetupState>>
+>;
+export type GetVenueAdminSetupStateQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Check whether first-time Venue Admin setup is required
+ */
+
+export function useGetVenueAdminSetupState<
+  TData = Awaited<ReturnType<typeof getVenueAdminSetupState>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueAdminSetupState>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVenueAdminSetupStateQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Set the first Venue Admin password with a deployment bootstrap code
+ */
+export const getSetupVenueAdminPasswordUrl = () => {
+  return `/api/admin/venue-owner/setup`;
+};
+
+export const setupVenueAdminPassword = async (
+  venueAdminBootstrap: VenueAdminBootstrap,
+  options?: RequestInit,
+): Promise<VenueAdminSession> => {
+  return customFetch<VenueAdminSession>(getSetupVenueAdminPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(venueAdminBootstrap),
+  });
+};
+
+export const getSetupVenueAdminPasswordMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setupVenueAdminPassword>>,
+    TError,
+    { data: BodyType<VenueAdminBootstrap> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setupVenueAdminPassword>>,
+  TError,
+  { data: BodyType<VenueAdminBootstrap> },
+  TContext
+> => {
+  const mutationKey = ["setupVenueAdminPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setupVenueAdminPassword>>,
+    { data: BodyType<VenueAdminBootstrap> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setupVenueAdminPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetupVenueAdminPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setupVenueAdminPassword>>
+>;
+export type SetupVenueAdminPasswordMutationBody = BodyType<VenueAdminBootstrap>;
+export type SetupVenueAdminPasswordMutationError = ErrorType<void>;
+
+/**
+ * @summary Set the first Venue Admin password with a deployment bootstrap code
+ */
+export const useSetupVenueAdminPassword = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setupVenueAdminPassword>>,
+    TError,
+    { data: BodyType<VenueAdminBootstrap> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setupVenueAdminPassword>>,
+  TError,
+  { data: BodyType<VenueAdminBootstrap> },
+  TContext
+> => {
+  return useMutation(getSetupVenueAdminPasswordMutationOptions(options));
+};
+
+/**
+ * @summary Change the Venue Admin password and rotate active sessions
+ */
+export const getChangeVenueAdminPasswordUrl = () => {
+  return `/api/admin/venue-owner/password`;
+};
+
+export const changeVenueAdminPassword = async (
+  venueAdminPasswordChange: VenueAdminPasswordChange,
+  options?: RequestInit,
+): Promise<VenueAdminSession> => {
+  return customFetch<VenueAdminSession>(getChangeVenueAdminPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(venueAdminPasswordChange),
+  });
+};
+
+export const getChangeVenueAdminPasswordMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof changeVenueAdminPassword>>,
+    TError,
+    { data: BodyType<VenueAdminPasswordChange> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof changeVenueAdminPassword>>,
+  TError,
+  { data: BodyType<VenueAdminPasswordChange> },
+  TContext
+> => {
+  const mutationKey = ["changeVenueAdminPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof changeVenueAdminPassword>>,
+    { data: BodyType<VenueAdminPasswordChange> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return changeVenueAdminPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ChangeVenueAdminPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof changeVenueAdminPassword>>
+>;
+export type ChangeVenueAdminPasswordMutationBody =
+  BodyType<VenueAdminPasswordChange>;
+export type ChangeVenueAdminPasswordMutationError = ErrorType<void>;
+
+/**
+ * @summary Change the Venue Admin password and rotate active sessions
+ */
+export const useChangeVenueAdminPassword = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof changeVenueAdminPassword>>,
+    TError,
+    { data: BodyType<VenueAdminPasswordChange> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof changeVenueAdminPassword>>,
+  TError,
+  { data: BodyType<VenueAdminPasswordChange> },
+  TContext
+> => {
+  return useMutation(getChangeVenueAdminPasswordMutationOptions(options));
+};
+
+/**
+ * @summary Recover the Venue Admin password with the deployment recovery code
+ */
+export const getRecoverVenueAdminPasswordUrl = () => {
+  return `/api/admin/venue-owner/password/recover`;
+};
+
+export const recoverVenueAdminPassword = async (
+  venueAdminRecovery: VenueAdminRecovery,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRecoverVenueAdminPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(venueAdminRecovery),
+  });
+};
+
+export const getRecoverVenueAdminPasswordMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recoverVenueAdminPassword>>,
+    TError,
+    { data: BodyType<VenueAdminRecovery> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recoverVenueAdminPassword>>,
+  TError,
+  { data: BodyType<VenueAdminRecovery> },
+  TContext
+> => {
+  const mutationKey = ["recoverVenueAdminPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recoverVenueAdminPassword>>,
+    { data: BodyType<VenueAdminRecovery> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return recoverVenueAdminPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecoverVenueAdminPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recoverVenueAdminPassword>>
+>;
+export type RecoverVenueAdminPasswordMutationBody =
+  BodyType<VenueAdminRecovery>;
+export type RecoverVenueAdminPasswordMutationError = ErrorType<void>;
+
+/**
+ * @summary Recover the Venue Admin password with the deployment recovery code
+ */
+export const useRecoverVenueAdminPassword = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recoverVenueAdminPassword>>,
+    TError,
+    { data: BodyType<VenueAdminRecovery> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof recoverVenueAdminPassword>>,
+  TError,
+  { data: BodyType<VenueAdminRecovery> },
+  TContext
+> => {
+  return useMutation(getRecoverVenueAdminPasswordMutationOptions(options));
 };
 
 /**

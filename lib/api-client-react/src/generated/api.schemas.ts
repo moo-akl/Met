@@ -13,9 +13,34 @@ export interface Error {
   message: string;
 }
 
-export interface VenueAdminUnlock {
+export interface VenueAdminPassword {
+  /** @minLength 12 */
+  password: string;
+}
+
+export interface VenueAdminBootstrap {
   /** @minLength 1 */
-  secret: string;
+  bootstrapCode: string;
+  /** @minLength 12 */
+  password: string;
+}
+
+export interface VenueAdminPasswordChange {
+  currentPassword: string;
+  /** @minLength 12 */
+  newPassword: string;
+}
+
+export interface VenueAdminRecovery {
+  /** @minLength 1 */
+  bootstrapCode: string;
+  /** @minLength 12 */
+  newPassword: string;
+}
+
+export interface VenueAdminSetupState {
+  setupRequired: boolean;
+  serverConfigured: boolean;
 }
 
 export interface VenueAdminSession {

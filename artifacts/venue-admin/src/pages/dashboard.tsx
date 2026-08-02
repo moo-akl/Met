@@ -3,6 +3,7 @@ import {
   useGetVenueAdminSession,
   getGetVenueAdminSessionQueryKey,
   useDeleteVenueAdminSession,
+  useChangeVenueAdminPassword,
   useListVenueApplications,
   getListVenueApplicationsQueryKey,
   useGetVenueApplicationForReview,
@@ -40,7 +41,8 @@ import {
   Edit3,
   CornerDownLeft,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  KeyRound
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -105,6 +107,9 @@ export default function Dashboard() {
   const [decisionDialog, setDecisionDialog] = useState<"approve" | "reject" | "changes" | "withdraw" | "note" | null>(null);
   const [applicantMessage, setApplicantMessage] = useState("");
   const [internalNote, setInternalNote] = useState("");
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   const handleApiError = (error: unknown, fallbackMessage: string) => {
     if (isApiError(error)) {
@@ -200,6 +205,18 @@ export default function Dashboard() {
         setLocation("/");
       }
     }
+  });
+  const changePassword = useChangeVenueAdminPassword({
+    mutation: {
+      onSuccess: () => {
+        setCurrentPassword("");
+        setNewPassword("");
+        setPasswordDialogOpen(false);
+        queryClient.invalidateQueries({ queryKey: getGetVenueAdminSessionQueryKey() });
+        toast({ title: "Password changed", description: "Other active sessions have been signed out." });
+      },
+      onError: (error) => handleApiError(error, "Unable to change password."),
+    },
   });
 
   const invalidateAndClose = () => {
@@ -356,6 +373,35 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-[100dvh] bg-background text-foreground overflow-hidden font-sans">
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change password</DialogTitle>
+            <DialogDescription>
+              Use at least 12 characters with upper-case, lower-case, and a number. Changing it signs out other active sessions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="current-password">Current password</Label>
+              <Input id="current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New password</Label>
+              <Input id="new-password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasswordDialogOpen(false)}>Cancel</Button>
+            <Button
+              disabled={changePassword.isPending || !currentPassword || !newPassword}
+              onClick={() => changePassword.mutate({ data: { currentPassword, newPassword } })}
+            >
+              {changePassword.isPending ? "Saving…" : "Change password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Sidebar List */}
       <div className="w-full md:w-[400px] flex-shrink-0 border-r border-border bg-muted/20 flex flex-col h-full z-10 relative">
         <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-card shrink-0">
@@ -365,9 +411,14 @@ export default function Dashboard() {
             </div>
             Venue T&S
           </div>
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={handleLogout} title="Sign Out">
-            <LogOut className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => setPasswordDialogOpen(true)} title="Change password">
+              <KeyRound className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={handleLogout} title="Sign Out">
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="p-3 border-b border-border bg-card/50 space-y-3 shrink-0">

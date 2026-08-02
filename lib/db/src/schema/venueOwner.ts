@@ -165,6 +165,31 @@ export type VenueApplicationHistoryEntry =
   typeof venueApplicationHistoryTable.$inferSelect;
 
 // ---------------------------------------------------------------------------
+// venue_admin_credentials
+// There is deliberately one credential for the private review workspace.
+// Password material is represented only by an scrypt hash; it is never
+// selected into API responses.
+// ---------------------------------------------------------------------------
+export const venueAdminCredentialsTable = pgTable("venue_admin_credentials", {
+  id: serial("id").primaryKey(),
+  passwordHash: text("password_hash").notNull(),
+  /** Incrementing this value invalidates every previously issued session. */
+  sessionVersion: integer("session_version").notNull().default(1),
+  passwordChangedAt: timestamp("password_changed_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type VenueAdminCredential = typeof venueAdminCredentialsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
 // venue_events
 // Events created by an approved venue owner for their venue.
 // RSVP counts are maintained in venue_event_rsvps; the denormed rsvpCount

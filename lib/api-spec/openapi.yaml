@@ -1597,7 +1597,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/VenueAdminUnlock"
+              $ref: "#/components/schemas/VenueAdminPassword"
       responses:
         "200":
           description: Session started
@@ -1611,6 +1611,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "428":
+          description: Initial setup required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     delete:
       operationId: deleteVenueAdminSession
       tags: [admin]
@@ -1618,6 +1624,86 @@ paths:
       responses:
         "204":
           description: Session ended
+
+  /admin/venue-owner/setup:
+    get:
+      operationId: getVenueAdminSetupState
+      tags: [admin]
+      summary: Check whether first-time Venue Admin setup is required
+      responses:
+        "200":
+          description: Setup state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueAdminSetupState"
+    post:
+      operationId: setupVenueAdminPassword
+      tags: [admin]
+      summary: Set the first Venue Admin password with a deployment bootstrap code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueAdminBootstrap"
+      responses:
+        "200":
+          description: Setup complete and session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueAdminSession"
+        "401":
+          description: Invalid bootstrap code or password
+        "409":
+          description: Password already configured
+        "503":
+          description: Server configuration missing
+
+  /admin/venue-owner/password:
+    post:
+      operationId: changeVenueAdminPassword
+      tags: [admin]
+      summary: Change the Venue Admin password and rotate active sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueAdminPasswordChange"
+      responses:
+        "200":
+          description: Password changed and replacement session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueAdminSession"
+        "400":
+          description: Password does not meet requirements
+        "401":
+          description: No session or current password is incorrect
+
+  /admin/venue-owner/password/recover:
+    post:
+      operationId: recoverVenueAdminPassword
+      tags: [admin]
+      summary: Recover the Venue Admin password with the deployment recovery code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueAdminRecovery"
+      responses:
+        "204":
+          description: Password reset and existing sessions revoked
+        "401":
+          description: Invalid recovery code or password
+        "428":
+          description: Initial setup required
+        "503":
+          description: Server configuration missing
 
   /venue-owner/me/application:
     get:
@@ -2035,13 +2121,50 @@ components:
           type: string
       required:
         - message
-    VenueAdminUnlock:
+    VenueAdminPassword:
       type: object
-      required: [secret]
+      required: [password]
       properties:
-        secret:
+        password:
+          type: string
+          minLength: 12
+    VenueAdminBootstrap:
+      type: object
+      required: [bootstrapCode, password]
+      properties:
+        bootstrapCode:
           type: string
           minLength: 1
+        password:
+          type: string
+          minLength: 12
+    VenueAdminPasswordChange:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+          minLength: 12
+    VenueAdminRecovery:
+      type: object
+      required: [bootstrapCode, newPassword]
+      properties:
+        bootstrapCode:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 12
+    VenueAdminSetupState:
+      type: object
+      required: [setupRequired, serverConfigured]
+      properties:
+        setupRequired:
+          type: boolean
+        serverConfigured:
+          type: boolean
     VenueAdminSession:
       type: object
       required: [authenticated, expiresAt]

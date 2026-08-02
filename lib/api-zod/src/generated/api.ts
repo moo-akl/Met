@@ -1436,14 +1436,65 @@ export const GetVenueAdminSessionResponse = zod.object({
 /**
  * @summary Start a short-lived venue-approval admin session
  */
+export const createVenueAdminSessionBodyPasswordMin = 12;
 
 export const CreateVenueAdminSessionBody = zod.object({
-  secret: zod.string().min(1),
+  password: zod.string().min(createVenueAdminSessionBodyPasswordMin),
 });
 
 export const CreateVenueAdminSessionResponse = zod.object({
   authenticated: zod.boolean(),
   expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Check whether first-time Venue Admin setup is required
+ */
+export const GetVenueAdminSetupStateResponse = zod.object({
+  setupRequired: zod.boolean(),
+  serverConfigured: zod.boolean(),
+});
+
+/**
+ * @summary Set the first Venue Admin password with a deployment bootstrap code
+ */
+
+export const setupVenueAdminPasswordBodyPasswordMin = 12;
+
+export const SetupVenueAdminPasswordBody = zod.object({
+  bootstrapCode: zod.string().min(1),
+  password: zod.string().min(setupVenueAdminPasswordBodyPasswordMin),
+});
+
+export const SetupVenueAdminPasswordResponse = zod.object({
+  authenticated: zod.boolean(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Change the Venue Admin password and rotate active sessions
+ */
+export const changeVenueAdminPasswordBodyNewPasswordMin = 12;
+
+export const ChangeVenueAdminPasswordBody = zod.object({
+  currentPassword: zod.string(),
+  newPassword: zod.string().min(changeVenueAdminPasswordBodyNewPasswordMin),
+});
+
+export const ChangeVenueAdminPasswordResponse = zod.object({
+  authenticated: zod.boolean(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Recover the Venue Admin password with the deployment recovery code
+ */
+
+export const recoverVenueAdminPasswordBodyNewPasswordMin = 12;
+
+export const RecoverVenueAdminPasswordBody = zod.object({
+  bootstrapCode: zod.string().min(1),
+  newPassword: zod.string().min(recoverVenueAdminPasswordBodyNewPasswordMin),
 });
 
 /**

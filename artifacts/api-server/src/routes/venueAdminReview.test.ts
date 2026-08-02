@@ -8,25 +8,70 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-process.env["ADMIN_SECRET"] = "test-admin-secret";
+process.env["ADMIN_SECRET"] = "test-admin-bootstrap";
 process.env["SESSION_SECRET"] = "test-session-secret";
 
 const dbMocks = vi.hoisted(() => {
+  /**
+   * The admin credential table gets its own stateful mini-store so its
+   * queries never consume the sequential mocks meant for application
+   * queries (which caused ordering collisions between session checks and
+   * per-test fixtures).
+   */
+  const credTable = {
+    id: "id",
+    passwordHash: "passwordHash",
+    sessionVersion: "sessionVersion",
+    lastLoginAt: "lastLoginAt",
+    passwordChangedAt: "passwordChangedAt",
+    updatedAt: "updatedAt",
+  };
+  const credState: { rows: Array<Record<string, unknown>>; pendingWrite: Record<string, unknown> | null } = {
+    rows: [],
+    pendingWrite: null,
+  };
+  const credChain: Record<string, ReturnType<typeof vi.fn>> = {} as never;
+  credChain["where"] = vi.fn(() => credChain);
+  credChain["limit"] = vi.fn(async () => credState.rows.map((r) => ({ ...r })));
+  credChain["values"] = vi.fn((row: Record<string, unknown>) => {
+    credState.pendingWrite = row;
+    return credChain;
+  });
+  credChain["set"] = vi.fn((row: Record<string, unknown>) => {
+    if (credState.rows[0]) Object.assign(credState.rows[0], row);
+    return credChain;
+  });
+  credChain["returning"] = vi.fn(async () => {
+    if (credState.pendingWrite) {
+      const row = {
+        id: 1,
+        sessionVersion: 1,
+        passwordChangedAt: new Date(),
+        lastLoginAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...credState.pendingWrite,
+      };
+      credState.pendingWrite = null;
+      credState.rows = [row];
+    }
+    return credState.rows.map((r) => ({ ...r }));
+  });
   const chain = {
     select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
+    from: vi.fn(),
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn(),
     groupBy: vi.fn(),
     limit: vi.fn(),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockResolvedValue(undefined),
-    update: vi.fn().mockReturnThis(),
+    insert: vi.fn(),
+    values: vi.fn().mockReturnThis(),
+    update: vi.fn(),
     set: vi.fn().mockReturnThis(),
     returning: vi.fn(),
     transaction: vi.fn(),
   };
-  return { chain };
+  return { chain, credChain, credState, credTable };
 });
 
 vi.mock("@workspace/db", () => ({
@@ -52,6 +97,7 @@ vi.mock("@workspace/db", () => ({
     metadata: "metadata",
     createdAt: "createdAt",
   },
+  venueAdminCredentialsTable: dbMocks.credTable,
   venueEventsTable: {},
   venueEventRsvpsTable: {},
   venueRewardsTable: {},
@@ -125,25 +171,34 @@ function application(overrides: { id?: number; applicationStatus?: Status } = {}
   };
 }
 
-/** Signs in and returns a supertest agent carrying the HttpOnly session cookie. */
+/** Builds a signed cookie through setup, then returns its supertest agent. */
 async function signedInAgent() {
   const agent = request.agent(app);
-  const res = await agent
-    .post("/api/admin/venue-owner/session")
-    .send({ secret: "test-admin-secret" });
+  const res = await agent.post("/api/admin/venue-owner/setup").send({
+    bootstrapCode: "test-admin-bootstrap",
+    password: "SecurePassword1",
+  });
   expect(res.status).toBe(200);
   return agent;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dbMocks.credState.rows = [];
+  dbMocks.credState.pendingWrite = null;
   dbMocks.chain.select.mockReturnThis();
-  dbMocks.chain.from.mockReturnThis();
+  dbMocks.chain.from.mockImplementation((table: unknown) =>
+    table === dbMocks.credTable ? dbMocks.credChain : dbMocks.chain,
+  );
+  dbMocks.chain.insert.mockImplementation((table: unknown) =>
+    table === dbMocks.credTable ? dbMocks.credChain : dbMocks.chain,
+  );
+  dbMocks.chain.update.mockImplementation((table: unknown) =>
+    table === dbMocks.credTable ? dbMocks.credChain : dbMocks.chain,
+  );
   dbMocks.chain.where.mockReturnThis();
-  dbMocks.chain.insert.mockReturnThis();
-  dbMocks.chain.update.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
-  dbMocks.chain.values.mockResolvedValue(undefined);
+  dbMocks.chain.values.mockReturnThis();
   dbMocks.chain.orderBy.mockResolvedValue([]);
   dbMocks.chain.groupBy.mockResolvedValue([]);
   dbMocks.chain.limit.mockResolvedValue([]);
@@ -173,12 +228,36 @@ describe("admin session authorization", () => {
     expect(dbMocks.chain.update).not.toHaveBeenCalled();
   });
 
-  it("refuses a wrong admin credential without issuing a cookie", async () => {
+  it("reports first-time setup before a password exists", async () => {
+    const res = await request(app).get("/api/admin/venue-owner/setup");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ setupRequired: true, serverConfigured: true });
+  });
+
+  it("creates a password hash during setup without returning password material", async () => {
+    const res = await request(app).post("/api/admin/venue-owner/setup").send({
+      bootstrapCode: "test-admin-bootstrap",
+      password: "SecurePassword1",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(expect.objectContaining({ authenticated: true }));
+    expect(JSON.stringify(res.body)).not.toContain("password");
+    expect(dbMocks.credChain["values"]).toHaveBeenCalledWith(expect.objectContaining({
+      passwordHash: expect.stringMatching(/^scrypt\$/),
+    }));
+  });
+
+  it("refuses an invalid bootstrap code without issuing a cookie", async () => {
     const res = await request(app)
-      .post("/api/admin/venue-owner/session")
-      .send({ secret: "wrong-secret" });
+      .post("/api/admin/venue-owner/setup")
+      .send({ bootstrapCode: "wrong-code", password: "SecurePassword1" });
     expect(res.status).toBe(401);
     expect(res.headers["set-cookie"]).toBeUndefined();
+  });
+
+  it("refuses sign-in until a password is configured", async () => {
+    const res = await request(app).post("/api/admin/venue-owner/session").send({ password: "SecurePassword1" });
+    expect(res.status).toBe(428);
   });
 
   it("does not accept the retired header-secret review endpoints", async () => {
@@ -186,6 +265,103 @@ describe("admin session authorization", () => {
       .get("/api/admin/venue-owner/pending")
       .set("x-admin-secret", "test-admin-secret");
     expect(res.status).toBe(404);
+  });
+
+  it("logs out by clearing the HttpOnly session cookie", async () => {
+    const agent = await signedInAgent();
+    const res = await agent.delete("/api/admin/venue-owner/session");
+    expect(res.status).toBe(204);
+    const protectedRes = await agent.get("/api/admin/venue-owner/applications");
+    expect(protectedRes.status).toBe(401);
+  });
+});
+
+describe("password lifecycle", () => {
+  it("rejects weak passwords during setup", async () => {
+    const res = await request(app).post("/api/admin/venue-owner/setup").send({
+      bootstrapCode: "test-admin-bootstrap",
+      password: "short",
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects recovery when no password has ever been set", async () => {
+    const res = await request(app).post("/api/admin/venue-owner/password/recover").send({
+      bootstrapCode: "test-admin-bootstrap",
+      newPassword: "AnotherSecure1",
+    });
+    expect(res.status).toBe(428);
+  });
+
+  it("signs in with the configured password and rejects the wrong one", async () => {
+    await signedInAgent(); // configures the stored credential
+
+    const wrong = await request(app).post("/api/admin/venue-owner/session")
+      .send({ password: "NotThePassword1" });
+    expect(wrong.status).toBe(401);
+    expect(wrong.headers["set-cookie"]).toBeUndefined();
+
+    const agent = request.agent(app);
+    const ok = await agent.post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(ok.status).toBe(200);
+    expect(ok.body).toEqual(expect.objectContaining({ authenticated: true }));
+    const guarded = await agent.get("/api/admin/venue-owner/applications");
+    expect(guarded.status).toBe(200);
+  });
+
+  it("changing the password revokes other active sessions", async () => {
+    const changer = await signedInAgent();
+    const bystander = request.agent(app);
+    const login = await bystander.post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(login.status).toBe(200);
+
+    const rejected = await changer.post("/api/admin/venue-owner/password")
+      .send({ currentPassword: "WrongCurrent1", newPassword: "BrandNewSecret1" });
+    expect(rejected.status).toBe(401);
+
+    const changed = await changer.post("/api/admin/venue-owner/password")
+      .send({ currentPassword: "SecurePassword1", newPassword: "BrandNewSecret1" });
+    expect(changed.status).toBe(200);
+
+    // The bystander's cookie carries the old session version.
+    const stale = await bystander.get("/api/admin/venue-owner/applications");
+    expect(stale.status).toBe(401);
+    // The changer received a rotated cookie and keeps working.
+    const fresh = await changer.get("/api/admin/venue-owner/applications");
+    expect(fresh.status).toBe(200);
+    // Only the new password signs in now.
+    const oldLogin = await request(app).post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(oldLogin.status).toBe(401);
+    const newLogin = await request(app).post("/api/admin/venue-owner/session")
+      .send({ password: "BrandNewSecret1" });
+    expect(newLogin.status).toBe(200);
+  });
+
+  it("recovery resets the password and revokes existing sessions", async () => {
+    const agent = await signedInAgent();
+    const res = await request(app).post("/api/admin/venue-owner/password/recover").send({
+      bootstrapCode: "test-admin-bootstrap",
+      newPassword: "RecoveredSecret1",
+    });
+    expect(res.status).toBe(204);
+
+    const stale = await agent.get("/api/admin/venue-owner/applications");
+    expect(stale.status).toBe(401);
+    const login = await request(app).post("/api/admin/venue-owner/session")
+      .send({ password: "RecoveredSecret1" });
+    expect(login.status).toBe(200);
+  });
+
+  it("refuses a second setup once a password exists", async () => {
+    await signedInAgent();
+    const res = await request(app).post("/api/admin/venue-owner/setup").send({
+      bootstrapCode: "test-admin-bootstrap",
+      password: "AnotherSecure1",
+    });
+    expect(res.status).toBe(409);
   });
 });
 
