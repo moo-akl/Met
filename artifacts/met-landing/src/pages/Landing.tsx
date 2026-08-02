@@ -374,7 +374,7 @@ export default function Landing() {
               </p>
             </div>
             <a
-              href="/apply"
+              href="/venues"
               className="shrink-0 bg-gray-900 hover:bg-green-600 text-white px-8 py-4 rounded-full font-bold text-base shadow-lg shadow-gray-900/15 hover:scale-105 transition-all duration-300 whitespace-nowrap"
             >
               List your venue →
@@ -390,7 +390,7 @@ export default function Landing() {
           <div className="flex gap-6 text-sm font-medium text-gray-500">
             <a href="/privacy" className="hover:text-green-600 transition-colors">Privacy</a>
             <a href="/support" className="hover:text-green-600 transition-colors">Terms</a>
-            <a href="/apply" className="hover:text-green-600 transition-colors">List your venue</a>
+            <a href="/venues" className="hover:text-green-600 transition-colors">List your venue</a>
             <a href="mailto:metapp.contact@gmail.com" className="hover:text-green-600 transition-colors">Contact</a>
           </div>
           <div className="text-sm text-gray-400">
