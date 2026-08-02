@@ -924,6 +924,24 @@ describe("credential lockout", () => {
     expect(dbMocks.credState.rows[0]?.["lockedUntil"]).toBeNull();
   });
 
+  it("sign-in reset: credChain.set is called with failedLoginAttempts:0 and lockedUntil:null on success", async () => {
+    await signedInAgent();
+
+    // Prime the credential with a non-zero failed-attempt count
+    Object.assign(dbMocks.credState.rows[0]!, { failedLoginAttempts: 2, lockedUntil: null });
+    dbMocks.credChain["set"].mockClear();
+
+    const ok = await request(app)
+      .post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(ok.status).toBe(200);
+
+    // The DB update on success must write failedLoginAttempts:0 and lockedUntil:null
+    expect(dbMocks.credChain["set"]).toHaveBeenCalledWith(
+      expect.objectContaining({ failedLoginAttempts: 0, lockedUntil: null }),
+    );
+  });
+
   it("rejects sign-in while locked even with the correct password", async () => {
     await signedInAgent();
 
