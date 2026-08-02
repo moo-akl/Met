@@ -127,10 +127,16 @@ export default function VenueApply() {
           <p className="text-gray-600 mb-2">
             We review every application carefully — usually within a few business days.
           </p>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-6">
             When approved, you'll receive your registration link at{" "}
             <strong className="text-gray-900">{form.contactEmail}</strong>.
           </p>
+          <a
+            href="/apply/status"
+            className="inline-block px-6 py-3 rounded-full border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Check application status →
+          </a>
         </div>
       </Page>
     );

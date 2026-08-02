@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Landing from "./pages/Landing";
 import Screenshots from "./pages/Screenshots";
 import VenueApply from "./pages/VenueApply";
+import VenueApplyStatus from "./pages/VenueApplyStatus";
 import VenueInfo from "./pages/VenueInfo";
 
 const queryClient = new QueryClient();
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/screenshots" component={Screenshots} />
       <Route path="/venues" component={VenueInfo} />
       <Route path="/for-venues" component={VenueInfo} />
+      <Route path="/apply/status" component={VenueApplyStatus} />
       <Route path="/apply" component={VenueApply} />
       <Route path="/" component={Landing} />
       <Route component={NotFound} />

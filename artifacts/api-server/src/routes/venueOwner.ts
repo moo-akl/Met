@@ -632,6 +632,7 @@ async function searchGoogleVenues(
  */
 const publicPlaceSearchLimit = createIpRateLimiter({ windowMs: 15 * 60_000, max: 20, name: "venue-public-places" });
 const webApplyLimit = createIpRateLimiter({ windowMs: 60 * 60_000, max: 5, name: "venue-web-apply" });
+const webApplyStatusLimit = createIpRateLimiter({ windowMs: 15 * 60_000, max: 20, name: "venue-web-apply-status" });
 
 router.get(
   "/venue-owner/places-public/search",
@@ -746,6 +747,60 @@ router.post(
       }
       throw error;
     }
+  },
+);
+
+/**
+ * GET /venue-owner/apply/status?email=...
+ * Unauthenticated endpoint — lets web applicants check the status of their
+ * most recent application by email address. Only exposes non-sensitive fields.
+ */
+router.get(
+  "/venue-owner/apply/status",
+  webApplyStatusLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const email = typeof req.query["email"] === "string" ? req.query["email"].trim().toLowerCase() : "";
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ message: "A valid email address is required." });
+      return;
+    }
+    const rows = await db
+      .select({
+        id: venueOwnerProfilesTable.id,
+        placeName: venueOwnerProfilesTable.placeName,
+        applicationStatus: venueOwnerProfilesTable.applicationStatus,
+        submittedAt: venueOwnerProfilesTable.submittedAt,
+        contactEmail: venueOwnerProfilesTable.contactEmail,
+      })
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          ilike(venueOwnerProfilesTable.contactEmail, email),
+          inArray(venueOwnerProfilesTable.applicationStatus, [
+            "submitted",
+            "under_review",
+            "changes_requested",
+            "resubmitted",
+            "rejected",
+            "approved",
+          ]),
+        ),
+      )
+      .orderBy(desc(venueOwnerProfilesTable.submittedAt))
+      .limit(1);
+
+    if (rows.length === 0) {
+      res.status(404).json({ message: "No application found for that email address." });
+      return;
+    }
+
+    const row = rows[0];
+    res.json({
+      placeName: row.placeName,
+      status: row.applicationStatus,
+      statusLabel: APPLICATION_STATUS_LABELS[row.applicationStatus],
+      submittedAt: row.submittedAt,
+    });
   },
 );
 
