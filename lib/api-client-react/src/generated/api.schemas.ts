@@ -48,6 +48,90 @@ export interface VenueAdminSession {
   expiresAt: string;
 }
 
+export interface VenueManagerSession {
+  authenticated: boolean;
+  csrfToken: string;
+  expiresAt: string;
+}
+
+export interface VenueManagerSignIn {
+  email: string;
+  /** @minLength 12 */
+  password: string;
+}
+
+export interface VenueManagerInvitationAcceptance {
+  /** @minLength 1 */
+  token: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  displayName: string;
+  /** @minLength 12 */
+  password: string;
+}
+
+export interface VenueManagerPasswordChange {
+  currentPassword: string;
+  /** @minLength 12 */
+  newPassword: string;
+}
+
+export interface VenueManagerRecovery {
+  /** @minLength 1 */
+  token: string;
+  /** @minLength 12 */
+  newPassword: string;
+}
+
+export interface VenueManagerClaim {
+  email: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  displayName: string;
+  /** @minLength 12 */
+  password: string;
+}
+
+export type VenueManagerInvitationRole =
+  (typeof VenueManagerInvitationRole)[keyof typeof VenueManagerInvitationRole];
+
+export const VenueManagerInvitationRole = {
+  manager: "manager",
+  editor: "editor",
+} as const;
+
+export interface VenueManagerInvitation {
+  email: string;
+  role: VenueManagerInvitationRole;
+}
+
+export interface VenueManagerRecoveryRequest {
+  /** @minimum 1 */
+  managerId: number;
+}
+
+export type VenueManagerRoleUpdateRole =
+  (typeof VenueManagerRoleUpdateRole)[keyof typeof VenueManagerRoleUpdateRole];
+
+export const VenueManagerRoleUpdateRole = {
+  manager: "manager",
+  editor: "editor",
+} as const;
+
+export interface VenueManagerRoleUpdate {
+  role: VenueManagerRoleUpdateRole;
+}
+
+export interface VenueManagerToken {
+  invitationToken?: string;
+  recoveryToken?: string;
+  expiresAt: string;
+}
+
 export type VenueApplicationApplicationStatus =
   (typeof VenueApplicationApplicationStatus)[keyof typeof VenueApplicationApplicationStatus];
 
@@ -802,6 +886,8 @@ export interface SubmitAnswersRequest {
   /** @minItems 1 */
   answers: SubmitAnswersRequestAnswersItem[];
 }
+
+export type VenueManagerCsrfParameter = string;
 
 export type NearbyPresenceParams = {
   lat: number;

@@ -1498,6 +1498,144 @@ export const RecoverVenueAdminPasswordBody = zod.object({
 });
 
 /**
+ * @summary Check the current business-only manager session
+ */
+export const GetVenueManagerSessionResponse = zod.object({
+  authenticated: zod.boolean(),
+  csrfToken: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Sign in to an individual business manager account
+ */
+export const createVenueManagerSessionBodyPasswordMin = 12;
+
+export const CreateVenueManagerSessionBody = zod.object({
+  email: zod.string().email(),
+  password: zod.string().min(createVenueManagerSessionBodyPasswordMin),
+});
+
+export const CreateVenueManagerSessionResponse = zod.object({
+  authenticated: zod.boolean(),
+  csrfToken: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+export const DeleteVenueManagerSessionHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const acceptVenueManagerInvitationBodyDisplayNameMax = 120;
+
+export const acceptVenueManagerInvitationBodyPasswordMin = 12;
+
+export const AcceptVenueManagerInvitationBody = zod.object({
+  token: zod.string().min(1),
+  displayName: zod
+    .string()
+    .min(1)
+    .max(acceptVenueManagerInvitationBodyDisplayNameMax),
+  password: zod.string().min(acceptVenueManagerInvitationBodyPasswordMin),
+});
+
+export const AcceptVenueManagerInvitationResponse = zod.object({
+  authenticated: zod.boolean(),
+  csrfToken: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+export const ChangeVenueManagerPasswordHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const changeVenueManagerPasswordBodyNewPasswordMin = 12;
+
+export const ChangeVenueManagerPasswordBody = zod.object({
+  currentPassword: zod.string(),
+  newPassword: zod.string().min(changeVenueManagerPasswordBodyNewPasswordMin),
+});
+
+export const ChangeVenueManagerPasswordResponse = zod.object({
+  authenticated: zod.boolean(),
+  csrfToken: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+export const recoverVenueManagerPasswordBodyNewPasswordMin = 12;
+
+export const RecoverVenueManagerPasswordBody = zod.object({
+  token: zod.string().min(1),
+  newPassword: zod.string().min(recoverVenueManagerPasswordBodyNewPasswordMin),
+});
+
+export const claimVenueManagerAccountBodyDisplayNameMax = 120;
+
+export const claimVenueManagerAccountBodyPasswordMin = 12;
+
+export const ClaimVenueManagerAccountBody = zod.object({
+  email: zod.string().email(),
+  displayName: zod
+    .string()
+    .min(1)
+    .max(claimVenueManagerAccountBodyDisplayNameMax),
+  password: zod.string().min(claimVenueManagerAccountBodyPasswordMin),
+});
+
+export const ClaimVenueManagerAccountResponse = zod.object({
+  authenticated: zod.boolean(),
+  csrfToken: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+export const CreateVenueManagerInvitationParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const CreateVenueManagerInvitationHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const CreateVenueManagerInvitationBody = zod.object({
+  email: zod.string().email(),
+  role: zod.enum(["manager", "editor"]),
+});
+
+export const CreateVenueManagerRecoveryParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const CreateVenueManagerRecoveryHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const CreateVenueManagerRecoveryBody = zod.object({
+  managerId: zod.number().min(1),
+});
+
+export const UpdateVenueManagerRoleParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+  managerId: zod.coerce.number().min(1),
+});
+
+export const UpdateVenueManagerRoleHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const UpdateVenueManagerRoleBody = zod.object({
+  role: zod.enum(["manager", "editor"]),
+});
+
+export const RemoveVenueManagerParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+  managerId: zod.coerce.number().min(1),
+});
+
+export const RemoveVenueManagerHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+/**
  * @summary Get my venue application's current lifecycle status and history
  */
 export const GetMyVenueApplicationResponse = zod.object({

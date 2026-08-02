@@ -1705,6 +1705,164 @@ paths:
         "503":
           description: Server configuration missing
 
+  /venue-manager/session:
+    get:
+      operationId: getVenueManagerSession
+      tags: [venue-manager]
+      summary: Check the current business-only manager session
+      responses:
+        "200":
+          description: Session state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+    post:
+      operationId: createVenueManagerSession
+      tags: [venue-manager]
+      summary: Sign in to an individual business manager account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerSignIn" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+    delete:
+      operationId: deleteVenueManagerSession
+      tags: [venue-manager]
+      parameters: [{ $ref: "#/components/parameters/VenueManagerCsrf" }]
+      responses:
+        "204": { description: Signed out }
+
+  /venue-manager/invitations/accept:
+    post:
+      operationId: acceptVenueManagerInvitation
+      tags: [venue-manager]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerInvitationAcceptance" }
+      responses:
+        "200":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+
+  /venue-manager/password:
+    post:
+      operationId: changeVenueManagerPassword
+      tags: [venue-manager]
+      parameters: [{ $ref: "#/components/parameters/VenueManagerCsrf" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerPasswordChange" }
+      responses:
+        "200":
+          description: Password changed and session rotated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+
+  /venue-manager/password/recover:
+    post:
+      operationId: recoverVenueManagerPassword
+      tags: [venue-manager]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerRecovery" }
+      responses:
+        "204": { description: Password reset }
+
+  /venue-manager/claim:
+    post:
+      operationId: claimVenueManagerAccount
+      tags: [venue-manager]
+      security: [{ MetUid: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerClaim" }
+      responses:
+        "200":
+          description: Business-only owner account created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+
+  /venue-manager/businesses/{businessId}/invitations:
+    post:
+      operationId: createVenueManagerInvitation
+      tags: [venue-manager]
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerInvitation" }
+      responses:
+        "201":
+          description: Invitation created for secure delivery
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerToken" }
+
+  /venue-manager/businesses/{businessId}/recovery:
+    post:
+      operationId: createVenueManagerRecovery
+      tags: [venue-manager]
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerRecoveryRequest" }
+      responses:
+        "201":
+          description: Recovery link created for secure delivery
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerToken" }
+
+  /venue-manager/businesses/{businessId}/memberships/{managerId}:
+    patch:
+      operationId: updateVenueManagerRole
+      tags: [venue-manager]
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerRoleUpdate" }
+      responses:
+        "204": { description: Role changed }
+    delete:
+      operationId: removeVenueManager
+      tags: [venue-manager]
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "204": { description: Membership removed and sessions revoked }
+
   /venue-owner/me/application:
     get:
       operationId: getMyVenueApplication
@@ -2100,6 +2258,21 @@ components:
       schema:
         type: integer
         minimum: 1
+    VenueBusinessId:
+      name: businessId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    VenueManagerId:
+      name: managerId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    VenueManagerCsrf:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 1 }
   securitySchemes:
     MetUid:
       type: apiKey
@@ -2174,6 +2347,68 @@ components:
         expiresAt:
           type: string
           format: date-time
+    VenueManagerSession:
+      type: object
+      required: [authenticated, csrfToken, expiresAt]
+      properties:
+        authenticated: { type: boolean }
+        csrfToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+    VenueManagerSignIn:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 12 }
+    VenueManagerInvitationAcceptance:
+      type: object
+      required: [token, displayName, password]
+      properties:
+        token: { type: string, minLength: 1 }
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        password: { type: string, minLength: 12 }
+    VenueManagerPasswordChange:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string, minLength: 12 }
+    VenueManagerRecovery:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token: { type: string, minLength: 1 }
+        newPassword: { type: string, minLength: 12 }
+    VenueManagerClaim:
+      type: object
+      required: [email, displayName, password]
+      properties:
+        email: { type: string, format: email }
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        password: { type: string, minLength: 12 }
+    VenueManagerInvitation:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string, format: email }
+        role: { type: string, enum: [manager, editor] }
+    VenueManagerRecoveryRequest:
+      type: object
+      required: [managerId]
+      properties:
+        managerId: { type: integer, minimum: 1 }
+    VenueManagerRoleUpdate:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [manager, editor] }
+    VenueManagerToken:
+      type: object
+      required: [expiresAt]
+      properties:
+        invitationToken: { type: string }
+        recoveryToken: { type: string }
+        expiresAt: { type: string, format: date-time }
     VenueApplication:
       type: object
       required:

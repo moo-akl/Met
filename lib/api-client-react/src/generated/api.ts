@@ -86,6 +86,16 @@ import type {
   VenueApplicationStatusMutationResponse,
   VenueApplicationStatusResponse,
   VenueApplicationWithdrawal,
+  VenueManagerClaim,
+  VenueManagerInvitation,
+  VenueManagerInvitationAcceptance,
+  VenueManagerPasswordChange,
+  VenueManagerRecovery,
+  VenueManagerRecoveryRequest,
+  VenueManagerRoleUpdate,
+  VenueManagerSession,
+  VenueManagerSignIn,
+  VenueManagerToken,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -4573,6 +4583,931 @@ export const useRecoverVenueAdminPassword = <
   TContext
 > => {
   return useMutation(getRecoverVenueAdminPasswordMutationOptions(options));
+};
+
+/**
+ * @summary Check the current business-only manager session
+ */
+export const getGetVenueManagerSessionUrl = () => {
+  return `/api/venue-manager/session`;
+};
+
+export const getVenueManagerSession = async (
+  options?: RequestInit,
+): Promise<VenueManagerSession> => {
+  return customFetch<VenueManagerSession>(getGetVenueManagerSessionUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetVenueManagerSessionQueryKey = () => {
+  return [`/api/venue-manager/session`] as const;
+};
+
+export const getGetVenueManagerSessionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVenueManagerSession>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueManagerSession>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetVenueManagerSessionQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getVenueManagerSession>>
+  > = ({ signal }) => getVenueManagerSession({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueManagerSession>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVenueManagerSessionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVenueManagerSession>>
+>;
+export type GetVenueManagerSessionQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Check the current business-only manager session
+ */
+
+export function useGetVenueManagerSession<
+  TData = Awaited<ReturnType<typeof getVenueManagerSession>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueManagerSession>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVenueManagerSessionQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Sign in to an individual business manager account
+ */
+export const getCreateVenueManagerSessionUrl = () => {
+  return `/api/venue-manager/session`;
+};
+
+export const createVenueManagerSession = async (
+  venueManagerSignIn: VenueManagerSignIn,
+  options?: RequestInit,
+): Promise<VenueManagerSession> => {
+  return customFetch<VenueManagerSession>(getCreateVenueManagerSessionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(venueManagerSignIn),
+  });
+};
+
+export const getCreateVenueManagerSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerSession>>,
+    TError,
+    { data: BodyType<VenueManagerSignIn> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVenueManagerSession>>,
+  TError,
+  { data: BodyType<VenueManagerSignIn> },
+  TContext
+> => {
+  const mutationKey = ["createVenueManagerSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVenueManagerSession>>,
+    { data: BodyType<VenueManagerSignIn> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createVenueManagerSession(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVenueManagerSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVenueManagerSession>>
+>;
+export type CreateVenueManagerSessionMutationBody =
+  BodyType<VenueManagerSignIn>;
+export type CreateVenueManagerSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Sign in to an individual business manager account
+ */
+export const useCreateVenueManagerSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerSession>>,
+    TError,
+    { data: BodyType<VenueManagerSignIn> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVenueManagerSession>>,
+  TError,
+  { data: BodyType<VenueManagerSignIn> },
+  TContext
+> => {
+  return useMutation(getCreateVenueManagerSessionMutationOptions(options));
+};
+
+export const getDeleteVenueManagerSessionUrl = () => {
+  return `/api/venue-manager/session`;
+};
+
+export const deleteVenueManagerSession = async (
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteVenueManagerSessionUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteVenueManagerSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVenueManagerSession>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteVenueManagerSession>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["deleteVenueManagerSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteVenueManagerSession>>,
+    void
+  > = () => {
+    return deleteVenueManagerSession(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteVenueManagerSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteVenueManagerSession>>
+>;
+
+export type DeleteVenueManagerSessionMutationError = ErrorType<unknown>;
+
+export const useDeleteVenueManagerSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVenueManagerSession>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteVenueManagerSession>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getDeleteVenueManagerSessionMutationOptions(options));
+};
+
+export const getAcceptVenueManagerInvitationUrl = () => {
+  return `/api/venue-manager/invitations/accept`;
+};
+
+export const acceptVenueManagerInvitation = async (
+  venueManagerInvitationAcceptance: VenueManagerInvitationAcceptance,
+  options?: RequestInit,
+): Promise<VenueManagerSession> => {
+  return customFetch<VenueManagerSession>(
+    getAcceptVenueManagerInvitationUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerInvitationAcceptance),
+    },
+  );
+};
+
+export const getAcceptVenueManagerInvitationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptVenueManagerInvitation>>,
+    TError,
+    { data: BodyType<VenueManagerInvitationAcceptance> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptVenueManagerInvitation>>,
+  TError,
+  { data: BodyType<VenueManagerInvitationAcceptance> },
+  TContext
+> => {
+  const mutationKey = ["acceptVenueManagerInvitation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptVenueManagerInvitation>>,
+    { data: BodyType<VenueManagerInvitationAcceptance> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return acceptVenueManagerInvitation(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptVenueManagerInvitationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptVenueManagerInvitation>>
+>;
+export type AcceptVenueManagerInvitationMutationBody =
+  BodyType<VenueManagerInvitationAcceptance>;
+export type AcceptVenueManagerInvitationMutationError = ErrorType<unknown>;
+
+export const useAcceptVenueManagerInvitation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptVenueManagerInvitation>>,
+    TError,
+    { data: BodyType<VenueManagerInvitationAcceptance> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptVenueManagerInvitation>>,
+  TError,
+  { data: BodyType<VenueManagerInvitationAcceptance> },
+  TContext
+> => {
+  return useMutation(getAcceptVenueManagerInvitationMutationOptions(options));
+};
+
+export const getChangeVenueManagerPasswordUrl = () => {
+  return `/api/venue-manager/password`;
+};
+
+export const changeVenueManagerPassword = async (
+  venueManagerPasswordChange: VenueManagerPasswordChange,
+  options?: RequestInit,
+): Promise<VenueManagerSession> => {
+  return customFetch<VenueManagerSession>(getChangeVenueManagerPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(venueManagerPasswordChange),
+  });
+};
+
+export const getChangeVenueManagerPasswordMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof changeVenueManagerPassword>>,
+    TError,
+    { data: BodyType<VenueManagerPasswordChange> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof changeVenueManagerPassword>>,
+  TError,
+  { data: BodyType<VenueManagerPasswordChange> },
+  TContext
+> => {
+  const mutationKey = ["changeVenueManagerPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof changeVenueManagerPassword>>,
+    { data: BodyType<VenueManagerPasswordChange> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return changeVenueManagerPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ChangeVenueManagerPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof changeVenueManagerPassword>>
+>;
+export type ChangeVenueManagerPasswordMutationBody =
+  BodyType<VenueManagerPasswordChange>;
+export type ChangeVenueManagerPasswordMutationError = ErrorType<unknown>;
+
+export const useChangeVenueManagerPassword = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof changeVenueManagerPassword>>,
+    TError,
+    { data: BodyType<VenueManagerPasswordChange> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof changeVenueManagerPassword>>,
+  TError,
+  { data: BodyType<VenueManagerPasswordChange> },
+  TContext
+> => {
+  return useMutation(getChangeVenueManagerPasswordMutationOptions(options));
+};
+
+export const getRecoverVenueManagerPasswordUrl = () => {
+  return `/api/venue-manager/password/recover`;
+};
+
+export const recoverVenueManagerPassword = async (
+  venueManagerRecovery: VenueManagerRecovery,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRecoverVenueManagerPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(venueManagerRecovery),
+  });
+};
+
+export const getRecoverVenueManagerPasswordMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recoverVenueManagerPassword>>,
+    TError,
+    { data: BodyType<VenueManagerRecovery> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recoverVenueManagerPassword>>,
+  TError,
+  { data: BodyType<VenueManagerRecovery> },
+  TContext
+> => {
+  const mutationKey = ["recoverVenueManagerPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recoverVenueManagerPassword>>,
+    { data: BodyType<VenueManagerRecovery> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return recoverVenueManagerPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecoverVenueManagerPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recoverVenueManagerPassword>>
+>;
+export type RecoverVenueManagerPasswordMutationBody =
+  BodyType<VenueManagerRecovery>;
+export type RecoverVenueManagerPasswordMutationError = ErrorType<unknown>;
+
+export const useRecoverVenueManagerPassword = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recoverVenueManagerPassword>>,
+    TError,
+    { data: BodyType<VenueManagerRecovery> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof recoverVenueManagerPassword>>,
+  TError,
+  { data: BodyType<VenueManagerRecovery> },
+  TContext
+> => {
+  return useMutation(getRecoverVenueManagerPasswordMutationOptions(options));
+};
+
+export const getClaimVenueManagerAccountUrl = () => {
+  return `/api/venue-manager/claim`;
+};
+
+export const claimVenueManagerAccount = async (
+  venueManagerClaim: VenueManagerClaim,
+  options?: RequestInit,
+): Promise<VenueManagerSession> => {
+  return customFetch<VenueManagerSession>(getClaimVenueManagerAccountUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(venueManagerClaim),
+  });
+};
+
+export const getClaimVenueManagerAccountMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimVenueManagerAccount>>,
+    TError,
+    { data: BodyType<VenueManagerClaim> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimVenueManagerAccount>>,
+  TError,
+  { data: BodyType<VenueManagerClaim> },
+  TContext
+> => {
+  const mutationKey = ["claimVenueManagerAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimVenueManagerAccount>>,
+    { data: BodyType<VenueManagerClaim> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return claimVenueManagerAccount(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimVenueManagerAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimVenueManagerAccount>>
+>;
+export type ClaimVenueManagerAccountMutationBody = BodyType<VenueManagerClaim>;
+export type ClaimVenueManagerAccountMutationError = ErrorType<unknown>;
+
+export const useClaimVenueManagerAccount = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimVenueManagerAccount>>,
+    TError,
+    { data: BodyType<VenueManagerClaim> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof claimVenueManagerAccount>>,
+  TError,
+  { data: BodyType<VenueManagerClaim> },
+  TContext
+> => {
+  return useMutation(getClaimVenueManagerAccountMutationOptions(options));
+};
+
+export const getCreateVenueManagerInvitationUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/invitations`;
+};
+
+export const createVenueManagerInvitation = async (
+  businessId: number,
+  venueManagerInvitation: VenueManagerInvitation,
+  options?: RequestInit,
+): Promise<VenueManagerToken> => {
+  return customFetch<VenueManagerToken>(
+    getCreateVenueManagerInvitationUrl(businessId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerInvitation),
+    },
+  );
+};
+
+export const getCreateVenueManagerInvitationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerInvitation>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerInvitation> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVenueManagerInvitation>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerInvitation> },
+  TContext
+> => {
+  const mutationKey = ["createVenueManagerInvitation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVenueManagerInvitation>>,
+    { businessId: number; data: BodyType<VenueManagerInvitation> }
+  > = (props) => {
+    const { businessId, data } = props ?? {};
+
+    return createVenueManagerInvitation(businessId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVenueManagerInvitationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVenueManagerInvitation>>
+>;
+export type CreateVenueManagerInvitationMutationBody =
+  BodyType<VenueManagerInvitation>;
+export type CreateVenueManagerInvitationMutationError = ErrorType<unknown>;
+
+export const useCreateVenueManagerInvitation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerInvitation>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerInvitation> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVenueManagerInvitation>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerInvitation> },
+  TContext
+> => {
+  return useMutation(getCreateVenueManagerInvitationMutationOptions(options));
+};
+
+export const getCreateVenueManagerRecoveryUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/recovery`;
+};
+
+export const createVenueManagerRecovery = async (
+  businessId: number,
+  venueManagerRecoveryRequest: VenueManagerRecoveryRequest,
+  options?: RequestInit,
+): Promise<VenueManagerToken> => {
+  return customFetch<VenueManagerToken>(
+    getCreateVenueManagerRecoveryUrl(businessId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerRecoveryRequest),
+    },
+  );
+};
+
+export const getCreateVenueManagerRecoveryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerRecovery>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerRecoveryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVenueManagerRecovery>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerRecoveryRequest> },
+  TContext
+> => {
+  const mutationKey = ["createVenueManagerRecovery"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVenueManagerRecovery>>,
+    { businessId: number; data: BodyType<VenueManagerRecoveryRequest> }
+  > = (props) => {
+    const { businessId, data } = props ?? {};
+
+    return createVenueManagerRecovery(businessId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVenueManagerRecoveryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVenueManagerRecovery>>
+>;
+export type CreateVenueManagerRecoveryMutationBody =
+  BodyType<VenueManagerRecoveryRequest>;
+export type CreateVenueManagerRecoveryMutationError = ErrorType<unknown>;
+
+export const useCreateVenueManagerRecovery = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerRecovery>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerRecoveryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVenueManagerRecovery>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerRecoveryRequest> },
+  TContext
+> => {
+  return useMutation(getCreateVenueManagerRecoveryMutationOptions(options));
+};
+
+export const getUpdateVenueManagerRoleUrl = (
+  businessId: number,
+  managerId: number,
+) => {
+  return `/api/venue-manager/businesses/${businessId}/memberships/${managerId}`;
+};
+
+export const updateVenueManagerRole = async (
+  businessId: number,
+  managerId: number,
+  venueManagerRoleUpdate: VenueManagerRoleUpdate,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(
+    getUpdateVenueManagerRoleUrl(businessId, managerId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerRoleUpdate),
+    },
+  );
+};
+
+export const getUpdateVenueManagerRoleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVenueManagerRole>>,
+    TError,
+    {
+      businessId: number;
+      managerId: number;
+      data: BodyType<VenueManagerRoleUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateVenueManagerRole>>,
+  TError,
+  {
+    businessId: number;
+    managerId: number;
+    data: BodyType<VenueManagerRoleUpdate>;
+  },
+  TContext
+> => {
+  const mutationKey = ["updateVenueManagerRole"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateVenueManagerRole>>,
+    {
+      businessId: number;
+      managerId: number;
+      data: BodyType<VenueManagerRoleUpdate>;
+    }
+  > = (props) => {
+    const { businessId, managerId, data } = props ?? {};
+
+    return updateVenueManagerRole(businessId, managerId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateVenueManagerRoleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateVenueManagerRole>>
+>;
+export type UpdateVenueManagerRoleMutationBody =
+  BodyType<VenueManagerRoleUpdate>;
+export type UpdateVenueManagerRoleMutationError = ErrorType<unknown>;
+
+export const useUpdateVenueManagerRole = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVenueManagerRole>>,
+    TError,
+    {
+      businessId: number;
+      managerId: number;
+      data: BodyType<VenueManagerRoleUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateVenueManagerRole>>,
+  TError,
+  {
+    businessId: number;
+    managerId: number;
+    data: BodyType<VenueManagerRoleUpdate>;
+  },
+  TContext
+> => {
+  return useMutation(getUpdateVenueManagerRoleMutationOptions(options));
+};
+
+export const getRemoveVenueManagerUrl = (
+  businessId: number,
+  managerId: number,
+) => {
+  return `/api/venue-manager/businesses/${businessId}/memberships/${managerId}`;
+};
+
+export const removeVenueManager = async (
+  businessId: number,
+  managerId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRemoveVenueManagerUrl(businessId, managerId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemoveVenueManagerMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeVenueManager>>,
+    TError,
+    { businessId: number; managerId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeVenueManager>>,
+  TError,
+  { businessId: number; managerId: number },
+  TContext
+> => {
+  const mutationKey = ["removeVenueManager"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeVenueManager>>,
+    { businessId: number; managerId: number }
+  > = (props) => {
+    const { businessId, managerId } = props ?? {};
+
+    return removeVenueManager(businessId, managerId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveVenueManagerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeVenueManager>>
+>;
+
+export type RemoveVenueManagerMutationError = ErrorType<unknown>;
+
+export const useRemoveVenueManager = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeVenueManager>>,
+    TError,
+    { businessId: number; managerId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeVenueManager>>,
+  TError,
+  { businessId: number; managerId: number },
+  TContext
+> => {
+  return useMutation(getRemoveVenueManagerMutationOptions(options));
 };
 
 /**
