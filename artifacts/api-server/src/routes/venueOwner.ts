@@ -239,6 +239,15 @@ function requireCronSecret(req: Request, res: Response, next: NextFunction): voi
 }
 
 // ---------------------------------------------------------------------------
+// Lockout policy
+// ---------------------------------------------------------------------------
+
+/** Number of consecutive wrong passwords before the credential is locked. */
+const MAX_FAILED_LOGIN_ATTEMPTS = 5;
+/** How long the credential stays locked after reaching the threshold. */
+const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+// ---------------------------------------------------------------------------
 // Rate limiters
 // ---------------------------------------------------------------------------
 
@@ -1779,11 +1788,32 @@ router.post(
       res.status(428).json({ message: "Venue Admin needs its first password set up before anyone can sign in." });
       return;
     }
+
+    // Per-credential lockout check (independent of IP-based rate limiting).
+    if (credential.lockedUntil && credential.lockedUntil > new Date()) {
+      const retryAfterSec = Math.ceil((credential.lockedUntil.getTime() - Date.now()) / 1000);
+      res.setHeader("Retry-After", String(retryAfterSec));
+      res.status(429).json({
+        message: "Too many failed sign-in attempts. The account is temporarily locked. Try again later.",
+      });
+      return;
+    }
+
     if (!parsed.success || !(await verifyAdminPassword(parsed.data.password, credential.passwordHash))) {
+      const attempts = (credential.failedLoginAttempts ?? 0) + 1;
+      const lockedUntil = attempts >= MAX_FAILED_LOGIN_ATTEMPTS
+        ? new Date(Date.now() + LOCKOUT_DURATION_MS)
+        : null;
+      await db.update(venueAdminCredentialsTable)
+        .set({ failedLoginAttempts: attempts, lockedUntil, updatedAt: new Date() })
+        .where(eq(venueAdminCredentialsTable.id, credential.id));
       res.status(401).json({ message: "Incorrect password. Try again or use password recovery." });
       return;
     }
-    await db.update(venueAdminCredentialsTable).set({ lastLoginAt: new Date(), updatedAt: new Date() })
+
+    // Successful sign-in: clear the failure counter and issue a session.
+    await db.update(venueAdminCredentialsTable)
+      .set({ lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null, updatedAt: new Date() })
       .where(eq(venueAdminCredentialsTable.id, credential.id));
     issueAdminSession(req, res, credential);
   },

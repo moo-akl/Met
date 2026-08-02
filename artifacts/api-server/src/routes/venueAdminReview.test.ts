@@ -24,6 +24,8 @@ const dbMocks = vi.hoisted(() => {
     sessionVersion: "sessionVersion",
     lastLoginAt: "lastLoginAt",
     passwordChangedAt: "passwordChangedAt",
+    failedLoginAttempts: "failedLoginAttempts",
+    lockedUntil: "lockedUntil",
     updatedAt: "updatedAt",
   };
   const credState: { rows: Array<Record<string, unknown>>; pendingWrite: Record<string, unknown> | null } = {
@@ -48,6 +50,8 @@ const dbMocks = vi.hoisted(() => {
         sessionVersion: 1,
         passwordChangedAt: new Date(),
         lastLoginAt: null,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
         createdAt: new Date(),
         updatedAt: new Date(),
         ...credState.pendingWrite,
@@ -726,5 +730,116 @@ describe("decisions are single-shot", () => {
     const agent = await signedInAgent();
     const res = await agent.post("/api/admin/venue-owner/applications/abc/approve").send({});
     expect(res.status).toBe(400);
+  });
+});
+
+describe("credential lockout", () => {
+  /**
+   * Helper: send N wrong-password sign-in requests using a plain (stateless)
+   * request so each call re-reads the credential from credState and applies
+   * the side-effect via credChain.set.
+   */
+  async function failSignIn(times: number) {
+    for (let i = 0; i < times; i++) {
+      await request(app)
+        .post("/api/admin/venue-owner/session")
+        .send({ password: "WrongPassword1" });
+    }
+  }
+
+  it("still signs in successfully after fewer than the lockout threshold failures", async () => {
+    await signedInAgent(); // sets up credential
+
+    // 4 wrong attempts — one short of the 5-attempt threshold
+    await failSignIn(4);
+
+    const ok = await request(app)
+      .post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(ok.status).toBe(200);
+    expect(ok.body).toEqual(expect.objectContaining({ authenticated: true }));
+  });
+
+  it("locks the credential after reaching the failure threshold", async () => {
+    await signedInAgent(); // sets up credential
+
+    // 5 consecutive wrong passwords → threshold reached
+    await failSignIn(5);
+
+    // Correct password is now rejected because the credential is locked
+    const locked = await request(app)
+      .post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(locked.status).toBe(429);
+    expect(locked.headers["retry-after"]).toBeDefined();
+    expect(locked.body.message).toMatch(/locked/i);
+  });
+
+  it("increments the failed-attempt counter on the credential row", async () => {
+    await signedInAgent();
+
+    await failSignIn(3);
+
+    // The stored credential should reflect 3 failed attempts
+    expect(dbMocks.credState.rows[0]?.["failedLoginAttempts"]).toBe(3);
+    expect(dbMocks.credState.rows[0]?.["lockedUntil"]).toBeNull();
+  });
+
+  it("sets lockedUntil on the credential row when the threshold is reached", async () => {
+    await signedInAgent();
+
+    const before = Date.now();
+    await failSignIn(5);
+    const after = Date.now();
+
+    const lockedUntil = dbMocks.credState.rows[0]?.["lockedUntil"] as Date | null;
+    expect(lockedUntil).toBeInstanceOf(Date);
+    // lockedUntil should be ~5 minutes in the future
+    expect(lockedUntil!.getTime()).toBeGreaterThan(before + 4 * 60 * 1000);
+    expect(lockedUntil!.getTime()).toBeLessThanOrEqual(after + 5 * 60 * 1000 + 1000);
+  });
+
+  it("clears failedLoginAttempts and lockedUntil after a successful sign-in", async () => {
+    await signedInAgent();
+
+    // Accumulate some failures (below the lockout threshold)
+    await failSignIn(3);
+    expect(dbMocks.credState.rows[0]?.["failedLoginAttempts"]).toBe(3);
+
+    // Successful sign-in resets the counter
+    const ok = await request(app)
+      .post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(ok.status).toBe(200);
+    expect(dbMocks.credState.rows[0]?.["failedLoginAttempts"]).toBe(0);
+    expect(dbMocks.credState.rows[0]?.["lockedUntil"]).toBeNull();
+  });
+
+  it("rejects sign-in while locked even with the correct password", async () => {
+    await signedInAgent();
+
+    // Manually force a locked state by setting lockedUntil in the future
+    const future = new Date(Date.now() + 5 * 60 * 1000);
+    Object.assign(dbMocks.credState.rows[0]!, { failedLoginAttempts: 5, lockedUntil: future });
+
+    const res = await request(app)
+      .post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(res.status).toBe(429);
+    expect(res.body.message).toMatch(/locked/i);
+  });
+
+  it("allows sign-in once the lockout window has expired", async () => {
+    await signedInAgent();
+
+    // Set lockedUntil to just in the past (already expired)
+    const past = new Date(Date.now() - 1);
+    Object.assign(dbMocks.credState.rows[0]!, { failedLoginAttempts: 5, lockedUntil: past });
+
+    const res = await request(app)
+      .post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(expect.objectContaining({ authenticated: true }));
   });
 });

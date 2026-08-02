@@ -179,6 +179,10 @@ export const venueAdminCredentialsTable = pgTable("venue_admin_credentials", {
     .notNull()
     .defaultNow(),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  /** Running count of consecutive failed sign-in attempts. Reset to 0 on success. */
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  /** When set and in the future, sign-in is rejected regardless of password. */
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
