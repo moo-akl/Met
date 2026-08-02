@@ -420,6 +420,62 @@ describe("password lifecycle", () => {
       expect.objectContaining({ failedLoginAttempts: 0, lockedUntil: null }),
     );
   });
+
+  it("password-change lockout lifts automatically when the timeout expires — no manual DB intervention needed", async () => {
+    // Use fake timers so we can advance the clock without real-time sleeps.
+    vi.useFakeTimers();
+    try {
+      const LOCKOUT_MS = 5 * 60 * 1000; // must match the server constant
+
+      const agent = await signedInAgent();
+
+      // Drive the account to lockout via 5 wrong currentPassword attempts.
+      // Time is frozen so lockedUntil is written at a deterministic instant.
+      const lockTime = Date.now();
+      for (let i = 0; i < 5; i++) {
+        await agent.post("/api/admin/venue-owner/password")
+          .send({ currentPassword: "WrongPassword1", newPassword: "BrandNewSecret1" });
+      }
+
+      // Verify the credential row was locked.
+      const lockedUntil = dbMocks.credState.rows[0]?.["lockedUntil"] as Date | null;
+      expect(lockedUntil).toBeInstanceOf(Date);
+      expect(lockedUntil!.getTime()).toBeGreaterThan(lockTime);
+
+      // Advance simulated clock past the full lockout window.
+      vi.advanceTimersByTime(LOCKOUT_MS + 1);
+
+      // A password-change attempt with the correct currentPassword must now succeed —
+      // the lockout lifted automatically due to time passage, with no manual DB write.
+      const res = await agent.post("/api/admin/venue-owner/password")
+        .send({ currentPassword: "SecurePassword1", newPassword: "BrandNewSecret1" });
+      expect(res.status).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("password-change: lockedUntil exactly equal to now is treated as expired (boundary: > not >=)", async () => {
+    // Use fake timers so we can pin Date.now() to a known instant.
+    vi.useFakeTimers();
+    try {
+      const agent = await signedInAgent();
+
+      // Pin the clock to a fixed instant and set lockedUntil to that exact instant.
+      // The lockout check is `lockedUntil > new Date()`, so equal-to-now must NOT block.
+      const now = Date.now();
+      Object.assign(dbMocks.credState.rows[0]!, {
+        failedLoginAttempts: 5,
+        lockedUntil: new Date(now), // exactly at the boundary
+      });
+
+      const res = await agent.post("/api/admin/venue-owner/password")
+        .send({ currentPassword: "SecurePassword1", newPassword: "BrandNewSecret1" });
+      expect(res.status).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("review queue filtering", () => {
