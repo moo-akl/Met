@@ -1862,14 +1862,38 @@ router.post(
     const session = readAdminSession(req)!;
     const [credential] = await db.select().from(venueAdminCredentialsTable)
       .where(eq(venueAdminCredentialsTable.id, session.credentialId)).limit(1);
-    if (!credential || !(await verifyAdminPassword(parsed.data.currentPassword, credential.passwordHash))) {
+    if (!credential) {
       res.status(401).json({ message: "Your current password is incorrect." });
       return;
     }
+
+    // Per-credential lockout check — same policy as the sign-in endpoint.
+    if (credential.lockedUntil && credential.lockedUntil > new Date()) {
+      const retryAfterSec = Math.ceil((credential.lockedUntil.getTime() - Date.now()) / 1000);
+      res.setHeader("Retry-After", String(retryAfterSec));
+      res.status(429).json({
+        message: "Too many failed attempts. The account is temporarily locked. Try again later.",
+      });
+      return;
+    }
+
+    if (!(await verifyAdminPassword(parsed.data.currentPassword, credential.passwordHash))) {
+      const attempts = (credential.failedLoginAttempts ?? 0) + 1;
+      const lockedUntil = attempts >= MAX_FAILED_LOGIN_ATTEMPTS
+        ? new Date(Date.now() + LOCKOUT_DURATION_MS)
+        : null;
+      await db.update(venueAdminCredentialsTable)
+        .set({ failedLoginAttempts: attempts, lockedUntil, updatedAt: new Date() })
+        .where(eq(venueAdminCredentialsTable.id, credential.id));
+      res.status(401).json({ message: "Your current password is incorrect." });
+      return;
+    }
+
     const passwordHash = await hashAdminPassword(parsed.data.newPassword);
     const nextVersion = credential.sessionVersion + 1;
     await db.update(venueAdminCredentialsTable).set({
-      passwordHash, sessionVersion: nextVersion, passwordChangedAt: new Date(), updatedAt: new Date(),
+      passwordHash, sessionVersion: nextVersion, passwordChangedAt: new Date(),
+      failedLoginAttempts: 0, lockedUntil: null, updatedAt: new Date(),
     }).where(eq(venueAdminCredentialsTable.id, credential.id));
     issueAdminSession(req, res, { id: credential.id, sessionVersion: nextVersion });
   },

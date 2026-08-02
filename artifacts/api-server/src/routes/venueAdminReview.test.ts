@@ -367,6 +367,59 @@ describe("password lifecycle", () => {
     });
     expect(res.status).toBe(409);
   });
+
+  it("wrong currentPassword on password-change increments the failed-attempts counter", async () => {
+    const agent = await signedInAgent();
+    const res = await agent.post("/api/admin/venue-owner/password")
+      .send({ currentPassword: "WrongPassword1", newPassword: "BrandNewSecret1" });
+    expect(res.status).toBe(401);
+    // credChain.set is called with the incremented counter
+    expect(dbMocks.credChain["set"]).toHaveBeenCalledWith(
+      expect.objectContaining({ failedLoginAttempts: 1, lockedUntil: null }),
+    );
+  });
+
+  it("password-change endpoint locks the account after MAX_FAILED_LOGIN_ATTEMPTS wrong currentPasswords", async () => {
+    const agent = await signedInAgent();
+    // Simulate 4 prior failures stored in the credential row
+    dbMocks.credState.rows[0]!.failedLoginAttempts = 4;
+
+    const res = await agent.post("/api/admin/venue-owner/password")
+      .send({ currentPassword: "WrongPassword1", newPassword: "BrandNewSecret1" });
+    expect(res.status).toBe(401);
+    expect(dbMocks.credChain["set"]).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failedLoginAttempts: 5,
+        lockedUntil: expect.any(Date),
+      }),
+    );
+  });
+
+  it("password-change endpoint returns 429 when the account is already locked", async () => {
+    const agent = await signedInAgent();
+    // Simulate an active lockout in the stored credential
+    dbMocks.credState.rows[0]!.lockedUntil = new Date(Date.now() + 5 * 60 * 1000);
+
+    const res = await agent.post("/api/admin/venue-owner/password")
+      .send({ currentPassword: "WrongPassword1", newPassword: "BrandNewSecret1" });
+    expect(res.status).toBe(429);
+    expect(res.headers["retry-after"]).toBeDefined();
+    // Counter must not be touched while locked
+    expect(dbMocks.credChain["set"]).not.toHaveBeenCalled();
+  });
+
+  it("successful password change resets the failed-attempts counter", async () => {
+    const agent = await signedInAgent();
+    // Simulate some prior failures
+    dbMocks.credState.rows[0]!.failedLoginAttempts = 2;
+
+    const res = await agent.post("/api/admin/venue-owner/password")
+      .send({ currentPassword: "SecurePassword1", newPassword: "BrandNewSecret1" });
+    expect(res.status).toBe(200);
+    expect(dbMocks.credChain["set"]).toHaveBeenCalledWith(
+      expect.objectContaining({ failedLoginAttempts: 0, lockedUntil: null }),
+    );
+  });
 });
 
 describe("review queue filtering", () => {
