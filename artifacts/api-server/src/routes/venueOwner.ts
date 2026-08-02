@@ -68,6 +68,11 @@ import { requireUid } from "../middlewares/requireUid";
 import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
 import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
+import {
+  sendVenueApprovedEmail,
+  sendVenueRejectedEmail,
+  sendVenueChangesRequestedEmail,
+} from "../lib/email.js";
 import { z } from "zod/v4";
 import crypto from "node:crypto";
 
@@ -2400,6 +2405,32 @@ async function notifyApplicant(
   }
 }
 
+/**
+ * Generates a one-time registration token for the venue manager portal and
+ * returns the full URL. Returns null if the business record doesn't exist yet
+ * or if VENUE_MANAGER_BASE_URL is not configured.
+ */
+async function createVenueManagerRegistrationUrl(profileId: number): Promise<string | null> {
+  const baseUrl = process.env["VENUE_MANAGER_BASE_URL"];
+  if (!baseUrl) return null;
+
+  const [business] = await db
+    .select({ id: venueBusinessesTable.id })
+    .from(venueBusinessesTable)
+    .where(eq(venueBusinessesTable.venueOwnerProfileId, profileId))
+    .limit(1);
+  if (!business) return null;
+
+  const rawToken = crypto.randomBytes(32).toString("base64url");
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await db
+    .insert(venueManagerRegistrationTokensTable)
+    .values({ businessId: business.id, tokenHash, expiresAt });
+
+  return `${baseUrl.replace(/\/$/, "")}/register?token=${rawToken}`;
+}
+
 const reviewNoteSchema = z.string().trim().min(1).max(1000);
 
 const adminListQuerySchema = z.object({
@@ -2635,6 +2666,27 @@ router.post(
       type: "venue_owner_approved",
     });
 
+    if (result.profile.contactEmail) {
+      const emailTo = result.profile.contactEmail;
+      const emailProfileId = result.profile.id;
+      const emailBusinessName = result.profile.businessName;
+      // Fire-and-forget: registration URL generation and email sending are both
+      // best-effort. Neither should ever block or fail the approve response.
+      (async () => {
+        let registrationUrl: string | null = null;
+        try {
+          registrationUrl = await createVenueManagerRegistrationUrl(emailProfileId);
+        } catch (err) {
+          logger.warn({ err, profileId: emailProfileId }, "Could not generate registration URL for approved email");
+        }
+        try {
+          await sendVenueApprovedEmail({ to: emailTo, businessName: emailBusinessName, registrationUrl });
+        } catch (err) {
+          logger.warn({ err, profileId: emailProfileId }, "Failed to send venue approved email");
+        }
+      })();
+    }
+
     res.json({ profile: serializeApplicationProfile(result.profile) });
   },
 );
@@ -2740,6 +2792,16 @@ router.post(
       type: "venue_owner_rejected",
     });
 
+    if (result.profile.contactEmail) {
+      sendVenueRejectedEmail({
+        to: result.profile.contactEmail,
+        businessName: result.profile.businessName,
+        reason: parsed.data.reason,
+      }).catch((err) => {
+        logger.warn({ err, profileId: result.profile.id }, "Failed to send venue rejected email");
+      });
+    }
+
     res.json({ profile: serializeApplicationProfile(result.profile) });
   },
 );
@@ -2798,6 +2860,16 @@ router.post(
       body: `We need a change before approving "${result.profile.businessName}": ${parsed.data.message}`,
       type: "venue_owner_changes_requested",
     });
+
+    if (result.profile.contactEmail) {
+      sendVenueChangesRequestedEmail({
+        to: result.profile.contactEmail,
+        businessName: result.profile.businessName,
+        notes: parsed.data.message,
+      }).catch((err) => {
+        logger.warn({ err, profileId: result.profile.id }, "Failed to send venue changes-requested email");
+      });
+    }
 
     res.json({ profile: serializeApplicationProfile(result.profile) });
   },
