@@ -896,3 +896,62 @@ describe("credential lockout", () => {
     expect(res.body).toEqual(expect.objectContaining({ authenticated: true }));
   });
 });
+
+describe("lockout durability across server restarts", () => {
+  /**
+   * These tests verify that the lockout state (failedLoginAttempts + lockedUntil)
+   * is persisted in the DB — represented here by credState — and that a
+   * completely independent request (simulating a process restart) re-reads those
+   * fields and continues to enforce the lockout.  No in-memory state is carried
+   * between the failure-accumulation phase and the post-"restart" assertion.
+   */
+
+  it("sign-in endpoint: lockout written to DB survives a fresh request", async () => {
+    await signedInAgent(); // configures the credential row
+
+    // Accumulate exactly MAX_FAILED_LOGIN_ATTEMPTS wrong passwords.
+    // Each request re-reads from credState (our DB proxy) and writes back.
+    for (let i = 0; i < 5; i++) {
+      const r = await request(app)
+        .post("/api/admin/venue-owner/session")
+        .send({ password: "WrongPassword1" });
+      expect(r.status).toBe(401);
+    }
+
+    // Verify the lockout fields were written to the credential row (DB write confirmed).
+    expect(dbMocks.credState.rows[0]?.["failedLoginAttempts"]).toBe(5);
+    expect(dbMocks.credState.rows[0]?.["lockedUntil"]).toBeInstanceOf(Date);
+
+    // Simulate a server restart: send an entirely fresh request with no manual state
+    // mutation.  The handler must read lockedUntil from the DB row and return 429.
+    const afterRestart = await request(app)
+      .post("/api/admin/venue-owner/session")
+      .send({ password: "SecurePassword1" });
+    expect(afterRestart.status).toBe(429);
+    expect(afterRestart.headers["retry-after"]).toBeDefined();
+    expect(afterRestart.body.message).toMatch(/locked/i);
+  });
+
+  it("password-change endpoint: lockout written to DB survives a fresh request", async () => {
+    const agent = await signedInAgent(); // configures the credential row
+
+    // Accumulate exactly MAX_FAILED_LOGIN_ATTEMPTS wrong currentPasswords.
+    for (let i = 0; i < 5; i++) {
+      const r = await agent
+        .post("/api/admin/venue-owner/password")
+        .send({ currentPassword: "WrongPassword1", newPassword: "BrandNewSecret1" });
+      expect(r.status).toBe(401);
+    }
+
+    // Verify the lockout fields were written to the credential row (DB write confirmed).
+    expect(dbMocks.credState.rows[0]?.["failedLoginAttempts"]).toBe(5);
+    expect(dbMocks.credState.rows[0]?.["lockedUntil"]).toBeInstanceOf(Date);
+
+    // Simulate a server restart: fresh request re-reads DB row → still locked → 429.
+    const afterRestart = await agent
+      .post("/api/admin/venue-owner/password")
+      .send({ currentPassword: "SecurePassword1", newPassword: "BrandNewSecret1" });
+    expect(afterRestart.status).toBe(429);
+    expect(afterRestart.headers["retry-after"]).toBeDefined();
+  });
+});
