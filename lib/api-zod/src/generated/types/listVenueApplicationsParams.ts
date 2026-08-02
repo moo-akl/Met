@@ -12,11 +12,16 @@ export type ListVenueApplicationsParams = {
    */
   status?: string;
   /**
-   * Only include applications created at or after this instant.
+   * Only include applications submitted or resubmitted at or after this instant.
    */
   from?: Date;
   /**
-   * Only include applications created before this instant.
+   * Only include applications submitted or resubmitted before this instant.
    */
   to?: Date;
+  /**
+   * Match business name, venue name, place ID, owner UID, or application ID.
+   * @maxLength 120
+   */
+  search?: string;
 };

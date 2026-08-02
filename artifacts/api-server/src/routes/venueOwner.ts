@@ -45,6 +45,8 @@ import {
   isNull,
   inArray,
   ne,
+  or,
+  ilike,
 } from "drizzle-orm";
 import {
   db,
@@ -573,8 +575,19 @@ router.post(
           reviewedAt: null,
           updatedAt: now,
         })
-        .where(eq(venueOwnerProfilesTable.ownerUid, uid))
+        .where(
+          and(
+            eq(venueOwnerProfilesTable.ownerUid, uid),
+            inArray(venueOwnerProfilesTable.applicationStatus, [...APPLICANT_ACTION_STATUSES]),
+          ),
+        )
         .returning();
+      if (!profile) {
+        res.status(409).json({
+          message: "This application changed while you were updating it. Refresh to see its current status.",
+        });
+        return;
+      }
       await appendApplicationHistory({
         venueOwnerProfileId: profile.id,
         eventType: "resubmitted",
@@ -1801,11 +1814,13 @@ const adminListQuerySchema = z.object({
   status: z.string().trim().optional(),
   from: z.string().trim().optional(),
   to: z.string().trim().optional(),
+  search: z.string().trim().max(120).optional(),
 });
 
 /**
  * GET /admin/venue-owner/applications
  * Query: ?status=submitted,under_review | ?status=all &from=ISO &to=ISO
+ *        &search=business-or-place
  *
  * Defaults to the review queue (applications actually awaiting a decision) so
  * the portal never presents an already-decided application as actionable.
@@ -1819,7 +1834,7 @@ router.get(
       res.status(400).json({ message: "Invalid filters" });
       return;
     }
-    const { status, from, to } = parsedQuery.data;
+    const { status, from, to, search } = parsedQuery.data;
 
     let statuses: VenueApplicationStatus[] = [...REVIEWABLE_STATUSES];
     if (status && status !== "queue") {
@@ -1845,7 +1860,7 @@ router.get(
         res.status(400).json({ message: "Invalid 'from' date" });
         return;
       }
-      filters.push(gte(venueOwnerProfilesTable.createdAt, fromDate));
+      filters.push(gte(venueOwnerProfilesTable.submittedAt, fromDate));
     }
     if (to) {
       const toDate = new Date(to);
@@ -1853,14 +1868,26 @@ router.get(
         res.status(400).json({ message: "Invalid 'to' date" });
         return;
       }
-      filters.push(lt(venueOwnerProfilesTable.createdAt, toDate));
+      filters.push(lt(venueOwnerProfilesTable.submittedAt, toDate));
+    }
+    if (search) {
+      const pattern = `%${search.replace(/[%_\\]/g, "\\$&")}%`;
+      filters.push(
+        or(
+          ilike(venueOwnerProfilesTable.businessName, pattern),
+          ilike(venueOwnerProfilesTable.placeName, pattern),
+          ilike(venueOwnerProfilesTable.placeId, pattern),
+          ilike(venueOwnerProfilesTable.ownerUid, pattern),
+          sql`CAST(${venueOwnerProfilesTable.id} AS TEXT) ILIKE ${pattern}`,
+        )!,
+      );
     }
 
     const applications = await db
       .select()
       .from(venueOwnerProfilesTable)
       .where(and(...filters))
-      .orderBy(desc(venueOwnerProfilesTable.createdAt));
+      .orderBy(desc(venueOwnerProfilesTable.submittedAt));
 
     const countRows = await db
       .select({ status: venueOwnerProfilesTable.applicationStatus, total: count() })

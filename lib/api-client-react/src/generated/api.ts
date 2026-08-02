@@ -4400,7 +4400,9 @@ export const useWithdrawMyVenueApplication = <
 /**
  * Defaults to the live review queue (submitted, under_review,
 resubmitted). Pass `status=all`, or a comma-separated list of
-lifecycle statuses, to audit decided applications.
+lifecycle statuses, to audit decided applications. Date filters use the
+most recent submission time, so resubmitted applications appear in the
+period in which they re-entered review.
 
  * @summary List venue applications for review
  */

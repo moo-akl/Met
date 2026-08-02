@@ -1669,7 +1669,9 @@ paths:
       description: |
         Defaults to the live review queue (submitted, under_review,
         resubmitted). Pass `status=all`, or a comma-separated list of
-        lifecycle statuses, to audit decided applications.
+        lifecycle statuses, to audit decided applications. Date filters use the
+        most recent submission time, so resubmitted applications appear in the
+        period in which they re-entered review.
       parameters:
         - name: status
           in: query
@@ -1680,17 +1682,24 @@ paths:
         - name: from
           in: query
           required: false
-          description: Only include applications created at or after this instant.
+          description: Only include applications submitted or resubmitted at or after this instant.
           schema:
             type: string
             format: date-time
         - name: to
           in: query
           required: false
-          description: Only include applications created before this instant.
+          description: Only include applications submitted or resubmitted before this instant.
           schema:
             type: string
             format: date-time
+        - name: search
+          in: query
+          required: false
+          description: Match business name, venue name, place ID, owner UID, or application ID.
+          schema:
+            type: string
+            maxLength: 120
       responses:
         "200":
           description: Matching applications plus lifecycle counts

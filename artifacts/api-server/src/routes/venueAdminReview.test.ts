@@ -230,6 +230,27 @@ describe("review queue filtering", () => {
     expect(res.status).toBe(200);
     expect(res.body.applications[0].status).toBe("approved");
   });
+
+  it("returns a recently resubmitted application in the date-filtered review queue", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.orderBy.mockResolvedValueOnce([
+      {
+        ...application({ applicationStatus: "resubmitted" }),
+        createdAt: new Date("2025-01-01T10:00:00.000Z"),
+        submittedAt: new Date("2026-08-01T10:00:00.000Z"),
+      },
+    ]);
+
+    const res = await agent.get(
+      "/api/admin/venue-owner/applications?status=queue&from=2026-08-01T00:00:00.000Z&to=2026-08-02T00:00:00.000Z&search=Corner",
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.applications).toHaveLength(1);
+    expect(res.body.applications[0].status).toBe("resubmitted");
+    expect(dbMocks.chain.where).toHaveBeenCalled();
+    expect(dbMocks.chain.orderBy).toHaveBeenCalled();
+  });
 });
 
 describe("review detail and notes", () => {

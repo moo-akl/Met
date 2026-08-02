@@ -39,7 +39,8 @@ import {
   Info,
   Edit3,
   CornerDownLeft,
-  XCircle
+  XCircle,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -98,6 +99,7 @@ export default function Dashboard() {
   const [filterStatus, setFilterStatus] = useState<ListStatus>("queue");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [search, setSearch] = useState("");
   
   // Dialog states
   const [decisionDialog, setDecisionDialog] = useState<"approve" | "reject" | "changes" | "withdraw" | "note" | null>(null);
@@ -135,27 +137,39 @@ export default function Dashboard() {
 
   // Queries
   const listParams = useMemo(() => {
-    const params: { status?: string; from?: string; to?: string } = { status: filterStatus };
-    if (fromDate) params.from = new Date(fromDate).toISOString();
+    const params: { status?: string; from?: string; to?: string; search?: string } = { status: filterStatus };
+    if (fromDate) params.from = new Date(`${fromDate}T00:00:00`).toISOString();
     if (toDate) {
-      const end = new Date(toDate);
-      end.setUTCHours(23, 59, 59, 999);
+      const end = new Date(`${toDate}T00:00:00`);
+      end.setDate(end.getDate() + 1);
       params.to = end.toISOString();
     }
+    if (search.trim()) params.search = search.trim();
     return params;
-  }, [filterStatus, fromDate, toDate]);
+  }, [filterStatus, fromDate, toDate, search]);
   
-  const { data: listData, isLoading: isLoadingApps, isError: isAppsError, error: appsError } = useListVenueApplications(
+  const { data: listData, isLoading: isLoadingApps, isError: isAppsError, error: appsError, refetch: refetchApplications, isFetching: isFetchingApps } = useListVenueApplications(
     listParams,
     {
       query: {
-        queryKey: getListVenueApplicationsQueryKey(listParams)
+        queryKey: getListVenueApplicationsQueryKey(listParams),
+        refetchInterval: 20_000,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
       }
     }
   );
 
   const applications = listData?.applications ?? [];
   const counts = listData?.counts ?? {};
+  const hasActiveFilters = filterStatus !== "queue" || Boolean(fromDate || toDate || search.trim());
+  const resetFilters = () => {
+    setFilterStatus("queue");
+    setFromDate("");
+    setToDate("");
+    setSearch("");
+    setSelectedAppId(null);
+  };
 
   const { data: detailData, isLoading: isLoadingDetail } = useGetVenueApplicationForReview(
     selectedAppId as number,
@@ -376,6 +390,16 @@ export default function Dashboard() {
                 <SelectItem value="draft">Draft ({counts.draft || 0})</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => void refetchApplications()}
+              disabled={isFetchingApps}
+              title="Refresh applications"
+            >
+              <RefreshCw className={`w-4 h-4 ${isFetchingApps ? "animate-spin" : ""}`} />
+            </Button>
 
             <Popover>
               <PopoverTrigger asChild>
@@ -419,6 +443,24 @@ export default function Dashboard() {
               </PopoverContent>
             </Popover>
           </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => { setSearch(event.target.value); setSelectedAppId(null); }}
+              placeholder="Search venue, place ID, owner, or application ID"
+              className="h-9 pl-8 text-sm"
+              aria-label="Search applications"
+            />
+          </div>
+          {hasActiveFilters && (
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>Showing filtered results.</span>
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={resetFilters}>
+                Show full review queue
+              </Button>
+            </div>
+          )}
         </div>
 
         <ScrollArea className="flex-1">
@@ -436,8 +478,22 @@ export default function Dashboard() {
                 <div className="w-12 h-12 rounded-full bg-muted/50 border border-border flex items-center justify-center mx-auto mb-4 text-muted-foreground">
                   <Check className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-semibold">Queue Empty</h3>
-                <p className="text-xs text-muted-foreground mt-1">No applications match this filter.</p>
+                <h3 className="text-sm font-semibold">{hasActiveFilters ? "No matching applications" : "Review queue is clear"}</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {hasActiveFilters
+                    ? "Try removing filters or search terms to view the full queue."
+                    : "New and resubmitted applications appear here automatically."}
+                </p>
+                <div className="mt-4 flex justify-center gap-2">
+                  {hasActiveFilters && (
+                    <Button variant="outline" size="sm" onClick={resetFilters}>
+                      Show full review queue
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => void refetchApplications()} disabled={isFetchingApps}>
+                    <RefreshCw className={`mr-1.5 w-3.5 h-3.5 ${isFetchingApps ? "animate-spin" : ""}`} /> Refresh
+                  </Button>
+                </div>
               </div>
             ) : (
               applications.map(app => (
@@ -460,7 +516,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex items-center text-[10px] text-muted-foreground gap-1.5 font-medium">
                       <Clock className="w-3 h-3" />
-                      {format(new Date(app.updatedAt), "MMM d, h:mm a")}
+                      {format(new Date(app.submittedAt ?? app.createdAt), "MMM d, h:mm a")}
                     </div>
                     {app.applicationStatus === "under_review" && (
                       <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold tracking-wider uppercase">In Progress</span>
@@ -646,7 +702,7 @@ export default function Dashboard() {
                         <div>
                           <span className="block text-xs font-medium text-muted-foreground mb-1">Submitted At</span>
                           <span className="font-medium">
-                            {format(new Date(selectedApp.createdAt), "MMM d, yyyy, h:mm a")}
+                             {format(new Date(selectedApp.submittedAt ?? selectedApp.createdAt), "MMM d, yyyy, h:mm a")}
                           </span>
                         </div>
                       </CardContent>

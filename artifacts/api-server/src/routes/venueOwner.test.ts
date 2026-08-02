@@ -198,6 +198,24 @@ describe("venue application lifecycle", () => {
     );
   });
 
+  it("does not record a resubmission if the status changes before its guarded update", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([{ id: 7, applicationStatus: "changes_requested" }])
+      .mockResolvedValueOnce([]);
+    dbMocks.chain.returning.mockReset();
+    dbMocks.chain.returning.mockResolvedValue([]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/reapply")
+      .send(validApplication);
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toMatch(/changed while you were updating/i);
+    expect(dbMocks.chain.values).not.toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "resubmitted" }),
+    );
+  });
+
   it("does not expose legacy header-secret review endpoints", async () => {
     const response = await request(app)
       .get("/api/admin/venue-owner/pending")

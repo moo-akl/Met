@@ -1595,10 +1595,14 @@ export const WithdrawMyVenueApplicationResponse = zod.object({
 /**
  * Defaults to the live review queue (submitted, under_review,
 resubmitted). Pass `status=all`, or a comma-separated list of
-lifecycle statuses, to audit decided applications.
+lifecycle statuses, to audit decided applications. Date filters use the
+most recent submission time, so resubmitted applications appear in the
+period in which they re-entered review.
 
  * @summary List venue applications for review
  */
+export const listVenueApplicationsQuerySearchMax = 120;
+
 export const ListVenueApplicationsQueryParams = zod.object({
   status: zod.coerce
     .string()
@@ -1609,11 +1613,22 @@ export const ListVenueApplicationsQueryParams = zod.object({
   from: zod
     .date()
     .optional()
-    .describe("Only include applications created at or after this instant."),
+    .describe(
+      "Only include applications submitted or resubmitted at or after this instant.",
+    ),
   to: zod
     .date()
     .optional()
-    .describe("Only include applications created before this instant."),
+    .describe(
+      "Only include applications submitted or resubmitted before this instant.",
+    ),
+  search: zod.coerce
+    .string()
+    .max(listVenueApplicationsQuerySearchMax)
+    .optional()
+    .describe(
+      "Match business name, venue name, place ID, owner UID, or application ID.",
+    ),
 });
 
 export const ListVenueApplicationsResponse = zod.object({
