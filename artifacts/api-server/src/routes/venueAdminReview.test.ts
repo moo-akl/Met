@@ -895,6 +895,67 @@ describe("credential lockout", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual(expect.objectContaining({ authenticated: true }));
   });
+
+  it("lockout lifts automatically when the timeout expires — no manual DB intervention needed", async () => {
+    // Use fake timers so we can advance the clock without real-time sleeps.
+    vi.useFakeTimers();
+    try {
+      const LOCKOUT_MS = 5 * 60 * 1000; // must match the server constant
+
+      await signedInAgent();
+
+      // Drive the account to lockout by accumulating 5 wrong-password requests.
+      // We send the requests while time is frozen so lockedUntil is deterministic.
+      const lockTime = Date.now();
+      for (let i = 0; i < 5; i++) {
+        await request(app)
+          .post("/api/admin/venue-owner/session")
+          .send({ password: "WrongPassword1" });
+      }
+
+      // Verify lockout was set in the DB (the server wrote a lockedUntil ~lockTime + 5 min).
+      const lockedUntil = dbMocks.credState.rows[0]?.["lockedUntil"] as Date | null;
+      expect(lockedUntil).toBeInstanceOf(Date);
+      expect(lockedUntil!.getTime()).toBeGreaterThan(lockTime);
+
+      // Advance simulated clock past the full lockout window.
+      vi.advanceTimersByTime(LOCKOUT_MS + 1);
+
+      // A fresh sign-in with the correct password must now succeed — the lockout
+      // lifted automatically due to time passage, with no manual DB write needed.
+      const res = await request(app)
+        .post("/api/admin/venue-owner/session")
+        .send({ password: "SecurePassword1" });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(expect.objectContaining({ authenticated: true }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lockedUntil exactly equal to now is treated as expired (boundary: > not >=)", async () => {
+    // Use fake timers so we can pin Date.now() to a known instant.
+    vi.useFakeTimers();
+    try {
+      await signedInAgent();
+
+      // Pin the clock to a fixed instant and set lockedUntil to that exact instant.
+      // The lockout check is `lockedUntil > new Date()`, so equal-to-now must NOT block.
+      const now = Date.now();
+      Object.assign(dbMocks.credState.rows[0]!, {
+        failedLoginAttempts: 5,
+        lockedUntil: new Date(now), // exactly at the boundary
+      });
+
+      const res = await request(app)
+        .post("/api/admin/venue-owner/session")
+        .send({ password: "SecurePassword1" });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(expect.objectContaining({ authenticated: true }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("lockout durability across server restarts", () => {
