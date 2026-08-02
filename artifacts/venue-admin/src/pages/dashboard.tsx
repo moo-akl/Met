@@ -800,6 +800,30 @@ export default function Dashboard() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-5 text-sm space-y-4">
+                        {(selectedApp as Record<string, unknown>).applicationSource === "web" && (
+                          <div>
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300">
+                              Web application
+                            </Badge>
+                          </div>
+                        )}
+                        {(selectedApp as Record<string, unknown>).contactName && (
+                          <div>
+                            <span className="block text-xs font-medium text-muted-foreground mb-1">Contact Name</span>
+                            <span className="font-medium">{String((selectedApp as Record<string, unknown>).contactName)}</span>
+                          </div>
+                        )}
+                        {(selectedApp as Record<string, unknown>).contactEmail && (
+                          <div>
+                            <span className="block text-xs font-medium text-muted-foreground mb-1">Contact Email</span>
+                            <a
+                              href={`mailto:${String((selectedApp as Record<string, unknown>).contactEmail)}`}
+                              className="font-medium text-primary hover:underline"
+                            >
+                              {String((selectedApp as Record<string, unknown>).contactEmail)}
+                            </a>
+                          </div>
+                        )}
                         <div>
                           <span className="block text-xs font-medium text-muted-foreground mb-1">Owner UID</span>
                           <span className="font-mono text-xs bg-muted px-2 py-1 rounded break-all select-all">

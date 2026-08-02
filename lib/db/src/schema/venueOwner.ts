@@ -74,6 +74,12 @@ export const venueOwnerProfilesTable = pgTable(
     verificationDocUrl: text("verification_doc_url"),
     /** Optional additional notes submitted during registration. */
     registrationNotes: text("registration_notes"),
+    /** Contact email for web-portal applications (no Firebase UID available). */
+    contactEmail: text("contact_email"),
+    /** Contact name supplied by web-portal applicants. */
+    contactName: text("contact_name"),
+    /** 'mobile' | 'web' — null for legacy rows. */
+    applicationSource: text("application_source"),
     isApproved: boolean("is_approved").notNull().default(false),
     isVerified: boolean("is_verified").notNull().default(false),
     /** Admin-supplied rejection reason. Surfaced to owner so they can re-apply. */

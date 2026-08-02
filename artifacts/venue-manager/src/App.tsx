@@ -152,7 +152,7 @@ function LoginPage({ sessionExpired = false, onSignedIn }: { sessionExpired?: bo
       <label>Password<input required name="password" type="password" autoComplete="current-password" placeholder="Your password" /></label>
       <button className="vm-primary" disabled={login.isPending}>{login.isPending ? "Signing in…" : "Sign in"}</button>
     </form>
-    <div className="vm-auth-links"><button type="button" onClick={() => navigate("/recover")}>Use a recovery link</button><button type="button" onClick={() => navigate("/invite")}>Accept an invitation</button><button type="button" onClick={() => navigate("/register")}>Register as venue owner</button></div>
+    <div className="vm-auth-links"><button type="button" onClick={() => navigate("/recover")}>Use a recovery link</button><button type="button" onClick={() => navigate("/invite")}>Accept an invitation</button><button type="button" onClick={() => navigate("/register")}>Register as venue owner</button><button type="button" onClick={() => navigate("/apply")}>Apply to list your venue</button></div>
   </AuthFrame>;
 }
 
@@ -270,6 +270,133 @@ function RegisterPage() {
       <div className="vm-auth-links">
         <button type="button" onClick={() => navigate("/")}>Back to sign in</button>
       </div>
+    </AuthFrame>
+  );
+}
+
+type PlaceResult = { placeId: string; name: string; address: string; lat: number; lng: number };
+type ApplyFormData = {
+  contactEmail: string; contactName: string; place: PlaceResult | null;
+  tagline: string; description: string; verificationDocUrl: string; registrationNotes: string;
+};
+
+function ApplyPage() {
+  const [, navigate] = useLocation();
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState<ApplyFormData>({ contactEmail: "", contactName: "", place: null, tagline: "", description: "", verificationDocUrl: "", registrationNotes: "" });
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<PlaceResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (search.length < 2) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/venue-owner/places-public/search?query=${encodeURIComponent(search)}`);
+        if (res.ok) { const json = await res.json() as { places: PlaceResult[] }; setResults(json.places); }
+      } catch { /* ignore */ } finally { setSearching(false); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/venue-owner/apply", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ contactEmail: form.contactEmail, contactName: form.contactName, placeId: form.place!.placeId, placeName: form.place!.name, businessName: form.place!.name, lat: form.place!.lat, lng: form.place!.lng, tagline: form.tagline || null, description: form.description || null, verificationDocUrl: form.verificationDocUrl, registrationNotes: form.registrationNotes || null }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})) as { message?: string }; throw Object.assign(new Error(e.message ?? "Submission failed"), { status: res.status }); }
+    },
+    onSuccess: () => setSubmitted(true),
+    onError: (e) => setError(apiError(e)),
+  });
+
+  if (submitted) return (
+    <AuthFrame title="Application received." subtitle="We review every application carefully — usually within a few business days.">
+      <div className="vm-notice success">Your application for <strong>{form.place?.name}</strong> has been submitted. When approved you'll receive your registration link at <strong>{form.contactEmail}</strong>.</div>
+      <div className="vm-auth-links"><button type="button" onClick={() => navigate("/")}>Back to sign in</button></div>
+    </AuthFrame>
+  );
+
+  const stepLabels = ["Your contact details", "Find your venue", "About your venue", "Proof of ownership", "Review & submit"];
+  return (
+    <AuthFrame title="List your venue on Met." subtitle={`Step ${step} of 5 — ${stepLabels[step - 1]}`}>
+      {error && <div className="vm-notice error">{error}</div>}
+
+      {step === 1 && (
+        <form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setForm(d => ({ ...d, contactEmail: String(f.get("email")).trim(), contactName: String(f.get("name")).trim() })); setError(""); setStep(2); }}>
+          <label>Your name<input required name="name" autoComplete="name" defaultValue={form.contactName} placeholder="Your full name" /></label>
+          <label>Your email<input required name="email" type="email" autoComplete="email" defaultValue={form.contactEmail} placeholder="you@yourvenue.com" /></label>
+          <button className="vm-primary">Next →</button>
+        </form>
+      )}
+
+      {step === 2 && (
+        <div className="vm-form">
+          <label>Search for your venue
+            <input value={search} onChange={(e) => { setSearch(e.target.value); if (form.place) setForm(d => ({ ...d, place: null })); }} placeholder="Type your venue name or address" autoFocus />
+          </label>
+          {searching && <p className="vm-subtitle" style={{ margin: 0 }}>Searching…</p>}
+          {results.length > 0 && !form.place && (
+            <div className="vm-place-results">
+              {results.map((p) => (
+                <button key={p.placeId} type="button" className="vm-place-result" onClick={() => { setForm(d => ({ ...d, place: p })); setSearch(p.name); setResults([]); }}>
+                  <strong>{p.name}</strong><span>{p.address}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {form.place && <div className="vm-notice success">✓ <strong>{form.place.name}</strong><br /><small style={{ opacity: 0.75 }}>{form.place.address}</small></div>}
+          <div className="vm-apply-actions">
+            <button className="vm-secondary" type="button" onClick={() => setStep(1)}>← Back</button>
+            <button className="vm-primary" type="button" disabled={!form.place} onClick={() => setStep(3)}>Next →</button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
+        <form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setForm(d => ({ ...d, tagline: String(f.get("tagline") ?? "").trim(), description: String(f.get("description") ?? "").trim() })); setStep(4); }}>
+          <label>Tagline <span className="vm-optional">optional</span><input name="tagline" maxLength={160} defaultValue={form.tagline} placeholder="What makes your venue special — in one line" /></label>
+          <label>Description <span className="vm-optional">optional</span><textarea name="description" rows={4} maxLength={1000} defaultValue={form.description} placeholder="Tell potential guests about the vibe, what you offer, what to expect" /></label>
+          <div className="vm-apply-actions">
+            <button className="vm-secondary" type="button" onClick={() => setStep(2)}>← Back</button>
+            <button className="vm-primary">Next →</button>
+          </div>
+        </form>
+      )}
+
+      {step === 4 && (
+        <form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setForm(d => ({ ...d, verificationDocUrl: String(f.get("docUrl")).trim(), registrationNotes: String(f.get("notes") ?? "").trim() })); setError(""); setStep(5); }}>
+          <p className="vm-subtitle" style={{ margin: "0 0 4px" }}>Upload your proof of ownership to Google Drive, Dropbox, or similar and paste the link below. Accepted: business licence, lease agreement, utility bill addressed to the venue.</p>
+          <label>Document link<input required name="docUrl" type="url" defaultValue={form.verificationDocUrl} placeholder="https://drive.google.com/…" /></label>
+          <label>Additional notes <span className="vm-optional">optional</span><textarea name="notes" rows={3} maxLength={500} defaultValue={form.registrationNotes} placeholder="Anything else you'd like us to know" /></label>
+          <div className="vm-apply-actions">
+            <button className="vm-secondary" type="button" onClick={() => setStep(3)}>← Back</button>
+            <button className="vm-primary">Review →</button>
+          </div>
+        </form>
+      )}
+
+      {step === 5 && (
+        <div className="vm-form">
+          <div className="vm-review">
+            <div className="vm-review-row"><span>Name</span><strong>{form.contactName}</strong></div>
+            <div className="vm-review-row"><span>Email</span><strong>{form.contactEmail}</strong></div>
+            <div className="vm-review-row"><span>Venue</span><strong>{form.place?.name}</strong></div>
+            {form.tagline && <div className="vm-review-row"><span>Tagline</span><strong>{form.tagline}</strong></div>}
+            <div className="vm-review-row"><span>Doc</span><a href={form.verificationDocUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#16745a", wordBreak: "break-all" }}>View document</a></div>
+          </div>
+          <div className="vm-apply-actions" style={{ marginTop: "12px" }}>
+            <button className="vm-secondary" type="button" onClick={() => setStep(4)}>← Back</button>
+            <button className="vm-primary" disabled={submit.isPending} onClick={() => { setError(""); submit.mutate(); }}>{submit.isPending ? "Submitting…" : "Submit application"}</button>
+          </div>
+        </div>
+      )}
+
+      <div className="vm-auth-links"><button type="button" onClick={() => navigate("/")}>Already have an account? Sign in</button></div>
     </AuthFrame>
   );
 }
@@ -434,5 +561,5 @@ function Modal({ title, children, onClose }: { title: string; children: ReactNod
 function Empty({ text }: { text: string }) { return <div className="vm-empty">{text}</div>; }
 function SectionLoading() { return <div className="vm-section-loading"><div className="vm-spinner" /></div>; }
 
-function Routes() { return <Switch><Route path="/invite" component={InvitePage} /><Route path="/recover" component={RecoveryPage} /><Route path="/register" component={RegisterPage} /><Route component={SessionBootstrap} /></Switch>; }
+function Routes() { return <Switch><Route path="/invite" component={InvitePage} /><Route path="/recover" component={RecoveryPage} /><Route path="/register" component={RegisterPage} /><Route path="/apply" component={ApplyPage} /><Route component={SessionBootstrap} /></Switch>; }
 export default function App() { return <QueryClientProvider client={queryClient}><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><Routes /></WouterRouter></QueryClientProvider>; }

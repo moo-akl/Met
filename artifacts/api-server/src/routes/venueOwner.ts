@@ -625,6 +625,110 @@ async function searchGoogleVenues(
     }));
 }
 
+/**
+ * GET /venue-owner/places-public/search
+ * Unauthenticated venue search used by the web application form.
+ * Stricter IP rate limit than the authenticated endpoint.
+ */
+const publicPlaceSearchLimit = createIpRateLimiter({ windowMs: 15 * 60_000, max: 20, name: "venue-public-places" });
+const webApplyLimit = createIpRateLimiter({ windowMs: 60 * 60_000, max: 5, name: "venue-web-apply" });
+
+router.get(
+  "/venue-owner/places-public/search",
+  publicPlaceSearchLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const query = typeof req.query["query"] === "string" ? req.query["query"].trim() : "";
+    if (query.length < 2) {
+      res.status(400).json({ message: "Enter at least two characters to search" });
+      return;
+    }
+    try {
+      const places = await searchGoogleVenues(query, undefined, undefined);
+      res.json({ places });
+    } catch (error) {
+      res.status(503).json({ message: (error as Error).message });
+    }
+  },
+);
+
+/**
+ * POST /venue-owner/apply
+ * Unauthenticated venue owner application from the web portal.
+ * Generates a synthetic ownerUid (web:{uuid}) so the row fits the schema
+ * without needing a Firebase account.
+ */
+const webApplicationSchema = z.object({
+  contactEmail: z.string().trim().email().max(255),
+  contactName: z.string().trim().min(1).max(255),
+  placeId: z.string().trim().min(1).max(255),
+  placeName: z.string().trim().min(1).max(255),
+  businessName: z.string().trim().min(1).max(255),
+  lat: z.coerce.number().finite().gte(-90).lte(90),
+  lng: z.coerce.number().finite().gte(-180).lte(180),
+  tagline: z.string().trim().max(160).optional().nullable(),
+  description: z.string().trim().max(1000).optional().nullable(),
+  verificationDocUrl: z.string().trim().url().max(2000),
+  registrationNotes: z.string().trim().max(500).optional().nullable(),
+});
+
+router.post(
+  "/venue-owner/apply",
+  webApplyLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = webApplicationSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input", errors: parsed.error.issues });
+      return;
+    }
+    const data = parsed.data;
+    const ownerUid = `web:${crypto.randomUUID()}`;
+    if (await placeIsClaimedByAnotherOwner(data.placeId, ownerUid)) {
+      res.status(409).json({ message: "This venue already has a pending or active application." });
+      return;
+    }
+    try {
+      const now = new Date();
+      const [profile] = await db
+        .insert(venueOwnerProfilesTable)
+        .values({
+          ownerUid,
+          placeId: data.placeId,
+          placeName: data.placeName,
+          businessName: data.businessName,
+          lat: String(data.lat),
+          lng: String(data.lng),
+          tagline: data.tagline ?? null,
+          description: data.description ?? null,
+          verificationDocUrl: data.verificationDocUrl,
+          registrationNotes: data.registrationNotes ?? null,
+          contactEmail: data.contactEmail,
+          contactName: data.contactName,
+          applicationSource: "web",
+          applicationStatus: "submitted",
+          submittedAt: now,
+          isApproved: false,
+          isVerified: false,
+        })
+        .returning();
+      await appendApplicationHistory({
+        venueOwnerProfileId: profile.id,
+        eventType: "submitted",
+        toStatus: "submitted",
+        actorRole: "applicant",
+        actorUid: ownerUid,
+        applicantMessage: "Web application submitted for review.",
+      });
+      res.status(201).json({ applicationId: profile.id, status: "submitted" });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        res.status(409).json({ message: "This venue already has a pending or active application." });
+        return;
+      }
+      throw error;
+    }
+  },
+);
+
 router.get(
   "/venue-owner/places/search",
   requireUid,

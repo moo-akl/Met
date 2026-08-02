@@ -557,6 +557,12 @@ export interface VenueApplication {
   expiredAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable — present for web-portal applications */
+  contactEmail?: string | null;
+  /** @nullable — present for web-portal applications */
+  contactName?: string | null;
+  /** @nullable — 'mobile' | 'web' | null (legacy) */
+  applicationSource?: string | null;
 }
 
 export type VenueBusinessAuthorizationRole =
