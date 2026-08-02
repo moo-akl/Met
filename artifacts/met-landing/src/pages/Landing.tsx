@@ -352,6 +352,37 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* For venue owners */}
+      <section className="py-20 bg-gray-50 border-t border-gray-100">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div
+            className="flex flex-col lg:flex-row items-center justify-between gap-10 bg-white rounded-3xl border border-gray-100 shadow-sm px-10 py-12"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.7 }}
+          >
+            <div className="text-center lg:text-left max-w-xl">
+              <div className="inline-flex items-center gap-2 bg-green-100/80 text-green-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4 tracking-wider uppercase border border-green-200/50">
+                🏢 For venue owners
+              </div>
+              <h2 className="text-2xl lg:text-3xl font-black text-gray-900 tracking-tight mb-3">
+                Get your venue in front of the right crowd.
+              </h2>
+              <p className="text-gray-600 leading-relaxed">
+                Partner with Met and connect with guests who are already at your door. Apply to list your bar, café, gym, or event space — it's free to apply.
+              </p>
+            </div>
+            <a
+              href="/apply"
+              className="shrink-0 bg-gray-900 hover:bg-green-600 text-white px-8 py-4 rounded-full font-bold text-base shadow-lg shadow-gray-900/15 hover:scale-105 transition-all duration-300 whitespace-nowrap"
+            >
+              List your venue →
+            </a>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="bg-white border-t border-gray-100 py-12">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -359,6 +390,7 @@ export default function Landing() {
           <div className="flex gap-6 text-sm font-medium text-gray-500">
             <a href="/privacy" className="hover:text-green-600 transition-colors">Privacy</a>
             <a href="/support" className="hover:text-green-600 transition-colors">Terms</a>
+            <a href="/apply" className="hover:text-green-600 transition-colors">List your venue</a>
             <a href="mailto:metapp.contact@gmail.com" className="hover:text-green-600 transition-colors">Contact</a>
           </div>
           <div className="text-sm text-gray-400">
