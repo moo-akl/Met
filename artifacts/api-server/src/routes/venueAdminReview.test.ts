@@ -61,6 +61,18 @@ const dbMocks = vi.hoisted(() => {
     }
     return credState.rows.map((r) => ({ ...r }));
   });
+  /**
+   * The venue business/membership tables get a dedicated chain so the
+   * approval bootstrap (business + owner membership + audit inserts) never
+   * consumes the sequential mocks meant for application queries.
+   */
+  const bizTable = { id: "bizId", venueOwnerProfileId: "venueOwnerProfileId" };
+  const bizChain: Record<string, ReturnType<typeof vi.fn>> = {} as never;
+  bizChain["values"] = vi.fn(() => bizChain);
+  bizChain["onConflictDoNothing"] = vi.fn(() => bizChain);
+  bizChain["where"] = vi.fn(() => bizChain);
+  bizChain["limit"] = vi.fn(async () => [{ id: 1 }]);
+  bizChain["returning"] = vi.fn(async () => [{ id: 1 }]);
   const chain = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn(),
@@ -75,7 +87,7 @@ const dbMocks = vi.hoisted(() => {
     returning: vi.fn(),
     transaction: vi.fn(),
   };
-  return { chain, credChain, credState, credTable };
+  return { chain, credChain, credState, credTable, bizChain, bizTable };
 });
 
 vi.mock("@workspace/db", () => ({
@@ -102,6 +114,9 @@ vi.mock("@workspace/db", () => ({
     createdAt: "createdAt",
   },
   venueAdminCredentialsTable: dbMocks.credTable,
+  venueBusinessesTable: dbMocks.bizTable,
+  venueMembershipsTable: dbMocks.bizTable,
+  venueMembershipAuditTable: dbMocks.bizTable,
   venueEventsTable: {},
   venueEventRsvpsTable: {},
   venueRewardsTable: {},
@@ -192,10 +207,18 @@ beforeEach(() => {
   dbMocks.credState.pendingWrite = null;
   dbMocks.chain.select.mockReturnThis();
   dbMocks.chain.from.mockImplementation((table: unknown) =>
-    table === dbMocks.credTable ? dbMocks.credChain : dbMocks.chain,
+    table === dbMocks.credTable
+      ? dbMocks.credChain
+      : table === dbMocks.bizTable
+        ? dbMocks.bizChain
+        : dbMocks.chain,
   );
   dbMocks.chain.insert.mockImplementation((table: unknown) =>
-    table === dbMocks.credTable ? dbMocks.credChain : dbMocks.chain,
+    table === dbMocks.credTable
+      ? dbMocks.credChain
+      : table === dbMocks.bizTable
+        ? dbMocks.bizChain
+        : dbMocks.chain,
   );
   dbMocks.chain.update.mockImplementation((table: unknown) =>
     table === dbMocks.credTable ? dbMocks.credChain : dbMocks.chain,

@@ -105,3 +105,5 @@ export * from "./venueApplicationStatusMutationResponse";
 export * from "./venueApplicationStatusResponse";
 export * from "./venueApplicationStatusValue";
 export * from "./venueApplicationWithdrawal";
+export * from "./venueBusinessAuthorization";
+export * from "./venueBusinessAuthorizationRole";

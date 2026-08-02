@@ -9,6 +9,7 @@
     "check-i18n-keys": "tsx ./src/check-i18n-keys.ts",
     "simulate-month-end": "tsx ./src/simulate-month-end.ts",
     "seed-marketing": "tsx ./src/seed-marketing.ts",
+    "backfill-venue-businesses": "tsx ./src/backfill-venue-businesses.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

@@ -59,6 +59,9 @@ import {
   hubCheckinsTable,
   profilesTable,
   venueAdminCredentialsTable,
+  venueBusinessesTable,
+  venueMembershipsTable,
+  venueMembershipAuditTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
@@ -288,10 +291,142 @@ function serializeApplicationProfile(
   };
 }
 
+/** The only venue profile fields intentionally visible on public venue pages. */
+function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$inferSelect) {
+  return {
+    id: profile.id,
+    placeId: profile.placeId,
+    placeName: profile.placeName,
+    businessName: profile.businessName,
+    tagline: profile.tagline,
+    description: profile.description,
+    coverPhotoUrl: profile.coverPhotoUrl,
+    logoUrl: profile.logoUrl,
+    lat: profile.lat,
+    lng: profile.lng,
+    isVerified: profile.isVerified,
+  };
+}
+
+function serializePublicVenueEvent(event: typeof venueEventsTable.$inferSelect) {
+  const { ownerUid: _ownerUid, ...publicEvent } = event;
+  return publicEvent;
+}
+
+function serializePublicVenueReward(reward: typeof venueRewardsTable.$inferSelect) {
+  const { ownerUid: _ownerUid, winnerUid: _winnerUid, ...publicReward } = reward;
+  return publicReward;
+}
+
+function serializePublicVenueAnnouncement(announcement: typeof venueAnnouncementsTable.$inferSelect) {
+  const { ownerUid: _ownerUid, ...publicAnnouncement } = announcement;
+  return publicAnnouncement;
+}
+
 type HistoryEventType = typeof venueApplicationHistoryTable.$inferInsert["eventType"];
 
 /** Minimal surface shared by `db` and a Drizzle transaction handle. */
 type DbExecutor = Pick<typeof db, "insert">;
+
+type VenueAccess = {
+  businessId: number;
+  profileId: number;
+  placeId: string;
+  ownerUid: string;
+  role: "owner" | "manager" | "editor";
+  legacy: boolean;
+};
+
+const ACTIVE_VENUE_APPLICATION_STATUS = "approved";
+
+/**
+ * Resolve venue authority from the canonical membership tables. The temporary
+ * legacy branch is deliberately narrow: only the original uid on an approved
+ * profile qualifies, and identifiers still come from the profile in Postgres.
+ * This keeps approved mobile users working while the backfill is rolled out.
+ */
+async function loadVenueAccess(
+  uid: string,
+  allowedRoles: readonly VenueAccess["role"][],
+): Promise<VenueAccess | null> {
+  const memberships = await db
+    .select()
+    .from(venueMembershipsTable)
+    .where(
+      and(
+        eq(venueMembershipsTable.uid, uid),
+        eq(venueMembershipsTable.status, "active"),
+      ),
+    );
+
+  for (const membership of memberships) {
+    if (!allowedRoles.includes(membership.role)) continue;
+    const [business] = await db
+      .select()
+      .from(venueBusinessesTable)
+      .where(eq(venueBusinessesTable.id, membership.businessId))
+      .limit(1);
+    if (!business?.isActive) continue;
+    const [profile] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.id, business.venueOwnerProfileId),
+          eq(venueOwnerProfilesTable.isApproved, true),
+          eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
+        ),
+      )
+      .limit(1);
+    if (!profile || profile.placeId !== business.placeId) continue;
+    return {
+      businessId: business.id,
+      profileId: profile.id,
+      placeId: business.placeId,
+      ownerUid: profile.ownerUid,
+      role: membership.role,
+      legacy: false,
+    };
+  }
+
+  // Compatibility only. This must be removed once backfill reconciliation
+  // reports no missing approved owner memberships.
+  if (!allowedRoles.includes("owner")) return null;
+  const [profile] = await db
+    .select()
+    .from(venueOwnerProfilesTable)
+    .where(
+      and(
+        eq(venueOwnerProfilesTable.ownerUid, uid),
+        eq(venueOwnerProfilesTable.isApproved, true),
+        eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
+      ),
+    )
+    .limit(1);
+  if (!profile) return null;
+  return {
+    businessId: 0,
+    profileId: profile.id,
+    placeId: profile.placeId,
+    ownerUid: profile.ownerUid,
+    role: "owner",
+    legacy: true,
+  };
+}
+
+async function requireVenueAccess(
+  req: Request,
+  res: Response,
+  allowedRoles: readonly VenueAccess["role"][],
+  message = "An active venue membership is required",
+): Promise<VenueAccess | null> {
+  const access = await loadVenueAccess(req.uid!, allowedRoles);
+  if (!access) {
+    res.status(403).json({ message });
+    return null;
+  }
+  return access;
+}
 
 async function appendApplicationHistory(
   input: {
@@ -315,6 +450,55 @@ async function appendApplicationHistory(
     applicantMessage: input.applicantMessage ?? null,
     internalNote: input.internalNote ?? null,
     metadata: input.metadata ?? null,
+  });
+}
+
+async function ensureBusinessForApprovedProfile(
+  profile: typeof venueOwnerProfilesTable.$inferSelect,
+): Promise<void> {
+  if (!profile.isApproved || profile.applicationStatus !== ACTIVE_VENUE_APPLICATION_STATUS) return;
+  await db.transaction(async (tx) => {
+    const [createdBusiness] = await tx
+      .insert(venueBusinessesTable)
+      .values({
+        venueOwnerProfileId: profile.id,
+        placeId: profile.placeId,
+        legalName: profile.businessName,
+        createdByUid: profile.ownerUid,
+      })
+      .onConflictDoNothing()
+      .returning();
+    const [business] = createdBusiness
+      ? [createdBusiness]
+      : await tx
+          .select()
+          .from(venueBusinessesTable)
+          .where(eq(venueBusinessesTable.venueOwnerProfileId, profile.id))
+          .limit(1);
+    if (!business) throw new Error("Unable to create venue business");
+
+    const [membership] = await tx
+      .insert(venueMembershipsTable)
+      .values({
+        businessId: business.id,
+        uid: profile.ownerUid,
+        role: "owner",
+        status: "active",
+        acceptedAt: profile.approvedAt ?? new Date(),
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (membership) {
+      await tx.insert(venueMembershipAuditTable).values({
+        businessId: business.id,
+        membershipId: membership.id,
+        eventType: "backfilled",
+        subjectUid: profile.ownerUid,
+        toRole: "owner",
+        toStatus: "active",
+        metadata: JSON.stringify({ source: "venue_application_approval" }),
+      });
+    }
   });
 }
 
@@ -743,20 +927,13 @@ router.put(
       return;
     }
 
-    const [profile] = await db
-      .select({ id: venueOwnerProfilesTable.id })
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
-      .limit(1);
-    if (!profile) {
-      res.status(404).json({ message: "No venue owner profile found" });
-      return;
-    }
+    const access = await requireVenueAccess(req, res, ["owner", "manager"], "An approved manager membership is required");
+    if (!access) return;
 
     const [updated] = await db
       .update(venueOwnerProfilesTable)
       .set({ ...parsed.data, updatedAt: new Date() })
-      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
+      .where(eq(venueOwnerProfilesTable.id, access.profileId))
       .returning();
 
     res.json({ profile: updated });
@@ -786,7 +963,7 @@ router.get(
       res.status(404).json({ message: "No approved venue profile found for this place" });
       return;
     }
-    res.json({ profile });
+    res.json({ profile: serializePublicVenueProfile(profile) });
   },
 );
 
@@ -818,21 +995,14 @@ router.post(
       return;
     }
 
-    const [ownerProfile] = await db
-      .select({ placeId: venueOwnerProfilesTable.placeId, isApproved: venueOwnerProfilesTable.isApproved })
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
-      .limit(1);
-    if (!ownerProfile?.isApproved) {
-      res.status(403).json({ message: "Your venue must be approved before creating events" });
-      return;
-    }
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"], "Your venue must be approved and your membership active before creating events");
+    if (!access) return;
 
     const [event] = await db
       .insert(venueEventsTable)
       .values({
-        ownerUid: uid,
-        placeId: ownerProfile.placeId,
+        ownerUid: access.ownerUid,
+        placeId: access.placeId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         imageUrl: parsed.data.imageUrl ?? null,
@@ -866,7 +1036,7 @@ router.get(
         ),
       )
       .orderBy(desc(venueEventsTable.startsAt));
-    res.json({ events });
+    res.json({ events: events.map(serializePublicVenueEvent) });
   },
 );
 
@@ -885,10 +1055,12 @@ router.put(
       return;
     }
 
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"]);
+    if (!access) return;
     const [existing] = await db
       .select()
       .from(venueEventsTable)
-      .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.ownerUid, uid)))
+      .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, access.placeId)))
       .limit(1);
     if (!existing) {
       res.status(404).json({ message: "Event not found or not owned by you" });
@@ -922,7 +1094,7 @@ router.put(
     const [updated] = await db
       .update(venueEventsTable)
       .set(updatePayload)
-      .where(eq(venueEventsTable.id, eventId))
+      .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, access.placeId)))
       .returning();
 
     res.json({ event: updated });
@@ -944,10 +1116,12 @@ router.delete(
       return;
     }
 
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"]);
+    if (!access) return;
     const [existing] = await db
       .select({ id: venueEventsTable.id })
       .from(venueEventsTable)
-      .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.ownerUid, uid)))
+      .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, access.placeId)))
       .limit(1);
     if (!existing) {
       res.status(404).json({ message: "Event not found or not owned by you" });
@@ -956,7 +1130,9 @@ router.delete(
 
     // Cascade delete RSVPs then the event
     await db.delete(venueEventRsvpsTable).where(eq(venueEventRsvpsTable.eventId, eventId));
-    await db.delete(venueEventsTable).where(eq(venueEventsTable.id, eventId));
+    await db.delete(venueEventsTable).where(
+      and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, access.placeId)),
+    );
 
     res.json({ success: true });
   },
@@ -1064,21 +1240,14 @@ router.post(
       return;
     }
 
-    const [ownerProfile] = await db
-      .select({ placeId: venueOwnerProfilesTable.placeId, isApproved: venueOwnerProfilesTable.isApproved })
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
-      .limit(1);
-    if (!ownerProfile?.isApproved) {
-      res.status(403).json({ message: "Your venue must be approved before creating rewards" });
-      return;
-    }
+    const access = await requireVenueAccess(req, res, ["owner", "manager"], "Your venue must be approved and your membership active before creating rewards");
+    if (!access) return;
 
     const [reward] = await db
       .insert(venueRewardsTable)
       .values({
-        ownerUid: uid,
-        placeId: ownerProfile.placeId,
+        ownerUid: access.ownerUid,
+        placeId: access.placeId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         prizeDescription: parsed.data.prizeDescription,
@@ -1113,7 +1282,7 @@ router.get(
         ),
       )
       .orderBy(desc(venueRewardsTable.createdAt));
-    res.json({ rewards });
+    res.json({ rewards: rewards.map(serializePublicVenueReward) });
   },
 );
 
@@ -1132,10 +1301,12 @@ router.put(
       return;
     }
 
+    const access = await requireVenueAccess(req, res, ["owner", "manager"]);
+    if (!access) return;
     const [existing] = await db
       .select()
       .from(venueRewardsTable)
-      .where(and(eq(venueRewardsTable.id, rewardId), eq(venueRewardsTable.ownerUid, uid)))
+      .where(and(eq(venueRewardsTable.id, rewardId), eq(venueRewardsTable.placeId, access.placeId)))
       .limit(1);
     if (!existing) {
       res.status(404).json({ message: "Reward not found or not owned by you" });
@@ -1172,7 +1343,7 @@ router.put(
     const [updated] = await db
       .update(venueRewardsTable)
       .set(updatePayload)
-      .where(eq(venueRewardsTable.id, rewardId))
+      .where(and(eq(venueRewardsTable.id, rewardId), eq(venueRewardsTable.placeId, access.placeId)))
       .returning();
 
     res.json({ reward: updated });
@@ -1348,29 +1519,25 @@ router.post(
       return;
     }
 
-    const [ownerProfile] = await db
-      .select({ placeId: venueOwnerProfilesTable.placeId, isApproved: venueOwnerProfilesTable.isApproved })
-      .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
-      .limit(1);
-    if (!ownerProfile?.isApproved) {
-      res.status(403).json({ message: "Your venue must be approved before posting announcements" });
-      return;
-    }
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"], "Your venue must be approved and your membership active before posting announcements");
+    if (!access) return;
 
     // If pinning, unpin all existing announcements for this venue first
     if (parsed.data.isPinned) {
       await db
         .update(venueAnnouncementsTable)
         .set({ isPinned: false, updatedAt: new Date() })
-        .where(eq(venueAnnouncementsTable.placeId, ownerProfile.placeId));
+        .where(and(
+          eq(venueAnnouncementsTable.placeId, access.placeId),
+          eq(venueAnnouncementsTable.ownerUid, access.ownerUid),
+        ));
     }
 
     const [announcement] = await db
       .insert(venueAnnouncementsTable)
       .values({
-        ownerUid: uid,
-        placeId: ownerProfile.placeId,
+        ownerUid: access.ownerUid,
+        placeId: access.placeId,
         title: parsed.data.title,
         body: parsed.data.body,
         imageUrl: parsed.data.imageUrl ?? null,
@@ -1396,7 +1563,7 @@ router.get(
       .from(venueAnnouncementsTable)
       .where(eq(venueAnnouncementsTable.placeId, placeId))
       .orderBy(desc(venueAnnouncementsTable.isPinned), desc(venueAnnouncementsTable.createdAt));
-    res.json({ announcements });
+    res.json({ announcements: announcements.map(serializePublicVenueAnnouncement) });
   },
 );
 
@@ -1415,13 +1582,15 @@ router.delete(
       return;
     }
 
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"]);
+    if (!access) return;
     const [existing] = await db
       .select({ id: venueAnnouncementsTable.id })
       .from(venueAnnouncementsTable)
       .where(
         and(
           eq(venueAnnouncementsTable.id, announcementId),
-          eq(venueAnnouncementsTable.ownerUid, uid),
+          eq(venueAnnouncementsTable.placeId, access.placeId),
         ),
       )
       .limit(1);
@@ -1430,7 +1599,12 @@ router.delete(
       return;
     }
 
-    await db.delete(venueAnnouncementsTable).where(eq(venueAnnouncementsTable.id, announcementId));
+    await db.delete(venueAnnouncementsTable).where(
+      and(
+        eq(venueAnnouncementsTable.id, announcementId),
+        eq(venueAnnouncementsTable.placeId, access.placeId),
+      ),
+    );
     res.json({ success: true });
   },
 );
@@ -1527,19 +1701,20 @@ router.get(
   requireUid,
   venueOwnerReadLimit,
   async (req: Request, res: Response) => {
-    const uid = req.uid!;
+    const access = await requireVenueAccess(req, res, ["owner", "manager"], "An approved manager membership is required");
+    if (!access) return;
     const [ownerProfile] = await db
       .select()
       .from(venueOwnerProfilesTable)
-      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
+      .where(eq(venueOwnerProfilesTable.id, access.profileId))
       .limit(1);
 
-    if (!ownerProfile?.isApproved) {
+    if (!ownerProfile) {
       res.status(403).json({ message: "Approved venue profile required" });
       return;
     }
 
-    const placeId = ownerProfile.placeId;
+    const placeId = access.placeId;
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -1584,7 +1759,7 @@ router.get(
         ? await db
             .select({ uid: profilesTable.uid, displayName: profilesTable.displayName, photoUrl: profilesTable.photoUrl })
             .from(profilesTable)
-            .where(sql`${profilesTable.uid} = ANY(${topVisitorUids})`)
+            .where(inArray(profilesTable.uid, topVisitorUids))
         : [];
     const profileMap = Object.fromEntries(visitorProfiles.map((p) => [p.uid, p]));
 
@@ -1601,7 +1776,7 @@ router.get(
       .from(venueEventsTable)
       .where(
         and(
-          eq(venueEventsTable.ownerUid, uid),
+          eq(venueEventsTable.placeId, placeId),
           gte(venueEventsTable.startsAt, now),
           eq(venueEventsTable.isPublished, true),
         ),
@@ -1693,7 +1868,7 @@ router.post(
           expiredAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(sql`${venueOwnerProfilesTable.id} = ANY(${ids})`);
+        .where(inArray(venueOwnerProfilesTable.id, ids));
       await Promise.all(
         expired.map((application) =>
           appendApplicationHistory({
@@ -2272,6 +2447,7 @@ router.post(
       res.status(result.status).json({ message: result.message, currentStatus: result.currentStatus });
       return;
     }
+    await ensureBusinessForApprovedProfile(result.profile);
 
     await notifyApplicant(req, result.profile, {
       title: "Venue approved",

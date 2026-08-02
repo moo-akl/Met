@@ -2217,6 +2217,18 @@ components:
         expiredAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    VenueBusinessAuthorization:
+      type: object
+      description: |
+        Internal business authorization is based on an active canonical venue
+        membership. Public venue and application responses never expose
+        membership identities, invitation state, documents, or audit data.
+      required: [businessId, role]
+      properties:
+        businessId: { type: integer }
+        role:
+          type: string
+          enum: [owner, manager, editor]
     VenueApplicationQueue:
       type: object
       required: [applications, counts]

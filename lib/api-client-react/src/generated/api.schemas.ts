@@ -119,6 +119,26 @@ export interface VenueApplication {
   updatedAt: string;
 }
 
+export type VenueBusinessAuthorizationRole =
+  (typeof VenueBusinessAuthorizationRole)[keyof typeof VenueBusinessAuthorizationRole];
+
+export const VenueBusinessAuthorizationRole = {
+  owner: "owner",
+  manager: "manager",
+  editor: "editor",
+} as const;
+
+/**
+ * Internal business authorization is based on an active canonical venue
+membership. Public venue and application responses never expose
+membership identities, invitation state, documents, or audit data.
+
+ */
+export interface VenueBusinessAuthorization {
+  businessId: number;
+  role: VenueBusinessAuthorizationRole;
+}
+
 /**
  * Total applications per lifecycle status, ignoring the current filters.
  */

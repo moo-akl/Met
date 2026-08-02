@@ -44,6 +44,10 @@ vi.mock("@workspace/db", () => ({
   venueAnnouncementsTable: {},
   hubCheckinsTable: {},
   profilesTable: {},
+  venueAdminCredentialsTable: {},
+  venueBusinessesTable: {},
+  venueMembershipsTable: {},
+  venueMembershipAuditTable: {},
 }));
 
 vi.mock("../middlewares/requireUid", () => ({
