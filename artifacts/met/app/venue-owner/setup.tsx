@@ -256,7 +256,17 @@ export default function VenueOwnerSetupScreen() {
         .catch((error: unknown) => {
           if (!cancelled) {
             setSearchResults([]);
-            setSearchError(error instanceof ApiError ? error.message : "Couldn’t search Google Places right now.");
+            // A 404 means this installed mobile build has reached an API
+            // deployment that predates the venue-search route. It is not a
+            // failed Google search, so explain the recovery rather than
+            // leaking an unhelpful HTTP status to an applicant.
+            setSearchError(
+              error instanceof ApiError && error.status === 404
+                ? "Venue search is being updated. Please try again shortly, or enter your venue details manually."
+                : error instanceof ApiError
+                  ? error.message
+                  : "Couldn’t search Google Places right now.",
+            );
           }
         })
         .finally(() => {

@@ -66,4 +66,21 @@ describe("venue search API client", () => {
       places,
     });
   });
+
+  it("keeps a route-not-found response available to the form as a 404", async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: jest.fn().mockResolvedValue("Cannot GET /api/venue-owner/places/search"),
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+    const { api } = require("../api/client") as typeof import("../api/client");
+
+    await expect(
+      api.searchVenuePlaces({ uid: "test-uid" }, "Blue Parrot"),
+    ).rejects.toMatchObject({
+      status: 404,
+      message: "HTTP 404",
+    });
+  });
 });
