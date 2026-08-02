@@ -1,5 +1,123 @@
-import React from "react";
-import { motion } from "framer-motion";
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+
+const faqs = [
+  {
+    q: "Is there any cost to list my venue?",
+    a: "No. Becoming a Met partner venue is completely free. There are no setup fees, monthly subscriptions, or commission charges. We may introduce optional promoted placements in the future, but basic listing will always be free.",
+  },
+  {
+    q: "How long does the approval process take?",
+    a: "Our team manually reviews every application, typically within 2–4 business days. You'll receive an email as soon as a decision is made. If we need more information we'll reach out before rejecting the application.",
+  },
+  {
+    q: "What proof of ownership is accepted?",
+    a: "We accept a business licence, a recent utility or rates bill addressed to the venue, a lease agreement, or an official company registration document that shows the venue address. The document should be dated within the last 12 months and clearly show your name or business name.",
+  },
+  {
+    q: "Can I update my venue details after going live?",
+    a: "Yes. Once approved you'll have access to a venue manager portal where you can update your description, photos, opening hours, and contact details at any time. Changes go live on the app within a few minutes.",
+  },
+  {
+    q: "How do I remove my venue from Met?",
+    a: "You can request removal at any time by emailing metapp.contact@gmail.com with your venue name. We'll delist it within one business day. Your data is deleted from our systems within 30 days of the request.",
+  },
+  {
+    q: "Does Met work for all types of venues?",
+    a: "Met works best for social spaces — bars, cafés, restaurants, co-working spots, gyms, and event venues. We don't currently list private residences, adult-only venues, or businesses that aren't open to the general public.",
+  },
+];
+
+function FAQSection() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  return (
+    <section className="py-24 bg-white">
+      <div className="max-w-3xl mx-auto px-6">
+        <motion.div
+          className="text-center mb-14"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.7 }}
+        >
+          <h2 className="text-3xl lg:text-4xl font-black text-gray-900 tracking-tight mb-4">
+            Frequently asked questions
+          </h2>
+          <p className="text-lg text-gray-500 font-medium">
+            Everything venue owners ask before applying.
+          </p>
+        </motion.div>
+
+        <div className="space-y-3">
+          {faqs.map((faq, i) => {
+            const isOpen = openIndex === i;
+            return (
+              <motion.div
+                key={i}
+                className="border border-gray-200 rounded-2xl overflow-hidden"
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.45, delay: i * 0.06 }}
+              >
+                <button
+                  onClick={() => setOpenIndex(isOpen ? null : i)}
+                  className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left bg-white hover:bg-green-50/50 transition-colors duration-200"
+                  aria-expanded={isOpen}
+                >
+                  <span className="text-base font-semibold text-gray-900 leading-snug">
+                    {faq.q}
+                  </span>
+                  <span
+                    className={`shrink-0 w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 transition-transform duration-300 ${
+                      isOpen ? "rotate-45 bg-green-50 border-green-200 text-green-600" : ""
+                    }`}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      key="content"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.28, ease: "easeInOut" }}
+                      className="overflow-hidden"
+                    >
+                      <p className="px-6 pb-5 text-gray-600 leading-relaxed text-sm border-t border-gray-100 pt-4">
+                        {faq.a}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <motion.p
+          className="text-center text-sm text-gray-400 mt-10"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+        >
+          Still have questions?{" "}
+          <a href="mailto:metapp.contact@gmail.com" className="text-green-600 font-semibold hover:underline">
+            Email us
+          </a>{" "}
+          and we'll get back to you within one business day.
+        </motion.p>
+      </div>
+    </section>
+  );
+}
 
 export default function VenueInfo() {
   return (
@@ -177,6 +295,9 @@ export default function VenueInfo() {
           </div>
         </div>
       </section>
+
+      {/* FAQ */}
+      <FAQSection />
 
       {/* CTA */}
       <section className="py-32 bg-white">
