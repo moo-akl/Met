@@ -22,6 +22,7 @@ vi.mock("@workspace/db", () => ({
     id: "id",
     ownerUid: "ownerUid",
     placeId: "placeId",
+    contactEmail: "contactEmail",
     applicationStatus: "applicationStatus",
     submittedAt: "submittedAt",
   },
@@ -226,6 +227,54 @@ describe("venue application lifecycle", () => {
       .set("x-admin-secret", "anything");
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe("web application duplicate submission guard", () => {
+  const validWebApplication = {
+    contactEmail: "owner@example.com",
+    contactName: "Jane Doe",
+    placeId: "google-place-web-1",
+    placeName: "The Web Venue",
+    businessName: "Web Venue Co",
+    lat: 51.5074,
+    lng: -0.1278,
+    verificationDocUrl: "https://example.com/doc.pdf",
+  };
+
+  it("rejects a second pending application from the same email and venue with 409", async () => {
+    // The email+placeId duplicate check runs first and finds an existing pending row.
+    // placeIsClaimedByAnotherOwner is never reached, and no insert is attempted.
+    dbMocks.chain.limit.mockResolvedValueOnce([{ id: 42 }]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/apply")
+      .send(validWebApplication);
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toMatch(/already have a pending application/i);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("allows a first-time application when no pending record exists for that email and venue", async () => {
+    // First limit call: email+placeId duplicate check — no existing row for this email+venue.
+    // Second limit call: placeIsClaimedByAnotherOwner — no other owner holds this venue.
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    // The insert chain needs values() to return the chain so .returning() is reachable.
+    dbMocks.chain.values.mockReturnThis();
+    dbMocks.chain.returning.mockReset();
+    dbMocks.chain.returning
+      .mockResolvedValueOnce([{ id: 55, applicationStatus: "submitted" }])
+      .mockResolvedValue([]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/apply")
+      .send(validWebApplication);
+
+    expect(response.status).toBe(201);
+    expect(response.body.applicationId).toBe(55);
   });
 });
 

@@ -682,6 +682,26 @@ router.post(
     }
     const data = parsed.data;
     const ownerUid = `web:${crypto.randomUUID()}`;
+    // Check for a duplicate web submission first — same email + same venue with a pending
+    // application. This must run before placeIsClaimedByAnotherOwner because that check
+    // uses ownerUid (which is a fresh uuid each request) and would always fire for any
+    // existing pending row, masking the more actionable duplicate-email message.
+    const PENDING_WEB_STATUSES = ["submitted", "under_review", "resubmitted", "changes_requested"] as const;
+    const [duplicateApplication] = await db
+      .select({ id: venueOwnerProfilesTable.id })
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.contactEmail, data.contactEmail),
+          eq(venueOwnerProfilesTable.placeId, data.placeId),
+          inArray(venueOwnerProfilesTable.applicationStatus, [...PENDING_WEB_STATUSES]),
+        ),
+      )
+      .limit(1);
+    if (duplicateApplication) {
+      res.status(409).json({ message: "You already have a pending application for this venue." });
+      return;
+    }
     if (await placeIsClaimedByAnotherOwner(data.placeId, ownerUid)) {
       res.status(409).json({ message: "This venue already has a pending or active application." });
       return;
