@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/venue-manager/"
+title = "Met Venue Manager"
+description = "A secure desktop-friendly workspace for venue owners, managers, and editors to manage approved venue information, events, rewards, announcements, analytics, and team access."
+version = "1.0.0"
+id = "artifacts/venue-manager"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/venue-manager/" ]
+localPort = 21481
+
+[services.development]
+run = "pnpm --filter @workspace/venue-manager run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/venue-manager", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/venue-manager/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21481"
+BASE_PATH = "/venue-manager/"

@@ -415,6 +415,11 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const openLink = (url: string) => {
     WebBrowser.openBrowserAsync(url).catch(() => {});
   };
+  const openVenueManager = () => {
+    const url = "https://met-app.org/venue-manager/";
+    if (!/^https:\/\/met-app\.org\/venue-manager\/$/.test(url)) return;
+    openLink(url);
+  };
 
   const headerTitle = (() => {
     switch (view) {
@@ -738,7 +743,9 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   icon="briefcase"
                   label={
                     venueOwnerProfile
-                      ? t("settings.venueOwnerDashboard")
+                      ? venueOwnerProfile.isApproved
+                        ? "Open Venue Manager"
+                        : t("settings.venueOwnerDashboard")
                       : t("settings.registerVenue")
                   }
                   sub={
@@ -754,7 +761,11 @@ export function SettingsSheet({ visible, onClose }: Props) {
                   onPress={() => {
                     close();
                     setTimeout(() => {
-                      router.push(getVenueOwnerDestination(venueOwnerProfile));
+                      if (venueOwnerProfile?.isApproved) {
+                        openVenueManager();
+                      } else {
+                        router.push(getVenueOwnerDestination(venueOwnerProfile));
+                      }
                     }, 50);
                   }}
                   testID="venue-owner-profile-switcher"

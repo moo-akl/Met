@@ -1863,6 +1863,251 @@ paths:
       responses:
         "204": { description: Membership removed and sessions revoked }
 
+  /venue-manager/businesses:
+    get:
+      operationId: listVenueManagerBusinesses
+      tags: [venue-manager]
+      summary: List venues available to the signed-in business manager
+      responses:
+        "200":
+          description: Active venues and the caller's membership role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerBusinessList"
+
+  /venue-manager/businesses/{businessId}:
+    get:
+      operationId: getVenueManagerBusiness
+      tags: [venue-manager]
+      summary: Get a venue's business information
+      parameters: [{ $ref: "#/components/parameters/VenueBusinessId" }]
+      responses:
+        "200":
+          description: Venue business information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerBusiness"
+    patch:
+      operationId: updateVenueManagerBusiness
+      tags: [venue-manager]
+      summary: Update venue business information
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerBusinessUpdate"
+      responses:
+        "200":
+          description: Updated venue business information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerBusiness"
+
+  /venue-manager/businesses/{businessId}/dashboard:
+    get:
+      operationId: getVenueManagerDashboard
+      tags: [venue-manager]
+      summary: Get manager-scoped venue analytics
+      parameters: [{ $ref: "#/components/parameters/VenueBusinessId" }]
+      responses:
+        "200":
+          description: Check-in, event, and reward analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerDashboard"
+
+  /venue-manager/businesses/{businessId}/events:
+    get:
+      operationId: listVenueManagerEvents
+      tags: [venue-manager]
+      summary: List all events for a venue
+      parameters: [{ $ref: "#/components/parameters/VenueBusinessId" }]
+      responses:
+        "200":
+          description: Venue events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerEventList"
+    post:
+      operationId: createVenueManagerEvent
+      tags: [venue-manager]
+      summary: Create a venue event
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerEventInput"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerEventResponse"
+
+  /venue-manager/businesses/{businessId}/events/{eventId}:
+    patch:
+      operationId: updateVenueManagerEvent
+      tags: [venue-manager]
+      summary: Update a venue event
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerEventUpdate"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerEventResponse"
+    delete:
+      operationId: deleteVenueManagerEvent
+      tags: [venue-manager]
+      summary: Delete a venue event
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "204": { description: Event deleted }
+
+  /venue-manager/businesses/{businessId}/rewards:
+    get:
+      operationId: listVenueManagerRewards
+      tags: [venue-manager]
+      summary: List all rewards for a venue
+      parameters: [{ $ref: "#/components/parameters/VenueBusinessId" }]
+      responses:
+        "200":
+          description: Venue rewards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerRewardList"
+    post:
+      operationId: createVenueManagerReward
+      tags: [venue-manager]
+      summary: Create a venue reward
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerRewardInput"
+      responses:
+        "201":
+          description: Created reward
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerRewardResponse"
+
+  /venue-manager/businesses/{businessId}/rewards/{rewardId}:
+    patch:
+      operationId: updateVenueManagerReward
+      tags: [venue-manager]
+      summary: Update a venue reward
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueRewardId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerRewardUpdate"
+      responses:
+        "200":
+          description: Updated reward
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerRewardResponse"
+
+  /venue-manager/businesses/{businessId}/announcements:
+    get:
+      operationId: listVenueManagerAnnouncements
+      tags: [venue-manager]
+      summary: List venue announcements
+      parameters: [{ $ref: "#/components/parameters/VenueBusinessId" }]
+      responses:
+        "200":
+          description: Venue announcements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerAnnouncementList"
+    post:
+      operationId: createVenueManagerAnnouncement
+      tags: [venue-manager]
+      summary: Post a venue announcement
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerAnnouncementInput"
+      responses:
+        "201":
+          description: Created announcement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerAnnouncementResponse"
+
+  /venue-manager/businesses/{businessId}/announcements/{announcementId}:
+    delete:
+      operationId: deleteVenueManagerAnnouncement
+      tags: [venue-manager]
+      summary: Delete a venue announcement
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueAnnouncementId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "204": { description: Announcement deleted }
+
+  /venue-manager/businesses/{businessId}/members:
+    get:
+      operationId: listVenueManagerMembers
+      tags: [venue-manager]
+      summary: List active venue managers
+      parameters: [{ $ref: "#/components/parameters/VenueBusinessId" }]
+      responses:
+        "200":
+          description: Venue team members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerMemberList"
+
   /venue-owner/me/application:
     get:
       operationId: getMyVenueApplication
@@ -2268,6 +2513,21 @@ components:
       in: path
       required: true
       schema: { type: integer, minimum: 1 }
+    VenueEventId:
+      name: eventId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    VenueRewardId:
+      name: rewardId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    VenueAnnouncementId:
+      name: announcementId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
     VenueManagerCsrf:
       name: X-CSRF-Token
       in: header
@@ -2409,6 +2669,222 @@ components:
         invitationToken: { type: string }
         recoveryToken: { type: string }
         expiresAt: { type: string, format: date-time }
+    VenueManagerBusiness:
+      type: object
+      required: [businessId, placeId, legalName, placeName, businessName, role, isActive]
+      properties:
+        businessId: { type: integer }
+        placeId: { type: string }
+        legalName: { type: string }
+        placeName: { type: string }
+        businessName: { type: string }
+        tagline: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        coverPhotoUrl: { type: ["string", "null"], format: uri }
+        logoUrl: { type: ["string", "null"], format: uri }
+        role: { type: string, enum: [owner, manager, editor] }
+        isActive: { type: boolean }
+    VenueManagerBusinessList:
+      type: object
+      required: [businesses]
+      properties:
+        businesses:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerBusiness" }
+    VenueManagerBusinessUpdate:
+      type: object
+      properties:
+        businessName: { type: string, minLength: 1, maxLength: 255 }
+        tagline: { type: ["string", "null"], maxLength: 160 }
+        description: { type: ["string", "null"], maxLength: 1000 }
+        coverPhotoUrl: { type: ["string", "null"], format: uri }
+        logoUrl: { type: ["string", "null"], format: uri }
+    VenueManagerEvent:
+      type: object
+      required: [id, title, startsAt, isPublished]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"], format: uri }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: ["string", "null"], format: date-time }
+        capacityLimit: { type: ["integer", "null"] }
+        rsvpCount: { type: integer }
+        isPublished: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    VenueManagerEventList:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerEvent" }
+    VenueManagerEventResponse:
+      type: object
+      required: [event]
+      properties:
+        event: { $ref: "#/components/schemas/VenueManagerEvent" }
+    VenueManagerEventInput:
+      type: object
+      required: [title, startsAt]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: ["string", "null"], maxLength: 2000 }
+        imageUrl: { type: ["string", "null"], format: uri }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: ["string", "null"], format: date-time }
+        capacityLimit: { type: ["integer", "null"], minimum: 1 }
+        isPublished: { type: boolean }
+    VenueManagerEventUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: ["string", "null"], maxLength: 2000 }
+        imageUrl: { type: ["string", "null"], format: uri }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: ["string", "null"], format: date-time }
+        capacityLimit: { type: ["integer", "null"], minimum: 1 }
+        isPublished: { type: boolean }
+    VenueManagerReward:
+      type: object
+      required: [id, title, prizeDescription, rewardType, status, startDate, endDate, venueTimezone]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        prizeDescription: { type: string }
+        rewardType: { type: string, enum: [free_drink, discount, experience, custom] }
+        status: { type: string, enum: [draft, active, cancelled, completed] }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        venueTimezone: { type: string }
+        winnerSelectedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    VenueManagerRewardList:
+      type: object
+      required: [rewards]
+      properties:
+        rewards:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerReward" }
+    VenueManagerRewardResponse:
+      type: object
+      required: [reward]
+      properties:
+        reward: { $ref: "#/components/schemas/VenueManagerReward" }
+    VenueManagerRewardInput:
+      type: object
+      required: [title, prizeDescription, startDate, endDate]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: ["string", "null"], maxLength: 2000 }
+        prizeDescription: { type: string, minLength: 1, maxLength: 200 }
+        rewardType: { type: string, enum: [free_drink, discount, experience, custom] }
+        status: { type: string, enum: [draft, active] }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        venueTimezone: { type: string }
+    VenueManagerRewardUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: ["string", "null"], maxLength: 2000 }
+        prizeDescription: { type: string, minLength: 1, maxLength: 200 }
+        rewardType: { type: string, enum: [free_drink, discount, experience, custom] }
+        status: { type: string, enum: [draft, active, cancelled] }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        venueTimezone: { type: string }
+    VenueManagerAnnouncement:
+      type: object
+      required: [id, title, body, isPinned, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        imageUrl: { type: ["string", "null"], format: uri }
+        isPinned: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    VenueManagerAnnouncementList:
+      type: object
+      required: [announcements]
+      properties:
+        announcements:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerAnnouncement" }
+    VenueManagerAnnouncementResponse:
+      type: object
+      required: [announcement]
+      properties:
+        announcement: { $ref: "#/components/schemas/VenueManagerAnnouncement" }
+    VenueManagerAnnouncementInput:
+      type: object
+      required: [title, body]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        imageUrl: { type: ["string", "null"], format: uri }
+        isPinned: { type: boolean }
+    VenueManagerMember:
+      type: object
+      required: [managerId, email, displayName, role, status]
+      properties:
+        managerId: { type: integer }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        role: { type: string, enum: [owner, manager, editor] }
+        status: { type: string, enum: [active] }
+        acceptedAt: { type: ["string", "null"], format: date-time }
+    VenueManagerMemberList:
+      type: object
+      required: [members]
+      properties:
+        members:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerMember" }
+    VenueManagerCheckInBucket:
+      type: object
+      required: [day, count]
+      properties:
+        day: { type: string }
+        count: { type: integer }
+    VenueManagerTopVisitor:
+      type: object
+      required: [userUid, displayName, checkinCount]
+      properties:
+        userUid: { type: string }
+        displayName: { type: string }
+        photoUrl: { type: ["string", "null"], format: uri }
+        checkinCount: { type: integer }
+    VenueManagerEventRsvpCount:
+      type: object
+      required: [eventId, title, startsAt, going, maybe]
+      properties:
+        eventId: { type: integer }
+        title: { type: string }
+        startsAt: { type: string, format: date-time }
+        going: { type: integer }
+        maybe: { type: integer }
+    VenueManagerDashboard:
+      type: object
+      required: [checkInTrend, topVisitors, eventRsvpCounts, activeReward]
+      properties:
+        checkInTrend:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerCheckInBucket" }
+        topVisitors:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerTopVisitor" }
+        eventRsvpCounts:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerEventRsvpCount" }
+        activeReward:
+          type: ["object", "null"]
+          additionalProperties: true
     VenueApplication:
       type: object
       required:

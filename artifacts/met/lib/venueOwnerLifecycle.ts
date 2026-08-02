@@ -6,12 +6,6 @@ export type VenueOwnerDestination =
   | "/venue-owner/rejected"
   | "/venue-owner/dashboard";
 
-const VENUE_OWNER_CHILD_ROUTES = [
-  "/venue-owner/events",
-  "/venue-owner/rewards",
-  "/venue-owner/announcements",
-] as const;
-
 /**
  * Maps only the server's canonical lifecycle state to an applicant screen.
  * Notifications and direct URLs must resolve through this mapping rather than
@@ -64,10 +58,9 @@ export function resolveLifecycleRedirect(args: {
 }
 
 /**
- * The dashboard owns the approved owner's business subroutes. Other lifecycle
- * screens are intentionally exact routes so an approved route cannot remain
- * visible after a status change and an applicant cannot open a business tool
- * through a stale deep link.
+ * Approved owners retain only the mobile portal handoff. Business tools live
+ * in Venue Manager, so stale direct links to old mobile content screens cannot
+ * expose an unsupported management surface.
  */
 export function isVenueOwnerPathAllowed(
   pathname: string,
@@ -75,12 +68,7 @@ export function isVenueOwnerPathAllowed(
   reapply?: string,
 ): boolean {
   if (destination === "/venue-owner/dashboard") {
-    return (
-      pathname === destination ||
-      VENUE_OWNER_CHILD_ROUTES.some(
-        (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-      )
-    );
+    return pathname === destination;
   }
   return (
     pathname === destination ||

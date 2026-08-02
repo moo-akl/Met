@@ -132,6 +132,362 @@ export interface VenueManagerToken {
   expiresAt: string;
 }
 
+export type VenueManagerBusinessRole =
+  (typeof VenueManagerBusinessRole)[keyof typeof VenueManagerBusinessRole];
+
+export const VenueManagerBusinessRole = {
+  owner: "owner",
+  manager: "manager",
+  editor: "editor",
+} as const;
+
+export interface VenueManagerBusiness {
+  businessId: number;
+  placeId: string;
+  legalName: string;
+  placeName: string;
+  businessName: string;
+  /** @nullable */
+  tagline?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  coverPhotoUrl?: string | null;
+  /** @nullable */
+  logoUrl?: string | null;
+  role: VenueManagerBusinessRole;
+  isActive: boolean;
+}
+
+export interface VenueManagerBusinessList {
+  businesses: VenueManagerBusiness[];
+}
+
+export interface VenueManagerBusinessUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  businessName?: string;
+  /**
+   * @maxLength 160
+   * @nullable
+   */
+  tagline?: string | null;
+  /**
+   * @maxLength 1000
+   * @nullable
+   */
+  description?: string | null;
+  /** @nullable */
+  coverPhotoUrl?: string | null;
+  /** @nullable */
+  logoUrl?: string | null;
+}
+
+export interface VenueManagerEvent {
+  id: number;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startsAt: string;
+  /** @nullable */
+  endsAt?: string | null;
+  /** @nullable */
+  capacityLimit?: number | null;
+  rsvpCount?: number;
+  isPublished: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface VenueManagerEventList {
+  events: VenueManagerEvent[];
+}
+
+export interface VenueManagerEventResponse {
+  event: VenueManagerEvent;
+}
+
+export interface VenueManagerEventInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  title: string;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startsAt: string;
+  /** @nullable */
+  endsAt?: string | null;
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  capacityLimit?: number | null;
+  isPublished?: boolean;
+}
+
+export interface VenueManagerEventUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  title?: string;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startsAt?: string;
+  /** @nullable */
+  endsAt?: string | null;
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  capacityLimit?: number | null;
+  isPublished?: boolean;
+}
+
+export type VenueManagerRewardRewardType =
+  (typeof VenueManagerRewardRewardType)[keyof typeof VenueManagerRewardRewardType];
+
+export const VenueManagerRewardRewardType = {
+  free_drink: "free_drink",
+  discount: "discount",
+  experience: "experience",
+  custom: "custom",
+} as const;
+
+export type VenueManagerRewardStatus =
+  (typeof VenueManagerRewardStatus)[keyof typeof VenueManagerRewardStatus];
+
+export const VenueManagerRewardStatus = {
+  draft: "draft",
+  active: "active",
+  cancelled: "cancelled",
+  completed: "completed",
+} as const;
+
+export interface VenueManagerReward {
+  id: number;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  prizeDescription: string;
+  rewardType: VenueManagerRewardRewardType;
+  status: VenueManagerRewardStatus;
+  startDate: string;
+  endDate: string;
+  venueTimezone: string;
+  /** @nullable */
+  winnerSelectedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface VenueManagerRewardList {
+  rewards: VenueManagerReward[];
+}
+
+export interface VenueManagerRewardResponse {
+  reward: VenueManagerReward;
+}
+
+export type VenueManagerRewardInputRewardType =
+  (typeof VenueManagerRewardInputRewardType)[keyof typeof VenueManagerRewardInputRewardType];
+
+export const VenueManagerRewardInputRewardType = {
+  free_drink: "free_drink",
+  discount: "discount",
+  experience: "experience",
+  custom: "custom",
+} as const;
+
+export type VenueManagerRewardInputStatus =
+  (typeof VenueManagerRewardInputStatus)[keyof typeof VenueManagerRewardInputStatus];
+
+export const VenueManagerRewardInputStatus = {
+  draft: "draft",
+  active: "active",
+} as const;
+
+export interface VenueManagerRewardInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  title: string;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  description?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  prizeDescription: string;
+  rewardType?: VenueManagerRewardInputRewardType;
+  status?: VenueManagerRewardInputStatus;
+  startDate: string;
+  endDate: string;
+  venueTimezone?: string;
+}
+
+export type VenueManagerRewardUpdateRewardType =
+  (typeof VenueManagerRewardUpdateRewardType)[keyof typeof VenueManagerRewardUpdateRewardType];
+
+export const VenueManagerRewardUpdateRewardType = {
+  free_drink: "free_drink",
+  discount: "discount",
+  experience: "experience",
+  custom: "custom",
+} as const;
+
+export type VenueManagerRewardUpdateStatus =
+  (typeof VenueManagerRewardUpdateStatus)[keyof typeof VenueManagerRewardUpdateStatus];
+
+export const VenueManagerRewardUpdateStatus = {
+  draft: "draft",
+  active: "active",
+  cancelled: "cancelled",
+} as const;
+
+export interface VenueManagerRewardUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  title?: string;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  description?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  prizeDescription?: string;
+  rewardType?: VenueManagerRewardUpdateRewardType;
+  status?: VenueManagerRewardUpdateStatus;
+  startDate?: string;
+  endDate?: string;
+  venueTimezone?: string;
+}
+
+export interface VenueManagerAnnouncement {
+  id: number;
+  title: string;
+  body: string;
+  /** @nullable */
+  imageUrl?: string | null;
+  isPinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VenueManagerAnnouncementList {
+  announcements: VenueManagerAnnouncement[];
+}
+
+export interface VenueManagerAnnouncementResponse {
+  announcement: VenueManagerAnnouncement;
+}
+
+export interface VenueManagerAnnouncementInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  title: string;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  body: string;
+  /** @nullable */
+  imageUrl?: string | null;
+  isPinned?: boolean;
+}
+
+export type VenueManagerMemberRole =
+  (typeof VenueManagerMemberRole)[keyof typeof VenueManagerMemberRole];
+
+export const VenueManagerMemberRole = {
+  owner: "owner",
+  manager: "manager",
+  editor: "editor",
+} as const;
+
+export type VenueManagerMemberStatus =
+  (typeof VenueManagerMemberStatus)[keyof typeof VenueManagerMemberStatus];
+
+export const VenueManagerMemberStatus = {
+  active: "active",
+} as const;
+
+export interface VenueManagerMember {
+  managerId: number;
+  email: string;
+  displayName: string;
+  role: VenueManagerMemberRole;
+  status: VenueManagerMemberStatus;
+  /** @nullable */
+  acceptedAt?: string | null;
+}
+
+export interface VenueManagerMemberList {
+  members: VenueManagerMember[];
+}
+
+export interface VenueManagerCheckInBucket {
+  day: string;
+  count: number;
+}
+
+export interface VenueManagerTopVisitor {
+  userUid: string;
+  displayName: string;
+  /** @nullable */
+  photoUrl?: string | null;
+  checkinCount: number;
+}
+
+export interface VenueManagerEventRsvpCount {
+  eventId: number;
+  title: string;
+  startsAt: string;
+  going: number;
+  maybe: number;
+}
+
+/**
+ * @nullable
+ */
+export type VenueManagerDashboardActiveReward = {
+  [key: string]: unknown;
+} | null;
+
+export interface VenueManagerDashboard {
+  checkInTrend: VenueManagerCheckInBucket[];
+  topVisitors: VenueManagerTopVisitor[];
+  eventRsvpCounts: VenueManagerEventRsvpCount[];
+  /** @nullable */
+  activeReward: VenueManagerDashboardActiveReward;
+}
+
 export type VenueApplicationApplicationStatus =
   (typeof VenueApplicationApplicationStatus)[keyof typeof VenueApplicationApplicationStatus];
 

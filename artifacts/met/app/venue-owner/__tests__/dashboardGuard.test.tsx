@@ -95,25 +95,25 @@ describe("dashboard lifecycle guard (resolveLifecycleRedirect)", () => {
     ).toBe("/venue-owner/pending");
   });
 
-  it("allows approved owners to use business subroutes", () => {
+  it("keeps approved owners in the portal handoff only", () => {
     expect(
       isVenueOwnerPathAllowed(
         "/venue-owner/events",
         "/venue-owner/dashboard",
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isVenueOwnerPathAllowed(
         "/venue-owner/rewards/new",
         "/venue-owner/dashboard",
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isVenueOwnerPathAllowed(
         "/venue-owner/announcements/new",
         "/venue-owner/dashboard",
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("does not allow applicants to open approved business tools", () => {

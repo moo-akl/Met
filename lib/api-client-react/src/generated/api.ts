@@ -86,12 +86,28 @@ import type {
   VenueApplicationStatusMutationResponse,
   VenueApplicationStatusResponse,
   VenueApplicationWithdrawal,
+  VenueManagerAnnouncementInput,
+  VenueManagerAnnouncementList,
+  VenueManagerAnnouncementResponse,
+  VenueManagerBusiness,
+  VenueManagerBusinessList,
+  VenueManagerBusinessUpdate,
   VenueManagerClaim,
+  VenueManagerDashboard,
+  VenueManagerEventInput,
+  VenueManagerEventList,
+  VenueManagerEventResponse,
+  VenueManagerEventUpdate,
   VenueManagerInvitation,
   VenueManagerInvitationAcceptance,
+  VenueManagerMemberList,
   VenueManagerPasswordChange,
   VenueManagerRecovery,
   VenueManagerRecoveryRequest,
+  VenueManagerRewardInput,
+  VenueManagerRewardList,
+  VenueManagerRewardResponse,
+  VenueManagerRewardUpdate,
   VenueManagerRoleUpdate,
   VenueManagerSession,
   VenueManagerSignIn,
@@ -5509,6 +5525,1435 @@ export const useRemoveVenueManager = <
 > => {
   return useMutation(getRemoveVenueManagerMutationOptions(options));
 };
+
+/**
+ * @summary List venues available to the signed-in business manager
+ */
+export const getListVenueManagerBusinessesUrl = () => {
+  return `/api/venue-manager/businesses`;
+};
+
+export const listVenueManagerBusinesses = async (
+  options?: RequestInit,
+): Promise<VenueManagerBusinessList> => {
+  return customFetch<VenueManagerBusinessList>(
+    getListVenueManagerBusinessesUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListVenueManagerBusinessesQueryKey = () => {
+  return [`/api/venue-manager/businesses`] as const;
+};
+
+export const getListVenueManagerBusinessesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listVenueManagerBusinesses>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listVenueManagerBusinesses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListVenueManagerBusinessesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listVenueManagerBusinesses>>
+  > = ({ signal }) => listVenueManagerBusinesses({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listVenueManagerBusinesses>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListVenueManagerBusinessesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listVenueManagerBusinesses>>
+>;
+export type ListVenueManagerBusinessesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List venues available to the signed-in business manager
+ */
+
+export function useListVenueManagerBusinesses<
+  TData = Awaited<ReturnType<typeof listVenueManagerBusinesses>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listVenueManagerBusinesses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListVenueManagerBusinessesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a venue's business information
+ */
+export const getGetVenueManagerBusinessUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}`;
+};
+
+export const getVenueManagerBusiness = async (
+  businessId: number,
+  options?: RequestInit,
+): Promise<VenueManagerBusiness> => {
+  return customFetch<VenueManagerBusiness>(
+    getGetVenueManagerBusinessUrl(businessId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetVenueManagerBusinessQueryKey = (businessId: number) => {
+  return [`/api/venue-manager/businesses/${businessId}`] as const;
+};
+
+export const getGetVenueManagerBusinessQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVenueManagerBusiness>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVenueManagerBusiness>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetVenueManagerBusinessQueryKey(businessId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getVenueManagerBusiness>>
+  > = ({ signal }) =>
+    getVenueManagerBusiness(businessId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!businessId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueManagerBusiness>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVenueManagerBusinessQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVenueManagerBusiness>>
+>;
+export type GetVenueManagerBusinessQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get a venue's business information
+ */
+
+export function useGetVenueManagerBusiness<
+  TData = Awaited<ReturnType<typeof getVenueManagerBusiness>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVenueManagerBusiness>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVenueManagerBusinessQueryOptions(
+    businessId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update venue business information
+ */
+export const getUpdateVenueManagerBusinessUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}`;
+};
+
+export const updateVenueManagerBusiness = async (
+  businessId: number,
+  venueManagerBusinessUpdate: VenueManagerBusinessUpdate,
+  options?: RequestInit,
+): Promise<VenueManagerBusiness> => {
+  return customFetch<VenueManagerBusiness>(
+    getUpdateVenueManagerBusinessUrl(businessId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerBusinessUpdate),
+    },
+  );
+};
+
+export const getUpdateVenueManagerBusinessMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVenueManagerBusiness>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerBusinessUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateVenueManagerBusiness>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerBusinessUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateVenueManagerBusiness"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateVenueManagerBusiness>>,
+    { businessId: number; data: BodyType<VenueManagerBusinessUpdate> }
+  > = (props) => {
+    const { businessId, data } = props ?? {};
+
+    return updateVenueManagerBusiness(businessId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateVenueManagerBusinessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateVenueManagerBusiness>>
+>;
+export type UpdateVenueManagerBusinessMutationBody =
+  BodyType<VenueManagerBusinessUpdate>;
+export type UpdateVenueManagerBusinessMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update venue business information
+ */
+export const useUpdateVenueManagerBusiness = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVenueManagerBusiness>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerBusinessUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateVenueManagerBusiness>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerBusinessUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateVenueManagerBusinessMutationOptions(options));
+};
+
+/**
+ * @summary Get manager-scoped venue analytics
+ */
+export const getGetVenueManagerDashboardUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/dashboard`;
+};
+
+export const getVenueManagerDashboard = async (
+  businessId: number,
+  options?: RequestInit,
+): Promise<VenueManagerDashboard> => {
+  return customFetch<VenueManagerDashboard>(
+    getGetVenueManagerDashboardUrl(businessId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetVenueManagerDashboardQueryKey = (businessId: number) => {
+  return [`/api/venue-manager/businesses/${businessId}/dashboard`] as const;
+};
+
+export const getGetVenueManagerDashboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVenueManagerDashboard>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVenueManagerDashboard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetVenueManagerDashboardQueryKey(businessId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getVenueManagerDashboard>>
+  > = ({ signal }) =>
+    getVenueManagerDashboard(businessId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!businessId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueManagerDashboard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVenueManagerDashboardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVenueManagerDashboard>>
+>;
+export type GetVenueManagerDashboardQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get manager-scoped venue analytics
+ */
+
+export function useGetVenueManagerDashboard<
+  TData = Awaited<ReturnType<typeof getVenueManagerDashboard>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVenueManagerDashboard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVenueManagerDashboardQueryOptions(
+    businessId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List all events for a venue
+ */
+export const getListVenueManagerEventsUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/events`;
+};
+
+export const listVenueManagerEvents = async (
+  businessId: number,
+  options?: RequestInit,
+): Promise<VenueManagerEventList> => {
+  return customFetch<VenueManagerEventList>(
+    getListVenueManagerEventsUrl(businessId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListVenueManagerEventsQueryKey = (businessId: number) => {
+  return [`/api/venue-manager/businesses/${businessId}/events`] as const;
+};
+
+export const getListVenueManagerEventsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listVenueManagerEvents>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueManagerEvents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListVenueManagerEventsQueryKey(businessId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listVenueManagerEvents>>
+  > = ({ signal }) =>
+    listVenueManagerEvents(businessId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!businessId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listVenueManagerEvents>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListVenueManagerEventsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listVenueManagerEvents>>
+>;
+export type ListVenueManagerEventsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all events for a venue
+ */
+
+export function useListVenueManagerEvents<
+  TData = Awaited<ReturnType<typeof listVenueManagerEvents>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueManagerEvents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListVenueManagerEventsQueryOptions(
+    businessId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a venue event
+ */
+export const getCreateVenueManagerEventUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/events`;
+};
+
+export const createVenueManagerEvent = async (
+  businessId: number,
+  venueManagerEventInput: VenueManagerEventInput,
+  options?: RequestInit,
+): Promise<VenueManagerEventResponse> => {
+  return customFetch<VenueManagerEventResponse>(
+    getCreateVenueManagerEventUrl(businessId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerEventInput),
+    },
+  );
+};
+
+export const getCreateVenueManagerEventMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerEvent>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerEventInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVenueManagerEvent>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerEventInput> },
+  TContext
+> => {
+  const mutationKey = ["createVenueManagerEvent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVenueManagerEvent>>,
+    { businessId: number; data: BodyType<VenueManagerEventInput> }
+  > = (props) => {
+    const { businessId, data } = props ?? {};
+
+    return createVenueManagerEvent(businessId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVenueManagerEventMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVenueManagerEvent>>
+>;
+export type CreateVenueManagerEventMutationBody =
+  BodyType<VenueManagerEventInput>;
+export type CreateVenueManagerEventMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a venue event
+ */
+export const useCreateVenueManagerEvent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerEvent>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerEventInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVenueManagerEvent>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerEventInput> },
+  TContext
+> => {
+  return useMutation(getCreateVenueManagerEventMutationOptions(options));
+};
+
+/**
+ * @summary Update a venue event
+ */
+export const getUpdateVenueManagerEventUrl = (
+  businessId: number,
+  eventId: number,
+) => {
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}`;
+};
+
+export const updateVenueManagerEvent = async (
+  businessId: number,
+  eventId: number,
+  venueManagerEventUpdate: VenueManagerEventUpdate,
+  options?: RequestInit,
+): Promise<VenueManagerEventResponse> => {
+  return customFetch<VenueManagerEventResponse>(
+    getUpdateVenueManagerEventUrl(businessId, eventId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerEventUpdate),
+    },
+  );
+};
+
+export const getUpdateVenueManagerEventMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVenueManagerEvent>>,
+    TError,
+    {
+      businessId: number;
+      eventId: number;
+      data: BodyType<VenueManagerEventUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateVenueManagerEvent>>,
+  TError,
+  {
+    businessId: number;
+    eventId: number;
+    data: BodyType<VenueManagerEventUpdate>;
+  },
+  TContext
+> => {
+  const mutationKey = ["updateVenueManagerEvent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateVenueManagerEvent>>,
+    {
+      businessId: number;
+      eventId: number;
+      data: BodyType<VenueManagerEventUpdate>;
+    }
+  > = (props) => {
+    const { businessId, eventId, data } = props ?? {};
+
+    return updateVenueManagerEvent(businessId, eventId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateVenueManagerEventMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateVenueManagerEvent>>
+>;
+export type UpdateVenueManagerEventMutationBody =
+  BodyType<VenueManagerEventUpdate>;
+export type UpdateVenueManagerEventMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a venue event
+ */
+export const useUpdateVenueManagerEvent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVenueManagerEvent>>,
+    TError,
+    {
+      businessId: number;
+      eventId: number;
+      data: BodyType<VenueManagerEventUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateVenueManagerEvent>>,
+  TError,
+  {
+    businessId: number;
+    eventId: number;
+    data: BodyType<VenueManagerEventUpdate>;
+  },
+  TContext
+> => {
+  return useMutation(getUpdateVenueManagerEventMutationOptions(options));
+};
+
+/**
+ * @summary Delete a venue event
+ */
+export const getDeleteVenueManagerEventUrl = (
+  businessId: number,
+  eventId: number,
+) => {
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}`;
+};
+
+export const deleteVenueManagerEvent = async (
+  businessId: number,
+  eventId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteVenueManagerEventUrl(businessId, eventId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteVenueManagerEventMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVenueManagerEvent>>,
+    TError,
+    { businessId: number; eventId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteVenueManagerEvent>>,
+  TError,
+  { businessId: number; eventId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteVenueManagerEvent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteVenueManagerEvent>>,
+    { businessId: number; eventId: number }
+  > = (props) => {
+    const { businessId, eventId } = props ?? {};
+
+    return deleteVenueManagerEvent(businessId, eventId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteVenueManagerEventMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteVenueManagerEvent>>
+>;
+
+export type DeleteVenueManagerEventMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a venue event
+ */
+export const useDeleteVenueManagerEvent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVenueManagerEvent>>,
+    TError,
+    { businessId: number; eventId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteVenueManagerEvent>>,
+  TError,
+  { businessId: number; eventId: number },
+  TContext
+> => {
+  return useMutation(getDeleteVenueManagerEventMutationOptions(options));
+};
+
+/**
+ * @summary List all rewards for a venue
+ */
+export const getListVenueManagerRewardsUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/rewards`;
+};
+
+export const listVenueManagerRewards = async (
+  businessId: number,
+  options?: RequestInit,
+): Promise<VenueManagerRewardList> => {
+  return customFetch<VenueManagerRewardList>(
+    getListVenueManagerRewardsUrl(businessId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListVenueManagerRewardsQueryKey = (businessId: number) => {
+  return [`/api/venue-manager/businesses/${businessId}/rewards`] as const;
+};
+
+export const getListVenueManagerRewardsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listVenueManagerRewards>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueManagerRewards>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListVenueManagerRewardsQueryKey(businessId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listVenueManagerRewards>>
+  > = ({ signal }) =>
+    listVenueManagerRewards(businessId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!businessId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listVenueManagerRewards>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListVenueManagerRewardsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listVenueManagerRewards>>
+>;
+export type ListVenueManagerRewardsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all rewards for a venue
+ */
+
+export function useListVenueManagerRewards<
+  TData = Awaited<ReturnType<typeof listVenueManagerRewards>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueManagerRewards>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListVenueManagerRewardsQueryOptions(
+    businessId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a venue reward
+ */
+export const getCreateVenueManagerRewardUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/rewards`;
+};
+
+export const createVenueManagerReward = async (
+  businessId: number,
+  venueManagerRewardInput: VenueManagerRewardInput,
+  options?: RequestInit,
+): Promise<VenueManagerRewardResponse> => {
+  return customFetch<VenueManagerRewardResponse>(
+    getCreateVenueManagerRewardUrl(businessId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerRewardInput),
+    },
+  );
+};
+
+export const getCreateVenueManagerRewardMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerReward>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerRewardInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVenueManagerReward>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerRewardInput> },
+  TContext
+> => {
+  const mutationKey = ["createVenueManagerReward"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVenueManagerReward>>,
+    { businessId: number; data: BodyType<VenueManagerRewardInput> }
+  > = (props) => {
+    const { businessId, data } = props ?? {};
+
+    return createVenueManagerReward(businessId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVenueManagerRewardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVenueManagerReward>>
+>;
+export type CreateVenueManagerRewardMutationBody =
+  BodyType<VenueManagerRewardInput>;
+export type CreateVenueManagerRewardMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a venue reward
+ */
+export const useCreateVenueManagerReward = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerReward>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerRewardInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVenueManagerReward>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerRewardInput> },
+  TContext
+> => {
+  return useMutation(getCreateVenueManagerRewardMutationOptions(options));
+};
+
+/**
+ * @summary Update a venue reward
+ */
+export const getUpdateVenueManagerRewardUrl = (
+  businessId: number,
+  rewardId: number,
+) => {
+  return `/api/venue-manager/businesses/${businessId}/rewards/${rewardId}`;
+};
+
+export const updateVenueManagerReward = async (
+  businessId: number,
+  rewardId: number,
+  venueManagerRewardUpdate: VenueManagerRewardUpdate,
+  options?: RequestInit,
+): Promise<VenueManagerRewardResponse> => {
+  return customFetch<VenueManagerRewardResponse>(
+    getUpdateVenueManagerRewardUrl(businessId, rewardId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerRewardUpdate),
+    },
+  );
+};
+
+export const getUpdateVenueManagerRewardMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVenueManagerReward>>,
+    TError,
+    {
+      businessId: number;
+      rewardId: number;
+      data: BodyType<VenueManagerRewardUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateVenueManagerReward>>,
+  TError,
+  {
+    businessId: number;
+    rewardId: number;
+    data: BodyType<VenueManagerRewardUpdate>;
+  },
+  TContext
+> => {
+  const mutationKey = ["updateVenueManagerReward"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateVenueManagerReward>>,
+    {
+      businessId: number;
+      rewardId: number;
+      data: BodyType<VenueManagerRewardUpdate>;
+    }
+  > = (props) => {
+    const { businessId, rewardId, data } = props ?? {};
+
+    return updateVenueManagerReward(businessId, rewardId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateVenueManagerRewardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateVenueManagerReward>>
+>;
+export type UpdateVenueManagerRewardMutationBody =
+  BodyType<VenueManagerRewardUpdate>;
+export type UpdateVenueManagerRewardMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a venue reward
+ */
+export const useUpdateVenueManagerReward = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVenueManagerReward>>,
+    TError,
+    {
+      businessId: number;
+      rewardId: number;
+      data: BodyType<VenueManagerRewardUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateVenueManagerReward>>,
+  TError,
+  {
+    businessId: number;
+    rewardId: number;
+    data: BodyType<VenueManagerRewardUpdate>;
+  },
+  TContext
+> => {
+  return useMutation(getUpdateVenueManagerRewardMutationOptions(options));
+};
+
+/**
+ * @summary List venue announcements
+ */
+export const getListVenueManagerAnnouncementsUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/announcements`;
+};
+
+export const listVenueManagerAnnouncements = async (
+  businessId: number,
+  options?: RequestInit,
+): Promise<VenueManagerAnnouncementList> => {
+  return customFetch<VenueManagerAnnouncementList>(
+    getListVenueManagerAnnouncementsUrl(businessId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListVenueManagerAnnouncementsQueryKey = (
+  businessId: number,
+) => {
+  return [`/api/venue-manager/businesses/${businessId}/announcements`] as const;
+};
+
+export const getListVenueManagerAnnouncementsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listVenueManagerAnnouncements>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueManagerAnnouncements>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListVenueManagerAnnouncementsQueryKey(businessId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listVenueManagerAnnouncements>>
+  > = ({ signal }) =>
+    listVenueManagerAnnouncements(businessId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!businessId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listVenueManagerAnnouncements>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListVenueManagerAnnouncementsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listVenueManagerAnnouncements>>
+>;
+export type ListVenueManagerAnnouncementsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List venue announcements
+ */
+
+export function useListVenueManagerAnnouncements<
+  TData = Awaited<ReturnType<typeof listVenueManagerAnnouncements>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueManagerAnnouncements>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListVenueManagerAnnouncementsQueryOptions(
+    businessId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Post a venue announcement
+ */
+export const getCreateVenueManagerAnnouncementUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/announcements`;
+};
+
+export const createVenueManagerAnnouncement = async (
+  businessId: number,
+  venueManagerAnnouncementInput: VenueManagerAnnouncementInput,
+  options?: RequestInit,
+): Promise<VenueManagerAnnouncementResponse> => {
+  return customFetch<VenueManagerAnnouncementResponse>(
+    getCreateVenueManagerAnnouncementUrl(businessId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerAnnouncementInput),
+    },
+  );
+};
+
+export const getCreateVenueManagerAnnouncementMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerAnnouncement>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerAnnouncementInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVenueManagerAnnouncement>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerAnnouncementInput> },
+  TContext
+> => {
+  const mutationKey = ["createVenueManagerAnnouncement"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVenueManagerAnnouncement>>,
+    { businessId: number; data: BodyType<VenueManagerAnnouncementInput> }
+  > = (props) => {
+    const { businessId, data } = props ?? {};
+
+    return createVenueManagerAnnouncement(businessId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVenueManagerAnnouncementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVenueManagerAnnouncement>>
+>;
+export type CreateVenueManagerAnnouncementMutationBody =
+  BodyType<VenueManagerAnnouncementInput>;
+export type CreateVenueManagerAnnouncementMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Post a venue announcement
+ */
+export const useCreateVenueManagerAnnouncement = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueManagerAnnouncement>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerAnnouncementInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVenueManagerAnnouncement>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerAnnouncementInput> },
+  TContext
+> => {
+  return useMutation(getCreateVenueManagerAnnouncementMutationOptions(options));
+};
+
+/**
+ * @summary Delete a venue announcement
+ */
+export const getDeleteVenueManagerAnnouncementUrl = (
+  businessId: number,
+  announcementId: number,
+) => {
+  return `/api/venue-manager/businesses/${businessId}/announcements/${announcementId}`;
+};
+
+export const deleteVenueManagerAnnouncement = async (
+  businessId: number,
+  announcementId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(
+    getDeleteVenueManagerAnnouncementUrl(businessId, announcementId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteVenueManagerAnnouncementMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVenueManagerAnnouncement>>,
+    TError,
+    { businessId: number; announcementId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteVenueManagerAnnouncement>>,
+  TError,
+  { businessId: number; announcementId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteVenueManagerAnnouncement"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteVenueManagerAnnouncement>>,
+    { businessId: number; announcementId: number }
+  > = (props) => {
+    const { businessId, announcementId } = props ?? {};
+
+    return deleteVenueManagerAnnouncement(
+      businessId,
+      announcementId,
+      requestOptions,
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteVenueManagerAnnouncementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteVenueManagerAnnouncement>>
+>;
+
+export type DeleteVenueManagerAnnouncementMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a venue announcement
+ */
+export const useDeleteVenueManagerAnnouncement = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVenueManagerAnnouncement>>,
+    TError,
+    { businessId: number; announcementId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteVenueManagerAnnouncement>>,
+  TError,
+  { businessId: number; announcementId: number },
+  TContext
+> => {
+  return useMutation(getDeleteVenueManagerAnnouncementMutationOptions(options));
+};
+
+/**
+ * @summary List active venue managers
+ */
+export const getListVenueManagerMembersUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/members`;
+};
+
+export const listVenueManagerMembers = async (
+  businessId: number,
+  options?: RequestInit,
+): Promise<VenueManagerMemberList> => {
+  return customFetch<VenueManagerMemberList>(
+    getListVenueManagerMembersUrl(businessId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListVenueManagerMembersQueryKey = (businessId: number) => {
+  return [`/api/venue-manager/businesses/${businessId}/members`] as const;
+};
+
+export const getListVenueManagerMembersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listVenueManagerMembers>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueManagerMembers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListVenueManagerMembersQueryKey(businessId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listVenueManagerMembers>>
+  > = ({ signal }) =>
+    listVenueManagerMembers(businessId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!businessId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listVenueManagerMembers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListVenueManagerMembersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listVenueManagerMembers>>
+>;
+export type ListVenueManagerMembersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List active venue managers
+ */
+
+export function useListVenueManagerMembers<
+  TData = Awaited<ReturnType<typeof listVenueManagerMembers>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listVenueManagerMembers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListVenueManagerMembersQueryOptions(
+    businessId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get my venue application's current lifecycle status and history

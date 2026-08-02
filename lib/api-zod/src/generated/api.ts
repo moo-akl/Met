@@ -1636,6 +1636,452 @@ export const RemoveVenueManagerHeader = zod.object({
 });
 
 /**
+ * @summary List venues available to the signed-in business manager
+ */
+export const ListVenueManagerBusinessesResponse = zod.object({
+  businesses: zod.array(
+    zod.object({
+      businessId: zod.number(),
+      placeId: zod.string(),
+      legalName: zod.string(),
+      placeName: zod.string(),
+      businessName: zod.string(),
+      tagline: zod.string().nullish(),
+      description: zod.string().nullish(),
+      coverPhotoUrl: zod.string().url().nullish(),
+      logoUrl: zod.string().url().nullish(),
+      role: zod.enum(["owner", "manager", "editor"]),
+      isActive: zod.boolean(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a venue's business information
+ */
+
+export const GetVenueManagerBusinessParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const GetVenueManagerBusinessResponse = zod.object({
+  businessId: zod.number(),
+  placeId: zod.string(),
+  legalName: zod.string(),
+  placeName: zod.string(),
+  businessName: zod.string(),
+  tagline: zod.string().nullish(),
+  description: zod.string().nullish(),
+  coverPhotoUrl: zod.string().url().nullish(),
+  logoUrl: zod.string().url().nullish(),
+  role: zod.enum(["owner", "manager", "editor"]),
+  isActive: zod.boolean(),
+});
+
+/**
+ * @summary Update venue business information
+ */
+
+export const UpdateVenueManagerBusinessParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const UpdateVenueManagerBusinessHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const updateVenueManagerBusinessBodyBusinessNameMax = 255;
+
+export const updateVenueManagerBusinessBodyTaglineMax = 160;
+
+export const updateVenueManagerBusinessBodyDescriptionMax = 1000;
+
+export const UpdateVenueManagerBusinessBody = zod.object({
+  businessName: zod
+    .string()
+    .min(1)
+    .max(updateVenueManagerBusinessBodyBusinessNameMax)
+    .optional(),
+  tagline: zod.string().max(updateVenueManagerBusinessBodyTaglineMax).nullish(),
+  description: zod
+    .string()
+    .max(updateVenueManagerBusinessBodyDescriptionMax)
+    .nullish(),
+  coverPhotoUrl: zod.string().url().nullish(),
+  logoUrl: zod.string().url().nullish(),
+});
+
+export const UpdateVenueManagerBusinessResponse = zod.object({
+  businessId: zod.number(),
+  placeId: zod.string(),
+  legalName: zod.string(),
+  placeName: zod.string(),
+  businessName: zod.string(),
+  tagline: zod.string().nullish(),
+  description: zod.string().nullish(),
+  coverPhotoUrl: zod.string().url().nullish(),
+  logoUrl: zod.string().url().nullish(),
+  role: zod.enum(["owner", "manager", "editor"]),
+  isActive: zod.boolean(),
+});
+
+/**
+ * @summary Get manager-scoped venue analytics
+ */
+
+export const GetVenueManagerDashboardParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const GetVenueManagerDashboardResponse = zod.object({
+  checkInTrend: zod.array(
+    zod.object({
+      day: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+  topVisitors: zod.array(
+    zod.object({
+      userUid: zod.string(),
+      displayName: zod.string(),
+      photoUrl: zod.string().url().nullish(),
+      checkinCount: zod.number(),
+    }),
+  ),
+  eventRsvpCounts: zod.array(
+    zod.object({
+      eventId: zod.number(),
+      title: zod.string(),
+      startsAt: zod.coerce.date(),
+      going: zod.number(),
+      maybe: zod.number(),
+    }),
+  ),
+  activeReward: zod.record(zod.string(), zod.unknown()).nullable(),
+});
+
+/**
+ * @summary List all events for a venue
+ */
+
+export const ListVenueManagerEventsParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const ListVenueManagerEventsResponse = zod.object({
+  events: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      description: zod.string().nullish(),
+      imageUrl: zod.string().url().nullish(),
+      startsAt: zod.coerce.date(),
+      endsAt: zod.coerce.date().nullish(),
+      capacityLimit: zod.number().nullish(),
+      rsvpCount: zod.number().optional(),
+      isPublished: zod.boolean(),
+      createdAt: zod.coerce.date().optional(),
+      updatedAt: zod.coerce.date().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a venue event
+ */
+
+export const CreateVenueManagerEventParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const CreateVenueManagerEventHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const createVenueManagerEventBodyTitleMax = 120;
+
+export const createVenueManagerEventBodyDescriptionMax = 2000;
+
+export const CreateVenueManagerEventBody = zod.object({
+  title: zod.string().min(1).max(createVenueManagerEventBodyTitleMax),
+  description: zod
+    .string()
+    .max(createVenueManagerEventBodyDescriptionMax)
+    .nullish(),
+  imageUrl: zod.string().url().nullish(),
+  startsAt: zod.coerce.date(),
+  endsAt: zod.coerce.date().nullish(),
+  capacityLimit: zod.number().min(1).nullish(),
+  isPublished: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update a venue event
+ */
+
+export const UpdateVenueManagerEventParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+  eventId: zod.coerce.number().min(1),
+});
+
+export const UpdateVenueManagerEventHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const updateVenueManagerEventBodyTitleMax = 120;
+
+export const updateVenueManagerEventBodyDescriptionMax = 2000;
+
+export const UpdateVenueManagerEventBody = zod.object({
+  title: zod
+    .string()
+    .min(1)
+    .max(updateVenueManagerEventBodyTitleMax)
+    .optional(),
+  description: zod
+    .string()
+    .max(updateVenueManagerEventBodyDescriptionMax)
+    .nullish(),
+  imageUrl: zod.string().url().nullish(),
+  startsAt: zod.coerce.date().optional(),
+  endsAt: zod.coerce.date().nullish(),
+  capacityLimit: zod.number().min(1).nullish(),
+  isPublished: zod.boolean().optional(),
+});
+
+export const UpdateVenueManagerEventResponse = zod.object({
+  event: zod.object({
+    id: zod.number(),
+    title: zod.string(),
+    description: zod.string().nullish(),
+    imageUrl: zod.string().url().nullish(),
+    startsAt: zod.coerce.date(),
+    endsAt: zod.coerce.date().nullish(),
+    capacityLimit: zod.number().nullish(),
+    rsvpCount: zod.number().optional(),
+    isPublished: zod.boolean(),
+    createdAt: zod.coerce.date().optional(),
+    updatedAt: zod.coerce.date().optional(),
+  }),
+});
+
+/**
+ * @summary Delete a venue event
+ */
+
+export const DeleteVenueManagerEventParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+  eventId: zod.coerce.number().min(1),
+});
+
+export const DeleteVenueManagerEventHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+/**
+ * @summary List all rewards for a venue
+ */
+
+export const ListVenueManagerRewardsParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const ListVenueManagerRewardsResponse = zod.object({
+  rewards: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      description: zod.string().nullish(),
+      prizeDescription: zod.string(),
+      rewardType: zod.enum(["free_drink", "discount", "experience", "custom"]),
+      status: zod.enum(["draft", "active", "cancelled", "completed"]),
+      startDate: zod.coerce.date(),
+      endDate: zod.coerce.date(),
+      venueTimezone: zod.string(),
+      winnerSelectedAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date().optional(),
+      updatedAt: zod.coerce.date().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a venue reward
+ */
+
+export const CreateVenueManagerRewardParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const CreateVenueManagerRewardHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const createVenueManagerRewardBodyTitleMax = 120;
+
+export const createVenueManagerRewardBodyDescriptionMax = 2000;
+
+export const createVenueManagerRewardBodyPrizeDescriptionMax = 200;
+
+export const CreateVenueManagerRewardBody = zod.object({
+  title: zod.string().min(1).max(createVenueManagerRewardBodyTitleMax),
+  description: zod
+    .string()
+    .max(createVenueManagerRewardBodyDescriptionMax)
+    .nullish(),
+  prizeDescription: zod
+    .string()
+    .min(1)
+    .max(createVenueManagerRewardBodyPrizeDescriptionMax),
+  rewardType: zod
+    .enum(["free_drink", "discount", "experience", "custom"])
+    .optional(),
+  status: zod.enum(["draft", "active"]).optional(),
+  startDate: zod.coerce.date(),
+  endDate: zod.coerce.date(),
+  venueTimezone: zod.string().optional(),
+});
+
+/**
+ * @summary Update a venue reward
+ */
+
+export const UpdateVenueManagerRewardParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+  rewardId: zod.coerce.number().min(1),
+});
+
+export const UpdateVenueManagerRewardHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const updateVenueManagerRewardBodyTitleMax = 120;
+
+export const updateVenueManagerRewardBodyDescriptionMax = 2000;
+
+export const updateVenueManagerRewardBodyPrizeDescriptionMax = 200;
+
+export const UpdateVenueManagerRewardBody = zod.object({
+  title: zod
+    .string()
+    .min(1)
+    .max(updateVenueManagerRewardBodyTitleMax)
+    .optional(),
+  description: zod
+    .string()
+    .max(updateVenueManagerRewardBodyDescriptionMax)
+    .nullish(),
+  prizeDescription: zod
+    .string()
+    .min(1)
+    .max(updateVenueManagerRewardBodyPrizeDescriptionMax)
+    .optional(),
+  rewardType: zod
+    .enum(["free_drink", "discount", "experience", "custom"])
+    .optional(),
+  status: zod.enum(["draft", "active", "cancelled"]).optional(),
+  startDate: zod.coerce.date().optional(),
+  endDate: zod.coerce.date().optional(),
+  venueTimezone: zod.string().optional(),
+});
+
+export const UpdateVenueManagerRewardResponse = zod.object({
+  reward: zod.object({
+    id: zod.number(),
+    title: zod.string(),
+    description: zod.string().nullish(),
+    prizeDescription: zod.string(),
+    rewardType: zod.enum(["free_drink", "discount", "experience", "custom"]),
+    status: zod.enum(["draft", "active", "cancelled", "completed"]),
+    startDate: zod.coerce.date(),
+    endDate: zod.coerce.date(),
+    venueTimezone: zod.string(),
+    winnerSelectedAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date().optional(),
+    updatedAt: zod.coerce.date().optional(),
+  }),
+});
+
+/**
+ * @summary List venue announcements
+ */
+
+export const ListVenueManagerAnnouncementsParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const ListVenueManagerAnnouncementsResponse = zod.object({
+  announcements: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      body: zod.string(),
+      imageUrl: zod.string().url().nullish(),
+      isPinned: zod.boolean(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Post a venue announcement
+ */
+
+export const CreateVenueManagerAnnouncementParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const CreateVenueManagerAnnouncementHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const createVenueManagerAnnouncementBodyTitleMax = 120;
+
+export const createVenueManagerAnnouncementBodyBodyMax = 2000;
+
+export const CreateVenueManagerAnnouncementBody = zod.object({
+  title: zod.string().min(1).max(createVenueManagerAnnouncementBodyTitleMax),
+  body: zod.string().min(1).max(createVenueManagerAnnouncementBodyBodyMax),
+  imageUrl: zod.string().url().nullish(),
+  isPinned: zod.boolean().optional(),
+});
+
+/**
+ * @summary Delete a venue announcement
+ */
+
+export const DeleteVenueManagerAnnouncementParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+  announcementId: zod.coerce.number().min(1),
+});
+
+export const DeleteVenueManagerAnnouncementHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+/**
+ * @summary List active venue managers
+ */
+
+export const ListVenueManagerMembersParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const ListVenueManagerMembersResponse = zod.object({
+  members: zod.array(
+    zod.object({
+      managerId: zod.number(),
+      email: zod.string().email(),
+      displayName: zod.string(),
+      role: zod.enum(["owner", "manager", "editor"]),
+      status: zod.enum(["active"]),
+      acceptedAt: zod.coerce.date().nullish(),
+    }),
+  ),
+});
+
+/**
  * @summary Get my venue application's current lifecycle status and history
  */
 export const GetMyVenueApplicationResponse = zod.object({

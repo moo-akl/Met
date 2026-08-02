@@ -1,6 +1,6 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, count, desc, eq, gte, gt, isNull, lt, sql } from "drizzle-orm";
 import {
   db,
   venueBusinessesTable,
@@ -10,6 +10,12 @@ import {
   venueMembershipAuditTable,
   venueMembershipsTable,
   venueOwnerProfilesTable,
+  venueEventsTable,
+  venueEventRsvpsTable,
+  venueRewardsTable,
+  venueAnnouncementsTable,
+  hubCheckinsTable,
+  profilesTable,
   type VenueMembershipRole,
 } from "@workspace/db";
 import { createIpRateLimiter } from "../middlewares/rateLimit";
@@ -24,6 +30,8 @@ const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 5 * 60 * 1000;
 const roles = ["owner", "manager", "editor"] as const;
 type Role = (typeof roles)[number];
+const contentRoles: readonly Role[] = ["owner", "manager", "editor"];
+const rewardRoles: readonly Role[] = ["owner", "manager"];
 
 const authLimit = createIpRateLimiter({
   windowMs: 15 * 60_000,
@@ -186,6 +194,61 @@ async function requireBusinessRole(req: Request, res: Response, permitted: reado
   return membership;
 }
 
+function serializeEvent(event: typeof venueEventsTable.$inferSelect) {
+  const { ownerUid: _ownerUid, ...serialized } = event;
+  return serialized;
+}
+
+function serializeReward(reward: typeof venueRewardsTable.$inferSelect) {
+  const { ownerUid: _ownerUid, winnerUid: _winnerUid, ...serialized } = reward;
+  return serialized;
+}
+
+function serializeAnnouncement(announcement: typeof venueAnnouncementsTable.$inferSelect) {
+  const { ownerUid: _ownerUid, ...serialized } = announcement;
+  return serialized;
+}
+
+function validDate(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? null : date;
+}
+
+function optionalText(value: unknown, max: number): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+  return value.trim().slice(0, max) || null;
+}
+
+async function businessWithProfile(businessId: number) {
+  const [row] = await db.select({
+    business: venueBusinessesTable,
+    profile: venueOwnerProfilesTable,
+  }).from(venueBusinessesTable)
+    .innerJoin(venueOwnerProfilesTable, eq(venueBusinessesTable.venueOwnerProfileId, venueOwnerProfilesTable.id))
+    .where(eq(venueBusinessesTable.id, businessId))
+    .limit(1);
+  return row ?? null;
+}
+
+function serializeBusiness(row: NonNullable<Awaited<ReturnType<typeof businessWithProfile>>>, role: Role) {
+  return {
+    businessId: row.business.id,
+    placeId: row.business.placeId,
+    legalName: row.business.legalName,
+    placeName: row.profile.placeName,
+    businessName: row.profile.businessName,
+    tagline: row.profile.tagline,
+    description: row.profile.description,
+    coverPhotoUrl: row.profile.coverPhotoUrl,
+    logoUrl: row.profile.logoUrl,
+    role,
+    isActive: row.business.isActive,
+  };
+}
+
 router.post("/venue-manager/session", authLimit, async (req, res): Promise<void> => {
   const email = typeof req.body?.email === "string" ? normalizeEmail(req.body.email) : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
@@ -230,6 +293,255 @@ router.delete("/venue-manager/session", requireSession, requireCsrf, async (req,
     .where(eq(venueManagerSessionsTable.id, req.venueManagerSession!.sessionId));
   res.clearCookie(COOKIE, cookieOptions(req));
   res.status(204).end();
+});
+
+router.get("/venue-manager/businesses", requireSession, async (req, res): Promise<void> => {
+  const rows = await db.select({
+    membership: venueMembershipsTable,
+    business: venueBusinessesTable,
+    profile: venueOwnerProfilesTable,
+  }).from(venueMembershipsTable)
+    .innerJoin(venueBusinessesTable, eq(venueMembershipsTable.businessId, venueBusinessesTable.id))
+    .innerJoin(venueOwnerProfilesTable, eq(venueBusinessesTable.venueOwnerProfileId, venueOwnerProfilesTable.id))
+    .where(and(
+      eq(venueMembershipsTable.managerId, req.venueManagerSession!.managerId),
+      eq(venueMembershipsTable.status, "active"),
+      eq(venueBusinessesTable.isActive, true),
+    ))
+    .orderBy(venueOwnerProfilesTable.placeName);
+  res.json({ businesses: rows.map((row) => serializeBusiness({ business: row.business, profile: row.profile }, row.membership.role as Role)) });
+});
+
+router.get("/venue-manager/businesses/:businessId", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const row = await businessWithProfile(membership.businessId);
+  if (!row) {
+    res.status(404).json({ message: "Venue not found." });
+    return;
+  }
+  res.json(serializeBusiness(row, membership.role));
+});
+
+router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, ["owner", "manager"]);
+  if (!membership) return;
+  const current = await businessWithProfile(membership.businessId);
+  if (!current) {
+    res.status(404).json({ message: "Venue not found." });
+    return;
+  }
+  const businessName = optionalText(req.body?.businessName, 255);
+  const tagline = optionalText(req.body?.tagline, 160);
+  const description = optionalText(req.body?.description, 1000);
+  const coverPhotoUrl = optionalText(req.body?.coverPhotoUrl, 2000);
+  const logoUrl = optionalText(req.body?.logoUrl, 2000);
+  const patch = Object.fromEntries(Object.entries({ businessName, tagline, description, coverPhotoUrl, logoUrl })
+    .filter(([, value]) => value !== undefined));
+  if (!Object.keys(patch).length) {
+    res.status(400).json({ message: "Provide at least one business detail to update." });
+    return;
+  }
+  const [profile] = await db.update(venueOwnerProfilesTable).set({ ...patch, updatedAt: new Date() })
+    .where(eq(venueOwnerProfilesTable.id, current.profile.id)).returning();
+  res.json(serializeBusiness({ business: current.business, profile: profile! }, membership.role));
+});
+
+router.get("/venue-manager/businesses/:businessId/events", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  if (!business) return void res.status(404).json({ message: "Venue not found." });
+  const events = await db.select().from(venueEventsTable)
+    .where(eq(venueEventsTable.placeId, business.business.placeId))
+    .orderBy(desc(venueEventsTable.startsAt));
+  res.json({ events: events.map(serializeEvent) });
+});
+
+router.post("/venue-manager/businesses/:businessId/events", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const title = optionalText(req.body?.title, 120);
+  const startsAt = validDate(req.body?.startsAt);
+  if (!business || !title || !startsAt) return void res.status(400).json({ message: "An event title and start time are required." });
+  const endsAt = req.body?.endsAt === null ? null : validDate(req.body?.endsAt);
+  if (req.body?.endsAt !== undefined && req.body?.endsAt !== null && !endsAt) return void res.status(400).json({ message: "Use a valid event end time." });
+  const capacityLimit = req.body?.capacityLimit === null ? null : Number(req.body?.capacityLimit);
+  if (capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) return void res.status(400).json({ message: "Capacity must be a positive whole number." });
+  const [event] = await db.insert(venueEventsTable).values({
+    ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, startsAt, endsAt,
+    description: optionalText(req.body?.description, 2000) ?? null, imageUrl: optionalText(req.body?.imageUrl, 2000) ?? null,
+    capacityLimit, isPublished: req.body?.isPublished !== false,
+  }).returning();
+  res.status(201).json({ event: serializeEvent(event!) });
+});
+
+router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isInteger(eventId)) return void res.status(400).json({ message: "Invalid event." });
+  const [existing] = await db.select().from(venueEventsTable).where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, business.business.placeId))).limit(1);
+  if (!existing) return void res.status(404).json({ message: "Event not found." });
+  const title = optionalText(req.body?.title, 120);
+  const startsAt = req.body?.startsAt === undefined ? undefined : validDate(req.body.startsAt);
+  const endsAt = req.body?.endsAt === undefined ? undefined : req.body.endsAt === null ? null : validDate(req.body.endsAt);
+  if ((req.body?.startsAt !== undefined && !startsAt) || (req.body?.endsAt !== undefined && req.body.endsAt !== null && !endsAt)) return void res.status(400).json({ message: "Use valid event dates." });
+  const capacityLimit = req.body?.capacityLimit === undefined ? undefined : req.body.capacityLimit === null ? null : Number(req.body.capacityLimit);
+  if (capacityLimit !== undefined && capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) return void res.status(400).json({ message: "Capacity must be a positive whole number." });
+  const patch = Object.fromEntries(Object.entries({ title, startsAt, endsAt, capacityLimit, description: optionalText(req.body?.description, 2000), imageUrl: optionalText(req.body?.imageUrl, 2000), isPublished: typeof req.body?.isPublished === "boolean" ? req.body.isPublished : undefined }).filter(([, value]) => value !== undefined));
+  const [event] = await db.update(venueEventsTable).set({ ...patch, updatedAt: new Date() }).where(eq(venueEventsTable.id, eventId)).returning();
+  res.json({ event: serializeEvent(event!) });
+});
+
+router.delete("/venue-manager/businesses/:businessId/events/:eventId", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isInteger(eventId)) return void res.status(400).json({ message: "Invalid event." });
+  const deleted = await db.delete(venueEventsTable).where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, business.business.placeId))).returning({ id: venueEventsTable.id });
+  if (!deleted.length) return void res.status(404).json({ message: "Event not found." });
+  res.status(204).end();
+});
+
+router.get("/venue-manager/businesses/:businessId/rewards", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  if (!business) return void res.status(404).json({ message: "Venue not found." });
+  const rewards = await db.select().from(venueRewardsTable)
+    .where(eq(venueRewardsTable.placeId, business.business.placeId))
+    .orderBy(desc(venueRewardsTable.createdAt));
+  res.json({ rewards: rewards.map(serializeReward) });
+});
+
+router.post("/venue-manager/businesses/:businessId/rewards", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, rewardRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const title = optionalText(req.body?.title, 120);
+  const prizeDescription = optionalText(req.body?.prizeDescription, 200);
+  const startDate = validDate(req.body?.startDate);
+  const endDate = validDate(req.body?.endDate);
+  if (!business || !title || !prizeDescription || !startDate || !endDate || endDate <= startDate) return void res.status(400).json({ message: "Use a title, prize, and valid reward dates." });
+  const rewardType = ["free_drink", "discount", "experience", "custom"].includes(req.body?.rewardType) ? req.body.rewardType : "custom";
+  const status = req.body?.status === "active" ? "active" : "draft";
+  const [reward] = await db.insert(venueRewardsTable).values({
+    ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, prizeDescription, startDate, endDate,
+    description: optionalText(req.body?.description, 2000) ?? null, rewardType, status,
+    venueTimezone: optionalText(req.body?.venueTimezone, 100) ?? "UTC",
+  }).returning();
+  res.status(201).json({ reward: serializeReward(reward!) });
+});
+
+router.patch("/venue-manager/businesses/:businessId/rewards/:rewardId", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, rewardRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const rewardId = Number(req.params["rewardId"]);
+  if (!business || !Number.isInteger(rewardId)) return void res.status(400).json({ message: "Invalid reward." });
+  const [existing] = await db.select().from(venueRewardsTable).where(and(eq(venueRewardsTable.id, rewardId), eq(venueRewardsTable.placeId, business.business.placeId))).limit(1);
+  if (!existing) return void res.status(404).json({ message: "Reward not found." });
+  const startDate = req.body?.startDate === undefined ? undefined : validDate(req.body.startDate);
+  const endDate = req.body?.endDate === undefined ? undefined : validDate(req.body.endDate);
+  if ((req.body?.startDate !== undefined && !startDate) || (req.body?.endDate !== undefined && !endDate)) return void res.status(400).json({ message: "Use valid reward dates." });
+  const candidateStart = startDate ?? existing.startDate;
+  const candidateEnd = endDate ?? existing.endDate;
+  if (candidateEnd <= candidateStart) return void res.status(400).json({ message: "Reward must end after it starts." });
+  const rewardType = req.body?.rewardType === undefined ? undefined : ["free_drink", "discount", "experience", "custom"].includes(req.body.rewardType) ? req.body.rewardType : null;
+  const status = req.body?.status === undefined ? undefined : ["draft", "active", "cancelled"].includes(req.body.status) ? req.body.status : null;
+  if (rewardType === null || status === null) return void res.status(400).json({ message: "Invalid reward type or status." });
+  const patch = Object.fromEntries(Object.entries({
+    title: optionalText(req.body?.title, 120), description: optionalText(req.body?.description, 2000),
+    prizeDescription: optionalText(req.body?.prizeDescription, 200), startDate, endDate, rewardType, status,
+    venueTimezone: optionalText(req.body?.venueTimezone, 100),
+  }).filter(([, value]) => value !== undefined));
+  const [reward] = await db.update(venueRewardsTable).set({ ...patch, updatedAt: new Date() }).where(eq(venueRewardsTable.id, rewardId)).returning();
+  res.json({ reward: serializeReward(reward!) });
+});
+
+router.get("/venue-manager/businesses/:businessId/announcements", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  if (!business) return void res.status(404).json({ message: "Venue not found." });
+  const announcements = await db.select().from(venueAnnouncementsTable)
+    .where(eq(venueAnnouncementsTable.placeId, business.business.placeId))
+    .orderBy(desc(venueAnnouncementsTable.isPinned), desc(venueAnnouncementsTable.createdAt));
+  res.json({ announcements: announcements.map(serializeAnnouncement) });
+});
+
+router.post("/venue-manager/businesses/:businessId/announcements", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const title = optionalText(req.body?.title, 120);
+  const body = optionalText(req.body?.body, 2000);
+  if (!business || !title || !body) return void res.status(400).json({ message: "An announcement title and message are required." });
+  const isPinned = req.body?.isPinned === true;
+  if (isPinned) await db.update(venueAnnouncementsTable).set({ isPinned: false, updatedAt: new Date() }).where(eq(venueAnnouncementsTable.placeId, business.business.placeId));
+  const [announcement] = await db.insert(venueAnnouncementsTable).values({
+    ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, body, isPinned,
+    imageUrl: optionalText(req.body?.imageUrl, 2000) ?? null,
+  }).returning();
+  res.status(201).json({ announcement: serializeAnnouncement(announcement!) });
+});
+
+router.delete("/venue-manager/businesses/:businessId/announcements/:announcementId", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const announcementId = Number(req.params["announcementId"]);
+  if (!business || !Number.isInteger(announcementId)) return void res.status(400).json({ message: "Invalid announcement." });
+  const deleted = await db.delete(venueAnnouncementsTable).where(and(eq(venueAnnouncementsTable.id, announcementId), eq(venueAnnouncementsTable.placeId, business.business.placeId))).returning({ id: venueAnnouncementsTable.id });
+  if (!deleted.length) return void res.status(404).json({ message: "Announcement not found." });
+  res.status(204).end();
+});
+
+router.get("/venue-manager/businesses/:businessId/members", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, ["owner"]);
+  if (!membership) return;
+  const members = await db.select({
+    managerId: venueManagersTable.id, email: venueManagersTable.email, displayName: venueManagersTable.displayName,
+    role: venueMembershipsTable.role, status: venueMembershipsTable.status, acceptedAt: venueMembershipsTable.acceptedAt,
+  }).from(venueMembershipsTable).innerJoin(venueManagersTable, eq(venueMembershipsTable.managerId, venueManagersTable.id))
+    .where(and(eq(venueMembershipsTable.businessId, membership.businessId), eq(venueMembershipsTable.status, "active")))
+    .orderBy(venueManagersTable.displayName);
+  res.json({ members });
+});
+
+router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  if (!business) return void res.status(404).json({ message: "Venue not found." });
+  const placeId = business.business.placeId;
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [checkInTrend, topVisitorRows, eventRsvpRows, activeRewardRows] = await Promise.all([
+    db.select({ day: sql<string>`DATE(${hubCheckinsTable.createdAt})`, count: count(hubCheckinsTable.id) })
+      .from(hubCheckinsTable).where(and(eq(hubCheckinsTable.placeId, placeId), gte(hubCheckinsTable.createdAt, thirtyDaysAgo)))
+      .groupBy(sql`DATE(${hubCheckinsTable.createdAt})`).orderBy(sql`DATE(${hubCheckinsTable.createdAt})`),
+    db.select({ userUid: hubCheckinsTable.userUid, displayName: profilesTable.displayName, photoUrl: profilesTable.photoUrl, checkinCount: count(hubCheckinsTable.id) })
+      .from(hubCheckinsTable).leftJoin(profilesTable, eq(hubCheckinsTable.userUid, profilesTable.uid))
+      .where(and(eq(hubCheckinsTable.placeId, placeId), gte(hubCheckinsTable.createdAt, monthStart)))
+      .groupBy(hubCheckinsTable.userUid, profilesTable.displayName, profilesTable.photoUrl).orderBy(desc(count(hubCheckinsTable.id))).limit(5),
+    db.select({ eventId: venueEventsTable.id, title: venueEventsTable.title, startsAt: venueEventsTable.startsAt, going: sql<number>`COUNT(*) FILTER (WHERE ${venueEventRsvpsTable.status} = 'going')`, maybe: sql<number>`COUNT(*) FILTER (WHERE ${venueEventRsvpsTable.status} = 'maybe')` })
+      .from(venueEventsTable).leftJoin(venueEventRsvpsTable, eq(venueEventsTable.id, venueEventRsvpsTable.eventId))
+      .where(and(eq(venueEventsTable.placeId, placeId), eq(venueEventsTable.isPublished, true), gte(venueEventsTable.startsAt, now)))
+      .groupBy(venueEventsTable.id).orderBy(venueEventsTable.startsAt).limit(5),
+    db.select().from(venueRewardsTable).where(and(eq(venueRewardsTable.placeId, placeId), eq(venueRewardsTable.status, "active"), lt(venueRewardsTable.startDate, now), gte(venueRewardsTable.endDate, now))).limit(1),
+  ]);
+  res.json({
+    checkInTrend: checkInTrend.map((row) => ({ day: row.day, count: Number(row.count) })),
+    topVisitors: topVisitorRows.map((row) => ({ ...row, displayName: row.displayName ?? "Met member", checkinCount: Number(row.checkinCount) })),
+    eventRsvpCounts: eventRsvpRows.map((row) => ({ ...row, going: Number(row.going), maybe: Number(row.maybe) })),
+    activeReward: activeRewardRows[0] ? serializeReward(activeRewardRows[0]) : null,
+  });
 });
 
 router.post("/venue-manager/invitations/accept", authLimit, async (req, res): Promise<void> => {
