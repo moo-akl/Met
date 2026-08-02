@@ -336,15 +336,15 @@ function ApplyPage() {
 
       {step === 1 && (
         <form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setForm(d => ({ ...d, contactEmail: String(f.get("email")).trim(), contactName: String(f.get("name")).trim() })); setError(""); setStep(2); }}>
-          <label><span className="vm-label-row">Your name<Tip>The full name of the venue owner or manager. We'll address all correspondence to you by this name.</Tip></span><input required name="name" autoComplete="name" defaultValue={form.contactName} placeholder="Your full name" /></label>
-          <label><span className="vm-label-row">Your email<Tip>Your business email address. Once your application is approved, we'll send your registration link here — check your spam folder if you don't see it.</Tip></span><input required name="email" type="email" autoComplete="email" defaultValue={form.contactEmail} placeholder="you@yourvenue.com" /></label>
+          <label><span className="vm-label-row">Your name<Tip>Type your first and last name — e.g. "Sarah Johnson".</Tip></span><input required name="name" autoComplete="name" defaultValue={form.contactName} placeholder="Your full name" /></label>
+          <label><span className="vm-label-row">Your email<Tip>Type the email address you check regularly. Your registration link will arrive here once we approve your application.</Tip></span><input required name="email" type="email" autoComplete="email" defaultValue={form.contactEmail} placeholder="you@yourvenue.com" /></label>
           <button className="vm-primary">Next →</button>
         </form>
       )}
 
       {step === 2 && (
         <div className="vm-form">
-          <label><span className="vm-label-row">Search for your venue<Tip>Type your venue's name or street address to find it in Google Places. Select the correct result from the list — this locks in the official place ID we use to identify your venue.</Tip></span>
+          <label><span className="vm-label-row">Search for your venue<Tip>Type your venue's name or street address, then tap the correct result in the list below.</Tip></span>
             <input value={search} onChange={(e) => { setSearch(e.target.value); if (form.place) setForm(d => ({ ...d, place: null })); }} placeholder="Type your venue name or address" autoFocus />
           </label>
           {searching && <p className="vm-subtitle" style={{ margin: 0 }}>Searching…</p>}
@@ -367,8 +367,8 @@ function ApplyPage() {
 
       {step === 3 && (
         <form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setForm(d => ({ ...d, tagline: String(f.get("tagline") ?? "").trim(), description: String(f.get("description") ?? "").trim() })); setStep(4); }}>
-          <label><span className="vm-label-row">Tagline <span className="vm-optional">optional</span><Tip>A punchy phrase up to 160 characters that captures what makes your venue stand out. This appears on your public venue card in the Met app.</Tip></span><input name="tagline" maxLength={160} defaultValue={form.tagline} placeholder="What makes your venue special — in one line" /></label>
-          <label><span className="vm-label-row">Description <span className="vm-optional">optional</span><Tip>A fuller picture of your venue for curious guests — the atmosphere, what you offer, dress code, anything that sets expectations. Up to 1,000 characters.</Tip></span><textarea name="description" rows={4} maxLength={1000} defaultValue={form.description} placeholder="Tell potential guests about the vibe, what you offer, what to expect" /></label>
+          <label><span className="vm-label-row">Tagline <span className="vm-optional">optional</span><Tip>One punchy sentence, max 160 characters — e.g. "The rooftop bar where the city meets the sky."</Tip></span><input name="tagline" maxLength={160} defaultValue={form.tagline} placeholder="What makes your venue special — in one line" /></label>
+          <label><span className="vm-label-row">Description <span className="vm-optional">optional</span><Tip>Write 2–4 sentences about the vibe, what's on offer, and any dress code — enough for a guest to picture the experience before they arrive.</Tip></span><textarea name="description" rows={4} maxLength={1000} defaultValue={form.description} placeholder="Tell potential guests about the vibe, what you offer, what to expect" /></label>
           <div className="vm-apply-actions">
             <button className="vm-secondary" type="button" onClick={() => setStep(2)}>← Back</button>
             <button className="vm-primary">Next →</button>
@@ -379,8 +379,8 @@ function ApplyPage() {
       {step === 4 && (
         <form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setForm(d => ({ ...d, verificationDocUrl: String(f.get("docUrl")).trim(), registrationNotes: String(f.get("notes") ?? "").trim() })); setError(""); setStep(5); }}>
           <p className="vm-subtitle" style={{ margin: "0 0 4px" }}>Upload your proof of ownership to Google Drive, Dropbox, or similar and paste the link below. Accepted: business licence, lease agreement, utility bill addressed to the venue.</p>
-          <label><span className="vm-label-row">Document link<Tip>Upload your proof of ownership to Google Drive, Dropbox, or OneDrive and paste the shareable link here. Accepted: business licence, lease agreement, or a utility bill addressed to the venue. Make sure the link doesn't require sign-in to view.</Tip></span><input required name="docUrl" type="url" defaultValue={form.verificationDocUrl} placeholder="https://drive.google.com/…" /></label>
-          <label><span className="vm-label-row">Additional notes <span className="vm-optional">optional</span><Tip>Anything that might help our team review your application faster — for example, your role at the venue, a note about the document you shared, or any unusual circumstances we should know about.</Tip></span><textarea name="notes" rows={3} maxLength={500} defaultValue={form.registrationNotes} placeholder="Anything else you'd like us to know" /></label>
+          <label><span className="vm-label-row">Document link<Tip>Paste a shareable link (Google Drive, Dropbox, OneDrive) to a business licence, lease, or utility bill showing the venue address. The link must be viewable without signing in.</Tip></span><input required name="docUrl" type="url" defaultValue={form.verificationDocUrl} placeholder="https://drive.google.com/…" /></label>
+          <label><span className="vm-label-row">Additional notes <span className="vm-optional">optional</span><Tip>Type anything that could help — e.g. "I'm the ops manager, not the legal owner" or "the lease is in my company name".</Tip></span><textarea name="notes" rows={3} maxLength={500} defaultValue={form.registrationNotes} placeholder="Anything else you'd like us to know" /></label>
           <div className="vm-apply-actions">
             <button className="vm-secondary" type="button" onClick={() => setStep(3)}>← Back</button>
             <button className="vm-primary">Review →</button>
