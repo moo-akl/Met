@@ -225,14 +225,8 @@ export default function VenueOwnerSetupScreen() {
         existingApplication.isApproved ? "/venue-owner/dashboard" : "/venue-owner/pending",
       );
     }
-  }, [
-    applicationError,
-    existingApplication,
-    isReapply,
-    loadingApplication,
-    reapplyEligible,
-    router,
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicationError, existingApplication, isReapply, loadingApplication, reapplyEligible]);
 
   useEffect(() => {
     const query = venueQuery.trim();

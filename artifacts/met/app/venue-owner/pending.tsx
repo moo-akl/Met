@@ -33,12 +33,19 @@ export default function VenueOwnerPendingScreen() {
   const { authedUid } = useApp();
   const [withdrawing, setWithdrawing] = useState(false);
 
+  // Empty deps: refetch from React Query is not referentially stable — including it
+  // would cause useFocusEffect to re-register on every render, creating an infinite
+  // refetch loop. We always want the latest refetch, not a stale one.
   useFocusEffect(
     useCallback(() => {
-      refetch();
-    }, [refetch]),
+      void refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
   );
 
+  // Omit `router` from deps: useRouter() may return a new object reference each
+  // render in some Expo Router versions, which would re-fire this effect every render
+  // and call router.replace() repeatedly. Profile changes are the only trigger we need.
   useEffect(() => {
     if (!profile) return;
     if (profile.isApproved || profile.applicationStatus === "approved") {
@@ -54,7 +61,8 @@ export default function VenueOwnerPendingScreen() {
     ) {
       router.replace("/venue-owner/setup");
     }
-  }, [profile, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
 
   if (isLoading && !profile) {
     return (

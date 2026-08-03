@@ -28,12 +28,17 @@ export default function VenueOwnerRejectedScreen() {
   const router = useRouter();
   const { profile, history, isLoading, error, refetch } = useVenueOwner();
 
+  // Empty deps: refetch from React Query is not referentially stable — including it
+  // would cause useFocusEffect to re-register on every render, creating an infinite
+  // refetch loop.
   useFocusEffect(
     useCallback(() => {
-      refetch();
-    }, [refetch]),
+      void refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
   );
 
+  // Omit `router` from deps — see pending.tsx for explanation.
   useEffect(() => {
     if (!profile) return;
     if (profile.isApproved || profile.applicationStatus === "approved") {
@@ -45,7 +50,8 @@ export default function VenueOwnerRejectedScreen() {
     ) {
       router.replace("/venue-owner/pending");
     }
-  }, [profile, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
 
   const isChangesRequested = profile?.applicationStatus === "changes_requested";
   const rejectionReason =
@@ -103,7 +109,7 @@ export default function VenueOwnerRejectedScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <Pressable
           style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/venue-owner/setup?reapply=true")}
+          onPress={() => router.replace("/venue-owner/setup?reapply=true")}
         >
           <Text style={styles.primaryBtnText}>
             {isChangesRequested ? "Update Application →" : "Re-apply Now →"}
