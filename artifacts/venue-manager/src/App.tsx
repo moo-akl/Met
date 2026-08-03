@@ -708,6 +708,7 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
   const [hours, setHours] = useState<HoursState>(() => defaultHoursState(venue.openingHours ?? undefined));
   const [coverPhotoUrl, setCoverPhotoUrl] = useState(venue.coverPhotoUrl ?? "");
   const [logoUrl, setLogoUrl] = useState(venue.logoUrl ?? "");
+  const [websiteUrl, setWebsiteUrl] = useState(venue.websiteUrl ?? "");
   // Re-sync state when fresh data arrives from the server
   const venueRef = detail.data;
   useEffect(() => {
@@ -715,8 +716,22 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
       setHours(defaultHoursState(venueRef.openingHours ?? undefined));
       setCoverPhotoUrl(venueRef.coverPhotoUrl ?? "");
       setLogoUrl(venueRef.logoUrl ?? "");
+      setWebsiteUrl(venueRef.websiteUrl ?? "");
     }
   }, [venueRef]);
+
+  function handleWebsiteUrlBlur() {
+    const trimmed = websiteUrl.trim();
+    if (!trimmed) return;
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      const prefixed = "https://" + trimmed;
+      setWebsiteUrl(prefixed);
+      const err = validateWebsiteUrl(prefixed);
+      setWebsiteUrlError(err);
+    } else {
+      setWebsiteUrlError(validateWebsiteUrl(trimmed));
+    }
+  }
 
   const update = useMutation({
     mutationFn: (data: object) => updateVenueManagerBusiness(business.businessId, data, csrf(csrfToken)),
@@ -747,8 +762,8 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
         <form className="vm-form two-col" onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
-          const websiteUrlValue = (form.get("websiteUrl") as string | null) ?? "";
-          const urlErr = validateWebsiteUrl(websiteUrlValue.trim());
+          const websiteUrlValue = websiteUrl.trim();
+          const urlErr = validateWebsiteUrl(websiteUrlValue);
           if (urlErr) { setWebsiteUrlError(urlErr); return; }
           setWebsiteUrlError("");
           update.mutate({
@@ -758,7 +773,7 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
             coverPhotoUrl: coverPhotoUrl || null,
             logoUrl: logoUrl || null,
             phone: form.get("phone") || null,
-            websiteUrl: websiteUrlValue.trim() || null,
+            websiteUrl: websiteUrlValue || null,
             publicEmail: form.get("publicEmail") || null,
             openingHours: buildOpeningHours(),
           });
@@ -780,9 +795,10 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
             <input
               name="websiteUrl"
               type="text"
-              defaultValue={venue.websiteUrl ?? ""}
+              value={websiteUrl}
               placeholder="https://yourvenue.com"
-              onChange={() => websiteUrlError && setWebsiteUrlError("")}
+              onChange={(e) => { setWebsiteUrl(e.target.value); if (websiteUrlError) setWebsiteUrlError(""); }}
+              onBlur={handleWebsiteUrlBlur}
             />
             {websiteUrlError && <span className="vm-image-error">{websiteUrlError}</span>}
           </label>
