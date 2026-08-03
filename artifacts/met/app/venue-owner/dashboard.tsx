@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
@@ -41,7 +41,7 @@ export default function VenueOwnerDashboardScreen() {
   const openPortal = async () => {
     setOpening(true);
     try {
-      await WebBrowser.openBrowserAsync(VENUE_MANAGER_URL);
+      await Linking.openURL(VENUE_MANAGER_URL);
     } catch {
       Alert.alert("Couldn't open Venue Manager", "Please try again in a moment.");
     } finally {
