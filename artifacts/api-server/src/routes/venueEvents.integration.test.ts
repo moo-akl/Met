@@ -252,6 +252,37 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(guestRes.body.events).toHaveLength(0);
   });
 
+  it("returns 404 for events belonging to a revoked (unapproved) venue", async () => {
+    // Insert a venue profile that is explicitly not approved.
+    const [revokedProfile] = await db
+      .insert(venueOwnerProfilesTable)
+      .values({
+        ownerUid: `${PREFIX}-uid-revoked`,
+        placeId: `${PREFIX}-place-revoked`,
+        placeName: "Revoked Venue",
+        businessName: "Revoked Business",
+        verificationDocUrl: "https://example.com/proof.pdf",
+        applicationStatus: "rejected",
+        isApproved: false,
+      })
+      .returning();
+
+    // Insert a published event for the revoked venue directly.
+    await db.insert(venueEventsTable).values({
+      placeId: revokedProfile!.placeId,
+      ownerUid: revokedProfile!.ownerUid,
+      title: "Ghost Event",
+      startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      isPublished: true,
+    });
+
+    // Guests must NOT see events for a revoked venue.
+    const guestRes = await api()
+      .get(`/api/venue-owner/${revokedProfile!.placeId}/events`)
+      .set("x-test-uid", GUEST_UID);
+    expect(guestRes.status).toBe(404);
+  });
+
   it("reflects updated optional fields in the guest list after a PATCH", async () => {
     const { agent, csrf, business, profile } = await claimOwner("patch");
     const startsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();

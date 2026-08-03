@@ -1215,6 +1215,25 @@ router.get(
   venueOwnerReadLimit,
   async (req: Request, res: Response) => {
     const { placeId } = req.params as { placeId: string };
+
+    // Only return events for venues that are currently active/approved.
+    const [venueProfile] = await db
+      .select({ id: venueOwnerProfilesTable.id })
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.placeId, placeId),
+          eq(venueOwnerProfilesTable.isApproved, true),
+          eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
+        ),
+      )
+      .limit(1);
+
+    if (!venueProfile) {
+      res.status(404).json({ message: "Venue not found" });
+      return;
+    }
+
     const events = await db
       .select()
       .from(venueEventsTable)
