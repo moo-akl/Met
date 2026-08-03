@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import auth from "@react-native-firebase/auth";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError, type VenueSearchPlace } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
@@ -304,6 +305,9 @@ export default function VenueOwnerSetupScreen() {
         description: description.trim() || undefined,
         verificationDocUrl: verificationDocUrl.trim() || undefined,
         registrationNotes: registrationNotes.trim() || undefined,
+        // Auto-populated from the applicant's Firebase Auth account so the
+        // admin has an address to send the Venue Manager registration link to.
+        contactEmail: auth().currentUser?.email ?? undefined,
       };
       if (reapplyEligible) {
         await api.reapplyVenueOwner({ uid: authedUid }, body);

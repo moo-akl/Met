@@ -130,6 +130,9 @@ const venueApplicationInputSchema = z.object({
   description: z.string().trim().max(1000).optional().nullable(),
   verificationDocUrl: z.string().trim().url().max(2000),
   registrationNotes: z.string().trim().max(500).optional().nullable(),
+  // Provided automatically by the mobile app from the applicant's Firebase
+  // Auth email so the admin always has an address to send the registration link to.
+  contactEmail: z.string().trim().email().max(255).optional().nullable(),
 });
 
 type VenueApplicationInput = z.infer<typeof venueApplicationInputSchema>;
@@ -919,6 +922,7 @@ router.post(
           description: data.description ?? null,
           verificationDocUrl: data.verificationDocUrl,
           registrationNotes: data.registrationNotes ?? null,
+          contactEmail: data.contactEmail ?? null,
           applicationStatus: "submitted",
           submittedAt: now,
           isApproved: false,
@@ -1087,6 +1091,9 @@ router.post(
           description: data.description ?? null,
           verificationDocUrl: data.verificationDocUrl,
           registrationNotes: data.registrationNotes ?? null,
+          // Refresh contact email in case the applicant changed their
+          // Firebase Auth email address since their first submission.
+          ...(data.contactEmail != null ? { contactEmail: data.contactEmail } : {}),
           rejectionReason: null,
           applicationStatus: "resubmitted",
           submittedAt: now,
