@@ -16,6 +16,7 @@ import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { resolveLifecycleRedirect } from "@/lib/venueOwnerLifecycle";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+import { api } from "@/lib/api/client";
 
 const VENUE_MANAGER_URL = "https://met-app.org/venue-manager/";
 
@@ -26,6 +27,7 @@ export default function VenueOwnerDashboardScreen() {
   const router = useRouter();
   const { profile: application, isLoading, error } = useVenueOwner();
   const [opening, setOpening] = useState(false);
+  const [fetchingLink, setFetchingLink] = useState(false);
 
   useEffect(() => {
     const redirect = resolveLifecycleRedirect({
@@ -49,9 +51,27 @@ export default function VenueOwnerDashboardScreen() {
     }
   };
 
+  const getSetupLink = async () => {
+    if (!authedUid) return;
+    setFetchingLink(true);
+    try {
+      const { url } = await api.getMyVenueManagerRegistrationLink({ uid: authedUid });
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(
+        "Couldn't get setup link",
+        "We weren't able to generate your setup link. Please try again in a moment.",
+      );
+    } finally {
+      setFetchingLink(false);
+    }
+  };
+
   if (isLoading) {
     return <View style={[styles.root, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.primary} /></View>;
   }
+
+  const showSetupCta = application?.applicationStatus === "approved" && application?.hasClaimedVenueManager === false;
 
   return (
     <ScrollView style={[styles.root, { backgroundColor: colors.background }]} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}>
@@ -65,12 +85,28 @@ export default function VenueOwnerDashboardScreen() {
         <Pressable disabled={opening} onPress={() => void openPortal()} style={({ pressed }) => [styles.button, { backgroundColor: colors.primary, opacity: pressed || opening ? 0.78 : 1 }]}>
           <Text style={styles.buttonText}>{opening ? "Opening Venue Manager…" : "Open Venue Manager"}</Text>
         </Pressable>
+        {showSetupCta && (
+          <Pressable
+            disabled={fetchingLink}
+            onPress={() => void getSetupLink()}
+            style={({ pressed }) => [
+              styles.setupButton,
+              { borderColor: colors.border, opacity: pressed || fetchingLink ? 0.6 : 1 },
+            ]}
+          >
+            <Text style={[styles.setupButtonText, { color: colors.foreground }]}>
+              {fetchingLink ? "Getting your link…" : "Get your setup link"}
+            </Text>
+          </Pressable>
+        )}
         <Text style={[styles.note, { color: colors.mutedForeground }]}>Sign in with the business account created during your venue migration. Your personal Met account stays separate.</Text>
       </View>
-      <View style={[styles.statusCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-        <Text style={[styles.statusTitle, { color: colors.foreground }]}>Need access?</Text>
-        <Text style={[styles.statusCopy, { color: colors.mutedForeground }]}>If you have not claimed your business account yet, start the migration from Venue Manager. A venue owner can also invite managers and editors from the portal.</Text>
-      </View>
+      {!showSetupCta && (
+        <View style={[styles.statusCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <Text style={[styles.statusTitle, { color: colors.foreground }]}>Need access?</Text>
+          <Text style={[styles.statusCopy, { color: colors.mutedForeground }]}>If you have not claimed your business account yet, start the migration from Venue Manager. A venue owner can also invite managers and editors from the portal.</Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -84,6 +120,8 @@ const styles = StyleSheet.create({
   copy: { fontSize: 15, lineHeight: 23, marginTop: 12 },
   button: { borderRadius: 11, alignItems: "center", paddingVertical: 14, marginTop: 24 },
   buttonText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+  setupButton: { borderWidth: 1, borderRadius: 11, alignItems: "center", paddingVertical: 12, marginTop: 10 },
+  setupButtonText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   note: { fontSize: 12, lineHeight: 18, marginTop: 15 },
   statusCard: { borderWidth: 1, borderRadius: 14, padding: 17 },
   statusTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },

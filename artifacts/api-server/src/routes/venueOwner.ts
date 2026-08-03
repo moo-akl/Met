@@ -43,6 +43,7 @@ import {
   sql,
   count,
   isNull,
+  isNotNull,
   inArray,
   ne,
   or,
@@ -440,6 +441,33 @@ async function requireVenueAccess(
     return null;
   }
   return access;
+}
+
+/**
+ * Returns true if the owner has already consumed a registration token and
+ * created their Venue Manager account (i.e. there is an active owner
+ * membership backed by a manager credential, not just the legacy uid entry).
+ */
+async function checkHasClaimedVenueManager(profileId: number): Promise<boolean> {
+  const [business] = await db
+    .select({ id: venueBusinessesTable.id })
+    .from(venueBusinessesTable)
+    .where(eq(venueBusinessesTable.venueOwnerProfileId, profileId))
+    .limit(1);
+  if (!business) return false;
+  const [membership] = await db
+    .select({ managerId: venueMembershipsTable.managerId })
+    .from(venueMembershipsTable)
+    .where(
+      and(
+        eq(venueMembershipsTable.businessId, business.id),
+        eq(venueMembershipsTable.role, "owner"),
+        eq(venueMembershipsTable.status, "active"),
+        isNotNull(venueMembershipsTable.managerId),
+      ),
+    )
+    .limit(1);
+  return membership !== undefined;
 }
 
 async function appendApplicationHistory(
@@ -957,8 +985,47 @@ router.get(
       res.status(404).json({ message: "No venue application found" });
       return;
     }
-    const history = await getApplicationHistoryForApplicant(profile.id);
-    res.json({ application: serializeApplicationProfile(profile), history });
+    const [history, hasClaimedVenueManager] = await Promise.all([
+      getApplicationHistoryForApplicant(profile.id),
+      checkHasClaimedVenueManager(profile.id),
+    ]);
+    res.json({
+      application: { ...serializeApplicationProfile(profile), hasClaimedVenueManager },
+      history,
+    });
+  },
+);
+
+/**
+ * GET /venue-owner/me/registration-link
+ * Returns a fresh Venue Manager setup URL for an approved owner. Each call
+ * mints a new single-use token valid for 7 days so this is safe to call
+ * repeatedly if a previous email was lost or the link expired.
+ */
+router.get(
+  "/venue-owner/me/registration-link",
+  requireUid,
+  venueOwnerReadLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const [profile] = await db
+      .select({
+        id: venueOwnerProfilesTable.id,
+        applicationStatus: venueOwnerProfilesTable.applicationStatus,
+        isApproved: venueOwnerProfilesTable.isApproved,
+      })
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.ownerUid, req.uid!))
+      .limit(1);
+    if (!profile || !profile.isApproved || profile.applicationStatus !== ACTIVE_VENUE_APPLICATION_STATUS) {
+      res.status(403).json({ message: "Only approved venue owners can request a setup link." });
+      return;
+    }
+    const url = await createVenueManagerRegistrationUrl(profile.id);
+    if (!url) {
+      res.status(503).json({ message: "Setup links are not available right now. Please try again later." });
+      return;
+    }
+    res.json({ url });
   },
 );
 

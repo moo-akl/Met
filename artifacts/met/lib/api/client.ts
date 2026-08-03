@@ -149,6 +149,11 @@ export interface VenueOwnerProfile {
   publicEmail: string | null;
   /** Keyed by lowercase day name. null value = closed that day, omitted = unknown. */
   openingHours: Record<string, { open: string; close: string } | null> | null;
+  /**
+   * True when the owner has already consumed a registration token and set up
+   * their Venue Manager account. Included in the /me/application response.
+   */
+  hasClaimedVenueManager?: boolean;
 }
 
 export interface VenueApplicationHistoryEntry {
@@ -1060,6 +1065,13 @@ export const api = {
       "/api/venue-owner/me/application",
       opts,
     ),
+
+  /**
+   * Generates a fresh Venue Manager setup link for an approved owner.
+   * Each call mints a new single-use token valid for 7 days.
+   */
+  getMyVenueManagerRegistrationLink: (opts: ApiOptions) =>
+    request<{ url: string }>("GET", "/api/venue-owner/me/registration-link", opts),
 
   /** Withdraw a submitted application before it is decided. */
   withdrawMyVenueApplication: (opts: ApiOptions) =>
