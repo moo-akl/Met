@@ -17,6 +17,7 @@ import nodemailer from "nodemailer";
 import { logger } from "./logger.js";
 
 const CONTACT_EMAIL = "metapp.contact@gmail.com";
+const VENUE_MANAGER_URL = process.env["VENUE_MANAGER_BASE_URL"]?.replace(/\/$/, "") ?? "https://met-app.org/venue-manager";
 
 function createTransport() {
   const host = process.env["SMTP_HOST"];
@@ -110,6 +111,74 @@ export async function sendVenueApprovedEmail(opts: ApprovedEmailOptions): Promis
 
   await transport.sendMail({ from: getFrom(), to: opts.to, subject, html });
   logger.info({ to: opts.to, businessName: opts.businessName }, "Sent venue approved email");
+}
+
+export interface RegistrationLinkEmailOptions {
+  to: string;
+  businessName: string;
+  registrationUrl: string;
+  expiresAt: Date;
+}
+
+/**
+ * Sends a step-by-step Venue Manager setup email containing a one-time
+ * registration link. Returns true if the email was dispatched, false if
+ * SMTP is not configured (so the caller can fall back gracefully).
+ */
+export async function sendRegistrationLinkEmail(
+  opts: RegistrationLinkEmailOptions,
+): Promise<boolean> {
+  const transport = createTransport();
+  if (!transport) {
+    logger.warn({ to: opts.to }, "SMTP not configured — skipping registration link email");
+    return false;
+  }
+
+  const expiry = opts.expiresAt.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const subject = `Your Venue Manager setup link for "${opts.businessName}"`;
+
+  const html = layout(subject, `
+    <p>Hi there,</p>
+    <p>Your registration link for <strong>${escapeHtml(opts.businessName)}</strong> on Venue Manager is ready.
+       Follow the steps below to get set up — it only takes a minute.</p>
+
+    <p><strong>Step 1 — Open your setup page</strong><br>
+    Click the button below. This is a one-time link that expires on <strong>${escapeHtml(expiry)}</strong>.</p>
+    <a class="cta" href="${escapeAttr(opts.registrationUrl)}">Set up your Venue Manager account &rarr;</a>
+
+    <p><strong>Step 2 — Create your business account</strong><br>
+    Enter your email address, your name, and choose a strong password.
+    This is a <em>separate</em> account from your personal Met profile — use a business
+    email if you have one.</p>
+
+    <p><strong>Step 3 — Sign in any time</strong><br>
+    Once registered, bookmark
+    <a href="${escapeAttr(VENUE_MANAGER_URL)}">met-app.org/venue-manager</a>
+    and sign in with your email and password whenever you need to manage your venue.</p>
+
+    <p><strong>What you can do in Venue Manager</strong></p>
+    <ul style="margin:0 0 16px;padding-left:20px;line-height:1.9;font-size:15px;">
+      <li>Post and manage <strong>events</strong> that appear to nearby Met users</li>
+      <li>Publish <strong>rewards</strong> guests can claim at your venue</li>
+      <li>Send <strong>announcements</strong> straight to your followers</li>
+      <li>Edit your venue profile, opening hours, and contact info</li>
+      <li>Invite <strong>team members</strong> (managers and editors) to help run your page</li>
+    </ul>
+
+    <p style="font-size:13px;color:#888;">
+      If you did not expect this email, you can safely ignore it.
+      If the link has expired, reach out and we will send a fresh one.
+    </p>
+  `);
+
+  await transport.sendMail({ from: getFrom(), to: opts.to, subject, html });
+  logger.info({ to: opts.to, businessName: opts.businessName }, "Sent registration link email");
+  return true;
 }
 
 export interface RejectedEmailOptions {

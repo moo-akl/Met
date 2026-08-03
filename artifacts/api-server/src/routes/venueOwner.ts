@@ -75,6 +75,7 @@ import {
   sendVenueApprovedEmail,
   sendVenueRejectedEmail,
   sendVenueChangesRequestedEmail,
+  sendRegistrationLinkEmail,
 } from "../lib/email.js";
 import { z } from "zod/v4";
 import crypto from "node:crypto";
@@ -2731,8 +2732,10 @@ router.post(
 /**
  * POST /admin/venue-owner/applications/:id/registration-link
  * Generates a one-time owner registration token for an approved venue.
- * The admin copies the returned token and sends it to the venue owner,
- * who uses it on the Venue Manager portal to create their account.
+ * Pass `{ sendEmail: true }` in the body to also email the link directly
+ * to the venue owner's contact address (requires SMTP + VENUE_MANAGER_BASE_URL).
+ * Response includes `emailSent` (boolean) and `contactEmail` so the portal
+ * can show confirmation or fall back to copy-paste.
  */
 router.post(
   "/admin/venue-owner/applications/:id/registration-link",
@@ -2744,7 +2747,11 @@ router.post(
       return;
     }
     const [profile] = await db
-      .select({ id: venueOwnerProfilesTable.id, businessName: venueOwnerProfilesTable.businessName })
+      .select({
+        id: venueOwnerProfilesTable.id,
+        businessName: venueOwnerProfilesTable.businessName,
+        contactEmail: venueOwnerProfilesTable.contactEmail,
+      })
       .from(venueOwnerProfilesTable)
       .where(
         and(
@@ -2772,7 +2779,32 @@ router.post(
     await db
       .insert(venueManagerRegistrationTokensTable)
       .values({ businessId: business.id, tokenHash, expiresAt });
-    res.status(201).json({ token: rawToken, expiresAt: expiresAt.toISOString() });
+
+    // Optionally send the link by email when the caller requests it.
+    let emailSent = false;
+    if (req.body?.sendEmail === true && profile.contactEmail) {
+      const baseUrl = process.env["VENUE_MANAGER_BASE_URL"];
+      if (baseUrl) {
+        const registrationUrl = `${baseUrl.replace(/\/$/, "")}/register?token=${rawToken}`;
+        try {
+          emailSent = await sendRegistrationLinkEmail({
+            to: profile.contactEmail,
+            businessName: profile.businessName,
+            registrationUrl,
+            expiresAt,
+          });
+        } catch (err) {
+          logger.warn({ err, to: profile.contactEmail }, "Failed to send registration link email");
+        }
+      }
+    }
+
+    res.status(201).json({
+      token: rawToken,
+      expiresAt: expiresAt.toISOString(),
+      emailSent,
+      contactEmail: profile.contactEmail ?? null,
+    });
   },
 );
 

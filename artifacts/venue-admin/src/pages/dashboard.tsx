@@ -44,7 +44,9 @@ import {
   RefreshCw,
   KeyRound,
   Mail,
-  Trash2
+  Trash2,
+  Send,
+  CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -132,7 +134,7 @@ export default function Dashboard() {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [regLinkResult, setRegLinkResult] = useState<{ token: string; expiresAt: string; appId: number } | null>(null);
+  const [regLinkResult, setRegLinkResult] = useState<{ token: string; expiresAt: string; appId: number; emailSent: boolean; contactEmail: string | null } | null>(null);
   const [regLinkLoading, setRegLinkLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
@@ -389,21 +391,27 @@ export default function Dashboard() {
     }
   }
 
-  async function generateRegistrationLink(appId: number) {
+  async function generateRegistrationLink(appId: number, sendEmail = false) {
     setRegLinkLoading(true);
     try {
       const res = await fetch(`/api/admin/venue-owner/applications/${appId}/registration-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ sendEmail }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { message?: string };
         toast({ title: "Error", description: err.message ?? "Failed to generate link.", variant: "destructive" });
         return;
       }
-      const data = await res.json() as { token: string; expiresAt: string };
+      const data = await res.json() as { token: string; expiresAt: string; emailSent: boolean; contactEmail: string | null };
       setRegLinkResult({ ...data, appId });
+      if (sendEmail && data.emailSent) {
+        toast({ title: "Link sent", description: `Setup email sent to ${data.contactEmail}.` });
+      } else if (sendEmail && !data.emailSent) {
+        toast({ title: "Link generated", description: "Email could not be sent — copy the link below and share it manually.", variant: "destructive" });
+      }
     } catch {
       toast({ title: "Error", description: "Failed to generate registration link.", variant: "destructive" });
     } finally {
@@ -758,6 +766,22 @@ export default function Dashboard() {
                       <CardContent className="p-0">
                         <dl className="divide-y divide-border/50 text-sm">
                           <div className="grid grid-cols-3 gap-4 p-5 hover:bg-muted/20 transition-colors">
+                            <dt className="font-medium text-muted-foreground">Contact Email</dt>
+                            <dd className="col-span-2">
+                              {(selectedApp as Record<string, unknown>).contactEmail ? (
+                                <a
+                                  href={`mailto:${String((selectedApp as Record<string, unknown>).contactEmail)}`}
+                                  className="font-medium text-primary hover:underline inline-flex items-center gap-1.5"
+                                >
+                                  <Mail className="w-3.5 h-3.5 shrink-0" />
+                                  {String((selectedApp as Record<string, unknown>).contactEmail)}
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground italic">No email on file</span>
+                              )}
+                            </dd>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 p-5 hover:bg-muted/20 transition-colors">
                             <dt className="font-medium text-muted-foreground">Tagline</dt>
                             <dd className="col-span-2 font-medium">{selectedApp.tagline || "—"}</dd>
                           </div>
@@ -877,12 +901,50 @@ export default function Dashboard() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-5 text-sm space-y-3">
-                          <p className="text-muted-foreground text-xs leading-relaxed">
-                            Generate a one-time registration link. The venue owner uses it to create their
-                            Venue Manager account. Each link expires after 7 days.
-                          </p>
-                          {regLinkResult?.appId === selectedApp.id ? (
+                          {/* ── Success: email was sent ── */}
+                          {regLinkResult?.appId === selectedApp.id && regLinkResult.emailSent ? (
+                            <div className="space-y-3">
+                              <div className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20 p-3">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                                <div className="space-y-0.5">
+                                  <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Setup email sent</p>
+                                  <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                                    Sent to <span className="font-medium">{regLinkResult.contactEmail}</span>
+                                  </p>
+                                  <p className="text-xs text-emerald-700/80 dark:text-emerald-500">
+                                    Expires {format(new Date(regLinkResult.expiresAt), "MMM d, yyyy 'at' h:mm a")}
+                                  </p>
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => {
+                                  void navigator.clipboard.writeText(
+                                    `${window.location.origin}/venue-manager/register?token=${regLinkResult.token}`,
+                                  );
+                                  toast({ title: "Copied", description: "Registration link copied to clipboard." });
+                                }}
+                              >
+                                Copy link
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="w-full text-muted-foreground"
+                                disabled={regLinkLoading}
+                                onClick={() => void generateRegistrationLink(selectedApp.id, true)}
+                              >
+                                {regLinkLoading ? "Sending…" : "Resend email"}
+                              </Button>
+                            </div>
+                          ) : regLinkResult?.appId === selectedApp.id ? (
+                            /* ── Link generated but email not sent (SMTP not configured) ── */
                             <div className="space-y-2">
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                Email delivery is not configured. Copy this link and send it to the owner manually.
+                              </p>
                               <div className="font-mono text-[11px] break-all bg-muted p-2 rounded select-all leading-relaxed">
                                 {`${window.location.origin}/venue-manager/register?token=${regLinkResult.token}`}
                               </div>
@@ -907,21 +969,42 @@ export default function Dashboard() {
                                 variant="ghost"
                                 className="w-full text-muted-foreground"
                                 disabled={regLinkLoading}
-                                onClick={() => void generateRegistrationLink(selectedApp.id)}
+                                onClick={() => void generateRegistrationLink(selectedApp.id, false)}
                               >
                                 {regLinkLoading ? "Generating…" : "Generate a new link"}
                               </Button>
                             </div>
                           ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full"
-                              disabled={regLinkLoading}
-                              onClick={() => void generateRegistrationLink(selectedApp.id)}
-                            >
-                              {regLinkLoading ? "Generating…" : "Generate registration link"}
-                            </Button>
+                            /* ── Initial state: no link generated yet ── */
+                            <div className="space-y-2">
+                              <p className="text-muted-foreground text-xs leading-relaxed">
+                                Send the venue owner a setup link so they can create their Venue Manager account.
+                                The email includes step-by-step instructions. Each link expires after 7 days.
+                              </p>
+                              {!(selectedApp as Record<string, unknown>).contactEmail && (
+                                <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2">
+                                  No contact email on file — you can still generate a link to copy and share manually.
+                                </p>
+                              )}
+                              <Button
+                                size="sm"
+                                className="w-full"
+                                disabled={regLinkLoading || !(selectedApp as Record<string, unknown>).contactEmail}
+                                onClick={() => void generateRegistrationLink(selectedApp.id, true)}
+                              >
+                                <Send className="w-3.5 h-3.5 mr-1.5" />
+                                {regLinkLoading ? "Sending…" : "Send Registration Link"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="w-full text-muted-foreground"
+                                disabled={regLinkLoading}
+                                onClick={() => void generateRegistrationLink(selectedApp.id, false)}
+                              >
+                                {regLinkLoading ? "Generating…" : "Generate link without emailing"}
+                              </Button>
+                            </div>
                           )}
                         </CardContent>
                       </Card>
