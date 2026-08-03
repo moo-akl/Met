@@ -43,6 +43,7 @@ import {
   type VenueManagerRewardUpdate,
 } from "@workspace/api-client-react";
 import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Settings2, ShieldCheck, Users, X } from "lucide-react";
+import { applyWebsiteUrlBlur, validateWebsiteUrl } from "./lib/websiteUrl";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -686,18 +687,6 @@ function ImageUploadField({ label, value, onChange, businessId, csrfToken }: Ima
   );
 }
 
-function validateWebsiteUrl(value: string): string {
-  if (!value) return "";
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-      return "Website URL must start with https:// or http://.";
-    }
-    return "";
-  } catch {
-    return "Enter a valid URL, e.g. https://yourvenue.com";
-  }
-}
 
 function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
   const detail = useBusinessQuery<VenueManagerBusiness>(getGetVenueManagerBusinessQueryOptions, business.businessId);
@@ -721,16 +710,9 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
   }, [venueRef]);
 
   function handleWebsiteUrlBlur() {
-    const trimmed = websiteUrl.trim();
-    if (!trimmed) return;
-    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-      const prefixed = "https://" + trimmed;
-      setWebsiteUrl(prefixed);
-      const err = validateWebsiteUrl(prefixed);
-      setWebsiteUrlError(err);
-    } else {
-      setWebsiteUrlError(validateWebsiteUrl(trimmed));
-    }
+    const { value, error } = applyWebsiteUrlBlur(websiteUrl);
+    setWebsiteUrl(value);
+    setWebsiteUrlError(error);
   }
 
   const update = useMutation({
