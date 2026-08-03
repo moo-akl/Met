@@ -1,6 +1,7 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import crypto from "node:crypto";
 import { and, count, desc, eq, gte, gt, isNull, lt, sql } from "drizzle-orm";
+import { ObjectStorageService } from "../lib/objectStorage";
 import {
   db,
   venueApplicationHistoryTable,
@@ -850,6 +851,74 @@ router.delete("/venue-manager/businesses/:businessId/memberships/:managerId", re
     await tx.insert(venueMembershipAuditTable).values({ businessId: actor.businessId, membershipId: target.id, eventType: "revoked", subjectUid: String(managerId), fromRole: target.role, fromStatus: "active", toStatus: "revoked", metadata: JSON.stringify({ actorManagerId: req.venueManagerSession!.managerId }) });
   });
   res.status(204).end();
+});
+
+const objectStorageService = new ObjectStorageService();
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+
+/**
+ * Validates the first bytes of a buffer against known image magic bytes.
+ * JPEG: FF D8 FF
+ * PNG:  89 50 4E 47 0D 0A 1A 0A
+ * GIF:  47 49 46 38 (GIF8)
+ * WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50 (RIFF????WEBP)
+ */
+export function isAllowedImageMagicBytes(bytes: Buffer): boolean {
+  if (bytes.length < 4) return false;
+  // JPEG
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return true;
+  // PNG
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return true;
+  // GIF
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return true;
+  // WebP (RIFF????WEBP — needs 12 bytes)
+  if (bytes.length >= 12 &&
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return true;
+  return false;
+}
+
+router.post("/venue-manager/businesses/:businessId/images/upload", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, ["owner", "manager"]);
+  if (!membership) return;
+  const contentType = typeof req.body?.contentType === "string" ? req.body.contentType : "";
+  if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(contentType)) {
+    res.status(400).json({ message: "Only JPEG, PNG, WebP, or GIF images are allowed." });
+    return;
+  }
+  // The contentType is bound into the presigned URL so GCS enforces the Content-Type header on PUT.
+  const uploadURL = await objectStorageService.getObjectEntityUploadURL(contentType);
+  const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+  res.json({ uploadURL, objectPath });
+});
+
+router.post("/venue-manager/businesses/:businessId/images/confirm", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, ["owner", "manager"]);
+  if (!membership) return;
+  const objectPath = typeof req.body?.objectPath === "string" ? req.body.objectPath : "";
+  // objectPath must be a normalized path returned by the upload endpoint: /objects/uploads/<uuid>
+  // Reject traversal attempts (e.g. /objects/uploads/../../etc/passwd).
+  if (!objectPath.startsWith("/objects/uploads/") || objectPath.includes("..")) {
+    res.status(400).json({ message: "Invalid object path." });
+    return;
+  }
+  let objectFile;
+  try {
+    objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+  } catch {
+    res.status(404).json({ message: "Uploaded file not found. Please retry the upload." });
+    return;
+  }
+  // Download the first 16 bytes and check against known image magic bytes.
+  const magicBytes = await objectStorageService.getObjectMagicBytes(objectFile, 16);
+  if (!isAllowedImageMagicBytes(magicBytes)) {
+    // Delete the rejected object so it doesn't accumulate in storage.
+    await objectFile.delete().catch(() => undefined);
+    res.status(422).json({ message: "File does not appear to be a valid image. Please upload a JPEG, PNG, WebP, or GIF." });
+    return;
+  }
+  res.json({ url: `/api/storage${objectPath}` });
 });
 
 /**

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
@@ -566,15 +566,143 @@ function OpeningHoursEditor({ hours, onChange }: { hours: HoursState; onChange: 
   );
 }
 
+async function uploadVenueImage(
+  businessId: number,
+  csrfToken: string,
+  file: File,
+  onProgress: (pct: number) => void,
+): Promise<string> {
+  const contentType = file.type || "image/jpeg";
+  onProgress(10);
+  // Step 1: request a presigned PUT URL (content type is bound into the URL so GCS enforces it).
+  const res = await fetch(`/api/venue-manager/businesses/${businessId}/images/upload`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+    body: JSON.stringify({ contentType }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string };
+    throw new Error(err.message ?? "Failed to prepare upload.");
+  }
+  const { uploadURL, objectPath } = await res.json() as { uploadURL: string; objectPath: string };
+  onProgress(30);
+  // Step 2: PUT the file directly to GCS via the presigned URL.
+  const put = await fetch(uploadURL, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": contentType },
+  });
+  if (!put.ok) throw new Error("Failed to upload image. Please try again.");
+  onProgress(70);
+  // Step 3: confirm the upload — server reads the first bytes and validates image magic.
+  const confirm = await fetch(`/api/venue-manager/businesses/${businessId}/images/confirm`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+    body: JSON.stringify({ objectPath }),
+  });
+  if (!confirm.ok) {
+    const err = await confirm.json().catch(() => ({})) as { message?: string };
+    throw new Error(err.message ?? "Image validation failed. Please try a different file.");
+  }
+  const { url } = await confirm.json() as { url: string };
+  onProgress(100);
+  return url;
+}
+
+type ImageUploadFieldProps = {
+  label: string;
+  value: string;
+  onChange: (url: string) => void;
+  businessId: number;
+  csrfToken: string;
+};
+
+function ImageUploadField({ label, value, onChange, businessId, csrfToken }: ImageUploadFieldProps) {
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setError("");
+    setProgress(0);
+    try {
+      const url = await uploadVenueImage(businessId, csrfToken, file, setProgress);
+      onChange(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="vm-image-upload-field">
+      <span className="vm-image-upload-label">{label}</span>
+      {value && (
+        <div className="vm-image-preview">
+          <img src={value} alt={label} />
+          <button type="button" className="vm-image-remove" aria-label="Remove image" onClick={() => { onChange(""); setError(""); }}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
+      {!value && (
+        <button
+          type="button"
+          className="vm-image-pick-btn"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+        >
+          {uploading ? `Uploading… ${progress < 100 ? `${progress}%` : ""}` : "Choose image"}
+        </button>
+      )}
+      {value && !uploading && (
+        <button
+          type="button"
+          className="vm-image-pick-btn replace"
+          onClick={() => inputRef.current?.click()}
+        >
+          Replace image
+        </button>
+      )}
+      {uploading && (
+        <div className="vm-image-progress">
+          <div className="vm-image-progress-bar" style={{ width: `${progress}%` }} />
+        </div>
+      )}
+      {error && <span className="vm-image-error">{error}</span>}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        style={{ display: "none" }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = ""; }}
+      />
+    </div>
+  );
+}
+
 function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
   const detail = useBusinessQuery<VenueManagerBusiness>(getGetVenueManagerBusinessQueryOptions, business.businessId);
   const [message, setMessage] = useState("");
   const [showRemoval, setShowRemoval] = useState(false);
   const venue = detail.data ?? business;
   const [hours, setHours] = useState<HoursState>(() => defaultHoursState(venue.openingHours ?? undefined));
-  // Re-sync hours state when fresh data arrives from the server
+  const [coverPhotoUrl, setCoverPhotoUrl] = useState(venue.coverPhotoUrl ?? "");
+  const [logoUrl, setLogoUrl] = useState(venue.logoUrl ?? "");
+  // Re-sync state when fresh data arrives from the server
   const venueRef = detail.data;
-  useEffect(() => { if (venueRef) setHours(defaultHoursState(venueRef.openingHours ?? undefined)); }, [venueRef]);
+  useEffect(() => {
+    if (venueRef) {
+      setHours(defaultHoursState(venueRef.openingHours ?? undefined));
+      setCoverPhotoUrl(venueRef.coverPhotoUrl ?? "");
+      setLogoUrl(venueRef.logoUrl ?? "");
+    }
+  }, [venueRef]);
 
   const update = useMutation({
     mutationFn: (data: object) => updateVenueManagerBusiness(business.businessId, data, csrf(csrfToken)),
@@ -609,8 +737,8 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
             businessName: form.get("businessName"),
             tagline: form.get("tagline") || null,
             description: form.get("description") || null,
-            coverPhotoUrl: form.get("coverPhotoUrl") || null,
-            logoUrl: form.get("logoUrl") || null,
+            coverPhotoUrl: coverPhotoUrl || null,
+            logoUrl: logoUrl || null,
             phone: form.get("phone") || null,
             websiteUrl: form.get("websiteUrl") || null,
             publicEmail: form.get("publicEmail") || null,
@@ -624,8 +752,8 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
           <label className="full">About your venue<textarea name="description" defaultValue={venue.description ?? ""} rows={5} /></label>
 
           <div className="full vm-section-head"><h3><Building2 size={16} /> Media</h3></div>
-          <label>Logo URL<input name="logoUrl" type="url" defaultValue={venue.logoUrl ?? ""} placeholder="https://…" /></label>
-          <label>Cover image URL<input name="coverPhotoUrl" type="url" defaultValue={venue.coverPhotoUrl ?? ""} placeholder="https://…" /></label>
+          <ImageUploadField label="Logo" value={logoUrl} onChange={setLogoUrl} businessId={business.businessId} csrfToken={csrfToken} />
+          <ImageUploadField label="Cover photo" value={coverPhotoUrl} onChange={setCoverPhotoUrl} businessId={business.businessId} csrfToken={csrfToken} />
 
           <div className="full vm-section-head"><h3><Phone size={16} /> Contact details</h3></div>
           <label><span className="vm-label-row"><Phone size={13} />Phone<span className="vm-optional">optional</span></span><input name="phone" type="tel" defaultValue={venue.phone ?? ""} placeholder="+1 555 000 0000" /></label>
