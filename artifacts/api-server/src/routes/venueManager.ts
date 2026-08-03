@@ -669,7 +669,11 @@ router.post("/venue-manager/register", authLimit, async (req, res): Promise<void
     return;
   }
   const [business] = await db
-    .select({ id: venueBusinessesTable.id, isActive: venueBusinessesTable.isActive })
+    .select({
+      id: venueBusinessesTable.id,
+      isActive: venueBusinessesTable.isActive,
+      venueOwnerProfileId: venueBusinessesTable.venueOwnerProfileId,
+    })
     .from(venueBusinessesTable)
     .where(eq(venueBusinessesTable.id, reg.businessId))
     .limit(1);
@@ -711,6 +715,12 @@ router.post("/venue-manager/register", authLimit, async (req, res): Promise<void
       .update(venueManagerRegistrationTokensTable)
       .set({ consumedAt: new Date() })
       .where(eq(venueManagerRegistrationTokensTable.id, reg.id));
+    // Keep the venue owner profile's contact email in sync with the address
+    // the owner chose when creating their Venue Manager account.
+    await tx
+      .update(venueOwnerProfilesTable)
+      .set({ contactEmail: email, updatedAt: new Date() })
+      .where(eq(venueOwnerProfilesTable.id, business.venueOwnerProfileId));
   });
   await issueSession(req, res, manager.id);
 });
@@ -969,6 +979,9 @@ export function createVenueManagerClaimRouter(requireUid: (req: Request, res: Re
     await db.transaction(async (tx) => {
       await tx.insert(venueMembershipsTable).values({ businessId: business.id, managerId: manager.id, role: "owner", status: "active", acceptedAt: new Date() });
       await tx.insert(venueMembershipAuditTable).values({ businessId: business.id, eventType: "granted", subjectUid: email, toRole: "owner", toStatus: "active", metadata: JSON.stringify({ source: "legacy_owner_claim", legacyUid: req.uid }) });
+      // Keep the venue owner profile's contact email in sync with the address
+      // the owner chose when creating their Venue Manager account.
+      await tx.update(venueOwnerProfilesTable).set({ contactEmail: email, updatedAt: new Date() }).where(eq(venueOwnerProfilesTable.id, profile.id));
     });
     await issueSession(req, res, manager.id);
   });
