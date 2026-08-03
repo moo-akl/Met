@@ -11,6 +11,7 @@ import { inArray, like, sql } from "drizzle-orm";
 import {
   db,
   venueBusinessesTable,
+  venueEventsTable,
   venueManagersTable,
   venueManagerSessionsTable,
   venueManagerTokensTable,
@@ -109,7 +110,7 @@ async function cleanup() {
     await db.delete(venueManagerTokensTable).where(inArray(venueManagerTokensTable.managerId, managerIds));
     await db.delete(venueMembershipsTable).where(inArray(venueMembershipsTable.managerId, managerIds));
   }
-  const profiles = await db.select({ id: venueOwnerProfilesTable.id })
+  const profiles = await db.select({ id: venueOwnerProfilesTable.id, placeId: venueOwnerProfilesTable.placeId })
     .from(venueOwnerProfilesTable)
     .where(sql`${venueOwnerProfilesTable.ownerUid} LIKE ${`${PREFIX}%`}`);
   const profileIds = profiles.map((p) => p.id);
@@ -123,6 +124,10 @@ async function cleanup() {
       await db.delete(venueManagerTokensTable).where(inArray(venueManagerTokensTable.businessId, businessIds));
       await db.delete(venueMembershipsTable).where(inArray(venueMembershipsTable.businessId, businessIds));
       await db.delete(venueBusinessesTable).where(inArray(venueBusinessesTable.id, businessIds));
+    }
+    const placeIds = profiles.map((p) => p.placeId).filter(Boolean) as string[];
+    if (placeIds.length) {
+      await db.delete(venueEventsTable).where(inArray(venueEventsTable.placeId, placeIds));
     }
     await db.delete(venueOwnerProfilesTable).where(inArray(venueOwnerProfilesTable.id, profileIds));
   }
@@ -306,5 +311,126 @@ describe.skipIf(!hasDatabase)("venue image upload security (real database)", asy
     await agent.post(`/api/venue-manager/businesses/${business.id}/images/confirm`)
       .set("x-csrf-token", csrf).send({ objectPath: "/objects/uploads/fake-uuid" });
     expect(mockState.fakeFile._fakeDelete.called).toBe(true);
+  });
+
+  // ── Role restriction: upload and confirm require owner or manager ─────────
+
+  it("upload: rejects an editor-role caller (owner/manager only)", async () => {
+    // Claim owner, invite an editor, verify the editor is denied.
+    const { agent: ownerAgent, csrf: ownerCsrf, business } = await claimOwner("upload-editor-role");
+    const invite = await ownerAgent
+      .post(`/api/venue-manager/businesses/${business.id}/invitations`)
+      .set("x-csrf-token", ownerCsrf)
+      .send({ email: email("upload-editor"), role: "editor" });
+    expect(invite.status).toBe(201);
+
+    const editorAgent = request.agent(app);
+    const accepted = await editorAgent
+      .post("/api/venue-manager/invitations/accept")
+      .send({ token: invite.body.invitationToken, displayName: "Ed", password: STRONG });
+    expect(accepted.status).toBe(200);
+    const editorCsrf = accepted.body.csrfToken as string;
+
+    const res = await editorAgent
+      .post(`/api/venue-manager/businesses/${business.id}/images/upload`)
+      .set("x-csrf-token", editorCsrf)
+      .send({ contentType: "image/jpeg" });
+    expect(res.status).toBe(403);
+  });
+
+  it("confirm: rejects an editor-role caller (owner/manager only)", async () => {
+    const { agent: ownerAgent, csrf: ownerCsrf, business } = await claimOwner("confirm-editor-role");
+    const invite = await ownerAgent
+      .post(`/api/venue-manager/businesses/${business.id}/invitations`)
+      .set("x-csrf-token", ownerCsrf)
+      .send({ email: email("confirm-editor"), role: "editor" });
+    expect(invite.status).toBe(201);
+
+    const editorAgent = request.agent(app);
+    const accepted = await editorAgent
+      .post("/api/venue-manager/invitations/accept")
+      .send({ token: invite.body.invitationToken, displayName: "Ed2", password: STRONG });
+    expect(accepted.status).toBe(200);
+    const editorCsrf = accepted.body.csrfToken as string;
+
+    mockState.magicBytes = JPEG_BYTES;
+    const res = await editorAgent
+      .post(`/api/venue-manager/businesses/${business.id}/images/confirm`)
+      .set("x-csrf-token", editorCsrf)
+      .send({ objectPath: "/objects/uploads/fake-uuid" });
+    expect(res.status).toBe(403);
+  });
+
+  // ── Event imageUrl persistence ────────────────────────────────────────────
+
+  it("creates an event with imageUrl and returns it in the event list", async () => {
+    const { agent, csrf, business } = await claimOwner("event-image-create");
+    const imageUrl = "/api/storage/objects/uploads/confirmed-image-uuid";
+
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "Image Test Event",
+        startsAt: new Date(Date.now() + 3_600_000).toISOString(),
+        imageUrl,
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.event.imageUrl).toBe(imageUrl);
+
+    const list = await agent.get(`/api/venue-manager/businesses/${business.id}/events`);
+    expect(list.status).toBe(200);
+    const found = (list.body.events as Array<{ imageUrl: string | null }>).find((e) => e.imageUrl === imageUrl);
+    expect(found).toBeDefined();
+  });
+
+  it("updates an event imageUrl and the new value is returned in the event list", async () => {
+    const { agent, csrf, business } = await claimOwner("event-image-update");
+    const initialUrl = "/api/storage/objects/uploads/initial-uuid";
+    const updatedUrl = "/api/storage/objects/uploads/updated-uuid";
+
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "Update Image Event",
+        startsAt: new Date(Date.now() + 3_600_000).toISOString(),
+        imageUrl: initialUrl,
+      });
+    expect(created.status).toBe(201);
+    const eventId = created.body.event.id as number;
+
+    const patched = await agent
+      .patch(`/api/venue-manager/businesses/${business.id}/events/${eventId}`)
+      .set("x-csrf-token", csrf)
+      .send({ imageUrl: updatedUrl });
+    expect(patched.status).toBe(200);
+    expect(patched.body.event.imageUrl).toBe(updatedUrl);
+
+    const list = await agent.get(`/api/venue-manager/businesses/${business.id}/events`);
+    expect(list.status).toBe(200);
+    const found = (list.body.events as Array<{ id: number; imageUrl: string | null }>).find((e) => e.id === eventId);
+    expect(found?.imageUrl).toBe(updatedUrl);
+  });
+
+  it("creates an event without imageUrl and imageUrl is null in the list", async () => {
+    const { agent, csrf, business } = await claimOwner("event-no-image");
+
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "No Image Event",
+        startsAt: new Date(Date.now() + 3_600_000).toISOString(),
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.event.imageUrl).toBeNull();
+
+    const list = await agent.get(`/api/venue-manager/businesses/${business.id}/events`);
+    expect(list.status).toBe(200);
+    const found = (list.body.events as Array<{ id: number; imageUrl: string | null }>).find(
+      (e) => e.id === created.body.event.id,
+    );
+    expect(found?.imageUrl).toBeNull();
   });
 });

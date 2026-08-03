@@ -419,8 +419,8 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   if (!business || !title || !startsAt) return void res.status(400).json({ message: "An event title and start time are required." });
   const endsAt = req.body?.endsAt === null ? null : validDate(req.body?.endsAt);
   if (req.body?.endsAt !== undefined && req.body?.endsAt !== null && !endsAt) return void res.status(400).json({ message: "Use a valid event end time." });
-  const capacityLimit = req.body?.capacityLimit === null ? null : Number(req.body?.capacityLimit);
-  if (capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) return void res.status(400).json({ message: "Capacity must be a positive whole number." });
+  const capacityLimit = req.body?.capacityLimit === undefined ? undefined : req.body?.capacityLimit === null ? null : Number(req.body?.capacityLimit);
+  if (capacityLimit !== undefined && capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) return void res.status(400).json({ message: "Capacity must be a positive whole number." });
   const [event] = await db.insert(venueEventsTable).values({
     ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, startsAt, endsAt,
     description: optionalText(req.body?.description, 2000) ?? null, imageUrl: optionalText(req.body?.imageUrl, 2000) ?? null,
