@@ -503,3 +503,152 @@ describe("map layer — GET /api/hubs/venue-owners", () => {
     expect(profileWhereCall).toBeDefined();
   });
 });
+
+describe("membership revocation gates — event, reward, and announcement writes", () => {
+  const futureIso = new Date(Date.now() + 86400000).toISOString();
+  const laterIso = new Date(Date.now() + 172800000).toISOString();
+
+  const validEvent = {
+    title: "Friday Night Social",
+    startsAt: futureIso,
+  };
+
+  const validReward = {
+    title: "Free Drink",
+    prizeDescription: "One complimentary drink",
+    startDate: futureIso,
+    endDate: laterIso,
+  };
+
+  const validAnnouncement = {
+    title: "Happy Hour Extended",
+    body: "We are staying open late tonight!",
+  };
+
+  /**
+   * Simulate an active membership + approved business + approved profile so
+   * that requireVenueAccess succeeds and the route can reach the DB insert.
+   *
+   * loadVenueAccess query sequence:
+   *   1. db.select().from(memberships).where()          → membership array
+   *   2. db.select().from(businesses).where().limit(1)  → business row
+   *   3. db.select().from(profiles).where().limit(1)    → profile row
+   * then the route does db.insert().values().returning().
+   */
+  function mockActiveAccess() {
+    dbMocks.chain.where.mockResolvedValueOnce([
+      { uid: "venue-owner-uid", status: "active", role: "owner", businessId: 1 },
+    ]);
+    // subsequent where() calls (business + profile) fall back to .mockReturnThis()
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([
+        { id: 1, placeId: "place-1", isActive: true, venueOwnerProfileId: 99 },
+      ])
+      .mockResolvedValueOnce([
+        { id: 99, placeId: "place-1", ownerUid: "venue-owner-uid", isApproved: true, applicationStatus: "approved" },
+      ]);
+    // Make the insert chain work: values() must return `this` so .returning() is reachable.
+    dbMocks.chain.values.mockReturnThis();
+    dbMocks.chain.returning.mockReset();
+    dbMocks.chain.returning.mockResolvedValue([{ id: 42, title: "test" }]);
+  }
+
+  /**
+   * Simulate a revoked or inactive membership: the status='active' filter in
+   * loadVenueAccess returns no rows.  The legacy owner fallback also returns
+   * nothing, so requireVenueAccess resolves to null → 403.
+   *
+   * The FIRST where() call is resolved to [] (no active memberships).
+   * All subsequent where() calls fall back to .mockReturnThis() (beforeEach
+   * default), so the legacy-path limit(1) correctly resolves to [] via the
+   * beforeEach limit default.
+   */
+  function mockRevokedAccess() {
+    dbMocks.chain.where.mockResolvedValueOnce([]); // no active memberships
+    // legacy fallback: where() → chain (default), limit() → [] (default)
+  }
+
+  // ── event creation ────────────────────────────────────────────────────────
+
+  it("blocks event creation when the caller has a revoked membership", async () => {
+    mockRevokedAccess();
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/events")
+      .send(validEvent);
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("blocks event creation when the caller has an inactive membership", async () => {
+    // inactive and revoked both produce an empty active-membership query result
+    mockRevokedAccess();
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/events")
+      .send(validEvent);
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("allows event creation when the caller has an active membership", async () => {
+    mockActiveAccess();
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/events")
+      .send(validEvent);
+
+    expect(response.status).toBe(201);
+    expect(dbMocks.chain.insert).toHaveBeenCalled();
+  });
+
+  // ── reward creation ───────────────────────────────────────────────────────
+
+  it("blocks reward creation when the caller has a revoked membership", async () => {
+    mockRevokedAccess();
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/rewards")
+      .send(validReward);
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("allows reward creation when the caller has an active membership", async () => {
+    mockActiveAccess();
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/rewards")
+      .send(validReward);
+
+    expect(response.status).toBe(201);
+    expect(dbMocks.chain.insert).toHaveBeenCalled();
+  });
+
+  // ── announcement creation ─────────────────────────────────────────────────
+
+  it("blocks announcement creation when the caller has a revoked membership", async () => {
+    mockRevokedAccess();
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/announcements")
+      .send(validAnnouncement);
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("allows announcement creation when the caller has an active membership", async () => {
+    mockActiveAccess();
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/announcements")
+      .send(validAnnouncement);
+
+    expect(response.status).toBe(201);
+    expect(dbMocks.chain.insert).toHaveBeenCalled();
+  });
+});
