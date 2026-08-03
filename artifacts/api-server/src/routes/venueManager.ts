@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { and, count, desc, eq, gte, gt, isNull, lt, sql } from "drizzle-orm";
 import {
   db,
+  venueApplicationHistoryTable,
   venueBusinessesTable,
   venueManagerRegistrationTokensTable,
   venueManagerSessionsTable,
@@ -245,6 +246,10 @@ function serializeBusiness(row: NonNullable<Awaited<ReturnType<typeof businessWi
     description: row.profile.description,
     coverPhotoUrl: row.profile.coverPhotoUrl,
     logoUrl: row.profile.logoUrl,
+    phone: row.profile.phone,
+    websiteUrl: row.profile.websiteUrl,
+    publicEmail: row.profile.publicEmail,
+    openingHours: row.profile.openingHours,
     role,
     isActive: row.business.isActive,
   };
@@ -337,7 +342,39 @@ router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsr
   const description = optionalText(req.body?.description, 1000);
   const coverPhotoUrl = optionalText(req.body?.coverPhotoUrl, 2000);
   const logoUrl = optionalText(req.body?.logoUrl, 2000);
-  const patch = Object.fromEntries(Object.entries({ businessName, tagline, description, coverPhotoUrl, logoUrl })
+  const phone = optionalText(req.body?.phone, 60);
+  const websiteUrl = optionalText(req.body?.websiteUrl, 2000);
+  const publicEmail = optionalText(req.body?.publicEmail, 320);
+  let openingHours: Record<string, { open: string; close: string } | null> | undefined;
+  if (req.body?.openingHours !== undefined) {
+    if (req.body.openingHours === null) {
+      openingHours = undefined; // ignore explicit null — use existing value
+    } else if (typeof req.body.openingHours !== "object" || Array.isArray(req.body.openingHours)) {
+      res.status(400).json({ message: "openingHours must be an object." });
+      return;
+    } else {
+      const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+      const validated: Record<string, { open: string; close: string } | null> = {};
+      const TIME_RE = /^\d{2}:\d{2}$/;
+      for (const day of days) {
+        const v = (req.body.openingHours as Record<string, unknown>)[day];
+        if (v === undefined) continue;
+        if (v === null) { validated[day] = null; continue; }
+        if (typeof v !== "object" || Array.isArray(v)) {
+          res.status(400).json({ message: `openingHours.${day} must be an object with open/close or null.` });
+          return;
+        }
+        const { open, close } = v as Record<string, unknown>;
+        if (typeof open !== "string" || typeof close !== "string" || !TIME_RE.test(open) || !TIME_RE.test(close)) {
+          res.status(400).json({ message: `openingHours.${day}.open and .close must be HH:MM strings (e.g. "09:00").` });
+          return;
+        }
+        validated[day] = { open, close };
+      }
+      openingHours = validated;
+    }
+  }
+  const patch = Object.fromEntries(Object.entries({ businessName, tagline, description, coverPhotoUrl, logoUrl, phone, websiteUrl, publicEmail, openingHours })
     .filter(([, value]) => value !== undefined));
   if (!Object.keys(patch).length) {
     res.status(400).json({ message: "Provide at least one business detail to update." });
@@ -712,6 +749,28 @@ router.post("/venue-manager/password", requireSession, requireCsrf, async (req, 
     await tx.update(venueManagerSessionsTable).set({ revokedAt: new Date() }).where(eq(venueManagerSessionsTable.managerId, manager.id));
   });
   await issueSession(req, res, manager.id);
+});
+
+router.post("/venue-manager/businesses/:businessId/removal-request", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, ["owner"]);
+  if (!membership) return;
+  const current = await businessWithProfile(membership.businessId);
+  if (!current) {
+    res.status(404).json({ message: "Venue not found." });
+    return;
+  }
+  const reason = optionalText(req.body?.reason, 2000) ?? null;
+  // Record the removal request in the application history so admins can action it.
+  // actorRole "applicant" maps to the venue-owner side (same as all applicant-initiated events).
+  await db.insert(venueApplicationHistoryTable).values({
+    venueOwnerProfileId: current.profile.id,
+    eventType: "removal_requested",
+    fromStatus: current.profile.applicationStatus,
+    actorRole: "applicant",
+    applicantMessage: reason,
+    metadata: { managerId: req.venueManagerSession!.managerId, businessId: membership.businessId },
+  });
+  res.status(201).json({ message: "Your removal request has been received. Our team will follow up within 2–3 business days." });
 });
 
 router.post("/venue-manager/businesses/:businessId/invitations", requireSession, requireCsrf, async (req, res): Promise<void> => {

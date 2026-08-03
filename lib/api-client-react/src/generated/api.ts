@@ -104,6 +104,8 @@ import type {
   VenueManagerPasswordChange,
   VenueManagerRecovery,
   VenueManagerRecoveryRequest,
+  VenueManagerRemovalRequest,
+  VenueManagerRemovalResponse,
   VenueManagerRewardInput,
   VenueManagerRewardList,
   VenueManagerRewardResponse,
@@ -6858,6 +6860,97 @@ export const useDeleteVenueManagerAnnouncement = <
   TContext
 > => {
   return useMutation(getDeleteVenueManagerAnnouncementMutationOptions(options));
+};
+
+/**
+ * @summary Request removal of the venue listing (owner-only)
+ */
+export const getRequestVenueManagerRemovalUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/removal-request`;
+};
+
+export const requestVenueManagerRemoval = async (
+  businessId: number,
+  venueManagerRemovalRequest?: VenueManagerRemovalRequest,
+  options?: RequestInit,
+): Promise<VenueManagerRemovalResponse> => {
+  return customFetch<VenueManagerRemovalResponse>(
+    getRequestVenueManagerRemovalUrl(businessId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueManagerRemovalRequest),
+    },
+  );
+};
+
+export const getRequestVenueManagerRemovalMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestVenueManagerRemoval>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerRemovalRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestVenueManagerRemoval>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerRemovalRequest> },
+  TContext
+> => {
+  const mutationKey = ["requestVenueManagerRemoval"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestVenueManagerRemoval>>,
+    { businessId: number; data: BodyType<VenueManagerRemovalRequest> }
+  > = (props) => {
+    const { businessId, data } = props ?? {};
+
+    return requestVenueManagerRemoval(businessId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestVenueManagerRemovalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestVenueManagerRemoval>>
+>;
+export type RequestVenueManagerRemovalMutationBody =
+  BodyType<VenueManagerRemovalRequest>;
+export type RequestVenueManagerRemovalMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Request removal of the venue listing (owner-only)
+ */
+export const useRequestVenueManagerRemoval = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestVenueManagerRemoval>>,
+    TError,
+    { businessId: number; data: BodyType<VenueManagerRemovalRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestVenueManagerRemoval>>,
+  TError,
+  { businessId: number; data: BodyType<VenueManagerRemovalRequest> },
+  TContext
+> => {
+  return useMutation(getRequestVenueManagerRemovalMutationOptions(options));
 };
 
 /**

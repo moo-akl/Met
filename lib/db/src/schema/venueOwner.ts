@@ -47,6 +47,7 @@ export const venueApplicationHistoryEventTypes = [
   "expired",
   "review_note_added",
   "email_sent",
+  "removal_requested",
 ] as const;
 
 export type VenueApplicationHistoryEventType =
@@ -79,6 +80,18 @@ export const venueOwnerProfilesTable = pgTable(
     contactEmail: text("contact_email"),
     /** Contact name supplied by web-portal applicants. */
     contactName: text("contact_name"),
+    /** Publicly displayed phone number for the venue. */
+    phone: text("phone"),
+    /** Publicly displayed venue website URL. */
+    websiteUrl: text("website_url"),
+    /** Publicly displayed contact / booking email for the venue. */
+    publicEmail: text("public_email"),
+    /**
+     * Opening hours per day as JSONB.
+     * Shape: { monday?: { open: "HH:MM", close: "HH:MM" } | null, … }
+     * A null value for a day means closed; omitted day means unknown.
+     */
+    openingHours: jsonb("opening_hours").$type<Record<string, { open: string; close: string } | null>>(),
     /** 'mobile' | 'web' — null for legacy rows. */
     applicationSource: text("application_source"),
     isApproved: boolean("is_approved").notNull().default(false),

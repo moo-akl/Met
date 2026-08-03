@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenueManagerBusinessOpeningHours } from "./venueManagerBusinessOpeningHours";
 import type { VenueManagerBusinessRole } from "./venueManagerBusinessRole";
 
 export interface VenueManagerBusiness {
@@ -21,6 +22,14 @@ export interface VenueManagerBusiness {
   coverPhotoUrl?: string | null;
   /** @nullable */
   logoUrl?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
+  /** @nullable */
+  publicEmail?: string | null;
+  /** @nullable */
+  openingHours?: VenueManagerBusinessOpeningHours;
   role: VenueManagerBusinessRole;
   isActive: boolean;
 }

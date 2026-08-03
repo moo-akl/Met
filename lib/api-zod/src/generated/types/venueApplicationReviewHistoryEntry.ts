@@ -7,6 +7,7 @@
  */
 import type { VenueApplicationReviewHistoryEntryActorRole } from "./venueApplicationReviewHistoryEntryActorRole";
 import type { VenueApplicationReviewHistoryEntryFromStatus } from "./venueApplicationReviewHistoryEntryFromStatus";
+import type { VenueApplicationReviewHistoryEntryMetadata } from "./venueApplicationReviewHistoryEntryMetadata";
 import type { VenueApplicationReviewHistoryEntryToStatus } from "./venueApplicationReviewHistoryEntryToStatus";
 
 /**
@@ -26,5 +27,10 @@ export interface VenueApplicationReviewHistoryEntry {
   applicantMessage?: string | null;
   /** @nullable */
   internalNote?: string | null;
+  /**
+   * Freeform audit metadata; shape varies by event type.
+   * @nullable
+   */
+  metadata?: VenueApplicationReviewHistoryEntryMetadata;
   createdAt: Date;
 }

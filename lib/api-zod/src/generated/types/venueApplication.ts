@@ -26,6 +26,15 @@ export interface VenueApplication {
   verificationDocUrl?: string | null;
   /** @nullable */
   registrationNotes?: string | null;
+  /** @nullable */
+  contactEmail?: string | null;
+  /** @nullable */
+  contactName?: string | null;
+  /**
+   * mobile | web | null for legacy rows
+   * @nullable
+   */
+  applicationSource?: string | null;
   isApproved: boolean;
   isVerified: boolean;
   /** @nullable */

@@ -2094,6 +2094,28 @@ paths:
       responses:
         "204": { description: Announcement deleted }
 
+  /venue-manager/businesses/{businessId}/removal-request:
+    post:
+      operationId: requestVenueManagerRemoval
+      tags: [venue-manager]
+      summary: Request removal of the venue listing (owner-only)
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerRemovalRequest"
+      responses:
+        "201":
+          description: Removal request recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerRemovalResponse"
+
   /venue-manager/businesses/{businessId}/members:
     get:
       operationId: listVenueManagerMembers
@@ -2669,6 +2691,12 @@ components:
         invitationToken: { type: string }
         recoveryToken: { type: string }
         expiresAt: { type: string, format: date-time }
+    VenueManagerOpeningHoursDay:
+      type: object
+      required: [open, close]
+      properties:
+        open: { type: string, pattern: "^\\d{2}:\\d{2}$", description: "24-hour time, e.g. 09:00" }
+        close: { type: string, pattern: "^\\d{2}:\\d{2}$", description: "24-hour time, e.g. 23:00" }
     VenueManagerBusiness:
       type: object
       required: [businessId, placeId, legalName, placeName, businessName, role, isActive]
@@ -2682,6 +2710,15 @@ components:
         description: { type: ["string", "null"] }
         coverPhotoUrl: { type: ["string", "null"], format: uri }
         logoUrl: { type: ["string", "null"], format: uri }
+        phone: { type: ["string", "null"] }
+        websiteUrl: { type: ["string", "null"] }
+        publicEmail: { type: ["string", "null"] }
+        openingHours:
+          type: ["object", "null"]
+          additionalProperties:
+            oneOf:
+              - $ref: "#/components/schemas/VenueManagerOpeningHoursDay"
+              - type: "null"
         role: { type: string, enum: [owner, manager, editor] }
         isActive: { type: boolean }
     VenueManagerBusinessList:
@@ -2699,6 +2736,24 @@ components:
         description: { type: ["string", "null"], maxLength: 1000 }
         coverPhotoUrl: { type: ["string", "null"], format: uri }
         logoUrl: { type: ["string", "null"], format: uri }
+        phone: { type: ["string", "null"], maxLength: 60 }
+        websiteUrl: { type: ["string", "null"], maxLength: 2000 }
+        publicEmail: { type: ["string", "null"], maxLength: 320 }
+        openingHours:
+          type: ["object", "null"]
+          additionalProperties:
+            oneOf:
+              - $ref: "#/components/schemas/VenueManagerOpeningHoursDay"
+              - type: "null"
+    VenueManagerRemovalRequest:
+      type: object
+      properties:
+        reason: { type: string, maxLength: 2000 }
+    VenueManagerRemovalResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
     VenueManagerEvent:
       type: object
       required: [id, title, startsAt, isPublished]
@@ -2910,6 +2965,9 @@ components:
         description: { type: ["string", "null"] }
         verificationDocUrl: { type: ["string", "null"], format: uri }
         registrationNotes: { type: ["string", "null"] }
+        contactEmail: { type: ["string", "null"] }
+        contactName: { type: ["string", "null"] }
+        applicationSource: { type: ["string", "null"], description: "mobile | web | null for legacy rows" }
         isApproved: { type: boolean }
         isVerified: { type: boolean }
         rejectionReason: { type: ["string", "null"] }
@@ -3084,6 +3142,10 @@ components:
         actorUid: { type: ["string", "null"] }
         applicantMessage: { type: ["string", "null"] }
         internalNote: { type: ["string", "null"] }
+        metadata:
+          type: ["object", "null"]
+          additionalProperties: true
+          description: Freeform audit metadata; shape varies by event type.
         createdAt: { type: string, format: date-time }
     VenueApplicationReviewDetail:
       type: object

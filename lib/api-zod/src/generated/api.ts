@@ -1638,6 +1638,11 @@ export const RemoveVenueManagerHeader = zod.object({
 /**
  * @summary List venues available to the signed-in business manager
  */
+export const listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneOpenRegExp =
+  new RegExp("^\\d{2}:\\d{2}$");
+export const listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneCloseRegExp =
+  new RegExp("^\\d{2}:\\d{2}$");
+
 export const ListVenueManagerBusinessesResponse = zod.object({
   businesses: zod.array(
     zod.object({
@@ -1650,6 +1655,31 @@ export const ListVenueManagerBusinessesResponse = zod.object({
       description: zod.string().nullish(),
       coverPhotoUrl: zod.string().url().nullish(),
       logoUrl: zod.string().url().nullish(),
+      phone: zod.string().nullish(),
+      websiteUrl: zod.string().nullish(),
+      publicEmail: zod.string().nullish(),
+      openingHours: zod
+        .record(
+          zod.string(),
+          zod.union([
+            zod.object({
+              open: zod
+                .string()
+                .regex(
+                  listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneOpenRegExp,
+                )
+                .describe("24-hour time, e.g. 09:00"),
+              close: zod
+                .string()
+                .regex(
+                  listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneCloseRegExp,
+                )
+                .describe("24-hour time, e.g. 23:00"),
+            }),
+            zod.null(),
+          ]),
+        )
+        .nullish(),
       role: zod.enum(["owner", "manager", "editor"]),
       isActive: zod.boolean(),
     }),
@@ -1664,6 +1694,11 @@ export const GetVenueManagerBusinessParams = zod.object({
   businessId: zod.coerce.number().min(1),
 });
 
+export const getVenueManagerBusinessResponseOpeningHoursOneOpenRegExp =
+  new RegExp("^\\d{2}:\\d{2}$");
+export const getVenueManagerBusinessResponseOpeningHoursOneCloseRegExp =
+  new RegExp("^\\d{2}:\\d{2}$");
+
 export const GetVenueManagerBusinessResponse = zod.object({
   businessId: zod.number(),
   placeId: zod.string(),
@@ -1674,6 +1709,27 @@ export const GetVenueManagerBusinessResponse = zod.object({
   description: zod.string().nullish(),
   coverPhotoUrl: zod.string().url().nullish(),
   logoUrl: zod.string().url().nullish(),
+  phone: zod.string().nullish(),
+  websiteUrl: zod.string().nullish(),
+  publicEmail: zod.string().nullish(),
+  openingHours: zod
+    .record(
+      zod.string(),
+      zod.union([
+        zod.object({
+          open: zod
+            .string()
+            .regex(getVenueManagerBusinessResponseOpeningHoursOneOpenRegExp)
+            .describe("24-hour time, e.g. 09:00"),
+          close: zod
+            .string()
+            .regex(getVenueManagerBusinessResponseOpeningHoursOneCloseRegExp)
+            .describe("24-hour time, e.g. 23:00"),
+        }),
+        zod.null(),
+      ]),
+    )
+    .nullish(),
   role: zod.enum(["owner", "manager", "editor"]),
   isActive: zod.boolean(),
 });
@@ -1696,6 +1752,17 @@ export const updateVenueManagerBusinessBodyTaglineMax = 160;
 
 export const updateVenueManagerBusinessBodyDescriptionMax = 1000;
 
+export const updateVenueManagerBusinessBodyPhoneMax = 60;
+
+export const updateVenueManagerBusinessBodyWebsiteUrlMax = 2000;
+
+export const updateVenueManagerBusinessBodyPublicEmailMax = 320;
+
+export const updateVenueManagerBusinessBodyOpeningHoursOneOpenRegExp =
+  new RegExp("^\\d{2}:\\d{2}$");
+export const updateVenueManagerBusinessBodyOpeningHoursOneCloseRegExp =
+  new RegExp("^\\d{2}:\\d{2}$");
+
 export const UpdateVenueManagerBusinessBody = zod.object({
   businessName: zod
     .string()
@@ -1709,7 +1776,39 @@ export const UpdateVenueManagerBusinessBody = zod.object({
     .nullish(),
   coverPhotoUrl: zod.string().url().nullish(),
   logoUrl: zod.string().url().nullish(),
+  phone: zod.string().max(updateVenueManagerBusinessBodyPhoneMax).nullish(),
+  websiteUrl: zod
+    .string()
+    .max(updateVenueManagerBusinessBodyWebsiteUrlMax)
+    .nullish(),
+  publicEmail: zod
+    .string()
+    .max(updateVenueManagerBusinessBodyPublicEmailMax)
+    .nullish(),
+  openingHours: zod
+    .record(
+      zod.string(),
+      zod.union([
+        zod.object({
+          open: zod
+            .string()
+            .regex(updateVenueManagerBusinessBodyOpeningHoursOneOpenRegExp)
+            .describe("24-hour time, e.g. 09:00"),
+          close: zod
+            .string()
+            .regex(updateVenueManagerBusinessBodyOpeningHoursOneCloseRegExp)
+            .describe("24-hour time, e.g. 23:00"),
+        }),
+        zod.null(),
+      ]),
+    )
+    .nullish(),
 });
+
+export const updateVenueManagerBusinessResponseOpeningHoursOneOpenRegExp =
+  new RegExp("^\\d{2}:\\d{2}$");
+export const updateVenueManagerBusinessResponseOpeningHoursOneCloseRegExp =
+  new RegExp("^\\d{2}:\\d{2}$");
 
 export const UpdateVenueManagerBusinessResponse = zod.object({
   businessId: zod.number(),
@@ -1721,6 +1820,27 @@ export const UpdateVenueManagerBusinessResponse = zod.object({
   description: zod.string().nullish(),
   coverPhotoUrl: zod.string().url().nullish(),
   logoUrl: zod.string().url().nullish(),
+  phone: zod.string().nullish(),
+  websiteUrl: zod.string().nullish(),
+  publicEmail: zod.string().nullish(),
+  openingHours: zod
+    .record(
+      zod.string(),
+      zod.union([
+        zod.object({
+          open: zod
+            .string()
+            .regex(updateVenueManagerBusinessResponseOpeningHoursOneOpenRegExp)
+            .describe("24-hour time, e.g. 09:00"),
+          close: zod
+            .string()
+            .regex(updateVenueManagerBusinessResponseOpeningHoursOneCloseRegExp)
+            .describe("24-hour time, e.g. 23:00"),
+        }),
+        zod.null(),
+      ]),
+    )
+    .nullish(),
   role: zod.enum(["owner", "manager", "editor"]),
   isActive: zod.boolean(),
 });
@@ -2061,6 +2181,24 @@ export const DeleteVenueManagerAnnouncementHeader = zod.object({
 });
 
 /**
+ * @summary Request removal of the venue listing (owner-only)
+ */
+
+export const RequestVenueManagerRemovalParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const RequestVenueManagerRemovalHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const requestVenueManagerRemovalBodyReasonMax = 2000;
+
+export const RequestVenueManagerRemovalBody = zod.object({
+  reason: zod.string().max(requestVenueManagerRemovalBodyReasonMax).optional(),
+});
+
+/**
  * @summary List active venue managers
  */
 
@@ -2097,6 +2235,12 @@ export const GetMyVenueApplicationResponse = zod.object({
     description: zod.string().nullish(),
     verificationDocUrl: zod.string().url().nullish(),
     registrationNotes: zod.string().nullish(),
+    contactEmail: zod.string().nullish(),
+    contactName: zod.string().nullish(),
+    applicationSource: zod
+      .string()
+      .nullish()
+      .describe("mobile | web | null for legacy rows"),
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),
@@ -2188,6 +2332,12 @@ export const WithdrawMyVenueApplicationResponse = zod.object({
     description: zod.string().nullish(),
     verificationDocUrl: zod.string().url().nullish(),
     registrationNotes: zod.string().nullish(),
+    contactEmail: zod.string().nullish(),
+    contactName: zod.string().nullish(),
+    applicationSource: zod
+      .string()
+      .nullish()
+      .describe("mobile | web | null for legacy rows"),
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),
@@ -2280,6 +2430,12 @@ export const ListVenueApplicationsResponse = zod.object({
       description: zod.string().nullish(),
       verificationDocUrl: zod.string().url().nullish(),
       registrationNotes: zod.string().nullish(),
+      contactEmail: zod.string().nullish(),
+      contactName: zod.string().nullish(),
+      applicationSource: zod
+        .string()
+        .nullish()
+        .describe("mobile | web | null for legacy rows"),
       isApproved: zod.boolean(),
       isVerified: zod.boolean(),
       rejectionReason: zod.string().nullish(),
@@ -2349,6 +2505,12 @@ export const GetVenueApplicationForReviewResponse = zod.object({
     description: zod.string().nullish(),
     verificationDocUrl: zod.string().url().nullish(),
     registrationNotes: zod.string().nullish(),
+    contactEmail: zod.string().nullish(),
+    contactName: zod.string().nullish(),
+    applicationSource: zod
+      .string()
+      .nullish()
+      .describe("mobile | web | null for legacy rows"),
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),
@@ -2423,6 +2585,10 @@ export const GetVenueApplicationForReviewResponse = zod.object({
         actorUid: zod.string().nullish(),
         applicantMessage: zod.string().nullish(),
         internalNote: zod.string().nullish(),
+        metadata: zod
+          .record(zod.string(), zod.unknown())
+          .nullish()
+          .describe("Freeform audit metadata; shape varies by event type."),
         createdAt: zod.coerce.date(),
       })
       .describe("Reviewer-facing audit entry. Includes internal notes."),
@@ -2460,6 +2626,12 @@ export const StartVenueApplicationReviewResponse = zod.object({
     description: zod.string().nullish(),
     verificationDocUrl: zod.string().url().nullish(),
     registrationNotes: zod.string().nullish(),
+    contactEmail: zod.string().nullish(),
+    contactName: zod.string().nullish(),
+    applicationSource: zod
+      .string()
+      .nullish()
+      .describe("mobile | web | null for legacy rows"),
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),
@@ -2547,6 +2719,12 @@ export const ApproveVenueApplicationResponse = zod.object({
     description: zod.string().nullish(),
     verificationDocUrl: zod.string().url().nullish(),
     registrationNotes: zod.string().nullish(),
+    contactEmail: zod.string().nullish(),
+    contactName: zod.string().nullish(),
+    applicationSource: zod
+      .string()
+      .nullish()
+      .describe("mobile | web | null for legacy rows"),
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),
@@ -2637,6 +2815,12 @@ export const RejectVenueApplicationResponse = zod.object({
     description: zod.string().nullish(),
     verificationDocUrl: zod.string().url().nullish(),
     registrationNotes: zod.string().nullish(),
+    contactEmail: zod.string().nullish(),
+    contactName: zod.string().nullish(),
+    applicationSource: zod
+      .string()
+      .nullish()
+      .describe("mobile | web | null for legacy rows"),
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),
@@ -2731,6 +2915,12 @@ export const RequestVenueApplicationChangesResponse = zod.object({
     description: zod.string().nullish(),
     verificationDocUrl: zod.string().url().nullish(),
     registrationNotes: zod.string().nullish(),
+    contactEmail: zod.string().nullish(),
+    contactName: zod.string().nullish(),
+    applicationSource: zod
+      .string()
+      .nullish()
+      .describe("mobile | web | null for legacy rows"),
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),
@@ -2821,6 +3011,12 @@ export const WithdrawVenueApplicationAsAdminResponse = zod.object({
     description: zod.string().nullish(),
     verificationDocUrl: zod.string().url().nullish(),
     registrationNotes: zod.string().nullish(),
+    contactEmail: zod.string().nullish(),
+    contactName: zod.string().nullish(),
+    applicationSource: zod
+      .string()
+      .nullish()
+      .describe("mobile | web | null for legacy rows"),
     isApproved: zod.boolean(),
     isVerified: zod.boolean(),
     rejectionReason: zod.string().nullish(),

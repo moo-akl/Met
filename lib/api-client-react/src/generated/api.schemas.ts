@@ -132,6 +132,26 @@ export interface VenueManagerToken {
   expiresAt: string;
 }
 
+export interface VenueManagerOpeningHoursDay {
+  /**
+   * 24-hour time, e.g. 09:00
+   * @pattern ^\d{2}:\d{2}$
+   */
+  open: string;
+  /**
+   * 24-hour time, e.g. 23:00
+   * @pattern ^\d{2}:\d{2}$
+   */
+  close: string;
+}
+
+/**
+ * @nullable
+ */
+export type VenueManagerBusinessOpeningHours = {
+  [key: string]: VenueManagerOpeningHoursDay | null;
+} | null;
+
 export type VenueManagerBusinessRole =
   (typeof VenueManagerBusinessRole)[keyof typeof VenueManagerBusinessRole];
 
@@ -155,6 +175,14 @@ export interface VenueManagerBusiness {
   coverPhotoUrl?: string | null;
   /** @nullable */
   logoUrl?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
+  /** @nullable */
+  publicEmail?: string | null;
+  /** @nullable */
+  openingHours?: VenueManagerBusinessOpeningHours;
   role: VenueManagerBusinessRole;
   isActive: boolean;
 }
@@ -162,6 +190,13 @@ export interface VenueManagerBusiness {
 export interface VenueManagerBusinessList {
   businesses: VenueManagerBusiness[];
 }
+
+/**
+ * @nullable
+ */
+export type VenueManagerBusinessUpdateOpeningHours = {
+  [key: string]: VenueManagerOpeningHoursDay | null;
+} | null;
 
 export interface VenueManagerBusinessUpdate {
   /**
@@ -183,6 +218,32 @@ export interface VenueManagerBusinessUpdate {
   coverPhotoUrl?: string | null;
   /** @nullable */
   logoUrl?: string | null;
+  /**
+   * @maxLength 60
+   * @nullable
+   */
+  phone?: string | null;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  websiteUrl?: string | null;
+  /**
+   * @maxLength 320
+   * @nullable
+   */
+  publicEmail?: string | null;
+  /** @nullable */
+  openingHours?: VenueManagerBusinessUpdateOpeningHours;
+}
+
+export interface VenueManagerRemovalRequest {
+  /** @maxLength 2000 */
+  reason?: string;
+}
+
+export interface VenueManagerRemovalResponse {
+  message: string;
 }
 
 export interface VenueManagerEvent {
@@ -536,6 +597,15 @@ export interface VenueApplication {
   verificationDocUrl?: string | null;
   /** @nullable */
   registrationNotes?: string | null;
+  /** @nullable */
+  contactEmail?: string | null;
+  /** @nullable */
+  contactName?: string | null;
+  /**
+   * mobile | web | null for legacy rows
+   * @nullable
+   */
+  applicationSource?: string | null;
   isApproved: boolean;
   isVerified: boolean;
   /** @nullable */
@@ -557,12 +627,6 @@ export interface VenueApplication {
   expiredAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  /** @nullable — present for web-portal applications */
-  contactEmail?: string | null;
-  /** @nullable — present for web-portal applications */
-  contactName?: string | null;
-  /** @nullable — 'mobile' | 'web' | null (legacy) */
-  applicationSource?: string | null;
 }
 
 export type VenueBusinessAuthorizationRole =
@@ -797,6 +861,14 @@ export const VenueApplicationReviewHistoryEntryActorRole = {
 } as const;
 
 /**
+ * Freeform audit metadata; shape varies by event type.
+ * @nullable
+ */
+export type VenueApplicationReviewHistoryEntryMetadata = {
+  [key: string]: unknown;
+} | null;
+
+/**
  * Reviewer-facing audit entry. Includes internal notes.
  */
 export interface VenueApplicationReviewHistoryEntry {
@@ -813,8 +885,11 @@ export interface VenueApplicationReviewHistoryEntry {
   applicantMessage?: string | null;
   /** @nullable */
   internalNote?: string | null;
-  /** @nullable */
-  metadata?: Record<string, unknown> | null;
+  /**
+   * Freeform audit metadata; shape varies by event type.
+   * @nullable
+   */
+  metadata?: VenueApplicationReviewHistoryEntryMetadata;
   createdAt: string;
 }
 

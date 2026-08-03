@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenueManagerBusinessUpdateOpeningHours } from "./venueManagerBusinessUpdateOpeningHours";
 
 export interface VenueManagerBusinessUpdate {
   /**
@@ -26,4 +27,21 @@ export interface VenueManagerBusinessUpdate {
   coverPhotoUrl?: string | null;
   /** @nullable */
   logoUrl?: string | null;
+  /**
+   * @maxLength 60
+   * @nullable
+   */
+  phone?: string | null;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  websiteUrl?: string | null;
+  /**
+   * @maxLength 320
+   * @nullable
+   */
+  publicEmail?: string | null;
+  /** @nullable */
+  openingHours?: VenueManagerBusinessUpdateOpeningHours;
 }

@@ -22,6 +22,7 @@ import {
   getListVenueManagerRewardsQueryOptions,
   recoverVenueManagerPassword,
   removeVenueManager,
+  requestVenueManagerRemoval,
   updateVenueManagerBusiness,
   updateVenueManagerEvent,
   updateVenueManagerReward,
@@ -35,12 +36,13 @@ import {
   type VenueManagerAnnouncementList,
   type VenueManagerAnnouncementInput,
   type VenueManagerMemberList,
+  type VenueManagerOpeningHoursDay,
   type VenueManagerReward,
   type VenueManagerRewardList,
   type VenueManagerRewardInput,
   type VenueManagerRewardUpdate,
 } from "@workspace/api-client-react";
-import { BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Gift, LayoutDashboard, LogOut, MapPin, Plus, Settings2, ShieldCheck, Users, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Settings2, ShieldCheck, Users, X } from "lucide-react";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -512,14 +514,156 @@ function Overview({ business }: { business: VenueManagerBusiness }) {
   </div>;
 }
 
+const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+type Day = typeof DAYS[number];
+type HoursState = Record<Day, { open: string; close: string; closed: boolean }>;
+
+function defaultHoursState(existing?: VenueManagerBusiness["openingHours"]): HoursState {
+  const defaults: HoursState = {
+    monday: { open: "09:00", close: "22:00", closed: false },
+    tuesday: { open: "09:00", close: "22:00", closed: false },
+    wednesday: { open: "09:00", close: "22:00", closed: false },
+    thursday: { open: "09:00", close: "22:00", closed: false },
+    friday: { open: "09:00", close: "23:00", closed: false },
+    saturday: { open: "10:00", close: "23:00", closed: false },
+    sunday: { open: "10:00", close: "21:00", closed: false },
+  };
+  if (!existing) return defaults;
+  for (const day of DAYS) {
+    const v = existing[day];
+    if (v === undefined) continue;
+    if (v === null) { defaults[day] = { ...defaults[day], closed: true }; }
+    else { defaults[day] = { open: v.open, close: v.close, closed: false }; }
+  }
+  return defaults;
+}
+
+function OpeningHoursEditor({ hours, onChange }: { hours: HoursState; onChange: (h: HoursState) => void }) {
+  const DAY_LABELS: Record<Day, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
+  return (
+    <div className="vm-hours-editor">
+      {DAYS.map((day) => {
+        const h = hours[day];
+        return (
+          <div key={day} className="vm-hours-row">
+            <span className="vm-hours-day">{DAY_LABELS[day]}</span>
+            <label className="vm-hours-closed">
+              <input type="checkbox" checked={h.closed} onChange={(e) => onChange({ ...hours, [day]: { ...h, closed: e.target.checked } })} />
+              <span>Closed</span>
+            </label>
+            {!h.closed && (
+              <>
+                <input className="vm-hours-time" type="time" value={h.open} onChange={(e) => onChange({ ...hours, [day]: { ...h, open: e.target.value } })} />
+                <span className="vm-hours-sep">–</span>
+                <input className="vm-hours-time" type="time" value={h.close} onChange={(e) => onChange({ ...hours, [day]: { ...h, close: e.target.value } })} />
+              </>
+            )}
+            {h.closed && <span className="vm-hours-closed-label">Closed all day</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
-  const client = useQueryClient(); const detail = useBusinessQuery<VenueManagerBusiness>(getGetVenueManagerBusinessQueryOptions, business.businessId); const [message, setMessage] = useState("");
-  const update = useMutation({ mutationFn: (data: object) => updateVenueManagerBusiness(business.businessId, data, csrf(csrfToken)), onSuccess: () => { invalidateVenueManagerData(); setMessage("Venue profile saved."); }, onError: (error) => setMessage(apiError(error)) });
-  if (detail.isLoading) return <SectionLoading />;
+  const detail = useBusinessQuery<VenueManagerBusiness>(getGetVenueManagerBusinessQueryOptions, business.businessId);
+  const [message, setMessage] = useState("");
+  const [showRemoval, setShowRemoval] = useState(false);
   const venue = detail.data ?? business;
-  return <section className="vm-panel vm-form-panel"><form className="vm-form two-col" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); update.mutate({ businessName: form.get("businessName"), tagline: form.get("tagline") || null, description: form.get("description") || null, coverPhotoUrl: form.get("coverPhotoUrl") || null, logoUrl: form.get("logoUrl") || null }); }}>
-    {message && <div className={`vm-notice ${update.isSuccess ? "success" : "error"} full`}>{message}</div>}<label>Public business name<input name="businessName" required defaultValue={venue.businessName} /></label><label>Short promise<input name="tagline" defaultValue={venue.tagline ?? ""} placeholder="The neighborhood's favorite…" /></label><label className="full">About your venue<textarea name="description" defaultValue={venue.description ?? ""} rows={5} /></label><label>Logo URL<input name="logoUrl" type="url" defaultValue={venue.logoUrl ?? ""} /></label><label>Cover image URL<input name="coverPhotoUrl" type="url" defaultValue={venue.coverPhotoUrl ?? ""} /></label><div className="full vm-form-actions"><button className="vm-primary" disabled={update.isPending}>{update.isPending ? "Saving…" : "Save venue profile"}</button></div>
-  </form></section>;
+  const [hours, setHours] = useState<HoursState>(() => defaultHoursState(venue.openingHours ?? undefined));
+  // Re-sync hours state when fresh data arrives from the server
+  const venueRef = detail.data;
+  useEffect(() => { if (venueRef) setHours(defaultHoursState(venueRef.openingHours ?? undefined)); }, [venueRef]);
+
+  const update = useMutation({
+    mutationFn: (data: object) => updateVenueManagerBusiness(business.businessId, data, csrf(csrfToken)),
+    onSuccess: () => { invalidateVenueManagerData(); setMessage("Venue profile saved."); },
+    onError: (error) => setMessage(apiError(error)),
+  });
+
+  const removal = useMutation({
+    mutationFn: (data: { reason: string }) => requestVenueManagerRemoval(business.businessId, data, csrf(csrfToken)),
+    onSuccess: () => { setShowRemoval(false); setMessage("Your removal request has been received. Our team will follow up within 2–3 business days."); },
+    onError: (error) => setMessage(apiError(error)),
+  });
+
+  if (detail.isLoading) return <SectionLoading />;
+
+  function buildOpeningHours(): Record<string, VenueManagerOpeningHoursDay | null> {
+    const result: Record<string, VenueManagerOpeningHoursDay | null> = {};
+    for (const day of DAYS) {
+      const h = hours[day];
+      result[day] = h.closed ? null : { open: h.open, close: h.close };
+    }
+    return result;
+  }
+
+  return (
+    <div className="vm-venue-profile">
+      <section className="vm-panel vm-form-panel">
+        <form className="vm-form two-col" onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          update.mutate({
+            businessName: form.get("businessName"),
+            tagline: form.get("tagline") || null,
+            description: form.get("description") || null,
+            coverPhotoUrl: form.get("coverPhotoUrl") || null,
+            logoUrl: form.get("logoUrl") || null,
+            phone: form.get("phone") || null,
+            websiteUrl: form.get("websiteUrl") || null,
+            publicEmail: form.get("publicEmail") || null,
+            openingHours: buildOpeningHours(),
+          });
+        }}>
+          {message && <div className={`vm-notice ${update.isSuccess || removal.isSuccess ? "success" : "error"} full`}>{message}</div>}
+
+          <label>Public business name<input name="businessName" required defaultValue={venue.businessName} /></label>
+          <label>Short tagline<input name="tagline" defaultValue={venue.tagline ?? ""} placeholder="The neighborhood's favorite…" /></label>
+          <label className="full">About your venue<textarea name="description" defaultValue={venue.description ?? ""} rows={5} /></label>
+
+          <div className="full vm-section-head"><h3><Building2 size={16} /> Media</h3></div>
+          <label>Logo URL<input name="logoUrl" type="url" defaultValue={venue.logoUrl ?? ""} placeholder="https://…" /></label>
+          <label>Cover image URL<input name="coverPhotoUrl" type="url" defaultValue={venue.coverPhotoUrl ?? ""} placeholder="https://…" /></label>
+
+          <div className="full vm-section-head"><h3><Phone size={16} /> Contact details</h3></div>
+          <label><span className="vm-label-row"><Phone size={13} />Phone<span className="vm-optional">optional</span></span><input name="phone" type="tel" defaultValue={venue.phone ?? ""} placeholder="+1 555 000 0000" /></label>
+          <label><span className="vm-label-row"><Globe size={13} />Website<span className="vm-optional">optional</span></span><input name="websiteUrl" type="url" defaultValue={venue.websiteUrl ?? ""} placeholder="https://yourvenue.com" /></label>
+          <label className="full"><span className="vm-label-row"><Mail size={13} />Booking / contact email<span className="vm-optional">optional</span></span><input name="publicEmail" type="email" defaultValue={venue.publicEmail ?? ""} placeholder="bookings@yourvenue.com" /></label>
+
+          <div className="full vm-section-head"><h3><Clock size={16} /> Opening hours</h3></div>
+          <div className="full">
+            <OpeningHoursEditor hours={hours} onChange={setHours} />
+          </div>
+
+          <div className="full vm-form-actions">
+            <button className="vm-primary" disabled={update.isPending}>{update.isPending ? "Saving…" : "Save venue profile"}</button>
+          </div>
+        </form>
+      </section>
+
+      {business.role === "owner" && (
+        <section className="vm-panel vm-danger-zone">
+          <div className="vm-danger-head"><AlertTriangle size={18} /><div><h3>Request listing removal</h3><p>Ask our team to remove this venue from the Met app. Your data and team accounts will remain until the request is processed.</p></div></div>
+          <button className="vm-danger-btn" type="button" onClick={() => { setMessage(""); setShowRemoval(true); }}>Request removal</button>
+        </section>
+      )}
+
+      {showRemoval && (
+        <Modal title="Request venue removal" onClose={() => setShowRemoval(false)}>
+          <form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); removal.mutate({ reason: String(f.get("reason") ?? "").trim() }); }}>
+            <p className="vm-subtitle" style={{ margin: "0 0 8px" }}>We'll review your request and reach out within 2–3 business days. Your listing stays live until removal is confirmed.</p>
+            <label>Reason <span className="vm-optional">optional</span><textarea name="reason" rows={4} placeholder="e.g. venue permanently closed, sold the business…" /></label>
+            <div className="vm-form-actions">
+              <button type="button" className="vm-secondary" onClick={() => setShowRemoval(false)}>Cancel</button>
+              <button className="vm-danger-btn" disabled={removal.isPending}>{removal.isPending ? "Submitting…" : "Submit removal request"}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
 }
 
 function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
