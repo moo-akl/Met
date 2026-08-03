@@ -12,6 +12,7 @@ const dbMocks = vi.hoisted(() => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([]),
+    delete: vi.fn().mockReturnThis(),
   };
   return { chain };
 });
@@ -120,6 +121,7 @@ beforeEach(() => {
   dbMocks.chain.values.mockResolvedValue(undefined);
   dbMocks.chain.update.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
+  dbMocks.chain.delete.mockReturnThis();
   dbMocks.chain.returning
     .mockResolvedValueOnce([submittedProfile])
     .mockResolvedValue([]);
@@ -650,5 +652,121 @@ describe("membership revocation gates — event, reward, and announcement writes
 
     expect(response.status).toBe(201);
     expect(dbMocks.chain.insert).toHaveBeenCalled();
+  });
+
+  // ── helpers for edit/delete tests ─────────────────────────────────────────
+
+  /**
+   * Extends mockActiveAccess for routes that first look up an existing record
+   * after requireVenueAccess succeeds (PUT/DELETE handlers). The third limit()
+   * call resolves to a stub row so the "not found" guard does not fire.
+   */
+  function mockActiveAccessForEdit(existingRow: Record<string, unknown> = { id: 42, placeId: "place-1" }) {
+    dbMocks.chain.where.mockResolvedValueOnce([
+      { uid: "venue-owner-uid", status: "active", role: "owner", businessId: 1 },
+    ]);
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([
+        { id: 1, placeId: "place-1", isActive: true, venueOwnerProfileId: 99 },
+      ])
+      .mockResolvedValueOnce([
+        { id: 99, placeId: "place-1", ownerUid: "venue-owner-uid", isApproved: true, applicationStatus: "approved" },
+      ])
+      .mockResolvedValueOnce([existingRow]);
+    // PUT routes call returning() with the updated row; reset so the default [] doesn't interfere.
+    dbMocks.chain.returning.mockReset();
+    dbMocks.chain.returning.mockResolvedValue([existingRow]);
+  }
+
+  // ── event PUT ─────────────────────────────────────────────────────────────
+
+  it("blocks event update (PUT) when the caller has a revoked membership", async () => {
+    mockRevokedAccess();
+
+    const response = await request(app)
+      .put("/api/venue-owner/me/events/42")
+      .send({ title: "Updated Title" });
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+
+  it("allows event update (PUT) when the caller has an active membership", async () => {
+    mockActiveAccessForEdit({ id: 42, placeId: "place-1", title: "Old Title" });
+
+    const response = await request(app)
+      .put("/api/venue-owner/me/events/42")
+      .send({ title: "Updated Title" });
+
+    expect(response.status).toBe(200);
+    expect(dbMocks.chain.update).toHaveBeenCalled();
+  });
+
+  // ── event DELETE ──────────────────────────────────────────────────────────
+
+  it("blocks event deletion when the caller has a revoked membership", async () => {
+    mockRevokedAccess();
+
+    const response = await request(app)
+      .delete("/api/venue-owner/me/events/42");
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
+  });
+
+  it("allows event deletion when the caller has an active membership", async () => {
+    mockActiveAccessForEdit({ id: 42, placeId: "place-1" });
+
+    const response = await request(app)
+      .delete("/api/venue-owner/me/events/42");
+
+    expect(response.status).toBe(200);
+    expect(dbMocks.chain.delete).toHaveBeenCalled();
+  });
+
+  // ── reward PUT ────────────────────────────────────────────────────────────
+
+  it("blocks reward update (PUT) when the caller has a revoked membership", async () => {
+    mockRevokedAccess();
+
+    const response = await request(app)
+      .put("/api/venue-owner/me/rewards/42")
+      .send({ title: "Updated Reward" });
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+
+  it("allows reward update (PUT) when the caller has an active membership", async () => {
+    mockActiveAccessForEdit({ id: 42, placeId: "place-1", title: "Old Reward" });
+
+    const response = await request(app)
+      .put("/api/venue-owner/me/rewards/42")
+      .send({ title: "Updated Reward" });
+
+    expect(response.status).toBe(200);
+    expect(dbMocks.chain.update).toHaveBeenCalled();
+  });
+
+  // ── announcement DELETE ───────────────────────────────────────────────────
+
+  it("blocks announcement deletion when the caller has a revoked membership", async () => {
+    mockRevokedAccess();
+
+    const response = await request(app)
+      .delete("/api/venue-owner/me/announcements/42");
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
+  });
+
+  it("allows announcement deletion when the caller has an active membership", async () => {
+    mockActiveAccessForEdit({ id: 42, placeId: "place-1" });
+
+    const response = await request(app)
+      .delete("/api/venue-owner/me/announcements/42");
+
+    expect(response.status).toBe(200);
+    expect(dbMocks.chain.delete).toHaveBeenCalled();
   });
 });
