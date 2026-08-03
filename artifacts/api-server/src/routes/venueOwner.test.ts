@@ -770,3 +770,144 @@ describe("membership revocation gates — event, reward, and announcement writes
     expect(dbMocks.chain.delete).toHaveBeenCalled();
   });
 });
+
+describe("venue profile update — PUT /venue-owner/me", () => {
+  const validProfilePatch = {
+    businessName: "The Corner Social",
+    tagline: "Come as you are",
+    description: "A cozy neighborhood bar.",
+    coverPhotoUrl: "https://example.com/cover.jpg",
+    logoUrl: "https://example.com/logo.png",
+  };
+
+  /**
+   * Mock an active membership so requireVenueAccess succeeds.
+   *
+   * loadVenueAccess query sequence:
+   *   1. db.select().from(memberships).where()          → membership array
+   *   2. db.select().from(businesses).where().limit(1)  → business row
+   *   3. db.select().from(profiles).where().limit(1)    → profile row
+   * then the route does db.update().set().where().returning().
+   */
+  function mockActiveProfileAccess(updatedProfile: Record<string, unknown> = {}) {
+    dbMocks.chain.where.mockResolvedValueOnce([
+      { uid: "venue-owner-uid", status: "active", role: "owner", businessId: 1 },
+    ]);
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([
+        { id: 1, placeId: "place-1", isActive: true, venueOwnerProfileId: 99 },
+      ])
+      .mockResolvedValueOnce([
+        { id: 99, placeId: "place-1", ownerUid: "venue-owner-uid", isApproved: true, applicationStatus: "approved" },
+      ]);
+    dbMocks.chain.returning.mockReset();
+    dbMocks.chain.returning.mockResolvedValue([
+      { id: 99, placeId: "place-1", ownerUid: "venue-owner-uid", ...updatedProfile },
+    ]);
+  }
+
+  /**
+   * Simulate a revoked/inactive membership: where() returns no active rows,
+   * and the legacy owner fallback also finds nothing (limit() defaults to []).
+   */
+  function mockRevokedProfileAccess() {
+    dbMocks.chain.where.mockResolvedValueOnce([]); // no active memberships
+    // legacy fallback: where() → chain (default), limit() → [] (default)
+  }
+
+  it("blocks profile update when the caller has a revoked membership", async () => {
+    mockRevokedProfileAccess();
+
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .send(validProfilePatch);
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+
+  it("blocks profile update when the caller has an inactive membership", async () => {
+    // inactive and revoked both produce an empty active-membership query result
+    mockRevokedProfileAccess();
+
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .send(validProfilePatch);
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+
+  it("allows profile update and returns the updated profile when membership is active", async () => {
+    mockActiveProfileAccess({
+      businessName: "The Corner Social",
+      tagline: "Come as you are",
+    });
+
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .send(validProfilePatch);
+
+    expect(response.status).toBe(200);
+    expect(response.body.profile).toBeDefined();
+    expect(dbMocks.chain.update).toHaveBeenCalled();
+    expect(dbMocks.chain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ businessName: "The Corner Social" }),
+    );
+  });
+
+  it("rejects a profile update with a tagline that exceeds the 160-character limit before checking membership", async () => {
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .send({ tagline: "x".repeat(161) });
+
+    expect(response.status).toBe(400);
+    // Validation fires before the membership check, so no DB access happens.
+    expect(dbMocks.chain.select).not.toHaveBeenCalled();
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a profile update with a description over 1000 characters before checking membership", async () => {
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .send({ description: "y".repeat(1001) });
+
+    expect(response.status).toBe(400);
+    expect(dbMocks.chain.select).not.toHaveBeenCalled();
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a profile update with a non-URL value for coverPhotoUrl before checking membership", async () => {
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .send({ coverPhotoUrl: "not-a-url" });
+
+    expect(response.status).toBe(400);
+    expect(dbMocks.chain.select).not.toHaveBeenCalled();
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+
+  it("allows a partial update (tagline only) when membership is active", async () => {
+    mockActiveProfileAccess({ tagline: "New tagline" });
+
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .send({ tagline: "New tagline" });
+
+    expect(response.status).toBe(200);
+    expect(dbMocks.chain.update).toHaveBeenCalled();
+  });
+
+  it("allows clearing optional profile fields by sending null when membership is active", async () => {
+    mockActiveProfileAccess({ tagline: null, coverPhotoUrl: null });
+
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .send({ tagline: null, coverPhotoUrl: null });
+
+    expect(response.status).toBe(200);
+    expect(dbMocks.chain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ tagline: null, coverPhotoUrl: null }),
+    );
+  });
+});
