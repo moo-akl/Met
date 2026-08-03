@@ -63,6 +63,9 @@ import {
   venueMembershipsTable,
   venueMembershipAuditTable,
   venueManagerRegistrationTokensTable,
+  venueManagersTable,
+  venueManagerSessionsTable,
+  venueManagerTokensTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
@@ -3037,6 +3040,149 @@ router.post(
     });
 
     res.status(201).json({ profile: serializeApplicationProfile(profile) });
+  },
+);
+
+/**
+ * DELETE /admin/venue-owner/venues/:id
+ * Permanently deletes a venue profile and all associated data (business record,
+ * manager accounts, events, rewards, announcements, application history).
+ * Irreversible — requires admin session.
+ */
+router.delete(
+  "/admin/venue-owner/venues/:id",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+
+    const [profile] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .limit(1);
+
+    if (!profile) {
+      res.status(404).json({ message: "Venue not found" });
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      // Resolve the business record if this venue was approved.
+      const [business] = await tx
+        .select()
+        .from(venueBusinessesTable)
+        .where(eq(venueBusinessesTable.venueOwnerProfileId, profileId))
+        .limit(1);
+
+      if (business) {
+        // Collect manager IDs before we delete memberships.
+        const memberships = await tx
+          .select({ managerId: venueMembershipsTable.managerId })
+          .from(venueMembershipsTable)
+          .where(eq(venueMembershipsTable.businessId, business.id));
+
+        const managerIds = memberships
+          .map((m) => m.managerId)
+          .filter((id): id is number => id !== null);
+
+        // Revoke all active sessions for those managers.
+        if (managerIds.length > 0) {
+          await tx
+            .delete(venueManagerSessionsTable)
+            .where(inArray(venueManagerSessionsTable.managerId, managerIds));
+        }
+
+        // Remove invite/recovery tokens for this business.
+        await tx
+          .delete(venueManagerTokensTable)
+          .where(eq(venueManagerTokensTable.businessId, business.id));
+
+        // Remove one-time registration tokens.
+        await tx
+          .delete(venueManagerRegistrationTokensTable)
+          .where(eq(venueManagerRegistrationTokensTable.businessId, business.id));
+
+        // Remove membership audit trail.
+        await tx
+          .delete(venueMembershipAuditTable)
+          .where(eq(venueMembershipAuditTable.businessId, business.id));
+
+        // Remove memberships.
+        await tx
+          .delete(venueMembershipsTable)
+          .where(eq(venueMembershipsTable.businessId, business.id));
+
+        // Delete manager credential records that have no remaining memberships
+        // in any other business (i.e. they were exclusively tied to this one).
+        if (managerIds.length > 0) {
+          const stillAttached = await tx
+            .select({ managerId: venueMembershipsTable.managerId })
+            .from(venueMembershipsTable)
+            .where(inArray(venueMembershipsTable.managerId, managerIds));
+
+          const attachedSet = new Set(
+            stillAttached
+              .map((m) => m.managerId)
+              .filter((id): id is number => id !== null),
+          );
+          const orphanIds = managerIds.filter((id) => !attachedSet.has(id));
+          if (orphanIds.length > 0) {
+            await tx
+              .delete(venueManagersTable)
+              .where(inArray(venueManagersTable.id, orphanIds));
+          }
+        }
+
+        // Delete the business record itself.
+        await tx
+          .delete(venueBusinessesTable)
+          .where(eq(venueBusinessesTable.id, business.id));
+      }
+
+      // Delete event RSVPs before events (no FK cascade in schema).
+      const ownedEvents = await tx
+        .select({ id: venueEventsTable.id })
+        .from(venueEventsTable)
+        .where(eq(venueEventsTable.ownerUid, profile.ownerUid));
+
+      if (ownedEvents.length > 0) {
+        await tx
+          .delete(venueEventRsvpsTable)
+          .where(inArray(venueEventRsvpsTable.eventId, ownedEvents.map((e) => e.id)));
+      }
+
+      await tx
+        .delete(venueEventsTable)
+        .where(eq(venueEventsTable.ownerUid, profile.ownerUid));
+
+      await tx
+        .delete(venueRewardsTable)
+        .where(eq(venueRewardsTable.ownerUid, profile.ownerUid));
+
+      await tx
+        .delete(venueAnnouncementsTable)
+        .where(eq(venueAnnouncementsTable.ownerUid, profile.ownerUid));
+
+      // Delete the application audit trail.
+      await tx
+        .delete(venueApplicationHistoryTable)
+        .where(eq(venueApplicationHistoryTable.venueOwnerProfileId, profileId));
+
+      // Finally remove the profile itself.
+      await tx
+        .delete(venueOwnerProfilesTable)
+        .where(eq(venueOwnerProfilesTable.id, profileId));
+    });
+
+    logger.info(
+      { profileId, businessName: profile.businessName, placeId: profile.placeId },
+      "Admin permanently deleted venue",
+    );
+    res.status(200).json({ message: "Venue deleted successfully" });
   },
 );
 

@@ -43,7 +43,8 @@ import {
   XCircle,
   RefreshCw,
   KeyRound,
-  Mail
+  Mail,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -133,6 +134,9 @@ export default function Dashboard() {
   const [newPassword, setNewPassword] = useState("");
   const [regLinkResult, setRegLinkResult] = useState<{ token: string; expiresAt: string; appId: number } | null>(null);
   const [regLinkLoading, setRegLinkLoading] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const handleApiError = (error: unknown, fallbackMessage: string) => {
     if (isApiError(error)) {
@@ -360,6 +364,30 @@ export default function Dashboard() {
     setApplicantMessage("");
     setInternalNote("");
   };
+
+  async function deleteVenue(appId: number, businessName: string) {
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/admin/venue-owner/venues/${appId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { message?: string };
+        toast({ title: "Error", description: err.message ?? "Failed to delete venue.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Venue deleted", description: `${businessName} has been permanently deleted.` });
+      setDeleteDialogOpen(false);
+      setDeleteConfirmName("");
+      setSelectedAppId(null);
+      queryClient.invalidateQueries({ queryKey: getListVenueApplicationsQueryKey(listParams) });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete venue.", variant: "destructive" });
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
 
   async function generateRegistrationLink(appId: number) {
     setRegLinkLoading(true);
@@ -899,6 +927,31 @@ export default function Dashboard() {
                       </Card>
                     )}
 
+                    <Card className="shadow-sm border-destructive/30">
+                      <CardHeader className="pb-3 border-b border-destructive/20">
+                        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-destructive/70 flex items-center gap-2">
+                          <Trash2 className="w-4 h-4" />
+                          Danger Zone
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-5 text-sm space-y-3">
+                        <p className="text-muted-foreground text-xs leading-relaxed">
+                          Permanently delete this venue and all associated data — events, rewards,
+                          announcements, manager accounts, and the full application history.
+                          This cannot be undone.
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                          onClick={() => { setDeleteDialogOpen(true); setDeleteConfirmName(""); }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                          Delete Venue
+                        </Button>
+                      </CardContent>
+                    </Card>
+
                     <Card className="shadow-sm flex-1">
                       <CardHeader className="pb-3 border-b border-border/50">
                         <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -981,6 +1034,46 @@ export default function Dashboard() {
           </>
         ) : null}
       </div>
+
+      {/* Delete Venue Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => { if (!open && !deleteLoading) { setDeleteDialogOpen(false); setDeleteConfirmName(""); } }}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" /> Delete Venue
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete <strong>{selectedApp?.businessName}</strong> and all
+              associated data — events, rewards, announcements, manager accounts, and the full
+              application history. <strong>This cannot be undone.</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <Label htmlFor="delete-confirm" className="text-xs font-bold uppercase tracking-wider">
+              Type the venue name to confirm
+            </Label>
+            <Input
+              id="delete-confirm"
+              placeholder={selectedApp?.businessName ?? ""}
+              value={deleteConfirmName}
+              onChange={(e) => setDeleteConfirmName(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setDeleteDialogOpen(false); setDeleteConfirmName(""); }} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteLoading || deleteConfirmName.trim() !== (selectedApp?.businessName ?? "").trim()}
+              onClick={() => selectedApp && void deleteVenue(selectedApp.id, selectedApp.businessName)}
+            >
+              {deleteLoading ? "Deleting…" : "Delete Venue"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Unified Decision Dialog */}
       <Dialog open={!!decisionDialog} onOpenChange={(open) => !open && setDecisionDialog(null)}>
