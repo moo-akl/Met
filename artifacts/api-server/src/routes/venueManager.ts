@@ -345,6 +345,19 @@ router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsr
   const logoUrl = optionalText(req.body?.logoUrl, 2000);
   const phone = optionalText(req.body?.phone, 60);
   const websiteUrl = optionalText(req.body?.websiteUrl, 2000);
+  if (websiteUrl) {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(websiteUrl);
+    } catch {
+      res.status(400).json({ message: "Website URL is not valid. Make sure it starts with https:// or http://." });
+      return;
+    }
+    if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+      res.status(400).json({ message: "Website URL must start with https:// or http://." });
+      return;
+    }
+  }
   const publicEmail = optionalText(req.body?.publicEmail, 320);
   let openingHours: Record<string, { open: string; close: string } | null> | undefined;
   if (req.body?.openingHours !== undefined) {

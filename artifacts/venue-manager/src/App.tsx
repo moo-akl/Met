@@ -686,9 +686,23 @@ function ImageUploadField({ label, value, onChange, businessId, csrfToken }: Ima
   );
 }
 
+function validateWebsiteUrl(value: string): string {
+  if (!value) return "";
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return "Website URL must start with https:// or http://.";
+    }
+    return "";
+  } catch {
+    return "Enter a valid URL, e.g. https://yourvenue.com";
+  }
+}
+
 function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
   const detail = useBusinessQuery<VenueManagerBusiness>(getGetVenueManagerBusinessQueryOptions, business.businessId);
   const [message, setMessage] = useState("");
+  const [websiteUrlError, setWebsiteUrlError] = useState("");
   const [showRemoval, setShowRemoval] = useState(false);
   const venue = detail.data ?? business;
   const [hours, setHours] = useState<HoursState>(() => defaultHoursState(venue.openingHours ?? undefined));
@@ -733,6 +747,10 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
         <form className="vm-form two-col" onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
+          const websiteUrlValue = (form.get("websiteUrl") as string | null) ?? "";
+          const urlErr = validateWebsiteUrl(websiteUrlValue.trim());
+          if (urlErr) { setWebsiteUrlError(urlErr); return; }
+          setWebsiteUrlError("");
           update.mutate({
             businessName: form.get("businessName"),
             tagline: form.get("tagline") || null,
@@ -740,7 +758,7 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
             coverPhotoUrl: coverPhotoUrl || null,
             logoUrl: logoUrl || null,
             phone: form.get("phone") || null,
-            websiteUrl: form.get("websiteUrl") || null,
+            websiteUrl: websiteUrlValue.trim() || null,
             publicEmail: form.get("publicEmail") || null,
             openingHours: buildOpeningHours(),
           });
@@ -757,7 +775,17 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
 
           <div className="full vm-section-head"><h3><Phone size={16} /> Contact details</h3></div>
           <label><span className="vm-label-row"><Phone size={13} />Phone<span className="vm-optional">optional</span></span><input name="phone" type="tel" defaultValue={venue.phone ?? ""} placeholder="+1 555 000 0000" /></label>
-          <label><span className="vm-label-row"><Globe size={13} />Website<span className="vm-optional">optional</span></span><input name="websiteUrl" type="url" defaultValue={venue.websiteUrl ?? ""} placeholder="https://yourvenue.com" /></label>
+          <label>
+            <span className="vm-label-row"><Globe size={13} />Website<span className="vm-optional">optional</span></span>
+            <input
+              name="websiteUrl"
+              type="text"
+              defaultValue={venue.websiteUrl ?? ""}
+              placeholder="https://yourvenue.com"
+              onChange={() => websiteUrlError && setWebsiteUrlError("")}
+            />
+            {websiteUrlError && <span className="vm-image-error">{websiteUrlError}</span>}
+          </label>
           <label className="full"><span className="vm-label-row"><Mail size={13} />Booking / contact email<span className="vm-optional">optional</span></span><input name="publicEmail" type="email" defaultValue={venue.publicEmail ?? ""} placeholder="bookings@yourvenue.com" /></label>
 
           <div className="full vm-section-head"><h3><Clock size={16} /> Opening hours</h3></div>
