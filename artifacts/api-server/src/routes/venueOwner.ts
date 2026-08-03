@@ -1827,7 +1827,7 @@ router.delete(
  * array suitable for the map layer. Includes flags for active rewards/events.
  */
 router.get(
-  "/api/hubs/venue-owners",
+  "/hubs/venue-owners",
   requireUid,
   venueOwnerReadLimit,
   async (_req: Request, res: Response) => {
@@ -1840,6 +1840,7 @@ router.get(
         and(
           eq(venueOwnerProfilesTable.isApproved, true),
           eq(venueOwnerProfilesTable.isVerified, true),
+          eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
         ),
       );
 

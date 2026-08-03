@@ -24,6 +24,8 @@ vi.mock("@workspace/db", () => ({
     placeId: "placeId",
     contactEmail: "contactEmail",
     applicationStatus: "applicationStatus",
+    isApproved: "isApproved",
+    isVerified: "isVerified",
     submittedAt: "submittedAt",
   },
   venueApplicationHistoryTable: {
@@ -412,5 +414,92 @@ describe("venue search and expiry safeguards", () => {
         actorRole: "system",
       }),
     );
+  });
+});
+
+describe("map layer — GET /api/hubs/venue-owners", () => {
+  const approvedProfile = {
+    id: 1,
+    placeId: "place-123",
+    placeName: "The Corner Bar",
+    businessName: "Corner Social",
+    tagline: "Come as you are",
+    logoUrl: null,
+    lat: "40.7128",
+    lng: "-74.0060",
+    isApproved: true,
+    isVerified: true,
+    applicationStatus: "approved",
+  };
+
+  it("returns approved venues with valid coordinates", async () => {
+    // The profile query is `db.select().from().where()` — no trailing .limit(),
+    // so we resolve the where() call directly to the profile array for this test.
+    // The rewards and events sub-queries each call .where().limit(), so subsequent
+    // where() calls keep returning the chain and limit() resolves to empty arrays.
+    dbMocks.chain.where
+      .mockResolvedValueOnce([approvedProfile]) // profile query
+      .mockReturnThis() // rewards .where() → chain → .limit() below
+      .mockReturnThis(); // events .where() → chain → .limit() below
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([]) // no active rewards
+      .mockResolvedValueOnce([]); // no upcoming events
+
+    const response = await request(app).get("/api/hubs/venue-owners");
+
+    expect(response.status).toBe(200);
+    expect(response.body.venues).toHaveLength(1);
+    expect(response.body.venues[0]).toMatchObject({
+      placeId: "place-123",
+      placeName: "The Corner Bar",
+      lat: 40.7128,
+      lng: -74.006,
+      hasActiveReward: false,
+      hasUpcomingEvent: false,
+    });
+  });
+
+  it("excludes venues whose coordinates are missing", async () => {
+    dbMocks.chain.where
+      .mockResolvedValueOnce([{ ...approvedProfile, lat: null, lng: null }])
+      .mockReturnThis()
+      .mockReturnThis();
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const response = await request(app).get("/api/hubs/venue-owners");
+
+    expect(response.status).toBe(200);
+    expect(response.body.venues).toHaveLength(0);
+  });
+
+  it("returns an empty list when no approved venues exist", async () => {
+    // Profile query returns no profiles; no sub-queries are made.
+    dbMocks.chain.where.mockResolvedValueOnce([]);
+
+    const response = await request(app).get("/api/hubs/venue-owners");
+
+    expect(response.status).toBe(200);
+    expect(response.body.venues).toEqual([]);
+  });
+
+  it("queries with isApproved, isVerified, and applicationStatus='approved' filters", async () => {
+    // The profile query must guard on all three status columns so that revoked
+    // venues (applicationStatus != 'approved') cannot appear on the map even if
+    // isApproved were somehow stale.
+    dbMocks.chain.where.mockResolvedValueOnce([]);
+
+    await request(app).get("/api/hubs/venue-owners");
+
+    // The mock table exposes column names as plain strings so drizzle's eq()
+    // builds SQL nodes referencing those strings. Serialise the where() call
+    // arguments and assert all three guard columns are present.
+    const whereArgs = dbMocks.chain.where.mock.calls.map((c: unknown[]) => JSON.stringify(c));
+    const profileWhereCall = whereArgs.find(
+      (s: string) =>
+        s.includes("isApproved") && s.includes("isVerified") && s.includes("applicationStatus"),
+    );
+    expect(profileWhereCall).toBeDefined();
   });
 });
