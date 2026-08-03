@@ -824,11 +824,43 @@ function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   const client = useQueryClient(); const events = useBusinessQuery<VenueManagerEventList>(getListVenueManagerEventsQueryOptions, business.businessId); const [editing, setEditing] = useState<VenueManagerEvent | "new" | null>(null); const [message, setMessage] = useState("");
   const save = useMutation({ mutationFn: ({ id, data }: { id?: number; data: VenueManagerEventInput | VenueManagerEventUpdate }) => id ? updateVenueManagerEvent(business.businessId, id, data as VenueManagerEventUpdate, csrf(csrfToken)) : createVenueManagerEvent(business.businessId, data as VenueManagerEventInput, csrf(csrfToken)), onSuccess: () => { invalidateVenueManagerData(); setEditing(null); }, onError: (error) => setMessage(apiError(error)) });
   const remove = useMutation({ mutationFn: (id: number) => deleteVenueManagerEvent(business.businessId, id, csrf(csrfToken)), onSuccess: () => invalidateVenueManagerData() });
-  return <><div className="vm-toolbar"><span>{events.data?.events.length ?? 0} events</span><button className="vm-primary compact" onClick={() => { setMessage(""); setEditing("new"); }}><Plus size={16} />New event</button></div>{events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small></div><div className="vm-item-actions"><button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}{editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data) => save.mutate({ id: editing === "new" ? undefined : editing.id, data })} />}</>;
+  return <><div className="vm-toolbar"><span>{events.data?.events.length ?? 0} events</span><button className="vm-primary compact" onClick={() => { setMessage(""); setEditing("new"); }}><Plus size={16} />New event</button></div>{events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small></div><div className="vm-item-actions"><button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}{editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data) => save.mutate({ id: editing === "new" ? undefined : editing.id, data })} businessId={business.businessId} csrfToken={csrfToken} />}</>;
 }
 
-function EventModal({ event, message, pending, onClose, onSubmit }: { event?: VenueManagerEvent; message: string; pending: boolean; onClose: () => void; onSubmit: (data: VenueManagerEventInput | VenueManagerEventUpdate) => void }) {
-  return <Modal title={event ? "Edit event" : "New event"} onClose={onClose}><form className="vm-form two-col" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); onSubmit({ title: formText(f.get("title")), description: formText(f.get("description")) || null, startsAt: isoFromInput(f.get("startsAt")), endsAt: isoFromInput(f.get("endsAt")) || null, capacityLimit: f.get("capacityLimit") ? Number(f.get("capacityLimit")) : null, isPublished: f.get("isPublished") === "on" }); }}>{message && <div className="vm-notice error full">{message}</div>}<label className="full">Name<input name="title" required defaultValue={event?.title} /></label><label>Starts<input name="startsAt" type="datetime-local" required defaultValue={dateTimeInput(event?.startsAt)} /></label><label>Ends<input name="endsAt" type="datetime-local" defaultValue={dateTimeInput(event?.endsAt)} /></label><label>Capacity<input name="capacityLimit" type="number" min="1" defaultValue={event?.capacityLimit ?? ""} /></label><label className="checkbox"><input name="isPublished" type="checkbox" defaultChecked={event?.isPublished ?? true} /> Publish this event</label><label className="full">Description<textarea name="description" rows={4} defaultValue={event?.description ?? ""} /></label><div className="vm-form-actions full"><button type="button" className="vm-secondary" onClick={onClose}>Cancel</button><button className="vm-primary" disabled={pending}>{pending ? "Saving…" : "Save event"}</button></div></form></Modal>;
+function EventModal({ event, message, pending, onClose, onSubmit, businessId, csrfToken }: { event?: VenueManagerEvent; message: string; pending: boolean; onClose: () => void; onSubmit: (data: VenueManagerEventInput | VenueManagerEventUpdate) => void; businessId: number; csrfToken: string }) {
+  const [imageUrl, setImageUrl] = useState(event?.imageUrl ?? "");
+  return (
+    <Modal title={event ? "Edit event" : "New event"} onClose={onClose}>
+      <form className="vm-form two-col" onSubmit={(e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        onSubmit({
+          title: formText(f.get("title")),
+          description: formText(f.get("description")) || null,
+          startsAt: isoFromInput(f.get("startsAt")),
+          endsAt: isoFromInput(f.get("endsAt")) || null,
+          capacityLimit: f.get("capacityLimit") ? Number(f.get("capacityLimit")) : null,
+          isPublished: f.get("isPublished") === "on",
+          imageUrl: imageUrl || null,
+        });
+      }}>
+        {message && <div className="vm-notice error full">{message}</div>}
+        <label className="full">Name<input name="title" required defaultValue={event?.title} /></label>
+        <label>Starts<input name="startsAt" type="datetime-local" required defaultValue={dateTimeInput(event?.startsAt)} /></label>
+        <label>Ends<input name="endsAt" type="datetime-local" defaultValue={dateTimeInput(event?.endsAt)} /></label>
+        <label>Capacity<input name="capacityLimit" type="number" min="1" defaultValue={event?.capacityLimit ?? ""} /></label>
+        <label className="checkbox"><input name="isPublished" type="checkbox" defaultChecked={event?.isPublished ?? true} /> Publish this event</label>
+        <label className="full">Description<textarea name="description" rows={4} defaultValue={event?.description ?? ""} /></label>
+        <div className="full">
+          <ImageUploadField label="Event image" value={imageUrl} onChange={setImageUrl} businessId={businessId} csrfToken={csrfToken} />
+        </div>
+        <div className="vm-form-actions full">
+          <button type="button" className="vm-secondary" onClick={onClose}>Cancel</button>
+          <button className="vm-primary" disabled={pending}>{pending ? "Saving…" : "Save event"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
 function Rewards({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
