@@ -389,24 +389,52 @@ function ProfileGate() {
  */
 function VenueOwnerLifecycleGate() {
   const { ready, authedUid } = useApp();
-  const { profile, isLoading, error } = useVenueOwner();
+  const { profile, isLoading, error, refetch } = useVenueOwner();
   const router = useRouter();
   const pathname = usePathname();
   const { reapply } = useLocalSearchParams<{ reapply?: string }>();
 
+  // Track the last pathname for which we completed a fresh profile load before
+  // making a routing decision. null means a refetch is required on next entry.
+  // This is stored in a ref (not state) so updates don't trigger extra renders.
+  const lastDecisionPathRef = useRef<string | null>(null);
+  // Keep a stable ref to refetch so we never need it in the effect's dep array.
+  const refetchRef = useRef(refetch);
+  useEffect(() => { refetchRef.current = refetch; });
+
   useEffect(() => {
-    if (!ready || !pathname.startsWith("/venue-owner")) return;
+    if (!ready) return;
+
+    // Outside the venue-owner section: reset so the next entry always starts
+    // with a fresh load (handles navigate-away-and-back round trips).
+    if (!pathname.startsWith("/venue-owner")) {
+      lastDecisionPathRef.current = null;
+      return;
+    }
+
     if (!authedUid) {
       router.replace("/onboarding?venueOwner=1");
       return;
     }
-    // A failed or incomplete status load must never be interpreted as "no
-    // application", and must not leave a business screen visible. The index
-    // route is the only safe recovery surface until a refresh succeeds.
-    if (isLoading || error) {
+    if (error) {
+      // A load error must never be interpreted as "no application". Show the
+      // index spinner so the user can retry without a stale screen persisting.
       if (pathname !== "/venue-owner") router.replace("/venue-owner");
       return;
     }
+    // On each new venue-owner path (first entry or cross-screen navigation),
+    // trigger a fresh profile load before deciding where to redirect. This
+    // prevents stale data — e.g. profile=null that existed before the user
+    // just registered — from immediately pushing them back to /venue-owner/setup.
+    if (!isLoading && lastDecisionPathRef.current !== pathname) {
+      lastDecisionPathRef.current = pathname;
+      refetchRef.current();
+      return;
+    }
+    // While loading (triggered by the refetch above or any other cause), hold
+    // position. Individual screens handle their own loading states.
+    if (isLoading) return;
+
     const target = getVenueOwnerDestination(profile);
     if (!isVenueOwnerPathAllowed(pathname, target, reapply)) {
       router.replace(target);
