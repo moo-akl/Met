@@ -14,6 +14,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -169,6 +170,73 @@ export default function VenueProfileScreen() {
         {profile.description && (
           <View style={styles.section}>
             <Text style={styles.descriptionText}>{profile.description}</Text>
+          </View>
+        )}
+
+        {/* Contact info */}
+        {(profile.phone || profile.websiteUrl || profile.publicEmail) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Contact</Text>
+            <View style={[styles.contactCard, { backgroundColor: "#1A1A1E", borderColor: "rgba(255,255,255,0.07)" }]}>
+              {profile.phone && (
+                <Pressable
+                  style={styles.contactRow}
+                  onPress={() => void Linking.openURL(`tel:${profile.phone}`)}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Call ${profile.phone}`}
+                >
+                  <Text style={styles.contactIcon}>📞</Text>
+                  <Text style={[styles.contactLink, { color: colors.primary }]}>{profile.phone}</Text>
+                </Pressable>
+              )}
+              {profile.websiteUrl && (
+                <Pressable
+                  style={styles.contactRow}
+                  onPress={() => void Linking.openURL(
+                    profile.websiteUrl!.startsWith("http") ? profile.websiteUrl! : `https://${profile.websiteUrl}`
+                  )}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Visit website: ${profile.websiteUrl}`}
+                >
+                  <Text style={styles.contactIcon}>🌐</Text>
+                  <Text style={[styles.contactLink, { color: colors.primary }]} numberOfLines={1}>{profile.websiteUrl}</Text>
+                </Pressable>
+              )}
+              {profile.publicEmail && (
+                <Pressable
+                  style={styles.contactRow}
+                  onPress={() => void Linking.openURL(`mailto:${profile.publicEmail}`)}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Email ${profile.publicEmail}`}
+                >
+                  <Text style={styles.contactIcon}>✉️</Text>
+                  <Text style={[styles.contactLink, { color: colors.primary }]} numberOfLines={1}>{profile.publicEmail}</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Opening hours */}
+        {profile.openingHours && Object.keys(profile.openingHours).length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Opening Hours</Text>
+            <View style={[styles.contactCard, { backgroundColor: "#1A1A1E", borderColor: "rgba(255,255,255,0.07)" }]}>
+              {(["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] as const).map((day) => {
+                if (!(day in profile.openingHours!)) return null;
+                const hours = profile.openingHours![day];
+                return (
+                  <View key={day} style={styles.hoursRow}>
+                    <Text style={styles.hoursDay}>{day.charAt(0).toUpperCase() + day.slice(1)}</Text>
+                    {hours ? (
+                      <Text style={styles.hoursTime}>{hours.open} – {hours.close}</Text>
+                    ) : (
+                      <Text style={styles.hoursClosed}>Closed</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -378,6 +446,29 @@ const styles = StyleSheet.create({
   leaderAvatarFallbackText: { fontSize: 18 },
   leaderName: { flex: 1, color: "rgba(255,255,255,0.85)", fontSize: 14, fontFamily: "Inter_600SemiBold" },
   leaderCount: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontFamily: "Inter_400Regular" },
+  contactCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 4,
+    paddingHorizontal: 14,
+  },
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 10,
+  },
+  contactIcon: { fontSize: 16, width: 22, textAlign: "center" },
+  contactLink: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
+  hoursRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  hoursDay: { color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Inter_400Regular", width: 100 },
+  hoursTime: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontFamily: "Inter_500Medium" },
+  hoursClosed: { color: "rgba(255,255,255,0.3)", fontSize: 14, fontFamily: "Inter_400Regular", fontStyle: "italic" },
   checkinFab: { position: "absolute", left: 24, right: 24 },
   checkinBtn: {
     borderRadius: 14,

@@ -143,6 +143,12 @@ export interface VenueOwnerProfile {
   expiredAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Public contact & hours fields — included by the public venue endpoint. */
+  phone: string | null;
+  websiteUrl: string | null;
+  publicEmail: string | null;
+  /** Keyed by lowercase day name. null value = closed that day, omitted = unknown. */
+  openingHours: Record<string, { open: string; close: string } | null> | null;
 }
 
 export interface VenueApplicationHistoryEntry {

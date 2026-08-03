@@ -311,6 +311,10 @@ function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$in
     lat: profile.lat,
     lng: profile.lng,
     isVerified: profile.isVerified,
+    phone: profile.phone,
+    websiteUrl: profile.websiteUrl,
+    publicEmail: profile.publicEmail,
+    openingHours: profile.openingHours,
   };
 }
 
