@@ -690,15 +690,20 @@ router.post("/venue-manager/register", authLimit, async (req, res): Promise<void
     res.status(409).json({ message: "An account with this email already exists. Sign in instead." });
     return;
   }
-  const [manager] = await db
-    .insert(venueManagersTable)
-    .values({ email, displayName, passwordHash: await hashPassword(password) })
-    .returning();
-  if (!manager) throw new Error("Failed to create manager account");
-  await db.transaction(async (tx) => {
+  // Hash password before entering the transaction so a slow bcrypt round
+  // doesn't hold the DB connection open unnecessarily.
+  const passwordHash = await hashPassword(password);
+  // All writes are inside one transaction so a failure at any step rolls
+  // everything back atomically — no orphaned manager rows on retry.
+  const manager = await db.transaction(async (tx) => {
+    const [mgr] = await tx
+      .insert(venueManagersTable)
+      .values({ email, displayName, passwordHash })
+      .returning();
+    if (!mgr) throw new Error("Failed to create manager account");
     await tx.insert(venueMembershipsTable).values({
       businessId: business.id,
-      managerId: manager.id,
+      managerId: mgr.id,
       role: "owner",
       status: "active",
       acceptedAt: new Date(),
@@ -709,7 +714,7 @@ router.post("/venue-manager/register", authLimit, async (req, res): Promise<void
       subjectUid: email,
       toRole: "owner",
       toStatus: "active",
-      metadata: JSON.stringify({ source: "portal_registration", managerId: manager.id }),
+      metadata: JSON.stringify({ source: "portal_registration", managerId: mgr.id }),
     });
     await tx
       .update(venueManagerRegistrationTokensTable)
@@ -721,6 +726,7 @@ router.post("/venue-manager/register", authLimit, async (req, res): Promise<void
       .update(venueOwnerProfilesTable)
       .set({ contactEmail: email, updatedAt: new Date() })
       .where(eq(venueOwnerProfilesTable.id, business.venueOwnerProfileId));
+    return mgr;
   });
   await issueSession(req, res, manager.id);
 });
