@@ -989,17 +989,25 @@ export function createVenueManagerClaimRouter(requireUid: (req: Request, res: Re
     }
     const [exists] = await db.select({ id: venueManagersTable.id }).from(venueManagersTable).where(eq(venueManagersTable.email, email)).limit(1);
     if (exists) {
-      res.status(409).json({ message: "This email already has a venue manager account." });
-      return;
+      // If the account has no memberships it was orphaned by a failed
+      // transaction — delete it so the owner can retry cleanly.
+      const [membership] = await db.select({ id: venueMembershipsTable.id }).from(venueMembershipsTable).where(eq(venueMembershipsTable.managerId, exists.id)).limit(1);
+      if (membership) {
+        res.status(409).json({ message: "This email already has a venue manager account." });
+        return;
+      }
+      await db.delete(venueManagersTable).where(eq(venueManagersTable.id, exists.id));
     }
-    const [manager] = await db.insert(venueManagersTable).values({ email, displayName, passwordHash: await hashPassword(password) }).returning();
-    if (!manager) throw new Error("Unable to create manager");
-    await db.transaction(async (tx) => {
-      await tx.insert(venueMembershipsTable).values({ businessId: business.id, managerId: manager.id, role: "owner", status: "active", acceptedAt: new Date() });
+    const passwordHash = await hashPassword(password);
+    const manager = await db.transaction(async (tx) => {
+      const [mgr] = await tx.insert(venueManagersTable).values({ email, displayName, passwordHash }).returning();
+      if (!mgr) throw new Error("Unable to create manager");
+      await tx.insert(venueMembershipsTable).values({ businessId: business.id, managerId: mgr.id, role: "owner", status: "active", acceptedAt: new Date() });
       await tx.insert(venueMembershipAuditTable).values({ businessId: business.id, eventType: "granted", subjectUid: email, toRole: "owner", toStatus: "active", metadata: JSON.stringify({ source: "legacy_owner_claim", legacyUid: req.uid }) });
       // Keep the venue owner profile's contact email in sync with the address
       // the owner chose when creating their Venue Manager account.
       await tx.update(venueOwnerProfilesTable).set({ contactEmail: email, updatedAt: new Date() }).where(eq(venueOwnerProfilesTable.id, profile.id));
+      return mgr;
     });
     await issueSession(req, res, manager.id);
   });
