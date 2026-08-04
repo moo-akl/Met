@@ -687,8 +687,20 @@ router.post("/venue-manager/register", authLimit, async (req, res): Promise<void
     .where(eq(venueManagersTable.email, email))
     .limit(1);
   if (existingManager) {
-    res.status(409).json({ message: "An account with this email already exists. Sign in instead." });
-    return;
+    // Check whether this account is orphaned (created but the transaction
+    // that attached a membership failed). If it has no memberships it is
+    // safe to delete and let the registration proceed.
+    const [membership] = await db
+      .select({ id: venueMembershipsTable.id })
+      .from(venueMembershipsTable)
+      .where(eq(venueMembershipsTable.managerId, existingManager.id))
+      .limit(1);
+    if (membership) {
+      res.status(409).json({ message: "An account with this email already exists. Sign in instead." });
+      return;
+    }
+    // Orphaned account — remove it so the registration can proceed cleanly.
+    await db.delete(venueManagersTable).where(eq(venueManagersTable.id, existingManager.id));
   }
   // Hash password before entering the transaction so a slow bcrypt round
   // doesn't hold the DB connection open unnecessarily.
