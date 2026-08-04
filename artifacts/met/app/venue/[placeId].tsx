@@ -1,23 +1,22 @@
 /**
  * Public Venue Profile Screen — /venue/[placeId]
  *
- * Redesigned layout (top → bottom):
- *   1. Immersive hero (320 px, gradient overlay, identity on photo)
+ * Layout (top → bottom):
+ *   1. Immersive hero (320 px cover photo, gradient, identity overlay)
  *   2. Description
- *   3. Kings & Queens 👑  (top-3 monthly leaderboard)
- *   4. Active reward card  (colourful full card)
- *   5. Announcements  (with images when present)
- *   6. Upcoming events  (redesigned cards)
+ *   3. "Be the Winner" — active reward card (tappable → how-to-win modal)
+ *   4. Announcements (with image when present)
+ *   5. Leaderboards (top-3 monthly check-ins)
+ *   6. Upcoming events
  *   7. Contact info
- *   8. Today's hours  (single line at the bottom)
- *   9. Check-in FAB  (fixed)
+ *   8. Today's hours (1 line)
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Image,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,14 +27,21 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
-import { api, type VenueOwnerProfile, type VenueEvent, type VenueReward, type VenueAnnouncement } from "@/lib/api/client";
+import {
+  api,
+  type VenueOwnerProfile,
+  type VenueEvent,
+  type VenueReward,
+  type VenueAnnouncement,
+} from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { VenueEventCard } from "@/components/VenueEventCard";
-import { useHubCheckin } from "@/hooks/useHubCheckin";
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── constants ────────────────────────────────────────────────────────────────
 
-const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+const DAYS = [
+  "sunday","monday","tuesday","wednesday","thursday","friday","saturday",
+] as const;
 
 const REWARD_ICON: Record<string, string> = {
   free_drink: "🍹",
@@ -43,6 +49,8 @@ const REWARD_ICON: Record<string, string> = {
   experience: "✨",
   custom:     "🎁",
 };
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function useCountdown(endDateIso: string): string {
   const [label, setLabel] = useState("");
@@ -69,46 +77,172 @@ function useCountdown(endDateIso: string): string {
 function SectionHeader({ title, icon }: { title: string; icon?: string }) {
   return (
     <View style={sh.row}>
-      {icon && <Text style={sh.icon}>{icon}</Text>}
-      <Text style={sh.text}>{title}</Text>
+      {icon ? <Text style={sh.icon}>{icon}</Text> : null}
+      <Text style={sh.label}>{title}</Text>
     </View>
   );
 }
 const sh = StyleSheet.create({
-  row:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 14 },
-  icon: { fontSize: 18 },
-  text: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+  row:   { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 14 },
+  icon:  { fontSize: 18 },
+  label: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
 });
 
-// Reward full card (used only on the venue page; the slim banner is kept for leaderboard)
-function RewardCard({ reward }: { reward: VenueReward & { countdown?: string } }) {
+// ── How-to-win modal ─────────────────────────────────────────────────────────
+
+function WinnerModal({
+  reward,
+  visible,
+  onClose,
+}: {
+  reward: VenueReward;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
   const countdown = useCountdown(reward.endDate);
   const icon = REWARD_ICON[reward.rewardType] ?? "🎁";
+
   return (
-    <LinearGradient
-      colors={["#7C3AED", "#4F46E5"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={rc.card}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
     >
-      <View style={rc.topRow}>
-        <Text style={rc.badge}>🏆 Active Reward</Text>
-        <Text style={rc.countdown}>{countdown}</Text>
+      <Pressable style={wm.backdrop} onPress={onClose} />
+      <View style={[wm.sheet, { paddingBottom: insets.bottom + 24 }]}>
+        {/* Handle */}
+        <View style={wm.handle} />
+
+        {/* Prize */}
+        <LinearGradient
+          colors={["#7C3AED", "#4F46E5"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={wm.prizeCard}
+        >
+          <Text style={wm.prizeIcon}>{icon}</Text>
+          <Text style={wm.prizeTitle}>{reward.title}</Text>
+          <Text style={wm.prizeDesc}>{reward.prizeDescription}</Text>
+          <View style={wm.countdownRow}>
+            <Text style={wm.countdownLabel}>Ends in</Text>
+            <Text style={wm.countdown}>{countdown}</Text>
+          </View>
+        </LinearGradient>
+
+        {/* How to win */}
+        <Text style={wm.howTitle}>How to win</Text>
+
+        <View style={wm.stepList}>
+          {[
+            { n: "1", text: "Check in at this venue as many times as you can this month." },
+            { n: "2", text: "Rack up more check-ins than anyone else to claim the #1 spot on the Leaderboard." },
+            { n: "3", text: "Stay at the top when the reward ends and the prize is yours!" },
+          ].map((s) => (
+            <View key={s.n} style={wm.step}>
+              <View style={[wm.stepNum, { backgroundColor: colors.primary }]}>
+                <Text style={wm.stepNumText}>{s.n}</Text>
+              </View>
+              <Text style={wm.stepText}>{s.text}</Text>
+            </View>
+          ))}
+        </View>
+
+        <Pressable
+          style={[wm.closeBtn, { backgroundColor: colors.primary }]}
+          onPress={onClose}
+          accessibilityRole="button"
+        >
+          <Text style={wm.closeBtnText}>Got it!</Text>
+        </Pressable>
       </View>
-      <Text style={rc.icon}>{icon}</Text>
-      <Text style={rc.title}>{reward.title}</Text>
-      <Text style={rc.prize}>{reward.prizeDescription}</Text>
-    </LinearGradient>
+    </Modal>
   );
 }
-const rc = StyleSheet.create({
-  card:      { borderRadius: 16, padding: 20, marginBottom: 8 },
-  topRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  badge:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.75)", textTransform: "uppercase", letterSpacing: 0.8 },
+
+const wm = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
+  sheet: {
+    backgroundColor: "#18181C",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+  },
+  handle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    marginBottom: 20,
+  },
+  prizeCard:    { borderRadius: 16, padding: 20, marginBottom: 24, alignItems: "center" },
+  prizeIcon:    { fontSize: 52, marginBottom: 10 },
+  prizeTitle:   { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 6, textAlign: "center" },
+  prizeDesc:    { fontSize: 15, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)", textAlign: "center", lineHeight: 22 },
+  countdownRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },
+  countdownLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)" },
+  countdown:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
+  howTitle:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 16 },
+  stepList:     { gap: 14, marginBottom: 28 },
+  step:         { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  stepNum: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  stepNumText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  stepText:    { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)", lineHeight: 21 },
+  closeBtn:    { borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+  closeBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
+});
+
+// ── "Be the Winner" reward card ──────────────────────────────────────────────
+
+function BeTheWinnerCard({
+  reward,
+  onPress,
+}: {
+  reward: VenueReward;
+  onPress: () => void;
+}) {
+  const countdown = useCountdown(reward.endDate);
+  const icon = REWARD_ICON[reward.rewardType] ?? "🎁";
+
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="View how to win this reward">
+      <LinearGradient
+        colors={["#7C3AED", "#4F46E5"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={bw.card}
+      >
+        <View style={bw.topRow}>
+          <Text style={bw.eyebrow}>🏆  Active Reward</Text>
+          <Text style={bw.countdown}>{countdown}</Text>
+        </View>
+        <Text style={bw.icon}>{icon}</Text>
+        <Text style={bw.title}>{reward.title}</Text>
+        <Text style={bw.prize}>{reward.prizeDescription}</Text>
+        <View style={bw.cta}>
+          <Text style={bw.ctaText}>Tap to see how to win  →</Text>
+        </View>
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
+const bw = StyleSheet.create({
+  card:     { borderRadius: 16, padding: 20 },
+  topRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+  eyebrow:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.75)", textTransform: "uppercase", letterSpacing: 0.8 },
   countdown: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
-  icon:      { fontSize: 44, marginBottom: 8 },
-  title:     { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 6 },
-  prize:     { fontSize: 15, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)", lineHeight: 22 },
+  icon:     { fontSize: 44, marginBottom: 8 },
+  title:    { fontSize: 21, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 6 },
+  prize:    { fontSize: 15, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)", lineHeight: 22, marginBottom: 14 },
+  cta:      { backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 22, paddingVertical: 8, alignItems: "center" },
+  ctaText:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });
 
 // ─── main screen ─────────────────────────────────────────────────────────────
@@ -119,15 +253,18 @@ export default function VenueProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { attemptCheckin, hubState } = useHubCheckin();
 
   const [profile, setProfile]             = useState<VenueOwnerProfile | null>(null);
   const [events, setEvents]               = useState<VenueEvent[]>([]);
   const [rewards, setRewards]             = useState<VenueReward[]>([]);
   const [announcements, setAnnouncements] = useState<VenueAnnouncement[]>([]);
-  const [topVisitors, setTopVisitors]     = useState<Array<{ rank: number; uid: string; displayName: string; photoUrl: string | null; checkinCount: number }>>([]);
-  const [loading, setLoading]             = useState(true);
-  const [error, setError]                 = useState(false);
+  const [topVisitors, setTopVisitors]     = useState<Array<{
+    rank: number; uid: string; displayName: string;
+    photoUrl: string | null; checkinCount: number;
+  }>>([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(false);
+  const [winnerModal, setWinnerModal] = useState(false);
 
   const fetchAll = useCallback(async () => {
     if (!authedUid || !placeId) return;
@@ -156,21 +293,23 @@ export default function VenueProfileScreen() {
 
   useEffect(() => { void fetchAll(); }, [fetchAll]);
 
-  const now         = new Date();
+  const now = new Date();
   const activeReward = rewards.find(
-    (r) => r.status === "active" && new Date(r.startDate) <= now && new Date(r.endDate) >= now,
+    (r) => r.status === "active" &&
+      new Date(r.startDate) <= now &&
+      new Date(r.endDate) >= now,
   ) ?? null;
   const upcomingEvents = events.filter((e) => new Date(e.startsAt) >= now);
 
-  // Today's opening hours (single line)
-  const todayKey   = DAYS[now.getDay()];
-  const todayEntry = profile?.openingHours?.[todayKey];
+  // Today's hours — single line
+  const todayKey      = DAYS[now.getDay()];
+  const todayEntry    = profile?.openingHours?.[todayKey];
   const hasTodayEntry = profile?.openingHours != null && todayKey in profile.openingHours;
-  const todayLabel = hasTodayEntry
+  const todayLabel    = hasTodayEntry
     ? (todayEntry ? `Open today: ${todayEntry.open} – ${todayEntry.close}` : "Closed today")
     : null;
 
-  // ── loading / error ─────────────────────────────────────────────────────────
+  // ── loading / error ──────────────────────────────────────────────────────────
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: "#0F0F12" }]}>
@@ -189,30 +328,32 @@ export default function VenueProfileScreen() {
     );
   }
 
-  // ── render ──────────────────────────────────────────────────────────────────
+  // ── render ───────────────────────────────────────────────────────────────────
   return (
     <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <View style={styles.heroContainer}>
+      <View style={styles.heroWrap}>
+        {/* Cover photo — explicit dimensions so it always renders */}
         {profile.coverPhotoUrl ? (
           <Image
             source={{ uri: profile.coverPhotoUrl }}
-            style={StyleSheet.absoluteFillObject}
+            style={styles.heroCover}
             resizeMode="cover"
             accessibilityIgnoresInvertColors
           />
         ) : (
-          <View style={[StyleSheet.absoluteFillObject, styles.heroFallback]}>
-            <Text style={styles.heroFallbackEmoji}>🏛️</Text>
+          <View style={[styles.heroCover, styles.heroCoverFallback]}>
+            <Text style={styles.heroCoverEmoji}>🏛️</Text>
           </View>
         )}
 
-        {/* Gradient — transparent top → solid bottom */}
+        {/* Gradient overlaid on top of image */}
         <LinearGradient
           colors={["transparent", "rgba(15,15,18,0.55)", "#0F0F12"]}
           locations={[0.35, 0.72, 1]}
           style={StyleSheet.absoluteFillObject}
+          pointerEvents="none"
         />
 
         {/* Close button */}
@@ -224,20 +365,34 @@ export default function VenueProfileScreen() {
           <Text style={styles.closeBtnText}>✕</Text>
         </Pressable>
 
-        {/* Identity overlaid at the bottom of the hero */}
+        {/* Identity row — bottom of hero */}
         <View style={styles.heroIdentity}>
           {profile.logoUrl ? (
-            <Image source={{ uri: profile.logoUrl }} style={styles.heroLogo} resizeMode="cover" accessibilityIgnoresInvertColors />
+            <Image
+              source={{ uri: profile.logoUrl }}
+              style={styles.heroLogo}
+              resizeMode="cover"
+              accessibilityIgnoresInvertColors
+            />
           ) : (
-            <View style={[styles.heroLogoFallback]}>
-              <Text style={styles.heroLogoChar}>{profile.businessName.charAt(0).toUpperCase()}</Text>
+            <View style={styles.heroLogoFallback}>
+              <Text style={styles.heroLogoChar}>
+                {profile.businessName.charAt(0).toUpperCase()}
+              </Text>
             </View>
           )}
           <View style={styles.heroNameCol}>
             <View style={styles.heroNameRow}>
-              <Text numberOfLines={1} style={styles.heroName}>{profile.businessName}</Text>
+              <Text numberOfLines={1} style={styles.heroName}>
+                {profile.businessName}
+              </Text>
               {profile.isVerified && (
-                <View style={[styles.verifiedBadge, { backgroundColor: colors.primary + "25", borderColor: colors.primary + "70" }]}>
+                <View
+                  style={[
+                    styles.verifiedBadge,
+                    { backgroundColor: colors.primary + "25", borderColor: colors.primary + "70" },
+                  ]}
+                >
                   <Text style={[styles.verifiedText, { color: colors.primary }]}>✓ Verified</Text>
                 </View>
               )}
@@ -249,58 +404,36 @@ export default function VenueProfileScreen() {
         </View>
       </View>
 
-      {/* ── Scrollable content ─────────────────────────────────────────────── */}
+      {/* ── Scrollable body ───────────────────────────────────────────────── */}
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
       >
-
         {/* Description */}
         {profile.description ? (
           <View style={styles.section}>
-            <Text style={styles.descriptionText}>{profile.description}</Text>
+            <Text style={styles.description}>{profile.description}</Text>
           </View>
         ) : null}
 
-        {/* ── Kings & Queens ───────────────────────────────────────────────── */}
-        {topVisitors.length > 0 && (
-          <View style={styles.section}>
-            <SectionHeader title="Kings & Queens" icon="👑" />
-            <View style={styles.kqRow}>
-              {topVisitors.map((v, i) => (
-                <View key={v.uid} style={[styles.kqCard, { backgroundColor: "#1A1A1E", borderColor: i === 0 ? "#FFD70040" : "rgba(255,255,255,0.06)" }]}>
-                  <Text style={styles.kqMedal}>{["🥇","🥈","🥉"][i]}</Text>
-                  {v.photoUrl ? (
-                    <Image source={{ uri: v.photoUrl }} style={styles.kqAvatar} accessibilityIgnoresInvertColors />
-                  ) : (
-                    <View style={[styles.kqAvatar, styles.kqAvatarFallback]}>
-                      <Text style={styles.kqAvatarChar}>{v.displayName.charAt(0).toUpperCase()}</Text>
-                    </View>
-                  )}
-                  <Text numberOfLines={1} style={styles.kqName}>{v.displayName}</Text>
-                  <Text style={[styles.kqCount, { color: i === 0 ? "#FFD700" : "rgba(255,255,255,0.4)" }]}>{v.checkinCount}</Text>
-                  <Text style={styles.kqCountLabel}>check-ins</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* ── Active reward ────────────────────────────────────────────────── */}
+        {/* ── 1. Be the Winner ─────────────────────────────────────────────── */}
         {activeReward && (
           <View style={styles.section}>
-            <RewardCard reward={activeReward} />
+            <SectionHeader title="Be the Winner" icon="🏆" />
+            <BeTheWinnerCard reward={activeReward} onPress={() => setWinnerModal(true)} />
           </View>
         )}
 
-        {/* ── Announcements ────────────────────────────────────────────────── */}
+        {/* ── 2. Announcements ─────────────────────────────────────────────── */}
         {announcements.length > 0 && (
           <View style={styles.section}>
             <SectionHeader title="Announcements" icon="📢" />
             {announcements.slice(0, 5).map((ann) => (
-              <View key={ann.id} style={[styles.annCard, { backgroundColor: "#1A1A1E", borderColor: "rgba(255,255,255,0.07)" }]}>
-                {/* Announcement image */}
+              <View
+                key={ann.id}
+                style={[styles.annCard, { backgroundColor: "#1A1A1E", borderColor: "rgba(255,255,255,0.07)" }]}
+              >
                 {"imageUrl" in ann && (ann as { imageUrl?: string | null }).imageUrl ? (
                   <Image
                     source={{ uri: (ann as { imageUrl: string }).imageUrl }}
@@ -324,8 +457,49 @@ export default function VenueProfileScreen() {
           </View>
         )}
 
-        {/* ── Upcoming events ──────────────────────────────────────────────── */}
-        {upcomingEvents.length > 0 ? (
+        {/* ── 3. Leaderboards ──────────────────────────────────────────────── */}
+        {topVisitors.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader title="Leaderboards" icon="🏅" />
+            <View style={styles.lbRow}>
+              {topVisitors.map((v, i) => (
+                <View
+                  key={v.uid}
+                  style={[
+                    styles.lbCard,
+                    {
+                      backgroundColor: "#1A1A1E",
+                      borderColor: i === 0 ? "#FFD70040" : "rgba(255,255,255,0.06)",
+                    },
+                  ]}
+                >
+                  <Text style={styles.lbMedal}>{["🥇", "🥈", "🥉"][i]}</Text>
+                  {v.photoUrl ? (
+                    <Image
+                      source={{ uri: v.photoUrl }}
+                      style={styles.lbAvatar}
+                      accessibilityIgnoresInvertColors
+                    />
+                  ) : (
+                    <View style={[styles.lbAvatar, styles.lbAvatarFallback]}>
+                      <Text style={styles.lbAvatarChar}>
+                        {v.displayName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <Text numberOfLines={1} style={styles.lbName}>{v.displayName}</Text>
+                  <Text style={[styles.lbCount, { color: i === 0 ? "#FFD700" : "rgba(255,255,255,0.4)" }]}>
+                    {v.checkinCount}
+                  </Text>
+                  <Text style={styles.lbCountLabel}>check-ins</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* ── Upcoming Events ───────────────────────────────────────────────── */}
+        {upcomingEvents.length > 0 && (
           <View style={styles.section}>
             <SectionHeader title="Upcoming Events" icon="🎉" />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hScroll}>
@@ -334,15 +508,19 @@ export default function VenueProfileScreen() {
               ))}
             </ScrollView>
           </View>
-        ) : null}
+        )}
 
-        {/* ── Contact ─────────────────────────────────────────────────────── */}
+        {/* ── Contact ──────────────────────────────────────────────────────── */}
         {(profile.phone || profile.websiteUrl || profile.publicEmail) && (
           <View style={styles.section}>
             <SectionHeader title="Contact" icon="📬" />
             <View style={[styles.contactCard, { backgroundColor: "#1A1A1E", borderColor: "rgba(255,255,255,0.07)" }]}>
               {profile.phone && (
-                <Pressable style={styles.contactRow} onPress={() => void Linking.openURL(`tel:${profile.phone}`)} accessibilityRole="link">
+                <Pressable
+                  style={styles.contactRow}
+                  onPress={() => void Linking.openURL(`tel:${profile.phone}`)}
+                  accessibilityRole="link"
+                >
                   <Text style={styles.contactIcon}>📞</Text>
                   <Text style={[styles.contactLink, { color: colors.primary }]}>{profile.phone}</Text>
                 </Pressable>
@@ -350,48 +528,61 @@ export default function VenueProfileScreen() {
               {profile.websiteUrl && (
                 <Pressable
                   style={styles.contactRow}
-                  onPress={() => void Linking.openURL(profile.websiteUrl!.startsWith("http") ? profile.websiteUrl! : `https://${profile.websiteUrl}`)}
+                  onPress={() =>
+                    void Linking.openURL(
+                      profile.websiteUrl!.startsWith("http")
+                        ? profile.websiteUrl!
+                        : `https://${profile.websiteUrl}`,
+                    )
+                  }
                   accessibilityRole="link"
                 >
                   <Text style={styles.contactIcon}>🌐</Text>
-                  <Text style={[styles.contactLink, { color: colors.primary }]} numberOfLines={1}>{profile.websiteUrl}</Text>
+                  <Text style={[styles.contactLink, { color: colors.primary }]} numberOfLines={1}>
+                    {profile.websiteUrl}
+                  </Text>
                 </Pressable>
               )}
               {profile.publicEmail && (
-                <Pressable style={styles.contactRow} onPress={() => void Linking.openURL(`mailto:${profile.publicEmail}`)} accessibilityRole="link">
+                <Pressable
+                  style={styles.contactRow}
+                  onPress={() => void Linking.openURL(`mailto:${profile.publicEmail}`)}
+                  accessibilityRole="link"
+                >
                   <Text style={styles.contactIcon}>✉️</Text>
-                  <Text style={[styles.contactLink, { color: colors.primary }]} numberOfLines={1}>{profile.publicEmail}</Text>
+                  <Text style={[styles.contactLink, { color: colors.primary }]} numberOfLines={1}>
+                    {profile.publicEmail}
+                  </Text>
                 </Pressable>
               )}
             </View>
           </View>
         )}
 
-        {/* ── Today's hours (1 line) ───────────────────────────────────────── */}
+        {/* ── Today's hours ─────────────────────────────────────────────────── */}
         {todayLabel && (
           <View style={styles.hoursLine}>
             <Text style={styles.hoursIcon}>🕐</Text>
-            <Text style={[styles.hoursText, { color: todayEntry ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.35)" }]}>
+            <Text
+              style={[
+                styles.hoursText,
+                { color: todayEntry ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.35)" },
+              ]}
+            >
               {todayLabel}
             </Text>
           </View>
         )}
-
       </ScrollView>
 
-      {/* ── Check-in FAB ─────────────────────────────────────────────────── */}
-      <View style={[styles.fab, { bottom: insets.bottom + 20 }]}>
-        <Pressable
-          onPress={attemptCheckin}
-          style={[styles.fabBtn, { backgroundColor: colors.primary }]}
-          accessibilityRole="button"
-          accessibilityLabel="Check in to this venue"
-        >
-          <Text style={styles.fabBtnText}>
-            {hubState?.placeId === placeId ? "✓ Checked In" : "Check In Here"}
-          </Text>
-        </Pressable>
-      </View>
+      {/* ── How-to-win modal ─────────────────────────────────────────────── */}
+      {activeReward && (
+        <WinnerModal
+          reward={activeReward}
+          visible={winnerModal}
+          onClose={() => setWinnerModal(false)}
+        />
+      )}
     </View>
   );
 }
@@ -399,16 +590,19 @@ export default function VenueProfileScreen() {
 // ─── styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root:   { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  root:      { flex: 1 },
+  center:    { flex: 1, alignItems: "center", justifyContent: "center" },
   errorText: { color: "rgba(255,255,255,0.5)", fontSize: 16 },
   retryBtn:  { marginTop: 12 },
   retryText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
-  // Hero
-  heroContainer: { width: "100%", height: 320, position: "relative" },
-  heroFallback:  { backgroundColor: "#1A1A1E", alignItems: "center", justifyContent: "center" },
-  heroFallbackEmoji: { fontSize: 64 },
+  // Hero — image rendered as first child so it has proper dimensions,
+  // gradient and overlays are absolutely positioned on top.
+  heroWrap: { width: "100%", height: 320, overflow: "hidden" },
+  heroCover: { width: "100%", height: 320 },
+  heroCoverFallback: { backgroundColor: "#1A1A1E", alignItems: "center", justifyContent: "center" },
+  heroCoverEmoji: { fontSize: 64 },
+
   closeBtn: {
     position: "absolute",
     right: 16,
@@ -421,6 +615,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   closeBtnText: { color: "#fff", fontSize: 14 },
+
   heroIdentity: {
     position: "absolute",
     bottom: 16,
@@ -430,7 +625,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 12,
   },
-  heroLogo: { width: 60, height: 60, borderRadius: 14, borderWidth: 2, borderColor: "rgba(255,255,255,0.2)" },
+  heroLogo: {
+    width: 60, height: 60, borderRadius: 14,
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.2)",
+  },
   heroLogoFallback: {
     width: 60, height: 60, borderRadius: 14,
     backgroundColor: "#2C2C2E",
@@ -440,45 +638,50 @@ const styles = StyleSheet.create({
   heroLogoChar: { fontSize: 26, fontFamily: "Inter_700Bold", color: "#fff" },
   heroNameCol:  { flex: 1 },
   heroNameRow:  { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  heroName:     { color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold", flexShrink: 1, textShadowColor: "rgba(0,0,0,0.6)", textShadowRadius: 4 },
+  heroName: {
+    color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold",
+    flexShrink: 1,
+    textShadowColor: "rgba(0,0,0,0.6)", textShadowRadius: 4,
+  },
   verifiedBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   verifiedText:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  heroTagline:   { color: "rgba(255,255,255,0.65)", fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 3 },
+  heroTagline: {
+    color: "rgba(255,255,255,0.65)", fontSize: 13,
+    fontFamily: "Inter_400Regular", marginTop: 3,
+  },
 
   // Scroll
   scroll:   { flex: 1 },
   section:  { paddingHorizontal: 16, marginBottom: 28 },
   hScroll:  { marginHorizontal: -16, paddingHorizontal: 16 },
 
-  // Description
-  descriptionText: { color: "rgba(255,255,255,0.7)", fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, marginTop: 16 },
-
-  // Kings & Queens
-  kqRow:  { flexDirection: "row", gap: 10 },
-  kqCard: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 12,
-    alignItems: "center",
-    gap: 4,
+  description: {
+    color: "rgba(255,255,255,0.7)", fontSize: 14,
+    fontFamily: "Inter_400Regular", lineHeight: 22, marginTop: 16,
   },
-  kqMedal:        { fontSize: 22 },
-  kqAvatar:       { width: 44, height: 44, borderRadius: 22 },
-  kqAvatarFallback: { backgroundColor: "#2C2C2E", alignItems: "center", justifyContent: "center" },
-  kqAvatarChar:   { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
-  kqName:         { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)", textAlign: "center" },
-  kqCount:        { fontSize: 18, fontFamily: "Inter_700Bold" },
-  kqCountLabel:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.35)" },
 
   // Announcements
-  annCard:  { borderRadius: 12, borderWidth: 1, marginBottom: 10, overflow: "hidden" },
-  annImage: { width: "100%", height: 130 },
-  annBody:  { padding: 14 },
+  annCard:   { borderRadius: 12, borderWidth: 1, marginBottom: 10, overflow: "hidden" },
+  annImage:  { width: "100%", height: 130 },
+  annBody:   { padding: 14 },
   annPinned: { fontSize: 11, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
   annTitle:  { color: "rgba(255,255,255,0.92)", fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 6 },
   annText:   { color: "rgba(255,255,255,0.6)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, marginBottom: 6 },
   annDate:   { color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "Inter_400Regular" },
+
+  // Leaderboards
+  lbRow:  { flexDirection: "row", gap: 10 },
+  lbCard: {
+    flex: 1, borderRadius: 14, borderWidth: 1,
+    padding: 12, alignItems: "center", gap: 4,
+  },
+  lbMedal:        { fontSize: 22 },
+  lbAvatar:       { width: 44, height: 44, borderRadius: 22 },
+  lbAvatarFallback: { backgroundColor: "#2C2C2E", alignItems: "center", justifyContent: "center" },
+  lbAvatarChar:   { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
+  lbName:         { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)", textAlign: "center" },
+  lbCount:        { fontSize: 18, fontFamily: "Inter_700Bold" },
+  lbCountLabel:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.35)" },
 
   // Contact
   contactCard: { borderRadius: 12, borderWidth: 1, paddingVertical: 4, paddingHorizontal: 14 },
@@ -487,20 +690,7 @@ const styles = StyleSheet.create({
   contactLink: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
 
   // Today's hours
-  hoursLine: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
+  hoursLine: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, marginBottom: 16 },
   hoursIcon: { fontSize: 14 },
   hoursText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-
-  // FAB
-  fab: { position: "absolute", left: 24, right: 24 },
-  fabBtn: {
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: "center",
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  fabBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
 });
