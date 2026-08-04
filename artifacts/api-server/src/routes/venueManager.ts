@@ -1,6 +1,6 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { and, count, desc, eq, gte, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, gt, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   db,
@@ -708,6 +708,24 @@ router.post("/venue-manager/register", authLimit, async (req, res): Promise<void
   // All writes are inside one transaction so a failure at any step rolls
   // everything back atomically — no orphaned manager rows on retry.
   const manager = await db.transaction(async (tx) => {
+    // Remove any stale active-owner memberships for this business whose
+    // manager account has been deleted or was never set (null). These
+    // accumulate when a prior registration attempt partially succeeded
+    // and would cause a unique-constraint violation on the insert below.
+    await tx.delete(venueMembershipsTable).where(
+      and(
+        eq(venueMembershipsTable.businessId, business.id),
+        eq(venueMembershipsTable.role, "owner"),
+        eq(venueMembershipsTable.status, "active"),
+        or(
+          isNull(venueMembershipsTable.managerId),
+          notInArray(
+            venueMembershipsTable.managerId,
+            tx.select({ id: venueManagersTable.id }).from(venueManagersTable),
+          ),
+        ),
+      ),
+    );
     const [mgr] = await tx
       .insert(venueManagersTable)
       .values({ email, displayName, passwordHash })
