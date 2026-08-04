@@ -1,8 +1,8 @@
 /**
  * VenueEventCard
  *
- * Compact card showing a venue event with image, title, date, RSVP count,
- * and an RSVP action button. Used in:
+ * Redesigned event card — large hero image with date/time and RSVP count
+ * overlaid, prominent RSVP button below. Used in:
  *   - Public venue profile horizontal scroll
  *   - Home tab "Events Near Me" section
  */
@@ -15,6 +15,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
@@ -83,59 +84,68 @@ export function VenueEventCard({ event, onRsvpChange }: Props) {
   const isGoing = myRsvp === "going";
 
   return (
-    <View style={[styles.card, { backgroundColor: "#1A1A1E", borderColor: "rgba(255,255,255,0.08)" }]}>
-      {event.imageUrl ? (
-        <Image
-          source={{ uri: event.imageUrl }}
-          style={styles.image}
-          resizeMode="cover"
-          accessibilityIgnoresInvertColors
-        />
-      ) : (
-        <View style={[styles.imageFallback, { backgroundColor: "#2C2C2E" }]}>
-          <Text style={styles.imageFallbackEmoji}>📅</Text>
-        </View>
-      )}
+    <View style={[styles.card, { backgroundColor: "#1A1A1E" }]}>
 
-      <View style={styles.content}>
-        <Text numberOfLines={2} style={styles.title}>
-          {event.title}
-        </Text>
-        <Text style={[styles.date, { color: colors.primary }]}>
-          {formatEventDate(event.startsAt)}
-        </Text>
-        <View style={styles.footer}>
-          <Text style={styles.rsvpCount}>
+      {/* ── Image hero with overlays ── */}
+      <View style={styles.imageWrap}>
+        {event.imageUrl ? (
+          <Image
+            source={{ uri: event.imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+            accessibilityIgnoresInvertColors
+          />
+        ) : (
+          <View style={[styles.image, styles.imageFallback]}>
+            <Text style={styles.imageFallbackEmoji}>🎉</Text>
+          </View>
+        )}
+
+        {/* Gradient overlay — bottom only */}
+        <LinearGradient
+          colors={["transparent", "rgba(15,15,18,0.82)"]}
+          locations={[0.4, 1]}
+          style={[StyleSheet.absoluteFillObject, styles.imageGradient]}
+        />
+
+        {/* RSVP count pill — top right */}
+        <View style={[styles.rsvpPill, { backgroundColor: "rgba(0,0,0,0.55)" }]}>
+          <Text style={styles.rsvpPillText}>
             {rsvpCount} {rsvpCount === 1 ? "going" : "going"}
           </Text>
-
-          <Pressable
-            onPress={() => handleRsvp(isGoing ? "not_going" : "going")}
-            style={[
-              styles.rsvpBtn,
-              {
-                backgroundColor: isGoing ? colors.primary : "transparent",
-                borderColor: colors.primary,
-              },
-            ]}
-            disabled={loading}
-            accessibilityRole="button"
-            accessibilityLabel={isGoing ? "Cancel RSVP" : "RSVP Going"}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color={isGoing ? "#fff" : colors.primary} />
-            ) : (
-              <Text
-                style={[
-                  styles.rsvpBtnText,
-                  { color: isGoing ? "#fff" : colors.primary },
-                ]}
-              >
-                {isGoing ? "✓ Going" : "RSVP"}
-              </Text>
-            )}
-          </Pressable>
         </View>
+
+        {/* Date/time — bottom left */}
+        <Text style={[styles.dateOverlay, { color: colors.primary }]}>
+          {formatEventDate(event.startsAt)}
+        </Text>
+      </View>
+
+      {/* ── Title + RSVP button ── */}
+      <View style={styles.footer}>
+        <Text numberOfLines={2} style={styles.title}>{event.title}</Text>
+
+        <Pressable
+          onPress={() => handleRsvp(isGoing ? "not_going" : "going")}
+          style={[
+            styles.rsvpBtn,
+            {
+              backgroundColor: isGoing ? colors.primary : "transparent",
+              borderColor: colors.primary,
+            },
+          ]}
+          disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel={isGoing ? "Cancel RSVP" : "RSVP Going"}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={isGoing ? "#fff" : colors.primary} />
+          ) : (
+            <Text style={[styles.rsvpBtnText, { color: isGoing ? "#fff" : colors.primary }]}>
+              {isGoing ? "✓ Going" : "RSVP"}
+            </Text>
+          )}
+        </Pressable>
       </View>
     </View>
   );
@@ -143,59 +153,62 @@ export function VenueEventCard({ event, onRsvpChange }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    width: 220,
-    borderRadius: 12,
-    borderWidth: 1,
+    width: 260,
+    borderRadius: 16,
     overflow: "hidden",
-    marginRight: 12,
+    marginRight: 14,
   },
-  image: {
-    width: "100%",
-    height: 110,
+
+  // Image
+  imageWrap:        { position: "relative" },
+  image:            { width: "100%", height: 155 },
+  imageFallback:    { backgroundColor: "#2C2C2E", alignItems: "center", justifyContent: "center" },
+  imageFallbackEmoji: { fontSize: 42 },
+  imageGradient:    { borderRadius: 0 },
+
+  // Overlays
+  rsvpPill: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
-  imageFallback: {
-    width: "100%",
-    height: 110,
-    alignItems: "center",
-    justifyContent: "center",
+  rsvpPillText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.85)",
   },
-  imageFallbackEmoji: {
-    fontSize: 36,
+  dateOverlay: {
+    position: "absolute",
+    bottom: 10,
+    left: 12,
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
   },
-  content: {
-    padding: 10,
+
+  // Footer
+  footer: {
+    padding: 12,
+    gap: 10,
   },
   title: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     color: "rgba(255,255,255,0.92)",
-    marginBottom: 4,
+    lineHeight: 21,
   },
-  date: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-    marginBottom: 8,
-  },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  rsvpCount: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.45)",
-    fontFamily: "Inter_400Regular",
-  },
+
+  // RSVP button
   rsvpBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1.5,
-    minWidth: 68,
+    paddingVertical: 8,
     alignItems: "center",
   },
   rsvpBtnText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
   },
 });
