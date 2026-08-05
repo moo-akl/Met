@@ -268,6 +268,18 @@ function HubStatusBadgeInner({
     } as never);
   };
 
+  const handleScanQr = () => {
+    if (hubState.isMock) return;
+    router.push({
+      pathname: "/qr-scan",
+      params: { placeId: hubState.placeId, placeName: hubState.placeName },
+    } as never);
+  };
+
+  // Show the "Scan QR → Unlock Reward" prompt when at a registered venue
+  // that hasn't been QR-verified yet this session.
+  const showQrCta = hubState.isRegisteredVenue && !hubState.isQrVerified && !hubState.isMock;
+
   return (
     <>
       {/* Modal renders on top regardless of whether a hub badge is already active */}
@@ -348,6 +360,22 @@ function HubStatusBadgeInner({
           ) : null}
         </View>
       </Pressable>
+
+      {/* "Scan QR → Unlock Reward" CTA — shown when at a registered venue
+          that hasn't been QR-verified yet this check-in session. */}
+      {showQrCta && (
+        <Pressable
+          onPress={handleScanQr}
+          style={[styles.qrCta, { backgroundColor: colors.primary }]}
+          accessibilityRole="button"
+          accessibilityLabel="Scan the venue QR code to unlock your reward"
+        >
+          <Text style={styles.qrCtaIcon}>🔍</Text>
+          <Text style={[styles.qrCtaText, { color: colors.primaryForeground }]}>
+            You're here! Scan QR → Unlock Reward
+          </Text>
+        </Pressable>
+      )}
     </Animated.View>
     </>
   );
@@ -461,5 +489,28 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: "#FFFFFF",
     letterSpacing: 0.5,
+  },
+  qrCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  qrCtaIcon: {
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  qrCtaText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
   },
 });

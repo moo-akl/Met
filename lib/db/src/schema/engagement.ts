@@ -250,3 +250,34 @@ export const subscriptionsTable = pgTable("subscriptions", {
 });
 
 export type Subscription = typeof subscriptionsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// venue_qr_verifications
+// Records when a user scans the venue's entrance QR code to prove physical
+// presence and unlock reward eligibility for their current check-in session.
+// One row per (user, placeId) scan event; multiple rows allowed across days.
+// The server gates reward eligibility on whether a row exists within the same
+// 4-hour cooldown window as the user's latest hub check-in.
+// ---------------------------------------------------------------------------
+export const venueQrVerificationsTable = pgTable(
+  "venue_qr_verifications",
+  {
+    id: serial("id").primaryKey(),
+    userUid: text("user_uid").notNull(),
+    placeId: text("place_id").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    userPlaceIdx: index("venue_qr_verifications_user_place_idx").on(
+      t.userUid,
+      t.placeId,
+    ),
+    verifiedAtIdx: index("venue_qr_verifications_verified_at_idx").on(
+      t.verifiedAt,
+    ),
+  }),
+);
+
+export type VenueQrVerification = typeof venueQrVerificationsTable.$inferSelect;

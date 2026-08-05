@@ -21,6 +21,8 @@ import {
   trophiesTable,
   subscriptionsTable,
   revealRequestsTable,
+  venueOwnerProfilesTable,
+  venueQrVerificationsTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
@@ -426,12 +428,160 @@ router.post(
       `).catch(() => {});
     }
 
+    // Check whether this is a registered (approved) venue, and whether the user
+    // has already QR-verified their presence within the 4-hour cooldown window.
+    const [registeredRow, qrRow] = await Promise.all([
+      db
+        .select({ id: venueOwnerProfilesTable.id })
+        .from(venueOwnerProfilesTable)
+        .where(
+          and(
+            eq(venueOwnerProfilesTable.placeId, place.placeId),
+            eq(venueOwnerProfilesTable.isApproved, true),
+          ),
+        )
+        .limit(1),
+      db
+        .select({ verifiedAt: venueQrVerificationsTable.verifiedAt })
+        .from(venueQrVerificationsTable)
+        .where(
+          and(
+            eq(venueQrVerificationsTable.userUid, uid),
+            eq(venueQrVerificationsTable.placeId, place.placeId),
+            gte(
+              venueQrVerificationsTable.verifiedAt,
+              new Date(now.getTime() - CHECKIN_COOLDOWN_MS),
+            ),
+          ),
+        )
+        .orderBy(desc(venueQrVerificationsTable.verifiedAt))
+        .limit(1),
+    ]);
+
+    const isRegisteredVenue = registeredRow.length > 0;
+    const isQrVerified = qrRow.length > 0;
+
     res.json({
       placeId: place.placeId,
       placeName: place.displayName,
       streak,
       streak_points: streakPoints,
       checkin_multiplier: checkinMultiplier,
+      isRegisteredVenue,
+      isQrVerified,
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// POST /api/hubs/qr-verify
+// Validates the venue's QR token and records the user's physical presence,
+// unlocking reward eligibility for their current check-in session.
+// Body: { placeId: string, token: string }
+// ---------------------------------------------------------------------------
+
+const QrVerifyBody = z.object({
+  placeId: z.string().min(1),
+  token: z.string().uuid(),
+});
+
+router.post(
+  "/hubs/qr-verify",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const parsed = QrVerifyBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "placeId and a valid token are required" });
+      return;
+    }
+    const { placeId, token } = parsed.data;
+
+    // Look up the venue and validate the token.
+    const [venue] = await db
+      .select({
+        id: venueOwnerProfilesTable.id,
+        qrToken: venueOwnerProfilesTable.qrToken,
+      })
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.placeId, placeId),
+          eq(venueOwnerProfilesTable.isApproved, true),
+        ),
+      )
+      .limit(1);
+
+    if (!venue) {
+      res.status(404).json({ message: "Venue not found or not approved" });
+      return;
+    }
+
+    if (!venue.qrToken || venue.qrToken !== token) {
+      res.status(403).json({ message: "Invalid QR code" });
+      return;
+    }
+
+    // Record the verification (upsert-style: insert always — multiple scans in
+    // the same session are harmless; the status query looks at the most recent).
+    await db.insert(venueQrVerificationsTable).values({
+      userUid: uid,
+      placeId,
+    });
+
+    logger.info({ uid, placeId }, "venue QR verification recorded");
+
+    res.json({ verified: true });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/hubs/:placeId/checkin-status
+// Returns whether the given place is a registered venue and whether the
+// authenticated user has QR-verified their presence within the last 4 hours.
+// Used by the venue page to decide whether to show the lock overlay.
+// NOTE: must be registered BEFORE GET /hubs/:placeId/leaderboard.
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/hubs/:placeId/checkin-status",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const { placeId } = req.params as { placeId: string };
+    const now = new Date();
+
+    const [registeredRow, qrRow] = await Promise.all([
+      db
+        .select({ id: venueOwnerProfilesTable.id })
+        .from(venueOwnerProfilesTable)
+        .where(
+          and(
+            eq(venueOwnerProfilesTable.placeId, placeId),
+            eq(venueOwnerProfilesTable.isApproved, true),
+          ),
+        )
+        .limit(1),
+      db
+        .select({ verifiedAt: venueQrVerificationsTable.verifiedAt })
+        .from(venueQrVerificationsTable)
+        .where(
+          and(
+            eq(venueQrVerificationsTable.userUid, uid),
+            eq(venueQrVerificationsTable.placeId, placeId),
+            gte(
+              venueQrVerificationsTable.verifiedAt,
+              new Date(now.getTime() - CHECKIN_COOLDOWN_MS),
+            ),
+          ),
+        )
+        .orderBy(desc(venueQrVerificationsTable.verifiedAt))
+        .limit(1),
+    ]);
+
+    res.json({
+      isRegisteredVenue: registeredRow.length > 0,
+      isQrVerified: qrRow.length > 0,
     });
   },
 );

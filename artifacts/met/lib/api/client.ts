@@ -724,11 +724,41 @@ export const api = {
       placeName?: string;
     },
   ) =>
-    request<{ placeId: string; placeName: string; streak: number }>(
+    request<{
+      placeId: string;
+      placeName: string;
+      streak: number;
+      isRegisteredVenue?: boolean;
+      isQrVerified?: boolean;
+    }>(
       "POST",
       "/api/hubs/checkin",
       opts,
       input,
+    ),
+  /**
+   * Validate a venue QR code token and record the user's physical presence,
+   * unlocking reward eligibility for the current check-in session.
+   */
+  hubQrVerify: (
+    opts: ApiOptions,
+    input: { placeId: string; token: string },
+  ) =>
+    request<{ verified: boolean }>(
+      "POST",
+      "/api/hubs/qr-verify",
+      opts,
+      input,
+    ),
+  /**
+   * Check whether a venue is a registered (approved) venue and whether the
+   * authenticated user has QR-verified their presence within the last 4 h.
+   */
+  hubCheckinStatus: (opts: ApiOptions, placeId: string) =>
+    request<{ isRegisteredVenue: boolean; isQrVerified: boolean }>(
+      "GET",
+      `/api/hubs/${encodeURIComponent(placeId)}/checkin-status`,
+      opts,
     ),
   /**
    * Record that the caller viewed another user's profile.

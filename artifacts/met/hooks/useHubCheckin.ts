@@ -29,6 +29,11 @@ import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError, type VenueResult } from "@/lib/api/client";
+import {
+  getQrVerified,
+  markQrVerified,
+  subscribeQrVerification,
+} from "@/lib/qrVerificationState";
 
 export type { VenueResult };
 
@@ -41,6 +46,10 @@ export interface HubState {
   placeName: string;
   streak: number;
   isMock: boolean;
+  /** True when this venue is an approved registered venue (has a venue profile). */
+  isRegisteredVenue: boolean;
+  /** True when the user has scanned the venue's QR code in the current session. */
+  isQrVerified: boolean;
 }
 
 const MOCK_HUB_STATE: HubState = {
@@ -48,6 +57,8 @@ const MOCK_HUB_STATE: HubState = {
   placeName: "Mock Check-in",
   streak: 3,
   isMock: true,
+  isRegisteredVenue: false,
+  isQrVerified: false,
 };
 
 export function useHubCheckin(): {
@@ -59,6 +70,9 @@ export function useHubCheckin(): {
   /** Bypass the 5-minute debounce and immediately run a location + nearby
    *  lookup.  Safe to call from UI (e.g. "Check in" CTA). */
   attemptCheckin: () => void;
+  /** Mark the current checked-in venue as QR-verified. Called after a
+   *  successful qr-scan.tsx verification. */
+  setQrVerified: (placeId: string) => void;
 } {
   const { authedUid } = useApp();
   const [hubState, setHubState] = useState<HubState | null>(null);
@@ -91,6 +105,28 @@ export function useHubCheckin(): {
     };
   }, []);
 
+  // Subscribe to QR verification events fired from qr-scan.tsx.
+  useEffect(() => {
+    const unsub = subscribeQrVerification((placeId) => {
+      if (!mountedRef.current) return;
+      setHubState((prev) => {
+        if (!prev || prev.placeId !== placeId) return prev;
+        return { ...prev, isQrVerified: true };
+      });
+    });
+    return unsub;
+  }, []);
+
+  /** Mark the given venue as QR-verified in both the module store and React state. */
+  const setQrVerified = useCallback((placeId: string) => {
+    markQrVerified(placeId);
+    if (!mountedRef.current) return;
+    setHubState((prev) => {
+      if (!prev || prev.placeId !== placeId) return prev;
+      return { ...prev, isQrVerified: true };
+    });
+  }, []);
+
   /**
    * Calls POST /api/hubs/checkin with the chosen venue and stored GPS position.
    * Stable (only uses refs) so it can be a dependency-free useCallback and used
@@ -112,11 +148,16 @@ export function useHubCheckin(): {
           },
         );
         if (mountedRef.current) {
+          // Merge server response with in-session QR verification state.
+          const isQrVerified =
+            result.isQrVerified ?? getQrVerified(result.placeId);
           const newState: HubState = {
             placeId: result.placeId,
             placeName: result.placeName,
             streak: result.streak,
             isMock: false,
+            isRegisteredVenue: result.isRegisteredVenue ?? false,
+            isQrVerified,
           };
           setHubState(newState);
           setCooldownMinutes(null);
@@ -260,7 +301,15 @@ export function useHubCheckin(): {
           if (Date.now() - parsed.checkedInAt < CHECKIN_COOLDOWN_MS) {
             // Still within cooldown — restore badge state and push the
             // debounce clock forward so the immediate doCheckin() is skipped.
-            setHubState(parsed.hubState);
+            // Merge persisted state with any in-session QR verification.
+            const restoredState: HubState = {
+              ...parsed.hubState,
+              // Upgrade isQrVerified if the user scanned since last persist.
+              isQrVerified:
+                parsed.hubState.isQrVerified ||
+                getQrVerified(parsed.hubState.placeId),
+            };
+            setHubState(restoredState);
             lastFiredAt.current = Date.now();
           }
         }
@@ -282,5 +331,5 @@ export function useHubCheckin(): {
     void doCheckinRef.current?.();
   }, []);
 
-  return { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin };
+  return { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin, setQrVerified };
 }

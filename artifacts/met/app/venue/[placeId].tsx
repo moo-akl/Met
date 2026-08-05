@@ -13,7 +13,7 @@
  *   6. Upcoming events (horizontal scroll)
  *   7. Info & Contact (unified white card)
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -27,7 +27,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import {
   api,
@@ -37,6 +37,11 @@ import {
   type VenueAnnouncement,
 } from "@/lib/api/client";
 import { VenueEventCard } from "@/components/VenueEventCard";
+import {
+  getQrVerified,
+  markQrVerified,
+  subscribeQrVerification,
+} from "@/lib/qrVerificationState";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -269,7 +274,7 @@ const bw = StyleSheet.create({
 // ─── main screen ─────────────────────────────────────────────────────────────
 
 export default function VenueProfileScreen() {
-  const { placeId } = useLocalSearchParams<{ placeId: string }>();
+  const { placeId, qrToken } = useLocalSearchParams<{ placeId: string; qrToken?: string }>();
   const { authedUid } = useApp();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -285,6 +290,34 @@ export default function VenueProfileScreen() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(false);
   const [winnerModal, setWinnerModal] = useState(false);
+
+  // QR verification state — initialised from the in-session module cache so
+  // navigating to the venue page after a successful qr-scan shows it unlocked.
+  const [isQrVerified, setIsQrVerified] = useState<boolean>(() =>
+    placeId ? getQrVerified(placeId) : false,
+  );
+  // Track whether this is a registered venue (set from the fetched profile).
+  const [isRegisteredVenue, setIsRegisteredVenue] = useState(false);
+  const qrAutoVerifiedRef = useRef(false);
+
+  // Subscribe to real-time QR verification events (fired from qr-scan.tsx).
+  useEffect(() => {
+    if (!placeId) return;
+    const unsub = subscribeQrVerification((verifiedPlaceId) => {
+      if (verifiedPlaceId === placeId) setIsQrVerified(true);
+    });
+    return unsub;
+  }, [placeId]);
+
+  // Re-check the in-session QR state whenever the screen gains focus (e.g.
+  // after the user returns from qr-scan.tsx).
+  useFocusEffect(
+    useCallback(() => {
+      if (placeId && getQrVerified(placeId)) {
+        setIsQrVerified(true);
+      }
+    }, [placeId]),
+  );
 
   const fetchAll = useCallback(async () => {
     if (!authedUid || !placeId) return;
@@ -304,6 +337,8 @@ export default function VenueProfileScreen() {
       setRewards(rewardsData.rewards);
       setAnnouncements(announcementsData.announcements);
       setTopVisitors(leaderboardData.slice(0, 3));
+      // Derive registered venue status from the profile.
+      setIsRegisteredVenue(profileData.profile?.isApproved ?? false);
     } catch {
       setError(true);
     } finally {
@@ -312,6 +347,22 @@ export default function VenueProfileScreen() {
   }, [authedUid, placeId]);
 
   useEffect(() => { void fetchAll(); }, [fetchAll]);
+
+  // Deep-link path: when the user arrives via /v/[placeId]?t=<token>, the
+  // venue redirect screen passes qrToken here. Auto-verify on mount (once).
+  useEffect(() => {
+    if (!qrToken || !placeId || !authedUid || qrAutoVerifiedRef.current) return;
+    qrAutoVerifiedRef.current = true;
+    api
+      .hubQrVerify({ uid: authedUid }, { placeId, token: qrToken })
+      .then(() => {
+        markQrVerified(placeId);
+        setIsQrVerified(true);
+      })
+      .catch(() => {
+        // Silent — invalid/expired token; user can still scan manually.
+      });
+  }, [qrToken, placeId, authedUid]);
 
   const now = new Date();
   const activeRewards = rewards.filter(
@@ -452,11 +503,48 @@ export default function VenueProfileScreen() {
             <View style={styles.section}>
               <SectionLabel title={activeRewards.length === 1 ? "Active Reward" : "Active Rewards"} />
               {activeRewards.map((reward) => (
-                <BeTheWinnerCard
-                  key={reward.id}
-                  reward={reward}
-                  onPress={() => setWinnerModal(true)}
-                />
+                <View key={reward.id}>
+                  {/* Lock overlay — shown when at a registered venue but QR not yet scanned */}
+                  {isRegisteredVenue && !isQrVerified ? (
+                    <View>
+                      <BeTheWinnerCard
+                        reward={reward}
+                        onPress={() => setWinnerModal(true)}
+                      />
+                      {/* Semi-transparent lock overlay */}
+                      <Pressable
+                        style={[styles.rewardLockOverlay, cardShadow]}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/qr-scan",
+                            params: {
+                              placeId: placeId ?? "",
+                              placeName: profile?.businessName ?? "",
+                            },
+                          } as never)
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel="Scan QR code to unlock this reward"
+                      >
+                        <Text style={styles.rewardLockIcon}>🔒</Text>
+                        <Text style={styles.rewardLockTitle}>
+                          Scan QR to Unlock Reward
+                        </Text>
+                        <Text style={styles.rewardLockSub}>
+                          Find the QR code at the entrance and scan it to unlock today's reward.
+                        </Text>
+                        <View style={styles.rewardLockBtn}>
+                          <Text style={styles.rewardLockBtnText}>📷 Open Scanner</Text>
+                        </View>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <BeTheWinnerCard
+                      reward={reward}
+                      onPress={() => setWinnerModal(true)}
+                    />
+                  )}
+                </View>
               ))}
             </View>
           )}
@@ -685,6 +773,48 @@ const styles = StyleSheet.create({
     color: TEXT2, lineHeight: 23,
   },
   hScroll:     { marginHorizontal: -16, paddingLeft: 16 },
+
+  // ── Reward lock overlay ───────────────────────────────────────────────────
+  rewardLockOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(250,250,248,0.92)",
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  rewardLockIcon: { fontSize: 28, marginBottom: 4 },
+  rewardLockTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+    color: TEXT,
+    textAlign: "center",
+  },
+  rewardLockSub: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: TEXT2,
+    textAlign: "center",
+    lineHeight: 19,
+  },
+  rewardLockBtn: {
+    marginTop: 8,
+    backgroundColor: CORAL,
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+  },
+  rewardLockBtnText: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+  },
 
   // ── Announcements ─────────────────────────────────────────────────────────
   annCard: {
