@@ -372,7 +372,12 @@ function ProfileGate() {
       return;
     }
     if (!permissionsCompleted) {
-      if (!inPermissions) router.replace("/permissions");
+      // Don't redirect while still on onboarding — handleFinish navigates to
+      // /permissions after the async photo-upload completes. If ProfileGate
+      // also fires (triggered by setProfile updating context), it would race
+      // with handleFinish and replace /permissions a second time, causing the
+      // permissions screen to visibly remount ("refresh") after a few seconds.
+      if (!inPermissions && !inOnboarding) router.replace("/permissions");
       return;
     }
     // Fully set-up users may visit /permissions or /onboarding voluntarily
