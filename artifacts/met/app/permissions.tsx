@@ -140,6 +140,86 @@ export default function PermissionsScreen() {
     }
   }, []);
 
+  // On mount, silently query every permission status so rows that were
+  // already granted (or denied) in a prior session open in the right state
+  // immediately — no OS dialog is shown, only non-prompting "get" APIs.
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      const updates: Partial<Record<PermKey, Status>> = {};
+
+      // Location
+      try {
+        const res = await Location.getForegroundPermissionsAsync();
+        if (res.granted) updates.location = "granted";
+        else if (res.status === "denied") updates.location = "denied";
+      } catch { /* noop */ }
+
+      // Camera
+      try {
+        const res = await Camera.getCameraPermissionsAsync();
+        if (res.granted) updates.camera = "granted";
+        else if (res.status === "denied") updates.camera = "denied";
+      } catch { /* noop */ }
+
+      // Notifications
+      try {
+        const res = await Notifications.getPermissionsAsync();
+        if (res.granted) updates.notifications = "granted";
+        else if (res.status === "denied") updates.notifications = "denied";
+      } catch { /* noop */ }
+
+      // Bluetooth
+      if (Platform.OS === "android" && (Platform.Version as number) >= 31) {
+        try {
+          const granted = await PermissionsAndroid.check(
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          );
+          // On Android we can only detect "granted"; "denied" vs "never_asked"
+          // are indistinguishable via .check() so we leave it idle if not granted.
+          if (granted) updates.bluetooth = "granted";
+        } catch { /* noop */ }
+      } else if (Platform.OS !== "web") {
+        // iOS: read BleManager state without prompting.
+        const plx = loadPlx();
+        if (plx) {
+          try {
+            const manager = new plx.BleManager();
+            const result = await new Promise<"granted" | "denied" | "idle">(
+              (resolve) => {
+                const timer = setTimeout(() => {
+                  try { sub.remove(); } catch { /* noop */ }
+                  resolve("idle");
+                }, 1500);
+                const sub = manager.onStateChange((s) => {
+                  if (s === plx.State.PoweredOn || s === plx.State.PoweredOff) {
+                    clearTimeout(timer); sub.remove(); resolve("granted");
+                  } else if (
+                    s === plx.State.Unauthorized ||
+                    s === plx.State.Unsupported
+                  ) {
+                    clearTimeout(timer); sub.remove(); resolve("denied");
+                  }
+                }, true);
+              },
+            );
+            try { manager.destroy(); } catch { /* noop */ }
+            if (result !== "idle") updates.bluetooth = result;
+          } catch { /* noop */ }
+        }
+      }
+
+      if (!cancelled && Object.keys(updates).length > 0) {
+        setStatuses((prev) => ({ ...prev, ...updates }));
+      }
+    };
+
+    void run();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Listen for the app returning to the foreground after the user visited
   // the OS Settings app. We track the previous state to distinguish a
   // Settings round-trip (background → active) from a fresh launch.
