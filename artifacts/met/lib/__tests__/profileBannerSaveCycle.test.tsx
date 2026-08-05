@@ -184,6 +184,19 @@ describe("banner is shown while profile is incomplete", () => {
     expect(hasBanner(root)).toBe(true);
   });
 
+  it("shows the banner when photo is not verified", () => {
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(
+        <ProfileBannerProxy
+          initialProfile={{ ...completeProfile, verified: false }}
+          savedProfile={completeProfile}
+        />,
+      );
+    });
+    expect(hasBanner(root)).toBe(true);
+  });
+
   it("does NOT show the banner when the profile is already complete", () => {
     let root!: renderer.ReactTestRenderer;
     act(() => {
@@ -249,6 +262,10 @@ describe("banner hides immediately after the last missing field is saved", () =>
 
   it("hides banner after saving when only the name was missing", async () => {
     await runSaveCycle({ ...completeProfile, name: "" });
+  });
+
+  it("hides banner after photo is verified (verified: false → true is the only missing step)", async () => {
+    await runSaveCycle({ ...completeProfile, verified: false });
   });
 
   it("hides banner when all five steps were incomplete and save completes all of them", async () => {
