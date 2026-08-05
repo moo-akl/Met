@@ -483,3 +483,150 @@ describe("banner focus dispatch — correct ref.focus() called for each incomple
     expect(refs.social.focus).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Banner visibility — profileIncomplete flag
+//
+// Mirrors the exact derivation used in profile.tsx:
+//
+//   const profileSteps = profile ? getProfileSteps(profile) : [];
+//   const profileScore = profileSteps.filter(Boolean).length;
+//   const profileTotal = profileSteps.length;
+//   const profileIncomplete = !!profile && profileScore < profileTotal;
+//
+// Tests assert the banner is visible (true) or hidden (false) for each
+// profile shape, including edge cases that have historically caused regressions.
+// ---------------------------------------------------------------------------
+
+function bannerVisible(
+  profile: Parameters<typeof getProfileSteps>[0] | null,
+): boolean {
+  const steps = profile ? getProfileSteps(profile) : [];
+  const score = steps.filter(Boolean).length;
+  const total = steps.length;
+  return !!profile && score < total;
+}
+
+describe("banner visibility — profileIncomplete flag", () => {
+  const complete = {
+    name: "Alice",
+    verified: true as boolean | null,
+    bio: "Hello world",
+    socials: { instagram: "alice" } as Record<string, unknown> | null,
+    interests: ["music"] as unknown[] | null,
+  };
+
+  // --- banner is hidden when all steps are complete ------------------------
+
+  it("hidden when all 5 steps are complete", () => {
+    expect(bannerVisible(complete)).toBe(false);
+  });
+
+  it("hidden when profile is null (no profile loaded yet)", () => {
+    expect(bannerVisible(null)).toBe(false);
+  });
+
+  // --- banner is shown when at least one step is incomplete ----------------
+
+  it("shown when name is missing", () => {
+    expect(bannerVisible({ ...complete, name: "" })).toBe(true);
+  });
+
+  it("shown when photo/verified is false", () => {
+    expect(bannerVisible({ ...complete, verified: false })).toBe(true);
+  });
+
+  it("shown when bio is missing", () => {
+    expect(bannerVisible({ ...complete, bio: "" })).toBe(true);
+  });
+
+  it("shown when socials is empty object", () => {
+    expect(bannerVisible({ ...complete, socials: {} })).toBe(true);
+  });
+
+  it("shown when interests is empty array", () => {
+    expect(bannerVisible({ ...complete, interests: [] })).toBe(true);
+  });
+
+  // --- edge cases: whitespace-only fields must still show the banner --------
+
+  it("shown when name is whitespace only", () => {
+    expect(bannerVisible({ ...complete, name: "   " })).toBe(true);
+  });
+
+  it("shown when bio is whitespace only", () => {
+    expect(bannerVisible({ ...complete, bio: "\t  \n" })).toBe(true);
+  });
+
+  // --- edge cases: null fields must still show the banner ------------------
+
+  it("shown when name is null", () => {
+    expect(bannerVisible({ ...complete, name: null })).toBe(true);
+  });
+
+  it("shown when bio is null", () => {
+    expect(bannerVisible({ ...complete, bio: null })).toBe(true);
+  });
+
+  it("shown when socials is null", () => {
+    expect(bannerVisible({ ...complete, socials: null })).toBe(true);
+  });
+
+  it("shown when interests is null", () => {
+    expect(bannerVisible({ ...complete, interests: null })).toBe(true);
+  });
+
+  it("shown when verified is null", () => {
+    expect(bannerVisible({ ...complete, verified: null })).toBe(true);
+  });
+
+  // --- partial completion: banner reflects the actual incomplete count ------
+
+  it("shown when only one step remains incomplete (interests missing)", () => {
+    expect(bannerVisible({ ...complete, interests: [] })).toBe(true);
+  });
+
+  it("shown when only one step remains incomplete (socials missing)", () => {
+    expect(bannerVisible({ ...complete, socials: {} })).toBe(true);
+  });
+
+  it("hidden when the last step is completed (was interests, now filled in)", () => {
+    // Simulate a user who just added their first interest — banner must disappear.
+    const wasIncomplete = { ...complete, interests: [] };
+    const nowComplete = { ...complete, interests: ["hiking"] };
+    expect(bannerVisible(wasIncomplete)).toBe(true);
+    expect(bannerVisible(nowComplete)).toBe(false);
+  });
+
+  it("hidden when the last step is completed (was socials, now filled in)", () => {
+    const wasIncomplete = { ...complete, socials: {} };
+    const nowComplete = { ...complete, socials: { x: "alice" } };
+    expect(bannerVisible(wasIncomplete)).toBe(true);
+    expect(bannerVisible(nowComplete)).toBe(false);
+  });
+
+  it("hidden when the last step is completed (was bio whitespace, now has content)", () => {
+    const wasIncomplete = { ...complete, bio: "   " };
+    const nowComplete = { ...complete, bio: "Love hiking" };
+    expect(bannerVisible(wasIncomplete)).toBe(true);
+    expect(bannerVisible(nowComplete)).toBe(false);
+  });
+
+  // --- score derivation consistency ----------------------------------------
+
+  it("score equals the number of true entries returned by getProfileSteps", () => {
+    const profile = { ...complete, interests: [], socials: {} };
+    const steps = getProfileSteps(profile);
+    const score = steps.filter(Boolean).length;
+    // 3 steps complete (name, verified, bio); 2 incomplete (socials, interests)
+    expect(score).toBe(3);
+    expect(steps).toHaveLength(5);
+    expect(bannerVisible(profile)).toBe(true);
+  });
+
+  it("score is 5 when all steps are complete", () => {
+    const steps = getProfileSteps(complete);
+    expect(steps.filter(Boolean).length).toBe(5);
+    expect(bannerVisible(complete)).toBe(false);
+  });
+});
