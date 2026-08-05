@@ -17,6 +17,7 @@ import {
   getBannerScrollTarget,
   getBannerHighlightField,
   getBannerFocusTarget,
+  getBannerHintKey,
   type FocusTarget,
 } from "../profileBannerTarget";
 
@@ -206,6 +207,87 @@ describe("banner target for each first-incomplete step (end-to-end mapping)", ()
       expect(firstIncomplete).toBe(step);
       expect(getBannerScrollTarget(firstIncomplete)).toBe(scrollSection);
       expect(getBannerHighlightField(firstIncomplete)).toBe(highlightField);
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// getBannerHintKey  (first-incomplete step index → i18n key for hint text)
+// ---------------------------------------------------------------------------
+
+describe("getBannerHintKey", () => {
+  it("step 0 (name) → 'home.profileBannerNoName'", () => {
+    expect(getBannerHintKey(0)).toBe("home.profileBannerNoName");
+  });
+
+  it("step 1 (photo/verified) → 'home.profileBannerNoPhoto'", () => {
+    expect(getBannerHintKey(1)).toBe("home.profileBannerNoPhoto");
+  });
+
+  it("step 2 (bio) → 'home.profileBannerNoBio'", () => {
+    expect(getBannerHintKey(2)).toBe("home.profileBannerNoBio");
+  });
+
+  it("step 3 (socials) → 'home.profileBannerNoSocials'", () => {
+    expect(getBannerHintKey(3)).toBe("home.profileBannerNoSocials");
+  });
+
+  it("step 4 (interests) → 'home.profileBannerNoInterests'", () => {
+    expect(getBannerHintKey(4)).toBe("home.profileBannerNoInterests");
+  });
+
+  it("out-of-range index defaults to interests key", () => {
+    expect(getBannerHintKey(99)).toBe("home.profileBannerNoInterests");
+  });
+});
+
+// Integration: hint key matches the first-incomplete step from getProfileSteps
+describe("getBannerHintKey — matches first-incomplete step from getProfileSteps", () => {
+  const cases: Array<{
+    step: number;
+    label: string;
+    profile: Parameters<typeof getProfileSteps>[0];
+    expectedKey: string;
+  }> = [
+    {
+      step: 0,
+      label: "name missing",
+      profile: { name: "", verified: true, bio: "Hello", socials: { instagram: "alice" }, interests: ["music"] },
+      expectedKey: "home.profileBannerNoName",
+    },
+    {
+      step: 1,
+      label: "photo/verified missing",
+      profile: { name: "Alice", verified: false, bio: "Hello", socials: { instagram: "alice" }, interests: ["music"] },
+      expectedKey: "home.profileBannerNoPhoto",
+    },
+    {
+      step: 2,
+      label: "bio missing",
+      profile: { name: "Alice", verified: true, bio: "", socials: { instagram: "alice" }, interests: ["music"] },
+      expectedKey: "home.profileBannerNoBio",
+    },
+    {
+      step: 3,
+      label: "socials missing",
+      profile: { name: "Alice", verified: true, bio: "Hello", socials: {}, interests: ["music"] },
+      expectedKey: "home.profileBannerNoSocials",
+    },
+    {
+      step: 4,
+      label: "interests missing",
+      profile: { name: "Alice", verified: true, bio: "Hello", socials: { instagram: "alice" }, interests: [] },
+      expectedKey: "home.profileBannerNoInterests",
+    },
+  ];
+
+  test.each(cases)(
+    "step $step ($label) → $expectedKey",
+    ({ step, profile, expectedKey }) => {
+      const steps = getProfileSteps(profile);
+      const firstIncomplete = steps.findIndex((done) => !done);
+      expect(firstIncomplete).toBe(step);
+      expect(getBannerHintKey(firstIncomplete)).toBe(expectedKey);
     },
   );
 });

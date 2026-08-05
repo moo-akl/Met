@@ -88,3 +88,27 @@ export function getBannerFocusTarget(profile: {
   if (Object.keys(profile.socials ?? {}).length === 0) return "firstSocial";
   return null;
 }
+
+/**
+ * Given the index of the first incomplete step (0-4), return the i18n key
+ * for the hint text shown in the profile-completion banner.
+ *
+ * This is the single source of truth for the step → hint mapping so that
+ * profile.tsx never has an independent ternary chain that can drift out of
+ * sync with getProfileSteps / getBannerHighlightField.
+ *
+ *   0 (name)      → "home.profileBannerNoName"
+ *   1 (photo)     → "home.profileBannerNoPhoto"
+ *   2 (bio)       → "home.profileBannerNoBio"
+ *   3 (socials)   → "home.profileBannerNoSocials"
+ *   4 (interests) → "home.profileBannerNoInterests"
+ */
+export function getBannerHintKey(firstIncomplete: number): string {
+  switch (firstIncomplete) {
+    case 0: return "home.profileBannerNoName";
+    case 1: return "home.profileBannerNoPhoto";
+    case 2: return "home.profileBannerNoBio";
+    case 3: return "home.profileBannerNoSocials";
+    default: return "home.profileBannerNoInterests";
+  }
+}

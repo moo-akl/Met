@@ -49,6 +49,7 @@ import {
   getBannerScrollTarget,
   getBannerHighlightField,
   getBannerFocusTarget,
+  getBannerHintKey,
 } from "@/lib/profileBannerTarget";
 import { loadDragHintDismissed, MAX_EXTRA_PHOTOS_BY_TIER, saveDragHintDismissed } from "@/lib/storage";
 import { api } from "@/lib/api/client";
@@ -509,17 +510,11 @@ export default function ProfileScreen() {
             { icon: "link",      done: profileSteps[3] },
             { icon: "tag",       done: profileSteps[4] },
           ];
-          const hintText = !(profile?.name ?? "").trim()
-            ? t("home.profileBannerNoName")
-            : profile && !profile.verified && Object.keys(profile.socials ?? {}).length === 0
-              ? t("home.profileBannerBoth")
-              : profile && !profile.verified
-                ? t("home.profileBannerNoPhoto")
-                : !(profile?.bio ?? "").trim()
-                  ? t("home.profileBannerNoBio")
-                  : (profile?.interests ?? []).length === 0
-                    ? t("home.profileBannerNoInterests")
-                    : t("home.profileBannerNoSocials");
+          // Derive the first incomplete step index once; reuse it for both the
+          // hint text and the onPress scroll/highlight logic so they can never
+          // drift out of sync.
+          const firstIncomplete = profileSteps.findIndex((done) => !done);
+          const hintText = t(getBannerHintKey(firstIncomplete));
           return (
             <Pressable
               onPress={() => {
@@ -527,7 +522,6 @@ export default function ProfileScreen() {
                 // Find the first incomplete step and scroll to the relevant section.
                 // steps: 0=name, 1=photo, 2=bio → all inside photoArea
                 //        3=socials, 4=interests → their own sections
-                const firstIncomplete = profileSteps.findIndex((done) => !done);
                 const targetKey = getBannerScrollTarget(firstIncomplete);
                 const highlightField = getBannerHighlightField(firstIncomplete);
                 // Two rAF frames to let the edit-mode re-render settle before scrolling.
