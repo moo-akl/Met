@@ -412,6 +412,7 @@ export const zh: LocaleTree = {
     statusGranted: "已授予",
     statusAllow: "允许",
     statusTryAgain: "重试",
+    statusOpenSettings: "打开设置",
   },
   scan: {
     title: "扫描 Met 二维码",

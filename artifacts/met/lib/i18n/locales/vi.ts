@@ -435,6 +435,7 @@ export const vi: LocaleTree = {
     statusGranted: "Đã cấp",
     statusAllow: "Cho phép",
     statusTryAgain: "Thử lại",
+    statusOpenSettings: "Mở cài đặt",
   },
   scan: {
     title: "Quét QR Met",

@@ -439,6 +439,7 @@ export const ar: LocaleTree = {
     statusGranted: "تم المنح",
     statusAllow: "السماح",
     statusTryAgain: "حاول مجددًا",
+    statusOpenSettings: "فتح الإعدادات",
   },
   scan: {
     title: "مسح رمز Met QR",

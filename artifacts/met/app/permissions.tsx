@@ -1,9 +1,12 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Camera } from "expo-camera";
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AppState,
+  Linking,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -61,6 +64,99 @@ export default function PermissionsScreen() {
     camera: "idle",
   });
   const [busy, setBusy] = useState<PermKey | null>(null);
+
+  // Mirror statuses in a ref so the AppState callback always reads the
+  // latest values without needing to be re-registered on every change.
+  const statusesRef = useRef(statuses);
+  useEffect(() => { statusesRef.current = statuses; }, [statuses]);
+
+  // Re-check every previously-denied permission when the user comes back
+  // from the OS Settings app. Uses non-prompting "get" APIs so we never
+  // fire the system dialog here — only check what the OS already decided.
+  const recheckDenied = useCallback(async () => {
+    const cur = statusesRef.current;
+    const updates: Partial<Record<PermKey, Status>> = {};
+
+    if (cur.location === "denied") {
+      try {
+        const res = await Location.getForegroundPermissionsAsync();
+        if (res.granted) updates.location = "granted";
+      } catch { /* noop */ }
+    }
+
+    if (cur.camera === "denied") {
+      try {
+        const res = await Camera.getCameraPermissionsAsync();
+        if (res.granted) updates.camera = "granted";
+      } catch { /* noop */ }
+    }
+
+    if (cur.notifications === "denied") {
+      try {
+        const res = await Notifications.getPermissionsAsync();
+        if (res.granted) updates.notifications = "granted";
+      } catch { /* noop */ }
+    }
+
+    if (cur.bluetooth === "denied") {
+      if (Platform.OS === "android" && (Platform.Version as number) >= 31) {
+        try {
+          const granted = await PermissionsAndroid.check(
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          );
+          if (granted) updates.bluetooth = "granted";
+        } catch { /* noop */ }
+      } else {
+        // iOS: instantiate BleManager and read current state (no prompt).
+        const plx = loadPlx();
+        if (plx) {
+          try {
+            const manager = new plx.BleManager();
+            const granted = await new Promise<boolean>((resolve) => {
+              const timer = setTimeout(() => {
+                try { sub.remove(); } catch { /* noop */ }
+                resolve(false);
+              }, 1500);
+              const sub = manager.onStateChange((s) => {
+                if (s === plx.State.PoweredOn || s === plx.State.PoweredOff) {
+                  clearTimeout(timer); sub.remove(); resolve(true);
+                } else if (
+                  s === plx.State.Unauthorized ||
+                  s === plx.State.Unsupported
+                ) {
+                  clearTimeout(timer); sub.remove(); resolve(false);
+                }
+              }, true);
+            });
+            try { manager.destroy(); } catch { /* noop */ }
+            if (granted) updates.bluetooth = "granted";
+          } catch { /* noop */ }
+        }
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      setStatuses((prev) => ({ ...prev, ...updates }));
+    }
+  }, []);
+
+  // Listen for the app returning to the foreground after the user visited
+  // the OS Settings app. We track the previous state to distinguish a
+  // Settings round-trip (background → active) from a fresh launch.
+  const appStateRef = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      const prev = appStateRef.current;
+      appStateRef.current = nextState;
+      if (
+        nextState === "active" &&
+        (prev === "background" || prev === "inactive")
+      ) {
+        void recheckDenied();
+      }
+    });
+    return () => sub.remove();
+  }, [recheckDenied]);
   // Which disclosure dialog (if any) is currently shown. The actual OS
   // permission prompt only fires when the user accepts the disclosure.
   const [disclosure, setDisclosure] = useState<DisclosureKind | null>(null);
@@ -364,7 +460,7 @@ function PermRow({
   const statusLabel = granted
     ? t("permissions.statusGranted")
     : denied
-      ? t("permissions.statusTryAgain")
+      ? t("permissions.statusOpenSettings")
       : busy
         ? "…"
         : t("permissions.statusAllow");
@@ -405,7 +501,7 @@ function PermRow({
         </Text>
       </View>
       <Pressable
-        onPress={onPress}
+        onPress={denied ? () => Linking.openSettings() : onPress}
         disabled={busy || granted}
         hitSlop={6}
         style={({ pressed }) => [

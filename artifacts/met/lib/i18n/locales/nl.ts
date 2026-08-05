@@ -435,6 +435,7 @@ export const nl: LocaleTree = {
     statusGranted: "Toegestaan",
     statusAllow: "Toestaan",
     statusTryAgain: "Probeer opnieuw",
+    statusOpenSettings: "Instellingen openen",
   },
   scan: {
     title: "Een Met-QR scannen",

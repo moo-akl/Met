@@ -438,6 +438,7 @@ export const en = {
     statusGranted: "Granted",
     statusAllow: "Continue",
     statusTryAgain: "Try again",
+    statusOpenSettings: "Open Settings",
   },
 
   scan: {

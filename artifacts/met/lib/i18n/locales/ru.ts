@@ -435,6 +435,7 @@ export const ru: LocaleTree = {
     statusGranted: "Разрешено",
     statusAllow: "Разрешить",
     statusTryAgain: "Попробовать снова",
+    statusOpenSettings: "Открыть настройки",
   },
   scan: {
     title: "Сканировать QR Met",

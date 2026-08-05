@@ -439,6 +439,7 @@ export const fr: LocaleTree = {
     statusGranted: "Accordé",
     statusAllow: "Autoriser",
     statusTryAgain: "Réessayer",
+    statusOpenSettings: "Ouvrir les réglages",
   },
   scan: {
     title: "Scanner un QR Met",
