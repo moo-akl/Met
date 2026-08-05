@@ -11,7 +11,7 @@
  * checkin API response re-hydrates isQrVerified from the DB.
  */
 
-type Listener = (placeId: string) => void;
+type Listener = (placeId: string, streak?: number) => void;
 
 const _listeners = new Set<Listener>();
 const _verified = new Set<string>(); // placeIds verified this session
@@ -23,11 +23,13 @@ export function getQrVerified(placeId: string): boolean {
 
 /**
  * Record that the user successfully scanned the QR code at placeId.
+ * Optionally carries the streak awarded by the server so that subscribers
+ * can update the badge without waiting for the next GPS poll.
  * Notifies all subscribers immediately.
  */
-export function markQrVerified(placeId: string): void {
+export function markQrVerified(placeId: string, streak?: number): void {
   _verified.add(placeId);
-  _listeners.forEach((fn) => fn(placeId));
+  _listeners.forEach((fn) => fn(placeId, streak));
 }
 
 /**

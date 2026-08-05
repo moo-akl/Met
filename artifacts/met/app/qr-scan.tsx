@@ -94,12 +94,14 @@ export default function VenueQrScanScreen() {
       }
 
       try {
-        await api.hubQrVerify(
+        const result = await api.hubQrVerify(
           { uid: authedUid ?? "" },
           { placeId: parsed.placeId, token: parsed.token },
         );
-        // Notify all subscribers (e.g. useHubCheckin) that this place is verified.
-        markQrVerified(parsed.placeId);
+        // Notify all subscribers (e.g. useHubCheckin) that this place is
+        // verified. Pass the streak so the badge updates immediately and the
+        // persisted state is written with the correct value.
+        markQrVerified(parsed.placeId, result.streak);
         return "ok";
       } catch {
         lockRef.current = false;

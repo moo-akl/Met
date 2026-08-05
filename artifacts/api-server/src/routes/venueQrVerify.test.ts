@@ -138,7 +138,8 @@ describe("POST /api/hubs/qr-verify — QR token gate", () => {
       .send({ placeId: PLACE_ID, token: VALID_TOKEN });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ verified: true });
+    // Response now also carries the streak awarded by the qr-verify endpoint.
+    expect(res.body).toEqual(expect.objectContaining({ verified: true }));
 
     // A verification row must have been inserted
     expect(dbMocks.insertValues).toHaveBeenCalledWith(

@@ -331,7 +331,8 @@ router.post(
       return;
     }
 
-    // Insert the check-in row
+    // Insert the check-in row (always — records presence and anchors the
+    // 4-hour cooldown even for registered venues that haven't QR-scanned yet).
     await db.insert(hubCheckinsTable).values({
       userUid: uid,
       placeId: place.placeId,
@@ -340,31 +341,67 @@ router.post(
       lng: String(lng),
     });
 
-    // Upsert user_stats streak for this place
-    const [stats] = await db
-      .select()
-      .from(userStatsTable)
-      .where(eq(userStatsTable.userUid, uid))
-      .limit(1);
+    // Check registered venue + QR status and read current user_stats in
+    // parallel — all three are needed before we decide whether to apply
+    // leaderboard/streak credit.
+    const [registeredRow, qrRow, statsRow] = await Promise.all([
+      db
+        .select({ id: venueOwnerProfilesTable.id })
+        .from(venueOwnerProfilesTable)
+        .where(
+          and(
+            eq(venueOwnerProfilesTable.placeId, place.placeId),
+            eq(venueOwnerProfilesTable.isApproved, true),
+          ),
+        )
+        .limit(1),
+      db
+        .select({ verifiedAt: venueQrVerificationsTable.verifiedAt })
+        .from(venueQrVerificationsTable)
+        .where(
+          and(
+            eq(venueQrVerificationsTable.userUid, uid),
+            eq(venueQrVerificationsTable.placeId, place.placeId),
+            gte(
+              venueQrVerificationsTable.verifiedAt,
+              new Date(now.getTime() - CHECKIN_COOLDOWN_MS),
+            ),
+          ),
+        )
+        .orderBy(desc(venueQrVerificationsTable.verifiedAt))
+        .limit(1),
+      db
+        .select()
+        .from(userStatsTable)
+        .where(eq(userStatsTable.userUid, uid))
+        .limit(1),
+    ]);
 
+    const isRegisteredVenue = registeredRow.length > 0;
+    const isQrVerified = qrRow.length > 0;
+    const stats = statsRow[0] ?? null;
     const prevStreaks = (stats?.hubStreaks ?? {}) as Record<string, number>;
     const prevStreak = prevStreaks[place.placeId] ?? 0;
 
-    // Find the last check-in at this place (before now) to compute streak
-    const [lastCheckinRow] = await db
-      .select({ createdAt: hubCheckinsTable.createdAt })
-      .from(hubCheckinsTable)
-      .where(
-        and(
-          eq(hubCheckinsTable.userUid, uid),
-          eq(hubCheckinsTable.placeId, place.placeId),
-        ),
-      )
-      .orderBy(desc(hubCheckinsTable.createdAt))
-      .limit(2); // first row is the one we just inserted
+    // Registered venues gate leaderboard/streak credit behind QR scan.
+    // Presence is already recorded (the check-in row above anchors cooldown).
+    if (isRegisteredVenue && !isQrVerified) {
+      res.json({
+        placeId: place.placeId,
+        placeName: place.displayName,
+        streak: prevStreak,
+        streak_points: 0,
+        checkin_multiplier: 1,
+        isRegisteredVenue: true,
+        isQrVerified: false,
+      });
+      return;
+    }
 
-    // We inserted above, so fetch the second-most-recent for streak logic
-    const [, prevCheckinRow] = await db
+    // Full leaderboard credit — non-registered venue or already QR-verified.
+    // Fetch the second-most-recent check-in at this place for streak logic
+    // (the most recent is the one we just inserted).
+    const [prevCheckinRow] = await db
       .select({ createdAt: hubCheckinsTable.createdAt })
       .from(hubCheckinsTable)
       .where(
@@ -427,39 +464,6 @@ router.post(
         WHERE uid = ${uid}
       `).catch(() => {});
     }
-
-    // Check whether this is a registered (approved) venue, and whether the user
-    // has already QR-verified their presence within the 4-hour cooldown window.
-    const [registeredRow, qrRow] = await Promise.all([
-      db
-        .select({ id: venueOwnerProfilesTable.id })
-        .from(venueOwnerProfilesTable)
-        .where(
-          and(
-            eq(venueOwnerProfilesTable.placeId, place.placeId),
-            eq(venueOwnerProfilesTable.isApproved, true),
-          ),
-        )
-        .limit(1),
-      db
-        .select({ verifiedAt: venueQrVerificationsTable.verifiedAt })
-        .from(venueQrVerificationsTable)
-        .where(
-          and(
-            eq(venueQrVerificationsTable.userUid, uid),
-            eq(venueQrVerificationsTable.placeId, place.placeId),
-            gte(
-              venueQrVerificationsTable.verifiedAt,
-              new Date(now.getTime() - CHECKIN_COOLDOWN_MS),
-            ),
-          ),
-        )
-        .orderBy(desc(venueQrVerificationsTable.verifiedAt))
-        .limit(1),
-    ]);
-
-    const isRegisteredVenue = registeredRow.length > 0;
-    const isQrVerified = qrRow.length > 0;
 
     res.json({
       placeId: place.placeId,
@@ -531,7 +535,62 @@ router.post(
 
     logger.info({ uid, placeId }, "venue QR verification recorded");
 
-    res.json({ verified: true });
+    // Apply leaderboard/streak credit now that the user has proved physical
+    // presence.  This mirrors the logic in POST /hubs/checkin for non-registered
+    // venues — we use the most recent check-in row (inserted by /checkin) as the
+    // "current" visit and the one before it for streak continuity.
+    const now = new Date();
+    let streak = 0;
+    try {
+      const [[statsRow], [prevCheckinRow]] = await Promise.all([
+        db
+          .select()
+          .from(userStatsTable)
+          .where(eq(userStatsTable.userUid, uid))
+          .limit(1),
+        db
+          .select({ createdAt: hubCheckinsTable.createdAt })
+          .from(hubCheckinsTable)
+          .where(
+            and(
+              eq(hubCheckinsTable.userUid, uid),
+              eq(hubCheckinsTable.placeId, placeId),
+            ),
+          )
+          .orderBy(desc(hubCheckinsTable.createdAt))
+          .offset(1)
+          .limit(1),
+      ]);
+
+      const prevStreaks = ((statsRow?.hubStreaks ?? {}) as Record<string, number>);
+      const prevStreak = prevStreaks[placeId] ?? 0;
+      const { streak: newStreak } = computeNewStreak(
+        prevStreak,
+        prevCheckinRow?.createdAt ?? null,
+        now,
+      );
+      streak = newStreak;
+      const newStreaks = { ...prevStreaks, [placeId]: streak };
+
+      if (statsRow) {
+        await db
+          .update(userStatsTable)
+          .set({ hubStreaks: newStreaks, lastStreakUpdate: now, updatedAt: now })
+          .where(eq(userStatsTable.userUid, uid));
+      } else {
+        await db.insert(userStatsTable).values({
+          userUid: uid,
+          hubStreaks: newStreaks,
+          lastStreakUpdate: now,
+          trustScore: 100,
+        });
+      }
+    } catch (e) {
+      // Streak update failing should not block the verification response.
+      logger.warn({ uid, placeId, err: e }, "qr-verify streak update failed");
+    }
+
+    res.json({ verified: true, streak });
   },
 );
 

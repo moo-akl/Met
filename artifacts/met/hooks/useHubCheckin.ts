@@ -107,23 +107,47 @@ export function useHubCheckin(): {
 
   // Subscribe to QR verification events fired from qr-scan.tsx.
   useEffect(() => {
-    const unsub = subscribeQrVerification((placeId) => {
+    const unsub = subscribeQrVerification((placeId, streak) => {
       if (!mountedRef.current) return;
       setHubState((prev) => {
         if (!prev || prev.placeId !== placeId) return prev;
-        return { ...prev, isQrVerified: true };
+        const updated: HubState = {
+          ...prev,
+          isQrVerified: true,
+          ...(streak !== undefined && { streak }),
+        };
+        // Persist so the banner never re-appears on the next cold start.
+        void AsyncStorage.setItem(
+          CHECKIN_STORAGE_KEY,
+          JSON.stringify({ hubState: updated, checkedInAt: Date.now() }),
+        );
+        return updated;
       });
     });
     return unsub;
   }, []);
 
-  /** Mark the given venue as QR-verified in both the module store and React state. */
-  const setQrVerified = useCallback((placeId: string) => {
+  /** Mark the given venue as QR-verified in both the module store and React state.
+   *  Optionally accepts the streak returned by the qr-verify endpoint so that
+   *  the badge updates immediately without waiting for the next GPS poll.
+   */
+  const setQrVerified = useCallback((placeId: string, streak?: number) => {
     markQrVerified(placeId);
     if (!mountedRef.current) return;
     setHubState((prev) => {
       if (!prev || prev.placeId !== placeId) return prev;
-      return { ...prev, isQrVerified: true };
+      const updated: HubState = {
+        ...prev,
+        isQrVerified: true,
+        ...(streak !== undefined && { streak }),
+      };
+      // Persist the QR-verified state so the "Scan QR" banner never
+      // re-appears on the next cold start within the same 4-hour window.
+      void AsyncStorage.setItem(
+        CHECKIN_STORAGE_KEY,
+        JSON.stringify({ hubState: updated, checkedInAt: Date.now() }),
+      );
+      return updated;
     });
   }, []);
 

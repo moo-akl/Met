@@ -16,7 +16,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Linking,
   Modal,
   Pressable,
@@ -25,6 +24,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -365,11 +365,11 @@ export default function VenueProfileScreen() {
   }, [qrToken, placeId, authedUid]);
 
   const now = new Date();
-  const activeRewards = rewards.filter(
-    (r) => r.status === "active" &&
-      new Date(r.startDate) <= now &&
-      new Date(r.endDate) >= now,
-  );
+  // Show all non-cancelled rewards — the API already excludes cancelled ones.
+  // The venue owner controls which rewards are visible via status; we should
+  // not further filter by date on the client so that multiple active rewards
+  // are all shown.
+  const displayRewards = rewards;
   // Show all published events — past events remain visible so guests can see
   // what the venue has hosted, ordered newest-first by the API.
   const displayEvents = events;
@@ -417,8 +417,8 @@ export default function VenueProfileScreen() {
             <Image
               source={{ uri: profile.coverPhotoUrl }}
               style={styles.heroCover}
-              resizeMode="cover"
-              accessibilityIgnoresInvertColors
+              contentFit="cover"
+              transition={200}
             />
           ) : (
             <LinearGradient
@@ -455,8 +455,8 @@ export default function VenueProfileScreen() {
               <Image
                 source={{ uri: profile.logoUrl }}
                 style={styles.heroLogo}
-                resizeMode="cover"
-                accessibilityIgnoresInvertColors
+                contentFit="cover"
+                transition={200}
               />
             ) : (
               <LinearGradient
@@ -499,10 +499,10 @@ export default function VenueProfileScreen() {
           ) : null}
 
           {/* ── 1. Be the Winner ───────────────────────────────────────── */}
-          {activeRewards.length > 0 && (
+          {displayRewards.length > 0 && (
             <View style={styles.section}>
-              <SectionLabel title={activeRewards.length === 1 ? "Active Reward" : "Active Rewards"} />
-              {activeRewards.map((reward) => (
+              <SectionLabel title={displayRewards.length === 1 ? "Active Reward" : "Active Rewards"} />
+              {displayRewards.map((reward) => (
                 <View key={reward.id}>
                   {/* Lock overlay — shown when at a registered venue but QR not yet scanned */}
                   {isRegisteredVenue && !isQrVerified ? (
@@ -559,8 +559,8 @@ export default function VenueProfileScreen() {
                     <Image
                       source={{ uri: (ann as { imageUrl: string }).imageUrl }}
                       style={styles.annImage}
-                      resizeMode="cover"
-                      accessibilityIgnoresInvertColors
+                      contentFit="cover"
+                      transition={200}
                     />
                   ) : null}
                   <View style={styles.annBody}>
@@ -587,7 +587,7 @@ export default function VenueProfileScreen() {
                   <View key={v.uid} style={[styles.lbCard, cardShadow]}>
                     <Text style={styles.lbMedal}>{["🥇","🥈","🥉"][i]}</Text>
                     {v.photoUrl ? (
-                      <Image source={{ uri: v.photoUrl }} style={styles.lbAvatar} accessibilityIgnoresInvertColors />
+                      <Image source={{ uri: v.photoUrl }} style={styles.lbAvatar} contentFit="cover" transition={150} />
                     ) : (
                       <LinearGradient
                         colors={AVATAR_GRADIENTS[i] ?? ["#E5E7EB", "#9CA3AF"]}
@@ -686,9 +686,9 @@ export default function VenueProfileScreen() {
       </ScrollView>
 
       {/* ── How-to-win modal ──────────────────────────────────────────── */}
-      {activeRewards[0] && (
+      {displayRewards[0] && (
         <WinnerModal
-          reward={activeRewards[0]}
+          reward={displayRewards[0]}
           visible={winnerModal}
           onClose={() => setWinnerModal(false)}
         />
