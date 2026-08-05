@@ -19,6 +19,7 @@ import {
   venueAnnouncementsTable,
   hubCheckinsTable,
   profilesTable,
+  venueQrVerificationsTable,
   type VenueMembershipRole,
 } from "@workspace/db";
 import { createIpRateLimiter } from "../middlewares/rateLimit";
@@ -626,8 +627,10 @@ router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, as
   const placeId = business.business.placeId;
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const [checkInTrend, topVisitorRows, eventRsvpRows, activeRewardRows] = await Promise.all([
+  const [checkInTrend, topVisitorRows, eventRsvpRows, activeRewardRows, qrTodayRows, qrTrendRows] = await Promise.all([
     db.select({ day: sql<string>`DATE(${hubCheckinsTable.createdAt})`, count: count(hubCheckinsTable.id) })
       .from(hubCheckinsTable).where(and(eq(hubCheckinsTable.placeId, placeId), gte(hubCheckinsTable.createdAt, thirtyDaysAgo)))
       .groupBy(sql`DATE(${hubCheckinsTable.createdAt})`).orderBy(sql`DATE(${hubCheckinsTable.createdAt})`),
@@ -640,12 +643,22 @@ router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, as
       .where(and(eq(venueEventsTable.placeId, placeId), eq(venueEventsTable.isPublished, true), gte(venueEventsTable.startsAt, now)))
       .groupBy(venueEventsTable.id).orderBy(venueEventsTable.startsAt).limit(5),
     db.select().from(venueRewardsTable).where(and(eq(venueRewardsTable.placeId, placeId), eq(venueRewardsTable.status, "active"), lt(venueRewardsTable.startDate, now), gte(venueRewardsTable.endDate, now))).limit(1),
+    db.select({ distinctUsers: sql<number>`COUNT(DISTINCT ${venueQrVerificationsTable.userUid})` })
+      .from(venueQrVerificationsTable)
+      .where(and(eq(venueQrVerificationsTable.placeId, placeId), gte(venueQrVerificationsTable.verifiedAt, todayStart))),
+    db.select({ day: sql<string>`DATE(${venueQrVerificationsTable.verifiedAt})`, count: sql<number>`COUNT(DISTINCT ${venueQrVerificationsTable.userUid})` })
+      .from(venueQrVerificationsTable)
+      .where(and(eq(venueQrVerificationsTable.placeId, placeId), gte(venueQrVerificationsTable.verifiedAt, sevenDaysAgo)))
+      .groupBy(sql`DATE(${venueQrVerificationsTable.verifiedAt})`)
+      .orderBy(sql`DATE(${venueQrVerificationsTable.verifiedAt})`),
   ]);
   res.json({
     checkInTrend: checkInTrend.map((row) => ({ day: row.day, count: Number(row.count) })),
     topVisitors: topVisitorRows.map((row) => ({ ...row, displayName: row.displayName ?? "Met member", checkinCount: Number(row.checkinCount) })),
     eventRsvpCounts: eventRsvpRows.map((row) => ({ ...row, going: Number(row.going), maybe: Number(row.maybe) })),
     activeReward: activeRewardRows[0] ? serializeReward(activeRewardRows[0]) : null,
+    qrVerificationsToday: Number(qrTodayRows[0]?.distinctUsers ?? 0),
+    qrVerificationsTrend: qrTrendRows.map((row) => ({ day: row.day, count: Number(row.count) })),
   });
 });
 

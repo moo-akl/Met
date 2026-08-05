@@ -541,12 +541,19 @@ export type VenueManagerDashboardActiveReward = {
   [key: string]: unknown;
 } | null;
 
+export interface VenueManagerQrVerificationBucket {
+  day: string;
+  count: number;
+}
+
 export interface VenueManagerDashboard {
   checkInTrend: VenueManagerCheckInBucket[];
   topVisitors: VenueManagerTopVisitor[];
   eventRsvpCounts: VenueManagerEventRsvpCount[];
   /** @nullable */
   activeReward: VenueManagerDashboardActiveReward;
+  qrVerificationsToday: number;
+  qrVerificationsTrend: VenueManagerQrVerificationBucket[];
 }
 
 export type VenueApplicationApplicationStatus =
