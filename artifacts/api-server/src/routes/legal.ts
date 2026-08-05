@@ -258,6 +258,8 @@ const appleAppSiteAssociation = JSON.stringify(
             // Venue-owner registration / dashboard entry point
             "/venue-owner",
             "/venue-owner/*",
+            // Venue QR check-in links  e.g. /v/ChIJxxx?t=<uuid>
+            "/v/*",
           ],
         },
       ],
@@ -291,6 +293,35 @@ router.get("/.well-known/assetlinks.json", (_req: Request, res: Response) => {
     .type("application/json")
     .set("Cache-Control", "public, max-age=3600")
     .send(assetLinks);
+});
+
+// Venue QR check-in landing page.
+// Opened when a guest scans a venue's printed QR code on a device that
+// has the Met app installed — the OS opens the app directly via universal
+// links / App Links. This route is the *fallback* shown in any browser
+// that doesn't (or can't) redirect to the app: it presents a simple
+// branded page with App Store / Play Store download links.
+router.get("/v/:placeId", (_req: Request, res: Response) => {
+  const APP_STORE_URL =
+    "https://apps.apple.com/app/met-we-crossed-paths/id6502749585";
+  const PLAY_STORE_URL =
+    "https://play.google.com/store/apps/details?id=app.met.founders";
+  const html = layout(
+    "Check in at this venue",
+    `
+    <h1>Check in with Met</h1>
+    <p>You've scanned a check-in QR code for a venue on the Met app.</p>
+    <div class="card">
+      <h2 style="margin-top:0">Open in the Met app</h2>
+      <p>If the Met app didn't open automatically, tap one of the links below to download it — then scan the QR code again to check in.</p>
+      <p style="display:flex;gap:12px;flex-wrap:wrap">
+        <a href="${APP_STORE_URL}" style="background:#0d7659;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;font-size:14px">App Store (iPhone)</a>
+        <a href="${PLAY_STORE_URL}" style="background:#0d7659;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;font-size:14px">Google Play (Android)</a>
+      </p>
+    </div>
+    `,
+  );
+  res.status(200).type("html").set("Cache-Control", "no-cache").send(html);
 });
 
 router.get("/support", (_req: Request, res: Response) => {

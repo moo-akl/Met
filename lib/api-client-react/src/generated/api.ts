@@ -102,6 +102,7 @@ import type {
   VenueManagerInvitationAcceptance,
   VenueManagerMemberList,
   VenueManagerPasswordChange,
+  VenueManagerQrCode,
   VenueManagerRecovery,
   VenueManagerRecoveryRequest,
   VenueManagerRemovalRequest,
@@ -7954,6 +7955,145 @@ export type AddVenueApplicationNoteMutationResult = NonNullable<
 export type AddVenueApplicationNoteMutationBody =
   BodyType<VenueApplicationNote>;
 export type AddVenueApplicationNoteMutationError = ErrorType<Error>;
+
+// ---------------------------------------------------------------------------
+// QR code
+// ---------------------------------------------------------------------------
+
+export const getGetVenueManagerQrCodeUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/qr-code`;
+};
+
+export const getVenueManagerQrCode = async (
+  businessId: number,
+  options?: RequestInit,
+): Promise<VenueManagerQrCode> => {
+  return customFetch<VenueManagerQrCode>(
+    getGetVenueManagerQrCodeUrl(businessId),
+    { ...options, method: "GET" },
+  );
+};
+
+export const getGetVenueManagerQrCodeQueryKey = (businessId: number) => {
+  return [`/api/venue-manager/businesses/${businessId}/qr-code`] as const;
+};
+
+export const getGetVenueManagerQrCodeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVenueManagerQrCode>>,
+  TError = ErrorType<unknown>,
+>(
+  businessId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVenueManagerQrCode>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey =
+    queryOptions?.queryKey ?? getGetVenueManagerQrCodeQueryKey(businessId);
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getVenueManagerQrCode>>
+  > = ({ signal }) =>
+    getVenueManagerQrCode(businessId, { signal, ...requestOptions });
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!businessId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueManagerQrCode>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVenueManagerQrCodeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVenueManagerQrCode>>
+>;
+export type GetVenueManagerQrCodeQueryError = ErrorType<unknown>;
+
+export const getRegenerateVenueManagerQrCodeUrl = (businessId: number) => {
+  return `/api/venue-manager/businesses/${businessId}/qr-code/regenerate`;
+};
+
+export const regenerateVenueManagerQrCode = async (
+  businessId: number,
+  options?: RequestInit,
+): Promise<VenueManagerQrCode> => {
+  return customFetch<VenueManagerQrCode>(
+    getRegenerateVenueManagerQrCodeUrl(businessId),
+    { ...options, method: "POST" },
+  );
+};
+
+export const getRegenerateVenueManagerQrCodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateVenueManagerQrCode>>,
+    TError,
+    { businessId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateVenueManagerQrCode>>,
+  TError,
+  { businessId: number },
+  TContext
+> => {
+  const mutationKey = ["regenerateVenueManagerQrCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateVenueManagerQrCode>>,
+    { businessId: number }
+  > = (props) => {
+    const { businessId } = props ?? {};
+    return regenerateVenueManagerQrCode(businessId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateVenueManagerQrCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateVenueManagerQrCode>>
+>;
+export type RegenerateVenueManagerQrCodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Rotate the venue's QR code token (owner-only)
+ */
+export const useRegenerateVenueManagerQrCode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateVenueManagerQrCode>>,
+    TError,
+    { businessId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateVenueManagerQrCode>>,
+  TError,
+  { businessId: number },
+  TContext
+> => {
+  return useMutation(getRegenerateVenueManagerQrCodeMutationOptions(options));
+};
 
 /**
  * @summary Add an internal reviewer note without changing the decision

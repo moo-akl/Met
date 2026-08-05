@@ -80,5 +80,8 @@
     "vitest": "^3.2.4",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "react-qr-code": "^2.2.0"
   }
 }

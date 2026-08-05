@@ -8,6 +8,7 @@ import {
   index,
   uniqueIndex,
   jsonb,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -94,6 +95,12 @@ export const venueOwnerProfilesTable = pgTable(
     openingHours: jsonb("opening_hours").$type<Record<string, { open: string; close: string } | null>>(),
     /** 'mobile' | 'web' — null for legacy rows. */
     applicationSource: text("application_source"),
+    /**
+     * Stable token embedded in the venue's check-in QR code URL.
+     * Automatically generated on venue approval; can be rotated by the owner
+     * via the venue manager portal if the code is compromised.
+     */
+    qrToken: uuid("qr_token").unique(),
     isApproved: boolean("is_approved").notNull().default(false),
     isVerified: boolean("is_verified").notNull().default(false),
     /** Admin-supplied rejection reason. Surfaced to owner so they can re-apply. */

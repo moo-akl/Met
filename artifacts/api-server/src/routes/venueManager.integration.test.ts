@@ -314,4 +314,79 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
     const res = await agent.get("/api/profiles/me");
     expect([401, 403]).toContain(res.status);
   });
+
+  describe("QR code endpoints", () => {
+    it("GET /qr-code returns a qrToken and a qrUrl with the expected host and path shape", async () => {
+      const { agent, business } = await claimOwner("qr-get");
+      const res = await agent.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
+      expect(res.status).toBe(200);
+      // Token must be a UUID
+      expect(res.body.qrToken).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      // URL must include the canonical deep-link host (metapp.replit.app or
+      // whatever APP_BASE_URL is set to) and the /v/<placeId>?t=<token> shape.
+      const url = new URL(res.body.qrUrl as string);
+      expect(url.pathname).toMatch(/^\/v\//);
+      expect(url.searchParams.get("t")).toBe(res.body.qrToken);
+    });
+
+    it("GET /qr-code returns the same token on repeated calls (stable)", async () => {
+      const { agent, business } = await claimOwner("qr-stable");
+      const first = await agent.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
+      const second = await agent.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(second.body.qrToken).toBe(first.body.qrToken);
+    });
+
+    it("POST /qr-code/regenerate issues a new token and invalidates the old one (owner only)", async () => {
+      const { agent, csrf, business } = await claimOwner("qr-regen");
+      const before = await agent.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
+      expect(before.status).toBe(200);
+
+      const regen = await agent
+        .post(`/api/venue-manager/businesses/${business.id}/qr-code/regenerate`)
+        .set("x-csrf-token", csrf);
+      expect(regen.status).toBe(200);
+      expect(regen.body.qrToken).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      // New token must differ from the old one
+      expect(regen.body.qrToken).not.toBe(before.body.qrToken);
+      // Subsequent GET must return the new token
+      const after = await agent.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
+      expect(after.body.qrToken).toBe(regen.body.qrToken);
+    });
+
+    it("POST /qr-code/regenerate is rejected without a CSRF token", async () => {
+      const { agent, business } = await claimOwner("qr-csrf");
+      const res = await agent.post(
+        `/api/venue-manager/businesses/${business.id}/qr-code/regenerate`,
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("POST /qr-code/regenerate is rejected for managers (non-owners)", async () => {
+      const { agent, csrf, business } = await claimOwner("qr-role");
+      // Invite a manager
+      const invite = await agent
+        .post(`/api/venue-manager/businesses/${business.id}/invitations`)
+        .set("x-csrf-token", csrf)
+        .send({ email: email("qr-mgr"), role: "manager" });
+      const mgr = request.agent(app);
+      const accepted = await mgr.post("/api/venue-manager/invitations/accept").send({
+        token: invite.body.invitationToken,
+        displayName: "Manager",
+        password: STRONG,
+      });
+      expect(accepted.status).toBe(200);
+      const mgrCsrf = accepted.body.csrfToken as string;
+
+      const res = await mgr
+        .post(`/api/venue-manager/businesses/${business.id}/qr-code/regenerate`)
+        .set("x-csrf-token", mgrCsrf);
+      expect(res.status).toBe(403);
+    });
+  });
 });

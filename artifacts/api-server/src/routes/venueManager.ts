@@ -565,6 +565,59 @@ router.get("/venue-manager/businesses/:businessId/members", requireSession, asyn
   res.json({ members });
 });
 
+// ---------------------------------------------------------------------------
+// QR code endpoints
+// ---------------------------------------------------------------------------
+
+/**
+ * Canonical deep-link host for the Met app (must match AASA and Android
+ * intentFilter configuration).  APP_BASE_URL must be set in production;
+ * the fallback is the known app-link host so local dev still produces
+ * scannable URLs while avoiding a silent wrong-host regression.
+ */
+const QR_BASE_URL =
+  process.env["APP_BASE_URL"] ?? "https://metapp.replit.app";
+
+if (!process.env["APP_BASE_URL"] && process.env["NODE_ENV"] === "production") {
+  // Loud warning at startup so ops catches misconfiguration immediately.
+  console.error(
+    "[venueManager] WARNING: APP_BASE_URL is not set in production. " +
+      "QR codes will use the fallback host https://metapp.replit.app — " +
+      "set APP_BASE_URL to silence this warning.",
+  );
+}
+
+function generateQrUrl(placeId: string, qrToken: string): string {
+  return `${QR_BASE_URL}/v/${placeId}?t=${qrToken}`;
+}
+
+router.get("/venue-manager/businesses/:businessId/qr-code", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const row = await businessWithProfile(membership.businessId);
+  if (!row) return void res.status(404).json({ message: "Venue not found." });
+  if (!row.profile.qrToken) {
+    // Auto-generate a token if one was never set (e.g. pre-existing approved venues)
+    const newToken = crypto.randomUUID();
+    await db.update(venueOwnerProfilesTable).set({ qrToken: newToken, updatedAt: new Date() })
+      .where(eq(venueOwnerProfilesTable.id, row.profile.id));
+    res.json({ qrToken: newToken, qrUrl: generateQrUrl(row.business.placeId, newToken) });
+    return;
+  }
+  res.json({ qrToken: row.profile.qrToken, qrUrl: generateQrUrl(row.business.placeId, row.profile.qrToken) });
+});
+
+router.post("/venue-manager/businesses/:businessId/qr-code/regenerate", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, ["owner"]);
+  if (!membership) return;
+  const row = await businessWithProfile(membership.businessId);
+  if (!row) return void res.status(404).json({ message: "Venue not found." });
+  const newToken = crypto.randomUUID();
+  await db.update(venueOwnerProfilesTable).set({ qrToken: newToken, updatedAt: new Date() })
+    .where(eq(venueOwnerProfilesTable.id, row.profile.id));
+  res.json({ qrToken: newToken, qrUrl: generateQrUrl(row.business.placeId, newToken) });
+});
+
 router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, async (req, res): Promise<void> => {
   const membership = await requireBusinessRole(req, res, roles);
   if (!membership) return;

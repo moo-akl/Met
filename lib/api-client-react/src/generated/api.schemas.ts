@@ -1462,3 +1462,10 @@ export type ListVenueApplicationsParams = {
    */
   search?: string;
 };
+
+export interface VenueManagerQrCode {
+  /** UUID token embedded in the QR code URL. */
+  qrToken: string;
+  /** Full check-in URL to encode as QR. */
+  qrUrl: string;
+}

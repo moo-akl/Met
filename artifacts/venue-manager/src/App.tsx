@@ -15,6 +15,7 @@ import {
   deleteVenueManagerSession,
   getGetVenueManagerBusinessQueryOptions,
   getGetVenueManagerDashboardQueryOptions,
+  getGetVenueManagerQrCodeQueryOptions,
   getListVenueManagerAnnouncementsQueryOptions,
   getListVenueManagerBusinessesQueryOptions,
   getListVenueManagerEventsQueryOptions,
@@ -27,6 +28,7 @@ import {
   updateVenueManagerEvent,
   updateVenueManagerReward,
   updateVenueManagerRole,
+  regenerateVenueManagerQrCode,
   type VenueManagerBusiness,
   type VenueManagerDashboard,
   type VenueManagerEvent,
@@ -42,7 +44,8 @@ import {
   type VenueManagerRewardInput,
   type VenueManagerRewardUpdate,
 } from "@workspace/api-client-react";
-import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Settings2, ShieldCheck, Users, X } from "lucide-react";
+import QRCode from "react-qr-code";
+import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, QrCode, RefreshCw, Settings2, ShieldCheck, Users, X } from "lucide-react";
 import { applyWebsiteUrlBlur, validateWebsiteUrl } from "./lib/websiteUrl";
 import "./index.css";
 
@@ -688,6 +691,100 @@ function ImageUploadField({ label, value, onChange, businessId, csrfToken }: Ima
 }
 
 
+function VenueQrCodePanel({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
+  const client = useQueryClient();
+  const qr = useQuery({
+    ...getGetVenueManagerQrCodeQueryOptions(business.businessId, { request: { credentials: "include" } }),
+  });
+  const [regenerating, setRegenerating] = useState(false);
+  const [qrMsg, setQrMsg] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const data = qr.data;
+
+  function downloadQr() {
+    if (!data) return;
+    const svg = document.getElementById("vm-qr-svg");
+    if (!svg) return;
+    const serializer = new XMLSerializer();
+    const svgStr = serializer.serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const size = 512;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const img = new Image();
+    img.onload = () => {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, 0, 0, size, size);
+      const link = document.createElement("a");
+      link.download = `${business.placeName.replace(/\s+/g, "-").toLowerCase()}-qr.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgStr);
+  }
+
+  async function doRegenerate() {
+    setRegenerating(true);
+    setQrMsg("");
+    try {
+      await regenerateVenueManagerQrCode(business.businessId, { credentials: "include", headers: { "x-csrf-token": csrfToken } });
+      await client.invalidateQueries({ queryKey: getGetVenueManagerQrCodeQueryOptions(business.businessId).queryKey });
+      setQrMsg("QR code regenerated. The old code is now invalid.");
+    } catch {
+      setQrMsg("Failed to regenerate. Try again.");
+    } finally {
+      setRegenerating(false);
+      setShowConfirm(false);
+    }
+  }
+
+  return (
+    <section className="vm-panel">
+      <div className="vm-section-head-row">
+        <QrCode size={18} />
+        <div>
+          <h3 style={{ margin: 0 }}>Check-in QR code</h3>
+          <p style={{ margin: "2px 0 0", fontSize: "0.85em", opacity: 0.7 }}>Print and display this at your venue so guests can check in.</p>
+        </div>
+      </div>
+      {qr.isLoading && <SectionLoading />}
+      {qr.isError && <div className="vm-notice error">Unable to load QR code. Refresh to try again.</div>}
+      {data && (
+        <div className="vm-qr-body">
+          <div className="vm-qr-code">
+            <QRCode id="vm-qr-svg" value={data.qrUrl} size={200} bgColor="#ffffff" fgColor="#111111" />
+          </div>
+          <div className="vm-qr-meta">
+            <p className="vm-qr-url">{data.qrUrl}</p>
+            <div className="vm-qr-actions">
+              <button type="button" className="vm-secondary" onClick={downloadQr}><Download size={14} />Download PNG</button>
+              {business.role === "owner" && (
+                <button type="button" className="vm-secondary danger-text" onClick={() => { setQrMsg(""); setShowConfirm(true); }}><RefreshCw size={14} />Regenerate code</button>
+              )}
+            </div>
+            {qrMsg && <div className={`vm-notice ${qrMsg.startsWith("Failed") ? "error" : "success"}`}>{qrMsg}</div>}
+          </div>
+        </div>
+      )}
+      {showConfirm && (
+        <Modal title="Regenerate QR code?" onClose={() => setShowConfirm(false)}>
+          <div className="vm-form">
+            <p className="vm-subtitle" style={{ margin: "0 0 12px" }}>This will invalidate the current code immediately. Anyone who already scanned the old URL will be able to check in until the link expires, but new scans of the old code will not work.</p>
+            <div className="vm-form-actions">
+              <button type="button" className="vm-secondary" onClick={() => setShowConfirm(false)}>Cancel</button>
+              <button type="button" className="vm-danger-btn" disabled={regenerating} onClick={() => void doRegenerate()}>{regenerating ? "Regenerating…" : "Yes, regenerate"}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </section>
+  );
+}
+
 function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
   const detail = useBusinessQuery<VenueManagerBusiness>(getGetVenueManagerBusinessQueryOptions, business.businessId);
   const [message, setMessage] = useState("");
@@ -796,6 +893,8 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
           </div>
         </form>
       </section>
+
+      <VenueQrCodePanel business={business} csrfToken={csrfToken} />
 
       {business.role === "owner" && (
         <section className="vm-panel vm-danger-zone">

@@ -66,3 +66,13 @@
 .vm-image-progress{height:4px;border-radius:2px;background:#e2ede8;overflow:hidden;width:100%;max-width:220px}
 .vm-image-progress-bar{height:100%;background:#0d7659;transition:width .25s ease}
 .vm-image-error{font-size:12px;color:#9b3126}
+
+.vm-section-head-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;color:#4a7263}
+.vm-section-head-row h3{font-size:14px;font-weight:700;color:#1a3328;margin:0}
+.vm-qr-body{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.vm-qr-code{background:#fff;padding:12px;border:1px solid #dde9e4;border-radius:10px;display:inline-block;line-height:0;flex-shrink:0}
+.vm-qr-meta{display:flex;flex-direction:column;gap:12px;flex:1;min-width:220px}
+.vm-qr-url{font:12px/1.5 "DM Mono",monospace;color:#5a7a6d;word-break:break-all;background:#f3f7f4;padding:8px 10px;border-radius:7px;margin:0;border:1px solid #dde9e4}
+.vm-qr-actions{display:flex;gap:8px;flex-wrap:wrap}
+.vm-qr-actions .vm-secondary{padding:8px 12px;font-size:13px}
+.danger-text{color:#9b3126!important}
