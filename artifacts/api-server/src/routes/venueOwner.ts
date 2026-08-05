@@ -2821,6 +2821,7 @@ router.post(
         rejectionReason: null,
         reviewedAt: now,
         approvedAt: now,
+        qrToken: crypto.randomUUID(),
       },
       applicantMessage: "Your venue application has been approved.",
       internalNote: parsed.data.internalNote ?? null,
