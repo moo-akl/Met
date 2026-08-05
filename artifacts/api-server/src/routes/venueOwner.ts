@@ -306,7 +306,22 @@ function serializeApplicationProfile(
 }
 
 /** The only venue profile fields intentionally visible on public venue pages. */
-function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$inferSelect) {
+/**
+ * Converts a stored URL to an absolute URL.
+ *
+ * Images uploaded via the venue manager are stored as root-relative API paths
+ * (e.g. `/api/storage/objects/uploads/<uuid>`). That works fine in the web
+ * manager (same origin) but React Native's Image component requires a fully
+ * qualified `https://` URL. This helper resolves relative paths against the
+ * request origin so mobile clients always get a loadable URL.
+ */
+function resolveStorageUrl(baseUrl: string, url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("/")) return `${baseUrl}${url}`;
+  return url;
+}
+
+function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$inferSelect, baseUrl: string) {
   return {
     id: profile.id,
     placeId: profile.placeId,
@@ -314,8 +329,8 @@ function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$in
     businessName: profile.businessName,
     tagline: profile.tagline,
     description: profile.description,
-    coverPhotoUrl: profile.coverPhotoUrl,
-    logoUrl: profile.logoUrl,
+    coverPhotoUrl: resolveStorageUrl(baseUrl, profile.coverPhotoUrl),
+    logoUrl: resolveStorageUrl(baseUrl, profile.logoUrl),
     lat: profile.lat,
     lng: profile.lng,
     isVerified: profile.isVerified,
@@ -326,9 +341,9 @@ function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$in
   };
 }
 
-function serializePublicVenueEvent(event: typeof venueEventsTable.$inferSelect) {
+function serializePublicVenueEvent(event: typeof venueEventsTable.$inferSelect, baseUrl: string) {
   const { ownerUid: _ownerUid, ...publicEvent } = event;
-  return publicEvent;
+  return { ...publicEvent, imageUrl: resolveStorageUrl(baseUrl, publicEvent.imageUrl) };
 }
 
 function serializePublicVenueReward(reward: typeof venueRewardsTable.$inferSelect) {
@@ -336,9 +351,9 @@ function serializePublicVenueReward(reward: typeof venueRewardsTable.$inferSelec
   return publicReward;
 }
 
-function serializePublicVenueAnnouncement(announcement: typeof venueAnnouncementsTable.$inferSelect) {
+function serializePublicVenueAnnouncement(announcement: typeof venueAnnouncementsTable.$inferSelect, baseUrl: string) {
   const { ownerUid: _ownerUid, ...publicAnnouncement } = announcement;
-  return publicAnnouncement;
+  return { ...publicAnnouncement, imageUrl: resolveStorageUrl(baseUrl, publicAnnouncement.imageUrl) };
 }
 
 type HistoryEventType = typeof venueApplicationHistoryTable.$inferInsert["eventType"];
@@ -1230,7 +1245,8 @@ router.get(
       res.status(404).json({ message: "No approved venue profile found for this place" });
       return;
     }
-    res.json({ profile: serializePublicVenueProfile(profile) });
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.json({ profile: serializePublicVenueProfile(profile, baseUrl) });
   },
 );
 
@@ -1322,7 +1338,8 @@ router.get(
         ),
       )
       .orderBy(desc(venueEventsTable.startsAt));
-    res.json({ events: events.map(serializePublicVenueEvent) });
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.json({ events: events.map((e) => serializePublicVenueEvent(e, baseUrl)) });
   },
 );
 
@@ -1849,7 +1866,8 @@ router.get(
       .from(venueAnnouncementsTable)
       .where(eq(venueAnnouncementsTable.placeId, placeId))
       .orderBy(desc(venueAnnouncementsTable.isPinned), desc(venueAnnouncementsTable.createdAt));
-    res.json({ announcements: announcements.map(serializePublicVenueAnnouncement) });
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.json({ announcements: announcements.map((a) => serializePublicVenueAnnouncement(a, baseUrl)) });
   },
 );
 
