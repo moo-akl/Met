@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   Platform,
   Pressable,
   StyleSheet,
@@ -80,6 +81,26 @@ export default function ProfileScreen() {
     socials: 0,
     interests: 0,
   });
+
+  // Highlight animation: a brief border-color pulse on the target field after
+  // the banner scrolls to it so users know exactly which field to fill in.
+  const highlightAnim = useRef(new Animated.Value(0)).current;
+  const [highlightTarget, setHighlightTarget] = useState<
+    "name" | "photo" | "bio" | "socials" | "interests" | null
+  >(null);
+
+  const triggerHighlight = useCallback(
+    (target: "name" | "photo" | "bio" | "socials" | "interests") => {
+      highlightAnim.setValue(0);
+      setHighlightTarget(target);
+      Animated.sequence([
+        Animated.timing(highlightAnim, { toValue: 1, duration: 200, useNativeDriver: false }),
+        Animated.delay(60),
+        Animated.timing(highlightAnim, { toValue: 0, duration: 200, useNativeDriver: false }),
+      ]).start(() => setHighlightTarget(null));
+    },
+    [highlightAnim],
+  );
 
   const profileSteps = profile
     ? [
@@ -423,6 +444,13 @@ export default function ProfileScreen() {
 
   const webBot = Platform.OS === "web" ? 34 : 0;
 
+  // Interpolated border color used by the post-scroll field highlight.
+  // Transitions from transparent → primary colour and back.
+  const highlightBorderColor = highlightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["transparent", colors.primary],
+  });
+
   const activeSocials = (
     Object.entries(socials ?? {}) as [SocialPlatform, string][]
   ).filter(([, h]) => h && h.trim());
@@ -501,6 +529,12 @@ export default function ProfileScreen() {
                     : firstIncomplete === 4
                       ? "interests"
                       : "photo";
+                const highlightField =
+                  firstIncomplete === 0 ? "name"
+                  : firstIncomplete === 1 ? "photo"
+                  : firstIncomplete === 2 ? "bio"
+                  : firstIncomplete === 3 ? "socials"
+                  : "interests";
                 // Two rAF frames to let the edit-mode re-render settle before scrolling.
                 requestAnimationFrame(() => {
                   requestAnimationFrame(() => {
@@ -508,6 +542,12 @@ export default function ProfileScreen() {
                       y: sectionOffsets.current[targetKey],
                       animated: true,
                     });
+                    // Wait for the scroll animation to settle, then briefly
+                    // highlight the specific target field.
+                    setTimeout(
+                      () => triggerHighlight(highlightField as Parameters<typeof triggerHighlight>[0]),
+                      350,
+                    );
                   });
                 });
               }}
@@ -684,6 +724,14 @@ export default function ProfileScreen() {
           style={styles.photoArea}
           onLayout={(e) => { sectionOffsets.current.photo = e.nativeEvent.layout.y; }}
         >
+          <Animated.View
+            style={{
+              borderRadius: 70,
+              borderWidth: 2,
+              borderColor: highlightTarget === "photo" ? highlightBorderColor : "transparent",
+              padding: 1,
+            }}
+          >
           <Pressable
             onPress={editing ? handleMainPhotoPress : undefined}
             style={styles.photoTarget}
@@ -728,22 +776,31 @@ export default function ProfileScreen() {
               </View>
             ) : null}
           </Pressable>
+          </Animated.View>
 
           {editing ? (
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder={t("profile.namePlaceholder")}
-              placeholderTextColor={colors.mutedForeground}
-              style={[
-                styles.nameInput,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  color: colors.foreground,
-                },
-              ]}
-            />
+            <Animated.View
+              style={{
+                borderRadius: 16,
+                borderWidth: 2,
+                borderColor: highlightTarget === "name" ? highlightBorderColor : "transparent",
+              }}
+            >
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder={t("profile.namePlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+                style={[
+                  styles.nameInput,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+              />
+            </Animated.View>
           ) : (
             <View style={{ alignItems: "center", gap: 6 }}>
               <UserNameHeader
@@ -793,22 +850,30 @@ export default function ProfileScreen() {
           )}
 
           {editing ? (
-            <TextInput
-              value={bio}
-              onChangeText={setBio}
-              placeholder={t("profile.bioPlaceholder")}
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              maxLength={120}
-              style={[
-                styles.bioInput,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  color: colors.foreground,
-                },
-              ]}
-            />
+            <Animated.View
+              style={{
+                borderRadius: 16,
+                borderWidth: 2,
+                borderColor: highlightTarget === "bio" ? highlightBorderColor : "transparent",
+              }}
+            >
+              <TextInput
+                value={bio}
+                onChangeText={setBio}
+                placeholder={t("profile.bioPlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                maxLength={120}
+                style={[
+                  styles.bioInput,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+              />
+            </Animated.View>
           ) : profile?.bio ? (
             <Text style={[styles.bio, { color: colors.mutedForeground }]}>
               {profile.bio}
@@ -1096,9 +1161,19 @@ export default function ProfileScreen() {
         <View onLayout={(e) => { sectionOffsets.current.socials = e.nativeEvent.layout.y; }}>
           {editing ? (
             <View style={{ gap: 12 }}>
-              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-                {t("profile.socialHandles")}
-              </Text>
+              <Animated.View
+                style={{
+                  borderRadius: 8,
+                  borderWidth: 2,
+                  borderColor: highlightTarget === "socials" ? highlightBorderColor : "transparent",
+                  alignSelf: "flex-start",
+                  paddingHorizontal: 4,
+                }}
+              >
+                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                  {t("profile.socialHandles")}
+                </Text>
+              </Animated.View>
               {SOCIAL_FIELDS.map((f) => (
                 <View key={f.key} style={styles.field}>
                   <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>
@@ -1200,23 +1275,31 @@ export default function ProfileScreen() {
                 )}
               />
             ) : null}
-            <TextInput
-              value={interestSearch}
-              onChangeText={setInterestSearch}
-              placeholder={t("onboarding.interestsSearchPlaceholder")}
-              placeholderTextColor={colors.mutedForeground}
-              autoCapitalize="none"
-              autoCorrect={false}
-              clearButtonMode="while-editing"
-              style={[
-                styles.searchInput,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  color: colors.foreground,
-                },
-              ]}
-            />
+            <Animated.View
+              style={{
+                borderRadius: 14,
+                borderWidth: 2,
+                borderColor: highlightTarget === "interests" ? highlightBorderColor : "transparent",
+              }}
+            >
+              <TextInput
+                value={interestSearch}
+                onChangeText={setInterestSearch}
+                placeholder={t("onboarding.interestsSearchPlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+                autoCapitalize="none"
+                autoCorrect={false}
+                clearButtonMode="while-editing"
+                style={[
+                  styles.searchInput,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+              />
+            </Animated.View>
             <View style={styles.interestsGrid}>
               {ALL_INTERESTS.filter((tag) => {
                 if (interests.includes(tag)) return false;
