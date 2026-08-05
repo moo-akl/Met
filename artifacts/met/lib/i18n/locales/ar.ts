@@ -124,7 +124,6 @@ export const ar: LocaleTree = {
     profileBannerNoPhoto: "أضف صورة واضحة لوجهك — يتحقق Met من كل صورة للحفاظ على أصالة المجتمع.",
     profileBannerNoBio: "أضف نبذة قصيرة حتى يعرف الناس شيئًا عنك قبل التواصل.",
     profileBannerNoSocials: "أضف رابطًا اجتماعيًا واحدًا على الأقل حتى يتمكن الآخرون من التواصل معك.",
-    profileBannerBoth: "أضف صورة واضحة لوجهك ورابطًا اجتماعيًا واحدًا على الأقل حتى يتمكن الآخرون من التواصل معك.",
     profileBannerNoName: "أضف اسمك حتى يعرف الآخرون من أنت عند التواصل.",
     profileBannerNoInterests: "أضف بعض الاهتمامات حتى يرى الآخرون ما تشتركون فيه.",
     profileBannerCta: "إعداد الملف الشخصي →",

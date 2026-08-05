@@ -117,7 +117,6 @@ export const zh: LocaleTree = {
     profileBannerNoPhoto: "请上传一张能清晰看到你脸的照片——Met 会验证每张照片以保持社区的真实性。",
     profileBannerNoBio: "添加简短的个人简介，让人们在联系前了解你。",
     profileBannerNoSocials: "请至少添加一个社交链接，方便他人与你联系。",
-    profileBannerBoth: "请上传一张清晰的正脸照片，并至少添加一个社交链接，方便他人与你联系。",
     profileBannerNoName: "添加你的名字，让大家在联系时知道你是谁。",
     profileBannerNoInterests: "添加一些兴趣，让大家看看你们有什么共同点。",
     profileBannerCta: "设置资料 →",

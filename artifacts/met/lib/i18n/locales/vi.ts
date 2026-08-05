@@ -123,7 +123,6 @@ export const vi: LocaleTree = {
     profileBannerNoPhoto: "Thêm ảnh thấy rõ khuôn mặt của bạn — Met xác minh từng ảnh để giữ cộng đồng chân thực.",
     profileBannerNoBio: "Thêm tiểu sử ngắn để mọi người có thể biết về bạn trước khi kết nối.",
     profileBannerNoSocials: "Thêm ít nhất một liên kết mạng xã hội để mọi người có thể kết nối với bạn.",
-    profileBannerBoth: "Thêm ảnh khuôn mặt rõ ràng và ít nhất một liên kết mạng xã hội để mọi người có thể kết nối với bạn.",
     profileBannerNoName: "Thêm tên của bạn để mọi người biết bạn là ai khi kết nối.",
     profileBannerNoInterests: "Thêm một số sở thích để mọi người thấy điểm chung giữa các bạn.",
     profileBannerCta: "Thiết lập hồ sơ →",

@@ -124,7 +124,6 @@ export const en = {
     profileBannerNoPhoto: "Add a clear photo of your face — Met checks each photo to keep the community real.",
     profileBannerNoBio: "Add a short bio so people know a little about you before connecting.",
     profileBannerNoSocials: "Add at least one social link so people can reach you after connecting.",
-    profileBannerBoth: "Add a clear face photo and at least one social link so people can reach you.",
     profileBannerNoName: "Add your name so people know who you are when you connect.",
     profileBannerNoInterests: "Add some interests so people can see what you have in common.",
     profileBannerCta: "Set up profile →",

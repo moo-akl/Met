@@ -123,7 +123,6 @@ export const fr: LocaleTree = {
     profileBannerNoPhoto: "Ajoute une photo claire de ton visage — Met vérifie chaque photo pour garder la communauté authentique.",
     profileBannerNoBio: "Ajoute une courte bio pour que les gens en sachent un peu plus sur toi avant de se connecter.",
     profileBannerNoSocials: "Ajoute au moins un lien social pour que les gens puissent te contacter.",
-    profileBannerBoth: "Ajoute une photo de ton visage et au moins un lien social pour que les gens puissent te contacter.",
     profileBannerNoName: "Ajoute ton prénom pour que les gens sachent qui tu es quand tu te connectes.",
     profileBannerNoInterests: "Ajoute quelques centres d'intérêt pour que les gens voient ce que vous avez en commun.",
     profileBannerCta: "Configurer le profil →",

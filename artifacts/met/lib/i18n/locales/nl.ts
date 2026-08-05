@@ -123,7 +123,6 @@ export const nl: LocaleTree = {
     profileBannerNoPhoto: "Voeg een foto toe waarop je gezicht duidelijk zichtbaar is — Met verifieert elke foto om de community authentiek te houden.",
     profileBannerNoBio: "Voeg een korte bio toe zodat mensen je kunnen leren kennen voordat ze contact opnemen.",
     profileBannerNoSocials: "Voeg minimaal één sociale link toe zodat mensen contact met je kunnen opnemen.",
-    profileBannerBoth: "Voeg een foto met je gezicht en minimaal één sociale link toe zodat mensen contact met je kunnen opnemen.",
     profileBannerNoName: "Voeg je naam toe zodat mensen weten wie je bent als je contact maakt.",
     profileBannerNoInterests: "Voeg interesses toe zodat mensen zien wat jullie gemeen hebben.",
     profileBannerCta: "Profiel instellen →",
