@@ -20,10 +20,10 @@ export const modules: ModuleMap = {
   "./components/mockups/met-screens/OnboardingCurrent.tsx": () => import("../components/mockups/met-screens/OnboardingCurrent.tsx"),
   "./components/mockups/met-screens/OnboardingNew.tsx": () => import("../components/mockups/met-screens/OnboardingNew.tsx"),
   "./components/mockups/met-screens/ProfileShot.tsx": () => import("../components/mockups/met-screens/ProfileShot.tsx"),
-  "./components/mockups/venue-designs/BrightAiry.tsx": () => import("../components/mockups/venue-designs/BrightAiry.tsx"),
-  "./components/mockups/venue-designs/CleanSlate.tsx": () => import("../components/mockups/venue-designs/CleanSlate.tsx"),
-  "./components/mockups/venue-designs/WarmTerracotta.tsx": () => import("../components/mockups/venue-designs/WarmTerracotta.tsx"),
   "./components/mockups/met-ui-concepts/CyberSocial.tsx": () => import("../components/mockups/met-ui-concepts/CyberSocial.tsx"),
   "./components/mockups/met-ui-concepts/GamifiedModern.tsx": () => import("../components/mockups/met-ui-concepts/GamifiedModern.tsx"),
-  "./components/mockups/met-ui-concepts/PremiumLifestyle.tsx": () => import("../components/mockups/met-ui-concepts/PremiumLifestyle.tsx")
+  "./components/mockups/met-ui-concepts/PremiumLifestyle.tsx": () => import("../components/mockups/met-ui-concepts/PremiumLifestyle.tsx"),
+  "./components/mockups/venue-designs/BrightAiry.tsx": () => import("../components/mockups/venue-designs/BrightAiry.tsx"),
+  "./components/mockups/venue-designs/CleanSlate.tsx": () => import("../components/mockups/venue-designs/CleanSlate.tsx"),
+  "./components/mockups/venue-designs/WarmTerracotta.tsx": () => import("../components/mockups/venue-designs/WarmTerracotta.tsx")
 };
