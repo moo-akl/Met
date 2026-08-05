@@ -51,21 +51,59 @@ export function AuroraGlass() {
           </div>
         </div>
 
-        {/* Map / Radar Area */}
-        <div className="w-full h-40 rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 mb-6 relative overflow-hidden flex items-center justify-center shadow-lg group">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-500/20 via-[#050814]/40 to-[#050814]/80"></div>
-          {/* Radar rings */}
-          <div className="absolute w-[200px] h-[200px] border border-purple-500/20 rounded-full"></div>
-          <div className="absolute w-[120px] h-[120px] border border-cyan-500/20 rounded-full"></div>
-          <div className="absolute w-[40px] h-[40px] border border-white/30 rounded-full bg-white/10"></div>
-          
-          {/* Scanning sweep */}
-          <div className="absolute w-[100%] h-[100%] top-1/2 left-1/2 origin-top-left bg-gradient-to-br from-purple-500/0 via-purple-500/10 to-cyan-400/30 animate-[spin_4s_linear_infinite] rounded-tl-full mix-blend-screen pointer-events-none" style={{ borderLeft: '1px solid rgba(6,182,212,0.5)', marginTop: '-50%', marginLeft: '-50%', transformOrigin: 'bottom right' }}></div>
-          
-          {/* Blips */}
-          <div className="absolute top-[30%] left-[30%] w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
-          <div className="absolute bottom-[40%] right-[25%] w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></div>
-          <div className="absolute top-[60%] left-[60%] w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"></div>
+        {/* Heatmap */}
+        <div className="w-full rounded-3xl bg-[#07091a] border border-white/10 mb-6 relative overflow-hidden shadow-lg" style={{ height: 200 }}>
+          {/* Street grid — faint lines suggesting a map */}
+          <svg className="absolute inset-0 w-full h-full opacity-20" xmlns="http://www.w3.org/2000/svg">
+            {/* Horizontal streets */}
+            <line x1="0" y1="50"  x2="390" y2="50"  stroke="#4f6699" strokeWidth="1"/>
+            <line x1="0" y1="90"  x2="390" y2="90"  stroke="#4f6699" strokeWidth="0.5"/>
+            <line x1="0" y1="130" x2="390" y2="130" stroke="#4f6699" strokeWidth="1"/>
+            <line x1="0" y1="170" x2="390" y2="170" stroke="#4f6699" strokeWidth="0.5"/>
+            {/* Vertical streets */}
+            <line x1="60"  y1="0" x2="60"  y2="200" stroke="#4f6699" strokeWidth="0.5"/>
+            <line x1="130" y1="0" x2="130" y2="200" stroke="#4f6699" strokeWidth="1"/>
+            <line x1="200" y1="0" x2="200" y2="200" stroke="#4f6699" strokeWidth="0.5"/>
+            <line x1="270" y1="0" x2="270" y2="200" stroke="#4f6699" strokeWidth="1"/>
+            <line x1="330" y1="0" x2="330" y2="200" stroke="#4f6699" strokeWidth="0.5"/>
+            {/* Diagonal avenue */}
+            <line x1="0" y1="80" x2="390" y2="170" stroke="#4f6699" strokeWidth="0.5"/>
+          </svg>
+
+          {/* Heat blobs — dense cluster centre */}
+          <div className="absolute rounded-full" style={{ width: 130, height: 110, top: 30, left: 100, background: 'radial-gradient(circle, rgba(168,85,247,0.75) 0%, rgba(168,85,247,0.35) 40%, transparent 72%)', filter: 'blur(18px)' }} />
+          {/* Secondary hot-spot */}
+          <div className="absolute rounded-full" style={{ width: 90, height: 80, top: 60, left: 220, background: 'radial-gradient(circle, rgba(6,182,212,0.65) 0%, rgba(6,182,212,0.28) 45%, transparent 72%)', filter: 'blur(14px)' }} />
+          {/* Warm fringe */}
+          <div className="absolute rounded-full" style={{ width: 70, height: 60, top: 100, left: 20, background: 'radial-gradient(circle, rgba(236,72,153,0.45) 0%, rgba(236,72,153,0.18) 50%, transparent 72%)', filter: 'blur(12px)' }} />
+          {/* Cool fringe right */}
+          <div className="absolute rounded-full" style={{ width: 60, height: 50, top: 20, left: 290, background: 'radial-gradient(circle, rgba(99,102,241,0.4) 0%, transparent 70%)', filter: 'blur(10px)' }} />
+
+          {/* Individual people dots */}
+          <div className="absolute w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_6px_rgba(6,182,212,0.9)]"  style={{ top: 58,  left: 152 }} />
+          <div className="absolute w-1.5 h-1.5 rounded-full bg-purple-300 shadow-[0_0_6px_rgba(168,85,247,0.9)]" style={{ top: 78,  left: 178 }} />
+          <div className="absolute w-2 h-2 rounded-full bg-fuchsia-300 shadow-[0_0_6px_rgba(232,121,249,0.9)]" style={{ top: 44,  left: 135 }} />
+          <div className="absolute w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.9)]"  style={{ top: 95,  left: 238 }} />
+          <div className="absolute w-1.5 h-1.5 rounded-full bg-white/80 shadow-[0_0_5px_rgba(255,255,255,0.7)]" style={{ top: 120, left: 60  }} />
+          <div className="absolute w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_5px_rgba(168,85,247,0.8)]" style={{ top: 36,  left: 300 }} />
+
+          {/* "You are here" pin */}
+          <div className="absolute flex flex-col items-center" style={{ top: 76, left: 186 }}>
+            <div className="w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.9)] border-2 border-[#050814]" />
+            <div className="w-px h-2 bg-white/60" />
+          </div>
+
+          {/* Top-left label */}
+          <div className="absolute top-3 left-4 flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+            <span className="text-[10px] font-semibold text-white/50 tracking-widest uppercase">Live heatmap</span>
+          </div>
+
+          {/* Legend bottom-right */}
+          <div className="absolute bottom-3 right-4 flex items-center gap-1">
+            <div className="w-12 h-1.5 rounded-full" style={{ background: 'linear-gradient(to right, rgba(99,102,241,0.6), rgba(168,85,247,0.8), rgba(236,72,153,0.9), rgba(6,182,212,1))' }} />
+            <span className="text-[9px] text-white/40 ml-1">hot</span>
+          </div>
         </div>
 
         {/* Quick Actions */}
