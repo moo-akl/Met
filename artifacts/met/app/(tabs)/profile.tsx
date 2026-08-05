@@ -44,6 +44,11 @@ import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { useT } from "@/lib/i18n";
 import { getVenueOwnerDestination } from "@/lib/venueOwnerLifecycle";
 import { useSubscription } from "@/lib/revenuecat";
+import {
+  getProfileSteps,
+  getBannerScrollTarget,
+  getBannerHighlightField,
+} from "@/lib/profileBannerTarget";
 import { loadDragHintDismissed, MAX_EXTRA_PHOTOS_BY_TIER, saveDragHintDismissed } from "@/lib/storage";
 import { api } from "@/lib/api/client";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
@@ -109,15 +114,7 @@ export default function ProfileScreen() {
     [highlightAnim],
   );
 
-  const profileSteps = profile
-    ? [
-        !!(profile.name ?? "").trim(),
-        !!profile.verified,
-        (profile.bio ?? "").trim().length > 0,
-        Object.keys(profile.socials ?? {}).length > 0,
-        (profile.interests ?? []).length > 0,
-      ]
-    : [];
+  const profileSteps = profile ? getProfileSteps(profile) : [];
   const profileScore = profileSteps.filter(Boolean).length;
   const profileTotal = profileSteps.length;
   const profileIncomplete = !!profile && profileScore < profileTotal;
@@ -530,18 +527,8 @@ export default function ProfileScreen() {
                 // steps: 0=name, 1=photo, 2=bio → all inside photoArea
                 //        3=socials, 4=interests → their own sections
                 const firstIncomplete = profileSteps.findIndex((done) => !done);
-                const targetKey: keyof typeof sectionOffsets.current =
-                  firstIncomplete === 3
-                    ? "socials"
-                    : firstIncomplete === 4
-                      ? "interests"
-                      : "photo";
-                const highlightField =
-                  firstIncomplete === 0 ? "name"
-                  : firstIncomplete === 1 ? "photo"
-                  : firstIncomplete === 2 ? "bio"
-                  : firstIncomplete === 3 ? "socials"
-                  : "interests";
+                const targetKey = getBannerScrollTarget(firstIncomplete);
+                const highlightField = getBannerHighlightField(firstIncomplete);
                 // Two rAF frames to let the edit-mode re-render settle before scrolling.
                 requestAnimationFrame(() => {
                   requestAnimationFrame(() => {
