@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { useRouter } from "expo-router";
 import * as Updates from "expo-updates";
@@ -628,13 +627,14 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 label={t("settings.permissions")}
                 sub={t("settings.permissionsSub")}
                 onPress={() => {
-                  // The OS only shows the permission dialog once. After that,
-                  // users have to change grants in Settings — so this row
-                  // deep-links straight there. openSettings() resolves the
-                  // app-specific page on iOS and the app info screen on
-                  // Android. Falls back to a no-op if the platform doesn't
-                  // support it (e.g. web).
-                  void Linking.openSettings().catch(() => {});
+                  // Navigate to the in-app permissions screen so the user can
+                  // see the current granted/denied state for each permission
+                  // and tap "Open Settings" for any that need to be changed.
+                  // The permissions screen handles the OS Settings deep-link
+                  // for denied rows, and shows an X close button when
+                  // permissionsCompleted is true (i.e. opened from settings).
+                  close();
+                  setTimeout(() => router.push("/permissions"), 50);
                 }}
                 colors={colors}
               />

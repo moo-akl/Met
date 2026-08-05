@@ -492,7 +492,7 @@ export default function PermissionsScreen() {
 
         <View style={{ gap: 10 }}>
           <PrimaryButton
-            label={t("permissions.continue")}
+            label={permissionsCompleted ? t("common.done") : t("permissions.continue")}
             onPress={handleContinue}
           />
         </View>
