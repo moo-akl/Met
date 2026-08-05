@@ -396,19 +396,9 @@ export default function PermissionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {permissionsCompleted ? (
-        <Pressable
-          testID="close-btn"
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={[styles.backBtn, { top: insets.top + 12 }]}
-        >
-          <Feather name="x" size={22} color={colors.foreground} />
-        </Pressable>
-      ) : null}
       <ScrollView
         contentContainerStyle={{
-          paddingTop: permissionsCompleted ? insets.top + webTop + 60 : insets.top + webTop + 28,
+          paddingTop: insets.top + webTop + 28,
           paddingBottom: insets.bottom + webBot + 32,
           paddingHorizontal: 24,
           gap: 22,
@@ -606,12 +596,6 @@ function PermRow({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  backBtn: {
-    position: "absolute",
-    right: 20,
-    zIndex: 10,
-    padding: 6,
-  },
   header: { alignItems: "center", gap: 10, paddingTop: 4 },
   iconHero: {
     width: 92,
