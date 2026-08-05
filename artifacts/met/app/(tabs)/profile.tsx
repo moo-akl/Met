@@ -48,6 +48,7 @@ import {
   getProfileSteps,
   getBannerScrollTarget,
   getBannerHighlightField,
+  getBannerFocusTarget,
 } from "@/lib/profileBannerTarget";
 import { loadDragHintDismissed, MAX_EXTRA_PHOTOS_BY_TIER, saveDragHintDismissed } from "@/lib/storage";
 import { api } from "@/lib/api/client";
@@ -548,18 +549,21 @@ export default function ProfileScreen() {
                       () => {
                         triggerHighlight(highlightField as Parameters<typeof triggerHighlight>[0]);
                         // Ordered: name → bio → first social handle.
+                        // Photo (step 1) and interests (step 4) are not text
+                        // fields; getBannerFocusTarget returns null for them.
                         // After focusing we also ask KeyboardAwareScrollView to
                         // scroll the input into view so the keyboard doesn't
                         // cover it — the initial scrollTo targets the section
                         // header, which can leave the input hidden behind the
                         // keyboard on smaller screens.
-                        if (!(profile?.name ?? "").trim()) {
+                        const focusTarget = getBannerFocusTarget(profile ?? {});
+                        if (focusTarget === "name") {
                           nameInputRef.current?.focus();
                           scrollViewRef.current?.scrollToView(nameInputRef, { animated: true });
-                        } else if (!(profile?.bio ?? "").trim()) {
+                        } else if (focusTarget === "bio") {
                           bioInputRef.current?.focus();
                           scrollViewRef.current?.scrollToView(bioInputRef, { animated: true });
-                        } else if (Object.keys(profile?.socials ?? {}).length === 0) {
+                        } else if (focusTarget === "firstSocial") {
                           firstSocialInputRef.current?.focus();
                           scrollViewRef.current?.scrollToView(firstSocialInputRef, { animated: true });
                         }

@@ -63,3 +63,28 @@ export function getBannerHighlightField(firstIncomplete: number): HighlightField
     default: return "interests";
   }
 }
+
+/**
+ * The TextInput ref to call .focus() on after the banner scroll settles.
+ *
+ *   "name"        → nameInputRef
+ *   "bio"         → bioInputRef
+ *   "firstSocial" → firstSocialInputRef
+ *   null          → no TextInput to focus (photo = step 1, interests = step 4)
+ *
+ * The focus target is derived from field-level emptiness independently of
+ * firstIncomplete so that, for example, a user who has a name but no verified
+ * photo still gets the bio focused if it is the first empty text field.
+ */
+export type FocusTarget = "name" | "bio" | "firstSocial" | null;
+
+export function getBannerFocusTarget(profile: {
+  name?: string | null;
+  bio?: string | null;
+  socials?: Record<string, unknown> | null;
+}): FocusTarget {
+  if (!(profile.name ?? "").trim()) return "name";
+  if (!(profile.bio ?? "").trim()) return "bio";
+  if (Object.keys(profile.socials ?? {}).length === 0) return "firstSocial";
+  return null;
+}
