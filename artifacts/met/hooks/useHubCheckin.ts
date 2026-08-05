@@ -26,12 +26,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError, type VenueResult } from "@/lib/api/client";
 
 export type { VenueResult };
 
 const CHECKIN_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const CHECKIN_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours — matches server-side window
+const CHECKIN_STORAGE_KEY = "@hub_checkin_state";
 
 export interface HubState {
   placeId: string;
@@ -109,13 +112,19 @@ export function useHubCheckin(): {
           },
         );
         if (mountedRef.current) {
-          setHubState({
+          const newState: HubState = {
             placeId: result.placeId,
             placeName: result.placeName,
             streak: result.streak,
             isMock: false,
-          });
+          };
+          setHubState(newState);
           setCooldownMinutes(null);
+          // Persist so the app doesn't re-prompt on the next cold start.
+          void AsyncStorage.setItem(
+            CHECKIN_STORAGE_KEY,
+            JSON.stringify({ hubState: newState, checkedInAt: Date.now() }),
+          );
         }
       } catch (err: unknown) {
         const apiErr = err instanceof ApiError ? err : null;
@@ -168,6 +177,7 @@ export function useHubCheckin(): {
     lastFiredAt.current = 0;
 
     const doCheckin = async () => {
+
       const now = Date.now();
       if (now - lastFiredAt.current < CHECKIN_INTERVAL_MS) return;
 
@@ -236,8 +246,31 @@ export function useHubCheckin(): {
     // Expose the current doCheckin so attemptCheckin can call it.
     doCheckinRef.current = doCheckin;
 
-    // Fire immediately on mount / uid change, then every 5 minutes.
-    void doCheckin();
+    // On cold start, restore a persisted check-in if still within the server's
+    // 4-hour cooldown window.  This prevents the venue-selection popup from
+    // appearing every time the user reopens the app after a recent check-in.
+    const init = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(CHECKIN_STORAGE_KEY);
+        if (stored && mountedRef.current) {
+          const parsed = JSON.parse(stored) as {
+            hubState: HubState;
+            checkedInAt: number;
+          };
+          if (Date.now() - parsed.checkedInAt < CHECKIN_COOLDOWN_MS) {
+            // Still within cooldown — restore badge state and push the
+            // debounce clock forward so the immediate doCheckin() is skipped.
+            setHubState(parsed.hubState);
+            lastFiredAt.current = Date.now();
+          }
+        }
+      } catch {
+        // Ignore storage errors — fall through to a fresh check-in attempt.
+      }
+      if (mountedRef.current) void doCheckin();
+    };
+
+    void init();
     const id = setInterval(() => void doCheckin(), CHECKIN_INTERVAL_MS);
     return () => clearInterval(id);
   }, [authedUid, performCheckin]);

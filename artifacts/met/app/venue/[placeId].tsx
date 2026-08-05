@@ -314,12 +314,14 @@ export default function VenueProfileScreen() {
   useEffect(() => { void fetchAll(); }, [fetchAll]);
 
   const now = new Date();
-  const activeReward = rewards.find(
+  const activeRewards = rewards.filter(
     (r) => r.status === "active" &&
       new Date(r.startDate) <= now &&
       new Date(r.endDate) >= now,
-  ) ?? null;
-  const upcomingEvents = events.filter((e) => new Date(e.startsAt) >= now);
+  );
+  // Show all published events — past events remain visible so guests can see
+  // what the venue has hosted, ordered newest-first by the API.
+  const displayEvents = events;
 
   // Today's hours
   const todayKey      = DAYS[now.getDay()];
@@ -446,10 +448,16 @@ export default function VenueProfileScreen() {
           ) : null}
 
           {/* ── 1. Be the Winner ───────────────────────────────────────── */}
-          {activeReward && (
+          {activeRewards.length > 0 && (
             <View style={styles.section}>
-              <SectionLabel title="Active Reward" />
-              <BeTheWinnerCard reward={activeReward} onPress={() => setWinnerModal(true)} />
+              <SectionLabel title={activeRewards.length === 1 ? "Active Reward" : "Active Rewards"} />
+              {activeRewards.map((reward) => (
+                <BeTheWinnerCard
+                  key={reward.id}
+                  reward={reward}
+                  onPress={() => setWinnerModal(true)}
+                />
+              ))}
             </View>
           )}
 
@@ -513,17 +521,17 @@ export default function VenueProfileScreen() {
             </View>
           )}
 
-          {/* ── Upcoming Events ────────────────────────────────────────── */}
-          {upcomingEvents.length > 0 && (
+          {/* ── Events ─────────────────────────────────────────────────── */}
+          {displayEvents.length > 0 && (
             <View style={styles.section}>
-              <SectionLabel title="Upcoming Events" />
+              <SectionLabel title="Events" />
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.hScroll}
                 contentContainerStyle={{ paddingRight: 16 }}
               >
-                {upcomingEvents.map((event) => (
+                {displayEvents.map((event) => (
                   <VenueEventCard key={event.id} event={event} />
                 ))}
               </ScrollView>
@@ -590,9 +598,9 @@ export default function VenueProfileScreen() {
       </ScrollView>
 
       {/* ── How-to-win modal ──────────────────────────────────────────── */}
-      {activeReward && (
+      {activeRewards[0] && (
         <WinnerModal
-          reward={activeReward}
+          reward={activeRewards[0]}
           visible={winnerModal}
           onClose={() => setWinnerModal(false)}
         />

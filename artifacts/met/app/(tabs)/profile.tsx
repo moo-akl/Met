@@ -553,13 +553,10 @@ export default function ProfileScreen() {
                         const focusTarget = getBannerFocusTarget(profile ?? {});
                         if (focusTarget === "name") {
                           nameInputRef.current?.focus();
-                          scrollViewRef.current?.scrollToView(nameInputRef, { animated: true });
                         } else if (focusTarget === "bio") {
                           bioInputRef.current?.focus();
-                          scrollViewRef.current?.scrollToView(bioInputRef, { animated: true });
                         } else if (focusTarget === "firstSocial") {
                           firstSocialInputRef.current?.focus();
-                          scrollViewRef.current?.scrollToView(firstSocialInputRef, { animated: true });
                         }
                       },
                       350,
