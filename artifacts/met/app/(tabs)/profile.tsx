@@ -547,13 +547,21 @@ export default function ProfileScreen() {
                     setTimeout(
                       () => {
                         triggerHighlight(highlightField as Parameters<typeof triggerHighlight>[0]);
-                        // Ordered: name → bio → first social handle
+                        // Ordered: name → bio → first social handle.
+                        // After focusing we also ask KeyboardAwareScrollView to
+                        // scroll the input into view so the keyboard doesn't
+                        // cover it — the initial scrollTo targets the section
+                        // header, which can leave the input hidden behind the
+                        // keyboard on smaller screens.
                         if (!(profile?.name ?? "").trim()) {
                           nameInputRef.current?.focus();
+                          scrollViewRef.current?.scrollToView(nameInputRef, { animated: true });
                         } else if (!(profile?.bio ?? "").trim()) {
                           bioInputRef.current?.focus();
+                          scrollViewRef.current?.scrollToView(bioInputRef, { animated: true });
                         } else if (Object.keys(profile?.socials ?? {}).length === 0) {
                           firstSocialInputRef.current?.focus();
+                          scrollViewRef.current?.scrollToView(firstSocialInputRef, { animated: true });
                         }
                       },
                       350,
