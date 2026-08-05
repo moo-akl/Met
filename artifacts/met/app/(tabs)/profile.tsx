@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "@/components/MetImage";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -72,6 +72,14 @@ export default function ProfileScreen() {
   } = useVenueOwner();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const { tier } = useSubscription();
+
+  // Refs for scroll-to-first-incomplete-field behaviour.
+  const scrollViewRef = useRef<any>(null);
+  const sectionOffsets = useRef<{ photo: number; socials: number; interests: number }>({
+    photo: 0,
+    socials: 0,
+    interests: 0,
+  });
 
   const profileSteps = profile
     ? [
@@ -449,6 +457,7 @@ export default function ProfileScreen() {
         onClose={() => setSettingsOpen(false)}
       />
       <KeyboardAwareScrollView
+        ref={scrollViewRef}
         contentContainerStyle={{
           paddingTop: 24,
           paddingBottom: insets.bottom + webBot + 120,
@@ -480,7 +489,28 @@ export default function ProfileScreen() {
                     : t("home.profileBannerNoSocials");
           return (
             <Pressable
-              onPress={() => setEditing(true)}
+              onPress={() => {
+                setEditing(true);
+                // Find the first incomplete step and scroll to the relevant section.
+                // steps: 0=name, 1=photo, 2=bio → all inside photoArea
+                //        3=socials, 4=interests → their own sections
+                const firstIncomplete = profileSteps.findIndex((done) => !done);
+                const targetKey: keyof typeof sectionOffsets.current =
+                  firstIncomplete === 3
+                    ? "socials"
+                    : firstIncomplete === 4
+                      ? "interests"
+                      : "photo";
+                // Two rAF frames to let the edit-mode re-render settle before scrolling.
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => {
+                    scrollViewRef.current?.scrollTo({
+                      y: sectionOffsets.current[targetKey],
+                      animated: true,
+                    });
+                  });
+                });
+              }}
               style={({ pressed }) => ({
                 backgroundColor: colors.primary + "18",
                 borderRadius: 16,
@@ -650,7 +680,10 @@ export default function ProfileScreen() {
           </Pressable>
         ) : null}
 
-        <View style={styles.photoArea}>
+        <View
+          style={styles.photoArea}
+          onLayout={(e) => { sectionOffsets.current.photo = e.nativeEvent.layout.y; }}
+        >
           <Pressable
             onPress={editing ? handleMainPhotoPress : undefined}
             style={styles.photoTarget}
@@ -1060,63 +1093,66 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        {editing ? (
-          <View style={{ gap: 12 }}>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-              {t("profile.socialHandles")}
-            </Text>
-            {SOCIAL_FIELDS.map((f) => (
-              <View key={f.key} style={styles.field}>
-                <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>
-                  {t(f.labelKey)}
-                </Text>
-                <TextInput
-                  value={socials[f.key] ?? ""}
-                  onChangeText={(v) =>
-                    setSocials((prev) => ({ ...prev, [f.key]: v }))
-                  }
-                  placeholder={t("socials.placeholder")}
-                  autoCapitalize="none"
-                  placeholderTextColor={colors.mutedForeground}
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                />
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View>
-            {activeSocials.length === 0 ? (
-              <Text
-                style={[
-                  styles.emptySocials,
-                  { color: colors.mutedForeground },
-                ]}
-              >
-                {t("profile.noSocials")}
+        <View onLayout={(e) => { sectionOffsets.current.socials = e.nativeEvent.layout.y; }}>
+          {editing ? (
+            <View style={{ gap: 12 }}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                {t("profile.socialHandles")}
               </Text>
-            ) : (
-              activeSocials.map(([platform, handle]) => (
-                <SocialLinkRow
-                  key={platform}
-                  platform={platform}
-                  handle={handle}
-                />
-              ))
-            )}
-          </View>
-        )}
+              {SOCIAL_FIELDS.map((f) => (
+                <View key={f.key} style={styles.field}>
+                  <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>
+                    {t(f.labelKey)}
+                  </Text>
+                  <TextInput
+                    value={socials[f.key] ?? ""}
+                    onChangeText={(v) =>
+                      setSocials((prev) => ({ ...prev, [f.key]: v }))
+                    }
+                    placeholder={t("socials.placeholder")}
+                    autoCapitalize="none"
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                        color: colors.foreground,
+                      },
+                    ]}
+                  />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View>
+              {activeSocials.length === 0 ? (
+                <Text
+                  style={[
+                    styles.emptySocials,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  {t("profile.noSocials")}
+                </Text>
+              ) : (
+                activeSocials.map(([platform, handle]) => (
+                  <SocialLinkRow
+                    key={platform}
+                    platform={platform}
+                    handle={handle}
+                  />
+                ))
+              )}
+            </View>
+          )}
+        </View>
 
         {/* Interests section */}
         <View
           style={[styles.divider, { backgroundColor: colors.border }]}
         />
+        <View onLayout={(e) => { sectionOffsets.current.interests = e.nativeEvent.layout.y; }}>
         {editing ? (
           <View style={{ gap: 12 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -1242,6 +1278,7 @@ export default function ProfileScreen() {
             </View>
           </View>
         ) : null}
+        </View>
 
         <View style={{ gap: 12, marginTop: 12 }}>
           {editing ? (
