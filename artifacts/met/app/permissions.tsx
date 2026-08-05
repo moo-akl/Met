@@ -398,6 +398,7 @@ export default function PermissionsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {permissionsCompleted ? (
         <Pressable
+          testID="close-btn"
           onPress={() => router.back()}
           hitSlop={12}
           style={[styles.backBtn, { top: insets.top + 12 }]}
