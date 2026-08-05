@@ -1223,6 +1223,57 @@ router.put(
 );
 
 /**
+ * GET /v/:placeId  (public — no auth required)
+ *
+ * Validates the QR token (?t=<qrToken>) and returns the public venue
+ * profile. Used by the met-landing web fallback page and by any future
+ * client that wants to display venue info from a scanned QR code.
+ *
+ * Returns 404 when the venue is not found / not approved.
+ * Returns 401 when the token is present but does not match.
+ * Returns the public profile when the token matches (or no token provided).
+ */
+const venueQrLookupLimit = createIpRateLimiter({
+  windowMs: 60_000,
+  max: 60,
+  name: "venue-qr-lookup",
+});
+
+router.get(
+  "/v/:placeId",
+  venueQrLookupLimit,
+  async (req: Request, res: Response) => {
+    const { placeId } = req.params as { placeId: string };
+    const token = typeof req.query["t"] === "string" ? req.query["t"] : "";
+
+    const [profile] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.placeId, placeId),
+          eq(venueOwnerProfilesTable.isApproved, true),
+          eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+        ),
+      )
+      .limit(1);
+
+    if (!profile) {
+      res.status(404).json({ message: "Venue not found" });
+      return;
+    }
+
+    if (token && profile.qrToken !== token) {
+      res.status(401).json({ message: "Invalid or expired check-in token" });
+      return;
+    }
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.json({ profile: serializePublicVenueProfile(profile, baseUrl) });
+  },
+);
+
+/**
  * GET /venue-owner/:placeId  (public — approved only)
  */
 router.get(

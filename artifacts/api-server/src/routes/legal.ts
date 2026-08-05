@@ -1,4 +1,43 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { eq, and } from "drizzle-orm";
+import { db, venueOwnerProfilesTable } from "@workspace/db";
+
+// ---------------------------------------------------------------------------
+// Output-encoding helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Escapes the five characters that have special meaning in HTML text/attribute
+ * contexts. Must be applied to every untrusted value before it is interpolated
+ * into an HTML string.
+ */
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
+/**
+ * Returns the URL unchanged only when its scheme is http or https.
+ * Any other scheme (javascript:, data:, etc.) is replaced with an empty
+ * string so it cannot appear in src/href attributes.
+ */
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+      return url;
+    }
+  } catch {
+    // Relative paths (e.g. /api/storage/…) are not parseable as absolute URLs;
+    // they are safe as-is since we control the prefix we prepend.
+    if (url.startsWith("/")) return url;
+  }
+  return "";
+}
 
 // Public, static-ish pages that satisfy Apple App Store + Google Play
 // Store requirements for a Support URL and a Privacy Policy URL.
@@ -296,28 +335,137 @@ router.get("/.well-known/assetlinks.json", (_req: Request, res: Response) => {
 });
 
 // Venue QR check-in landing page.
-// Opened when a guest scans a venue's printed QR code on a device that
-// has the Met app installed — the OS opens the app directly via universal
-// links / App Links. This route is the *fallback* shown in any browser
-// that doesn't (or can't) redirect to the app: it presents a simple
-// branded page with App Store / Play Store download links.
-router.get("/v/:placeId", (_req: Request, res: Response) => {
+//
+// Primary path: a device with Met installed is intercepted by the OS via
+// Universal Links (iOS) / App Links (Android) before this page ever loads —
+// the app opens directly at the QR check-in confirmation screen.
+//
+// Fallback path (no app): this route serves a branded page that
+//   1. Validates the ?t=<qrToken> against the DB.
+//   2. Shows the venue name, cover photo, and tagline for context.
+//   3. Offers App Store / Play Store download links so the user can install
+//      Met and deep-link directly to the check-in screen after install.
+router.get("/v/:placeId", async (req: Request, res: Response) => {
   const APP_STORE_URL =
     "https://apps.apple.com/app/met-we-crossed-paths/id6502749585";
   const PLAY_STORE_URL =
     "https://play.google.com/store/apps/details?id=app.met.founders";
+
+  const { placeId } = req.params as { placeId: string };
+  const token = typeof req.query["t"] === "string" ? req.query["t"] : "";
+
+  // Reconstruct the canonical deep-link URL so App Store / Play Store
+  // deferred deep links re-open the exact same URL after install.
+  const host = req.get("host") ?? "metapp.replit.app";
+  const proto = req.secure || process.env["NODE_ENV"] === "production" ? "https" : req.protocol;
+  const deepLinkUrl = `${proto}://${host}/v/${encodeURIComponent(placeId)}${token ? `?t=${encodeURIComponent(token)}` : ""}`;
+
+  const storeButtons = `
+    <p style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
+      <a href="${APP_STORE_URL}" style="background:#1A2421;color:#fff;padding:11px 20px;border-radius:9px;font-weight:700;font-size:14px;text-decoration:none">📱 App Store (iPhone)</a>
+      <a href="${PLAY_STORE_URL}" style="background:#1A2421;color:#fff;padding:11px 20px;border-radius:9px;font-weight:700;font-size:14px;text-decoration:none">📱 Google Play (Android)</a>
+    </p>`;
+
+  // Look up the approved venue by placeId.
+  let venue: typeof venueOwnerProfilesTable.$inferSelect | undefined;
+  try {
+    [venue] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.placeId, placeId),
+          eq(venueOwnerProfilesTable.isApproved, true),
+          eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+        ),
+      )
+      .limit(1);
+  } catch {
+    // DB error — fall through to generic page rather than 500.
+  }
+
+  // Venue not registered in Met.
+  if (!venue) {
+    const html = layout(
+      "Venue not found",
+      `
+      <h1>Venue not found</h1>
+      <p>This QR code doesn't match any venue registered on Met. The venue may have removed their listing.</p>
+      <div class="card">
+        <h2 style="margin-top:0">Download Met</h2>
+        <p>Met helps you discover people you've crossed paths with. Download the app to get started.</p>
+        ${storeButtons}
+      </div>
+      `,
+    );
+    res.status(404).type("html").set("Cache-Control", "no-cache").send(html);
+    return;
+  }
+
+  // Token present but doesn't match — QR code is invalid or was rotated.
+  if (token && venue.qrToken !== token) {
+    const safeName = escapeHtml(venue.placeName);
+    const html = layout(
+      "Invalid check-in link",
+      `
+      <h1>Invalid check-in link</h1>
+      <p>This QR code is no longer valid. Please ask the venue for an updated QR code and scan it again.</p>
+      <div class="card">
+        <h2 style="margin-top:0">Don't have Met yet?</h2>
+        <p>Download the app, then scan the updated QR code at <strong>${safeName}</strong> to check in.</p>
+        ${storeButtons}
+      </div>
+      `,
+    );
+    res.status(400).type("html").set("Cache-Control", "no-cache").send(html);
+    return;
+  }
+
+  // Valid venue (token matches or no token provided). Show the branded page.
+  const baseUrl = `${proto}://${host}`;
+
+  // Resolve cover photo to an absolute URL, then sanitize the scheme.
+  const rawCoverUrl = venue.coverPhotoUrl
+    ? venue.coverPhotoUrl.startsWith("/")
+      ? `${baseUrl}${venue.coverPhotoUrl}`
+      : venue.coverPhotoUrl
+    : null;
+  const safeCoverUrl = rawCoverUrl ? sanitizeUrl(rawCoverUrl) : null;
+
+  // Escape all untrusted text values before interpolating into HTML.
+  const safeName = escapeHtml(venue.placeName);
+  const safeTagline = venue.tagline ? escapeHtml(venue.tagline) : null;
+  // deepLinkUrl is constructed entirely from encodeURIComponent-encoded
+  // path/query params — still escape for defense-in-depth.
+  const safeDeepLink = escapeHtml(deepLinkUrl);
+
+  const coverBlock = safeCoverUrl
+    ? `<img src="${escapeHtml(safeCoverUrl)}" alt="${safeName}" style="width:100%;max-height:260px;object-fit:cover;border-radius:14px;margin-bottom:20px;display:block" />`
+    : "";
+
+  const taglineBlock = safeTagline
+    ? `<p style="color:#5C6B66;margin:4px 0 0">${safeTagline}</p>`
+    : "";
+
   const html = layout(
-    "Check in at this venue",
+    `Check in at ${safeName}`,
     `
-    <h1>Check in with Met</h1>
-    <p>You've scanned a check-in QR code for a venue on the Met app.</p>
-    <div class="card">
+    ${coverBlock}
+    <h1 style="margin-bottom:4px">${safeName}</h1>
+    ${taglineBlock}
+
+    <div class="card" style="margin-top:24px">
       <h2 style="margin-top:0">Open in the Met app</h2>
-      <p>If the Met app didn't open automatically, tap one of the links below to download it — then scan the QR code again to check in.</p>
-      <p style="display:flex;gap:12px;flex-wrap:wrap">
-        <a href="${APP_STORE_URL}" style="background:#0d7659;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;font-size:14px">App Store (iPhone)</a>
-        <a href="${PLAY_STORE_URL}" style="background:#0d7659;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;font-size:14px">Google Play (Android)</a>
+      <p>Tap the link below to open Met and complete your check-in. If the app didn't open automatically, download it first — the check-in link will work as soon as you've installed it.</p>
+      <p style="margin-top:16px">
+        <a href="${safeDeepLink}" style="background:#3DCC44;color:#fff;padding:12px 22px;border-radius:9px;font-weight:700;font-size:15px;text-decoration:none;display:inline-block">Open in Met →</a>
       </p>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Don't have Met yet?</h2>
+      <p>Download the app — your check-in link will fire automatically once you're set up.</p>
+      ${storeButtons}
     </div>
     `,
   );
