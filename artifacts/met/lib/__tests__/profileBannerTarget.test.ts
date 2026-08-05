@@ -630,3 +630,161 @@ describe("banner visibility — profileIncomplete flag", () => {
     expect(bannerVisible(complete)).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Banner onPress — scroll + highlight dispatch
+//
+// Mirrors the core logic of the banner Pressable onPress in profile.tsx
+// (lines 520–568), stripped of the React/animation wrappers so we can assert
+// in pure JS without rendering the full screen.
+//
+// The actual handler does:
+//
+//   const targetKey       = getBannerScrollTarget(firstIncomplete);
+//   const highlightField  = getBannerHighlightField(firstIncomplete);
+//   requestAnimationFrame(() => requestAnimationFrame(() => {
+//     scrollRef.current?.scrollTo({ y: sectionOffsets.current[targetKey], animated: true });
+//     setTimeout(() => {
+//       triggerHighlight(highlightField);
+//       ...
+//     }, 350);
+//   }));
+//
+// We exercise the pure mapping + dispatch without RAF/setTimeout so the tests
+// run synchronously and don't depend on fake timer infrastructure.
+// ---------------------------------------------------------------------------
+
+/**
+ * Simulate the banner onPress scroll + highlight dispatch from profile.tsx.
+ *
+ * @param firstIncomplete - index of the first incomplete step (0-4)
+ * @param sectionOffsets  - the section Y offsets registered via onLayout
+ * @param scrollTo        - mock for scrollRef.current.scrollTo
+ * @param triggerHighlight - mock for the triggerHighlight callback
+ */
+function dispatchBannerPress(
+  firstIncomplete: number,
+  sectionOffsets: { photo: number; socials: number; interests: number },
+  scrollTo: (args: { y: number; animated: boolean }) => void,
+  triggerHighlight: (field: string) => void,
+): void {
+  const targetKey = getBannerScrollTarget(firstIncomplete);
+  const highlightField = getBannerHighlightField(firstIncomplete);
+  scrollTo({ y: sectionOffsets[targetKey], animated: true });
+  triggerHighlight(highlightField);
+}
+
+describe("banner onPress — scrollTo is called with the correct section offset", () => {
+  // Fixed offsets that represent measured section positions on a real device.
+  const offsets = { photo: 120, socials: 640, interests: 950 };
+
+  const cases: Array<{
+    step: number;
+    label: string;
+    expectedOffset: number;
+  }> = [
+    { step: 0, label: "name incomplete",      expectedOffset: offsets.photo },
+    { step: 1, label: "photo incomplete",     expectedOffset: offsets.photo },
+    { step: 2, label: "bio incomplete",       expectedOffset: offsets.photo },
+    { step: 3, label: "socials incomplete",   expectedOffset: offsets.socials },
+    { step: 4, label: "interests incomplete", expectedOffset: offsets.interests },
+  ];
+
+  test.each(cases)(
+    "step $step ($label) → scrollTo y=$expectedOffset",
+    ({ step, expectedOffset }) => {
+      const scrollTo = jest.fn();
+      const triggerHighlight = jest.fn();
+
+      dispatchBannerPress(step, offsets, scrollTo, triggerHighlight);
+
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenCalledWith({ y: expectedOffset, animated: true });
+    },
+  );
+
+  it("scrollTo is never called with a y value from the wrong section", () => {
+    const scrollTo = jest.fn();
+    const triggerHighlight = jest.fn();
+
+    // Step 3 (socials) must NOT scroll to the photo or interests offset.
+    dispatchBannerPress(3, offsets, scrollTo, triggerHighlight);
+
+    const call = scrollTo.mock.calls[0][0] as { y: number; animated: boolean };
+    expect(call.y).not.toBe(offsets.photo);
+    expect(call.y).not.toBe(offsets.interests);
+    expect(call.y).toBe(offsets.socials);
+  });
+});
+
+describe("banner onPress — triggerHighlight is called with the correct field", () => {
+  const offsets = { photo: 120, socials: 640, interests: 950 };
+
+  const cases: Array<{
+    step: number;
+    label: string;
+    expectedField: string;
+  }> = [
+    { step: 0, label: "name incomplete",      expectedField: "name" },
+    { step: 1, label: "photo incomplete",     expectedField: "photo" },
+    { step: 2, label: "bio incomplete",       expectedField: "bio" },
+    { step: 3, label: "socials incomplete",   expectedField: "socials" },
+    { step: 4, label: "interests incomplete", expectedField: "interests" },
+  ];
+
+  test.each(cases)(
+    "step $step ($label) → triggerHighlight('$expectedField')",
+    ({ step, expectedField }) => {
+      const scrollTo = jest.fn();
+      const triggerHighlight = jest.fn();
+
+      dispatchBannerPress(step, offsets, scrollTo, triggerHighlight);
+
+      expect(triggerHighlight).toHaveBeenCalledTimes(1);
+      expect(triggerHighlight).toHaveBeenCalledWith(expectedField);
+    },
+  );
+
+  it("triggerHighlight is never called more than once per tap", () => {
+    for (let step = 0; step < 5; step++) {
+      const triggerHighlight = jest.fn();
+      dispatchBannerPress(step, offsets, jest.fn(), triggerHighlight);
+      expect(triggerHighlight).toHaveBeenCalledTimes(1);
+    }
+  });
+});
+
+describe("banner onPress — scrollTo and triggerHighlight are paired correctly", () => {
+  const offsets = { photo: 200, socials: 700, interests: 1100 };
+
+  /**
+   * For each step the scroll target and highlight field must agree:
+   *   steps 0-2 → photo section  +  name/photo/bio highlight
+   *   step  3   → socials section + socials highlight
+   *   step  4   → interests section + interests highlight
+   */
+  const cases: Array<{
+    step: number;
+    expectedOffset: number;
+    expectedField: string;
+  }> = [
+    { step: 0, expectedOffset: offsets.photo,     expectedField: "name" },
+    { step: 1, expectedOffset: offsets.photo,     expectedField: "photo" },
+    { step: 2, expectedOffset: offsets.photo,     expectedField: "bio" },
+    { step: 3, expectedOffset: offsets.socials,   expectedField: "socials" },
+    { step: 4, expectedOffset: offsets.interests, expectedField: "interests" },
+  ];
+
+  test.each(cases)(
+    "step $step → scrollTo y=$expectedOffset AND triggerHighlight('$expectedField')",
+    ({ step, expectedOffset, expectedField }) => {
+      const scrollTo = jest.fn();
+      const triggerHighlight = jest.fn();
+
+      dispatchBannerPress(step, offsets, scrollTo, triggerHighlight);
+
+      expect(scrollTo).toHaveBeenCalledWith({ y: expectedOffset, animated: true });
+      expect(triggerHighlight).toHaveBeenCalledWith(expectedField);
+    },
+  );
+});
