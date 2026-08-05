@@ -458,74 +458,150 @@ export default function ProfileScreen() {
         bottomOffset={20}
         keyboardShouldPersistTaps="handled"
       >
-        {profileIncomplete ? (
-          <View
-            style={{
-              backgroundColor: "#EFF6FF",
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: "#3B82F6",
-              padding: 14,
-              gap: 10,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Feather name="user-check" size={16} color="#2563EB" />
-              <Text
-                style={{
-                  fontFamily: "Inter_700Bold",
-                  fontSize: 13,
-                  color: "#1E3A5F",
-                  flex: 1,
-                }}
-              >
-                {t("home.profileBannerTitle")}
-              </Text>
-              <Text
-                style={{
-                  fontFamily: "Inter_700Bold",
-                  fontSize: 13,
-                  color: "#2563EB",
-                }}
-              >
-                {profileScore}/{profileTotal}
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              {profileSteps.map((done, i) => (
-                <View
-                  key={i}
-                  style={{
-                    flex: 1,
-                    height: 5,
-                    borderRadius: 3,
-                    backgroundColor: done ? "#2563EB" : "#BFDBFE",
-                  }}
-                />
-              ))}
-            </View>
-            <Text
-              style={{
-                fontFamily: "Inter_400Regular",
-                fontSize: 12,
-                color: "#1D4ED8",
-                lineHeight: 17,
-              }}
+        {profileIncomplete ? (() => {
+          // step definitions: icon + done flag
+          const steps: Array<{ icon: React.ComponentProps<typeof Feather>["name"]; done: boolean }> = [
+            { icon: "user",      done: profileSteps[0] },
+            { icon: "camera",    done: profileSteps[1] },
+            { icon: "file-text", done: profileSteps[2] },
+            { icon: "link",      done: profileSteps[3] },
+            { icon: "tag",       done: profileSteps[4] },
+          ];
+          const hintText = !(profile?.name ?? "").trim()
+            ? t("home.profileBannerNoName")
+            : profile && !profile.verified && Object.keys(profile.socials ?? {}).length === 0
+              ? t("home.profileBannerBoth")
+              : profile && !profile.verified
+                ? t("home.profileBannerNoPhoto")
+                : !(profile?.bio ?? "").trim()
+                  ? t("home.profileBannerNoBio")
+                  : (profile?.interests ?? []).length === 0
+                    ? t("home.profileBannerNoInterests")
+                    : t("home.profileBannerNoSocials");
+          return (
+            <Pressable
+              onPress={() => setEditing(true)}
+              style={({ pressed }) => ({
+                backgroundColor: colors.primary + "18",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: colors.primary + "50",
+                padding: 16,
+                gap: 12,
+                opacity: pressed ? 0.82 : 1,
+              })}
             >
-              {!(profile?.name ?? "").trim()
-                ? t("home.profileBannerNoName")
-                : profile && !profile.verified && Object.keys(profile.socials ?? {}).length === 0
-                  ? t("home.profileBannerBoth")
-                  : profile && !profile.verified
-                    ? t("home.profileBannerNoPhoto")
-                    : !(profile?.bio ?? "").trim()
-                      ? t("home.profileBannerNoBio")
-                      : (profile?.interests ?? []).length === 0
-                        ? t("home.profileBannerNoInterests")
-                        : t("home.profileBannerNoSocials")}
-            </Text>
-          </View>
-        ) : null}
+              {/* Header row */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    backgroundColor: colors.primary + "25",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Feather name="user-check" size={14} color={colors.primary} />
+                </View>
+                <Text
+                  style={{
+                    fontFamily: "Inter_700Bold",
+                    fontSize: 14,
+                    color: colors.foreground,
+                    flex: 1,
+                  }}
+                >
+                  {t("home.profileBannerTitle")}
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: colors.primary,
+                    borderRadius: 20,
+                    paddingHorizontal: 9,
+                    paddingVertical: 3,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "Inter_700Bold",
+                      fontSize: 11,
+                      color: colors.primaryForeground,
+                    }}
+                  >
+                    {profileScore}/{profileTotal}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Progress bar */}
+              <View style={{ flexDirection: "row", gap: 4 }}>
+                {profileSteps.map((done, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      flex: 1,
+                      height: 4,
+                      borderRadius: 4,
+                      backgroundColor: done ? colors.primary : colors.primary + "28",
+                    }}
+                  />
+                ))}
+              </View>
+
+              {/* Step chips */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {steps.map((s, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      flex: 1,
+                      aspectRatio: 1,
+                      borderRadius: 10,
+                      borderWidth: 1.5,
+                      borderColor: s.done ? colors.primary : colors.primary + "35",
+                      backgroundColor: s.done ? colors.primary + "22" : "transparent",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Feather
+                      name={s.icon}
+                      size={15}
+                      color={s.done ? colors.primary : colors.mutedForeground}
+                    />
+                  </View>
+                ))}
+              </View>
+
+              {/* Hint + CTA row */}
+              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+                <Text
+                  style={{
+                    fontFamily: "Inter_400Regular",
+                    fontSize: 12,
+                    color: colors.mutedForeground,
+                    lineHeight: 17,
+                    flex: 1,
+                  }}
+                >
+                  {hintText}
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 12,
+                    color: colors.primary,
+                    flexShrink: 0,
+                  }}
+                >
+                  {t("home.profileBannerCta")}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })() : null}
 
         {!venueOwnerLoading && !venueOwnerError ? (
           <Pressable
