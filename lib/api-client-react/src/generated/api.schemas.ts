@@ -546,6 +546,13 @@ export interface VenueManagerQrVerificationBucket {
   count: number;
 }
 
+export interface VenueManagerRecentQrVerification {
+  displayName: string;
+  /** @nullable */
+  photoUrl?: string | null;
+  verifiedAt: string;
+}
+
 export interface VenueManagerDashboard {
   checkInTrend: VenueManagerCheckInBucket[];
   topVisitors: VenueManagerTopVisitor[];
@@ -554,6 +561,7 @@ export interface VenueManagerDashboard {
   activeReward: VenueManagerDashboardActiveReward;
   qrVerificationsToday: number;
   qrVerificationsTrend: VenueManagerQrVerificationBucket[];
+  recentQrVerifications: VenueManagerRecentQrVerification[];
 }
 
 export type VenueApplicationApplicationStatus =

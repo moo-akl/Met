@@ -630,7 +630,7 @@ router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, as
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const [checkInTrend, topVisitorRows, eventRsvpRows, activeRewardRows, qrTodayRows, qrTrendRows] = await Promise.all([
+  const [checkInTrend, topVisitorRows, eventRsvpRows, activeRewardRows, qrTodayRows, qrTrendRows, recentQrRows] = await Promise.all([
     db.select({ day: sql<string>`DATE(${hubCheckinsTable.createdAt})`, count: count(hubCheckinsTable.id) })
       .from(hubCheckinsTable).where(and(eq(hubCheckinsTable.placeId, placeId), gte(hubCheckinsTable.createdAt, thirtyDaysAgo)))
       .groupBy(sql`DATE(${hubCheckinsTable.createdAt})`).orderBy(sql`DATE(${hubCheckinsTable.createdAt})`),
@@ -651,6 +651,18 @@ router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, as
       .where(and(eq(venueQrVerificationsTable.placeId, placeId), gte(venueQrVerificationsTable.verifiedAt, sevenDaysAgo)))
       .groupBy(sql`DATE(${venueQrVerificationsTable.verifiedAt})`)
       .orderBy(sql`DATE(${venueQrVerificationsTable.verifiedAt})`),
+    db.select({
+      userUid: venueQrVerificationsTable.userUid,
+      displayName: profilesTable.displayName,
+      photoUrl: profilesTable.photoUrl,
+      verifiedAt: sql<string>`MAX(${venueQrVerificationsTable.verifiedAt})`,
+    })
+      .from(venueQrVerificationsTable)
+      .leftJoin(profilesTable, eq(venueQrVerificationsTable.userUid, profilesTable.uid))
+      .where(and(eq(venueQrVerificationsTable.placeId, placeId), gte(venueQrVerificationsTable.verifiedAt, todayStart)))
+      .groupBy(venueQrVerificationsTable.userUid, profilesTable.displayName, profilesTable.photoUrl)
+      .orderBy(sql`MAX(${venueQrVerificationsTable.verifiedAt}) DESC`)
+      .limit(10),
   ]);
   res.json({
     checkInTrend: checkInTrend.map((row) => ({ day: row.day, count: Number(row.count) })),
@@ -659,6 +671,11 @@ router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, as
     activeReward: activeRewardRows[0] ? serializeReward(activeRewardRows[0]) : null,
     qrVerificationsToday: Number(qrTodayRows[0]?.distinctUsers ?? 0),
     qrVerificationsTrend: qrTrendRows.map((row) => ({ day: row.day, count: Number(row.count) })),
+    recentQrVerifications: recentQrRows.map((row) => ({
+      displayName: row.displayName ?? "Met member",
+      photoUrl: row.photoUrl ?? null,
+      verifiedAt: row.verifiedAt,
+    })),
   });
 });
 

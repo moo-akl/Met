@@ -43,6 +43,7 @@ import {
   type VenueManagerRewardList,
   type VenueManagerRewardInput,
   type VenueManagerRewardUpdate,
+  type VenueManagerRecentQrVerification,
 } from "@workspace/api-client-react";
 import QRCode from "react-qr-code";
 import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, QrCode, RefreshCw, Settings2, ShieldCheck, Users, X } from "lucide-react";
@@ -505,6 +506,34 @@ function useBusinessQuery<T>(factory: (id: number, options?: unknown) => unknown
   return useQuery<T>(factory(businessId, { request: { credentials: "include" } }) as never);
 }
 
+function formatVerifiedAt(iso: string): string {
+  const now = Date.now();
+  const ms = now - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function RecentQrVerificationsList({ items }: { items: VenueManagerRecentQrVerification[] }) {
+  if (!items.length) return <Empty text="No QR scans yet today." />;
+  return <>
+    {items.map((item, i) => (
+      <div className="vm-list-row" key={`${item.verifiedAt}-${i}`}>
+        {item.photoUrl
+          ? <span className="vm-person" style={{ backgroundImage: `url(${item.photoUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+          : <span className="vm-person">{item.displayName.slice(0, 1)}</span>}
+        <div>
+          <strong>{item.displayName}</strong>
+          <small>{formatVerifiedAt(item.verifiedAt)}</small>
+        </div>
+      </div>
+    ))}
+  </>;
+}
+
 function Overview({ business }: { business: VenueManagerBusiness }) {
   const dashboard = useBusinessQuery<VenueManagerDashboard>(getGetVenueManagerDashboardQueryOptions, business.businessId);
   const events = useBusinessQuery<VenueManagerEventList>(getListVenueManagerEventsQueryOptions, business.businessId);
@@ -514,8 +543,10 @@ function Overview({ business }: { business: VenueManagerBusiness }) {
   const qrToday = dashboard.data?.qrVerificationsToday ?? 0;
   const qrTrend = dashboard.data?.qrVerificationsTrend ?? [];
   const qrMax = Math.max(1, ...qrTrend.map((b) => b.count));
+  const recentQr = dashboard.data?.recentQrVerifications ?? [];
   return <div className="vm-grid overview-grid"><section className="vm-panel vm-hero-panel"><span className="vm-hero-orb" /><p>COMMUNITY THIS MONTH</p><h2>{total}<small>check-ins</small></h2><div className="vm-spark">{trend.slice(-12).map((item) => <i key={item.day} style={{ height: `${Math.max(8, Math.min(100, item.count * 13))}%` }} />)}</div></section>
     <section className="vm-panel vm-qr-panel"><div className="vm-panel-title"><h2>QR Verifications</h2><QrCode size={18} /></div><p className="vm-stat-label">Today</p><p className="vm-stat-value">{qrToday}<small>verified guests</small></p><div className="vm-spark vm-spark-qr">{qrTrend.length ? qrTrend.map((b) => <i key={b.day} title={`${b.day}: ${b.count}`} style={{ height: `${Math.max(8, Math.round((b.count / qrMax) * 100))}%` }} />) : Array.from({ length: 7 }).map((_, i) => <i key={i} style={{ height: "8%" }} />)}</div><p className="vm-spark-label">7-day trend</p></section>
+    <section className="vm-panel"><div className="vm-panel-title"><h2>Scanned Today</h2><ShieldCheck size={18} /></div><RecentQrVerificationsList items={recentQr} /></section>
     <section className="vm-panel"><div className="vm-panel-title"><h2>Coming up</h2><CalendarDays /></div>{(events.data?.events ?? []).slice(0, 3).map((event) => <div className="vm-list-row" key={event.id}><span className="vm-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><div><strong>{event.title}</strong><small>{event.rsvpCount ?? 0} RSVPs</small></div></div>)}{!(events.data?.events ?? []).length && <Empty text="No events yet. Start the next good night." />}</section>
     <section className="vm-panel"><div className="vm-panel-title"><h2>Regulars</h2><CircleUserRound /></div>{(dashboard.data?.topVisitors ?? []).map((visitor) => <div className="vm-list-row" key={visitor.userUid}><span className="vm-person">{visitor.displayName.slice(0, 1)}</span><div><strong>{visitor.displayName}</strong><small>{visitor.checkinCount} visits this month</small></div></div>)}{!(dashboard.data?.topVisitors ?? []).length && <Empty text="Visitor insights will appear after check-ins." />}</section>
     <section className="vm-panel vm-reward-callout"><Gift size={23} /><div><strong>{dashboard.data?.activeReward ? "A reward is live" : "Keep regulars close"}</strong><p>{dashboard.data?.activeReward ? "Your current campaign is bringing people back." : "Create a reward for the people who make your place feel alive."}</p></div></section>
