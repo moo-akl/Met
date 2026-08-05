@@ -82,6 +82,13 @@ export default function ProfileScreen() {
     interests: 0,
   });
 
+  // TextInput refs used to auto-focus the first empty text field after the
+  // banner scroll settles. Photo and interests are not text fields and are
+  // therefore skipped.
+  const nameInputRef = useRef<TextInput>(null);
+  const bioInputRef = useRef<TextInput>(null);
+  const firstSocialInputRef = useRef<TextInput>(null);
+
   // Highlight animation: a brief border-color pulse on the target field after
   // the banner scrolls to it so users know exactly which field to fill in.
   const highlightAnim = useRef(new Animated.Value(0)).current;
@@ -543,9 +550,25 @@ export default function ProfileScreen() {
                       animated: true,
                     });
                     // Wait for the scroll animation to settle, then briefly
-                    // highlight the specific target field.
+                    // highlight the specific target field and auto-focus the
+                    // first empty text input. Photo (step 1) and interests
+                    // (step 4) are not text fields and are skipped. We derive
+                    // the focus target from text-field emptiness independently
+                    // of the overall firstIncomplete index so that, e.g., a
+                    // user who has a name but no photo still gets the bio
+                    // focused if it is the first empty text field.
                     setTimeout(
-                      () => triggerHighlight(highlightField as Parameters<typeof triggerHighlight>[0]),
+                      () => {
+                        triggerHighlight(highlightField as Parameters<typeof triggerHighlight>[0]);
+                        // Ordered: name → bio → first social handle
+                        if (!(profile?.name ?? "").trim()) {
+                          nameInputRef.current?.focus();
+                        } else if (!(profile?.bio ?? "").trim()) {
+                          bioInputRef.current?.focus();
+                        } else if (Object.keys(profile?.socials ?? {}).length === 0) {
+                          firstSocialInputRef.current?.focus();
+                        }
+                      },
                       350,
                     );
                   });
@@ -787,6 +810,7 @@ export default function ProfileScreen() {
               }}
             >
               <TextInput
+                ref={nameInputRef}
                 value={name}
                 onChangeText={setName}
                 placeholder={t("profile.namePlaceholder")}
@@ -858,6 +882,7 @@ export default function ProfileScreen() {
               }}
             >
               <TextInput
+                ref={bioInputRef}
                 value={bio}
                 onChangeText={setBio}
                 placeholder={t("profile.bioPlaceholder")}
@@ -1174,12 +1199,13 @@ export default function ProfileScreen() {
                   {t("profile.socialHandles")}
                 </Text>
               </Animated.View>
-              {SOCIAL_FIELDS.map((f) => (
+              {SOCIAL_FIELDS.map((f, idx) => (
                 <View key={f.key} style={styles.field}>
                   <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>
                     {t(f.labelKey)}
                   </Text>
                   <TextInput
+                    ref={idx === 0 ? firstSocialInputRef : undefined}
                     value={socials[f.key] ?? ""}
                     onChangeText={(v) =>
                       setSocials((prev) => ({ ...prev, [f.key]: v }))
