@@ -74,6 +74,14 @@ const AVATAR_GRADIENTS: [string, string][] = [
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+type RewardStatus = "Active" | "Upcoming" | "Ended";
+
+function getRewardStatus(reward: { status: string; startDate: string; endDate: string }, now: Date): RewardStatus {
+  if (reward.status === "completed" || new Date(reward.endDate) < now) return "Ended";
+  if (new Date(reward.startDate) > now) return "Upcoming";
+  return "Active";
+}
+
 function useCountdown(endDateIso: string): string {
   const [label, setLabel] = useState("");
   useEffect(() => {
@@ -205,15 +213,24 @@ const wm = StyleSheet.create({
 
 // ─── "Be the Winner" card ────────────────────────────────────────────────────
 
+const STATUS_BADGE: Record<RewardStatus, { label: string; bg: string; text: string }> = {
+  Active:   { label: "🟢 Active",   bg: "#ECFDF5", text: "#065F46" },
+  Upcoming: { label: "🟡 Upcoming", bg: "#FEFCE8", text: "#92400E" },
+  Ended:    { label: "⬜ Ended",    bg: "#F3F4F6", text: "#6B7280" },
+};
+
 function BeTheWinnerCard({
   reward,
+  statusLabel,
   onPress,
 }: {
   reward: VenueReward;
+  statusLabel: RewardStatus;
   onPress: () => void;
 }) {
   const countdown = useCountdown(reward.endDate);
   const icon      = REWARD_ICON[reward.rewardType] ?? "🎁";
+  const badge     = STATUS_BADGE[statusLabel];
 
   return (
     <Pressable
@@ -230,6 +247,10 @@ function BeTheWinnerCard({
           <Text style={bw.iconEmoji}>{icon}</Text>
         </View>
         <View style={bw.text}>
+          {/* Status badge */}
+          <View style={[bw.statusPill, { backgroundColor: badge.bg }]}>
+            <Text style={[bw.statusPillText, { color: badge.text }]}>{badge.label}</Text>
+          </View>
           <Text style={bw.title}>{reward.title}</Text>
           <Text numberOfLines={2} style={bw.prize}>{reward.prizeDescription}</Text>
           <Text style={bw.countdown}>⏱ {countdown}</Text>
@@ -269,6 +290,14 @@ const bw = StyleSheet.create({
   prize:     { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2, lineHeight: 19 },
   countdown: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: CORAL, marginTop: 4 },
   chevron:   { fontSize: 22, color: MUTED, lineHeight: 24 },
+  statusPill: {
+    alignSelf: "flex-start",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginBottom: 5,
+  },
+  statusPillText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });
 
 // ─── main screen ─────────────────────────────────────────────────────────────
@@ -502,50 +531,56 @@ export default function VenueProfileScreen() {
           {displayRewards.length > 0 && (
             <View style={styles.section}>
               <SectionLabel title={displayRewards.length === 1 ? "Active Reward" : "Active Rewards"} />
-              {displayRewards.map((reward) => (
-                <View key={reward.id}>
-                  {/* Lock overlay — shown when at a registered venue but QR not yet scanned */}
-                  {isRegisteredVenue && !isQrVerified ? (
-                    <View>
+              {displayRewards.map((reward) => {
+                const rewardStatus = getRewardStatus(reward, now);
+                const showLock = isRegisteredVenue && !isQrVerified && rewardStatus === "Active";
+                return (
+                  <View key={reward.id}>
+                    {/* Lock overlay — only shown on Active rewards when QR not yet scanned */}
+                    {showLock ? (
+                      <View>
+                        <BeTheWinnerCard
+                          reward={reward}
+                          statusLabel={rewardStatus}
+                          onPress={() => setWinnerModal(true)}
+                        />
+                        {/* Semi-transparent lock overlay */}
+                        <Pressable
+                          style={[styles.rewardLockOverlay, cardShadow]}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/qr-scan",
+                              params: {
+                                placeId: placeId ?? "",
+                                placeName: profile?.businessName ?? "",
+                              },
+                            } as never)
+                          }
+                          accessibilityRole="button"
+                          accessibilityLabel="Scan QR code to unlock this reward"
+                        >
+                          <Text style={styles.rewardLockIcon}>🔒</Text>
+                          <Text style={styles.rewardLockTitle}>
+                            Scan QR to Unlock Reward
+                          </Text>
+                          <Text style={styles.rewardLockSub}>
+                            Find the QR code at the entrance and scan it to unlock today's reward.
+                          </Text>
+                          <View style={styles.rewardLockBtn}>
+                            <Text style={styles.rewardLockBtnText}>📷 Open Scanner</Text>
+                          </View>
+                        </Pressable>
+                      </View>
+                    ) : (
                       <BeTheWinnerCard
                         reward={reward}
+                        statusLabel={rewardStatus}
                         onPress={() => setWinnerModal(true)}
                       />
-                      {/* Semi-transparent lock overlay */}
-                      <Pressable
-                        style={[styles.rewardLockOverlay, cardShadow]}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/qr-scan",
-                            params: {
-                              placeId: placeId ?? "",
-                              placeName: profile?.businessName ?? "",
-                            },
-                          } as never)
-                        }
-                        accessibilityRole="button"
-                        accessibilityLabel="Scan QR code to unlock this reward"
-                      >
-                        <Text style={styles.rewardLockIcon}>🔒</Text>
-                        <Text style={styles.rewardLockTitle}>
-                          Scan QR to Unlock Reward
-                        </Text>
-                        <Text style={styles.rewardLockSub}>
-                          Find the QR code at the entrance and scan it to unlock today's reward.
-                        </Text>
-                        <View style={styles.rewardLockBtn}>
-                          <Text style={styles.rewardLockBtnText}>📷 Open Scanner</Text>
-                        </View>
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <BeTheWinnerCard
-                      reward={reward}
-                      onPress={() => setWinnerModal(true)}
-                    />
-                  )}
-                </View>
-              ))}
+                    )}
+                  </View>
+                );
+              })}
             </View>
           )}
 
