@@ -198,16 +198,6 @@ const wm = StyleSheet.create({
   closeBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
 
-// ─── shared shadow (iOS + Android) ───────────────────────────────────────────
-
-const cardShadow = {
-  shadowColor: "#000",
-  shadowOpacity: 0.06,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 2 },
-  elevation: 2,
-} as const;
-
 // ─── "Be the Winner" card ────────────────────────────────────────────────────
 
 function BeTheWinnerCard({
