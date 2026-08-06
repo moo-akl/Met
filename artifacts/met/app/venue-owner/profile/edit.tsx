@@ -2,7 +2,7 @@
  * Venue Owner Profile Editor
  *
  * Allows venue owners to update their business name, tagline, description,
- * cover photo, and logo.
+ * cover photo, logo, contact details, and opening hours.
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -14,6 +14,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -27,6 +28,31 @@ import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 
+const DAYS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
+
+type Day = (typeof DAYS)[number];
+
+type DayHours = { open: string; close: string } | null;
+
+function dayLabel(d: Day): string {
+  return d.charAt(0).toUpperCase() + d.slice(1);
+}
+
+/** Clamp a freeform time string to HH:MM, stripping non-digits. */
+function formatTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
 export default function VenueOwnerProfileEditScreen() {
   const { authedUid } = useApp();
   const colors = useColors();
@@ -39,6 +65,17 @@ export default function VenueOwnerProfileEditScreen() {
   const [description, setDescription] = useState("");
   const [coverPhotoUrl, setCoverPhotoUrl] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+
+  // Contact fields
+  const [phone, setPhone] = useState("");
+  const [publicEmail, setPublicEmail] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+
+  // Opening hours keyed by day name; null value = closed
+  const [openingHours, setOpeningHours] = useState<Record<Day, DayHours>>(
+    () => Object.fromEntries(DAYS.map((d) => [d, null])) as Record<Day, DayHours>,
+  );
+
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -52,9 +89,38 @@ export default function VenueOwnerProfileEditScreen() {
       setDescription(application.description ?? "");
       setCoverPhotoUrl(application.coverPhotoUrl ?? "");
       setLogoUrl(application.logoUrl ?? "");
+      setPhone(application.phone ?? "");
+      setPublicEmail(application.publicEmail ?? "");
+      setWebsiteUrl(application.websiteUrl ?? "");
+
+      // Merge stored hours into our day map (unknown days default to null/closed)
+      if (application.openingHours) {
+        const stored = application.openingHours as Record<string, { open: string; close: string } | null>;
+        setOpeningHours(
+          Object.fromEntries(
+            DAYS.map((d) => [d, stored[d] ?? null]),
+          ) as Record<Day, DayHours>,
+        );
+      }
+
       setInitialized(true);
     }
   }, [ownerLoading, application, initialized]);
+
+  const setDayOpen = useCallback((day: Day, isOpen: boolean) => {
+    setOpeningHours((prev) => ({
+      ...prev,
+      [day]: isOpen ? { open: "09:00", close: "17:00" } : null,
+    }));
+  }, []);
+
+  const setDayTime = useCallback((day: Day, field: "open" | "close", value: string) => {
+    setOpeningHours((prev) => {
+      const existing = prev[day];
+      if (!existing) return prev;
+      return { ...prev, [day]: { ...existing, [field]: formatTimeInput(value) } };
+    });
+  }, []);
 
   const pickAndUpload = useCallback(
     async (photoType: "cover" | "logo") => {
@@ -99,6 +165,18 @@ export default function VenueOwnerProfileEditScreen() {
       Alert.alert("Business name required");
       return;
     }
+
+    // Validate time ranges for open days
+    for (const day of DAYS) {
+      const hours = openingHours[day];
+      if (!hours) continue;
+      const timeRe = /^\d{2}:\d{2}$/;
+      if (!timeRe.test(hours.open) || !timeRe.test(hours.close)) {
+        Alert.alert("Invalid hours", `Check the opening hours for ${dayLabel(day)}.`);
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       await api.updateMyVenueOwnerProfile({ uid: authedUid }, {
@@ -107,6 +185,12 @@ export default function VenueOwnerProfileEditScreen() {
         description: description.trim() || null,
         coverPhotoUrl: coverPhotoUrl.trim() || null,
         logoUrl: logoUrl.trim() || null,
+        phone: phone.trim() || null,
+        publicEmail: publicEmail.trim() || null,
+        websiteUrl: websiteUrl.trim() || null,
+        openingHours: Object.fromEntries(
+          DAYS.map((d) => [d, openingHours[d]]),
+        ),
       });
       Alert.alert("Profile updated!", undefined, [
         { text: "Done", onPress: () => router.back() },
@@ -205,6 +289,73 @@ export default function VenueOwnerProfileEditScreen() {
           placeholder="Tell guests what makes your venue special..."
           multiline numberOfLines={5} maxLength={800} colors={colors} />
 
+        {/* ── Contact & Hours ── */}
+        <View style={styles.groupHeader}>
+          <Text style={styles.groupHeaderText}>Contact & Hours</Text>
+        </View>
+
+        <Field label="Phone" value={phone} onChangeText={setPhone}
+          placeholder="+1 555 123 4567" colors={colors} keyboardType="phone-pad" />
+
+        <Field label="Public Email" value={publicEmail} onChangeText={setPublicEmail}
+          placeholder="hello@myvenue.com" colors={colors} keyboardType="email-address"
+          autoCapitalize="none" />
+
+        <Field label="Website" value={websiteUrl} onChangeText={setWebsiteUrl}
+          placeholder="https://myvenue.com" colors={colors} keyboardType="url"
+          autoCapitalize="none" />
+
+        {/* Opening Hours */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Opening Hours</Text>
+          <View style={[styles.hoursCard, { borderColor: "rgba(255,255,255,0.08)" }]}>
+            {DAYS.map((day, idx) => {
+              const hours = openingHours[day];
+              const isOpen = hours !== null;
+              return (
+                <View
+                  key={day}
+                  style={[
+                    styles.dayRow,
+                    idx < DAYS.length - 1 && styles.dayRowBorder,
+                    { borderBottomColor: "rgba(255,255,255,0.07)" },
+                  ]}
+                >
+                  <View style={styles.dayLeft}>
+                    <Text style={styles.dayName}>{dayLabel(day)}</Text>
+                    <Switch
+                      value={isOpen}
+                      onValueChange={(v) => setDayOpen(day, v)}
+                      trackColor={{ false: "#2A2A2F", true: colors.primary + "80" }}
+                      thumbColor={isOpen ? colors.primary : "#666"}
+                      ios_backgroundColor="#2A2A2F"
+                    />
+                  </View>
+
+                  {isOpen && hours ? (
+                    <View style={styles.timeRow}>
+                      <TimeInput
+                        value={hours.open}
+                        onChangeText={(v) => setDayTime(day, "open", v)}
+                        colors={colors}
+                      />
+                      <Text style={styles.timeSep}>–</Text>
+                      <TimeInput
+                        value={hours.close}
+                        onChangeText={(v) => setDayTime(day, "close", v)}
+                        colors={colors}
+                      />
+                    </View>
+                  ) : (
+                    <Text style={styles.closedLabel}>Closed</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+          <Text style={styles.hoursHint}>Use 24-hour format, e.g. 09:00 – 22:30</Text>
+        </View>
+
         <Pressable
           style={[
             styles.saveBtn,
@@ -219,10 +370,6 @@ export default function VenueOwnerProfileEditScreen() {
             <Text style={styles.saveBtnText}>Save Changes</Text>
           )}
         </Pressable>
-
-        <Text style={styles.footerNote}>
-          Contact details and opening hours can be updated in the Venue Manager web portal.
-        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -230,11 +377,13 @@ export default function VenueOwnerProfileEditScreen() {
 
 function Field({
   label, value, onChangeText, placeholder, multiline, numberOfLines, maxLength,
-  colors,
+  colors, keyboardType, autoCapitalize,
 }: {
   label: string; value: string; onChangeText: (v: string) => void; placeholder?: string;
   multiline?: boolean; numberOfLines?: number; maxLength?: number;
   colors: { primary: string };
+  keyboardType?: "default" | "phone-pad" | "email-address" | "url";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }) {
   return (
     <View style={styles.section}>
@@ -247,6 +396,8 @@ function Field({
         multiline={multiline}
         numberOfLines={numberOfLines}
         maxLength={maxLength}
+        keyboardType={keyboardType ?? "default"}
+        autoCapitalize={autoCapitalize ?? "sentences"}
         style={[
           styles.fieldInput,
           multiline && { height: (numberOfLines ?? 1) * 24 + 24, textAlignVertical: "top" },
@@ -254,6 +405,28 @@ function Field({
         ]}
       />
     </View>
+  );
+}
+
+function TimeInput({
+  value,
+  onChangeText,
+  colors,
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  colors: { primary: string };
+}) {
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder="HH:MM"
+      placeholderTextColor="rgba(255,255,255,0.25)"
+      keyboardType="numbers-and-punctuation"
+      maxLength={5}
+      style={[styles.timeInput, { borderColor: colors.primary + "40" }]}
+    />
   );
 }
 
@@ -311,13 +484,77 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_400Regular",
   },
-  saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 4 },
-  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
-  footerNote: {
+  groupHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+    paddingBottom: 8,
+    marginBottom: -4,
+  },
+  groupHeaderText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+  },
+  hoursCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    backgroundColor: "#1A1A1E",
+    overflow: "hidden",
+  },
+  dayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 12,
+  },
+  dayRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  dayLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 140,
+  },
+  dayName: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    width: 82,
+  },
+  closedLabel: {
     color: "rgba(255,255,255,0.28)",
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+  },
+  timeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  timeSep: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 14,
+  },
+  timeInput: {
+    backgroundColor: "#242428",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    color: "#fff",
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    width: 62,
+    textAlign: "center",
+  },
+  hoursHint: {
+    color: "rgba(255,255,255,0.3)",
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    lineHeight: 18,
   },
+  saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 4 },
+  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
 });

@@ -1173,6 +1173,10 @@ export const api = {
       description?: string | null;
       coverPhotoUrl?: string | null;
       logoUrl?: string | null;
+      phone?: string | null;
+      publicEmail?: string | null;
+      websiteUrl?: string | null;
+      openingHours?: Record<string, { open: string; close: string } | null> | null;
     },
   ) =>
     request<{ profile: VenueOwnerProfile }>("PUT", "/api/venue-owner/me", opts, body),

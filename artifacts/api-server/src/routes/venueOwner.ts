@@ -1189,7 +1189,8 @@ router.post(
 
 /**
  * PUT /venue-owner/me
- * Body: { businessName?, tagline?, description?, coverPhotoUrl?, logoUrl? }
+ * Body: { businessName?, tagline?, description?, coverPhotoUrl?, logoUrl?,
+ *         phone?, publicEmail?, websiteUrl?, openingHours? }
  */
 router.put(
   "/venue-owner/me",
@@ -1197,12 +1198,22 @@ router.put(
   venueOwnerWriteLimit,
   async (req: Request, res: Response) => {
     const uid = req.uid!;
+    const dayHoursSchema = z
+      .object({ open: z.string().regex(/^\d{2}:\d{2}$/), close: z.string().regex(/^\d{2}:\d{2}$/) })
+      .nullable();
     const schema = z.object({
       businessName: z.string().min(1).optional(),
       tagline: z.string().max(160).optional().nullable(),
       description: z.string().max(1000).optional().nullable(),
       coverPhotoUrl: z.string().url().optional().nullable(),
       logoUrl: z.string().url().optional().nullable(),
+      phone: z.string().trim().max(30).optional().nullable(),
+      publicEmail: z.string().trim().email().max(255).optional().nullable(),
+      websiteUrl: z.string().trim().url().max(2000).optional().nullable(),
+      openingHours: z
+        .record(z.string(), dayHoursSchema)
+        .optional()
+        .nullable(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
