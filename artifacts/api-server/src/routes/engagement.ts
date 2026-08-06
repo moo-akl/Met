@@ -533,11 +533,33 @@ router.post(
 
     logger.info({ uid, placeId }, "venue QR verification recorded");
 
-    // Apply leaderboard/streak credit now that the user has proved physical
-    // presence.  This mirrors the logic in POST /hubs/checkin for non-registered
-    // venues — we use the most recent check-in row (inserted by /checkin) as the
-    // "current" visit and the one before it for streak continuity.
+    // Ensure the user has a hub_checkins row for this visit.
+    // For registered venues the GPS /hubs/checkin returns early (no row inserted)
+    // until QR is verified — so we insert one here so the user immediately earns
+    // leaderboard credit upon scanning, without waiting for another GPS ping.
     const now = new Date();
+    const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+    const [recentCheckin] = await db
+      .select({ id: hubCheckinsTable.id })
+      .from(hubCheckinsTable)
+      .where(
+        and(
+          eq(hubCheckinsTable.userUid, uid),
+          eq(hubCheckinsTable.placeId, placeId),
+          gte(hubCheckinsTable.createdAt, fourHoursAgo),
+        ),
+      )
+      .orderBy(desc(hubCheckinsTable.createdAt))
+      .limit(1);
+
+    if (!recentCheckin) {
+      await db.insert(hubCheckinsTable).values({ userUid: uid, placeId });
+      logger.info({ uid, placeId }, "hub_checkins row inserted via QR verify");
+    }
+
+    // Apply leaderboard/streak credit.  We use the second-most-recent check-in
+    // at this place (offset 1) as the "previous" visit for streak continuity —
+    // the most recent is the row we just inserted (or the GPS one already there).
     let streak = 0;
     try {
       const [[statsRow], [prevCheckinRow]] = await Promise.all([

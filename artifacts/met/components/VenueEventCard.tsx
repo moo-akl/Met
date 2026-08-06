@@ -41,6 +41,7 @@ export interface VenueEventCardData {
 
 interface Props {
   event: VenueEventCardData;
+  onPress?: () => void;
   onRsvpChange?: (eventId: number, status: "going" | "maybe" | "not_going") => void;
 }
 
@@ -53,7 +54,7 @@ function formatEventDate(iso: string): { month: string; day: string; time: strin
   };
 }
 
-export function VenueEventCard({ event, onRsvpChange }: Props) {
+export function VenueEventCard({ event, onPress, onRsvpChange }: Props) {
   const { authedUid } = useApp();
   const [myRsvp, setMyRsvp] = useState<"going" | "maybe" | "not_going" | null>(
     event.myRsvp ?? null,
@@ -88,7 +89,11 @@ export function VenueEventCard({ event, onRsvpChange }: Props) {
   const { month, day, time } = formatEventDate(event.startsAt);
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      style={({ pressed }) => [styles.card, onPress && pressed && { opacity: 0.88 }]}
+      onPress={onPress}
+      disabled={!onPress}
+    >
       {/* ── Image + date badge ───────────────────────── */}
       <View style={styles.imageWrap}>
         {event.imageUrl ? (
@@ -155,7 +160,7 @@ export function VenueEventCard({ event, onRsvpChange }: Props) {
           )}
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

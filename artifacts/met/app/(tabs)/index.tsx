@@ -647,9 +647,13 @@ const styles = StyleSheet.create({
 
   // ── Heatmap ───────────────────────────────────────────────────────────────
   heatmapSection: {
-    marginHorizontal: 20, marginTop: 16,
-    borderRadius: 20, borderWidth: 1, borderColor: AG_BORDER,
-    overflow: "hidden", height: 220,
+    alignSelf: "center",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    marginTop: 16,
+    borderWidth: 1, borderColor: AG_BORDER,
+    overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.03)",
   },
 

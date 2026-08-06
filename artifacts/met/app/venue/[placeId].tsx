@@ -102,8 +102,23 @@ function useCountdown(endDateIso: string): string {
   return label;
 }
 
-function SectionLabel({ title }: { title: string }) {
-  return <Text style={styles.sectionLabel}>{title}</Text>;
+function SectionLabel({
+  title,
+  onSeeAll,
+}: {
+  title: string;
+  onSeeAll?: () => void;
+}) {
+  return (
+    <View style={styles.sectionLabelRow}>
+      <Text style={styles.sectionLabel}>{title}</Text>
+      {onSeeAll && (
+        <Pressable onPress={onSeeAll} hitSlop={10}>
+          <Text style={styles.seeAllLink}>See all →</Text>
+        </Pressable>
+      )}
+    </View>
+  );
 }
 
 // ─── shared shadow (iOS + Android) ───────────────────────────────────────────
@@ -342,6 +357,7 @@ export default function VenueProfileScreen() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(false);
   const [selectedReward, setSelectedReward] = useState<VenueReward | null>(null);
+  const [selectedEvent, setSelectedEvent]   = useState<VenueEvent | null>(null);
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
   const [showEndedRewards, setShowEndedRewards] = useState(false);
 
@@ -690,7 +706,10 @@ export default function VenueProfileScreen() {
           {/* ── 3. Leaderboards ────────────────────────────────────────── */}
           {topVisitors.length > 0 && (
             <View style={styles.section}>
-              <SectionLabel title="Leaderboards" />
+              <SectionLabel
+                title="Leaderboards"
+                onSeeAll={() => router.push(`/leaderboard/${placeId}`)}
+              />
               <View style={styles.lbGrid}>
                 {topVisitors.map((v, i) => (
                   <View key={v.uid} style={[styles.lbCard, cardShadow]}>
@@ -729,7 +748,11 @@ export default function VenueProfileScreen() {
                 contentContainerStyle={{ paddingRight: 16 }}
               >
                 {displayEvents.map((event) => (
-                  <VenueEventCard key={event.id} event={event} />
+                  <VenueEventCard
+                    key={event.id}
+                    event={event}
+                    onPress={() => setSelectedEvent(event)}
+                  />
                 ))}
               </ScrollView>
             </View>
@@ -801,6 +824,69 @@ export default function VenueProfileScreen() {
           visible={true}
           onClose={() => setSelectedReward(null)}
         />
+      )}
+
+      {/* ── Event detail modal ────────────────────────────────────────── */}
+      {selectedEvent && (
+        <Modal
+          visible
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSelectedEvent(null)}
+        >
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setSelectedEvent(null)}
+          >
+            <Pressable
+              style={[styles.eventDetailSheet, { paddingBottom: insets.bottom + 28 }]}
+              onPress={() => {/* prevent backdrop dismiss */}}
+            >
+              {/* drag pill */}
+              <View style={styles.eventDetailHandle} />
+
+              {/* hero image */}
+              {selectedEvent.imageUrl ? (
+                <Image
+                  source={{ uri: selectedEvent.imageUrl }}
+                  style={styles.eventDetailHero}
+                  contentFit="cover"
+                />
+              ) : (
+                <LinearGradient
+                  colors={["#73C8A9", "#E1B866"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.eventDetailHero, { alignItems: "center", justifyContent: "center" }]}
+                >
+                  <Text style={{ fontSize: 52 }}>🎉</Text>
+                </LinearGradient>
+              )}
+
+              {/* content */}
+              <View style={styles.eventDetailBody}>
+                <Text style={styles.eventDetailTitle}>{selectedEvent.title}</Text>
+                <Text style={styles.eventDetailDate}>
+                  {new Date(selectedEvent.startsAt).toLocaleDateString("en-US", {
+                    weekday: "long", month: "long", day: "numeric",
+                  })}
+                  {"  ·  "}
+                  {new Date(selectedEvent.startsAt).toLocaleTimeString("en-US", {
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </Text>
+                {selectedEvent.description ? (
+                  <Text style={styles.eventDetailDesc}>{selectedEvent.description}</Text>
+                ) : null}
+                <View style={styles.eventDetailMeta}>
+                  <Text style={styles.eventDetailMetaText}>
+                    👥  {selectedEvent.rsvpCount} going
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       )}
 
       {/* ── Full-screen photo viewer ───────────────────────────────────── */}
@@ -896,16 +982,81 @@ const styles = StyleSheet.create({
   // ── Body ──────────────────────────────────────────────────────────────────
   body:        { paddingHorizontal: 16, paddingTop: 8 },
   section:     { marginBottom: 28 },
+  sectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
   sectionLabel: {
     fontSize: 11, fontFamily: "Inter_700Bold",
     color: MUTED, textTransform: "uppercase", letterSpacing: 1.4,
-    marginBottom: 12,
+  },
+  seeAllLink: {
+    fontSize: 13, fontFamily: "Inter_500Medium", color: CORAL,
   },
   description: {
     fontSize: 15, fontFamily: "Inter_400Regular",
     color: TEXT2, lineHeight: 23,
   },
   hScroll:     { marginHorizontal: -16, paddingLeft: 16 },
+
+  // ── Event detail modal ────────────────────────────────────────────────────
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  eventDetailSheet: {
+    backgroundColor: CARD,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: "hidden",
+    marginTop: "auto",
+  },
+  eventDetailHandle: {
+    alignSelf: "center",
+    width: 36, height: 4,
+    borderRadius: 2,
+    backgroundColor: BORDER,
+    marginTop: 10, marginBottom: 4,
+  },
+  eventDetailHero: {
+    width: "100%",
+    height: 180,
+  },
+  eventDetailBody: {
+    padding: 18,
+    gap: 8,
+  },
+  eventDetailTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 20,
+    color: TEXT,
+    lineHeight: 28,
+  },
+  eventDetailDate: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+    color: CORAL,
+  },
+  eventDetailDesc: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    color: TEXT2,
+    lineHeight: 21,
+    marginTop: 4,
+  },
+  eventDetailMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  eventDetailMetaText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    color: MUTED,
+  },
 
   // ── Ended rewards toggle ───────────────────────────────────────────────────
   endedToggle: {

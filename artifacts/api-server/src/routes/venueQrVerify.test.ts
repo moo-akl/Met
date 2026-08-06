@@ -10,6 +10,8 @@ const dbMocks = vi.hoisted(() => {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
+    offset: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue([]),
     insert: vi.fn().mockReturnThis(),
     values: insertValues,
@@ -97,6 +99,8 @@ function resetDbChain() {
   dbMocks.chain.select.mockReturnThis();
   dbMocks.chain.from.mockReturnThis();
   dbMocks.chain.where.mockReturnThis();
+  dbMocks.chain.orderBy.mockReturnThis();
+  dbMocks.chain.offset.mockReturnThis();
   dbMocks.chain.insert.mockReturnThis();
   dbMocks.chain.limit.mockResolvedValue([]);
   dbMocks.insertValues.mockResolvedValue(undefined);
