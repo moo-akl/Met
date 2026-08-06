@@ -739,25 +739,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
               />
 
               {!venueOwnerLoading && !venueOwnerError ? (
-                <NavRow
-                  icon="briefcase"
-                  label={
-                    venueOwnerProfile
-                      ? venueOwnerProfile.isApproved
-                        ? "Open Venue Manager"
-                        : t("settings.venueOwnerDashboard")
-                      : t("settings.registerVenue")
-                  }
-                  sub={
-                    venueOwnerProfile
-                      ? venueOwnerProfile.isApproved
-                        ? t("settings.venueOwnerApproved")
-                        : venueOwnerProfile.applicationStatus === "rejected" ||
-                            venueOwnerProfile.applicationStatus === "changes_requested"
-                          ? t("settings.venueOwnerRejected")
-                          : t("settings.venueOwnerPending")
-                      : t("settings.registerVenueSub")
-                  }
+                <Pressable
+                  testID="venue-owner-profile-switcher"
                   onPress={() => {
                     close();
                     setTimeout(() => {
@@ -768,9 +751,35 @@ export function SettingsSheet({ visible, onClose }: Props) {
                       }
                     }, 50);
                   }}
-                  testID="venue-owner-profile-switcher"
-                  colors={colors}
-                />
+                  style={({ pressed }) => [
+                    styles.venueCtaCard,
+                    { opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <View style={styles.venueCtaIconWrap}>
+                    <Feather name="home" size={20} color="#92400E" />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={styles.venueCtaLabel}>
+                      {venueOwnerProfile
+                        ? venueOwnerProfile.isApproved
+                          ? "Open Venue Manager"
+                          : t("settings.venueOwnerDashboard")
+                        : t("settings.registerVenue")}
+                    </Text>
+                    <Text style={styles.venueCtaSub} numberOfLines={2}>
+                      {venueOwnerProfile
+                        ? venueOwnerProfile.isApproved
+                          ? t("settings.venueOwnerApproved")
+                          : venueOwnerProfile.applicationStatus === "rejected" ||
+                              venueOwnerProfile.applicationStatus === "changes_requested"
+                            ? t("settings.venueOwnerRejected")
+                            : t("settings.venueOwnerPending")
+                        : t("settings.registerVenueSub")}
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color="#92400E" />
+                </Pressable>
               ) : null}
 
               <Pressable
@@ -1935,5 +1944,37 @@ const styles = StyleSheet.create({
   contactEmail: {
     fontFamily: "Inter_400Regular",
     fontSize: 13,
+  },
+
+  // ── Venue registration CTA card (highlighted) ─────────────────────────────
+  venueCtaCard: {
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1.5,
+    borderColor: "#FED7AA",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  venueCtaIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: "#FDE68A",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  venueCtaLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+    color: "#92400E",
+  },
+  venueCtaSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: "#B45309",
+    lineHeight: 17,
   },
 });

@@ -5,10 +5,11 @@
  * Step 2: Business details (name, tagline, description)
  * Step 3: Verification (doc URL, notes) + submit
  */
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,6 +19,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import auth from "@react-native-firebase/auth";
@@ -70,6 +72,8 @@ export default function VenueOwnerSetupScreen() {
 
   // Step 3 — Verification
   const [verificationDocUrl, setVerificationDocUrl] = useState("");
+  const [verificationDocThumb, setVerificationDocThumb] = useState<string | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
   const [registrationNotes, setRegistrationNotes] = useState("");
   const [prefilled, setPrefilled] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
@@ -488,20 +492,88 @@ export default function VenueOwnerSetupScreen() {
           <View style={styles.fields}>
             <View style={styles.infoBox}>
               <Text style={styles.infoText}>
-                Please provide a URL to a document proving ownership or management
-                authority for this venue (e.g. business licence, utility bill, lease
-                agreement). Accepted formats: Google Drive, Dropbox, or any public link.
+                Prove ownership or management authority for this venue. You can
+                take a photo of a business licence, utility bill, or lease
+                agreement — or paste a link to a document on Google Drive /
+                Dropbox.
               </Text>
             </View>
+
+            {/* ── Upload a photo of the document ── */}
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
+              Upload a document photo *
+            </Text>
+            <Pressable
+              onPress={async () => {
+                if (uploadingDoc) return;
+                const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (!perm.granted) {
+                  Alert.alert("Permission needed", "Allow photo library access to upload a document.");
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  quality: 0.85,
+                  base64: true,
+                  allowsEditing: false,
+                });
+                if (result.canceled || !result.assets[0]?.base64) return;
+                const asset = result.assets[0];
+                setUploadingDoc(true);
+                try {
+                  const { url } = await api.uploadVenueVerificationDoc(
+                    { uid: authedUid ?? "" },
+                    { base64: asset.base64!, contentType: asset.mimeType ?? "image/jpeg" },
+                  );
+                  setVerificationDocUrl(url);
+                  setVerificationDocThumb(asset.uri);
+                } catch {
+                  Alert.alert("Upload failed", "Could not upload the photo. Try again or paste a link below.");
+                } finally {
+                  setUploadingDoc(false);
+                }
+              }}
+              disabled={uploadingDoc}
+              style={({ pressed }) => [
+                styles.docPickerBtn,
+                { borderColor: verificationDocUrl ? "#16A34A" : colors.border, opacity: pressed || uploadingDoc ? 0.7 : 1 },
+              ]}
+            >
+              {uploadingDoc ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : verificationDocThumb ? (
+                <Image
+                  source={{ uri: verificationDocThumb }}
+                  style={styles.docThumb}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={[styles.docPickerLabel, { color: colors.mutedForeground }]}>
+                  📎  Tap to pick a photo of your document
+                </Text>
+              )}
+              {verificationDocThumb && !uploadingDoc && (
+                <Text style={[styles.docPickerChange, { color: colors.primary }]}>
+                  {verificationDocUrl ? "✓ Uploaded — tap to change" : "Tap to change"}
+                </Text>
+              )}
+            </Pressable>
+
+            {/* ── OR paste a link ── */}
+            <Text style={[styles.orDivider, { color: colors.mutedForeground }]}>— or paste a link —</Text>
             <Field
-              label="Verification Document URL *"
+              label="Document URL"
               value={verificationDocUrl}
-              onChangeText={setVerificationDocUrl}
+              onChangeText={(v) => {
+                setVerificationDocUrl(v);
+                if (!v) setVerificationDocThumb(null);
+              }}
               placeholder="https://drive.google.com/..."
               autoCapitalize="none"
               keyboardType="url"
               colors={colors}
             />
+
             <Field
               label="Additional notes (optional)"
               value={registrationNotes}
@@ -677,6 +749,41 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_400Regular",
   },
+  // ── Document upload (Step 3) ───────────────────────────────────────────────
+  docPickerBtn: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    borderStyle: "dashed",
+    padding: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 80,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  docThumb: {
+    width: "100%",
+    height: 160,
+    borderRadius: 8,
+  },
+  docPickerLabel: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  docPickerChange: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  orDivider: {
+    textAlign: "center",
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginVertical: 4,
+  },
+
   infoBox: {
     backgroundColor: "rgba(255,204,0,0.08)",
     borderRadius: 10,

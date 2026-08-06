@@ -1062,6 +1062,22 @@ export const api = {
     }));
   },
 
+  /**
+   * Upload a verification document image (base64) to Firebase Storage and
+   * return a public URL that can be saved as verificationDocUrl on the
+   * venue owner application.
+   */
+  uploadVenueVerificationDoc: (
+    opts: ApiOptions,
+    input: { base64: string; contentType?: string },
+  ) =>
+    request<{ url: string }>(
+      "POST",
+      "/api/venue-owner/upload-verification-doc",
+      opts,
+      { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
+    ),
+
   /** Register a venue owner claim. */
   registerVenueOwner: (
     opts: ApiOptions,

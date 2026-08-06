@@ -72,6 +72,7 @@ import { requireUid } from "../middlewares/requireUid";
 import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
 import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
+import { adminStorage } from "../lib/firebaseAdmin";
 import {
   sendVenueApprovedEmail,
   sendVenueRejectedEmail,
@@ -3359,6 +3360,87 @@ router.delete(
       "Admin permanently deleted venue",
     );
     res.status(200).json({ message: "Venue deleted successfully" });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// POST /api/venue-owner/upload-verification-doc
+// Accepts a base64-encoded image of a verification document (business
+// licence, utility bill, lease, etc.), stores it in Firebase Storage under
+// venue-verification-docs/{uid}/, and returns a public download URL that the
+// caller can save as verificationDocUrl on their application.
+// ---------------------------------------------------------------------------
+const ALLOWED_DOC_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+] as const;
+
+router.post(
+  "/venue-owner/upload-verification-doc",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const { base64, contentType = "image/jpeg" } = req.body as {
+      base64?: string;
+      contentType?: string;
+    };
+
+    if (!base64 || typeof base64 !== "string") {
+      res.status(400).json({ message: "base64 image data required" });
+      return;
+    }
+    if (!ALLOWED_DOC_TYPES.includes(contentType as typeof ALLOWED_DOC_TYPES[number])) {
+      res.status(400).json({ message: "Unsupported type. Use JPEG, PNG, WEBP, or HEIC." });
+      return;
+    }
+
+    const ext =
+      contentType === "image/png"
+        ? "png"
+        : contentType === "image/webp"
+          ? "webp"
+          : "jpg";
+    const objectPath = `venue-verification-docs/${uid}/${Date.now()}.${ext}`;
+    const buf = Buffer.from(base64, "base64");
+    const bucket = adminStorage().bucket();
+    const file = bucket.file(objectPath);
+
+    try {
+      await file.save(buf, { contentType, resumable: false });
+    } catch (err) {
+      logger.error({ err, uid }, "venue verification doc upload failed");
+      res.status(500).json({ message: "Upload failed. Please try again." });
+      return;
+    }
+
+    // Attempt to make the file publicly readable.
+    try {
+      await file.makePublic();
+      res.json({
+        url: `https://storage.googleapis.com/${bucket.name}/${objectPath}`,
+      });
+      return;
+    } catch { /* fall through to signed-token path */ }
+
+    // Fallback: attach a Firebase Storage download token.
+    const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      await file.setMetadata({
+        metadata: { firebaseStorageDownloadTokens: token },
+      });
+    } catch (err) {
+      logger.error({ err, uid }, "setMetadata failed for venue verification doc");
+      res.status(500).json({ message: "Upload failed. Please try again." });
+      return;
+    }
+
+    res.json({
+      url:
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+        `${encodeURIComponent(objectPath)}?alt=media&token=${token}`,
+    });
   },
 );
 

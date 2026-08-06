@@ -686,47 +686,39 @@ export default function ProfileScreen() {
           );
         })() : null}
 
-        {!venueOwnerLoading && !venueOwnerError ? (
+        {/* ── Switch to venue profile (approved owners only) ─────────── */}
+        {!venueOwnerLoading && venueOwnerProfile?.isApproved ? (
           <Pressable
-            testID="personal-to-business-profile"
+            testID="view-venue-page"
             onPress={() =>
-              router.push(getVenueOwnerDestination(venueOwnerProfile))
+              router.push(`/venue/${venueOwnerProfile.placeId}`)
             }
             style={({ pressed }) => [
               styles.businessSwitcher,
               {
                 backgroundColor: colors.card,
-                borderColor: colors.border,
-                opacity: pressed ? 0.72 : 1,
+                borderColor: colors.primary + "50",
+                opacity: pressed ? 0.8 : 1,
               },
             ]}
           >
             <View
               style={[
                 styles.businessSwitcherIcon,
-                { backgroundColor: colors.primary + "18" },
+                { backgroundColor: colors.primary + "15" },
               ]}
             >
-              <Feather name="briefcase" size={18} color={colors.primary} />
+              <Feather name="eye" size={18} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.businessSwitcherTitle, { color: colors.foreground }]}>
-                {venueOwnerProfile
-                  ? t("settings.venueOwnerDashboard")
-                  : t("settings.registerVenue")}
+                {venueOwnerProfile.businessName ?? "Your Venue"}
               </Text>
               <Text
                 style={[styles.businessSwitcherSub, { color: colors.mutedForeground }]}
-                numberOfLines={2}
+                numberOfLines={1}
               >
-                {venueOwnerProfile
-                  ? venueOwnerProfile.isApproved
-                    ? t("settings.venueOwnerApproved")
-                    : venueOwnerProfile.applicationStatus === "rejected" ||
-                        venueOwnerProfile.applicationStatus === "changes_requested"
-                      ? t("settings.venueOwnerRejected")
-                      : t("settings.venueOwnerPending")
-                  : t("settings.registerVenueSub")}
+                View as guests see it
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
