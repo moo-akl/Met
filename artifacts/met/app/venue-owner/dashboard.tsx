@@ -19,7 +19,6 @@ import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
-import { resolveLifecycleRedirect } from "@/lib/venueOwnerLifecycle";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { api, type VenueOwnerDashboard } from "@/lib/api/client";
 
@@ -47,18 +46,6 @@ export default function VenueOwnerDashboardScreen() {
   const { profile: application, isLoading, error } = useVenueOwner();
   const [dashboard, setDashboard] = useState<VenueOwnerDashboard | null>(null);
   const [dashLoading, setDashLoading] = useState(true);
-
-  // Lifecycle redirect guard
-  useEffect(() => {
-    const redirect = resolveLifecycleRedirect({
-      isLoading,
-      error,
-      authedUid,
-      application,
-      currentDestination: "/venue-owner/dashboard",
-    });
-    if (redirect) router.replace(redirect);
-  }, [isLoading, error, application, authedUid, router]);
 
   // Load quick stats
   useEffect(() => {
