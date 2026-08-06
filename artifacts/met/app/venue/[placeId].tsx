@@ -144,7 +144,17 @@ function WinnerModal({
             <Text style={wm.prizeIcon}>{icon}</Text>
             <Text style={wm.prizeTitle}>{reward.title}</Text>
             <Text style={wm.prizeDesc}>{reward.prizeDescription}</Text>
-            <Text style={wm.prizeCountdown}>⏱ {countdown}</Text>
+            {reward.description ? (
+              <Text style={wm.prizeExtra}>{reward.description}</Text>
+            ) : null}
+            <View style={wm.metaRow}>
+              <Text style={wm.prizeCountdown}>⏱ {countdown}</Text>
+              <View style={[wm.typePill]}>
+                <Text style={wm.typePillText}>
+                  {REWARD_ICON[reward.rewardType] ?? "🎁"} {reward.rewardType.replace("_", " ")}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -207,6 +217,19 @@ const wm = StyleSheet.create({
   },
   stepNumText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
   stepText:    { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, lineHeight: 21 },
+  prizeExtra: {
+    fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2,
+    lineHeight: 19, marginTop: 4, marginBottom: 6,
+  },
+  metaRow:  { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 4 },
+  typePill: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 999, backgroundColor: "#F3F4F6",
+  },
+  typePillText: {
+    fontSize: 11, fontFamily: "Inter_500Medium", color: "#374151",
+    textTransform: "capitalize",
+  },
   closeBtn:    { backgroundColor: CORAL, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   closeBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
@@ -320,6 +343,7 @@ export default function VenueProfileScreen() {
   const [error, setError]       = useState(false);
   const [selectedReward, setSelectedReward] = useState<VenueReward | null>(null);
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
+  const [showEndedRewards, setShowEndedRewards] = useState(false);
 
   // QR verification state — initialised from the in-session module cache so
   // navigating to the venue page after a successful qr-scan shows it unlocked.
@@ -395,11 +419,14 @@ export default function VenueProfileScreen() {
   }, [qrToken, placeId, authedUid]);
 
   const now = new Date();
-  // Sort: Active first, Upcoming second, Ended last.
-  const displayRewards = [...rewards].sort((a, b) => {
-    const order: Record<RewardStatus, number> = { Active: 0, Upcoming: 1, Ended: 2 };
-    return (order[getRewardStatus(a, now)] ?? 2) - (order[getRewardStatus(b, now)] ?? 2);
-  });
+  // Active / Upcoming shown by default; Ended hidden behind a toggle.
+  const endedRewards = rewards.filter((r) => getRewardStatus(r, now) === "Ended");
+  const displayRewards = rewards
+    .filter((r) => getRewardStatus(r, now) !== "Ended")
+    .sort((a, b) => {
+      const order: Record<RewardStatus, number> = { Active: 0, Upcoming: 1, Ended: 2 };
+      return (order[getRewardStatus(a, now)] ?? 2) - (order[getRewardStatus(b, now)] ?? 2);
+    });
   // Show all published events — past events remain visible so guests can see
   // what the venue has hosted, ordered newest-first by the API.
   const displayEvents = events;
@@ -434,6 +461,8 @@ export default function VenueProfileScreen() {
   // ── render ───────────────────────────────────────────────────────────────────
   return (
     <View style={styles.root}>
+      {/* Drag handle — visible when presented as a bottom sheet (containedModal) */}
+      <View style={styles.dragHandle} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
@@ -549,7 +578,9 @@ export default function VenueProfileScreen() {
                 const showLock = isRegisteredVenue && !isQrVerified && rewardStatus === "Active";
                 return (
                   <View key={reward.id}>
-                    {/* Lock overlay — only shown on Active rewards when QR not yet scanned */}
+                    {/* Lock overlay — only shown on Active rewards when QR not yet scanned.
+                        The overlay is box-none so taps on the card itself still open
+                        the detail modal; only the CTA button navigates to the scanner. */}
                     {showLock ? (
                       <View>
                         <BeTheWinnerCard
@@ -557,20 +588,9 @@ export default function VenueProfileScreen() {
                           statusLabel={rewardStatus}
                           onPress={() => setSelectedReward(reward)}
                         />
-                        {/* Semi-transparent lock overlay */}
-                        <Pressable
-                          style={[styles.rewardLockOverlay, cardShadow]}
-                          onPress={() =>
-                            router.push({
-                              pathname: "/qr-scan",
-                              params: {
-                                placeId: placeId ?? "",
-                                placeName: profile?.businessName ?? "",
-                              },
-                            } as never)
-                          }
-                          accessibilityRole="button"
-                          accessibilityLabel="Scan QR code to unlock this reward"
+                        <View
+                          style={[styles.rewardLockOverlay]}
+                          pointerEvents="box-none"
                         >
                           <Text style={styles.rewardLockIcon}>🔒</Text>
                           <Text style={styles.rewardLockTitle}>
@@ -579,10 +599,23 @@ export default function VenueProfileScreen() {
                           <Text style={styles.rewardLockSub}>
                             Find the QR code at the entrance and scan it to unlock today's reward.
                           </Text>
-                          <View style={styles.rewardLockBtn}>
+                          <Pressable
+                            style={styles.rewardLockBtn}
+                            onPress={() =>
+                              router.push({
+                                pathname: "/qr-scan",
+                                params: {
+                                  placeId: placeId ?? "",
+                                  placeName: profile?.businessName ?? "",
+                                },
+                              } as never)
+                            }
+                            accessibilityRole="button"
+                            accessibilityLabel="Open QR scanner"
+                          >
                             <Text style={styles.rewardLockBtnText}>📷 Open Scanner</Text>
-                          </View>
-                        </Pressable>
+                          </Pressable>
+                        </View>
                       </View>
                     ) : (
                       <BeTheWinnerCard
@@ -594,6 +627,34 @@ export default function VenueProfileScreen() {
                   </View>
                 );
               })}
+            </View>
+          )}
+
+          {/* ── Ended rewards (collapsed by default) ──────────────────── */}
+          {endedRewards.length > 0 && (
+            <View style={{ marginTop: displayRewards.length > 0 ? 0 : undefined }}>
+              <Pressable
+                onPress={() => setShowEndedRewards((v) => !v)}
+                style={styles.endedToggle}
+                accessibilityRole="button"
+              >
+                <Text style={styles.endedToggleText}>
+                  {showEndedRewards ? "▾" : "▸"}{" "}
+                  {endedRewards.length} ended reward{endedRewards.length !== 1 ? "s" : ""}
+                </Text>
+              </Pressable>
+              {showEndedRewards && (
+                <View style={[styles.section, { marginTop: 8 }]}>
+                  {endedRewards.map((reward) => (
+                    <BeTheWinnerCard
+                      key={reward.id}
+                      reward={reward}
+                      statusLabel="Ended"
+                      onPress={() => setSelectedReward(reward)}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -845,6 +906,31 @@ const styles = StyleSheet.create({
     color: TEXT2, lineHeight: 23,
   },
   hScroll:     { marginHorizontal: -16, paddingLeft: 16 },
+
+  // ── Ended rewards toggle ───────────────────────────────────────────────────
+  endedToggle: {
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  endedToggleText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: MUTED,
+  },
+
+  // ── Sheet drag handle (containedModal presentation) ────────────────────────
+  dragHandle: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: BORDER,
+    marginTop: 10,
+    marginBottom: 4,
+  },
 
   // ── Reward lock overlay ───────────────────────────────────────────────────
   rewardLockOverlay: {
