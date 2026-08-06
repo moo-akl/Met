@@ -11,6 +11,7 @@ import { Alert, AppState, Platform } from "react-native";
 
 import {
   deleteUserAccount,
+  getCurrentUserEmail,
   signOut as firebaseSignOut,
   subscribeToAuthState,
 } from "@/lib/auth";
@@ -626,6 +627,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAuthedUid(uid);
       if (uid) {
         Purchases.logIn(uid).catch(() => {});
+        // Attach email as a subscriber attribute so RC can identify the
+        // customer across reinstalls and devices even when UID changes.
+        getCurrentUserEmail()
+          .then((email) => {
+            if (email) Purchases.setEmail(email).catch(() => {});
+          })
+          .catch(() => {});
       } else {
         Purchases.logOut().catch(() => {});
       }

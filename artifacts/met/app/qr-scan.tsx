@@ -1,25 +1,16 @@
 /**
- * /qr-scan  — Venue QR code scanner
+ * /qr-scan  — Venue QR code scanner (live camera auto-scan)
  *
- * Opened from the HubStatusBadge "Scan QR → Unlock Reward" CTA when the user
- * is physically at a registered venue. Scans the venue's printed QR code,
- * validates the token via POST /api/hubs/qr-verify, and marks the user as
- * QR-verified for their current check-in session so the reward card unlocks.
- *
- * Route params:
- *   placeId  — the current check-in venue's placeId (used to validate that
- *              the scanned QR belongs to the right venue and to direct the
- *              verify request to the correct place).
- *   placeName — human-readable venue name (shown in the UI).
- *
- * Like scan.tsx, uses Camera.scanFromURLAsync (a static native method) instead
- * of a live <CameraView> because the ViewManager interop is broken on some
- * production builds.
+ * Shows a live camera preview with a scan-frame overlay. As soon as the
+ * native barcode detector sees a QR code it automatically calls
+ * processQrData — no button press required. A "Choose from Photos" fallback
+ * remains for cases where the camera cannot see the code directly.
  */
 import { Feather } from "@expo/vector-icons";
-import { Camera, useCameraPermissions } from "expo-camera";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { Camera } from "expo-camera";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
@@ -40,12 +31,9 @@ import { recordNativeError } from "@/lib/diagnostics";
 import { markQrVerified } from "@/lib/qrVerificationState";
 
 /** Parse a venue QR URL and extract placeId + token. */
-function parseVenueQr(
-  raw: string,
-): { placeId: string; token: string } | null {
+function parseVenueQr(raw: string): { placeId: string; token: string } | null {
   try {
     const url = new URL(raw);
-    // Shape: https://<host>/v/<placeId>?t=<token>
     const match = url.pathname.match(/\/v\/([^/?#]+)/);
     if (!match || !match[1]) return null;
     const placeId = decodeURIComponent(match[1]);
@@ -83,7 +71,6 @@ export default function VenueQrScanScreen() {
       const parsed = parseVenueQr(data);
       if (!parsed) return "invalid";
 
-      // Validate the scanned QR belongs to the expected venue.
       if (placeId && parsed.placeId !== placeId) return "wrong-venue";
 
       lockRef.current = true;
@@ -98,9 +85,6 @@ export default function VenueQrScanScreen() {
           { uid: authedUid ?? "" },
           { placeId: parsed.placeId, token: parsed.token },
         );
-        // Notify all subscribers (e.g. useHubCheckin) that this place is
-        // verified. Pass the streak so the badge updates immediately and the
-        // persisted state is written with the correct value.
         markQrVerified(parsed.placeId, result.streak);
         return "ok";
       } catch {
@@ -109,6 +93,36 @@ export default function VenueQrScanScreen() {
       }
     },
     [placeId, authedUid],
+  );
+
+  // Called automatically by CameraView when it detects a barcode.
+  const handleBarcodeScanned = useCallback(
+    async ({ data }: { data: string }) => {
+      if (lockRef.current || busy || success) return;
+      setBusy(true);
+      setError(null);
+
+      const status = await processQrData(data);
+
+      if (status === "ok") {
+        setSuccess(true);
+        setTimeout(() => {
+          if (router.canGoBack()) router.back();
+        }, 1200);
+      } else if (status === "wrong-venue") {
+        setError("This QR code belongs to a different venue.");
+        lockRef.current = false;
+      } else if (status === "invalid") {
+        // Ignore non-venue QR codes silently — don't show an error for
+        // every random QR code the camera might see.
+        lockRef.current = false;
+      } else {
+        setError("QR code is invalid or has been rotated. Ask venue staff for help.");
+      }
+
+      setBusy(false);
+    },
+    [busy, success, processQrData, router],
   );
 
   const processPhoto = useCallback(
@@ -125,11 +139,8 @@ export default function VenueQrScanScreen() {
           const status = await processQrData(r.data);
           if (status === "ok") {
             setSuccess(true);
-            // Navigate back after a short delay so the user sees the success state.
             setTimeout(() => {
-              if (router.canGoBack()) {
-                router.back();
-              }
+              if (router.canGoBack()) router.back();
             }, 1200);
             return;
           }
@@ -153,26 +164,6 @@ export default function VenueQrScanScreen() {
     },
     [processQrData, router],
   );
-
-  const openCamera = useCallback(async () => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    try {
-      const res = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.7,
-        allowsEditing: false,
-      });
-      if (!res.canceled && res.assets[0]) {
-        await processPhoto(res.assets[0].uri);
-      }
-    } catch (e) {
-      recordNativeError("venueQrScan.launchCamera", "runtime", e);
-      setError("Couldn't open camera. Please try again.");
-    } finally {
-      inFlightRef.current = false;
-    }
-  }, [processPhoto]);
 
   const pickFromLibrary = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -234,190 +225,109 @@ export default function VenueQrScanScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: "#000" }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingTop: topPad + 12,
-            backgroundColor: colors.background,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={[styles.iconBtn, { backgroundColor: colors.muted }]}
-        >
-          <Feather name="x" size={22} color={colors.foreground} />
-        </Pressable>
-        <Text style={[styles.topTitle, { color: colors.foreground }]}>
-          Scan QR to Unlock Reward
-        </Text>
-        <View style={{ width: 38 }} />
-      </View>
+      {success ? (
+        /* ── Success overlay ──────────────────────────────────────────────── */
+        <View style={[styles.successOverlay, { paddingTop: topPad + 24, paddingBottom: insets.bottom + 32 }]}>
+          <View style={[styles.iconCircle, { backgroundColor: "#DCFCE7" }]}>
+            <Feather name="check-circle" size={64} color="#16A34A" />
+          </View>
+          <Text style={styles.successTitle}>Reward Unlocked! 🎉</Text>
+          <Text style={styles.successSub}>
+            You've verified your visit at{"\n"}
+            <Text style={{ fontFamily: "Inter_600SemiBold" }}>
+              {placeName ?? "this venue"}
+            </Text>
+            . Your reward is now available.
+          </Text>
+        </View>
+      ) : (
+        <>
+          {/* ── Live camera ────────────────────────────────────────────────── */}
+          <CameraView
+            style={StyleSheet.absoluteFillObject}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+            onBarcodeScanned={handleBarcodeScanned}
+          />
 
-      {/* ── Body ─────────────────────────────────────────────────────────── */}
-      <View style={styles.body}>
-        {success ? (
-          <>
-            <View style={[styles.iconCircle, { backgroundColor: "#DCFCE7" }]}>
-              <Feather name="check-circle" size={64} color="#16A34A" />
-            </View>
-            <Text style={[styles.headline, { color: colors.foreground }]}>
-              Reward Unlocked! 🎉
-            </Text>
-            <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-              You've verified your visit at{"\n"}
-              <Text style={{ fontFamily: "Inter_600SemiBold" }}>
-                {placeName ?? "this venue"}
-              </Text>
-              . Your reward is now available.
-            </Text>
-          </>
-        ) : (
-          <>
-            <View style={[styles.iconCircle, { backgroundColor: "#FEF3C7" }]}>
-              <Feather name="maximize" size={64} color="#D97706" />
-            </View>
-            <Text style={[styles.headline, { color: colors.foreground }]}>
-              Scan the Entrance Code
-            </Text>
-            <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-              Find the QR code posted at the entrance of{" "}
-              <Text style={{ fontFamily: "Inter_600SemiBold" }}>
-                {placeName ?? "the venue"}
-              </Text>{" "}
-              and scan it to unlock today's reward.
-            </Text>
-
-            {error ? (
-              <View
-                style={[
-                  styles.errorPill,
-                  { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" },
-                ]}
-              >
-                <Feather name="alert-circle" size={14} color="#B91C1C" />
-                <Text style={styles.errorPillText}>{error}</Text>
+          {/* ── Dark overlay with transparent scan window ─────────────────── */}
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            {/* Top dark band */}
+            <View style={styles.darkBand} />
+            {/* Middle row: dark | clear window | dark */}
+            <View style={styles.middleRow}>
+              <View style={styles.darkSide} />
+              {/* Scan window */}
+              <View style={styles.scanWindow}>
+                {/* Corner brackets */}
+                <View style={[styles.corner, styles.cornerTL]} />
+                <View style={[styles.corner, styles.cornerTR]} />
+                <View style={[styles.corner, styles.cornerBL]} />
+                <View style={[styles.corner, styles.cornerBR]} />
               </View>
-            ) : null}
+              <View style={styles.darkSide} />
+            </View>
+            {/* Bottom dark band */}
+            <View style={styles.darkBandBottom} />
+          </View>
 
+          {/* ── Top bar ──────────────────────────────────────────────────────── */}
+          <View style={[styles.topBar, { paddingTop: topPad + 12 }]}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={12}
+              style={styles.iconBtn}
+            >
+              <Feather name="x" size={22} color="#fff" />
+            </Pressable>
+            <Text style={styles.topTitle}>Scan QR to Unlock Reward</Text>
+            <View style={{ width: 38 }} />
+          </View>
+
+          {/* ── Hint + status below scan window ──────────────────────────────── */}
+          <View style={[styles.hintArea, { paddingBottom: insets.bottom + 24 }]}>
             {busy ? (
               <View style={styles.busyRow}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[styles.busyText, { color: colors.mutedForeground }]}>
-                  Verifying…
-                </Text>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={styles.hintText}>Verifying…</Text>
               </View>
-            ) : null}
-          </>
-        )}
-      </View>
+            ) : error ? (
+              <View style={styles.errorPill}>
+                <Feather name="alert-circle" size={14} color="#FCA5A5" />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : (
+              <Text style={styles.hintText}>
+                Point your camera at the QR code — it will scan automatically
+              </Text>
+            )}
 
-      {/* ── Footer ────────────────────────────────────────────────────────── */}
-      {!success && (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 24 }]}>
-          <PrimaryButton
-            label="Open Camera"
-            onPress={openCamera}
-            disabled={busy}
-          />
-          <PrimaryButton
-            label="Choose from Photos"
-            variant="secondary"
-            onPress={pickFromLibrary}
-            disabled={busy}
-          />
-        </View>
+            <Pressable
+              style={styles.galleryBtn}
+              onPress={pickFromLibrary}
+              disabled={busy}
+            >
+              <Feather name="image" size={16} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.galleryBtnText}>Choose from Photos</Text>
+            </Pressable>
+          </View>
+        </>
       )}
     </View>
   );
 }
 
+const SCAN_SIZE = 260;
+const CORNER_SIZE = 22;
+const CORNER_WIDTH = 3;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  topTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  body: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-    gap: 14,
-  },
-  iconCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  headline: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 22,
-    textAlign: "center",
-  },
-  sub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 21,
-    maxWidth: 320,
-  },
-  errorPill: {
-    marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  errorPillText: {
-    color: "#B91C1C",
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    flexShrink: 1,
-  },
-  busyRow: {
-    marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  busyText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    gap: 10,
-  },
+
+  // ── Permission screen ──────────────────────────────────────────────────────
   permWrap: {
     flex: 1,
     alignItems: "center",
@@ -434,5 +344,180 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 21,
     maxWidth: 320,
+  },
+  iconCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+
+  // ── Success ────────────────────────────────────────────────────────────────
+  successOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    gap: 14,
+    paddingHorizontal: 28,
+  },
+  successTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 24,
+    textAlign: "center",
+    color: "#111",
+  },
+  successSub: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 21,
+    color: "#555",
+    maxWidth: 320,
+  },
+
+  // ── Live camera layout ─────────────────────────────────────────────────────
+  topBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingBottom: 16,
+  },
+  topTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+    color: "#fff",
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+
+  // ── Dark overlay with transparent window ───────────────────────────────────
+  darkBand: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  darkBandBottom: {
+    flex: 1.2,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  middleRow: {
+    flexDirection: "row",
+    height: SCAN_SIZE,
+  },
+  darkSide: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  scanWindow: {
+    width: SCAN_SIZE,
+    height: SCAN_SIZE,
+    backgroundColor: "transparent",
+  },
+
+  // ── Corner brackets ─────────────────────────────────────────────────────────
+  corner: {
+    position: "absolute",
+    width: CORNER_SIZE,
+    height: CORNER_SIZE,
+    borderColor: "#fff",
+  },
+  cornerTL: {
+    top: 0,
+    left: 0,
+    borderTopWidth: CORNER_WIDTH,
+    borderLeftWidth: CORNER_WIDTH,
+    borderTopLeftRadius: 4,
+  },
+  cornerTR: {
+    top: 0,
+    right: 0,
+    borderTopWidth: CORNER_WIDTH,
+    borderRightWidth: CORNER_WIDTH,
+    borderTopRightRadius: 4,
+  },
+  cornerBL: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: CORNER_WIDTH,
+    borderLeftWidth: CORNER_WIDTH,
+    borderBottomLeftRadius: 4,
+  },
+  cornerBR: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: CORNER_WIDTH,
+    borderRightWidth: CORNER_WIDTH,
+    borderBottomRightRadius: 4,
+  },
+
+  // ── Hint / status area below scan window ────────────────────────────────────
+  hintArea: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    paddingHorizontal: 24,
+    gap: 16,
+  },
+  hintText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    textAlign: "center",
+    lineHeight: 19,
+    maxWidth: 280,
+  },
+  errorPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(185,28,28,0.85)",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+  },
+  errorText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+    color: "#FEE2E2",
+    flexShrink: 1,
+  },
+  busyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  galleryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  galleryBtnText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+    color: "rgba(255,255,255,0.9)",
   },
 });

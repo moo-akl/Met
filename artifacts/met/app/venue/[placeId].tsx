@@ -318,7 +318,8 @@ export default function VenueProfileScreen() {
   }>>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(false);
-  const [winnerModal, setWinnerModal] = useState(false);
+  const [selectedReward, setSelectedReward] = useState<VenueReward | null>(null);
+  const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
 
   // QR verification state — initialised from the in-session module cache so
   // navigating to the venue page after a successful qr-scan shows it unlocked.
@@ -394,11 +395,11 @@ export default function VenueProfileScreen() {
   }, [qrToken, placeId, authedUid]);
 
   const now = new Date();
-  // Show all non-cancelled rewards — the API already excludes cancelled ones.
-  // The venue owner controls which rewards are visible via status; we should
-  // not further filter by date on the client so that multiple active rewards
-  // are all shown.
-  const displayRewards = rewards;
+  // Sort: Active first, Upcoming second, Ended last.
+  const displayRewards = [...rewards].sort((a, b) => {
+    const order: Record<RewardStatus, number> = { Active: 0, Upcoming: 1, Ended: 2 };
+    return (order[getRewardStatus(a, now)] ?? 2) - (order[getRewardStatus(b, now)] ?? 2);
+  });
   // Show all published events — past events remain visible so guests can see
   // what the venue has hosted, ordered newest-first by the API.
   const displayEvents = events;
@@ -443,12 +444,18 @@ export default function VenueProfileScreen() {
         <View style={styles.hero}>
           {/* Warm gradient background */}
           {profile.coverPhotoUrl ? (
-            <Image
-              source={{ uri: profile.coverPhotoUrl }}
-              style={styles.heroCover}
-              contentFit="cover"
-              transition={200}
-            />
+            <Pressable
+              onPress={() => setPhotoViewerUrl(profile.coverPhotoUrl!)}
+              accessibilityRole="imagebutton"
+              accessibilityLabel="View cover photo full screen"
+            >
+              <Image
+                source={{ uri: profile.coverPhotoUrl }}
+                style={styles.heroCover}
+                contentFit="cover"
+                transition={200}
+              />
+            </Pressable>
           ) : (
             <LinearGradient
               colors={["#73C8A9", "#DEE1B6", "#E1B866"]}
@@ -481,12 +488,18 @@ export default function VenueProfileScreen() {
           <View style={styles.heroIdentity}>
             {/* Logo */}
             {profile.logoUrl ? (
-              <Image
-                source={{ uri: profile.logoUrl }}
-                style={styles.heroLogo}
-                contentFit="cover"
-                transition={200}
-              />
+              <Pressable
+                onPress={() => setPhotoViewerUrl(profile.logoUrl!)}
+                accessibilityRole="imagebutton"
+                accessibilityLabel="View logo full screen"
+              >
+                <Image
+                  source={{ uri: profile.logoUrl }}
+                  style={styles.heroLogo}
+                  contentFit="cover"
+                  transition={200}
+                />
+              </Pressable>
             ) : (
               <LinearGradient
                 colors={["#FDE68A", "#FBBF24"]}
@@ -542,7 +555,7 @@ export default function VenueProfileScreen() {
                         <BeTheWinnerCard
                           reward={reward}
                           statusLabel={rewardStatus}
-                          onPress={() => setWinnerModal(true)}
+                          onPress={() => setSelectedReward(reward)}
                         />
                         {/* Semi-transparent lock overlay */}
                         <Pressable
@@ -575,7 +588,7 @@ export default function VenueProfileScreen() {
                       <BeTheWinnerCard
                         reward={reward}
                         statusLabel={rewardStatus}
-                        onPress={() => setWinnerModal(true)}
+                        onPress={() => setSelectedReward(reward)}
                       />
                     )}
                   </View>
@@ -721,13 +734,37 @@ export default function VenueProfileScreen() {
       </ScrollView>
 
       {/* ── How-to-win modal ──────────────────────────────────────────── */}
-      {displayRewards[0] && (
+      {selectedReward && (
         <WinnerModal
-          reward={displayRewards[0]}
-          visible={winnerModal}
-          onClose={() => setWinnerModal(false)}
+          reward={selectedReward}
+          visible={true}
+          onClose={() => setSelectedReward(null)}
         />
       )}
+
+      {/* ── Full-screen photo viewer ───────────────────────────────────── */}
+      <Modal
+        visible={photoViewerUrl !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhotoViewerUrl(null)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" }}
+          onPress={() => setPhotoViewerUrl(null)}
+        >
+          {photoViewerUrl && (
+            <Image
+              source={{ uri: photoViewerUrl }}
+              style={{ width: "100%", height: "80%" }}
+              contentFit="contain"
+            />
+          )}
+          <Text style={{ color: "#fff", opacity: 0.5, marginTop: 16, fontSize: 13 }}>
+            Tap anywhere to close
+          </Text>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

@@ -303,48 +303,28 @@ router.post(
     }
 
     const now = new Date();
-
-    // ---------------------------------------------------------------------------
-    // Anti-spam cooldown: reject if the user checked in at this exact venue
-    // within the past 4 hours. Back-to-back check-ins at *different* venues are
-    // not affected (cooldown is per (user, place_id)).
-    // ---------------------------------------------------------------------------
     const cooldownCutoff = new Date(now.getTime() - CHECKIN_COOLDOWN_MS);
-    const [recentCheckin] = await db
-      .select({ createdAt: hubCheckinsTable.createdAt })
-      .from(hubCheckinsTable)
-      .where(
-        and(
-          eq(hubCheckinsTable.userUid, uid),
-          eq(hubCheckinsTable.placeId, place.placeId),
-          gte(hubCheckinsTable.createdAt, cooldownCutoff),
-        ),
-      )
-      .orderBy(desc(hubCheckinsTable.createdAt))
-      .limit(1);
 
-    if (recentCheckin) {
-      const remainingMs =
-        recentCheckin.createdAt.getTime() + CHECKIN_COOLDOWN_MS - now.getTime();
-      const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
-      res.status(403).json({ error: "cooldown", remainingMinutes });
-      return;
-    }
-
-    // Insert the check-in row (always — records presence and anchors the
-    // 4-hour cooldown even for registered venues that haven't QR-scanned yet).
-    await db.insert(hubCheckinsTable).values({
-      userUid: uid,
-      placeId: place.placeId,
-      placeName: place.displayName,
-      lat: String(lat),
-      lng: String(lng),
-    });
-
-    // Check registered venue + QR status and read current user_stats in
-    // parallel — all three are needed before we decide whether to apply
-    // leaderboard/streak credit.
-    const [registeredRow, qrRow, statsRow] = await Promise.all([
+    // ---------------------------------------------------------------------------
+    // Single round-trip: cooldown + registered-venue status + QR verification +
+    // current user_stats — all four gates must pass before we write anything.
+    // Keeping the INSERT after the gates means an unverified visit at a
+    // registered venue never gets a hub_checkins row, so the leaderboard count
+    // is never inflated by unscanned check-ins.
+    // ---------------------------------------------------------------------------
+    const [recentCheckinArr, registeredRow, qrRow, statsRow] = await Promise.all([
+      db
+        .select({ createdAt: hubCheckinsTable.createdAt })
+        .from(hubCheckinsTable)
+        .where(
+          and(
+            eq(hubCheckinsTable.userUid, uid),
+            eq(hubCheckinsTable.placeId, place.placeId),
+            gte(hubCheckinsTable.createdAt, cooldownCutoff),
+          ),
+        )
+        .orderBy(desc(hubCheckinsTable.createdAt))
+        .limit(1),
       db
         .select({ id: venueOwnerProfilesTable.id })
         .from(venueOwnerProfilesTable)
@@ -377,14 +357,23 @@ router.post(
         .limit(1),
     ]);
 
+    // Cooldown gate — must come before the insert.
+    const recentCheckin = recentCheckinArr[0];
+    if (recentCheckin) {
+      const remainingMs =
+        recentCheckin.createdAt.getTime() + CHECKIN_COOLDOWN_MS - now.getTime();
+      const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+      res.status(403).json({ error: "cooldown", remainingMinutes });
+      return;
+    }
+
     const isRegisteredVenue = registeredRow.length > 0;
     const isQrVerified = qrRow.length > 0;
     const stats = statsRow[0] ?? null;
     const prevStreaks = (stats?.hubStreaks ?? {}) as Record<string, number>;
     const prevStreak = prevStreaks[place.placeId] ?? 0;
 
-    // Registered venues gate leaderboard/streak credit behind QR scan.
-    // Presence is already recorded (the check-in row above anchors cooldown).
+    // QR gate — return before inserting so the leaderboard count is unaffected.
     if (isRegisteredVenue && !isQrVerified) {
       res.json({
         placeId: place.placeId,
@@ -397,6 +386,15 @@ router.post(
       });
       return;
     }
+
+    // All gates passed — record the check-in now.
+    await db.insert(hubCheckinsTable).values({
+      userUid: uid,
+      placeId: place.placeId,
+      placeName: place.displayName,
+      lat: String(lat),
+      lng: String(lng),
+    });
 
     // Full leaderboard credit — non-registered venue or already QR-verified.
     // Fetch the second-most-recent check-in at this place for streak logic
