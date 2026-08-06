@@ -21,6 +21,14 @@ import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+import { DateTimePicker } from "@/components/DateTimePicker";
+
+function defaultStartsAt(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(19, 0, 0, 0);
+  return d;
+}
 
 export default function NewVenueEventScreen() {
   const { authedUid } = useApp();
@@ -31,13 +39,18 @@ export default function NewVenueEventScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
+  const [startsAt, setStartsAt] = useState<Date>(defaultStartsAt);
+  const [endsAt, setEndsAt] = useState<Date | null>(null);
   const [capacityLimit, setCapacityLimit] = useState("");
   const [isPublished, setIsPublished] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = title.trim().length > 0 && startsAt.trim().length > 0;
+  // endsAt defaults to 3 h after startsAt the first time it's expanded
+  function handleEndsAtChange(date: Date) {
+    setEndsAt(date);
+  }
+
+  const canSubmit = title.trim().length > 0;
 
   const handleCreate = async () => {
     if (!authedUid || !canSubmit || submitting) return;
@@ -47,8 +60,8 @@ export default function NewVenueEventScreen() {
         title: title.trim(),
         description: description.trim() || null,
         imageUrl: imageUrl.trim() || null,
-        startsAt: new Date(startsAt).toISOString(),
-        endsAt: endsAt.trim() ? new Date(endsAt).toISOString() : null,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt ? endsAt.toISOString() : null,
         capacityLimit: capacityLimit.trim() ? parseInt(capacityLimit, 10) : null,
         isPublished,
       });
@@ -59,6 +72,9 @@ export default function NewVenueEventScreen() {
       setSubmitting(false);
     }
   };
+
+  // Default end time = startsAt + 3 h
+  const endsAtValue = endsAt ?? new Date(startsAt.getTime() + 3 * 60 * 60 * 1000);
 
   return (
     <KeyboardAvoidingView
@@ -75,8 +91,35 @@ export default function NewVenueEventScreen() {
         <Field label="Title *" value={title} onChangeText={setTitle} placeholder="Friday Night Quiz" colors={colors} />
         <Field label="Description" value={description} onChangeText={setDescription} placeholder="Details about the event..." multiline numberOfLines={3} colors={colors} />
         <Field label="Cover Image URL" value={imageUrl} onChangeText={setImageUrl} placeholder="https://..." autoCapitalize="none" keyboardType="url" colors={colors} />
-        <Field label="Start Date/Time * (YYYY-MM-DD HH:MM)" value={startsAt} onChangeText={setStartsAt} placeholder="2026-08-15 19:00" colors={colors} />
-        <Field label="End Date/Time (optional)" value={endsAt} onChangeText={setEndsAt} placeholder="2026-08-15 22:00" colors={colors} />
+
+        <DateTimePicker
+          label="Start Date & Time"
+          mode="datetime"
+          value={startsAt}
+          onChange={setStartsAt}
+          primaryColor={colors.primary}
+        />
+
+        <View>
+          <View style={styles.optionalRow}>
+            <Text style={styles.fieldLabel}>End Date & Time</Text>
+            <Text style={styles.optionalBadge}>optional</Text>
+            {endsAt !== null && (
+              <Pressable onPress={() => setEndsAt(null)} style={styles.clearBtn}>
+                <Text style={styles.clearBtnText}>Clear</Text>
+              </Pressable>
+            )}
+          </View>
+          <DateTimePicker
+            label=""
+            mode="datetime"
+            value={endsAtValue}
+            onChange={handleEndsAtChange}
+            primaryColor={colors.primary}
+            optional
+          />
+        </View>
+
         <Field label="Capacity Limit (optional)" value={capacityLimit} onChangeText={setCapacityLimit} placeholder="50" keyboardType="number-pad" colors={colors} />
 
         <View style={styles.toggleRow}>
@@ -121,14 +164,15 @@ function Field({ label, value, onChangeText, placeholder, multiline, numberOfLin
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
-  backText: { color: "rgba(255,255,255,0.55)", fontSize: 15 },
-  title: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
   scroll: { flex: 1 },
   content: { padding: 24, gap: 18 },
   field: {},
   fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
   fieldInput: { backgroundColor: "#1A1A1E", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15 },
+  optionalRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  optionalBadge: { color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "Inter_400Regular" },
+  clearBtn: { marginLeft: "auto" },
+  clearBtnText: { color: "rgba(255,80,80,0.8)", fontSize: 12, fontFamily: "Inter_500Medium" },
   toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   toggleLabel: { color: "rgba(255,255,255,0.7)", fontSize: 15, fontFamily: "Inter_500Medium" },
   submitBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8 },

@@ -24,6 +24,14 @@ import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+import { DateTimePicker } from "@/components/DateTimePicker";
+
+function defaultStartsAt(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(19, 0, 0, 0);
+  return d;
+}
 
 export default function EditVenueEventScreen() {
   const { authedUid } = useApp();
@@ -46,11 +54,11 @@ export default function EditVenueEventScreen() {
   const [title, setTitle] = useState(params.title ?? "");
   const [description, setDescription] = useState(params.description ?? "");
   const [imageUrl, setImageUrl] = useState(params.imageUrl ?? "");
-  const [startsAt, setStartsAt] = useState(
-    params.startsAt ? new Date(params.startsAt).toLocaleString("en-CA", { hour12: false }).slice(0, 16).replace(", ", "T") : "",
+  const [startsAt, setStartsAt] = useState<Date>(() =>
+    params.startsAt ? new Date(params.startsAt) : defaultStartsAt(),
   );
-  const [endsAt, setEndsAt] = useState(
-    params.endsAt ? new Date(params.endsAt).toLocaleString("en-CA", { hour12: false }).slice(0, 16).replace(", ", "T") : "",
+  const [endsAt, setEndsAt] = useState<Date | null>(() =>
+    params.endsAt ? new Date(params.endsAt) : null,
   );
   const [capacityLimit, setCapacityLimit] = useState(
     params.capacityLimit && params.capacityLimit !== "null" ? params.capacityLimit : "",
@@ -58,16 +66,10 @@ export default function EditVenueEventScreen() {
   const [isPublished, setIsPublished] = useState(params.isPublished === "true");
   const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = title.trim().length > 0 && startsAt.trim().length > 0;
+  const canSubmit = title.trim().length > 0;
 
   const handleSave = async () => {
     if (!authedUid || !canSubmit || submitting || !eventId) return;
-
-    const startDate = new Date(startsAt);
-    if (isNaN(startDate.getTime())) {
-      Alert.alert("Invalid date", "Please enter a valid start date/time.");
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -75,8 +77,8 @@ export default function EditVenueEventScreen() {
         title: title.trim(),
         description: description.trim() || null,
         imageUrl: imageUrl.trim() || null,
-        startsAt: startDate.toISOString(),
-        endsAt: endsAt.trim() ? new Date(endsAt).toISOString() : null,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt ? endsAt.toISOString() : null,
         capacityLimit: capacityLimit.trim() ? Number(capacityLimit) : null,
         isPublished,
       });
@@ -89,6 +91,9 @@ export default function EditVenueEventScreen() {
       setSubmitting(false);
     }
   };
+
+  // Default end time = startsAt + 3 h (used as picker seed when endsAt is null)
+  const endsAtValue = endsAt ?? new Date(startsAt.getTime() + 3 * 60 * 60 * 1000);
 
   return (
     <KeyboardAvoidingView
@@ -108,30 +113,31 @@ export default function EditVenueEventScreen() {
         <Field label="Image URL (optional)" value={imageUrl} onChangeText={setImageUrl}
           placeholder="https://..." autoCapitalize="none" colors={colors} />
 
-        {/* Start date/time */}
-        <View>
-          <Text style={styles.fieldLabel}>Start Date & Time *</Text>
-          <Text style={styles.fieldHint}>Format: YYYY-MM-DD HH:MM (e.g. 2026-09-15 19:00)</Text>
-          <TextInput
-            value={startsAt}
-            onChangeText={setStartsAt}
-            placeholder="2026-09-15 19:00"
-            placeholderTextColor="rgba(255,255,255,0.25)"
-            autoCapitalize="none"
-            style={[styles.fieldInput, { borderColor: colors.primary + "40" }]}
-          />
-        </View>
+        <DateTimePicker
+          label="Start Date & Time"
+          mode="datetime"
+          value={startsAt}
+          onChange={setStartsAt}
+          primaryColor={colors.primary}
+        />
 
-        {/* End date/time */}
         <View>
-          <Text style={styles.fieldLabel}>End Date & Time (optional)</Text>
-          <TextInput
-            value={endsAt}
-            onChangeText={setEndsAt}
-            placeholder="2026-09-15 22:00"
-            placeholderTextColor="rgba(255,255,255,0.25)"
-            autoCapitalize="none"
-            style={[styles.fieldInput, { borderColor: colors.primary + "40" }]}
+          <View style={styles.optionalRow}>
+            <Text style={styles.fieldLabel}>End Date & Time</Text>
+            <Text style={styles.optionalBadge}>optional</Text>
+            {endsAt !== null && (
+              <Pressable onPress={() => setEndsAt(null)} style={styles.clearBtn}>
+                <Text style={styles.clearBtnText}>Clear</Text>
+              </Pressable>
+            )}
+          </View>
+          <DateTimePicker
+            label=""
+            mode="datetime"
+            value={endsAtValue}
+            onChange={setEndsAt}
+            primaryColor={colors.primary}
+            optional
           />
         </View>
 
@@ -189,8 +195,11 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 24, gap: 18 },
   fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 },
-  fieldHint: { color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "Inter_400Regular", marginBottom: 6 },
   fieldInput: { backgroundColor: "#1A1A1E", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular" },
+  optionalRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  optionalBadge: { color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "Inter_400Regular" },
+  clearBtn: { marginLeft: "auto" },
+  clearBtnText: { color: "rgba(255,80,80,0.8)", fontSize: 12, fontFamily: "Inter_500Medium" },
   toggleRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, padding: 14 },
   toggleLabel: { color: "rgba(255,255,255,0.85)", fontSize: 15, fontFamily: "Inter_500Medium" },
   toggleSub: { color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 2 },

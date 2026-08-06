@@ -20,6 +20,7 @@ import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+import { DateTimePicker } from "@/components/DateTimePicker";
 
 type RewardType = "free_drink" | "discount" | "experience" | "custom";
 
@@ -29,6 +30,19 @@ const REWARD_TYPES: Array<{ value: RewardType; label: string; icon: string }> = 
   { value: "experience", label: "Experience", icon: "✨" },
   { value: "custom", label: "Custom", icon: "🎁" },
 ];
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function thirtyDaysFromNow(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  d.setHours(23, 59, 0, 0);
+  return d;
+}
 
 export default function NewVenueRewardScreen() {
   const { authedUid } = useApp();
@@ -40,20 +54,24 @@ export default function NewVenueRewardScreen() {
   const [description, setDescription] = useState("");
   const [prizeDescription, setPrizeDescription] = useState("");
   const [rewardType, setRewardType] = useState<RewardType>("custom");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState<Date>(startOfToday);
+  const [endDate, setEndDate] = useState<Date>(thirtyDaysFromNow);
   const [venueTimezone, setVenueTimezone] = useState("UTC");
   const [activateNow, setActivateNow] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit =
     title.trim().length > 0 &&
-    prizeDescription.trim().length > 0 &&
-    startDate.trim().length > 0 &&
-    endDate.trim().length > 0;
+    prizeDescription.trim().length > 0;
 
   const handleCreate = async () => {
     if (!authedUid || !canSubmit || submitting) return;
+
+    if (endDate <= startDate) {
+      Alert.alert("Invalid dates", "End date must be after start date.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await api.createVenueReward({ uid: authedUid }, {
@@ -62,8 +80,8 @@ export default function NewVenueRewardScreen() {
         prizeDescription: prizeDescription.trim(),
         rewardType,
         status: activateNow ? "active" : "draft",
-        startDate: new Date(startDate).toISOString(),
-        endDate: new Date(endDate).toISOString(),
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         venueTimezone: venueTimezone.trim() || "UTC",
       });
       Alert.alert("Reward created!", undefined, [{ text: "Done", onPress: () => router.back() }]);
@@ -114,8 +132,23 @@ export default function NewVenueRewardScreen() {
         <Field label="Title *" value={title} onChangeText={setTitle} placeholder="August Check-in Champion" colors={colors} />
         <Field label="Prize Description *" value={prizeDescription} onChangeText={setPrizeDescription} placeholder="Free cocktail of your choice" colors={colors} />
         <Field label="Campaign Details" value={description} onChangeText={setDescription} placeholder="More info about the campaign..." multiline numberOfLines={3} colors={colors} />
-        <Field label="Start Date * (YYYY-MM-DD)" value={startDate} onChangeText={setStartDate} placeholder="2026-08-01" colors={colors} />
-        <Field label="End Date * (YYYY-MM-DD)" value={endDate} onChangeText={setEndDate} placeholder="2026-08-31" colors={colors} />
+
+        <DateTimePicker
+          label="Start Date"
+          mode="date"
+          value={startDate}
+          onChange={setStartDate}
+          primaryColor={colors.primary}
+        />
+
+        <DateTimePicker
+          label="End Date"
+          mode="date"
+          value={endDate}
+          onChange={setEndDate}
+          primaryColor={colors.primary}
+        />
+
         <Field label="Venue Timezone (e.g. America/New_York)" value={venueTimezone} onChangeText={setVenueTimezone} placeholder="UTC" autoCapitalize="none" colors={colors} />
 
         {/* Activate now toggle */}
@@ -163,9 +196,6 @@ function Field({ label, value, onChangeText, placeholder, multiline, numberOfLin
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
-  backText: { color: "rgba(255,255,255,0.55)", fontSize: 15 },
-  title: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
   scroll: { flex: 1 },
   content: { padding: 24, gap: 18 },
   fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },

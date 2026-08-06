@@ -23,6 +23,7 @@ import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+import { DateTimePicker } from "@/components/DateTimePicker";
 
 type RewardType = "free_drink" | "discount" | "experience" | "custom";
 type RewardStatus = "draft" | "active" | "cancelled";
@@ -33,6 +34,19 @@ const REWARD_TYPES: Array<{ value: RewardType; label: string; icon: string }> = 
   { value: "experience", label: "Experience", icon: "✨" },
   { value: "custom", label: "Custom", icon: "🎁" },
 ];
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function thirtyDaysFromNow(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  d.setHours(23, 59, 0, 0);
+  return d;
+}
 
 export default function EditVenueRewardScreen() {
   const { authedUid } = useApp();
@@ -59,29 +73,22 @@ export default function EditVenueRewardScreen() {
   const [rewardType, setRewardType] = useState<RewardType>(
     (params.rewardType as RewardType) ?? "custom",
   );
-  const [startDate, setStartDate] = useState(
-    params.startDate ? params.startDate.slice(0, 10) : "",
+  const [startDate, setStartDate] = useState<Date>(() =>
+    params.startDate ? new Date(params.startDate) : startOfToday(),
   );
-  const [endDate, setEndDate] = useState(
-    params.endDate ? params.endDate.slice(0, 10) : "",
+  const [endDate, setEndDate] = useState<Date>(() =>
+    params.endDate ? new Date(params.endDate) : thirtyDaysFromNow(),
   );
   const [venueTimezone, setVenueTimezone] = useState(params.venueTimezone ?? "UTC");
   const [submitting, setSubmitting] = useState(false);
 
   const currentStatus = (params.status ?? "draft") as RewardStatus;
-  const canSubmit = title.trim().length > 0 && prizeDescription.trim().length > 0 &&
-    startDate.trim().length > 0 && endDate.trim().length > 0;
+  const canSubmit = title.trim().length > 0 && prizeDescription.trim().length > 0;
 
   const handleSave = async (newStatus?: RewardStatus) => {
     if (!authedUid || !canSubmit || submitting || !rewardId) return;
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      Alert.alert("Invalid dates", "Please enter valid start and end dates (YYYY-MM-DD).");
-      return;
-    }
-    if (end <= start) {
+    if (endDate <= startDate) {
       Alert.alert("Invalid dates", "End date must be after start date.");
       return;
     }
@@ -94,8 +101,8 @@ export default function EditVenueRewardScreen() {
         prizeDescription: prizeDescription.trim(),
         rewardType,
         status: newStatus ?? currentStatus,
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         venueTimezone: venueTimezone.trim() || "UTC",
       });
       Alert.alert("Reward updated!", undefined, [
@@ -151,25 +158,21 @@ export default function EditVenueRewardScreen() {
         <Field label="Prize Description *" value={prizeDescription} onChangeText={setPrizeDescription}
           placeholder="2 cocktails of your choice" colors={colors} />
 
-        {/* Date range */}
-        <View>
-          <Text style={styles.fieldLabel}>Start Date *</Text>
-          <Text style={styles.fieldHint}>Format: YYYY-MM-DD</Text>
-          <TextInput
-            value={startDate} onChangeText={setStartDate} placeholder="2026-09-01"
-            placeholderTextColor="rgba(255,255,255,0.25)" autoCapitalize="none"
-            style={[styles.fieldInput, { borderColor: colors.primary + "40" }]}
-          />
-        </View>
+        <DateTimePicker
+          label="Start Date"
+          mode="date"
+          value={startDate}
+          onChange={setStartDate}
+          primaryColor={colors.primary}
+        />
 
-        <View>
-          <Text style={styles.fieldLabel}>End Date *</Text>
-          <TextInput
-            value={endDate} onChangeText={setEndDate} placeholder="2026-09-30"
-            placeholderTextColor="rgba(255,255,255,0.25)" autoCapitalize="none"
-            style={[styles.fieldInput, { borderColor: colors.primary + "40" }]}
-          />
-        </View>
+        <DateTimePicker
+          label="End Date"
+          mode="date"
+          value={endDate}
+          onChange={setEndDate}
+          primaryColor={colors.primary}
+        />
 
         <Field label="Timezone" value={venueTimezone} onChangeText={setVenueTimezone}
           placeholder="Europe/London" autoCapitalize="none" colors={colors} />
@@ -223,7 +226,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 24, gap: 18 },
   fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 },
-  fieldHint: { color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "Inter_400Regular", marginBottom: 6 },
   fieldInput: { backgroundColor: "#1A1A1E", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular" },
   typeRow: { flexDirection: "row", gap: 8 },
   typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: "center", gap: 3 },
