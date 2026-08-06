@@ -131,13 +131,36 @@ export default function VenueOwnerEventsScreen() {
               </Text>
               <Text style={styles.cardRsvp}>{item.rsvpCount} RSVPs • {item.isPublished ? "Published" : "Draft"}</Text>
             </View>
-            <Pressable
-              onPress={() => handleDelete(item.id)}
-              style={styles.deleteBtn}
-              hitSlop={8}
-            >
-              <Text style={styles.deleteBtnText}>🗑</Text>
-            </Pressable>
+            <View style={styles.cardActions}>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: `/venue-owner/events/${item.id}` as never,
+                    params: {
+                      id: String(item.id),
+                      title: item.title,
+                      description: item.description ?? "",
+                      imageUrl: item.imageUrl ?? "",
+                      startsAt: item.startsAt,
+                      endsAt: item.endsAt ?? "",
+                      capacityLimit: item.capacityLimit != null ? String(item.capacityLimit) : "",
+                      isPublished: String(item.isPublished),
+                    },
+                  })
+                }
+                style={styles.editBtn}
+                hitSlop={8}
+              >
+                <Text style={styles.editBtnText}>✏️</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => handleDelete(item.id)}
+                style={styles.deleteBtn}
+                hitSlop={8}
+              >
+                <Text style={styles.deleteBtnText}>🗑</Text>
+              </Pressable>
+            </View>
           </View>
         )}
       />
@@ -172,6 +195,9 @@ const styles = StyleSheet.create({
   cardTitle: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
   cardDate: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 3 },
   cardRsvp: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontFamily: "Inter_400Regular" },
+  cardActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  editBtn: { padding: 4 },
+  editBtnText: { fontSize: 16 },
   deleteBtn: { padding: 4 },
   deleteBtnText: { fontSize: 18 },
   emptyState: { alignItems: "center", paddingTop: 60 },

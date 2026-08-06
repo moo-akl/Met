@@ -1063,6 +1063,21 @@ export const api = {
   },
 
   /**
+   * Upload a cover photo or logo for the venue owner profile.
+   * photoType: 'cover' | 'logo'
+   */
+  uploadVenueProfilePhoto: (
+    opts: ApiOptions,
+    input: { base64: string; contentType?: string; photoType: "cover" | "logo" },
+  ) =>
+    request<{ url: string }>(
+      "POST",
+      "/api/venue-owner/upload-photo",
+      opts,
+      { base64: input.base64, contentType: input.contentType ?? "image/jpeg", photoType: input.photoType },
+    ),
+
+  /**
    * Upload a verification document image (base64) to Firebase Storage and
    * return a public URL that can be saved as verificationDocUrl on the
    * venue owner application.

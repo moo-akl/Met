@@ -3364,6 +3364,73 @@ router.delete(
 );
 
 // ---------------------------------------------------------------------------
+// POST /api/venue-owner/upload-photo
+// Upload a cover photo or logo for the venue owner profile.
+// Saves to venue-profile-photos/{uid}/{photoType}-{timestamp}.{ext}
+// ---------------------------------------------------------------------------
+const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"] as const;
+
+router.post(
+  "/venue-owner/upload-photo",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const { base64, contentType = "image/jpeg", photoType } = req.body as {
+      base64?: string;
+      contentType?: string;
+      photoType?: string;
+    };
+
+    if (!base64 || typeof base64 !== "string") {
+      res.status(400).json({ message: "base64 image data required" });
+      return;
+    }
+    if (photoType !== "cover" && photoType !== "logo") {
+      res.status(400).json({ message: "photoType must be 'cover' or 'logo'" });
+      return;
+    }
+    if (!ALLOWED_PHOTO_TYPES.includes(contentType as typeof ALLOWED_PHOTO_TYPES[number])) {
+      res.status(400).json({ message: "Unsupported type. Use JPEG, PNG, or WEBP." });
+      return;
+    }
+
+    const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+    const objectPath = `venue-profile-photos/${uid}/${photoType}-${Date.now()}.${ext}`;
+    const buf = Buffer.from(base64, "base64");
+    const bucket = adminStorage().bucket();
+    const file = bucket.file(objectPath);
+
+    try {
+      await file.save(buf, { contentType, resumable: false });
+    } catch (err) {
+      logger.error({ err, uid }, "venue profile photo upload failed");
+      res.status(500).json({ message: "Upload failed. Please try again." });
+      return;
+    }
+
+    try {
+      await file.makePublic();
+      res.json({ url: `https://storage.googleapis.com/${bucket.name}/${objectPath}` });
+      return;
+    } catch { /* fall through to signed-token path */ }
+
+    const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
+    } catch (err) {
+      logger.error({ err, uid }, "setMetadata failed for venue profile photo");
+      res.status(500).json({ message: "Upload failed. Please try again." });
+      return;
+    }
+    res.json({
+      url:
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+        `${encodeURIComponent(objectPath)}?alt=media&token=${token}`,
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
 // POST /api/venue-owner/upload-verification-doc
 // Accepts a base64-encoded image of a verification document (business
 // licence, utility bill, lease, etc.), stores it in Firebase Storage under

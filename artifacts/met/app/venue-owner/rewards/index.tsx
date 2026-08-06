@@ -142,11 +142,35 @@ export default function VenueOwnerRewardsScreen() {
                 <Text style={[styles.winnerLabel, { color: "#FFD700" }]}>🏆 Winner selected</Text>
               )}
             </View>
-            {item.status === "active" && (
-              <Pressable onPress={() => handleCancel(item.id)} hitSlop={8} style={styles.cancelBtn}>
-                <Text style={styles.cancelBtnText}>✕</Text>
+            <View style={styles.cardActions}>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: `/venue-owner/rewards/${item.id}` as never,
+                    params: {
+                      id: String(item.id),
+                      title: item.title,
+                      description: item.description ?? "",
+                      prizeDescription: item.prizeDescription,
+                      rewardType: item.rewardType,
+                      status: item.status,
+                      startDate: item.startDate,
+                      endDate: item.endDate,
+                      venueTimezone: item.venueTimezone,
+                    },
+                  })
+                }
+                hitSlop={8}
+                style={styles.editBtn}
+              >
+                <Text style={styles.editBtnText}>✏️</Text>
               </Pressable>
-            )}
+              {item.status === "active" && (
+                <Pressable onPress={() => handleCancel(item.id)} hitSlop={8} style={styles.cancelBtn}>
+                  <Text style={styles.cancelBtnText}>✕</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         )}
       />
@@ -170,6 +194,9 @@ const styles = StyleSheet.create({
   cardPrize: { color: "#FFD700", fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 4 },
   cardDates: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontFamily: "Inter_400Regular" },
   winnerLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 4 },
+  cardActions: { flexDirection: "column", alignItems: "center", gap: 4 },
+  editBtn: { padding: 4 },
+  editBtnText: { fontSize: 16 },
   cancelBtn: { padding: 4 },
   cancelBtnText: { color: "rgba(255,255,255,0.4)", fontSize: 18 },
   emptyState: { alignItems: "center", paddingTop: 60 },
