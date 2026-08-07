@@ -298,7 +298,19 @@ export default function OnboardingScreen() {
       quality: 0.8,
     });
     if (!res.canceled && res.assets[0]) {
-      setPendingPhotoUri(res.assets[0].uri);
+      const asset = res.assets[0];
+      const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+      let byteSize = asset.fileSize;
+      if (byteSize == null) {
+        const FileSystem = await import("expo-file-system/legacy");
+        const info = await FileSystem.getInfoAsync(asset.uri);
+        byteSize = info.exists && "size" in info ? (info.size as number) : 0;
+      }
+      if (byteSize > MAX_BYTES) {
+        Alert.alert("Image too large", "Please choose an image under 5 MB.");
+        return;
+      }
+      setPendingPhotoUri(asset.uri);
     }
   };
 

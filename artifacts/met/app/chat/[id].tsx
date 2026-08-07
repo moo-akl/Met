@@ -832,7 +832,19 @@ export default function ChatScreen() {
       quality: 1,
     });
     if (!result.canceled && result.assets[0]) {
-      setPendingMedia(result.assets[0].uri);
+      const asset = result.assets[0];
+      const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+      let byteSize = asset.fileSize;
+      if (byteSize == null) {
+        const FileSystem = await import("expo-file-system/legacy");
+        const info = await FileSystem.getInfoAsync(asset.uri);
+        byteSize = info.exists && "size" in info ? (info.size as number) : 0;
+      }
+      if (byteSize > MAX_BYTES) {
+        Alert.alert("Image too large", "Please choose an image under 5 MB.");
+        return;
+      }
+      setPendingMedia(asset.uri);
       setSendError(null);
     }
   }, [isMyTurn, sending]);

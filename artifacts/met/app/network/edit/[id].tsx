@@ -102,6 +102,12 @@ export default function EditNetworkScreen() {
     });
     if (result.canceled || !result.assets[0]?.base64) return;
     const asset = result.assets[0];
+    const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+    const byteSize = asset.fileSize ?? Math.floor(asset.base64!.length * 3 / 4);
+    if (byteSize > MAX_BYTES) {
+      Alert.alert("Image too large", "Please choose an image under 5 MB.");
+      return;
+    }
     const contentType = asset.mimeType ?? "image/jpeg";
     setUploadingPhoto(true);
     try {
@@ -130,6 +136,12 @@ export default function EditNetworkScreen() {
     });
     if (result.canceled || !result.assets[0]?.base64) return;
     const asset = result.assets[0];
+    const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+    const byteSize = asset.fileSize ?? Math.floor(asset.base64!.length * 3 / 4);
+    if (byteSize > MAX_BYTES) {
+      Alert.alert("Image too large", "Please choose an image under 5 MB.");
+      return;
+    }
     const contentType = asset.mimeType ?? "image/jpeg";
     setUploadingCover(true);
     try {
