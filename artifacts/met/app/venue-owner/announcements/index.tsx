@@ -137,13 +137,33 @@ export default function VenueOwnerAnnouncementsScreen() {
                 })}
               </Text>
             </View>
-            <Pressable
-              onPress={() => handleDelete(item.id, item.title)}
-              style={styles.deleteBtn}
-              hitSlop={8}
-            >
-              <Text style={styles.deleteBtnText}>🗑</Text>
-            </Pressable>
+            <View style={styles.cardActions}>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/venue-owner/announcements/[id]" as never,
+                    params: {
+                      id: String(item.id),
+                      title: item.title,
+                      body: item.body,
+                      imageUrl: item.imageUrl ?? "",
+                      isPinned: String(item.isPinned),
+                    },
+                  } as never)
+                }
+                style={styles.editBtn}
+                hitSlop={8}
+              >
+                <Text style={styles.editBtnText}>✏️</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => handleDelete(item.id, item.title)}
+                style={styles.deleteBtn}
+                hitSlop={8}
+              >
+                <Text style={styles.deleteBtnText}>🗑</Text>
+              </Pressable>
+            </View>
           </View>
         )}
       />
@@ -170,6 +190,9 @@ const styles = StyleSheet.create({
   cardTitle: { flex: 1, color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
   cardBody: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
   cardDate: { color: "rgba(255,255,255,0.28)", fontSize: 11, fontFamily: "Inter_400Regular" },
+  cardActions: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  editBtn: { paddingTop: 2 },
+  editBtnText: { fontSize: 18 },
   deleteBtn: { paddingTop: 2 },
   deleteBtnText: { fontSize: 18 },
   emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 32 },

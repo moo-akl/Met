@@ -1919,6 +1919,85 @@ router.post(
 );
 
 /**
+ * PUT /venue-owner/me/announcements/:id
+ */
+router.put(
+  "/venue-owner/me/announcements/:id",
+  requireUid,
+  venueOwnerWriteLimit,
+  async (req: Request, res: Response) => {
+    const announcementId = parseInt(String(req.params["id"] ?? ""), 10);
+    if (isNaN(announcementId)) {
+      res.status(400).json({ message: "Invalid announcement id" });
+      return;
+    }
+
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"]);
+    if (!access) return;
+
+    const [existing] = await db
+      .select()
+      .from(venueAnnouncementsTable)
+      .where(
+        and(
+          eq(venueAnnouncementsTable.id, announcementId),
+          eq(venueAnnouncementsTable.placeId, access.placeId),
+        ),
+      )
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ message: "Announcement not found or not owned by you" });
+      return;
+    }
+
+    const schema = z.object({
+      title: z.string().min(1).max(120).optional(),
+      body: z.string().min(1).max(2000).optional(),
+      imageUrl: z.string().url().optional().nullable(),
+      isPinned: z.boolean().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input", errors: parsed.error.issues });
+      return;
+    }
+
+    // If pinning, unpin all other announcements for this venue first
+    if (parsed.data.isPinned) {
+      await db
+        .update(venueAnnouncementsTable)
+        .set({ isPinned: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(venueAnnouncementsTable.placeId, access.placeId),
+            ne(venueAnnouncementsTable.id, announcementId),
+          ),
+        );
+    }
+
+    const updatePayload: Record<string, unknown> = { updatedAt: new Date() };
+    if (parsed.data.title !== undefined) updatePayload["title"] = parsed.data.title;
+    if (parsed.data.body !== undefined) updatePayload["body"] = parsed.data.body;
+    if (parsed.data.imageUrl !== undefined) updatePayload["imageUrl"] = parsed.data.imageUrl;
+    if (parsed.data.isPinned !== undefined) updatePayload["isPinned"] = parsed.data.isPinned;
+
+    const [updated] = await db
+      .update(venueAnnouncementsTable)
+      .set(updatePayload)
+      .where(
+        and(
+          eq(venueAnnouncementsTable.id, announcementId),
+          eq(venueAnnouncementsTable.placeId, access.placeId),
+        ),
+      )
+      .returning();
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.json({ announcement: serializePublicVenueAnnouncement(updated, baseUrl) });
+  },
+);
+
+/**
  * GET /venue-owner/:placeId/announcements
  */
 router.get(

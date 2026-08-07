@@ -1367,6 +1367,24 @@ export const api = {
       opts,
     ),
 
+  /** Update an announcement owned by the caller. */
+  updateVenueAnnouncement: (
+    opts: ApiOptions,
+    announcementId: number,
+    body: {
+      title?: string;
+      body?: string;
+      imageUrl?: string | null;
+      isPinned?: boolean;
+    },
+  ) =>
+    request<{ announcement: VenueAnnouncement }>(
+      "PUT",
+      `/api/venue-owner/me/announcements/${announcementId}`,
+      opts,
+      body,
+    ),
+
   /** Delete an announcement owned by the caller. */
   deleteVenueAnnouncement: (opts: ApiOptions, announcementId: number) =>
     request<{ success: boolean }>(
