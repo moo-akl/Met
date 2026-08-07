@@ -2298,12 +2298,32 @@ router.post(
     );
     if (!access) return;
 
+    // When the owner hasn't yet claimed their Venue Manager account the legacy
+    // access path returns businessId: 0. Resolve the real business record from
+    // the venueBusinessesTable using the profile's ID so the token is stored
+    // against the correct business.
+    let businessId = access.businessId;
+    if (access.legacy) {
+      const [business] = await db
+        .select({ id: venueBusinessesTable.id })
+        .from(venueBusinessesTable)
+        .where(eq(venueBusinessesTable.venueOwnerProfileId, access.profileId))
+        .limit(1);
+      if (!business) {
+        res.status(409).json({
+          message: "No venue business record found. Please contact support.",
+        });
+        return;
+      }
+      businessId = business.id;
+    }
+
     const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-    const token = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const token = crypto.randomBytes(32).toString("base64url");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("base64url");
 
     await db.insert(venueManagerRegistrationTokensTable).values({
-      businessId: access.businessId,
+      businessId,
       tokenHash,
       expiresAt: new Date(Date.now() + INVITE_TTL_MS),
     });
