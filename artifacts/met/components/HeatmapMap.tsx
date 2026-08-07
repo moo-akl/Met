@@ -9,6 +9,7 @@ import {
 
 export interface HeatmapMapProps {
   style?: StyleProp<ViewStyle>;
+  onVenuePress?: (placeId: string) => void;
 }
 
 export function HeatmapMap({ style }: HeatmapMapProps) {

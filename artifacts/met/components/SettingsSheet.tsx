@@ -415,9 +415,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
     WebBrowser.openBrowserAsync(url).catch(() => {});
   };
   const openVenueManager = () => {
-    const url = "https://met-app.org/venue-manager/";
-    if (!/^https:\/\/met-app\.org\/venue-manager\/$/.test(url)) return;
-    openLink(url);
+    router.push("/venue-owner/dashboard");
   };
 
   const headerTitle = (() => {

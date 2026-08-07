@@ -47,6 +47,7 @@ function regionMovedSignificantly(a: Region, b: Region): boolean {
 
 export interface HeatmapMapProps {
   style?: StyleProp<ViewStyle>;
+  onVenuePress?: (placeId: string) => void;
 }
 
 const DEFAULT_REGION = {
@@ -105,7 +106,7 @@ function PulsingMarker({
     return () => anim.stop();
   }, [scale, opacity]);
 
-  const dotSize = Math.min(28, 14 + Math.min(checkinCount - 1, 4) * 3);
+  const dotSize = Math.min(44, 22 + Math.min(checkinCount - 1, 4) * 5);
 
   return (
     <Marker coordinate={coordinate} anchor={{ x: 0.5, y: 0.5 }}>
@@ -143,7 +144,7 @@ function PulsingMarker({
   );
 }
 
-function HeatmapMapInner({ style }: HeatmapMapProps) {
+function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
   const { authedUid } = useApp();
   const colors = useColors();
   const router = useRouter();
@@ -347,9 +348,13 @@ function HeatmapMapInner({ style }: HeatmapMapProps) {
           <VenueOwnerMarker
             key={`vo-${venue.placeId}`}
             venue={venue}
-            onPress={(placeId) =>
-              router.push({ pathname: "/venue/[placeId]", params: { placeId } } as never)
-            }
+            onPress={(placeId) => {
+              if (onVenuePress) {
+                onVenuePress(placeId);
+              } else {
+                router.push({ pathname: "/venue/[placeId]", params: { placeId } } as never);
+              }
+            }}
           />
         )),
     [venueOwnerPoints, router],
