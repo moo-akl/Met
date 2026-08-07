@@ -411,3 +411,60 @@ describe("agent session lockout on deactivation", () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ---------------------------------------------------------------------------
+// assign-agent: isActive guard
+// ---------------------------------------------------------------------------
+
+describe("assign-agent: inactive agent guard", () => {
+  it("returns 404 when attempting to assign a venue to an inactive agent", async () => {
+    const AGENT_ID = 7;
+    const PROFILE_ID = 99;
+
+    // Simulate the DB query for isActive=true returning nothing (agent is inactive).
+    // PUT /admin/venue-owner/applications/:id/assign-agent does:
+    //   db.select({id}).from(salesAgentsTable).where(and(eq(id,agentId), eq(isActive,true))).limit(1)
+    // The mock chain returns agentState.row when it exists; null here means no row found.
+    dbMocks.agentState.row = null;
+
+    const admin = await signedInAdmin();
+    const res = await admin
+      .put(`/api/admin/venue-owner/applications/${PROFILE_ID}/assign-agent`)
+      .send({ agentId: AGENT_ID });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ message: "Agent not found or inactive." });
+  });
+
+  it("returns 200 and persists the assignment once the agent is reactivated", async () => {
+    const AGENT_ID = 7;
+    const PROFILE_ID = 99;
+
+    // Agent is now active — the isActive=true filter will find them.
+    dbMocks.agentState.row = {
+      id: AGENT_ID,
+      email: "agent@example.com",
+      displayName: "Reactivated Agent",
+      isActive: true,
+      sessionVersion: 1,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // The route then updates venueOwnerProfilesTable and calls .returning().
+    // Venue profile updates go through the generic chain; prime it with a result.
+    dbMocks.chain.returning.mockResolvedValueOnce([
+      { id: PROFILE_ID, assignedAgentId: AGENT_ID },
+    ]);
+
+    const admin = await signedInAdmin();
+    const res = await admin
+      .put(`/api/admin/venue-owner/applications/${PROFILE_ID}/assign-agent`)
+      .send({ agentId: AGENT_ID });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: PROFILE_ID, assignedAgentId: AGENT_ID });
+  });
+});
