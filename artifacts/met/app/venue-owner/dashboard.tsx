@@ -8,8 +8,11 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -46,6 +49,30 @@ export default function VenueOwnerDashboardScreen() {
   const { profile: application, isLoading, error } = useVenueOwner();
   const [dashboard, setDashboard] = useState<VenueOwnerDashboard | null>(null);
   const [dashLoading, setDashLoading] = useState(true);
+  const [inviteLoading, setInviteLoading] = useState(false);
+
+  const handleInviteStaff = async () => {
+    if (!authedUid || inviteLoading) return;
+    setInviteLoading(true);
+    const name = application?.businessName ?? application?.placeName ?? "Your Venue";
+    try {
+      const result = await api.createStaffInvite({ uid: authedUid });
+      await Share.share({
+        message: `Join ${name}'s team on Met and help manage the venue!\n\nRegister here: ${result.registrationUrl}`,
+        url: result.registrationUrl,
+        title: `Join ${name} on Met`,
+      });
+    } catch {
+      Alert.alert("Couldn't generate invite", "Please try again in a moment.");
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleOpenQrKit = () => {
+    const url = api.getQrKitUrl(application?.placeId ?? "");
+    void Linking.openURL(url);
+  };
 
   // Load quick stats
   useEffect(() => {
@@ -131,6 +158,45 @@ export default function VenueOwnerDashboardScreen() {
               <Text style={styles.navSub} numberOfLines={2}>{section.sub}</Text>
             </Pressable>
           ))}
+        </View>
+
+        {/* ── Staff & Tools ── */}
+        <Text style={styles.sectionHeading}>TOOLS</Text>
+        <View style={{ gap: 10, marginBottom: 8 }}>
+          <Pressable
+            onPress={handleInviteStaff}
+            disabled={inviteLoading}
+            style={({ pressed }) => [
+              styles.toolCard,
+              { opacity: pressed || inviteLoading ? 0.7 : 1 },
+            ]}
+          >
+            <View style={[styles.toolIcon, { backgroundColor: "#A78BFA18" }]}>
+              <Text style={styles.navEmoji}>👥</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toolLabel}>{inviteLoading ? "Generating link…" : "Invite Staff"}</Text>
+              <Text style={styles.toolSub}>Share a one-time registration link via WhatsApp or SMS</Text>
+            </View>
+            <Text style={[styles.chevron, { color: "#A78BFA" }]}>›</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={handleOpenQrKit}
+            style={({ pressed }) => [
+              styles.toolCard,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <View style={[styles.toolIcon, { backgroundColor: "#34D39918" }]}>
+              <Text style={styles.navEmoji}>🖨️</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toolLabel}>QR Check-in Kit</Text>
+              <Text style={styles.toolSub}>Print a table tent with your venue's check-in QR code</Text>
+            </View>
+            <Text style={[styles.chevron, { color: "#34D399" }]}>›</Text>
+          </Pressable>
         </View>
 
         {/* ── View as guest ── */}
@@ -261,4 +327,26 @@ const styles = StyleSheet.create({
   venuePageLabel: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
   venuePageSub: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, lineHeight: 16 },
   chevron: { fontSize: 24, fontFamily: "Inter_400Regular" },
+
+  // Tool cards (full-width row layout)
+  toolCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1A1A1E",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+    padding: 14,
+    gap: 14,
+  },
+  toolIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  toolLabel: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  toolSub: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, lineHeight: 16 },
 });

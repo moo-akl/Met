@@ -1404,4 +1404,13 @@ export const api = {
   /** Fetch owner analytics dashboard. */
   getVenueOwnerDashboard: (opts: ApiOptions) =>
     request<VenueOwnerDashboard>("GET", "/api/venue-owner/me/dashboard", opts),
+
+  /** Generate a one-time staff registration link for sharing via mobile Share sheet. */
+  createStaffInvite: (opts: ApiOptions) =>
+    request<{ token: string; registrationUrl: string; expiresAt: string }>(
+      "POST", "/api/venue-owner/me/staff-invite", opts,
+    ),
+
+  /** Build the URL for the printable QR check-in kit page for a given venue. */
+  getQrKitUrl: (placeId: string): string => `${BASE_URL}/api/venue-owner/${placeId}/qr-kit`,
 };

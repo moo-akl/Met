@@ -360,6 +360,7 @@ export default function VenueProfileScreen() {
   const [selectedEvent, setSelectedEvent]   = useState<VenueEvent | null>(null);
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
   const [showEndedRewards, setShowEndedRewards] = useState(false);
+  const [myLeaderboardEntry, setMyLeaderboardEntry] = useState<{ rank: number; checkinCount: number } | null>(null);
 
   // QR verification state — initialised from the in-session module cache so
   // navigating to the venue page after a successful qr-scan shows it unlocked.
@@ -406,6 +407,8 @@ export default function VenueProfileScreen() {
       setEvents(eventsData.events);
       setRewards(rewardsData.rewards);
       setAnnouncements(announcementsData.announcements);
+      const myEntry = leaderboardData.find((e: { uid: string; rank: number; checkinCount: number }) => e.uid === authedUid);
+      setMyLeaderboardEntry(myEntry ? { rank: myEntry.rank, checkinCount: myEntry.checkinCount } : null);
       setTopVisitors(leaderboardData.slice(0, 3));
       // Derive registered venue status from the profile.
       setIsRegisteredVenue(profileData.profile?.isApproved ?? false);
@@ -576,6 +579,33 @@ export default function VenueProfileScreen() {
 
         {/* ── Body ──────────────────────────────────────────────────────── */}
         <View style={styles.body}>
+
+          {/* ── Welcome Back Banner ── */}
+          {myLeaderboardEntry && myLeaderboardEntry.checkinCount > 0 && (
+            <View style={{
+              marginBottom: 8,
+              padding: 14,
+              borderRadius: 12,
+              backgroundColor: "#FFF3E0",
+              borderWidth: 1,
+              borderColor: "#FFD0B0",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+            }}>
+              <Text style={{ fontSize: 20 }}>🏠</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: "Inter_700Bold", fontSize: 14, color: "#9A4A10" }}>
+                  Welcome back!
+                </Text>
+                <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: "#9A4A10", marginTop: 2, lineHeight: 18 }}>
+                  {myLeaderboardEntry.checkinCount === 1
+                    ? "Your first check-in here — you're on the board 🎉"
+                    : `You've checked in ${myLeaderboardEntry.checkinCount} times — you're #${myLeaderboardEntry.rank} here`}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* About */}
           {profile.description ? (

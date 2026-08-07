@@ -24,6 +24,7 @@ export function useWeeklyRankings() {
     queryKey: ["weeklyRankings", authedUid],
     queryFn: () => api.getWeeklyRankings({ uid: authedUid ?? "" }, authedUid!),
     enabled: !!authedUid,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,  // 5 minutes — venue data is stable
+    gcTime: 10 * 60 * 1000,   // keep in cache 10 min after unmount for instant re-render
   });
 }

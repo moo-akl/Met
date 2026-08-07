@@ -521,6 +521,38 @@ export default function EncounterDetail() {
             </View>
           ) : null}
 
+          {/* ── Ice-Breaker Suggestion ── */}
+          <View style={[styles.section, {
+            backgroundColor: `${colors.primary}10`,
+            borderWidth: 1,
+            borderColor: `${colors.primary}25`,
+            borderRadius: 12,
+            padding: 14,
+          }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <Feather name="zap" size={13} color={colors.primary} />
+              <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: colors.primary }}>
+                Ice-breaker
+              </Text>
+            </View>
+            <Text style={{ fontFamily: "Inter_400Regular", fontSize: 14, color: colors.foreground, lineHeight: 20 }}>
+              {(() => {
+                const count = encounter.encounterCount ?? 1;
+                const loc = encounter.lastLocation;
+                const shared = (encounter.interests ?? []).filter(
+                  (i: string) => profile?.interests?.includes(i) ?? false,
+                );
+                if (shared.length > 0) {
+                  return `You both listed "${t(`interestLabels.${(shared[0] as string).toLowerCase()}`)}" — ask them how they got into it.`;
+                }
+                if (count >= 5 && loc) return `You've crossed paths ${count} times near ${loc}. They know your face — break the seal.`;
+                if (loc) return `You were both near ${loc}. That's already something to talk about.`;
+                if (count >= 3) return `You've crossed paths ${count} times. Saying nothing now is the weird move.`;
+                return `Send something genuine — not just "hey". You've already met in person.`;
+              })()}
+            </Text>
+          </View>
+
           {encounter.lastLocation ? (
             <View style={styles.section}>
               <Text

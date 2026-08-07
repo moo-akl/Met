@@ -423,28 +423,43 @@ export default function PermissionsScreen() {
         </View>
 
         <View style={{ gap: 12 }}>
+          {/* Notifications first — lowest friction, easiest to understand */}
           <PermRow
-            icon="map-pin"
+            icon="bell"
             iconLib="feather"
-            title={t("permissions.locationTitle")}
-            description={t("permissions.locationDesc")}
-            status={statuses.location}
-            onPress={requestLocation}
-            busy={busy === "location"}
+            title={t("permissions.notificationsTitle")}
+            description="We'll let you know when someone wants to connect."
+            status={statuses.notifications}
+            onPress={requestNotifications}
+            busy={busy === "notifications"}
             colors={colors}
             t={t}
           />
+          {/* Bluetooth second — core to the BLE encounter loop */}
           <PermRow
             icon="bluetooth"
             iconLib="mc"
             title={t("permissions.bluetoothTitle")}
-            description={t("permissions.bluetoothDesc")}
+            description="This is how Met detects people near you — works indoors where GPS can't."
             status={statuses.bluetooth}
             onPress={requestBluetooth}
             busy={busy === "bluetooth"}
             colors={colors}
             t={t}
           />
+          {/* Location third — for heatmap & venue check-ins */}
+          <PermRow
+            icon="map-pin"
+            iconLib="feather"
+            title={t("permissions.locationTitle")}
+            description="Used for the heatmap and venue check-ins near you."
+            status={statuses.location}
+            onPress={requestLocation}
+            busy={busy === "location"}
+            colors={colors}
+            t={t}
+          />
+          {/* Camera last — QR scanning, lowest urgency */}
           <PermRow
             icon="camera"
             iconLib="feather"
@@ -453,17 +468,6 @@ export default function PermissionsScreen() {
             status={statuses.camera}
             onPress={requestCamera}
             busy={busy === "camera"}
-            colors={colors}
-            t={t}
-          />
-          <PermRow
-            icon="bell"
-            iconLib="feather"
-            title={t("permissions.notificationsTitle")}
-            description={t("permissions.notificationsDesc")}
-            status={statuses.notifications}
-            onPress={requestNotifications}
-            busy={busy === "notifications"}
             colors={colors}
             t={t}
           />

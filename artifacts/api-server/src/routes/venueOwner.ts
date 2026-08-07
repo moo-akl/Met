@@ -2283,6 +2283,114 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
+// POST /venue-owner/me/staff-invite
+// Generates a one-time registration link the venue owner can share via
+// mobile Share sheet, allowing a new staff member to join the team.
+// ---------------------------------------------------------------------------
+router.post(
+  "/venue-owner/me/staff-invite",
+  requireUid,
+  venueOwnerWriteLimit,
+  async (req: Request, res: Response) => {
+    const access = await requireVenueAccess(
+      req, res, ["owner"],
+      "Only the venue owner can send staff invitations.",
+    );
+    if (!access) return;
+
+    const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    await db.insert(venueManagerRegistrationTokensTable).values({
+      businessId: access.businessId,
+      tokenHash,
+      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+    });
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const registrationUrl = `${baseUrl}/venue-manager/register?token=${token}`;
+
+    res.status(201).json({
+      token,
+      registrationUrl,
+      expiresAt: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /venue-owner/:placeId/qr-kit
+// Returns a print-ready HTML page containing the venue's check-in QR code.
+// No auth required — placeId is public and the QR encodes a public URL.
+// ---------------------------------------------------------------------------
+router.get(
+  "/venue-owner/:placeId/qr-kit",
+  async (req: Request, res: Response) => {
+    const { placeId } = req.params as { placeId: string };
+    const [profile] = await db
+      .select({
+        businessName: venueOwnerProfilesTable.businessName,
+        placeName: venueOwnerProfilesTable.placeName,
+      })
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.placeId, placeId),
+          eq(venueOwnerProfilesTable.isApproved, true),
+        ),
+      )
+      .limit(1);
+
+    if (!profile) {
+      res.status(404).json({ message: "Venue not found" });
+      return;
+    }
+
+    const venueName = profile.businessName ?? profile.placeName ?? "Our Venue";
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const checkInUrl = `${baseUrl}/v/${placeId}`;
+    const qrApiUrl = `https://chart.googleapis.com/chart?chs=400x400&cht=qr&chl=${encodeURIComponent(checkInUrl)}&choe=UTF-8&chld=H|2`;
+
+    const safeName = venueName.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Check In at ${safeName}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    .card{text-align:center;padding:40px;max-width:480px;width:100%}
+    .logo{font-size:28px;font-weight:800;color:#FF385C;margin-bottom:8px;letter-spacing:-0.5px}
+    .venue{font-size:24px;font-weight:700;color:#111;margin-bottom:4px}
+    .sub{font-size:14px;color:#888;margin-bottom:32px}
+    .qr{width:280px;height:280px;margin:0 auto 28px;display:block}
+    .cta{font-size:20px;font-weight:700;color:#111;margin-bottom:8px}
+    .desc{font-size:13px;color:#777;line-height:1.5}
+    @media print{body{background:#fff}button{display:none}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Met</div>
+    <div class="venue">${safeName}</div>
+    <div class="sub">Scan to check in &amp; compete for the crown 👑</div>
+    <img class="qr" src="${qrApiUrl}" alt="Check-in QR for ${safeName}" />
+    <div class="cta">Scan &amp; check in</div>
+    <div class="desc">Open your camera or the Met app,<br>scan this code to check in and earn rewards.</div>
+  </div>
+</body>
+</html>`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.send(html);
+  },
+);
+
+// ---------------------------------------------------------------------------
 // Auto-expiry cron — Phase 1 Enhancement
 // ---------------------------------------------------------------------------
 

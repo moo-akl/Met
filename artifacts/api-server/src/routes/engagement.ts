@@ -485,6 +485,55 @@ router.post(
       isRegisteredVenue,
       isQrVerified,
     });
+
+    // ── Crown-defense push ────────────────────────────────────────────────────
+    // Fire-and-forget: if this check-in made the current user the new #1 for
+    // the month at this venue (they overtook by exactly 1), notify whoever
+    // just got dethroned.  Never blocks or delays the response above.
+    void (async () => {
+      try {
+        const monthStart = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+        );
+        const topTwo = await db
+          .select({
+            userUid: hubCheckinsTable.userUid,
+            cnt: count(hubCheckinsTable.id),
+            pushToken: profilesTable.pushToken,
+          })
+          .from(hubCheckinsTable)
+          .leftJoin(profilesTable, eq(profilesTable.uid, hubCheckinsTable.userUid))
+          .where(
+            and(
+              eq(hubCheckinsTable.placeId, place.placeId),
+              gte(hubCheckinsTable.createdAt, monthStart),
+            ),
+          )
+          .groupBy(hubCheckinsTable.userUid, profilesTable.pushToken)
+          .orderBy(desc(sql`count(${hubCheckinsTable.id})`))
+          .limit(2);
+
+        if (
+          topTwo.length >= 2 &&
+          topTwo[0]!.userUid === uid &&
+          Number(topTwo[0]!.cnt) === Number(topTwo[1]!.cnt) + 1 &&
+          topTwo[1]!.pushToken
+        ) {
+          const [me] = await db
+            .select({ displayName: profilesTable.displayName })
+            .from(profilesTable)
+            .where(eq(profilesTable.uid, uid))
+            .limit(1);
+          await sendPush(topTwo[1]!.pushToken, {
+            title: "👑 You've been dethroned!",
+            body: `${me?.displayName ?? "Someone"} just took your #1 spot at ${place.displayName}. Check in to reclaim your crown.`,
+            data: { type: "crown_defense", placeId: place.placeId },
+          });
+        }
+      } catch {
+        /* noop — never fail the check-in response */
+      }
+    })();
   },
 );
 
@@ -1922,5 +1971,87 @@ if (process.env.NODE_ENV !== "production") {
     },
   );
 }
+
+// ---------------------------------------------------------------------------
+// POST /api/cron/weekly-recap
+// Sends each active user a "Met Wrapped" push summarising the past 7 days.
+// Protected by CRON_SECRET; designed to fire every Monday morning.
+// ---------------------------------------------------------------------------
+router.post("/cron/weekly-recap", async (req, res): Promise<void> => {
+  const secret =
+    (req.headers["x-cron-secret"] as string | undefined) ??
+    (req.body as { secret?: string } | undefined)?.secret;
+  if (!secret || secret !== process.env["CRON_SECRET"]) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  // Aggregate check-ins per (user, venue) for the past 7 days.
+  const rows = await db
+    .select({
+      userUid: hubCheckinsTable.userUid,
+      placeId: hubCheckinsTable.placeId,
+      placeName: hubCheckinsTable.placeName,
+      cnt: count(hubCheckinsTable.id),
+      pushToken: profilesTable.pushToken,
+    })
+    .from(hubCheckinsTable)
+    .leftJoin(profilesTable, eq(profilesTable.uid, hubCheckinsTable.userUid))
+    .where(gte(hubCheckinsTable.createdAt, sevenDaysAgo))
+    .groupBy(
+      hubCheckinsTable.userUid,
+      hubCheckinsTable.placeId,
+      hubCheckinsTable.placeName,
+      profilesTable.pushToken,
+    )
+    .orderBy(desc(sql`count(${hubCheckinsTable.id})`));
+
+  // Collapse to per-user summaries.
+  type UserSummary = {
+    pushToken: string | null;
+    venueSet: Set<string>;
+    totalCheckins: number;
+    topPlace: string | null;
+  };
+  const byUser = new Map<string, UserSummary>();
+
+  for (const row of rows) {
+    if (!byUser.has(row.userUid)) {
+      byUser.set(row.userUid, {
+        pushToken: row.pushToken,
+        venueSet: new Set(),
+        totalCheckins: 0,
+        topPlace: null,
+      });
+    }
+    const entry = byUser.get(row.userUid)!;
+    entry.venueSet.add(row.placeId);
+    entry.totalCheckins += Number(row.cnt);
+    if (!entry.topPlace) entry.topPlace = row.placeName; // rows ordered desc — first = highest
+  }
+
+  const sends: Promise<void>[] = [];
+  for (const [, data] of byUser) {
+    if (!data.pushToken) continue;
+    const v = data.venueSet.size;
+    const top = data.topPlace ?? "your spot";
+    const body =
+      `${v} venue${v !== 1 ? "s" : ""} visited, ` +
+      `${data.totalCheckins} check-in${data.totalCheckins !== 1 ? "s" : ""} — ` +
+      `you're a regular at ${top} ✨`;
+    sends.push(
+      sendPush(data.pushToken, {
+        title: "Your week on Met 📊",
+        body,
+        data: { type: "weekly_recap" },
+      }).catch(() => {}),
+    );
+  }
+
+  await Promise.all(sends);
+  res.json({ sent: sends.length });
+});
 
 export default router;

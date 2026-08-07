@@ -1294,6 +1294,38 @@ export default function ChatScreen() {
               item.type === "date" ? item.key : item.message.id
             }
             renderItem={renderItem}
+            ListHeaderComponent={
+              visibleMessages.length === 0 && encounter ? (
+                <View
+                  style={{
+                    margin: 16,
+                    marginBottom: 8,
+                    padding: 14,
+                    borderRadius: 12,
+                    backgroundColor: `${colors.primary}12`,
+                    borderWidth: 1,
+                    borderColor: `${colors.primary}25`,
+                    gap: 6,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Feather name="zap" size={13} color={colors.primary} />
+                    <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: colors.primary }}>
+                      Break the ice
+                    </Text>
+                  </View>
+                  <Text style={{ fontFamily: "Inter_400Regular", fontSize: 14, color: colors.foreground, lineHeight: 20 }}>
+                    {(encounter.encounterCount ?? 1) >= 5
+                      ? `You've crossed paths ${encounter.encounterCount} times${encounter.lastLocation ? ` near ${encounter.lastLocation}` : ""}. They already know your face — say something.`
+                      : encounter.lastLocation
+                      ? `You were both near ${encounter.lastLocation}. That's already something to talk about.`
+                      : (encounter.encounterCount ?? 1) > 1
+                      ? `You've crossed paths ${encounter.encounterCount} times. Be the one who starts.`
+                      : "Send something genuine — not just \"hey\". You've already met in person."}
+                  </Text>
+                </View>
+              ) : null
+            }
             contentContainerStyle={styles.messageList}
             showsVerticalScrollIndicator={false}
             onContentSizeChange={() =>
