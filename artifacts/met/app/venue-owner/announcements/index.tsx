@@ -120,7 +120,24 @@ export default function VenueOwnerAnnouncementsScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: "#1A1A1E", borderColor: "rgba(255,255,255,0.07)" }]}>
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/venue-owner/announcements/[id]" as never,
+                params: {
+                  id: String(item.id),
+                  title: item.title,
+                  body: item.body,
+                  imageUrl: item.imageUrl ?? "",
+                  isPinned: String(item.isPinned),
+                },
+              } as never)
+            }
+            style={({ pressed }) => [
+              styles.card,
+              { backgroundColor: pressed ? "#222228" : "#1A1A1E", borderColor: "rgba(255,255,255,0.07)" },
+            ]}
+          >
             <View style={{ flex: 1, gap: 4 }}>
               <View style={styles.cardTitleRow}>
                 {item.isPinned && (
@@ -139,24 +156,6 @@ export default function VenueOwnerAnnouncementsScreen() {
             </View>
             <View style={styles.cardActions}>
               <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/venue-owner/announcements/[id]" as never,
-                    params: {
-                      id: String(item.id),
-                      title: item.title,
-                      body: item.body,
-                      imageUrl: item.imageUrl ?? "",
-                      isPinned: String(item.isPinned),
-                    },
-                  } as never)
-                }
-                style={styles.editBtn}
-                hitSlop={8}
-              >
-                <Text style={styles.editBtnText}>✏️</Text>
-              </Pressable>
-              <Pressable
                 onPress={() => handleDelete(item.id, item.title)}
                 style={styles.deleteBtn}
                 hitSlop={8}
@@ -164,7 +163,7 @@ export default function VenueOwnerAnnouncementsScreen() {
                 <Text style={styles.deleteBtnText}>🗑</Text>
               </Pressable>
             </View>
-          </View>
+          </Pressable>
         )}
       />
     </View>
@@ -191,8 +190,6 @@ const styles = StyleSheet.create({
   cardBody: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
   cardDate: { color: "rgba(255,255,255,0.28)", fontSize: 11, fontFamily: "Inter_400Regular" },
   cardActions: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  editBtn: { paddingTop: 2 },
-  editBtnText: { fontSize: 18 },
   deleteBtn: { paddingTop: 2 },
   deleteBtnText: { fontSize: 18 },
   emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 32 },
