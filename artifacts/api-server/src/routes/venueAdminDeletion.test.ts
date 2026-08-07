@@ -211,11 +211,15 @@ vi.mock("../lib/email.js", () => ({
   sendVenueRejectedEmail: vi.fn().mockResolvedValue(undefined),
   sendVenueChangesRequestedEmail: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("../lib/deleteVenueStorageFiles", () => ({
+  deleteVenueStorageFiles: vi.fn().mockResolvedValue(undefined),
+}));
 
 import express from "express";
 import cookieParser from "cookie-parser";
 import request from "supertest";
 import venueOwnerRouter from "./venueOwner";
+import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
 
 const app = express();
 app.use(express.json());
@@ -532,5 +536,67 @@ describe("DELETE /admin/venue-owner/venues/:id — idempotency and place reclaim
     expect(applyRes.status).toBe(201);
     expect(applyRes.body.applicationId).toBe(99);
     expect(applyRes.body.status).toBe("submitted");
+  });
+});
+
+describe("DELETE /admin/venue-owner/venues/:id — Storage cleanup", () => {
+  const COVER_URL =
+    "https://storage.googleapis.com/my-bucket/venue-profile-photos/owner/cover-1.jpg";
+  const LOGO_URL =
+    "https://storage.googleapis.com/my-bucket/venue-profile-photos/owner/logo-1.jpg";
+  const EVENT_IMG_URL =
+    "https://storage.googleapis.com/my-bucket/venue-event-images/owner/event-1.jpg";
+
+  const profileWithPhotos = {
+    ...fullProfile,
+    coverPhotoUrl: COVER_URL,
+    logoUrl: LOGO_URL,
+  };
+
+  it("calls deleteVenueStorageFiles with cover, logo, and event image URLs after a successful deletion", async () => {
+    const spy = deleteVenueStorageFiles as ReturnType<typeof vi.fn>;
+
+    dbMocks.profileChain.limit.mockResolvedValueOnce([profileWithPhotos]);
+    dbMocks.bizSelectChain.limit.mockResolvedValueOnce([fullBusiness]);
+    dbMocks.membershipsSelectChain.where
+      .mockResolvedValueOnce([{ managerId: MANAGER_ID }])
+      .mockResolvedValueOnce([]);
+    // Event has an imageUrl that should be passed to the cleanup helper.
+    dbMocks.eventsSelectChain.where.mockResolvedValueOnce([
+      { id: EVENT_ID, imageUrl: EVENT_IMG_URL },
+    ]);
+
+    const agent = await signedInAgent();
+    const res = await agent.delete(`/api/admin/venue-owner/venues/${PROFILE_ID}`);
+    expect(res.status).toBe(200);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(
+      [COVER_URL, LOGO_URL, EVENT_IMG_URL],
+      expect.objectContaining({ profileId: PROFILE_ID }),
+    );
+  });
+
+  it("still calls deleteVenueStorageFiles when the venue profile has no photo URLs", async () => {
+    const spy = deleteVenueStorageFiles as ReturnType<typeof vi.fn>;
+
+    // fullProfile has null coverPhotoUrl and logoUrl; no events with images.
+    dbMocks.profileChain.limit.mockResolvedValueOnce([fullProfile]);
+    dbMocks.bizSelectChain.limit.mockResolvedValueOnce([fullBusiness]);
+    dbMocks.membershipsSelectChain.where
+      .mockResolvedValueOnce([{ managerId: MANAGER_ID }])
+      .mockResolvedValueOnce([]);
+    dbMocks.eventsSelectChain.where.mockResolvedValueOnce([{ id: EVENT_ID, imageUrl: null }]);
+
+    const agent = await signedInAgent();
+    const res = await agent.delete(`/api/admin/venue-owner/venues/${PROFILE_ID}`);
+    expect(res.status).toBe(200);
+
+    // The helper is always called — it handles null/empty entries internally.
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(
+      [null, null],
+      expect.objectContaining({ profileId: PROFILE_ID }),
+    );
   });
 });

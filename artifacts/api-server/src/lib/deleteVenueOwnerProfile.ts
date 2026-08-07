@@ -40,11 +40,14 @@ type Tx = { select: any; delete: any };
  *   • venue_owner_profiles (the profile itself — last)
  *
  * Must be called inside a `db.transaction()` block so the entire cascade is atomic.
+ *
+ * Returns the event image URLs that were collected before deletion so the caller
+ * can perform best-effort Storage cleanup outside the transaction.
  */
 export async function deleteVenueOwnerProfile(
   tx: Tx,
   profile: { id: number; ownerUid: string },
-): Promise<void> {
+): Promise<string[]> {
   const profileId = profile.id;
   const ownerUid = profile.ownerUid;
 
@@ -121,10 +124,15 @@ export async function deleteVenueOwnerProfile(
   }
 
   // Delete event RSVPs before events (no FK cascade in schema).
+  // Also collect imageUrl values so the caller can clean up Storage files.
   const ownedEvents = await tx
-    .select({ id: venueEventsTable.id })
+    .select({ id: venueEventsTable.id, imageUrl: venueEventsTable.imageUrl })
     .from(venueEventsTable)
     .where(eq(venueEventsTable.ownerUid, ownerUid));
+
+  const eventImageUrls = ownedEvents
+    .map((e: { id: number; imageUrl: string | null }) => e.imageUrl)
+    .filter((u: string | null): u is string => u != null);
 
   if (ownedEvents.length > 0) {
     await tx
@@ -153,4 +161,6 @@ export async function deleteVenueOwnerProfile(
   await tx
     .delete(venueOwnerProfilesTable)
     .where(eq(venueOwnerProfilesTable.id, profileId));
+
+  return eventImageUrls;
 }

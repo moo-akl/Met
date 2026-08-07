@@ -45,7 +45,8 @@ vi.mock("../lib/deleteUserData", () => ({
 }));
 
 vi.mock("../lib/deleteVenueOwnerProfile", () => ({
-  deleteVenueOwnerProfile: vi.fn().mockResolvedValue(undefined),
+  // Returns string[] (event image URLs) — default to empty array.
+  deleteVenueOwnerProfile: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../lib/firestoreMirror", () => ({
@@ -56,10 +57,13 @@ vi.mock("../lib/firestoreMirror", () => ({
 }));
 
 vi.mock("../lib/firebaseAdmin", () => ({
-  adminStorage: vi.fn(),
   adminAuth: vi.fn(),
   adminDb: vi.fn(),
   tryInitAdmin: vi.fn(() => null),
+}));
+
+vi.mock("../lib/deleteVenueStorageFiles", () => ({
+  deleteVenueStorageFiles: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ---------------------------------------------------------------------------
@@ -70,6 +74,7 @@ import request from "supertest";
 import app from "../app";
 import { deleteUserData } from "../lib/deleteUserData";
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
+import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -426,5 +431,59 @@ describe("DELETE /api/profiles/me", () => {
     expect(res.status).toBe(204);
     // deleteUserData is responsible for removing venue_event_rsvps where userUid = alice.
     expect(deleteUserDataSpy).toHaveBeenCalledWith("alice");
+  });
+
+  it("calls deleteVenueStorageFiles with cover photo, logo, and event image URLs when deleteVenueProfile is true", async () => {
+    const deleteVenueStorageFilesSpy = deleteVenueStorageFiles as ReturnType<typeof vi.fn>;
+
+    const coverPhotoUrl =
+      "https://storage.googleapis.com/my-bucket/venue-profile-photos/alice/cover-123.jpg";
+    const logoUrl =
+      "https://storage.googleapis.com/my-bucket/venue-profile-photos/alice/logo-456.jpg";
+    const eventImageUrl =
+      "https://storage.googleapis.com/my-bucket/venue-event-images/alice/event-789.jpg";
+
+    const profileWithPhotos = {
+      ...venueOwnerProfileFixture,
+      coverPhotoUrl,
+      logoUrl,
+    };
+    dbMocks.chain.limit.mockResolvedValueOnce([profileWithPhotos]);
+
+    // deleteVenueOwnerProfile returns the event image URLs it found before deleting.
+    (deleteVenueOwnerProfile as ReturnType<typeof vi.fn>).mockResolvedValueOnce([eventImageUrl]);
+
+    const res = await request(app)
+      .delete("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ deleteVenueProfile: true });
+
+    expect(res.status).toBe(204);
+
+    // deleteVenueStorageFiles must be called with all three URLs so the helper
+    // can apply its bucket/prefix validation before deleting.
+    expect(deleteVenueStorageFilesSpy).toHaveBeenCalledTimes(1);
+    expect(deleteVenueStorageFilesSpy).toHaveBeenCalledWith(
+      [coverPhotoUrl, logoUrl, eventImageUrl],
+      expect.objectContaining({ uid: "alice" }),
+    );
+  });
+
+  it("calls deleteVenueStorageFiles even when the profile has no photo URLs", async () => {
+    const deleteVenueStorageFilesSpy = deleteVenueStorageFiles as ReturnType<typeof vi.fn>;
+
+    // Profile has null for both photo columns; deleteVenueOwnerProfile returns no event images.
+    dbMocks.chain.limit.mockResolvedValueOnce([venueOwnerProfileFixture]);
+    (deleteVenueOwnerProfile as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+
+    const res = await request(app)
+      .delete("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ deleteVenueProfile: true });
+
+    expect(res.status).toBe(204);
+    // The helper is still called (with an all-null/empty list) — it handles
+    // skipping internally rather than the caller needing to guard.
+    expect(deleteVenueStorageFilesSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -20,6 +20,7 @@ import { uidToHash } from "../lib/uidHash";
 import { mirrorProfileToFirestore } from "../lib/firestoreMirror";
 import { deleteUserData } from "../lib/deleteUserData";
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
+import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
 
 const router: IRouter = Router();
 
@@ -441,9 +442,19 @@ router.delete("/profiles/me", requireUid, async (req, res) => {
     if (ownerProfile) {
       // Full 13-table cascade: business, manager accounts, memberships, events,
       // RSVPs, rewards, announcements, application history, and the profile row.
+      // deleteVenueOwnerProfile returns event image URLs collected before deletion.
+      let eventImageUrls: string[] = [];
       await db.transaction(async (tx) => {
-        await deleteVenueOwnerProfile(tx, ownerProfile);
+        eventImageUrls = await deleteVenueOwnerProfile(tx, ownerProfile);
       });
+
+      // Best-effort: delete Storage files for venue cover photo, logo, and event
+      // images. Only URLs that target the configured default bucket and begin
+      // with a known venue-generated prefix are acted on; others are skipped.
+      await deleteVenueStorageFiles(
+        [ownerProfile.coverPhotoUrl, ownerProfile.logoUrl, ...eventImageUrls],
+        { uid },
+      );
     }
   }
   await deleteUserData(uid);

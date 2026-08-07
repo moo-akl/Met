@@ -76,6 +76,7 @@ import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 import { adminStorage } from "../lib/firebaseAdmin";
+import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
 import {
   sendVenueApprovedEmail,
   sendVenueRejectedEmail,
@@ -3358,9 +3359,18 @@ router.delete(
       return;
     }
 
+    let eventImageUrls: string[] = [];
     await db.transaction(async (tx) => {
-      await deleteVenueOwnerProfile(tx, profile);
+      eventImageUrls = await deleteVenueOwnerProfile(tx, profile);
     });
+
+    // Best-effort: remove Storage files for venue cover photo, logo, and event
+    // images. Only URLs targeting the configured default bucket with known
+    // venue prefixes are acted on; others are silently skipped.
+    await deleteVenueStorageFiles(
+      [profile.coverPhotoUrl, profile.logoUrl, ...eventImageUrls],
+      { profileId },
+    );
 
     logger.info(
       { profileId, businessName: profile.businessName, placeId: profile.placeId },
