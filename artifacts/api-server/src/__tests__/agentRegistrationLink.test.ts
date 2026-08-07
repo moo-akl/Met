@@ -124,11 +124,14 @@ function agentCookieHeader(agentId: number, sessionVersion = 1): string {
 
 let agentId = 0;
 let otherAgentId = 0;
+let deactivatedAgentId = 0;
 let profileId = 0;
 let profileNoBizId = 0;
 let profileNoEmailId = 0;
 let profileNoEmailBusinessId = 0;
 let businessId = 0;
+let profileForDeactivatedAgentId = 0;
+let businessForDeactivatedAgentId = 0;
 
 // ---------------------------------------------------------------------------
 // Seed & cleanup
@@ -160,6 +163,19 @@ async function seed() {
     })
     .returning({ id: salesAgentsTable.id });
   otherAgentId = otherAgent!.id;
+
+  // A deactivated agent — isActive:false — used to verify the middleware rejects them
+  const [deactivatedAgent] = await db
+    .insert(salesAgentsTable)
+    .values({
+      email: `deactivated-${TEST_AGENT_EMAIL}`,
+      displayName: "Deactivated Agent",
+      passwordHash: "scrypt$dummy$dummy",
+      isActive: false,
+      sessionVersion: 1,
+    })
+    .returning({ id: salesAgentsTable.id });
+  deactivatedAgentId = deactivatedAgent!.id;
 
   // Approved venue profile assigned to our agent (happy-path fixture)
   const [profile] = await db
@@ -235,6 +251,37 @@ async function seed() {
     })
     .returning({ id: venueBusinessesTable.id });
   profileNoEmailBusinessId = profileNoEmailBusiness!.id;
+
+  // An approved venue profile assigned to the deactivated agent — the session
+  // middleware must reject the request before any venue lookup runs.
+  const [profileForDeactivatedAgent] = await db
+    .insert(venueOwnerProfilesTable)
+    .values({
+      ownerUid: `${TEST_OWNER_UID}-deactivated`,
+      placeId: `${TEST_PLACE_ID}-deactivated`,
+      placeName: "Deactivated Agent Test Venue",
+      businessName: "Deactivated Agent Test Venue Ltd",
+      applicationStatus: "approved",
+      isApproved: true,
+      contactEmail: TEST_CONTACT_EMAIL,
+      assignedAgentId: deactivatedAgentId,
+    })
+    .returning({ id: venueOwnerProfilesTable.id });
+  profileForDeactivatedAgentId = profileForDeactivatedAgent!.id;
+
+  // A business record for the deactivated-agent's venue so the endpoint
+  // would succeed if it ever got past the session check.
+  const [businessForDeactivatedAgent] = await db
+    .insert(venueBusinessesTable)
+    .values({
+      venueOwnerProfileId: profileForDeactivatedAgentId,
+      placeId: `${TEST_PLACE_ID}-deactivated`,
+      legalName: "Deactivated Agent Test Venue Ltd",
+      createdByUid: `${TEST_OWNER_UID}-deactivated`,
+      isActive: true,
+    })
+    .returning({ id: venueBusinessesTable.id });
+  businessForDeactivatedAgentId = businessForDeactivatedAgent!.id;
 }
 
 async function cleanup() {
@@ -267,7 +314,21 @@ async function cleanup() {
       .where(eq(venueBusinessesTable.id, profileNoEmailBusinessId));
   }
 
-  for (const pid of [profileId, profileNoBizId, profileNoEmailId]) {
+  if (businessForDeactivatedAgentId) {
+    await db
+      .delete(venueManagerRegistrationTokensTable)
+      .where(
+        eq(
+          venueManagerRegistrationTokensTable.businessId,
+          businessForDeactivatedAgentId,
+        ),
+      );
+    await db
+      .delete(venueBusinessesTable)
+      .where(eq(venueBusinessesTable.id, businessForDeactivatedAgentId));
+  }
+
+  for (const pid of [profileId, profileNoBizId, profileNoEmailId, profileForDeactivatedAgentId]) {
     if (pid) {
       await db
         .delete(venueOwnerProfilesTable)
@@ -275,15 +336,18 @@ async function cleanup() {
     }
   }
 
-  // Also remove the no-biz / no-email profiles by placeId in case the id was never set
+  // Also remove the no-biz / no-email / deactivated profiles by placeId in case the id was never set
   await db
     .delete(venueOwnerProfilesTable)
     .where(eq(venueOwnerProfilesTable.placeId, `${TEST_PLACE_ID}-nobiz`));
   await db
     .delete(venueOwnerProfilesTable)
     .where(eq(venueOwnerProfilesTable.placeId, `${TEST_PLACE_ID}-noemail`));
+  await db
+    .delete(venueOwnerProfilesTable)
+    .where(eq(venueOwnerProfilesTable.placeId, `${TEST_PLACE_ID}-deactivated`));
 
-  for (const aid of [agentId, otherAgentId]) {
+  for (const aid of [agentId, otherAgentId, deactivatedAgentId]) {
     if (aid) {
       await db
         .delete(salesAgentsTable)
@@ -457,6 +521,38 @@ describe.skipIf(!hasDatabase)(
       );
 
       expect(res.status).toBe(401);
+    });
+
+    // -----------------------------------------------------------------------
+    // 401: deactivated agent (isActive:false) with an approved venue that has
+    // a valid business record — the session middleware must refuse before any
+    // venue lookup or email send occurs.
+    // -----------------------------------------------------------------------
+    it("returns 401 for a deactivated agent even when their venue looks valid", async () => {
+      mockSendRegistrationLinkEmail.mockClear();
+
+      const res = await request(app)
+        .post(
+          `/api/admin/agent/applications/${profileForDeactivatedAgentId}/registration-link`,
+        )
+        .set("Cookie", agentCookieHeader(deactivatedAgentId));
+
+      expect(res.status).toBe(401);
+
+      // No token row must have been written.
+      const tokens = await db
+        .select()
+        .from(venueManagerRegistrationTokensTable)
+        .where(
+          eq(
+            venueManagerRegistrationTokensTable.businessId,
+            businessForDeactivatedAgentId,
+          ),
+        );
+      expect(tokens.length).toBe(0);
+
+      // sendRegistrationLinkEmail must never have been called.
+      expect(mockSendRegistrationLinkEmail).not.toHaveBeenCalled();
     });
 
     // -----------------------------------------------------------------------
