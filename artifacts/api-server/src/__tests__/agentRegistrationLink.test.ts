@@ -363,5 +363,69 @@ describe.skipIf(!hasDatabase)(
 
       expect(res.status).toBe(401);
     });
+
+    // -----------------------------------------------------------------------
+    // SMTP down: sendRegistrationLinkEmail throws → 200 with emailSent:false,
+    // no history row written, token row still exists.
+    // -----------------------------------------------------------------------
+    it("returns 200 with emailSent:false and skips history when the email helper throws", async () => {
+      // Make the email helper throw to simulate a broken SMTP transport.
+      mockSendRegistrationLinkEmail.mockRejectedValueOnce(
+        new Error("SMTP connection refused"),
+      );
+
+      const tokenCountBefore = (
+        await db
+          .select()
+          .from(venueManagerRegistrationTokensTable)
+          .where(eq(venueManagerRegistrationTokensTable.businessId, businessId))
+      ).length;
+
+      const historyCountBefore = (
+        await db
+          .select()
+          .from(venueApplicationHistoryTable)
+          .where(
+            and(
+              eq(venueApplicationHistoryTable.venueOwnerProfileId, profileId),
+              eq(venueApplicationHistoryTable.eventType, "email_sent"),
+            ),
+          )
+      ).length;
+
+      const res = await request(app)
+        .post(`/api/admin/agent/applications/${profileId}/registration-link`)
+        .set("Cookie", agentCookieHeader(agentId));
+
+      // Endpoint must respond 200 (not 500) and report failure gracefully.
+      expect(res.status).toBe(200);
+      expect(res.body.emailSent).toBe(false);
+      expect(res.body.contactEmail).toBe(TEST_CONTACT_EMAIL);
+
+      // A new token row must still exist — the token was persisted before the
+      // send attempt and must not be rolled back on delivery failure.
+      const tokenCountAfter = (
+        await db
+          .select()
+          .from(venueManagerRegistrationTokensTable)
+          .where(eq(venueManagerRegistrationTokensTable.businessId, businessId))
+      ).length;
+      expect(tokenCountAfter).toBeGreaterThan(tokenCountBefore);
+
+      // No new history row must have been written (history only records a
+      // successful send).
+      const historyCountAfter = (
+        await db
+          .select()
+          .from(venueApplicationHistoryTable)
+          .where(
+            and(
+              eq(venueApplicationHistoryTable.venueOwnerProfileId, profileId),
+              eq(venueApplicationHistoryTable.eventType, "email_sent"),
+            ),
+          )
+      ).length;
+      expect(historyCountAfter).toBe(historyCountBefore);
+    });
   },
 );
