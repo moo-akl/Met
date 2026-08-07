@@ -820,9 +820,16 @@ export default function Dashboard() {
                       <Clock className="w-3 h-3" />
                       {format(new Date(app.submittedAt ?? app.createdAt), "MMM d, h:mm a")}
                     </div>
-                    {app.applicationStatus === "under_review" && (
-                      <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold tracking-wider uppercase">In Progress</span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {app.applicationSource && (
+                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-semibold tracking-wider uppercase">
+                          {app.applicationSource === "mobile" ? "Mobile" : app.applicationSource === "web" ? "Web" : app.applicationSource === "agent" ? "Agent" : app.applicationSource}
+                        </span>
+                      )}
+                      {app.applicationStatus === "under_review" && (
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold tracking-wider uppercase">In Progress</span>
+                      )}
+                    </div>
                   </div>
                 </button>
               ))
