@@ -65,6 +65,12 @@ export default function EditVenueAnnouncementScreen() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     if (!asset.base64) { Alert.alert("Error", "Could not read image data."); return; }
+    const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+    const byteSize = asset.fileSize ?? Math.floor(asset.base64.length * 3 / 4);
+    if (byteSize > MAX_BYTES) {
+      Alert.alert("Image too large", "Please choose an image under 5 MB.");
+      return;
+    }
     setImageUploading(true);
     try {
       const { url } = await api.uploadVenueAnnouncementImage(
