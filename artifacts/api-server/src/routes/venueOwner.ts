@@ -4030,6 +4030,12 @@ router.post(
       return;
     }
 
+    const alreadyClaimed = await checkHasClaimedVenueManager(profile.id);
+    if (alreadyClaimed) {
+      res.status(409).json({ message: "This venue has already claimed the Venue Manager. No new registration link is needed." });
+      return;
+    }
+
     // Invalidate any previous unconsumed registration tokens for this business
     // so re-sending the link leaves only the newest token valid and previous
     // URLs cannot be used to claim the account.

@@ -24,6 +24,7 @@ import {
   venueApplicationHistoryTable,
   venueManagerRegistrationTokensTable,
   venueAdminCredentialsTable,
+  venueMembershipsTable,
 } from "@workspace/db";
 import type { Express } from "express";
 
@@ -144,6 +145,11 @@ let profileNoEmailBusinessId = 0;
 let businessId = 0;
 let profileForDeactivatedAgentId = 0;
 let businessForDeactivatedAgentId = 0;
+
+// For the already-claimed venue test
+let profileAlreadyClaimedId = 0;
+let businessAlreadyClaimedId = 0;
+let membershipAlreadyClaimedId = 0;
 
 // For the deactivation-cleanup test: an agent that starts active then gets
 // deactivated via the PATCH endpoint during the test.
@@ -351,6 +357,50 @@ async function seed() {
     .values({ passwordHash: "scrypt$dummy$dummy", sessionVersion: 1 })
     .returning({ id: venueAdminCredentialsTable.id });
   adminCredentialId = adminCredential!.id;
+
+  // ── Already-claimed venue fixtures ───────────────────────────────────────
+  // An approved venue profile assigned to our agent that already has an active
+  // owner membership backed by a managerId (i.e. the Venue Manager has been
+  // claimed). The endpoint must return 409 instead of sending a new link.
+  const [profileAlreadyClaimed] = await db
+    .insert(venueOwnerProfilesTable)
+    .values({
+      ownerUid: `${TEST_OWNER_UID}-claimed`,
+      placeId: `${TEST_PLACE_ID}-claimed`,
+      placeName: "Already Claimed Test Venue",
+      businessName: "Already Claimed Test Venue Ltd",
+      applicationStatus: "approved",
+      isApproved: true,
+      contactEmail: TEST_CONTACT_EMAIL,
+      assignedAgentId: agentId,
+    })
+    .returning({ id: venueOwnerProfilesTable.id });
+  profileAlreadyClaimedId = profileAlreadyClaimed!.id;
+
+  const [businessAlreadyClaimed] = await db
+    .insert(venueBusinessesTable)
+    .values({
+      venueOwnerProfileId: profileAlreadyClaimedId,
+      placeId: `${TEST_PLACE_ID}-claimed`,
+      legalName: "Already Claimed Test Venue Ltd",
+      createdByUid: `${TEST_OWNER_UID}-claimed`,
+      isActive: true,
+    })
+    .returning({ id: venueBusinessesTable.id });
+  businessAlreadyClaimedId = businessAlreadyClaimed!.id;
+
+  // Insert an active owner membership with a non-null managerId to simulate
+  // that checkHasClaimedVenueManager returns true.
+  const [membershipAlreadyClaimed] = await db
+    .insert(venueMembershipsTable)
+    .values({
+      businessId: businessAlreadyClaimedId,
+      managerId: 999999, // sentinel — only needs to be non-null for the guard
+      role: "owner",
+      status: "active",
+    })
+    .returning({ id: venueMembershipsTable.id });
+  membershipAlreadyClaimedId = membershipAlreadyClaimed!.id;
 }
 
 async function cleanup() {
@@ -433,6 +483,29 @@ async function cleanup() {
   await db
     .delete(venueOwnerProfilesTable)
     .where(eq(venueOwnerProfilesTable.placeId, `${TEST_PLACE_ID}-to-deactivate`));
+
+  // Already-claimed fixture cleanup
+  if (membershipAlreadyClaimedId) {
+    await db
+      .delete(venueMembershipsTable)
+      .where(eq(venueMembershipsTable.id, membershipAlreadyClaimedId));
+  }
+  if (businessAlreadyClaimedId) {
+    await db
+      .delete(venueManagerRegistrationTokensTable)
+      .where(eq(venueManagerRegistrationTokensTable.businessId, businessAlreadyClaimedId));
+    await db
+      .delete(venueBusinessesTable)
+      .where(eq(venueBusinessesTable.id, businessAlreadyClaimedId));
+  }
+  if (profileAlreadyClaimedId) {
+    await db
+      .delete(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.id, profileAlreadyClaimedId));
+  }
+  await db
+    .delete(venueOwnerProfilesTable)
+    .where(eq(venueOwnerProfilesTable.placeId, `${TEST_PLACE_ID}-claimed`));
 
   for (const aid of [agentId, otherAgentId, deactivatedAgentId, agentToDeactivateId]) {
     if (aid) {
@@ -556,6 +629,42 @@ describe.skipIf(!hasDatabase)(
       expect(res.body).toMatchObject({
         message: expect.stringContaining("Business record"),
       });
+    });
+
+    // -----------------------------------------------------------------------
+    // 409: approved profile exists, business record exists, contact email is
+    // set, but the owner has already claimed the Venue Manager (active owner
+    // membership with a non-null managerId). The endpoint must refuse rather
+    // than issuing another registration link.
+    // -----------------------------------------------------------------------
+    it("returns 409 when the venue has already claimed the Venue Manager", async () => {
+      mockSendRegistrationLinkEmail.mockClear();
+
+      const res = await request(app)
+        .post(
+          `/api/admin/agent/applications/${profileAlreadyClaimedId}/registration-link`,
+        )
+        .set("Cookie", agentCookieHeader(agentId));
+
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({
+        message: expect.stringContaining("already claimed"),
+      });
+
+      // No token row must have been written.
+      const tokens = await db
+        .select()
+        .from(venueManagerRegistrationTokensTable)
+        .where(
+          eq(
+            venueManagerRegistrationTokensTable.businessId,
+            businessAlreadyClaimedId,
+          ),
+        );
+      expect(tokens.length).toBe(0);
+
+      // Email helper must never have been called.
+      expect(mockSendRegistrationLinkEmail).not.toHaveBeenCalled();
     });
 
     // -----------------------------------------------------------------------
