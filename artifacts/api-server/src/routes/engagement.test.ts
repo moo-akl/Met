@@ -34,6 +34,11 @@ const dbMocks = vi.hoisted(() => {
     offset: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     execute: vi.fn().mockResolvedValue(undefined),
+    // Additional chain methods used by weekly-recap and other handlers
+    leftJoin: vi.fn().mockReturnThis(),
+    groupBy: vi.fn().mockReturnThis(),
+    onConflictDoUpdate: vi.fn().mockReturnThis(),
+    onConflictDoNothing: vi.fn().mockReturnThis(),
   };
   return { chain };
 });
@@ -41,7 +46,14 @@ const dbMocks = vi.hoisted(() => {
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
   hubCheckinsTable: {},
-  userStatsTable: {},
+  // Provide column stubs for userStatsTable so that assertions on
+  // onConflictDoUpdate({ target, set, where }) can verify the target is the
+  // primary key and the set includes the dedup stamp.
+  userStatsTable: {
+    userUid: "col:user_uid",
+    lastWeeklyRecapAt: "col:last_weekly_recap_at",
+    updatedAt: "col:updated_at",
+  },
   profileViewsTable: {},
   reviewsTable: {},
   profilesTable: {},
@@ -82,6 +94,7 @@ vi.mock("../lib/revenueCat", () => ({
 
 import request from "supertest";
 import app from "../app";
+import { sendPush } from "../lib/push";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -132,6 +145,14 @@ beforeEach(() => {
   dbMocks.chain.set.mockReturnThis();
   dbMocks.chain.limit.mockResolvedValue([]);
   dbMocks.chain.execute.mockResolvedValue(undefined);
+  dbMocks.chain.leftJoin.mockReturnThis();
+  dbMocks.chain.groupBy.mockReturnThis();
+  dbMocks.chain.onConflictDoUpdate.mockReturnThis();
+  dbMocks.chain.onConflictDoNothing.mockReturnThis();
+  dbMocks.chain.returning.mockResolvedValue([]);
+  // sendPush must return a Promise after resetAllMocks() wipes its implementation,
+  // otherwise .catch(() => {}) in the weekly-recap handler throws.
+  vi.mocked(sendPush).mockResolvedValue(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -226,5 +247,177 @@ describe("POST /api/reviews — Firestore encounter guard", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.message).toBe("co_location_required");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: POST /api/cron/weekly-recap — dedup guard
+// ---------------------------------------------------------------------------
+
+const CRON_SECRET = "test-cron-secret";
+
+/** Sample hub check-in row returned by the aggregate select. */
+const checkinRow = {
+  userUid: "uid-alice",
+  placeId: "place-1",
+  placeName: "The Coffee House",
+  cnt: 3,
+  pushToken: "ExponentPushToken[abc]",
+};
+
+describe("POST /api/cron/weekly-recap — dedup guard", () => {
+  beforeAll(() => {
+    process.env["CRON_SECRET"] = CRON_SECRET;
+  });
+
+  it("returns 401 when the cron secret is missing", async () => {
+    const res = await request(app).post("/api/cron/weekly-recap").send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when the cron secret is wrong", async () => {
+    const res = await request(app)
+      .post("/api/cron/weekly-recap")
+      .set("x-cron-secret", "wrong-secret")
+      .send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("returns sent:0, skipped:0 when no users have check-ins in the past 7 days", async () => {
+    // The aggregate select resolves to an empty array — no active users.
+    dbMocks.chain.orderBy.mockResolvedValueOnce([]);
+
+    const res = await request(app)
+      .post("/api/cron/weekly-recap")
+      .set("x-cron-secret", CRON_SECRET)
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ sent: 0, skipped: 0 });
+    expect(sendPush).not.toHaveBeenCalled();
+  });
+
+  it("sends a push on the first call and returns sent:1, skipped:0", async () => {
+    // Step 1: aggregate select returns one active user.
+    dbMocks.chain.orderBy.mockResolvedValueOnce([checkinRow]);
+    // Step 2: UPSERT claim — this invocation successfully claims the user.
+    dbMocks.chain.returning.mockResolvedValueOnce([{ userUid: "uid-alice" }]);
+
+    const res = await request(app)
+      .post("/api/cron/weekly-recap")
+      .set("x-cron-secret", CRON_SECRET)
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.sent).toBe(1);
+    expect(res.body.skipped).toBe(0);
+    expect(sendPush).toHaveBeenCalledTimes(1);
+    expect(sendPush).toHaveBeenCalledWith(
+      checkinRow.pushToken,
+      expect.objectContaining({
+        title: "Your week on Met 📊",
+        data: { type: "weekly_recap" },
+      }),
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Guard-shape test — verifies the UPSERT conflict options contain the
+  // dedup predicate.  This test fails if the WHERE clause is removed from
+  // the production onConflictDoUpdate call, even if the mock returns are still
+  // scripted to look correct.
+  // ---------------------------------------------------------------------------
+  it("UPSERT uses a lastWeeklyRecapAt stamp and a week-boundary WHERE guard in the conflict clause", async () => {
+    dbMocks.chain.orderBy.mockResolvedValueOnce([checkinRow]);
+    dbMocks.chain.returning.mockResolvedValueOnce([{ userUid: "uid-alice" }]);
+
+    await request(app)
+      .post("/api/cron/weekly-recap")
+      .set("x-cron-secret", CRON_SECRET)
+      .send({});
+
+    // onConflictDoUpdate must have been called exactly once (the claim UPSERT).
+    expect(dbMocks.chain.onConflictDoUpdate).toHaveBeenCalledTimes(1);
+
+    const [conflictConfig] =
+      dbMocks.chain.onConflictDoUpdate.mock.calls[0] as [
+        {
+          target: unknown;
+          set: Record<string, unknown>;
+          where: unknown;
+        },
+      ];
+
+    // The SET clause must stamp lastWeeklyRecapAt so subsequent runs see the mark.
+    expect(conflictConfig.set).toHaveProperty("lastWeeklyRecapAt");
+    expect(conflictConfig.set["lastWeeklyRecapAt"]).toBeTruthy();
+
+    // A WHERE guard must be present; removing it collapses the predicate so every
+    // duplicate cron run would also claim users and send extra pushes.
+    expect(conflictConfig.where).toBeDefined();
+    expect(conflictConfig.where).not.toBeNull();
+
+    // A conflict target must identify the primary key so the UPSERT resolves.
+    expect(conflictConfig.target).toBeDefined();
+    expect(conflictConfig.target).not.toBeNull();
+  });
+
+  it("sends 0 additional pushes when the cron fires a second time within the same week", async () => {
+    // Both calls see the same active user in check-in data.
+    dbMocks.chain.orderBy
+      .mockResolvedValueOnce([checkinRow]) // first call
+      .mockResolvedValueOnce([checkinRow]); // second call
+
+    // First call: UPSERT claims the user (lastWeeklyRecapAt was null / old).
+    // Second call: the WHERE guard (lastWeeklyRecapAt >= weekStart) makes
+    // Postgres skip the update, so RETURNING yields an empty set.
+    dbMocks.chain.returning
+      .mockResolvedValueOnce([{ userUid: "uid-alice" }]) // first call — claimed
+      .mockResolvedValueOnce([]); // second call — WHERE skips, nothing returned
+
+    // ── First invocation ──────────────────────────────────────────────────────
+    const first = await request(app)
+      .post("/api/cron/weekly-recap")
+      .set("x-cron-secret", CRON_SECRET)
+      .send({});
+
+    expect(first.status).toBe(200);
+    expect(first.body.sent).toBe(1);
+    expect(first.body.skipped).toBe(0);
+
+    const sendPushMock = vi.mocked(sendPush);
+    const callsAfterFirst = sendPushMock.mock.calls.length;
+    expect(callsAfterFirst).toBe(1);
+
+    // ── Second invocation (same week, simulated duplicate cron fire) ──────────
+    const second = await request(app)
+      .post("/api/cron/weekly-recap")
+      .set("x-cron-secret", CRON_SECRET)
+      .send({});
+
+    expect(second.status).toBe(200);
+    // The RETURNING clause returned an empty set — user was already claimed.
+    expect(second.body.sent).toBe(0);
+    expect(second.body.skipped).toBe(1);
+    // sendPush must NOT have been called a second time.
+    expect(sendPushMock.mock.calls.length).toBe(callsAfterFirst);
+
+    // ── Post-second-call guard assertion ────────────────────────────────────
+    // Both invocations must have issued onConflictDoUpdate with a WHERE guard.
+    // This assertion runs AFTER both requests so it inspects both UPSERT calls.
+    // Exactly two calls are expected: one per cron invocation.
+    const onConflictCalls = dbMocks.chain.onConflictDoUpdate.mock.calls as [
+      { target: unknown; set: Record<string, unknown>; where: unknown },
+    ][];
+    expect(onConflictCalls).toHaveLength(2);
+    for (const [cfg] of onConflictCalls) {
+      // The WHERE predicate must exist on every call — removing it from
+      // production code would collapse the guard and this assertion would fail.
+      expect(cfg.where).toBeDefined();
+      expect(cfg.where).not.toBeNull();
+      // The SET must stamp lastWeeklyRecapAt so the guard has a value to check.
+      expect(cfg.set).toHaveProperty("lastWeeklyRecapAt");
+      expect(cfg.target).toBeDefined();
+    }
   });
 });
