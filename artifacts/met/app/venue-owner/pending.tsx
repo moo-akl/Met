@@ -177,7 +177,7 @@ export default function VenueOwnerPendingScreen() {
       <Pressable
         testID="venue-application-done"
         style={[styles.doneButton, { backgroundColor: colors.primary }]}
-        onPress={() => router.replace("/onboarding")}
+        onPress={() => router.replace("/(tabs)")}
       >
         <Text style={styles.doneText}>Done</Text>
       </Pressable>

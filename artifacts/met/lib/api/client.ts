@@ -433,8 +433,8 @@ export const api = {
    * Permanently delete the caller's account — removes all data from
    * Postgres, Firestore, and Firebase Auth. Cannot be undone.
    */
-  deleteMe: (opts: ApiOptions) =>
-    request<void>("DELETE", "/api/profiles/me", opts),
+  deleteMe: (opts: ApiOptions, body?: { deleteVenueProfile?: boolean }) =>
+    request<void>("DELETE", "/api/profiles/me", opts, body),
   /**
    * Upload a profile photo as raw base64 (no `data:` prefix). Server
    * stores it in Firebase Storage at `profile-photos/{uid}.{ext}` and
@@ -1089,6 +1089,30 @@ export const api = {
     request<{ url: string }>(
       "POST",
       "/api/venue-owner/upload-verification-doc",
+      opts,
+      { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
+    ),
+
+  /** Upload a cover image for a venue event. Returns a public URL. */
+  uploadVenueEventImage: (
+    opts: ApiOptions,
+    input: { base64: string; contentType?: string },
+  ) =>
+    request<{ url: string }>(
+      "POST",
+      "/api/venue-owner/events/upload-image",
+      opts,
+      { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
+    ),
+
+  /** Upload a cover image for a venue announcement. Returns a public URL. */
+  uploadVenueAnnouncementImage: (
+    opts: ApiOptions,
+    input: { base64: string; contentType?: string },
+  ) =>
+    request<{ url: string }>(
+      "POST",
+      "/api/venue-owner/announcements/upload-image",
       opts,
       { base64: input.base64, contentType: input.contentType ?? "image/jpeg" },
     ),

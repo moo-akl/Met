@@ -308,6 +308,47 @@ export async function sendClaimLinkOverdueAlertEmail(
   return true;
 }
 
+export interface VenueRemovalRequestEmailOptions {
+  to: string;
+  businessName: string;
+  reason: string | null;
+  managerId: number;
+  businessId: number;
+}
+
+/**
+ * Sends an internal admin alert when a venue owner submits a removal request
+ * via the Venue Manager portal. Fires alongside the history-log insert so
+ * the admin team is notified in real time even if they are not checking the
+ * dashboard regularly.
+ */
+export async function sendAdminVenueRemovalRequestEmail(
+  opts: VenueRemovalRequestEmailOptions,
+): Promise<void> {
+  const transport = createTransport();
+  if (!transport) {
+    logger.warn({ businessName: opts.businessName }, "SMTP not configured — skipping venue removal request email");
+    return;
+  }
+
+  const subject = `[Met Admin] Venue removal requested — ${opts.businessName}`;
+
+  const html = layout(subject, `
+    <p>Hi team,</p>
+    <p>The owner of <strong>${escapeHtml(opts.businessName)}</strong> has submitted a
+       <strong>removal request</strong> via the Venue Manager portal.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
+      <tr><td style="padding:6px 12px;font-weight:600;width:140px;">Business ID</td><td style="padding:6px 12px;">#${opts.businessId}</td></tr>
+      <tr style="background:#f9f9f9;"><td style="padding:6px 12px;font-weight:600;">Manager ID</td><td style="padding:6px 12px;">#${opts.managerId}</td></tr>
+      <tr><td style="padding:6px 12px;font-weight:600;">Reason</td><td style="padding:6px 12px;">${opts.reason ? escapeHtml(opts.reason) : "<em>No reason provided</em>"}</td></tr>
+    </table>
+    <p>Please review the request in the admin dashboard and follow up with the venue within 2–3 business days.</p>
+  `);
+
+  await transport.sendMail({ from: getFrom(), to: opts.to, subject, html });
+  logger.info({ businessName: opts.businessName }, "Sent admin venue removal request email");
+}
+
 // ---------------------------------------------------------------------------
 // Escape helpers
 // ---------------------------------------------------------------------------

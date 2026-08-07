@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,6 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
@@ -39,6 +41,7 @@ export default function NewVenueEventScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
   const [startsAt, setStartsAt] = useState<Date>(defaultStartsAt);
   const [endsAt, setEndsAt] = useState<Date | null>(null);
   const [capacityLimit, setCapacityLimit] = useState("");
@@ -49,6 +52,34 @@ export default function NewVenueEventScreen() {
   function handleEndsAtChange(date: Date) {
     setEndsAt(date);
   }
+
+  const pickImage = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission required", "Please allow photo access in Settings to add a cover image.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (!asset.base64) { Alert.alert("Error", "Could not read image data."); return; }
+    setImageUploading(true);
+    try {
+      const { url } = await api.uploadVenueEventImage(
+        { uid: authedUid ?? "" },
+        { base64: asset.base64, contentType: asset.mimeType ?? "image/jpeg" },
+      );
+      setImageUrl(url);
+    } catch {
+      Alert.alert("Upload failed", "Could not upload image. Please try again.");
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   const canSubmit = title.trim().length > 0;
 
@@ -90,7 +121,33 @@ export default function NewVenueEventScreen() {
       >
         <Field label="Title *" value={title} onChangeText={setTitle} placeholder="Friday Night Quiz" colors={colors} />
         <Field label="Description" value={description} onChangeText={setDescription} placeholder="Details about the event..." multiline numberOfLines={3} colors={colors} />
-        <Field label="Cover Image URL" value={imageUrl} onChangeText={setImageUrl} placeholder="https://..." autoCapitalize="none" keyboardType="url" colors={colors} />
+
+        {/* ── Cover Image ────────────────────────────────────────────────── */}
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Cover Image (optional)</Text>
+          {imageUrl ? (
+            <View style={styles.imagePreviewWrap}>
+              <Image source={{ uri: imageUrl }} style={styles.imagePreview} resizeMode="cover" />
+              <Pressable
+                onPress={() => setImageUrl("")}
+                style={styles.imageRemoveBtn}
+                accessibilityLabel="Remove cover image"
+              >
+                <Text style={styles.imageRemoveText}>✕ Remove</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              onPress={pickImage}
+              disabled={imageUploading}
+              style={[styles.imagePickerBtn, { borderColor: colors.primary + "40" }]}
+            >
+              {imageUploading
+                ? <ActivityIndicator color={colors.primary} />
+                : <Text style={styles.imagePickerText}>＋ Add Cover Photo</Text>}
+            </Pressable>
+          )}
+        </View>
 
         <DateTimePicker
           label="Start Date & Time"
@@ -169,6 +226,12 @@ const styles = StyleSheet.create({
   field: {},
   fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
   fieldInput: { backgroundColor: "#1A1A1E", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15 },
+  imagePickerBtn: { backgroundColor: "#1A1A1E", borderWidth: 1, borderStyle: "dashed", borderRadius: 10, paddingVertical: 20, alignItems: "center", justifyContent: "center" },
+  imagePickerText: { color: "rgba(255,255,255,0.45)", fontSize: 14, fontFamily: "Inter_500Medium" },
+  imagePreviewWrap: { borderRadius: 10, overflow: "hidden", position: "relative" },
+  imagePreview: { width: "100%", height: 160, borderRadius: 10 },
+  imageRemoveBtn: { position: "absolute", top: 8, right: 8, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  imageRemoveText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   optionalRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   optionalBadge: { color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "Inter_400Regular" },
   clearBtn: { marginLeft: "auto" },

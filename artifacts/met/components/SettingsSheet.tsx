@@ -355,6 +355,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
   const [view, setView] = useState<SheetView>("menu");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // null = not yet asked, true = keep venue profile, false = delete venue profile too
+  const [keepVenueProfile, setKeepVenueProfile] = useState<boolean | null>(null);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [reverifying, setReverifying] = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
@@ -991,6 +993,58 @@ export function SettingsSheet({ visible, onClose }: Props) {
               )}
 
               {confirmDelete ? (
+                venueOwnerProfile != null && keepVenueProfile === null ? (
+                  /* ── Step 1: Ask about venue profile ─────────────────── */
+                  <View
+                    style={[
+                      styles.confirmCard,
+                      { backgroundColor: colors.muted, borderColor: colors.border },
+                    ]}
+                  >
+                    <Text style={[styles.confirmTitle, { color: colors.foreground }]}>
+                      What about your venue profile?
+                    </Text>
+                    <Text style={[styles.confirmSub, { color: colors.mutedForeground }]}>
+                      You have a venue on Met. Would you like to keep it or remove it along with your account?
+                    </Text>
+                    <View style={{ gap: 8 }}>
+                      <Pressable
+                        onPress={() => setKeepVenueProfile(true)}
+                        style={({ pressed }) => [
+                          styles.confirmBtn,
+                          { flex: 1, backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <Text style={[styles.confirmBtnText, { color: colors.foreground }]}>
+                          Keep venue profile
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setKeepVenueProfile(false)}
+                        style={({ pressed }) => [
+                          styles.confirmBtn,
+                          { flex: 1, backgroundColor: colors.destructive + "18", borderColor: colors.destructive, opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <Text style={[styles.confirmBtnText, { color: colors.destructive }]}>
+                          Delete venue profile too
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setConfirmDelete(false)}
+                        style={({ pressed }) => [
+                          styles.confirmBtn,
+                          { flex: 1, backgroundColor: "transparent", borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <Text style={[styles.confirmBtnText, { color: colors.mutedForeground }]}>
+                          {t("common.cancel")}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                /* ── Step 2: Final delete confirmation ───────────────── */
                 <View
                   style={[
                     styles.confirmCard,
@@ -1041,7 +1095,12 @@ export function SettingsSheet({ visible, onClose }: Props) {
                           // an error and keep the account intact so the
                           // user can retry.
                           if (authedUid && api.isConfigured()) {
-                            await api.deleteMe({ uid: authedUid });
+                            await api.deleteMe(
+                              { uid: authedUid },
+                              venueOwnerProfile != null
+                                ? { deleteVenueProfile: keepVenueProfile === false }
+                                : undefined,
+                            );
                           }
                           // Clear local storage and sign out of Firebase.
                           // ProfileGate then routes to /onboarding.
@@ -1075,9 +1134,10 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     </Pressable>
                   </View>
                 </View>
+                )
               ) : (
                 <Pressable
-                  onPress={() => setConfirmDelete(true)}
+                  onPress={() => { setConfirmDelete(true); setKeepVenueProfile(null); }}
                   style={({ pressed }) => [
                     styles.row,
                     {

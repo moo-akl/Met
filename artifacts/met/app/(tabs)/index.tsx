@@ -121,20 +121,6 @@ export default function HomeScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Venue preview sheet ────────────────────────────────────────────────────
-  const [selectedVenuePlaceId, setSelectedVenuePlaceId] = useState<string | null>(null);
-  const [venueSheetProfile, setVenueSheetProfile] = useState<VenueOwnerProfile | null>(null);
-  const [venueSheetLoading, setVenueSheetLoading] = useState(false);
-
-  useEffect(() => {
-    if (!selectedVenuePlaceId || !authedUid) return;
-    setVenueSheetProfile(null);
-    setVenueSheetLoading(true);
-    api.getVenueOwnerProfile({ uid: authedUid }, selectedVenuePlaceId)
-      .then((r) => setVenueSheetProfile(r.profile))
-      .catch(() => {})
-      .finally(() => setVenueSheetLoading(false));
-  }, [selectedVenuePlaceId, authedUid]);
 
   const handleCheckinPress = useCallback(() => {
     void AsyncStorage.setItem(CHECKIN_CTA_KEY, String(Date.now()));
@@ -385,7 +371,7 @@ export default function HomeScreen() {
 
         {/* ── Live heatmap ──────────────────────────────────────────── */}
         <View style={styles.heatmapSection}>
-          {mapReady && <HeatmapMap style={{ flex: 1 }} onVenuePress={setSelectedVenuePlaceId} />}
+          {mapReady && <HeatmapMap style={{ flex: 1 }} onVenuePress={(pid) => router.push({ pathname: "/venue/[placeId]", params: { placeId: pid } } as never)} />}
         </View>
 
         {/* ── Quick actions grid ────────────────────────────────────── */}
@@ -590,102 +576,6 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      {/* ── Venue preview sheet ─────────────────────────────────────────── */}
-      <Modal
-        visible={!!selectedVenuePlaceId}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedVenuePlaceId(null)}
-      >
-        <Pressable
-          style={vs.backdrop}
-          onPress={() => setSelectedVenuePlaceId(null)}
-        />
-        <View style={[vs.sheet, { paddingBottom: insets.bottom + 24 }]}>
-          {/* Drag handle */}
-          <View style={vs.handle} />
-
-          {venueSheetLoading || !venueSheetProfile ? (
-            <View style={vs.loadingBox}>
-              <ActivityIndicator color="#FF385C" />
-            </View>
-          ) : (
-            <>
-              {/* Cover */}
-              <View style={vs.cover}>
-                {venueSheetProfile.coverPhotoUrl ? (
-                  <Image
-                    source={{ uri: venueSheetProfile.coverPhotoUrl }}
-                    style={vs.coverImg}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                ) : (
-                  <LG
-                    colors={["#73C8A9", "#DEE1B6", "#E1B866"]}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                    style={vs.coverImg}
-                  />
-                )}
-              </View>
-
-              {/* Identity row */}
-              <View style={vs.identityRow}>
-                {venueSheetProfile.logoUrl ? (
-                  <Image
-                    source={{ uri: venueSheetProfile.logoUrl }}
-                    style={vs.logo}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                ) : (
-                  <LG colors={["#FDE68A", "#FBBF24"]} style={vs.logoFallback}>
-                    <Text style={vs.logoChar}>
-                      {venueSheetProfile.businessName.charAt(0).toUpperCase()}
-                    </Text>
-                  </LG>
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={vs.name} numberOfLines={1}>
-                    {venueSheetProfile.businessName}
-                  </Text>
-                  {venueSheetProfile.tagline ? (
-                    <Text style={vs.tagline} numberOfLines={1}>
-                      {venueSheetProfile.tagline}
-                    </Text>
-                  ) : null}
-                  {venueSheetProfile.isVerified && (
-                    <View style={vs.verifiedPill}>
-                      <Text style={vs.verifiedText}>✓ Verified</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {/* Description */}
-              {venueSheetProfile.description ? (
-                <Text style={vs.description} numberOfLines={3}>
-                  {venueSheetProfile.description}
-                </Text>
-              ) : null}
-
-              {/* CTA */}
-              <Pressable
-                style={({ pressed }) => [vs.cta, { opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => {
-                  setSelectedVenuePlaceId(null);
-                  setTimeout(() => {
-                    router.push({ pathname: "/venue/[placeId]", params: { placeId: selectedVenuePlaceId! } } as never);
-                  }, 300);
-                }}
-                accessibilityRole="button"
-              >
-                <Text style={vs.ctaText}>View Full Profile →</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -763,10 +653,9 @@ const styles = StyleSheet.create({
 
   // ── Heatmap ───────────────────────────────────────────────────────────────
   heatmapSection: {
-    alignSelf: "center",
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+    marginHorizontal: 12,
+    height: 340,
+    borderRadius: 24,
     marginTop: 16,
     borderWidth: 1, borderColor: AG_BORDER,
     overflow: "hidden",
@@ -828,107 +717,4 @@ const styles = StyleSheet.create({
   langRowIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
   langRowLabel: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
   langRowSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 1 },
-});
-
-// ── Venue preview sheet styles ────────────────────────────────────────────────
-const vs = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  sheet: {
-    backgroundColor: "#FAFAF8",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  handle: {
-    alignSelf: "center",
-    width: 40, height: 4,
-    borderRadius: 2,
-    backgroundColor: "#E5E7EB",
-    marginBottom: 16,
-  },
-  loadingBox: {
-    height: 120,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cover: {
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 16,
-    height: 160,
-  },
-  coverImg: {
-    width: "100%",
-    height: "100%",
-  },
-  identityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
-  },
-  logo: {
-    width: 52, height: 52,
-    borderRadius: 26,
-    borderWidth: 2,
-    borderColor: "#F0F0F0",
-  },
-  logoFallback: {
-    width: 52, height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  logoChar: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 22,
-    color: "#78350F",
-  },
-  name: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 18,
-    color: "#222222",
-  },
-  tagline: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    color: "#484848",
-    marginTop: 2,
-  },
-  verifiedPill: {
-    alignSelf: "flex-start",
-    marginTop: 4,
-    backgroundColor: "#ECFDF5",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  verifiedText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 11,
-    color: "#065F46",
-  },
-  description: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    color: "#484848",
-    lineHeight: 21,
-    marginBottom: 20,
-  },
-  cta: {
-    backgroundColor: "#FF385C",
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: "center",
-  },
-  ctaText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-    color: "#FFFFFF",
-  },
 });

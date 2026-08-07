@@ -913,6 +913,16 @@ router.post("/venue-manager/businesses/:businessId/removal-request", requireSess
     applicantMessage: reason,
     metadata: { managerId: req.venueManagerSession!.managerId, businessId: membership.businessId },
   });
+  // Best-effort admin notification — failure must not prevent the 201 response.
+  void import("../lib/email.js").then(({ sendAdminVenueRemovalRequestEmail }) =>
+    sendAdminVenueRemovalRequestEmail({
+      to: "metapp.contact@gmail.com",
+      businessName: current.profile.businessName,
+      reason,
+      managerId: req.venueManagerSession!.managerId,
+      businessId: membership.businessId,
+    }).catch(() => {}),
+  );
   res.status(201).json({ message: "Your removal request has been received. Our team will follow up within 2–3 business days." });
 });
 

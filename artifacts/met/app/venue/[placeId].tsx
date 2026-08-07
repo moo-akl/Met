@@ -585,7 +585,36 @@ export default function VenueProfileScreen() {
             </View>
           ) : null}
 
-          {/* ── 1. Be the Winner ───────────────────────────────────────── */}
+          {/* ── 1. Announcements ───────────────────────────────────────── */}
+          {announcements.length > 0 && (
+            <View style={styles.section}>
+              <SectionLabel title="Announcements" />
+              {announcements.slice(0, 5).map((ann) => (
+                <View key={ann.id} style={[styles.annCard, cardShadow]}>
+                  {"imageUrl" in ann && (ann as { imageUrl?: string | null }).imageUrl ? (
+                    <Image
+                      source={{ uri: (ann as { imageUrl: string }).imageUrl }}
+                      style={styles.annImage}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ) : null}
+                  <View style={styles.annBody}>
+                    {ann.isPinned && (
+                      <Text style={styles.annPinned}>📌 Pinned</Text>
+                    )}
+                    <Text style={styles.annTitle}>{ann.title}</Text>
+                    <Text numberOfLines={3} style={styles.annText}>{ann.body}</Text>
+                    <Text style={styles.annDate}>
+                      {new Date(ann.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* ── 2. Rewards ─────────────────────────────────────────────── */}
           {displayRewards.length > 0 && (
             <View style={styles.section}>
               <SectionLabel title={displayRewards.length === 1 ? "Active Reward" : "Active Rewards"} />
@@ -674,36 +703,28 @@ export default function VenueProfileScreen() {
             </View>
           )}
 
-          {/* ── 2. Announcements ───────────────────────────────────────── */}
-          {announcements.length > 0 && (
+          {/* ── 3. Events ──────────────────────────────────────────────── */}
+          {displayEvents.length > 0 && (
             <View style={styles.section}>
-              <SectionLabel title="Announcements" />
-              {announcements.slice(0, 5).map((ann) => (
-                <View key={ann.id} style={[styles.annCard, cardShadow]}>
-                  {"imageUrl" in ann && (ann as { imageUrl?: string | null }).imageUrl ? (
-                    <Image
-                      source={{ uri: (ann as { imageUrl: string }).imageUrl }}
-                      style={styles.annImage}
-                      contentFit="cover"
-                      transition={200}
-                    />
-                  ) : null}
-                  <View style={styles.annBody}>
-                    {ann.isPinned && (
-                      <Text style={styles.annPinned}>📌 Pinned</Text>
-                    )}
-                    <Text style={styles.annTitle}>{ann.title}</Text>
-                    <Text numberOfLines={3} style={styles.annText}>{ann.body}</Text>
-                    <Text style={styles.annDate}>
-                      {new Date(ann.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </Text>
-                  </View>
-                </View>
-              ))}
+              <SectionLabel title="Events" />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.hScroll}
+                contentContainerStyle={{ paddingRight: 16 }}
+              >
+                {displayEvents.map((event) => (
+                  <VenueEventCard
+                    key={event.id}
+                    event={event}
+                    onPress={() => setSelectedEvent(event)}
+                  />
+                ))}
+              </ScrollView>
             </View>
           )}
 
-          {/* ── 3. Leaderboards ────────────────────────────────────────── */}
+          {/* ── 4. Leaderboards ────────────────────────────────────────── */}
           {topVisitors.length > 0 && (
             <View style={styles.section}>
               <SectionLabel
@@ -734,27 +755,6 @@ export default function VenueProfileScreen() {
                   </View>
                 ))}
               </View>
-            </View>
-          )}
-
-          {/* ── Events ─────────────────────────────────────────────────── */}
-          {displayEvents.length > 0 && (
-            <View style={styles.section}>
-              <SectionLabel title="Events" />
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.hScroll}
-                contentContainerStyle={{ paddingRight: 16 }}
-              >
-                {displayEvents.map((event) => (
-                  <VenueEventCard
-                    key={event.id}
-                    event={event}
-                    onPress={() => setSelectedEvent(event)}
-                  />
-                ))}
-              </ScrollView>
             </View>
           )}
 

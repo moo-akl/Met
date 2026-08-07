@@ -5,6 +5,10 @@ import {
   profilesTable,
   revealRequestsTable,
   subscriptionsTable,
+  venueOwnerProfilesTable,
+  venueEventsTable,
+  venueRewardsTable,
+  venueAnnouncementsTable,
   type Profile,
 } from "@workspace/db";
 import {
@@ -424,10 +428,19 @@ router.get("/profiles/:uid", requireUid, async (req, res) => {
 // DELETE /api/profiles/me
 // Permanently deletes the authenticated user's account and all associated data
 // from Postgres, Firestore, and Firebase Auth. Irreversible.
+// Body: { deleteVenueProfile?: boolean } — when true, also removes the venue
+// owner profile and all its events, rewards, and announcements.
 router.delete("/profiles/me", requireUid, async (req, res) => {
   const uid = req.uid!;
+  if (req.body?.deleteVenueProfile === true) {
+    // Delete venue content in dependency order before profile (avoids FK issues).
+    await db.delete(venueEventsTable).where(eq(venueEventsTable.ownerUid, uid));
+    await db.delete(venueRewardsTable).where(eq(venueRewardsTable.ownerUid, uid));
+    await db.delete(venueAnnouncementsTable).where(eq(venueAnnouncementsTable.ownerUid, uid));
+    await db.delete(venueOwnerProfilesTable).where(eq(venueOwnerProfilesTable.ownerUid, uid));
+  }
   await deleteUserData(uid);
-  req.log.info({ uid }, "User account fully deleted");
+  req.log.info({ uid, deletedVenueProfile: !!req.body?.deleteVenueProfile }, "User account fully deleted");
   res.status(204).send();
 });
 

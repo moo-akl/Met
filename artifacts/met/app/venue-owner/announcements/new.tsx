@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,6 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
@@ -31,10 +33,39 @@ export default function NewVenueAnnouncementScreen() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = title.trim().length > 0 && body.trim().length > 0;
+
+  const pickImage = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission required", "Please allow photo access in Settings to add an image.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (!asset.base64) { Alert.alert("Error", "Could not read image data."); return; }
+    setImageUploading(true);
+    try {
+      const { url } = await api.uploadVenueAnnouncementImage(
+        { uid: authedUid ?? "" },
+        { base64: asset.base64, contentType: asset.mimeType ?? "image/jpeg" },
+      );
+      setImageUrl(url);
+    } catch {
+      Alert.alert("Upload failed", "Could not upload image. Please try again.");
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (!authedUid || !canSubmit || submitting) return;
@@ -90,13 +121,31 @@ export default function NewVenueAnnouncementScreen() {
           />
         </View>
 
+        {/* ── Cover Image ────────────────────────────────────────────────── */}
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Image URL (optional)</Text>
-          <TextInput
-            value={imageUrl} onChangeText={setImageUrl} placeholder="https://..."
-            placeholderTextColor="rgba(255,255,255,0.25)" autoCapitalize="none" keyboardType="url"
-            style={[styles.fieldInput, { borderColor: colors.primary + "40" }]}
-          />
+          <Text style={styles.fieldLabel}>Image (optional)</Text>
+          {imageUrl ? (
+            <View style={styles.imagePreviewWrap}>
+              <Image source={{ uri: imageUrl }} style={styles.imagePreview} resizeMode="cover" />
+              <Pressable
+                onPress={() => setImageUrl("")}
+                style={styles.imageRemoveBtn}
+                accessibilityLabel="Remove image"
+              >
+                <Text style={styles.imageRemoveText}>✕ Remove</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              onPress={pickImage}
+              disabled={imageUploading}
+              style={[styles.imagePickerBtn, { borderColor: colors.primary + "40" }]}
+            >
+              {imageUploading
+                ? <ActivityIndicator color={colors.primary} />
+                : <Text style={styles.imagePickerText}>＋ Add Image</Text>}
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.toggleRow}>
@@ -125,14 +174,17 @@ export default function NewVenueAnnouncementScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
-  backText: { color: "rgba(255,255,255,0.55)", fontSize: 15 },
-  title: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
   scroll: { flex: 1 },
   content: { padding: 24, gap: 18 },
   field: {},
   fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
   fieldInput: { backgroundColor: "#1A1A1E", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15 },
+  imagePickerBtn: { backgroundColor: "#1A1A1E", borderWidth: 1, borderStyle: "dashed", borderRadius: 10, paddingVertical: 20, alignItems: "center", justifyContent: "center" },
+  imagePickerText: { color: "rgba(255,255,255,0.45)", fontSize: 14, fontFamily: "Inter_500Medium" },
+  imagePreviewWrap: { borderRadius: 10, overflow: "hidden" },
+  imagePreview: { width: "100%", height: 160, borderRadius: 10 },
+  imageRemoveBtn: { position: "absolute", top: 8, right: 8, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  imageRemoveText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#1A1A1E", borderRadius: 10, padding: 14 },
   toggleLabel: { color: "rgba(255,255,255,0.85)", fontSize: 15, fontFamily: "Inter_500Medium" },
   toggleSub: { color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 2 },
