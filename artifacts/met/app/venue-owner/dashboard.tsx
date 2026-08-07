@@ -78,7 +78,7 @@ export default function VenueOwnerDashboardScreen() {
       <VenueOwnerHeader
         title="Venue Manager"
         onBack={() => router.replace("/(tabs)/profile" as never)}
-        backLabel="Profile"
+        backLabel="Back"
       />
 
       <ScrollView

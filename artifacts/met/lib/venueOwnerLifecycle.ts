@@ -68,7 +68,10 @@ export function isVenueOwnerPathAllowed(
   reapply?: string,
 ): boolean {
   if (destination === "/venue-owner/dashboard") {
-    return pathname === destination;
+    // Approved owners can access the dashboard and all management sub-screens.
+    // Terminal lifecycle screens (setup / pending / rejected) are still off-limits.
+    const TERMINAL = ["/venue-owner/setup", "/venue-owner/pending", "/venue-owner/rejected", "/venue-owner"];
+    return pathname.startsWith("/venue-owner/") && !TERMINAL.includes(pathname);
   }
   return (
     pathname === destination ||

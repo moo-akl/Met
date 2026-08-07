@@ -106,7 +106,7 @@ function PulsingMarker({
     return () => anim.stop();
   }, [scale, opacity]);
 
-  const dotSize = Math.min(44, 22 + Math.min(checkinCount - 1, 4) * 5);
+  const dotSize = Math.min(64, 34 + Math.min(checkinCount - 1, 4) * 6);
 
   return (
     <Marker coordinate={coordinate} anchor={{ x: 0.5, y: 0.5 }}>
@@ -299,8 +299,8 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
   // distinguishable without swamping the map at any zoom.
   const heatCircles = useMemo(() => {
     const visibleHeightM = region.latitudeDelta * 111_000;
-    const baseRadiusM = visibleHeightM * 0.025;
-    const popBoostM = visibleHeightM * 0.025;
+    const baseRadiusM = visibleHeightM * 0.045;
+    const popBoostM = visibleHeightM * 0.04;
 
     return heatmapVenues.map((venue) => {
       const pop = venue.popularity ?? 0;

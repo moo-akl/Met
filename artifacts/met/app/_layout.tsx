@@ -500,7 +500,14 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="venue/[placeId]"
-        options={{ presentation: "containedModal", animation: "slide_from_bottom" }}
+        options={{
+          presentation: "formSheet",
+          animation: "slide_from_bottom",
+          sheetAllowedDetents: [0.9],
+          sheetInitialDetentIndex: 0,
+          sheetGrabberVisible: false,   // the screen renders its own drag handle
+          sheetExpandsWhenScrolledToEdge: true,
+        }}
       />
       <Stack.Screen
         name="leaderboard/[placeId]"
