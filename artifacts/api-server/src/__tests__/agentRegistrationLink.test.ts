@@ -23,6 +23,7 @@ import {
   salesAgentsTable,
   venueApplicationHistoryTable,
   venueManagerRegistrationTokensTable,
+  venueAdminCredentialsTable,
 } from "@workspace/db";
 import type { Express } from "express";
 
@@ -118,6 +119,17 @@ function agentCookieHeader(agentId: number, sessionVersion = 1): string {
   return `met_agent_session=${encodeURIComponent(signed)}`;
 }
 
+/**
+ * Builds the met_venue_admin cookie header for admin session tests.
+ * Format mirrors what the route writes: `${credentialId}.${sessionVersion}.${expiresAt}`.
+ */
+function adminCookieHeader(credentialId: number, sessionVersion = 1): string {
+  const expiresAt = Date.now() + 8 * 60 * 60 * 1000;
+  const raw = `${credentialId}.${sessionVersion}.${expiresAt}`;
+  const signed = signCookieValue(raw, TEST_SESSION_SECRET);
+  return `met_venue_admin=${encodeURIComponent(signed)}`;
+}
+
 // ---------------------------------------------------------------------------
 // Fixture IDs — populated in beforeAll
 // ---------------------------------------------------------------------------
@@ -132,6 +144,14 @@ let profileNoEmailBusinessId = 0;
 let businessId = 0;
 let profileForDeactivatedAgentId = 0;
 let businessForDeactivatedAgentId = 0;
+
+// For the deactivation-cleanup test: an agent that starts active then gets
+// deactivated via the PATCH endpoint during the test.
+let agentToDeactivateId = 0;
+let profileForAgentToDeactivateId = 0;
+let businessForAgentToDeactivateId = 0;
+// Admin credential used to authenticate the PATCH /admin/venue-owner/agents/:id call.
+let adminCredentialId = 0;
 
 // ---------------------------------------------------------------------------
 // Seed & cleanup
@@ -282,6 +302,55 @@ async function seed() {
     })
     .returning({ id: venueBusinessesTable.id });
   businessForDeactivatedAgentId = businessForDeactivatedAgent!.id;
+
+  // ── Deactivation-cleanup test fixtures ────────────────────────────────────
+  // An agent that starts ACTIVE so we can deactivate them in the test and
+  // verify their outstanding tokens are cleaned up.
+  const [agentToDeactivate] = await db
+    .insert(salesAgentsTable)
+    .values({
+      email: `to-deactivate-${TEST_AGENT_EMAIL}`,
+      displayName: "Agent To Deactivate",
+      passwordHash: "scrypt$dummy$dummy",
+      isActive: true,
+      sessionVersion: 1,
+    })
+    .returning({ id: salesAgentsTable.id });
+  agentToDeactivateId = agentToDeactivate!.id;
+
+  const [profileForAgentToDeactivate] = await db
+    .insert(venueOwnerProfilesTable)
+    .values({
+      ownerUid: `${TEST_OWNER_UID}-to-deactivate`,
+      placeId: `${TEST_PLACE_ID}-to-deactivate`,
+      placeName: "Agent-To-Deactivate Test Venue",
+      businessName: "Agent-To-Deactivate Test Venue Ltd",
+      applicationStatus: "approved",
+      isApproved: true,
+      contactEmail: TEST_CONTACT_EMAIL,
+      assignedAgentId: agentToDeactivateId,
+    })
+    .returning({ id: venueOwnerProfilesTable.id });
+  profileForAgentToDeactivateId = profileForAgentToDeactivate!.id;
+
+  const [businessForAgentToDeactivate] = await db
+    .insert(venueBusinessesTable)
+    .values({
+      venueOwnerProfileId: profileForAgentToDeactivateId,
+      placeId: `${TEST_PLACE_ID}-to-deactivate`,
+      legalName: "Agent-To-Deactivate Test Venue Ltd",
+      createdByUid: `${TEST_OWNER_UID}-to-deactivate`,
+      isActive: true,
+    })
+    .returning({ id: venueBusinessesTable.id });
+  businessForAgentToDeactivateId = businessForAgentToDeactivate!.id;
+
+  // Admin credential used to authenticate the PATCH endpoint.
+  const [adminCredential] = await db
+    .insert(venueAdminCredentialsTable)
+    .values({ passwordHash: "scrypt$dummy$dummy", sessionVersion: 1 })
+    .returning({ id: venueAdminCredentialsTable.id });
+  adminCredentialId = adminCredential!.id;
 }
 
 async function cleanup() {
@@ -347,12 +416,36 @@ async function cleanup() {
     .delete(venueOwnerProfilesTable)
     .where(eq(venueOwnerProfilesTable.placeId, `${TEST_PLACE_ID}-deactivated`));
 
-  for (const aid of [agentId, otherAgentId, deactivatedAgentId]) {
+  if (businessForAgentToDeactivateId) {
+    await db
+      .delete(venueManagerRegistrationTokensTable)
+      .where(eq(venueManagerRegistrationTokensTable.businessId, businessForAgentToDeactivateId));
+    await db
+      .delete(venueBusinessesTable)
+      .where(eq(venueBusinessesTable.id, businessForAgentToDeactivateId));
+  }
+
+  if (profileForAgentToDeactivateId) {
+    await db
+      .delete(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.id, profileForAgentToDeactivateId));
+  }
+  await db
+    .delete(venueOwnerProfilesTable)
+    .where(eq(venueOwnerProfilesTable.placeId, `${TEST_PLACE_ID}-to-deactivate`));
+
+  for (const aid of [agentId, otherAgentId, deactivatedAgentId, agentToDeactivateId]) {
     if (aid) {
       await db
         .delete(salesAgentsTable)
         .where(eq(salesAgentsTable.id, aid));
     }
+  }
+
+  if (adminCredentialId) {
+    await db
+      .delete(venueAdminCredentialsTable)
+      .where(eq(venueAdminCredentialsTable.id, adminCredentialId));
   }
 }
 
@@ -553,6 +646,57 @@ describe.skipIf(!hasDatabase)(
 
       // sendRegistrationLinkEmail must never have been called.
       expect(mockSendRegistrationLinkEmail).not.toHaveBeenCalled();
+    });
+
+    // -----------------------------------------------------------------------
+    // Deactivation cleanup: when an agent is deactivated via the admin PATCH
+    // endpoint, their outstanding unconsumed registration tokens must be
+    // deleted, making the previously issued token invalid at /venue-manager/register.
+    // -----------------------------------------------------------------------
+    it("deletes outstanding tokens when the issuing agent is deactivated, causing the registration endpoint to reject them", async () => {
+      // 1. Insert a registration token for the "to-deactivate" agent's business.
+      const rawToken = "itest-deact-token-" + Date.now();
+      const crypto = await import("node:crypto");
+      const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await db
+        .insert(venueManagerRegistrationTokensTable)
+        .values({ businessId: businessForAgentToDeactivateId, tokenHash, expiresAt });
+
+      // Confirm the token exists before deactivation.
+      const tokensBefore = await db
+        .select()
+        .from(venueManagerRegistrationTokensTable)
+        .where(eq(venueManagerRegistrationTokensTable.businessId, businessForAgentToDeactivateId));
+      expect(tokensBefore.length).toBeGreaterThanOrEqual(1);
+
+      // 2. Deactivate the agent via the admin PATCH endpoint.
+      const deactivateRes = await request(app)
+        .patch(`/api/admin/venue-owner/agents/${agentToDeactivateId}`)
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ isActive: false });
+      expect(deactivateRes.status).toBe(200);
+      expect(deactivateRes.body.agent.isActive).toBe(false);
+
+      // 3. The outstanding token must have been deleted.
+      const tokensAfter = await db
+        .select()
+        .from(venueManagerRegistrationTokensTable)
+        .where(eq(venueManagerRegistrationTokensTable.businessId, businessForAgentToDeactivateId));
+      expect(tokensAfter.length).toBe(0);
+
+      // 4. Attempting to use the token at the registration endpoint must be
+      //    rejected because the token no longer exists.
+      const registerRes = await request(app)
+        .post("/api/venue-manager/register")
+        .send({
+          token: rawToken,
+          email: `regtest-${Date.now()}@itest.invalid`,
+          displayName: "Test User",
+          password: "Str0ngP@ssword!",
+        });
+      expect(registerRes.status).toBe(400);
+      expect(registerRes.body.message).toMatch(/invalid or has expired/i);
     });
 
     // -----------------------------------------------------------------------

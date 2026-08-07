@@ -3735,6 +3735,37 @@ router.patch(
       res.status(404).json({ message: "Agent not found." });
       return;
     }
+
+    // When an agent is deactivated, revoke any outstanding (unconsumed)
+    // registration tokens they issued so that venue owners who received a link
+    // before the deactivation can no longer use it.
+    if (parsed.data.isActive === false) {
+      const assignedProfiles = await db
+        .select({ id: venueOwnerProfilesTable.id })
+        .from(venueOwnerProfilesTable)
+        .where(eq(venueOwnerProfilesTable.assignedAgentId, agentId));
+
+      if (assignedProfiles.length > 0) {
+        const profileIds = assignedProfiles.map((p) => p.id);
+        const assignedBusinesses = await db
+          .select({ id: venueBusinessesTable.id })
+          .from(venueBusinessesTable)
+          .where(inArray(venueBusinessesTable.venueOwnerProfileId, profileIds));
+
+        if (assignedBusinesses.length > 0) {
+          const businessIds = assignedBusinesses.map((b) => b.id);
+          await db
+            .delete(venueManagerRegistrationTokensTable)
+            .where(
+              and(
+                inArray(venueManagerRegistrationTokensTable.businessId, businessIds),
+                isNull(venueManagerRegistrationTokensTable.consumedAt),
+              ),
+            );
+        }
+      }
+    }
+
     res.json({ agent });
   },
 );
