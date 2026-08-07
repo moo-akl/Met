@@ -11,6 +11,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 process.env["ADMIN_SECRET"] = "test-admin-bootstrap";
 process.env["SESSION_SECRET"] = "test-session-secret";
 
+/**
+ * Spy on drizzle-orm's `eq` so individual tests can assert that the correct
+ * equality predicate is constructed (e.g. eq("applicationSource", "mobile")).
+ * The spy calls through to the real implementation so nothing else breaks.
+ */
+const eqSpy = vi.hoisted(() => vi.fn());
+vi.mock("drizzle-orm", async (importActual) => {
+  const actual = await importActual<typeof import("drizzle-orm")>();
+  return {
+    ...actual,
+    eq: (...args: Parameters<typeof actual.eq>) => {
+      eqSpy(...args);
+      return actual.eq(...args);
+    },
+  };
+});
+
 const dbMocks = vi.hoisted(() => {
   /**
    * The admin credential table gets its own stateful mini-store so its
@@ -97,6 +114,7 @@ vi.mock("@workspace/db", () => ({
     ownerUid: "ownerUid",
     placeId: "placeId",
     applicationStatus: "applicationStatus",
+    applicationSource: "applicationSource",
     submittedAt: "submittedAt",
     createdAt: "createdAt",
   },
@@ -160,7 +178,9 @@ type Status =
   | "withdrawn"
   | "expired";
 
-function application(overrides: { id?: number; applicationStatus?: Status } = {}) {
+function application(
+  overrides: { id?: number; applicationStatus?: Status; applicationSource?: string | null } = {},
+) {
   return {
     id: overrides.id ?? 7,
     ownerUid: "venue-owner-uid",
@@ -179,6 +199,7 @@ function application(overrides: { id?: number; applicationStatus?: Status } = {}
     isVerified: false,
     rejectionReason: null,
     applicationStatus: overrides.applicationStatus ?? "submitted",
+    applicationSource: "applicationSource" in overrides ? overrides.applicationSource : null,
     submittedAt: new Date("2026-07-01T10:00:00.000Z"),
     reviewedAt: null,
     approvedAt: null,
@@ -1111,5 +1132,95 @@ describe("lockout durability across server restarts", () => {
       .send({ currentPassword: "SecurePassword1", newPassword: "BrandNewSecret1" });
     expect(afterRestart.status).toBe(429);
     expect(afterRestart.headers["retry-after"]).toBeDefined();
+  });
+});
+
+describe("source filter", () => {
+  /**
+   * The source filter uses an equality match on `applicationSource`. Legacy
+   * rows pre-dating the column have NULL there and must be excluded when any
+   * source is active — because the SQL equality predicate `applicationSource =
+   * 'mobile'` never matches NULL (SQL three-valued logic). These tests verify
+   * that:
+   *   a) the equality predicate is actually constructed (via the eqSpy on
+   *      drizzle-orm's `eq`) for each accepted source value, so a future
+   *      refactor that removes the filter clause would immediately fail here;
+   *   b) no source predicate is emitted when the query param is absent; and
+   *   c) the serialized response reflects the rows the DB returns.
+   *
+   * venueOwnerProfilesTable.applicationSource is mocked as the plain string
+   * "applicationSource", so spy assertions compare against that string rather
+   * than a drizzle column object.
+   */
+
+  it.each(["mobile", "web", "agent"] as const)(
+    "constructs an equality predicate on applicationSource when source=%s",
+    async (sourceValue) => {
+      const agent = await signedInAgent();
+      dbMocks.chain.orderBy.mockResolvedValueOnce([]);
+      dbMocks.chain.groupBy.mockResolvedValueOnce([]);
+
+      const res = await agent.get(`/api/admin/venue-owner/applications?source=${sourceValue}`);
+
+      expect(res.status).toBe(200);
+      // The route must have called eq("applicationSource", sourceValue) to build
+      // the filter — this is the predicate that excludes NULL (legacy) rows and
+      // rows with a different source value.
+      expect(eqSpy).toHaveBeenCalledWith("applicationSource", sourceValue);
+    },
+  );
+
+  it("does not add a source predicate when no source filter is given", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.orderBy.mockResolvedValueOnce([]);
+    dbMocks.chain.groupBy.mockResolvedValueOnce([]);
+
+    await agent.get("/api/admin/venue-owner/applications");
+
+    // Without ?source=, the route must not emit an applicationSource equality
+    // clause, so legacy (NULL) rows and all-source rows are included.
+    const sourceEqCalls = eqSpy.mock.calls.filter((args) => args[0] === "applicationSource");
+    expect(sourceEqCalls).toHaveLength(0);
+  });
+
+  it("returns the matching rows in the response body when source=mobile", async () => {
+    const agent = await signedInAgent();
+    const mobileRow = application({ id: 1, applicationSource: "mobile" });
+    dbMocks.chain.orderBy.mockResolvedValueOnce([mobileRow]);
+    dbMocks.chain.groupBy.mockResolvedValueOnce([{ status: "submitted", total: 1 }]);
+
+    const res = await agent.get("/api/admin/venue-owner/applications?source=mobile");
+
+    expect(res.status).toBe(200);
+    expect(res.body.applications).toHaveLength(1);
+    expect(res.body.applications[0].applicationSource).toBe("mobile");
+    // Predicate must still be present.
+    expect(eqSpy).toHaveBeenCalledWith("applicationSource", "mobile");
+  });
+
+  it("returns sourced and legacy rows in the response body when no source filter is given", async () => {
+    const agent = await signedInAgent();
+    const mobileRow = application({ id: 1, applicationSource: "mobile" });
+    const legacyRow = application({ id: 2, applicationSource: null });
+    dbMocks.chain.orderBy.mockResolvedValueOnce([mobileRow, legacyRow]);
+    dbMocks.chain.groupBy.mockResolvedValueOnce([{ status: "submitted", total: 2 }]);
+
+    const res = await agent.get("/api/admin/venue-owner/applications");
+
+    expect(res.status).toBe(200);
+    expect(res.body.applications).toHaveLength(2);
+    // No source predicate emitted.
+    const sourceEqCalls = eqSpy.mock.calls.filter((args) => args[0] === "applicationSource");
+    expect(sourceEqCalls).toHaveLength(0);
+  });
+
+  it("rejects an unknown source value with 400 before touching the DB", async () => {
+    const agent = await signedInAgent();
+
+    const res = await agent.get("/api/admin/venue-owner/applications?source=unknown");
+
+    expect(res.status).toBe(400);
+    // No DB write or source predicate should be constructed for an invalid value.
+    expect(eqSpy).not.toHaveBeenCalledWith("applicationSource", "unknown");
   });
 });
