@@ -700,6 +700,74 @@ describe.skipIf(!hasDatabase)(
     });
 
     // -----------------------------------------------------------------------
+    // GET /admin/agent/applications — claimLinkSentAt field
+    //
+    // Verifies that the agent application list endpoint correctly surfaces the
+    // most-recent registration-link send timestamp (or null) for each venue.
+    // -----------------------------------------------------------------------
+    describe("GET /api/admin/agent/applications — claimLinkSentAt field", () => {
+      it("returns null claimLinkSentAt for a venue that has never had a registration link sent", async () => {
+        // profileNoBizId is assigned to agentId but always returns 409 from the
+        // POST endpoint (no business row), so no history row with
+        // metadata.registrationLink=true is ever written for it.
+        const res = await request(app)
+          .get("/api/admin/agent/applications")
+          .set("Cookie", agentCookieHeader(agentId));
+
+        expect(res.status).toBe(200);
+        const venues = res.body.venues as Array<{
+          id: number;
+          claimLinkSentAt: string | null;
+        }>;
+        expect(Array.isArray(venues)).toBe(true);
+
+        const noBizVenue = venues.find((v) => v.id === profileNoBizId);
+        expect(noBizVenue).toBeDefined();
+        expect(noBizVenue!.claimLinkSentAt).toBeNull();
+      });
+
+      it("returns the correct ISO timestamp in claimLinkSentAt after a registration link is sent", async () => {
+        mockSendRegistrationLinkEmail.mockClear();
+
+        const before = Date.now();
+
+        // Send a registration link — this writes the history row the GET
+        // endpoint aggregates.
+        const postRes = await request(app)
+          .post(`/api/admin/agent/applications/${profileId}/registration-link`)
+          .set("Cookie", agentCookieHeader(agentId));
+        expect(postRes.status).toBe(201);
+        expect(postRes.body.sentAt).toBeDefined();
+
+        // Fetch the agent application list and find the venue.
+        const getRes = await request(app)
+          .get("/api/admin/agent/applications")
+          .set("Cookie", agentCookieHeader(agentId));
+
+        expect(getRes.status).toBe(200);
+        const venues = getRes.body.venues as Array<{
+          id: number;
+          claimLinkSentAt: string | null;
+        }>;
+
+        const venue = venues.find((v) => v.id === profileId);
+        expect(venue).toBeDefined();
+        expect(venue!.claimLinkSentAt).toBeTruthy();
+
+        // The timestamp must be a valid ISO string that falls within the window
+        // of this test run (with a generous ±10 s tolerance for slow CI).
+        const claimTs = new Date(venue!.claimLinkSentAt!).getTime();
+        expect(claimTs).toBeGreaterThanOrEqual(before - 10_000);
+        expect(claimTs).toBeLessThanOrEqual(Date.now() + 10_000);
+
+        // The value returned by the list endpoint must match the sentAt field
+        // from the POST response (same event, same row).
+        const postSentAt = new Date(postRes.body.sentAt as string).getTime();
+        expect(Math.abs(claimTs - postSentAt)).toBeLessThanOrEqual(1_000);
+      });
+    });
+
+    // -----------------------------------------------------------------------
     // SMTP down: sendRegistrationLinkEmail throws → 200 with emailSent:false,
     // no history row written, token row still exists.
     // -----------------------------------------------------------------------
