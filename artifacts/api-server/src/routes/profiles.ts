@@ -6,9 +6,6 @@ import {
   revealRequestsTable,
   subscriptionsTable,
   venueOwnerProfilesTable,
-  venueEventsTable,
-  venueRewardsTable,
-  venueAnnouncementsTable,
   type Profile,
 } from "@workspace/db";
 import {
@@ -22,6 +19,7 @@ import { requireUid } from "../middlewares/requireUid";
 import { uidToHash } from "../lib/uidHash";
 import { mirrorProfileToFirestore } from "../lib/firestoreMirror";
 import { deleteUserData } from "../lib/deleteUserData";
+import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 
 const router: IRouter = Router();
 
@@ -433,11 +431,20 @@ router.get("/profiles/:uid", requireUid, async (req, res) => {
 router.delete("/profiles/me", requireUid, async (req, res) => {
   const uid = req.uid!;
   if (req.body?.deleteVenueProfile === true) {
-    // Delete venue content in dependency order before profile (avoids FK issues).
-    await db.delete(venueEventsTable).where(eq(venueEventsTable.ownerUid, uid));
-    await db.delete(venueRewardsTable).where(eq(venueRewardsTable.ownerUid, uid));
-    await db.delete(venueAnnouncementsTable).where(eq(venueAnnouncementsTable.ownerUid, uid));
-    await db.delete(venueOwnerProfilesTable).where(eq(venueOwnerProfilesTable.ownerUid, uid));
+    // Look up the owner profile so we have both id and ownerUid for the cascade.
+    const [ownerProfile] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.ownerUid, uid))
+      .limit(1);
+
+    if (ownerProfile) {
+      // Full 13-table cascade: business, manager accounts, memberships, events,
+      // RSVPs, rewards, announcements, application history, and the profile row.
+      await db.transaction(async (tx) => {
+        await deleteVenueOwnerProfile(tx, ownerProfile);
+      });
+    }
   }
   await deleteUserData(uid);
   req.log.info({ uid, deletedVenueProfile: !!req.body?.deleteVenueProfile }, "User account fully deleted");

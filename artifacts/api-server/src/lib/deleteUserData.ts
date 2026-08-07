@@ -18,6 +18,7 @@ import {
   networkAnnouncementsTable,
   networkPollVotesTable,
   networkQuestionnaireAnswersTable,
+  venueEventRsvpsTable,
 } from "@workspace/db";
 import { eq, or } from "drizzle-orm";
 import { adminAuth, adminDb } from "./firebaseAdmin";
@@ -43,6 +44,12 @@ async function deletePostgresUserData(uid: string): Promise<void> {
     await tx
       .delete(hubCheckinsTable)
       .where(eq(hubCheckinsTable.userUid, uid));
+    // Remove RSVPs where this user attended another venue's event.
+    // (RSVPs for this user's own events are handled by the venue delete block
+    // in profiles.ts before deleteUserData is called.)
+    await tx
+      .delete(venueEventRsvpsTable)
+      .where(eq(venueEventRsvpsTable.userUid, uid));
     await tx
       .delete(profileViewsTable)
       .where(
