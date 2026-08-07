@@ -126,6 +126,8 @@ let agentId = 0;
 let otherAgentId = 0;
 let profileId = 0;
 let profileNoBizId = 0;
+let profileNoEmailId = 0;
+let profileNoEmailBusinessId = 0;
 let businessId = 0;
 
 // ---------------------------------------------------------------------------
@@ -189,7 +191,7 @@ async function seed() {
   businessId = business!.id;
 
   // A second approved profile assigned to our agent but with NO business row
-  // (used for the 409 test)
+  // (used for the 409/no-business test)
   const [profileNoBiz] = await db
     .insert(venueOwnerProfilesTable)
     .values({
@@ -204,6 +206,35 @@ async function seed() {
     })
     .returning({ id: venueOwnerProfilesTable.id });
   profileNoBizId = profileNoBiz!.id;
+
+  // A third approved profile assigned to our agent with NULL contactEmail
+  // but WITH a business row — used for the 409/no-email test.
+  const [profileNoEmail] = await db
+    .insert(venueOwnerProfilesTable)
+    .values({
+      ownerUid: `${TEST_OWNER_UID}-noemail`,
+      placeId: `${TEST_PLACE_ID}-noemail`,
+      placeName: "No-Email Test Venue",
+      businessName: "No-Email Test Venue Ltd",
+      applicationStatus: "approved",
+      isApproved: true,
+      contactEmail: null,
+      assignedAgentId: agentId,
+    })
+    .returning({ id: venueOwnerProfilesTable.id });
+  profileNoEmailId = profileNoEmail!.id;
+
+  const [profileNoEmailBusiness] = await db
+    .insert(venueBusinessesTable)
+    .values({
+      venueOwnerProfileId: profileNoEmailId,
+      placeId: `${TEST_PLACE_ID}-noemail`,
+      legalName: "No-Email Test Venue Ltd",
+      createdByUid: `${TEST_OWNER_UID}-noemail`,
+      isActive: true,
+    })
+    .returning({ id: venueBusinessesTable.id });
+  profileNoEmailBusinessId = profileNoEmailBusiness!.id;
 }
 
 async function cleanup() {
@@ -222,7 +253,21 @@ async function cleanup() {
       .where(eq(venueBusinessesTable.id, businessId));
   }
 
-  for (const pid of [profileId, profileNoBizId]) {
+  if (profileNoEmailBusinessId) {
+    await db
+      .delete(venueManagerRegistrationTokensTable)
+      .where(
+        eq(
+          venueManagerRegistrationTokensTable.businessId,
+          profileNoEmailBusinessId,
+        ),
+      );
+    await db
+      .delete(venueBusinessesTable)
+      .where(eq(venueBusinessesTable.id, profileNoEmailBusinessId));
+  }
+
+  for (const pid of [profileId, profileNoBizId, profileNoEmailId]) {
     if (pid) {
       await db
         .delete(venueOwnerProfilesTable)
@@ -230,10 +275,13 @@ async function cleanup() {
     }
   }
 
-  // Also remove the no-biz profile by placeId in case the id was never set
+  // Also remove the no-biz / no-email profiles by placeId in case the id was never set
   await db
     .delete(venueOwnerProfilesTable)
     .where(eq(venueOwnerProfilesTable.placeId, `${TEST_PLACE_ID}-nobiz`));
+  await db
+    .delete(venueOwnerProfilesTable)
+    .where(eq(venueOwnerProfilesTable.placeId, `${TEST_PLACE_ID}-noemail`));
 
   for (const aid of [agentId, otherAgentId]) {
     if (aid) {
@@ -351,6 +399,53 @@ describe.skipIf(!hasDatabase)(
       expect(res.body).toMatchObject({
         message: expect.stringContaining("Business record"),
       });
+    });
+
+    // -----------------------------------------------------------------------
+    // 409: approved profile assigned to the agent with a business record but
+    // NULL contactEmail — the endpoint must refuse before writing any token
+    // or calling the email helper.
+    // -----------------------------------------------------------------------
+    it("returns 409 with 'contact email' message when contactEmail is NULL", async () => {
+      mockSendRegistrationLinkEmail.mockClear();
+
+      // Confirm no token rows exist for the no-email business before the call.
+      const tokensBefore = await db
+        .select()
+        .from(venueManagerRegistrationTokensTable)
+        .where(
+          eq(
+            venueManagerRegistrationTokensTable.businessId,
+            profileNoEmailBusinessId,
+          ),
+        );
+      expect(tokensBefore.length).toBe(0);
+
+      const res = await request(app)
+        .post(
+          `/api/admin/agent/applications/${profileNoEmailId}/registration-link`,
+        )
+        .set("Cookie", agentCookieHeader(agentId));
+
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({
+        message: expect.stringContaining("contact email"),
+      });
+
+      // No token row must have been written.
+      const tokensAfter = await db
+        .select()
+        .from(venueManagerRegistrationTokensTable)
+        .where(
+          eq(
+            venueManagerRegistrationTokensTable.businessId,
+            profileNoEmailBusinessId,
+          ),
+        );
+      expect(tokensAfter.length).toBe(0);
+
+      // Email helper must never have been called.
+      expect(mockSendRegistrationLinkEmail).not.toHaveBeenCalled();
     });
 
     // -----------------------------------------------------------------------
