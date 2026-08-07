@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Building2, LogOut, Plus, RefreshCw, Clock, CheckCircle2,
-  AlertCircle, FileText, ArrowLeft, Send, X,
+  AlertCircle, FileText, ArrowLeft, Send, X, ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ interface Venue {
   submittedAt: string | null;
   createdAt: string;
   claimLinkSentAt: string | null;
+  hasClaimedVenueManager: boolean;
 }
 
 interface AgentDashboardProps {
@@ -217,14 +218,22 @@ export default function AgentDashboard({ agent, onLogout }: AgentDashboardProps)
               {venues.map(venue => {
                 const statusConfig = STATUS_CONFIG[venue.applicationStatus] ?? { label: venue.applicationStatus, color: "bg-slate-100 text-slate-700 border-slate-200", icon: null };
                 const isApproved = venue.applicationStatus === "approved";
+                const isClaimed = venue.hasClaimedVenueManager;
                 const isSending = sendingClaimLink === venue.id;
                 return (
                   <div key={venue.id} className="border border-border rounded-xl p-4 bg-card hover:border-primary/30 transition-colors">
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <h3 className="font-semibold text-sm">{venue.businessName}</h3>
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 shrink-0 flex items-center gap-1 ${statusConfig.color}`}>
-                        {statusConfig.icon}{statusConfig.label}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isClaimed && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-teal-50 text-teal-700 border-teal-200">
+                            <ShieldCheck className="w-3 h-3" />Claimed
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 flex items-center gap-1 ${statusConfig.color}`}>
+                          {statusConfig.icon}{statusConfig.label}
+                        </Badge>
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground mb-3">{venue.placeName}</p>
                     <div className="flex items-center gap-4 text-[11px] text-muted-foreground flex-wrap">
@@ -234,7 +243,12 @@ export default function AgentDashboard({ agent, onLogout }: AgentDashboardProps)
                     </div>
                     {isApproved && (
                       <div className="mt-3 pt-3 border-t border-border flex items-center justify-between gap-3">
-                        {venue.claimLinkSentAt ? (
+                        {isClaimed ? (
+                          <span className="text-[11px] text-teal-600 flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3" />
+                            Owner has set up their Venue Manager account
+                          </span>
+                        ) : venue.claimLinkSentAt ? (
                           <span className="text-[11px] text-emerald-600 flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" />
                             Claim link sent {format(new Date(venue.claimLinkSentAt), "MMM d, yyyy")}
@@ -242,16 +256,18 @@ export default function AgentDashboard({ agent, onLogout }: AgentDashboardProps)
                         ) : (
                           <span className="text-[11px] text-muted-foreground">Claim link not yet sent</span>
                         )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-[11px] gap-1.5 shrink-0"
-                          disabled={isSending}
-                          onClick={() => void handleSendClaimLink(venue)}
-                        >
-                          <Send className="w-3 h-3" />
-                          {isSending ? "Sending…" : venue.claimLinkSentAt ? "Resend Claim Link" : "Send Claim Link"}
-                        </Button>
+                        {!isClaimed && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] gap-1.5 shrink-0"
+                            disabled={isSending}
+                            onClick={() => void handleSendClaimLink(venue)}
+                          >
+                            <Send className="w-3 h-3" />
+                            {isSending ? "Sending…" : venue.claimLinkSentAt ? "Resend Claim Link" : "Send Claim Link"}
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>

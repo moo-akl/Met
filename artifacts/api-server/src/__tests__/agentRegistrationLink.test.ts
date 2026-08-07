@@ -877,6 +877,51 @@ describe.skipIf(!hasDatabase)(
     });
 
     // -----------------------------------------------------------------------
+    // GET /admin/agent/applications — hasClaimedVenueManager field
+    //
+    // Verifies that the agent application list endpoint correctly reflects
+    // whether each venue owner has already claimed the Venue Manager portal.
+    // -----------------------------------------------------------------------
+    describe("GET /api/admin/agent/applications — hasClaimedVenueManager field", () => {
+      it("returns false for a venue whose owner has not yet claimed the Venue Manager", async () => {
+        // profileNoBizId has no business row → can never be claimed.
+        const res = await request(app)
+          .get("/api/admin/agent/applications")
+          .set("Cookie", agentCookieHeader(agentId));
+
+        expect(res.status).toBe(200);
+        const venues = res.body.venues as Array<{
+          id: number;
+          hasClaimedVenueManager: boolean;
+        }>;
+        expect(Array.isArray(venues)).toBe(true);
+
+        const noBizVenue = venues.find((v) => v.id === profileNoBizId);
+        expect(noBizVenue).toBeDefined();
+        expect(noBizVenue!.hasClaimedVenueManager).toBe(false);
+      });
+
+      it("returns true for a venue whose owner has already claimed the Venue Manager", async () => {
+        // profileAlreadyClaimedId has an active owner membership with a non-null
+        // managerId — this is the state checkHasClaimedVenueManager tests for.
+        const res = await request(app)
+          .get("/api/admin/agent/applications")
+          .set("Cookie", agentCookieHeader(agentId));
+
+        expect(res.status).toBe(200);
+        const venues = res.body.venues as Array<{
+          id: number;
+          hasClaimedVenueManager: boolean;
+        }>;
+        expect(Array.isArray(venues)).toBe(true);
+
+        const claimedVenue = venues.find((v) => v.id === profileAlreadyClaimedId);
+        expect(claimedVenue).toBeDefined();
+        expect(claimedVenue!.hasClaimedVenueManager).toBe(true);
+      });
+    });
+
+    // -----------------------------------------------------------------------
     // Re-send: calling the endpoint twice for the same venue must leave only
     // one token row in the DB and render the first token unusable.
     // -----------------------------------------------------------------------

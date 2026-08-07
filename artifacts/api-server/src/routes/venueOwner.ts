@@ -3942,25 +3942,61 @@ router.get(
     // We filter by metadata->>'registrationLink' = 'true' to avoid picking up
     // unrelated email_sent events (e.g. approval / rejection emails).
     const claimLinkSentAtMap: Map<number, string> = new Map();
+    // Derive hasClaimedVenueManager per venue using batch queries (avoids N+1).
+    const hasClaimedMap: Map<number, boolean> = new Map();
     if (venues.length > 0) {
       const profileIds = venues.map((v) => v.id);
-      const emailEvents = await db
-        .select({
-          venueOwnerProfileId: venueApplicationHistoryTable.venueOwnerProfileId,
-          createdAt: venueApplicationHistoryTable.createdAt,
-        })
-        .from(venueApplicationHistoryTable)
-        .where(
-          and(
-            inArray(venueApplicationHistoryTable.venueOwnerProfileId, profileIds),
-            eq(venueApplicationHistoryTable.eventType, "email_sent"),
-            sql`${venueApplicationHistoryTable.metadata}->>'registrationLink' = 'true'`,
-          ),
-        )
-        .orderBy(desc(venueApplicationHistoryTable.createdAt));
+
+      const [emailEvents, businesses] = await Promise.all([
+        db
+          .select({
+            venueOwnerProfileId: venueApplicationHistoryTable.venueOwnerProfileId,
+            createdAt: venueApplicationHistoryTable.createdAt,
+          })
+          .from(venueApplicationHistoryTable)
+          .where(
+            and(
+              inArray(venueApplicationHistoryTable.venueOwnerProfileId, profileIds),
+              eq(venueApplicationHistoryTable.eventType, "email_sent"),
+              sql`${venueApplicationHistoryTable.metadata}->>'registrationLink' = 'true'`,
+            ),
+          )
+          .orderBy(desc(venueApplicationHistoryTable.createdAt)),
+        db
+          .select({
+            id: venueBusinessesTable.id,
+            venueOwnerProfileId: venueBusinessesTable.venueOwnerProfileId,
+          })
+          .from(venueBusinessesTable)
+          .where(inArray(venueBusinessesTable.venueOwnerProfileId, profileIds)),
+      ]);
+
       for (const ev of emailEvents) {
         if (!claimLinkSentAtMap.has(ev.venueOwnerProfileId) && ev.createdAt) {
           claimLinkSentAtMap.set(ev.venueOwnerProfileId, ev.createdAt.toISOString());
+        }
+      }
+
+      // Initialize all profiles to false; mark claimed ones after membership lookup.
+      for (const v of venues) hasClaimedMap.set(v.id, false);
+
+      if (businesses.length > 0) {
+        const businessIds = businesses.map((b) => b.id);
+        const profileIdByBusinessId = new Map(businesses.map((b) => [b.id, b.venueOwnerProfileId]));
+        const claimedMemberships = await db
+          .select({ businessId: venueMembershipsTable.businessId })
+          .from(venueMembershipsTable)
+          .where(
+            and(
+              inArray(venueMembershipsTable.businessId, businessIds),
+              eq(venueMembershipsTable.role, "owner"),
+              eq(venueMembershipsTable.status, "active"),
+              isNotNull(venueMembershipsTable.managerId),
+            ),
+          );
+        for (const m of claimedMemberships) {
+          const pid = profileIdByBusinessId.get(m.businessId);
+          if (pid !== undefined) hasClaimedMap.set(pid, true);
         }
       }
     }
@@ -3969,6 +4005,7 @@ router.get(
       venues: venues.map((v) => ({
         ...v,
         claimLinkSentAt: claimLinkSentAtMap.get(v.id) ?? null,
+        hasClaimedVenueManager: hasClaimedMap.get(v.id) ?? false,
       })),
     });
   },
