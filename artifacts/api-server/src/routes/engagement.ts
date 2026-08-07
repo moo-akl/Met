@@ -326,7 +326,10 @@ router.post(
         .orderBy(desc(hubCheckinsTable.createdAt))
         .limit(1),
       db
-        .select({ id: venueOwnerProfilesTable.id })
+        .select({
+          id: venueOwnerProfilesTable.id,
+          businessName: venueOwnerProfilesTable.businessName,
+        })
         .from(venueOwnerProfilesTable)
         .where(
           and(
@@ -368,6 +371,16 @@ router.post(
     }
 
     const isRegisteredVenue = registeredRow.length > 0;
+
+    // If the place has a registered venue profile, use the owner's chosen
+    // business name instead of whatever Google Places returned. This ensures
+    // check-in records, leaderboards, and the post-check-in UI all display
+    // the name the venue registered with — not the potentially-different
+    // Google Maps display name.
+    if (isRegisteredVenue && registeredRow[0].businessName) {
+      place = { ...place, displayName: registeredRow[0].businessName };
+    }
+
     const isQrVerified = qrRow.length > 0;
     const stats = statsRow[0] ?? null;
     const prevStreaks = (stats?.hubStreaks ?? {}) as Record<string, number>;
