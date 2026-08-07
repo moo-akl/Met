@@ -272,7 +272,79 @@ describe("new announcement screen — submit button enablement", () => {
 });
 
 // ===========================================================================
-// 3. Submit — calls createVenueAnnouncement with correct payload
+// 3. Whitespace-only inputs are blocked
+// ===========================================================================
+
+describe("new announcement screen — whitespace-only inputs are blocked", () => {
+  it("does not call createVenueAnnouncement when title is only spaces and body has real text", async () => {
+    let root!: renderer.ReactTestRenderer;
+    act(() => { root = renderer.create(<NewVenueAnnouncementScreen />); });
+
+    const titleInput = root.root.findAll(
+      (n) => n.props.value === "" && n.props.onChangeText !== undefined && !n.props.multiline,
+    )[0];
+    const bodyInput = root.root.findAll(
+      (n) => n.props.multiline === true && n.props.value === "",
+    )[0];
+
+    await act(async () => {
+      (titleInput.props.onChangeText as (t: string) => void)("   ");
+      await Promise.resolve();
+    });
+    await act(async () => {
+      (bodyInput.props.onChangeText as (t: string) => void)("Drinks half-price until 9pm!");
+      await Promise.resolve();
+    });
+
+    // Button must still be disabled (whitespace-only title)
+    const submitBtn = findSubmitButton(root);
+    expect(submitBtn!.props.disabled).toBe(true);
+
+    // Attempt to call onPress anyway — the guard inside handleCreate must block it
+    await act(async () => {
+      await (submitBtn!.props.onPress as () => Promise<void>)();
+      await new Promise<void>((r) => setImmediate(r));
+    });
+
+    expect(mockCreateVenueAnnouncement).not.toHaveBeenCalled();
+  });
+
+  it("does not call createVenueAnnouncement when body is only spaces and title has real text", async () => {
+    let root!: renderer.ReactTestRenderer;
+    act(() => { root = renderer.create(<NewVenueAnnouncementScreen />); });
+
+    const titleInput = root.root.findAll(
+      (n) => n.props.value === "" && n.props.onChangeText !== undefined && !n.props.multiline,
+    )[0];
+    const bodyInput = root.root.findAll(
+      (n) => n.props.multiline === true && n.props.value === "",
+    )[0];
+
+    await act(async () => {
+      (titleInput.props.onChangeText as (t: string) => void)("Happy Hour Extended!");
+      await Promise.resolve();
+    });
+    await act(async () => {
+      (bodyInput.props.onChangeText as (t: string) => void)("   ");
+      await Promise.resolve();
+    });
+
+    // Button must still be disabled (whitespace-only body)
+    const submitBtn = findSubmitButton(root);
+    expect(submitBtn!.props.disabled).toBe(true);
+
+    // Attempt to call onPress anyway — the guard inside handleCreate must block it
+    await act(async () => {
+      await (submitBtn!.props.onPress as () => Promise<void>)();
+      await new Promise<void>((r) => setImmediate(r));
+    });
+
+    expect(mockCreateVenueAnnouncement).not.toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// 4. Submit — calls createVenueAnnouncement with correct payload
 // ===========================================================================
 
 describe("new announcement screen — create sends correct payload", () => {
