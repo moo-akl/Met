@@ -46,7 +46,10 @@ import {
   Mail,
   Trash2,
   Send,
-  CheckCircle2
+  CheckCircle2,
+  Users,
+  ArrowLeft,
+  UserCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -67,6 +70,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
+import AgentsPanel from "@/components/AgentsPanel";
 
 function isApiError(error: unknown): error is Error & { status: number, data: unknown } {
   return error instanceof Error && 'status' in error;
@@ -140,6 +144,14 @@ export default function Dashboard() {
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Sales-agent management
+  const [adminView, setAdminView] = useState<"applications" | "agents">("applications");
+  const [assignAgentOpen, setAssignAgentOpen] = useState(false);
+  const [assignableAgents, setAssignableAgents] = useState<Array<{ id: number; displayName: string; email: string }>>([]);
+  const [loadingAssignableAgents, setLoadingAssignableAgents] = useState(false);
+  const [localAssignedAgentId, setLocalAssignedAgentId] = useState<number | null>(null);
+  const [savingAssignment, setSavingAssignment] = useState(false);
+
   const handleApiError = (error: unknown, fallbackMessage: string) => {
     if (isApiError(error)) {
       if (error.status === 401) {
@@ -166,6 +178,52 @@ export default function Dashboard() {
       toast({ variant: "destructive", title: "Error", description: error.message || fallbackMessage });
     } else {
       toast({ variant: "destructive", title: "Error", description: fallbackMessage });
+    }
+  };
+
+  // ── Sales-agent management helpers ─────────────────────────────────────────
+  const loadAssignableAgents = async () => {
+    if (loadingAssignableAgents || assignableAgents.length > 0) return;
+    setLoadingAssignableAgents(true);
+    try {
+      const res = await fetch("/api/admin/venue-owner/agents", { credentials: "include" });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          agents: Array<{ id: number; displayName: string; email: string; isActive: boolean }>;
+        };
+        setAssignableAgents(data.agents.filter((a) => a.isActive));
+      }
+    } finally {
+      setLoadingAssignableAgents(false);
+    }
+  };
+
+  const handleAssignAgent = async (agentId: number | null) => {
+    if (!selectedAppId) return;
+    setSavingAssignment(true);
+    try {
+      const res = await fetch(`/api/admin/venue-owner/applications/${selectedAppId}/assign-agent`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ agentId }),
+      });
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(errBody.message ?? "Failed to update assignment");
+      }
+      setLocalAssignedAgentId(agentId);
+      setAssignAgentOpen(false);
+      toast({
+        title: agentId ? "Agent assigned" : "Agent removed",
+        description: agentId
+          ? "Venue has been assigned to the agent."
+          : "Venue is now unassigned.",
+      });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: (err as Error).message });
+    } finally {
+      setSavingAssignment(false);
     }
   };
 
@@ -217,6 +275,13 @@ export default function Dashboard() {
 
   const selectedApp = detailData?.application;
   const history = detailData?.history ?? [];
+
+  // Sync the locally-tracked assigned-agent whenever the selected application changes.
+  useEffect(() => {
+    setLocalAssignedAgentId(
+      ((selectedApp ?? {}) as Record<string, unknown>).assignedAgentId as number | null ?? null,
+    );
+  }, [selectedApp]);
 
   const isActionable = selectedApp?.applicationStatus === "submitted" || 
                        selectedApp?.applicationStatus === "under_review" || 
@@ -453,7 +518,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-[100dvh] bg-background text-foreground overflow-hidden font-sans">
+    <div className="flex h-[100dvh] bg-background text-foreground overflow-hidden font-sans relative">
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -483,6 +548,85 @@ export default function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Assign Agent Dialog */}
+      <Dialog open={assignAgentOpen} onOpenChange={setAssignAgentOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-primary" />Assign Sales Agent
+            </DialogTitle>
+            <DialogDescription>
+              Choose which sales agent is responsible for this venue application.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-2">
+            {loadingAssignableAgents ? (
+              <div className="space-y-2">
+                <Skeleton className="h-12 w-full rounded-lg" />
+                <Skeleton className="h-12 w-full rounded-lg" />
+                <Skeleton className="h-12 w-full rounded-lg" />
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => void handleAssignAgent(null)}
+                  disabled={savingAssignment || localAssignedAgentId === null}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                    localAssignedAgentId === null
+                      ? "border-primary/40 bg-primary/5"
+                      : "border-border hover:border-primary/30 hover:bg-muted/30"
+                  }`}
+                >
+                  <span className="text-muted-foreground italic">None (unassigned)</span>
+                  {localAssignedAgentId === null && (
+                    <Check className="w-3.5 h-3.5 text-primary inline-block ml-2" />
+                  )}
+                </button>
+                {assignableAgents.map((agent) => (
+                  <button
+                    key={agent.id}
+                    onClick={() => void handleAssignAgent(agent.id)}
+                    disabled={savingAssignment}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                      localAssignedAgentId === agent.id
+                        ? "border-primary/40 bg-primary/5"
+                        : "border-border hover:border-primary/30 hover:bg-muted/30"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0">
+                        {agent.displayName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{agent.displayName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{agent.email}</p>
+                      </div>
+                      {localAssignedAgentId === agent.id && (
+                        <Check className="w-4 h-4 text-primary shrink-0" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+                {assignableAgents.length === 0 && !loadingAssignableAgents && (
+                  <p className="text-sm text-muted-foreground text-center py-6 italic">
+                    No active agents. Create one in the Agents panel first.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAssignAgentOpen(false)}
+              disabled={savingAssignment}
+            >
+              {savingAssignment ? "Saving…" : "Close"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Sidebar List */}
       <div className="w-full md:w-[400px] flex-shrink-0 border-r border-border bg-muted/20 flex flex-col h-full z-10 relative">
         <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-card shrink-0">
@@ -493,6 +637,15 @@ export default function Dashboard() {
             Venue T&S
           </div>
           <div className="flex items-center gap-1">
+            <Button
+              variant={adminView === "agents" ? "secondary" : "ghost"}
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setAdminView(v => v === "agents" ? "applications" : "agents")}
+              title="Manage Sales Agents"
+            >
+              <Users className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => setPasswordDialogOpen(true)} title="Change password">
               <KeyRound className="w-4 h-4" />
             </Button>
@@ -725,6 +878,27 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* Assign Agent bar */}
+            <div className="px-6 md:px-10 py-1.5 border-b border-border bg-muted/30 flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+              <span className="font-medium">Agent:</span>
+              {localAssignedAgentId ? (
+                <span className="text-foreground font-semibold">
+                  {assignableAgents.find((a) => a.id === localAssignedAgentId)?.displayName ?? `Agent #${localAssignedAgentId}`}
+                </span>
+              ) : (
+                <span className="italic">Unassigned</span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs ml-auto gap-1 text-muted-foreground hover:text-foreground"
+                onClick={() => { void loadAssignableAgents(); setAssignAgentOpen(true); }}
+              >
+                <UserCheck className="w-3 h-3" />
+                {localAssignedAgentId ? "Change" : "Assign"}
+              </Button>
+            </div>
+
             <ScrollArea className="flex-1 bg-muted/10">
               <div className="max-w-5xl mx-auto p-6 md:p-10 space-y-8">
                 {/* Header */}
@@ -768,13 +942,13 @@ export default function Dashboard() {
                           <div className="grid grid-cols-3 gap-4 p-5 hover:bg-muted/20 transition-colors">
                             <dt className="font-medium text-muted-foreground">Contact Email</dt>
                             <dd className="col-span-2">
-                              {(selectedApp as Record<string, unknown>).contactEmail ? (
+                              {(selectedApp as unknown as Record<string, unknown>).contactEmail ? (
                                 <a
-                                  href={`mailto:${String((selectedApp as Record<string, unknown>).contactEmail)}`}
+                                  href={`mailto:${String((selectedApp as unknown as Record<string, unknown>).contactEmail)}`}
                                   className="font-medium text-primary hover:underline inline-flex items-center gap-1.5"
                                 >
                                   <Mail className="w-3.5 h-3.5 shrink-0" />
-                                  {String((selectedApp as Record<string, unknown>).contactEmail)}
+                                  {String((selectedApp as unknown as Record<string, unknown>).contactEmail)}
                                 </a>
                               ) : (
                                 <span className="text-muted-foreground italic">No email on file</span>
@@ -853,27 +1027,27 @@ export default function Dashboard() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-5 text-sm space-y-4">
-                        {(selectedApp as Record<string, unknown>).applicationSource === "web" && (
+                        {(selectedApp as unknown as Record<string, unknown>).applicationSource === "web" && (
                           <div>
                             <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300">
                               Web application
                             </Badge>
                           </div>
                         )}
-                        {(selectedApp as Record<string, unknown>).contactName && (
+                        {!!(selectedApp as unknown as Record<string, unknown>).contactName && (
                           <div>
                             <span className="block text-xs font-medium text-muted-foreground mb-1">Contact Name</span>
-                            <span className="font-medium">{String((selectedApp as Record<string, unknown>).contactName)}</span>
+                            <span className="font-medium">{String((selectedApp as unknown as Record<string, unknown>).contactName)}</span>
                           </div>
                         )}
-                        {(selectedApp as Record<string, unknown>).contactEmail && (
+                        {!!(selectedApp as unknown as Record<string, unknown>).contactEmail && (
                           <div>
                             <span className="block text-xs font-medium text-muted-foreground mb-1">Contact Email</span>
                             <a
-                              href={`mailto:${String((selectedApp as Record<string, unknown>).contactEmail)}`}
+                              href={`mailto:${String((selectedApp as unknown as Record<string, unknown>).contactEmail)}`}
                               className="font-medium text-primary hover:underline"
                             >
-                              {String((selectedApp as Record<string, unknown>).contactEmail)}
+                              {String((selectedApp as unknown as Record<string, unknown>).contactEmail)}
                             </a>
                           </div>
                         )}
@@ -981,7 +1155,7 @@ export default function Dashboard() {
                                 Send the venue owner a setup link so they can create their Venue Manager account.
                                 The email includes step-by-step instructions. Each link expires after 7 days.
                               </p>
-                              {!(selectedApp as Record<string, unknown>).contactEmail && (
+                              {!(selectedApp as unknown as Record<string, unknown>).contactEmail && (
                                 <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2">
                                   No contact email on file — you can still generate a link to copy and share manually.
                                 </p>
@@ -989,7 +1163,7 @@ export default function Dashboard() {
                               <Button
                                 size="sm"
                                 className="w-full"
-                                disabled={regLinkLoading || !(selectedApp as Record<string, unknown>).contactEmail}
+                                disabled={regLinkLoading || !(selectedApp as unknown as Record<string, unknown>).contactEmail}
                                 onClick={() => void generateRegistrationLink(selectedApp.id, true)}
                               >
                                 <Send className="w-3.5 h-3.5 mr-1.5" />
@@ -1237,6 +1411,54 @@ export default function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Sales Agents overlay — mounts over the full UI */}
+      {adminView === "agents" && (
+        <div className="absolute inset-0 z-20 flex flex-col bg-background">
+          <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-card shrink-0">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setAdminView("applications")}
+                title="Back to Applications"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <div className="flex items-center gap-2 font-bold tracking-tight text-lg">
+                <div className="w-8 h-8 bg-primary text-primary-foreground rounded flex items-center justify-center">
+                  <Users className="w-4 h-4" />
+                </div>
+                Sales Agents
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setPasswordDialogOpen(true)}
+                title="Change password"
+              >
+                <KeyRound className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={handleLogout}
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <AgentsPanel />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

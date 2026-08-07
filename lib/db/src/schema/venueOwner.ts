@@ -93,8 +93,10 @@ export const venueOwnerProfilesTable = pgTable(
      * A null value for a day means closed; omitted day means unknown.
      */
     openingHours: jsonb("opening_hours").$type<Record<string, { open: string; close: string } | null>>(),
-    /** 'mobile' | 'web' — null for legacy rows. */
+    /** 'mobile' | 'web' | 'agent' — null for legacy rows. */
     applicationSource: text("application_source"),
+    /** ID of the sales agent who registered this venue on behalf of the owner. */
+    assignedAgentId: integer("assigned_agent_id"),
     /**
      * Stable token embedded in the venue's check-in QR code URL.
      * Automatically generated on venue approval; can be rotated by the owner
@@ -219,6 +221,32 @@ export const venueAdminCredentialsTable = pgTable("venue_admin_credentials", {
 });
 
 export type VenueAdminCredential = typeof venueAdminCredentialsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// sales_agents
+// Internal sales team members who register venues on behalf of owners.
+// ---------------------------------------------------------------------------
+export const salesAgentsTable = pgTable(
+  "sales_agents",
+  {
+    id: serial("id").primaryKey(),
+    email: text("email").notNull(),
+    displayName: text("display_name").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    sessionVersion: integer("session_version").notNull().default(1),
+    isActive: boolean("is_active").notNull().default(true),
+    failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    emailUniq: uniqueIndex("sales_agents_email_uniq").on(t.email),
+    isActiveIdx: index("sales_agents_is_active_idx").on(t.isActive),
+  }),
+);
+
+export type SalesAgent = typeof salesAgentsTable.$inferSelect;
 
 // ---------------------------------------------------------------------------
 // venue_events

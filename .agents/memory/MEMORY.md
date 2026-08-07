@@ -33,3 +33,5 @@
 - [Secret-free e2e admin login](e2e-secret-free-admin-login.md) — have the testing subagent restart the workflow with a throwaway secret override; never pass real secret values into test plans.
 - [Drizzle vitest mock — dispatch by table](drizzle-mock-table-dispatch.md) — per-request background queries (sessions) need their own stateful chain keyed off the table object, or sequential Onces collide.
 - [seed-marketing script](seed-marketing.md) — scripts/src/seed-marketing.ts seeds dev DB for App Store screenshots; needs MARKETING_UID env var; uses @workspace/db (now in scripts deps) + drizzle-orm catalog.
+- [Sales Agent system](sales-agent-system.md) — salesAgentsTable + assignedAgentId on venueOwnerProfiles; agent session cookie at /api/admin/agent; agent portal at /venue-admin/agent; pre-existing Record<string,unknown> casts in dashboard need `as unknown as` + !! coercion for ReactNode.
+- [useEffect before query decl](useeffect-before-query.md) — adding useEffect that references a react-query result (selectedApp) before the query hook is declared causes TS2448; always place effects after the query declarations, not alongside handler functions.

@@ -60,6 +60,7 @@ import {
   hubCheckinsTable,
   profilesTable,
   venueAdminCredentialsTable,
+  salesAgentsTable,
   venueBusinessesTable,
   venueMembershipsTable,
   venueMembershipAuditTable,
@@ -3522,4 +3523,450 @@ router.post(
   },
 );
 
+// ── Sales Agent Management ───────────────────────────────────────────────────
+
+const AGENT_SESSION_COOKIE = "met_agent_session";
+const AGENT_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
+const MAX_AGENT_FAILED_ATTEMPTS = 8;
+const AGENT_LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+
+type AgentSession = { agentId: number; sessionVersion: number; expiresAt: number };
+
+function agentCookieOptions(req: Request) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: req.secure || process.env["NODE_ENV"] === "production",
+    signed: true,
+    maxAge: AGENT_SESSION_MAX_AGE_MS,
+    path: "/api/admin/agent",
+  };
+}
+
+function readAgentSession(req: Request): AgentSession | null {
+  const raw = req.signedCookies?.[AGENT_SESSION_COOKIE];
+  if (typeof raw !== "string") return null;
+  const parts = raw.split(".");
+  if (parts.length !== 3) return null;
+  const agentId = Number(parts[0]);
+  const sessionVersion = Number(parts[1]);
+  const expiresAt = Number(parts[2]);
+  if (!Number.isInteger(agentId) || !Number.isInteger(sessionVersion) || !Number.isFinite(expiresAt)) return null;
+  if (expiresAt <= Date.now()) return null;
+  return { agentId, sessionVersion, expiresAt };
+}
+
+async function verifyAgentSession(req: Request): Promise<AgentSession | null> {
+  const session = readAgentSession(req);
+  if (!session) return null;
+  const [agent] = await db
+    .select({
+      id: salesAgentsTable.id,
+      sessionVersion: salesAgentsTable.sessionVersion,
+      isActive: salesAgentsTable.isActive,
+    })
+    .from(salesAgentsTable)
+    .where(eq(salesAgentsTable.id, session.agentId))
+    .limit(1);
+  if (!agent || !agent.isActive || agent.sessionVersion !== session.sessionVersion) return null;
+  return session;
+}
+
+interface AgentRequest extends Request {
+  agentId: number;
+}
+
+async function requireAgentSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const session = await verifyAgentSession(req);
+  if (!session) {
+    res.status(401).json({ message: "Agent session expired or invalid. Sign in again." });
+    return;
+  }
+  (req as AgentRequest).agentId = session.agentId;
+  next();
+}
+
+function issueAgentCookie(req: Request, res: Response, agent: { id: number; sessionVersion: number }): void {
+  const expiresAt = Date.now() + AGENT_SESSION_MAX_AGE_MS;
+  res.cookie(
+    AGENT_SESSION_COOKIE,
+    `${agent.id}.${agent.sessionVersion}.${expiresAt}`,
+    agentCookieOptions(req),
+  );
+}
+
+// ── Admin: list agents with per-agent venue counts ───────────────────────────
+router.get(
+  "/admin/venue-owner/agents",
+  requireAdminSession,
+  async (_req: Request, res: Response): Promise<void> => {
+    const agents = await db
+      .select({
+        id: salesAgentsTable.id,
+        email: salesAgentsTable.email,
+        displayName: salesAgentsTable.displayName,
+        isActive: salesAgentsTable.isActive,
+        createdAt: salesAgentsTable.createdAt,
+        updatedAt: salesAgentsTable.updatedAt,
+      })
+      .from(salesAgentsTable)
+      .orderBy(desc(salesAgentsTable.createdAt));
+
+    const agentIds = agents.map((a) => a.id);
+    const countRows =
+      agentIds.length > 0
+        ? await db
+            .select({
+              assignedAgentId: venueOwnerProfilesTable.assignedAgentId,
+              venueCount: count(),
+            })
+            .from(venueOwnerProfilesTable)
+            .where(inArray(venueOwnerProfilesTable.assignedAgentId, agentIds))
+            .groupBy(venueOwnerProfilesTable.assignedAgentId)
+        : [];
+
+    const countMap = new Map(countRows.map((r) => [r.assignedAgentId, r.venueCount]));
+    res.json({ agents: agents.map((a) => ({ ...a, venueCount: countMap.get(a.id) ?? 0 })) });
+  },
+);
+
+// ── Admin: create agent ───────────────────────────────────────────────────────
+router.post(
+  "/admin/venue-owner/agents",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = z
+      .object({
+        email: z.string().email().max(255),
+        displayName: z.string().min(1).max(100),
+        password: z.string().min(8).max(256),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input." });
+      return;
+    }
+    const { email, displayName, password } = parsed.data;
+    const [existing] = await db
+      .select({ id: salesAgentsTable.id })
+      .from(salesAgentsTable)
+      .where(eq(salesAgentsTable.email, email.toLowerCase()))
+      .limit(1);
+    if (existing) {
+      res.status(409).json({ message: "An agent with this email already exists." });
+      return;
+    }
+    const passwordHash = await hashAdminPassword(password);
+    const [agent] = await db
+      .insert(salesAgentsTable)
+      .values({ email: email.toLowerCase(), displayName, passwordHash })
+      .returning({
+        id: salesAgentsTable.id,
+        email: salesAgentsTable.email,
+        displayName: salesAgentsTable.displayName,
+        isActive: salesAgentsTable.isActive,
+        createdAt: salesAgentsTable.createdAt,
+        updatedAt: salesAgentsTable.updatedAt,
+      });
+    res.status(201).json({ agent: { ...agent, venueCount: 0 } });
+  },
+);
+
+// ── Admin: update agent (toggle active / reset password / rename) ─────────────
+router.patch(
+  "/admin/venue-owner/agents/:id",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const agentId = Number(req.params["id"]);
+    if (!Number.isInteger(agentId) || agentId <= 0) {
+      res.status(400).json({ message: "Invalid agent ID." });
+      return;
+    }
+    const parsed = z
+      .object({
+        isActive: z.boolean().optional(),
+        displayName: z.string().min(1).max(100).optional(),
+        password: z.string().min(8).max(256).optional(),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input." });
+      return;
+    }
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (parsed.data.isActive !== undefined) patch["isActive"] = parsed.data.isActive;
+    if (parsed.data.displayName !== undefined) patch["displayName"] = parsed.data.displayName;
+    if (parsed.data.password !== undefined) {
+      patch["passwordHash"] = await hashAdminPassword(parsed.data.password);
+      patch["sessionVersion"] = sql`${salesAgentsTable.sessionVersion} + 1`;
+      patch["failedLoginAttempts"] = 0;
+      patch["lockedUntil"] = null;
+    }
+    const [agent] = await db
+      .update(salesAgentsTable)
+      .set(patch)
+      .where(eq(salesAgentsTable.id, agentId))
+      .returning({
+        id: salesAgentsTable.id,
+        email: salesAgentsTable.email,
+        displayName: salesAgentsTable.displayName,
+        isActive: salesAgentsTable.isActive,
+      });
+    if (!agent) {
+      res.status(404).json({ message: "Agent not found." });
+      return;
+    }
+    res.json({ agent });
+  },
+);
+
+// ── Admin: assign / unassign agent on a venue application ────────────────────
+router.put(
+  "/admin/venue-owner/applications/:id/assign-agent",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = Number(req.params["id"]);
+    if (!Number.isInteger(profileId) || profileId <= 0) {
+      res.status(400).json({ message: "Invalid application ID." });
+      return;
+    }
+    const parsed = z.object({ agentId: z.number().int().nullable() }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "agentId must be a number or null." });
+      return;
+    }
+    if (parsed.data.agentId !== null) {
+      const [agent] = await db
+        .select({ id: salesAgentsTable.id })
+        .from(salesAgentsTable)
+        .where(
+          and(
+            eq(salesAgentsTable.id, parsed.data.agentId),
+            eq(salesAgentsTable.isActive, true),
+          ),
+        )
+        .limit(1);
+      if (!agent) {
+        res.status(404).json({ message: "Agent not found or inactive." });
+        return;
+      }
+    }
+    const [updated] = await db
+      .update(venueOwnerProfilesTable)
+      .set({ assignedAgentId: parsed.data.agentId, updatedAt: new Date() })
+      .where(eq(venueOwnerProfilesTable.id, profileId))
+      .returning({
+        id: venueOwnerProfilesTable.id,
+        assignedAgentId: venueOwnerProfilesTable.assignedAgentId,
+      });
+    if (!updated) {
+      res.status(404).json({ message: "Application not found." });
+      return;
+    }
+    res.json({ id: updated.id, assignedAgentId: updated.assignedAgentId });
+  },
+);
+
+// ── Agent session: login ──────────────────────────────────────────────────────
+router.post(
+  "/admin/agent/session",
+  venueAdminAuthLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = z
+      .object({
+        email: z.string().min(1),
+        password: z.string().min(1).max(256),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Email and password required." });
+      return;
+    }
+    const [agent] = await db
+      .select()
+      .from(salesAgentsTable)
+      .where(
+        and(
+          eq(salesAgentsTable.email, parsed.data.email.toLowerCase()),
+          eq(salesAgentsTable.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (!agent) {
+      res.status(401).json({ message: "Incorrect email or password." });
+      return;
+    }
+    if (agent.lockedUntil && agent.lockedUntil > new Date()) {
+      const retrySec = Math.ceil((agent.lockedUntil.getTime() - Date.now()) / 1000);
+      res.setHeader("Retry-After", String(retrySec));
+      res.status(429).json({ message: "Account temporarily locked. Try again later." });
+      return;
+    }
+    if (!(await verifyAdminPassword(parsed.data.password, agent.passwordHash))) {
+      const attempts = (agent.failedLoginAttempts ?? 0) + 1;
+      const lockedUntil =
+        attempts >= MAX_AGENT_FAILED_ATTEMPTS
+          ? new Date(Date.now() + AGENT_LOCKOUT_DURATION_MS)
+          : null;
+      await db
+        .update(salesAgentsTable)
+        .set({ failedLoginAttempts: attempts, lockedUntil, updatedAt: new Date() })
+        .where(eq(salesAgentsTable.id, agent.id));
+      res.status(401).json({ message: "Incorrect email or password." });
+      return;
+    }
+    await db
+      .update(salesAgentsTable)
+      .set({ failedLoginAttempts: 0, lockedUntil: null, updatedAt: new Date() })
+      .where(eq(salesAgentsTable.id, agent.id));
+    issueAgentCookie(req, res, agent);
+    res.json({
+      authenticated: true,
+      expiresAt: new Date(Date.now() + AGENT_SESSION_MAX_AGE_MS).toISOString(),
+      agent: { id: agent.id, email: agent.email, displayName: agent.displayName },
+    });
+  },
+);
+
+// ── Agent session: check ──────────────────────────────────────────────────────
+router.get(
+  "/admin/agent/session",
+  async (req: Request, res: Response): Promise<void> => {
+    const session = await verifyAgentSession(req);
+    if (!session) {
+      res.status(401).json({ message: "No active agent session." });
+      return;
+    }
+    const [agent] = await db
+      .select({
+        id: salesAgentsTable.id,
+        email: salesAgentsTable.email,
+        displayName: salesAgentsTable.displayName,
+      })
+      .from(salesAgentsTable)
+      .where(eq(salesAgentsTable.id, session.agentId))
+      .limit(1);
+    if (!agent) {
+      res.status(401).json({ message: "Agent account not found." });
+      return;
+    }
+    res.json({
+      authenticated: true,
+      expiresAt: new Date(session.expiresAt).toISOString(),
+      agent,
+    });
+  },
+);
+
+// ── Agent session: logout ─────────────────────────────────────────────────────
+router.delete(
+  "/admin/agent/session",
+  (req: Request, res: Response): void => {
+    res.clearCookie(AGENT_SESSION_COOKIE, agentCookieOptions(req));
+    res.status(204).send();
+  },
+);
+
+// ── Agent: list assigned / registered venues ──────────────────────────────────
+router.get(
+  "/admin/agent/applications",
+  requireAgentSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const agentId = (req as AgentRequest).agentId;
+    const venues = await db
+      .select({
+        id: venueOwnerProfilesTable.id,
+        businessName: venueOwnerProfilesTable.businessName,
+        placeName: venueOwnerProfilesTable.placeName,
+        applicationStatus: venueOwnerProfilesTable.applicationStatus,
+        contactEmail: venueOwnerProfilesTable.contactEmail,
+        contactName: venueOwnerProfilesTable.contactName,
+        submittedAt: venueOwnerProfilesTable.submittedAt,
+        createdAt: venueOwnerProfilesTable.createdAt,
+      })
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.assignedAgentId, agentId))
+      .orderBy(desc(venueOwnerProfilesTable.createdAt));
+    res.json({ venues });
+  },
+);
+
+// ── Agent: register a venue on behalf of an owner ────────────────────────────
+router.post(
+  "/admin/agent/applications",
+  requireAgentSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const agentId = (req as AgentRequest).agentId;
+    const parsed = z
+      .object({
+        businessName: z.string().min(1).max(255),
+        placeName: z.string().min(1).max(255),
+        contactEmail: z.string().email().max(255),
+        contactName: z.string().min(1).max(255),
+        phone: z.string().max(50).optional(),
+        websiteUrl: z.string().url().max(500).optional().or(z.literal("")),
+        description: z.string().max(2000).optional(),
+        registrationNotes: z.string().max(1000).optional(),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input.", errors: parsed.error.flatten() });
+      return;
+    }
+    const d = parsed.data;
+    // Synthetic IDs — the admin can update them when reviewing or when the owner claims.
+    const syntheticPlaceId = `agent-${agentId}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+    const syntheticOwnerUid = `agent-reg-${agentId}-${Date.now()}`;
+    const now = new Date();
+
+    const [profile] = await db
+      .insert(venueOwnerProfilesTable)
+      .values({
+        ownerUid: syntheticOwnerUid,
+        placeId: syntheticPlaceId,
+        placeName: d.placeName,
+        businessName: d.businessName,
+        contactEmail: d.contactEmail,
+        contactName: d.contactName,
+        phone: d.phone ?? null,
+        websiteUrl: d.websiteUrl || null,
+        description: d.description ?? null,
+        registrationNotes: d.registrationNotes ?? null,
+        applicationSource: "agent",
+        applicationStatus: "submitted",
+        assignedAgentId: agentId,
+        submittedAt: now,
+        isApproved: false,
+        isVerified: false,
+      })
+      .returning({
+        id: venueOwnerProfilesTable.id,
+        businessName: venueOwnerProfilesTable.businessName,
+        applicationStatus: venueOwnerProfilesTable.applicationStatus,
+        submittedAt: venueOwnerProfilesTable.submittedAt,
+        createdAt: venueOwnerProfilesTable.createdAt,
+      });
+
+    await appendApplicationHistory({
+      venueOwnerProfileId: profile.id,
+      eventType: "submitted",
+      fromStatus: "draft",
+      toStatus: "submitted",
+      actorRole: "admin",
+      actorUid: `agent:${agentId}`,
+      internalNote: `Registered by sales agent (ID: ${agentId})`,
+    });
+
+    res.status(201).json({
+      venue: {
+        ...profile,
+        placeName: d.placeName,
+        contactEmail: d.contactEmail,
+        contactName: d.contactName,
+      },
+    });
+  },
+);
+
 export default router;
+

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -10,11 +11,14 @@ import {
 
 import Unlock from './pages/unlock';
 import Dashboard from './pages/dashboard';
+import AgentUnlock from './pages/agent-unlock';
+import AgentDashboard from './pages/agent-dashboard';
 import { Skeleton } from './components/ui/skeleton';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, Users } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
+// ── Admin auth guard ──────────────────────────────────────────────────────────
 function AuthGuard() {
   const { data: session, isLoading, isError, isFetching } = useGetVenueAdminSession({
     query: {
@@ -40,21 +44,77 @@ function AuthGuard() {
     );
   }
 
-  // If there's an error fetching the session, or the session is explicitly not authenticated, show Unlock
   if (isError || !session?.authenticated) {
     return (
       <Switch>
         <Route path="/" component={Unlock} />
-        <Route component={Unlock} /> {/* Redirect all to unlock if not authed */}
+        <Route component={Unlock} />
       </Switch>
     );
   }
 
-  // Authenticated
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+// ── Agent auth guard ──────────────────────────────────────────────────────────
+interface AgentInfo {
+  id: number;
+  email: string;
+  displayName: string;
+}
+
+function AgentGuard() {
+  const [loading, setLoading] = useState(true);
+  const [agent, setAgent] = useState<AgentInfo | null>(null);
+
+  useEffect(() => {
+    fetch('/api/admin/agent/session', { credentials: 'include' })
+      .then(res => {
+        if (!res.ok) throw new Error('no session');
+        return res.json();
+      })
+      .then((data: { agent?: AgentInfo }) => {
+        if (data.agent) setAgent(data.agent);
+      })
+      .catch(() => {/* not authenticated */})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="h-[100dvh] w-full flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center ring-1 ring-primary/20 animate-pulse">
+            <Users className="w-6 h-6" />
+          </div>
+          <div className="space-y-2 flex flex-col items-center">
+            <Skeleton className="w-48 h-4 rounded-full" />
+            <Skeleton className="w-32 h-3 rounded-full" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!agent) {
+    return <AgentUnlock onAuthenticated={setAgent} />;
+  }
+
+  return <AgentDashboard agent={agent} onLogout={() => setAgent(null)} />;
+}
+
+// ── Router ────────────────────────────────────────────────────────────────────
+function AppRoutes() {
+  return (
+    <Switch>
+      <Route path="/agent" component={AgentGuard} />
+      <Route path="/agent/:rest*" component={AgentGuard} />
+      <Route component={AuthGuard} />
     </Switch>
   );
 }
@@ -64,7 +124,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <AuthGuard />
+          <AppRoutes />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
