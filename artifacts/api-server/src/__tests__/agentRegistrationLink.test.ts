@@ -768,6 +768,56 @@ describe.skipIf(!hasDatabase)(
     });
 
     // -----------------------------------------------------------------------
+    // Re-send: calling the endpoint twice for the same venue must leave only
+    // one token row in the DB and render the first token unusable.
+    // -----------------------------------------------------------------------
+    it("invalidates the previous token when the registration link is re-sent for the same venue", async () => {
+      mockSendRegistrationLinkEmail.mockClear();
+
+      // ── First send ──────────────────────────────────────────────────────
+      const firstRes = await request(app)
+        .post(`/api/admin/agent/applications/${profileId}/registration-link`)
+        .set("Cookie", agentCookieHeader(agentId));
+      expect(firstRes.status).toBe(201);
+
+      // Capture the raw token embedded in the registration URL.
+      const firstEmailArgs = mockSendRegistrationLinkEmail.mock.calls[0]?.[0] as {
+        registrationUrl: string;
+      };
+      const firstUrl = new URL(firstEmailArgs.registrationUrl);
+      const firstRawToken = firstUrl.searchParams.get("token");
+      expect(firstRawToken).toBeTruthy();
+
+      mockSendRegistrationLinkEmail.mockClear();
+
+      // ── Second send ─────────────────────────────────────────────────────
+      const secondRes = await request(app)
+        .post(`/api/admin/agent/applications/${profileId}/registration-link`)
+        .set("Cookie", agentCookieHeader(agentId));
+      expect(secondRes.status).toBe(201);
+
+      // Only one token must remain — the newly minted one.
+      const tokensAfterSecond = await db
+        .select()
+        .from(venueManagerRegistrationTokensTable)
+        .where(eq(venueManagerRegistrationTokensTable.businessId, businessId));
+      expect(tokensAfterSecond.length).toBe(1);
+
+      // The first (now invalidated) token must be rejected at the
+      // registration endpoint.
+      const registerRes = await request(app)
+        .post("/api/venue-manager/register")
+        .send({
+          token: firstRawToken,
+          email: `resend-test-${Date.now()}@itest.invalid`,
+          displayName: "Re-send Test User",
+          password: "Str0ngP@ssword!",
+        });
+      expect(registerRes.status).toBe(400);
+      expect(registerRes.body.message).toMatch(/invalid or has expired/i);
+    });
+
+    // -----------------------------------------------------------------------
     // SMTP down: sendRegistrationLinkEmail throws → 200 with emailSent:false,
     // no history row written, token row still exists.
     // -----------------------------------------------------------------------
@@ -776,13 +826,6 @@ describe.skipIf(!hasDatabase)(
       mockSendRegistrationLinkEmail.mockRejectedValueOnce(
         new Error("SMTP connection refused"),
       );
-
-      const tokenCountBefore = (
-        await db
-          .select()
-          .from(venueManagerRegistrationTokensTable)
-          .where(eq(venueManagerRegistrationTokensTable.businessId, businessId))
-      ).length;
 
       const historyCountBefore = (
         await db
@@ -805,15 +848,16 @@ describe.skipIf(!hasDatabase)(
       expect(res.body.emailSent).toBe(false);
       expect(res.body.contactEmail).toBe(TEST_CONTACT_EMAIL);
 
-      // A new token row must still exist — the token was persisted before the
-      // send attempt and must not be rolled back on delivery failure.
+      // A token row must still exist — the token was persisted before the send
+      // attempt (replacing any previous token) and must not be removed when
+      // delivery fails.  Re-sending always leaves exactly one token in the DB.
       const tokenCountAfter = (
         await db
           .select()
           .from(venueManagerRegistrationTokensTable)
           .where(eq(venueManagerRegistrationTokensTable.businessId, businessId))
       ).length;
-      expect(tokenCountAfter).toBeGreaterThan(tokenCountBefore);
+      expect(tokenCountAfter).toBe(1);
 
       // No new history row must have been written (history only records a
       // successful send).

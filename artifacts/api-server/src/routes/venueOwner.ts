@@ -4030,6 +4030,13 @@ router.post(
       return;
     }
 
+    // Invalidate any previous unconsumed registration tokens for this business
+    // so re-sending the link leaves only the newest token valid and previous
+    // URLs cannot be used to claim the account.
+    await db
+      .delete(venueManagerRegistrationTokensTable)
+      .where(eq(venueManagerRegistrationTokensTable.businessId, business.id));
+
     const rawToken = crypto.randomBytes(32).toString("base64url");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
