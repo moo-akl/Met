@@ -127,6 +127,7 @@ export default function Dashboard() {
   
   const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<ListStatus>("queue");
+  const [filterSource, setFilterSource] = useState<"all" | "mobile" | "web" | "agent">("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [search, setSearch] = useState("");
@@ -229,7 +230,7 @@ export default function Dashboard() {
 
   // Queries
   const listParams = useMemo(() => {
-    const params: { status?: string; from?: string; to?: string; search?: string } = { status: filterStatus };
+    const params: { status?: string; from?: string; to?: string; search?: string; source?: string } = { status: filterStatus };
     if (fromDate) params.from = new Date(`${fromDate}T00:00:00`).toISOString();
     if (toDate) {
       const end = new Date(`${toDate}T00:00:00`);
@@ -237,8 +238,9 @@ export default function Dashboard() {
       params.to = end.toISOString();
     }
     if (search.trim()) params.search = search.trim();
+    if (filterSource !== "all") params.source = filterSource;
     return params;
-  }, [filterStatus, fromDate, toDate, search]);
+  }, [filterStatus, filterSource, fromDate, toDate, search]);
   
   const { data: listData, isLoading: isLoadingApps, isError: isAppsError, error: appsError, refetch: refetchApplications, isFetching: isFetchingApps } = useListVenueApplications(
     listParams,
@@ -254,9 +256,10 @@ export default function Dashboard() {
 
   const applications = listData?.applications ?? [];
   const counts = listData?.counts ?? {};
-  const hasActiveFilters = filterStatus !== "queue" || Boolean(fromDate || toDate || search.trim());
+  const hasActiveFilters = filterStatus !== "queue" || Boolean(fromDate || toDate || search.trim()) || filterSource !== "all";
   const resetFilters = () => {
     setFilterStatus("queue");
+    setFilterSource("all");
     setFromDate("");
     setToDate("");
     setSearch("");
@@ -688,13 +691,27 @@ export default function Dashboard() {
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" className={`h-9 w-9 shrink-0 ${fromDate || toDate ? "border-primary text-primary bg-primary/5" : ""}`}>
+                <Button variant="outline" size="icon" className={`h-9 w-9 shrink-0 ${fromDate || toDate || filterSource !== "all" ? "border-primary text-primary bg-primary/5" : ""}`}>
                   <Filter className="w-4 h-4" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80" align="end">
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-sm">Filter by Date Range</h4>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Source</Label>
+                    <Select value={filterSource} onValueChange={(val) => { setFilterSource(val as "all" | "mobile" | "web" | "agent"); setSelectedAppId(null); }}>
+                      <SelectTrigger className="w-full bg-background h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All sources</SelectItem>
+                        <SelectItem value="mobile">Mobile</SelectItem>
+                        <SelectItem value="web">Web</SelectItem>
+                        <SelectItem value="agent">Agent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <h4 className="font-semibold text-sm">Date Range</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">From</Label>
@@ -715,13 +732,13 @@ export default function Dashboard() {
                       />
                     </div>
                   </div>
-                  {(fromDate || toDate) && (
+                  {(fromDate || toDate || filterSource !== "all") && (
                     <Button 
                       variant="ghost" 
                       className="w-full h-8 text-xs text-muted-foreground" 
-                      onClick={() => { setFromDate(""); setToDate(""); }}
+                      onClick={() => { setFromDate(""); setToDate(""); setFilterSource("all"); }}
                     >
-                      Clear Dates
+                      Clear Filters
                     </Button>
                   )}
                 </div>

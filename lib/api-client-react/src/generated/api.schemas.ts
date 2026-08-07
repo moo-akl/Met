@@ -1476,6 +1476,10 @@ export type ListVenueApplicationsParams = {
    * @maxLength 120
    */
   search?: string;
+  /**
+   * Filter by application source: `mobile`, `web`, or `agent`.
+   */
+  source?: string;
 };
 
 export interface VenueManagerQrCode {

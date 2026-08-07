@@ -2211,6 +2211,13 @@ paths:
           schema:
             type: string
             maxLength: 120
+        - name: source
+          in: query
+          required: false
+          description: "Filter by application source: `mobile`, `web`, or `agent`."
+          schema:
+            type: string
+            enum: [mobile, web, agent]
       responses:
         "200":
           description: Matching applications plus lifecycle counts

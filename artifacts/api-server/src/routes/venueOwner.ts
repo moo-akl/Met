@@ -2622,6 +2622,7 @@ const adminListQuerySchema = z.object({
   from: z.string().trim().optional(),
   to: z.string().trim().optional(),
   search: z.string().trim().max(120).optional(),
+  source: z.enum(["mobile", "web", "agent"]).optional(),
 });
 
 /**
@@ -2641,7 +2642,7 @@ router.get(
       res.status(400).json({ message: "Invalid filters" });
       return;
     }
-    const { status, from, to, search } = parsedQuery.data;
+    const { status, from, to, search, source } = parsedQuery.data;
 
     let statuses: VenueApplicationStatus[] = [...REVIEWABLE_STATUSES];
     if (status && status !== "queue") {
@@ -2688,6 +2689,9 @@ router.get(
           sql`CAST(${venueOwnerProfilesTable.id} AS TEXT) ILIKE ${pattern}`,
         )!,
       );
+    }
+    if (source) {
+      filters.push(eq(venueOwnerProfilesTable.applicationSource, source));
     }
 
     const applications = await db
