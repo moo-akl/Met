@@ -1,0 +1,65 @@
+name: Weekly Recap Push (Monday 09:00 UTC)
+
+# Fires every Monday at 09:00 UTC and calls the /api/cron/weekly-recap endpoint
+# so users receive their "Met Wrapped" weekly push notification automatically.
+#
+# The job is idempotent — the endpoint only sends one notification per user per
+# run, and a companion dedup guard (task #590) prevents duplicate pushes if the
+# workflow fires more than once in a day.
+#
+# REQUIRED SECRETS (Settings → Secrets and variables → Actions):
+#   CRON_SECRET
+#     - Must match the CRON_SECRET environment variable on the deployed API server.
+#     - To rotate: update the secret in both places simultaneously (GitHub secret
+#       and the Replit deployment environment variable) then re-run the workflow
+#       to confirm the new secret is accepted.
+#
+# ENDPOINT:
+#   POST https://metapp.replit.app/api/cron/weekly-recap
+#   Header: X-Cron-Secret: <CRON_SECRET>
+
+on:
+  schedule:
+    # Every Monday at 09:00 UTC
+    - cron: "0 9 * * 1"
+  # Allow manual triggers for testing / emergency replays
+  workflow_dispatch:
+
+jobs:
+  send-weekly-recap:
+    name: Send weekly recap push notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: POST /api/cron/weekly-recap
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          # No --retry: the server stamps each notified user with the current
+          # ISO-week date (last_weekly_recap_at) so any replay — whether a curl
+          # retry, a manual re-run, or an accidental double-schedule — skips
+          # users who already received a push this week.  Retrying at the HTTP
+          # layer would add no resilience and risks double-sends if the server
+          # completes the request but the response is lost in transit.
+          RESPONSE=$(curl --silent --show-error --fail \
+            --max-time 120 \
+            -X POST "https://metapp.replit.app/api/cron/weekly-recap" \
+            -H "Content-Type: application/json" \
+            -H "X-Cron-Secret: ${CRON_SECRET}" \
+            -w "\n%{http_code}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP status: ${HTTP_CODE}"
+          echo "Response body: ${BODY}"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Weekly recap cron failed with HTTP ${HTTP_CODE}: ${BODY}"
+            exit 1
+          fi
+
+          echo "::notice::Weekly recap sent successfully: ${BODY}"

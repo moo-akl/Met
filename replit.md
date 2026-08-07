@@ -92,6 +92,25 @@ When Firebase credentials change (e.g. new Firebase project, regenerated config)
 - **Deployment method**: Builds are triggered from GitHub source via EAS — there is NO Expo OTA in use. Every JS or native change requires pushing to GitHub and triggering a new EAS build. Never tell the user to "close and reopen the app" to get an OTA update — it won't work.
 - **EAS typecheck gate**: `artifacts/met/scripts/eas-post-install.js` runs `pnpm run typecheck:libs && pnpm --filter @workspace/met run typecheck` on every EAS build (gated on `EAS_BUILD`/`CI`). A TypeScript error exits non-zero and aborts the build early — before the Xcode/Gradle native compile steps begin. This runs after `pnpm install` so all workspace-lib declarations are available.
 
+## Scheduled Jobs
+
+### Weekly Recap Push (every Monday 09:00 UTC)
+
+- **What**: Sends each active user a "Met Wrapped" push summarising the past 7 days of check-ins.
+- **How it fires**: `.github/workflows/weekly-recap-cron.yml` — a GitHub Actions scheduled workflow (`cron: "0 9 * * 1"`).
+- **Endpoint**: `POST https://metapp.replit.app/api/cron/weekly-recap`
+- **Auth header**: `X-Cron-Secret: <CRON_SECRET>`
+- **Manual trigger**: open the workflow in GitHub Actions → **Run workflow** (useful for testing or emergency replays).
+
+#### Rotating `CRON_SECRET`
+
+1. Generate a new secret (e.g. `openssl rand -hex 32`).
+2. Update the **Replit deployment** environment variable `CRON_SECRET` and redeploy the API server.
+3. Update the **GitHub Actions secret** `CRON_SECRET` (repo Settings → Secrets and variables → Actions → `CRON_SECRET`).
+4. Trigger a manual run of `weekly-recap-cron.yml` to confirm the new secret is accepted.
+
+> Both sides must be updated before the next scheduled run, otherwise the cron will get a 401 and the weekly push will be skipped.
+
 ## Domains
 
 - **Production**: `https://metapp.replit.app` (full deployment — API + landing page)

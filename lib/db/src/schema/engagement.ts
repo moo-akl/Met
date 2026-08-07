@@ -67,6 +67,13 @@ export const userStatsTable = pgTable("user_stats", {
     .notNull()
     .default("0"),
   reviewCount: integer("review_count").notNull().default(0),
+  // Idempotency guard for the weekly-recap cron.  Stores the Monday 00:00 UTC
+  // of the most-recent week for which a "Met Wrapped" push was dispatched.
+  // The /cron/weekly-recap handler skips users whose lastWeeklyRecapAt falls
+  // within the same ISO week, so retries and accidental double-fires are no-ops.
+  lastWeeklyRecapAt: timestamp("last_weekly_recap_at", {
+    withTimezone: true,
+  }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -1986,7 +1986,19 @@ router.post("/cron/weekly-recap", async (req, res): Promise<void> => {
     return;
   }
 
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  // ---------------------------------------------------------------------------
+  // Derive the Monday 00:00 UTC of the current ISO week.
+  // This is the dedup boundary: any user stamped on or after this timestamp
+  // has already been claimed this week.
+  // ---------------------------------------------------------------------------
+  const now = new Date();
+  const dayOfWeek = now.getUTCDay(); // 0 = Sun, 1 = Mon, …
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const weekStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysFromMonday),
+  );
+
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   // Aggregate check-ins per (user, venue) for the past 7 days.
   const rows = await db
@@ -2008,9 +2020,9 @@ router.post("/cron/weekly-recap", async (req, res): Promise<void> => {
     )
     .orderBy(desc(sql`count(${hubCheckinsTable.id})`));
 
-  // Collapse to per-user summaries.
+  // Collapse to per-user summaries.  Only keep users with a push token.
   type UserSummary = {
-    pushToken: string | null;
+    pushToken: string;
     venueSet: Set<string>;
     totalCheckins: number;
     topPlace: string | null;
@@ -2018,6 +2030,7 @@ router.post("/cron/weekly-recap", async (req, res): Promise<void> => {
   const byUser = new Map<string, UserSummary>();
 
   for (const row of rows) {
+    if (!row.pushToken) continue; // no token → cannot notify
     if (!byUser.has(row.userUid)) {
       byUser.set(row.userUid, {
         pushToken: row.pushToken,
@@ -2032,9 +2045,66 @@ router.post("/cron/weekly-recap", async (req, res): Promise<void> => {
     if (!entry.topPlace) entry.topPlace = row.placeName; // rows ordered desc — first = highest
   }
 
+  if (byUser.size === 0) {
+    res.json({ sent: 0, skipped: 0 });
+    return;
+  }
+
+  const candidateUids = [...byUser.keys()];
+
+  // ---------------------------------------------------------------------------
+  // Atomic pre-claim via UPSERT.
+  //
+  // Strategy: stamp last_weekly_recap_at = now BEFORE dispatching any push so
+  // that concurrent cron runs (or a manual replay arriving while this request
+  // is in-flight) see the stamp and cannot claim the same users.  RETURNING
+  // gives us exactly the set of users this invocation successfully claimed.
+  //
+  // Semantics: "at most once" per ISO week.  If sendPush later fails for a
+  // claimed user their recap is skipped for this week — a deliberate trade-off
+  // that avoids spamming users on failure → retry cycles.
+  //
+  // For users who have no user_stats row yet (e.g. they never checked in before
+  // this week), the INSERT path creates one and stamps it in the same operation.
+  // ---------------------------------------------------------------------------
+  const claimed = await db
+    .insert(userStatsTable)
+    .values(
+      candidateUids.map((uid) => ({
+        userUid: uid,
+        lastWeeklyRecapAt: now,
+        // Required NOT NULL fields with defaults — explicit here so Postgres
+        // never rejects the INSERT on an existing row's conflict path.
+        hubStreaks: {} as Record<string, number>,
+        trustScore: 100,
+        averageRating: "0",
+        reviewCount: 0,
+        updatedAt: now,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: userStatsTable.userUid,
+      set: {
+        lastWeeklyRecapAt: now,
+        updatedAt: now,
+      },
+      // Only claim users who have NOT already been sent a recap this week.
+      // When this WHERE is false (lastWeeklyRecapAt >= weekStart) Postgres
+      // performs a no-op update, and the row is NOT included in RETURNING.
+      where: or(
+        isNull(userStatsTable.lastWeeklyRecapAt),
+        lt(userStatsTable.lastWeeklyRecapAt, weekStart),
+      ),
+    })
+    .returning({ userUid: userStatsTable.userUid });
+
+  const claimedSet = new Set(claimed.map((r) => r.userUid));
+  const skipped = candidateUids.length - claimedSet.size;
+
+  // Send only to users this invocation successfully claimed.
   const sends: Promise<void>[] = [];
-  for (const [, data] of byUser) {
-    if (!data.pushToken) continue;
+  for (const [uid, data] of byUser) {
+    if (!claimedSet.has(uid)) continue;
     const v = data.venueSet.size;
     const top = data.topPlace ?? "your spot";
     const body =
@@ -2051,7 +2121,7 @@ router.post("/cron/weekly-recap", async (req, res): Promise<void> => {
   }
 
   await Promise.all(sends);
-  res.json({ sent: sends.length });
+  res.json({ sent: sends.length, skipped });
 });
 
 export default router;
