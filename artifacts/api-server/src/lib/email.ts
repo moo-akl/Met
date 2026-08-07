@@ -234,6 +234,80 @@ export async function sendVenueChangesRequestedEmail(opts: ChangesRequestedEmail
   logger.info({ to: opts.to, businessName: opts.businessName }, "Sent venue changes-requested email");
 }
 
+export interface ClaimLinkOverdueAlertEmailOptions {
+  to: string;
+  venues: Array<{
+    id: number;
+    businessName: string;
+    placeName: string;
+    agentId: number;
+    approvedAt: Date;
+  }>;
+}
+
+/**
+ * Sends an internal admin alert listing approved, agent-registered venues
+ * whose owner claim link has never been sent. Intended for the ops / admin
+ * inbox so someone can follow up before the owner gives up.
+ */
+export async function sendClaimLinkOverdueAlertEmail(
+  opts: ClaimLinkOverdueAlertEmailOptions,
+): Promise<boolean> {
+  const transport = createTransport();
+  if (!transport) {
+    logger.warn({ to: opts.to }, "SMTP not configured — skipping claim-link overdue alert email");
+    return false;
+  }
+
+  const subject = `[Met Admin] ${opts.venues.length} venue${opts.venues.length === 1 ? "" : "s"} awaiting claim link`;
+
+  const rows = opts.venues
+    .map(
+      (v) =>
+        `<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;">#${v.id}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;">${escapeHtml(v.businessName)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;">${escapeHtml(v.placeName)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;">Agent #${v.agentId}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;">${v.approvedAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
+        </tr>`,
+    )
+    .join("\n");
+
+  const html = layout(subject, `
+    <p>Hi team,</p>
+    <p>The following approved, agent-registered venues have <strong>never had a claim link sent</strong> to the owner.
+       Please follow up with the assigned agent so the owner can set up their account before they give up.</p>
+
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:0 0 24px;">
+      <thead>
+        <tr style="background:#f4f4f4;">
+          <th style="padding:8px 12px;text-align:left;font-weight:600;">ID</th>
+          <th style="padding:8px 12px;text-align:left;font-weight:600;">Business</th>
+          <th style="padding:8px 12px;text-align:left;font-weight:600;">Place</th>
+          <th style="padding:8px 12px;text-align:left;font-weight:600;">Agent</th>
+          <th style="padding:8px 12px;text-align:left;font-weight:600;">Approved on</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>
+
+    <p style="font-size:13px;color:#888;">
+      This alert fires when a venue has been approved for more than 3 days with no registration link on record.
+      A follow-up alert will be sent in 7 days if the link is still not sent.
+    </p>
+  `);
+
+  await transport.sendMail({ from: getFrom(), to: opts.to, subject, html });
+  logger.info(
+    { to: opts.to, count: opts.venues.length },
+    "Sent claim-link overdue alert email",
+  );
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Escape helpers
 // ---------------------------------------------------------------------------

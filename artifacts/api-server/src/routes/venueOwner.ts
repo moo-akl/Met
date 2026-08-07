@@ -31,6 +31,7 @@
  * POST   /admin/venue-owner/reject/:id           — admin: reject
  *
  * POST   /venue-owner/expire-pending-claims      — cron: release ghost-locked placeIds
+ * POST   /venue-owner/alert-unsent-claim-links   — cron: alert on approved venues with no claim link sent
  */
 
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
@@ -79,6 +80,7 @@ import {
   sendVenueRejectedEmail,
   sendVenueChangesRequestedEmail,
   sendRegistrationLinkEmail,
+  sendClaimLinkOverdueAlertEmail,
 } from "../lib/email.js";
 import { z } from "zod/v4";
 import crypto from "node:crypto";
@@ -2878,6 +2880,9 @@ router.post(
             metadata: {
               to: emailTo,
               subject: `🎉 Your venue "${emailBusinessName}" has been approved`,
+              // Tag when the approval email included a registration URL so that
+              // the claim-link overdue alert cron can detect it as "link sent".
+              ...(registrationUrl ? { registrationLink: true } : {}),
             },
           });
         } catch (err) {
@@ -2956,6 +2961,16 @@ router.post(
           });
         } catch (err) {
           logger.warn({ err, to: profile.contactEmail }, "Failed to send registration link email");
+        }
+        if (emailSent) {
+          // Record so the claim-link overdue alert cron knows a link was sent.
+          await appendApplicationHistory({
+            venueOwnerProfileId: profile.id,
+            eventType: "email_sent",
+            actorRole: "admin",
+            internalNote: "Registration link sent via admin portal",
+            metadata: { registrationLink: true, sentTo: profile.contactEmail },
+          });
         }
       }
     }
@@ -4112,6 +4127,186 @@ router.post(
         contactEmail: d.contactEmail,
         contactName: d.contactName,
       },
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Claim-link overdue alert cron
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /venue-owner/alert-unsent-claim-links
+ * Cron endpoint (X-Cron-Secret required).
+ *
+ * Identifies approved, agent-registered venues where the assigned agent has
+ * never sent a registration claim link to the owner (no "email_sent" history
+ * event with metadata->>'registrationLink' = 'true') and the venue was
+ * approved more than CLAIM_LINK_GRACE_DAYS days ago.
+ *
+ * To avoid flooding the inbox, a venue is skipped if an alert has already
+ * been recorded within the last CLAIM_LINK_ALERT_COOLDOWN_DAYS days.
+ *
+ * On finding overdue venues it sends one consolidated internal alert email to
+ * ADMIN_ALERT_EMAIL (or falls back to SMTP_USER) and writes a
+ * "review_note_added" history event so the audit trail reflects the nudge.
+ */
+
+/** Days after approval before we flag a missing claim link. */
+const CLAIM_LINK_GRACE_DAYS = 3;
+/** Minimum days between repeated alerts for the same venue. */
+const CLAIM_LINK_ALERT_COOLDOWN_DAYS = 7;
+
+router.post(
+  "/venue-owner/alert-unsent-claim-links",
+  requireCronSecret,
+  async (_req: Request, res: Response): Promise<void> => {
+    const graceCutoff = new Date(Date.now() - CLAIM_LINK_GRACE_DAYS * 24 * 60 * 60 * 1000);
+
+    // 1. Find approved agent-registered venues approved more than grace period ago.
+    //    Both conditions must hold: applicationSource = 'agent' (set at registration
+    //    time by the agent portal) AND assignedAgentId is populated. This prevents
+    //    web/mobile applications that happen to have an agent assigned later from
+    //    being treated as agent-originated.
+    const candidates = await db
+      .select({
+        id: venueOwnerProfilesTable.id,
+        businessName: venueOwnerProfilesTable.businessName,
+        placeName: venueOwnerProfilesTable.placeName,
+        assignedAgentId: venueOwnerProfilesTable.assignedAgentId,
+        approvedAt: venueOwnerProfilesTable.approvedAt,
+      })
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+          eq(venueOwnerProfilesTable.applicationSource, "agent"),
+          isNotNull(venueOwnerProfilesTable.assignedAgentId),
+          isNotNull(venueOwnerProfilesTable.approvedAt),
+          lt(venueOwnerProfilesTable.approvedAt, graceCutoff),
+        ),
+      );
+
+    if (candidates.length === 0) {
+      res.json({ alerted: 0, skipped: 0, venues: [] });
+      return;
+    }
+
+    const profileIds = candidates.map((c) => c.id);
+
+    // 2. Find which of those venues already had a registration link sent.
+    const sentEvents = await db
+      .select({ venueOwnerProfileId: venueApplicationHistoryTable.venueOwnerProfileId })
+      .from(venueApplicationHistoryTable)
+      .where(
+        and(
+          inArray(venueApplicationHistoryTable.venueOwnerProfileId, profileIds),
+          eq(venueApplicationHistoryTable.eventType, "email_sent"),
+          sql`${venueApplicationHistoryTable.metadata}->>'registrationLink' = 'true'`,
+        ),
+      );
+
+    const alreadySentIds = new Set(sentEvents.map((e) => e.venueOwnerProfileId));
+
+    // 3. From the remaining venues, exclude any that were already alerted
+    //    within the cooldown window.
+    const cooldownCutoff = new Date(
+      Date.now() - CLAIM_LINK_ALERT_COOLDOWN_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const recentAlerts = await db
+      .select({ venueOwnerProfileId: venueApplicationHistoryTable.venueOwnerProfileId })
+      .from(venueApplicationHistoryTable)
+      .where(
+        and(
+          inArray(venueApplicationHistoryTable.venueOwnerProfileId, profileIds),
+          eq(venueApplicationHistoryTable.eventType, "review_note_added"),
+          sql`${venueApplicationHistoryTable.metadata}->>'claimLinkAlert' = 'true'`,
+          gte(venueApplicationHistoryTable.createdAt, cooldownCutoff),
+        ),
+      );
+
+    const recentlyAlertedIds = new Set(recentAlerts.map((e) => e.venueOwnerProfileId));
+
+    // 4. Build the final list of overdue venues.
+    const overdue = candidates.filter(
+      (c) => !alreadySentIds.has(c.id) && !recentlyAlertedIds.has(c.id),
+    );
+
+    if (overdue.length === 0) {
+      logger.info(
+        { candidates: candidates.length },
+        "Claim-link overdue check: no new venues to alert",
+      );
+      res.json({ alerted: 0, skipped: candidates.length, venues: [] });
+      return;
+    }
+
+    // 5. Send the consolidated internal alert email.
+    const alertTo =
+      process.env["ADMIN_ALERT_EMAIL"] ??
+      process.env["SMTP_USER"] ??
+      "";
+
+    let emailSent = false;
+    if (alertTo) {
+      try {
+        emailSent = await sendClaimLinkOverdueAlertEmail({
+          to: alertTo,
+          venues: overdue.map((v) => ({
+            id: v.id,
+            businessName: v.businessName,
+            placeName: v.placeName,
+            agentId: v.assignedAgentId!,
+            approvedAt: v.approvedAt!,
+          })),
+        });
+      } catch (err) {
+        logger.warn({ err }, "Failed to send claim-link overdue alert email");
+      }
+    } else {
+      logger.warn(
+        "ADMIN_ALERT_EMAIL and SMTP_USER are not set — skipping claim-link alert email",
+      );
+    }
+
+    // 6. Record a cooldown history event for each venue — but only when the
+    //    alert was actually delivered. If SMTP is not configured or delivery
+    //    failed, we do not write the event so the next cron run can retry
+    //    without waiting out the full cooldown window.
+    if (emailSent) {
+      await Promise.all(
+        overdue.map((v) =>
+          appendApplicationHistory({
+            venueOwnerProfileId: v.id,
+            eventType: "review_note_added",
+            actorRole: "system",
+            internalNote: `Internal alert delivered: no registration claim link has been sent to the owner ${CLAIM_LINK_GRACE_DAYS}+ days after approval (agent ID: ${v.assignedAgentId}).`,
+            metadata: { claimLinkAlert: true, emailSent: true, alertTo },
+          }),
+        ),
+      );
+    } else {
+      logger.warn(
+        { count: overdue.length },
+        "Claim-link overdue alert: alert email not delivered — cooldown events not written; will retry on next cron run",
+      );
+    }
+
+    logger.info(
+      { count: overdue.length, emailSent, alertTo },
+      "Claim-link overdue alert: alerted venues",
+    );
+
+    res.json({
+      alerted: overdue.length,
+      skipped: candidates.length - overdue.length,
+      emailSent,
+      venues: overdue.map((v) => ({
+        id: v.id,
+        businessName: v.businessName,
+        assignedAgentId: v.assignedAgentId,
+        approvedAt: v.approvedAt,
+      })),
     });
   },
 );
