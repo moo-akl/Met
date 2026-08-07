@@ -3891,7 +3891,151 @@ router.get(
       .from(venueOwnerProfilesTable)
       .where(eq(venueOwnerProfilesTable.assignedAgentId, agentId))
       .orderBy(desc(venueOwnerProfilesTable.createdAt));
-    res.json({ venues });
+
+    // Attach the most recent registration-link send timestamp for each venue.
+    // We filter by metadata->>'registrationLink' = 'true' to avoid picking up
+    // unrelated email_sent events (e.g. approval / rejection emails).
+    const claimLinkSentAtMap: Map<number, string> = new Map();
+    if (venues.length > 0) {
+      const profileIds = venues.map((v) => v.id);
+      const emailEvents = await db
+        .select({
+          venueOwnerProfileId: venueApplicationHistoryTable.venueOwnerProfileId,
+          createdAt: venueApplicationHistoryTable.createdAt,
+        })
+        .from(venueApplicationHistoryTable)
+        .where(
+          and(
+            inArray(venueApplicationHistoryTable.venueOwnerProfileId, profileIds),
+            eq(venueApplicationHistoryTable.eventType, "email_sent"),
+            sql`${venueApplicationHistoryTable.metadata}->>'registrationLink' = 'true'`,
+          ),
+        )
+        .orderBy(desc(venueApplicationHistoryTable.createdAt));
+      for (const ev of emailEvents) {
+        if (!claimLinkSentAtMap.has(ev.venueOwnerProfileId) && ev.createdAt) {
+          claimLinkSentAtMap.set(ev.venueOwnerProfileId, ev.createdAt.toISOString());
+        }
+      }
+    }
+
+    res.json({
+      venues: venues.map((v) => ({
+        ...v,
+        claimLinkSentAt: claimLinkSentAtMap.get(v.id) ?? null,
+      })),
+    });
+  },
+);
+
+// ── Agent: send a registration claim link to the venue owner ─────────────────
+/**
+ * POST /admin/agent/applications/:id/registration-link
+ * Generates a one-time owner registration token for an approved venue and
+ * emails the claim link to the owner's contact address. Only the assigned
+ * agent may trigger this for their own venues.
+ */
+router.post(
+  "/admin/agent/applications/:id/registration-link",
+  requireAgentSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const agentId = (req as AgentRequest).agentId;
+    const profileId = parseProfileId(req.params["id"]);
+    if (profileId === null) {
+      res.status(400).json({ message: "Invalid profile id" });
+      return;
+    }
+
+    const [profile] = await db
+      .select({
+        id: venueOwnerProfilesTable.id,
+        businessName: venueOwnerProfilesTable.businessName,
+        contactEmail: venueOwnerProfilesTable.contactEmail,
+        assignedAgentId: venueOwnerProfilesTable.assignedAgentId,
+      })
+      .from(venueOwnerProfilesTable)
+      .where(
+        and(
+          eq(venueOwnerProfilesTable.id, profileId),
+          eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+          eq(venueOwnerProfilesTable.assignedAgentId, agentId),
+        ),
+      )
+      .limit(1);
+
+    if (!profile) {
+      res.status(404).json({ message: "Approved venue not found or not assigned to you." });
+      return;
+    }
+
+    if (!profile.contactEmail) {
+      res.status(409).json({ message: "No contact email on file for this venue." });
+      return;
+    }
+
+    const [business] = await db
+      .select({ id: venueBusinessesTable.id })
+      .from(venueBusinessesTable)
+      .where(eq(venueBusinessesTable.venueOwnerProfileId, profile.id))
+      .limit(1);
+
+    if (!business) {
+      res.status(409).json({ message: "Business record not set up yet — try again shortly." });
+      return;
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("base64url");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await db
+      .insert(venueManagerRegistrationTokensTable)
+      .values({ businessId: business.id, tokenHash, expiresAt });
+
+    const baseUrl = process.env["VENUE_MANAGER_BASE_URL"];
+    if (!baseUrl) {
+      res.status(503).json({ message: "Email delivery is not configured on this server." });
+      return;
+    }
+
+    let emailSent = false;
+    const registrationUrl = `${baseUrl.replace(/\/$/, "")}/register?token=${rawToken}`;
+    try {
+      emailSent = await sendRegistrationLinkEmail({
+        to: profile.contactEmail,
+        businessName: profile.businessName,
+        registrationUrl,
+        expiresAt,
+      });
+    } catch (err) {
+      logger.warn({ err, to: profile.contactEmail }, "Failed to send registration link email");
+    }
+
+    if (!emailSent) {
+      // Token generated but delivery failed — do not record as sent.
+      res.status(200).json({
+        emailSent: false,
+        contactEmail: profile.contactEmail,
+      });
+      return;
+    }
+
+    // Email delivered — record this as a registration-link send so the list
+    // endpoint can surface a reliable timestamp via the metadata tag.
+    const sentAt = new Date();
+    await appendApplicationHistory({
+      venueOwnerProfileId: profile.id,
+      eventType: "email_sent",
+      actorRole: "admin",
+      actorUid: `agent:${agentId}`,
+      internalNote: `Registration link sent by sales agent (ID: ${agentId})`,
+      metadata: { registrationLink: true, sentTo: profile.contactEmail },
+    });
+
+    res.status(201).json({
+      emailSent: true,
+      contactEmail: profile.contactEmail,
+      sentAt: sentAt.toISOString(),
+    });
   },
 );
 

@@ -29,6 +29,7 @@ interface Venue {
   contactName: string | null;
   submittedAt: string | null;
   createdAt: string;
+  claimLinkSentAt: string | null;
 }
 
 interface AgentDashboardProps {
@@ -73,6 +74,7 @@ export default function AgentDashboard({ agent, onLogout }: AgentDashboardProps)
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [lastRegistered, setLastRegistered] = useState<{ businessName: string } | null>(null);
+  const [sendingClaimLink, setSendingClaimLink] = useState<number | null>(null);
 
   const loadVenues = useCallback(async () => {
     setLoading(true);
@@ -111,6 +113,30 @@ export default function AgentDashboard({ agent, onLogout }: AgentDashboardProps)
       toast({ variant: "destructive", title: "Registration failed", description: (err as Error).message });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleSendClaimLink(venue: Venue) {
+    setSendingClaimLink(venue.id);
+    try {
+      const result = await apiFetch<{ emailSent: boolean; contactEmail: string; sentAt?: string }>(
+        `/api/admin/agent/applications/${venue.id}/registration-link`,
+        { method: "POST", headers: { "Content-Type": "application/json" } },
+      );
+      if (result.emailSent && result.sentAt) {
+        setVenues(vs =>
+          vs.map(v =>
+            v.id === venue.id ? { ...v, claimLinkSentAt: result.sentAt! } : v,
+          ),
+        );
+        toast({ title: "Claim link sent!", description: `Email delivered to ${result.contactEmail}.` });
+      } else {
+        toast({ variant: "destructive", title: "Email not delivered", description: "The registration link was generated but the email could not be sent. Check server SMTP configuration." });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to send claim link", description: (err as Error).message });
+    } finally {
+      setSendingClaimLink(null);
     }
   }
 
@@ -190,6 +216,8 @@ export default function AgentDashboard({ agent, onLogout }: AgentDashboardProps)
             <div className="space-y-3">
               {venues.map(venue => {
                 const statusConfig = STATUS_CONFIG[venue.applicationStatus] ?? { label: venue.applicationStatus, color: "bg-slate-100 text-slate-700 border-slate-200", icon: null };
+                const isApproved = venue.applicationStatus === "approved";
+                const isSending = sendingClaimLink === venue.id;
                 return (
                   <div key={venue.id} className="border border-border rounded-xl p-4 bg-card hover:border-primary/30 transition-colors">
                     <div className="flex items-start justify-between gap-3 mb-2">
@@ -199,11 +227,33 @@ export default function AgentDashboard({ agent, onLogout }: AgentDashboardProps)
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mb-3">{venue.placeName}</p>
-                    <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+                    <div className="flex items-center gap-4 text-[11px] text-muted-foreground flex-wrap">
                       {venue.contactName && <span>Owner: {venue.contactName}</span>}
                       {venue.contactEmail && <span>{venue.contactEmail}</span>}
                       <span className="ml-auto">{format(new Date(venue.submittedAt ?? venue.createdAt), "MMM d, yyyy")}</span>
                     </div>
+                    {isApproved && (
+                      <div className="mt-3 pt-3 border-t border-border flex items-center justify-between gap-3">
+                        {venue.claimLinkSentAt ? (
+                          <span className="text-[11px] text-emerald-600 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Claim link sent {format(new Date(venue.claimLinkSentAt), "MMM d, yyyy")}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">Claim link not yet sent</span>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[11px] gap-1.5 shrink-0"
+                          disabled={isSending}
+                          onClick={() => void handleSendClaimLink(venue)}
+                        >
+                          <Send className="w-3 h-3" />
+                          {isSending ? "Sending…" : venue.claimLinkSentAt ? "Resend Claim Link" : "Send Claim Link"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
