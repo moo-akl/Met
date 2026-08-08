@@ -431,6 +431,102 @@ describe.skipIf(!hasDatabase)(
     });
 
     // -----------------------------------------------------------------------
+    // checkinCount accuracy — search + period should count only matching rows
+    // -----------------------------------------------------------------------
+
+    /**
+     * Returns the start-of-week timestamp that the route uses:
+     *   new Date(year, month, date - dayOfWeek)   (midnight Sunday, local time)
+     *
+     * Using this boundary makes timestamps deterministic regardless of what
+     * day of the week the tests run.
+     */
+    function weekStartMs(): number {
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+      return d.getTime();
+    }
+
+    it("checkinCount reflects only the period-filtered rows when search+period=week is active", async () => {
+      const weekStart = weekStartMs();
+
+      // Two checkins just inside the current week window (1 ms and 1 hour after midnight Sunday)
+      await insertCheckin(USER_ALICE, new Date(weekStart + 1));
+      await insertCheckin(USER_ALICE, new Date(weekStart + 60 * 60 * 1000));
+      // Three checkins strictly before the week boundary
+      await insertCheckin(USER_ALICE, new Date(weekStart - 1));
+      await insertCheckin(USER_ALICE, new Date(weekStart - 7 * 24 * 60 * 60 * 1000));
+      await insertCheckin(USER_ALICE, new Date(weekStart - 14 * 24 * 60 * 60 * 1000));
+
+      const res = await request(app)
+        .get(
+          `/api/venue-manager/businesses/${businessId}/guests?search=Alice&period=week`,
+        )
+        .set("Cookie", sessionCookieHeader());
+
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(1);
+      expect(res.body.guests).toHaveLength(1);
+      expect(res.body.guests[0].uid).toBe(USER_ALICE);
+      // Only the 2 checkins at or after weekStart should be counted.
+      expect(res.body.guests[0].checkinCount).toBe(2);
+    });
+
+    it("checkinCount reflects all checkins when search+period=all is active", async () => {
+      const weekStart = weekStartMs();
+
+      // 5 checkins spread across multiple periods (some inside, some outside the week)
+      await insertCheckin(USER_ALICE, new Date(weekStart + 1));
+      await insertCheckin(USER_ALICE, new Date(weekStart + 60 * 60 * 1000));
+      await insertCheckin(USER_ALICE, new Date(weekStart - 1));
+      await insertCheckin(USER_ALICE, new Date(weekStart - 7 * 24 * 60 * 60 * 1000));
+      await insertCheckin(USER_ALICE, new Date(weekStart - 14 * 24 * 60 * 60 * 1000));
+
+      const res = await request(app)
+        .get(
+          `/api/venue-manager/businesses/${businessId}/guests?search=Alice&period=all`,
+        )
+        .set("Cookie", sessionCookieHeader());
+
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(1);
+      expect(res.body.guests).toHaveLength(1);
+      expect(res.body.guests[0].uid).toBe(USER_ALICE);
+      // All 5 checkins must appear when no period filter is applied.
+      expect(res.body.guests[0].checkinCount).toBe(5);
+    });
+
+    it("checkinCount with period=week is independent per guest", async () => {
+      const weekStart = weekStartMs();
+
+      // Alice: 3 checkins total — 2 inside this week, 1 before
+      await insertCheckin(USER_ALICE, new Date(weekStart + 1));
+      await insertCheckin(USER_ALICE, new Date(weekStart + 2 * 60 * 60 * 1000));
+      await insertCheckin(USER_ALICE, new Date(weekStart - 1));
+
+      // Bob: 4 checkins total — only 1 inside this week
+      await insertCheckin(USER_BOB, new Date(weekStart + 1));
+      await insertCheckin(USER_BOB, new Date(weekStart - 1));
+      await insertCheckin(USER_BOB, new Date(weekStart - 7 * 24 * 60 * 60 * 1000));
+      await insertCheckin(USER_BOB, new Date(weekStart - 14 * 24 * 60 * 60 * 1000));
+
+      // No search filter, period=week — both guests appear with week-only counts
+      const res = await request(app)
+        .get(
+          `/api/venue-manager/businesses/${businessId}/guests?period=week`,
+        )
+        .set("Cookie", sessionCookieHeader());
+
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(2);
+
+      const alice = res.body.guests.find((g: { uid: string }) => g.uid === USER_ALICE);
+      const bob = res.body.guests.find((g: { uid: string }) => g.uid === USER_BOB);
+      expect(alice?.checkinCount).toBe(2);
+      expect(bob?.checkinCount).toBe(1);
+    });
+
+    // -----------------------------------------------------------------------
     // Empty / blank search — no filter applied, all guests returned
     // -----------------------------------------------------------------------
     it("an empty search string returns all guests (same as omitting search)", async () => {
