@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
+import { Avatar } from "@/components/Avatar";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { getStarColor } from "@/lib/rating";
@@ -463,6 +464,22 @@ export default function EncounterDetail() {
             },
           ]}
         >
+          <View style={styles.avatarRow}>
+            <Avatar
+              uri={encounter.photoUri}
+              size={72}
+              ring={encounter.tier === "pro" || encounter.tier === "plus"}
+              ringColor={
+                encounter.tier === "pro"
+                  ? "#FFD700"
+                  : encounter.tier === "plus"
+                    ? "#3B82F6"
+                    : undefined
+              }
+              fallbackText={encounter.realName}
+            />
+          </View>
+
           <View style={styles.metaRow}>
             <Feather name="repeat" size={16} color={colors.primary} />
             <Text style={[styles.metaPrimary, { color: colors.primary }]}>
@@ -997,6 +1014,10 @@ const styles = StyleSheet.create({
     marginTop: -16,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+  },
+  avatarRow: {
+    alignItems: "center",
+    marginBottom: 4,
   },
   metaRow: {
     flexDirection: "row",
