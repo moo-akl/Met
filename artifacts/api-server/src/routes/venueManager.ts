@@ -307,6 +307,38 @@ router.delete("/venue-manager/session", requireSession, requireCsrf, async (req,
   res.status(204).end();
 });
 
+// ── Current manager's Met account linkage ───────────────────────────────────
+// Returns { linked: boolean, email: string } without any business scoping —
+// only the session is needed.  Used by the Guests page to show a warning
+// before the manager tries to send a reveal and gets a 422.
+router.get("/venue-manager/me/met-profile", requireSession, async (req, res): Promise<void> => {
+  const [managerRow] = await db
+    .select({ email: venueManagersTable.email })
+    .from(venueManagersTable)
+    .where(eq(venueManagersTable.id, req.venueManagerSession!.managerId))
+    .limit(1);
+  if (!managerRow) {
+    res.status(401).json({ message: "Session manager not found." });
+    return;
+  }
+  try {
+    await adminAuth().getUserByEmail(managerRow.email);
+    res.json({ linked: true, email: managerRow.email });
+  } catch (err: unknown) {
+    // Only treat a confirmed "user not found" as unlinked.
+    // All other errors (network, mis-configured credentials, transient
+    // Firebase outage) should NOT silently disable the Guests feature —
+    // surface them as a 503 so the client can show a "try again" state
+    // instead of incorrectly presenting the "create a Met account" banner.
+    const code = (err as { code?: string }).code;
+    if (code === "auth/user-not-found") {
+      res.json({ linked: false, email: managerRow.email });
+    } else {
+      res.status(503).json({ message: "Unable to verify Met account link right now. Please try again." });
+    }
+  }
+});
+
 router.get("/venue-manager/businesses", requireSession, async (req, res): Promise<void> => {
   const rows = await db.select({
     membership: venueMembershipsTable,

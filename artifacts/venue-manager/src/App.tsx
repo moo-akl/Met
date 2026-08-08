@@ -1060,6 +1060,50 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [period, setPeriod] = useState<GuestPeriod>("all");
 
+  // Check whether the current manager's email is linked to a Met account.
+  // This is needed before they can send reveals — a 422 is the current failure
+  // mode but we want to surface it prominently rather than waiting for a tap.
+  const metProfile = useQuery<{ linked: boolean; email: string }>({
+    queryKey: ["/api/venue-manager/me/met-profile"],
+    queryFn: async () => {
+      const r = await fetch("/api/venue-manager/me/met-profile", { credentials: "include" });
+      // 503 = Firebase/transient error — throw so the query enters error state,
+      // which the UI treats as "can't confirm" rather than "not linked".
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message ?? "Unable to check Met account.");
+      return r.json() as Promise<{ linked: boolean; email: string }>;
+    },
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  // Three-valued link status:
+  //  "loading"  — query in flight; block reveals until confirmed
+  //  "unlinked" — Firebase confirmed user not found; show banner + disable
+  //  "linked"   — Firebase confirmed user exists; full feature available
+  //  "error"    — transient Firebase failure; allow reveals (server still enforces)
+  const metLinkStatus: "loading" | "linked" | "unlinked" | "error" =
+    metProfile.isPending
+      ? "loading"
+      : metProfile.isError
+      ? "error"
+      : metProfile.data.linked
+      ? "linked"
+      : "unlinked";
+
+  const canSendReveal = metLinkStatus === "linked" || metLinkStatus === "error";
+  const managerEmail = metProfile.data?.email ?? "";
+
+  // If the reveal composer is already open and the linkage check comes back
+  // unlinked, close it so the disabled state can't be bypassed by racing the load.
+  useEffect(() => {
+    if (metLinkStatus === "unlinked" && (revealOpen || selected !== null)) {
+      setRevealOpen(false);
+      setRevealMsg("");
+      setRevealStatus("idle");
+      setRevealErr("");
+    }
+  }, [metLinkStatus, revealOpen, selected]);
+
   // Debounce the search term so we don't fire a request on every keystroke
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
@@ -1124,6 +1168,16 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   if (loadErr) return <div className="vm-notice error">{loadErr}</div>;
 
   return <>
+    {metLinkStatus === "unlinked" && (
+      <div className="vm-notice warning vm-met-link-banner">
+        <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+        <span>
+          To send reveal requests, create a Met account using the same email
+          (<strong>{managerEmail}</strong>). Once your Met account is active,
+          reveal requests will be available automatically.
+        </span>
+      </div>
+    )}
     <div className="vm-guests-controls">
       <input
         className="vm-guests-search"
@@ -1210,9 +1264,22 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
                       </button>
                     </div>
                   </div>
-                : <button className="vm-primary" onClick={() => openReveal(selected)}>
-                    <CircleUserRound size={16} /> Send reveal request
-                  </button>}
+                : canSendReveal
+                  ? <button className="vm-primary" onClick={() => openReveal(selected)}>
+                      <CircleUserRound size={16} /> Send reveal request
+                    </button>
+                  : metLinkStatus === "loading"
+                  ? <button className="vm-primary" disabled>
+                      <CircleUserRound size={16} /> Send reveal request
+                    </button>
+                  : <span className="vm-reveal-disabled-wrap">
+                      <button className="vm-primary" disabled>
+                        <CircleUserRound size={16} /> Send reveal request
+                      </button>
+                      <small className="vm-reveal-disabled-hint">
+                        Create a Met account with {managerEmail} to unlock this feature.
+                      </small>
+                    </span>}
           </div>
         </aside>
       </div>
