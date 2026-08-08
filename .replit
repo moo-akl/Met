@@ -215,3 +215,6 @@ EXPO_PUBLIC_TIKTOK_DEBUG = "true"
 VENUE_MANAGER_BASE_URL = "https://met-app.org/venue-manager"
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = "587"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-3f5a3678-bbc7-4130-96c9-2817016deec6"
