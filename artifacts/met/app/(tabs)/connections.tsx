@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
 import { AppHeader } from "@/components/AppHeader";
+import { ScanFab } from "@/components/ScanFab";
 import { Avatar } from "@/components/Avatar";
 import { type RadarBlip, RadarView } from "@/components/RadarView";
 import { EmptyState } from "@/components/EmptyState";
@@ -100,6 +101,10 @@ export default function ConnectionsScreen() {
 
   const unreadChatCount = useUnreadChatCount();
   const webBot = Platform.OS === "web" ? 34 : 0;
+
+  const handleScan = useCallback(() => {
+    router.push("/scan");
+  }, [router]);
 
   // Radar blips: non-connections nearby (live).
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
@@ -575,6 +580,8 @@ export default function ConnectionsScreen() {
           onPress: () => updateSort(opt),
         }))}
       />
+
+      <ScanFab onPress={handleScan} />
 
     </View>
   );
