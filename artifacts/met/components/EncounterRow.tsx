@@ -104,10 +104,10 @@ export function EncounterRow({ encounter }: Props) {
           ring={encounter.status === "request_received" || encounter.tier === "pro" || encounter.tier === "plus"}
           ringColor={
             encounter.tier === "pro"
-              ? "#F59E0B"
+              ? "#FFD700"
               : encounter.tier === "plus"
-              ? "#3B82F6"
-              : undefined
+                ? "#3B82F6"
+                : undefined
           }
         />
         <View style={styles.body}>

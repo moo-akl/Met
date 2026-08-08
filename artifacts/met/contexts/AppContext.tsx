@@ -1195,6 +1195,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         authedUid,
         (people: MetPersonDoc[]) => {
           if (cancelled) return;
+
+          // Apply tier updates to existing encounters so the subscriber ring
+          // stays current even for encounters loaded from local storage or
+          // detected before this snapshot arrived.
+          const tiersById = new Map<string, "free" | "plus" | "pro">();
+          for (const p of people) {
+            if (p.tier) tiersById.set(p.otherUid, p.tier);
+          }
+          if (tiersById.size > 0) {
+            setAllEncounters((prev) => {
+              let changed = false;
+              const next = prev.map((e) => {
+                const newTier = tiersById.get(e.id);
+                if (newTier && e.tier !== newTier) {
+                  changed = true;
+                  return { ...e, tier: newTier };
+                }
+                return e;
+              });
+              return changed ? next : prev;
+            });
+          }
+
           // Snapshot the local list once per stream tick; the actual
           // mutation happens inside setAllEncounters so we always see
           // the freshest committed state.
@@ -1225,6 +1248,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   profile,
                   observedAt: p.lastMet || Date.now(),
                 });
+                // Patch in the tier from the Firestore doc now that the
+                // encounter has been fabricated into local state.
+                if (p.tier && p.tier !== "free") {
+                  setAllEncounters((prev) =>
+                    prev.map((e) =>
+                      e.id === p.otherUid && e.tier !== p.tier
+                        ? { ...e, tier: p.tier }
+                        : e,
+                    ),
+                  );
+                }
               } catch (err) {
                 if ((err as { name?: string }).name !== "AbortError") {
                   console.warn(

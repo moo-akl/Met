@@ -46,6 +46,7 @@ vi.mock("@workspace/db", () => ({
   profilesTable: {},
   encountersTable: {},
   revealRequestsTable: {},
+  subscriptionsTable: {},
 }));
 
 vi.mock("../lib/firestoreMirror", () => ({
@@ -241,16 +242,20 @@ describe("POST /api/encounters", () => {
     //   1. profilesTable lookup for other user (isVisible + pushToken + interests)
     //   2. profilesTable lookup for caller interests (only when other has interests)
 
+    // DB limit call ordering for POST /api/encounters/record:
+    //   call 1: profilesTable — other user lookup (isVisible + pushToken + interests)
+    //   call 2: subscriptionsTable — tier lookup for both users (limit 2)
+    //   call 3: revealRequestsTable — re-encounter check (limit 1)
+    //   call 4: profilesTable — caller interests or display name (only when push fires)
+
     it("sends a generic push body when there are no shared interests", async () => {
       pushMocks.checkNearbyPushAllowed.mockReturnValueOnce(true);
 
-      // limit call 1: other profile with interests
-      // limit call 2: re-encounter check — empty → not connected → new encounter path
-      // limit call 3: caller profile — no interests → no overlap
       dbMocks.chain.limit
         .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music"] }])
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ interests: [] }]);
+        .mockResolvedValueOnce([])  // tier lookup: both free
+        .mockResolvedValueOnce([])  // re-encounter check: not connected
+        .mockResolvedValueOnce([{ interests: [] }]);  // caller profile: no interests → no overlap
 
       await postRecordEncounterAs("alice", { otherUid: "bob" });
 
@@ -265,8 +270,9 @@ describe("POST /api/encounters", () => {
 
       dbMocks.chain.limit
         .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"], preferredLocale: null }])
-        .mockResolvedValueOnce([]) // re-encounter check: not connected
-        .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]); // "Travel" is shared
+        .mockResolvedValueOnce([])  // tier lookup: both free
+        .mockResolvedValueOnce([])  // re-encounter check: not connected
+        .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]);  // "Travel" is shared
 
       await postRecordEncounterAs("alice", { otherUid: "bob" });
 
@@ -282,7 +288,8 @@ describe("POST /api/encounters", () => {
       // Bob prefers Spanish — "Travel" should appear as "Viajes" in the notification.
       dbMocks.chain.limit
         .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"], preferredLocale: "es" }])
-        .mockResolvedValueOnce([]) // re-encounter check: not connected
+        .mockResolvedValueOnce([])  // tier lookup: both free
+        .mockResolvedValueOnce([])  // re-encounter check: not connected
         .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]);
 
       await postRecordEncounterAs("alice", { otherUid: "bob" });
@@ -300,7 +307,8 @@ describe("POST /api/encounters", () => {
       // The normalised comparison should still detect the overlap.
       dbMocks.chain.limit
         .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["music"] }])
-        .mockResolvedValueOnce([]) // re-encounter check: not connected
+        .mockResolvedValueOnce([])  // tier lookup: both free
+        .mockResolvedValueOnce([])  // re-encounter check: not connected
         .mockResolvedValueOnce([{ interests: ["Music"] }]);
 
       await postRecordEncounterAs("alice", { otherUid: "bob" });
@@ -308,6 +316,42 @@ describe("POST /api/encounters", () => {
       expect(pushMocks.sendPush).toHaveBeenCalledWith(
         "tok-bob",
         expect.objectContaining({ body: expect.stringMatching(/also likes/i) }),
+      );
+    });
+
+    it("passes active Plus tier to recordSymmetricEncounter as tierA for the caller", async () => {
+      // Alice is a Plus subscriber; Bob has no active subscription.
+      // DB limit call ordering for this test (no push — pushToken is null):
+      //   call 1: profilesTable — other profile lookup
+      //   call 2: subscriptionsTable — tier lookup (alice=plus, bob missing → free)
+      //   call 3: revealRequestsTable — re-encounter check
+      dbMocks.chain.limit
+        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: null, interests: [] }])
+        .mockResolvedValueOnce([{ userUid: "alice", tier: "plus", status: "active" }])
+        .mockResolvedValueOnce([]);  // re-encounter check
+
+      await postRecordEncounterAs("alice", { otherUid: "bob" });
+
+      expect(firestoreMirrorMocks.recordSymmetricEncounter).toHaveBeenCalledWith(
+        expect.objectContaining({ tierA: "plus", tierB: "free" }),
+      );
+    });
+
+    it("passes active Pro tier to recordSymmetricEncounter on the observed side", async () => {
+      // Bob is a Pro subscriber; Alice has no active subscription.
+      // DB limit call ordering:
+      //   call 1: profilesTable — other profile lookup
+      //   call 2: subscriptionsTable — tier lookup (bob=pro, alice missing → free)
+      //   call 3: revealRequestsTable — re-encounter check
+      dbMocks.chain.limit
+        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: null, interests: [] }])
+        .mockResolvedValueOnce([{ userUid: "bob", tier: "pro", status: "active" }])
+        .mockResolvedValueOnce([]);  // re-encounter check
+
+      await postRecordEncounterAs("alice", { otherUid: "bob" });
+
+      expect(firestoreMirrorMocks.recordSymmetricEncounter).toHaveBeenCalledWith(
+        expect.objectContaining({ tierA: "free", tierB: "pro" }),
       );
     });
   });

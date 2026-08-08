@@ -15,6 +15,9 @@ export interface MetPersonDoc {
   lastMet: number; // epoch ms (client-side parsed from Firestore Timestamp)
   metCount: number;
   location: { lat: number; lng: number } | null;
+  /** The other person's subscription tier, written by the server at encounter
+   *  record time. Used to show the subscriber ring on encounter cards. */
+  tier?: "free" | "plus" | "pro";
 }
 
 export interface RequestChangeDoc {
@@ -88,7 +91,12 @@ export async function subscribeToMetPeople(
           ) {
             location = { lat: locRaw.latitude, lng: locRaw.longitude };
           }
-          out.push({ otherUid, lastMet, metCount, location });
+          const rawTier = d["tier"];
+          const tier =
+            rawTier === "plus" || rawTier === "pro" || rawTier === "free"
+              ? (rawTier as "free" | "plus" | "pro")
+              : undefined;
+          out.push({ otherUid, lastMet, metCount, location, tier });
         });
         listener(out);
       },

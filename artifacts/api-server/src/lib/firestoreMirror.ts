@@ -63,6 +63,11 @@ export type RecordEncounterArgs = {
   uidA: string;
   uidB: string;
   location?: { lat: number; lng: number } | null;
+  /** uidA's subscription tier — written into uidB's met_people doc so uidB
+   *  can show the subscriber ring on uidA's encounter card. */
+  tierA?: "free" | "plus" | "pro";
+  /** uidB's subscription tier — written into uidA's met_people doc. */
+  tierB?: "free" | "plus" | "pro";
 };
 
 export type EncounterRecordResult = {
@@ -110,15 +115,22 @@ export async function recordSymmetricEncounter(
   };
   if (geo !== null) sharedFields["location"] = geo;
 
+  // Write each user's tier into the OTHER side's doc so the observer can
+  // show the subscriber ring on the encounter card without an extra fetch.
+  const aFields: Record<string, unknown> = { ...sharedFields };
+  const bFields: Record<string, unknown> = { ...sharedFields };
+  if (args.tierB) aFields["tier"] = args.tierB; // uidB's tier goes on uidA's view
+  if (args.tierA) bFields["tier"] = args.tierA; // uidA's tier goes on uidB's view
+
   const batch = db.batch();
   batch.set(
     aRef,
-    { uid: args.uidB, ...sharedFields, createdAt: now },
+    { uid: args.uidB, ...aFields, createdAt: now },
     { merge: true },
   );
   batch.set(
     bRef,
-    { uid: args.uidA, ...sharedFields, createdAt: now },
+    { uid: args.uidA, ...bFields, createdAt: now },
     { merge: true },
   );
   await batch.commit();

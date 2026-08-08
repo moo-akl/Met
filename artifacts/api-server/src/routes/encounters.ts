@@ -158,16 +158,11 @@ router.get("/encounters", requireUid, async (req, res) => {
     .select({
       encounter: encountersTable,
       profile: profilesTable,
-      sub: subscriptionsTable,
     })
     .from(encountersTable)
     .leftJoin(
       profilesTable,
       eq(profilesTable.uid, encountersTable.observedUid),
-    )
-    .leftJoin(
-      subscriptionsTable,
-      eq(subscriptionsTable.userUid, encountersTable.observedUid),
     )
     .where(eq(encountersTable.observerUid, uid))
     .orderBy(desc(encountersTable.lastSeenAt));
@@ -178,10 +173,7 @@ router.get("/encounters", requireUid, async (req, res) => {
     .filter((r) => r.profile !== null)
     .map((r) => ({
       ...serializeEncounter(r.encounter),
-      profile: {
-        ...serializeProfile(r.profile!),
-        peerTier: (r.sub?.status === "active" ? r.sub?.tier : undefined) ?? "free",
-      },
+      profile: serializeProfile(r.profile!),
     }));
 
   res.json(ListMyEncountersResponse.parse(items));
@@ -231,11 +223,33 @@ router.post("/encounters/record", requireUid, encounterWriteLimit, async (req, r
     return;
   }
 
+  // Look up both users' active subscription tiers so the encounter doc
+  // carries the subscriber ring data the client needs for encounter cards.
+  const tierRows = await db
+    .select({ userUid: subscriptionsTable.userUid, tier: subscriptionsTable.tier, status: subscriptionsTable.status })
+    .from(subscriptionsTable)
+    .where(
+      or(
+        eq(subscriptionsTable.userUid, uid),
+        eq(subscriptionsTable.userUid, body.otherUid),
+      ),
+    )
+    .limit(2);
+  const getTier = (u: string): "free" | "plus" | "pro" => {
+    const row = tierRows.find((r) => r.userUid === u);
+    if (row && row.status === "active" && (row.tier === "plus" || row.tier === "pro")) {
+      return row.tier as "plus" | "pro";
+    }
+    return "free";
+  };
+
   try {
     const result = await recordSymmetricEncounter({
       uidA: uid,
       uidB: body.otherUid,
       location: body.location ?? null,
+      tierA: getTier(uid),
+      tierB: getTier(body.otherUid),
     });
 
     // Check if observer and observed are already connected (mutual accepted reveal).

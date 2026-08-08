@@ -70,7 +70,7 @@ export type Encounter = {
   revealMessage?: string;
   // Peer's selected interests, synced from server during encounter enrichment.
   interests?: string[];
-  // Peer's active subscription tier, synced from server. Used to render the
-  // tier-coloured avatar ring on encounter cards (gold=pro, blue=plus).
+  // Peer's subscription tier, synced from the Firestore met_people doc so
+  // the subscriber ring is visible on encounter cards without an extra fetch.
   tier?: "free" | "plus" | "pro";
 };
