@@ -1056,6 +1056,33 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   const [revealStatus, setRevealStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [revealErr, setRevealErr] = useState("");
   const [sent, setSent] = useState<Set<string>>(new Set());
+
+  // Fetch the manager's existing outbound reveals on mount so the "Reveal sent"
+  // badge survives navigation — the local `sent` state resets on unmount, but
+  // the server knows which requests are already pending or accepted.
+  const sentQuery = useQuery<{ sentUids: string[] }>({
+    queryKey: ["/api/venue-manager/businesses", business.businessId, "guests/reveals"],
+    queryFn: async () => {
+      const r = await fetch(`/api/venue-manager/businesses/${business.businessId}/guests/reveals`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load sent reveals.");
+      return r.json() as Promise<{ sentUids: string[] }>;
+    },
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  // Merge server-known sent UIDs into the local set once the query resolves.
+  // Uses a functional update so any UIDs added during this session are preserved.
+  useEffect(() => {
+    if (sentQuery.isSuccess && sentQuery.data.sentUids.length > 0) {
+      setSent((prev) => {
+        const next = new Set(prev);
+        for (const uid of sentQuery.data.sentUids) next.add(uid);
+        return next;
+      });
+    }
+  }, [sentQuery.isSuccess, sentQuery.data]);
+
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [period, setPeriod] = useState<GuestPeriod>("all");

@@ -1,6 +1,6 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { and, count, desc, eq, gte, gt, ilike, isNull, lt, notInArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, gt, ilike, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   db,
@@ -1331,6 +1331,45 @@ router.post("/venue-manager/businesses/:businessId/guests/:uid/reveal", requireS
   });
 
   res.status(201).json({ message: "Reveal sent." });
+});
+
+// GET /api/venue-manager/businesses/:businessId/guests/reveals
+// Returns the recipient UIDs of pending or accepted outbound reveal requests
+// sent by this manager's Met account.  Used by the Guests page to pre-populate
+// the "Reveal sent" state on load so navigating away and back doesn't reset it.
+router.get("/venue-manager/businesses/:businessId/guests/reveals", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+
+  // Look up the manager's email so we can resolve their Firebase UID.
+  const [managerRow] = await db
+    .select({ email: venueManagersTable.email })
+    .from(venueManagersTable)
+    .where(eq(venueManagersTable.id, req.venueManagerSession!.managerId))
+    .limit(1);
+  if (!managerRow) return void res.status(401).json({ message: "Session manager not found." });
+
+  let managerUid: string;
+  try {
+    const firebaseUser = await adminAuth().getUserByEmail(managerRow.email);
+    managerUid = firebaseUser.uid;
+  } catch {
+    // Manager has no Met account yet — no reveals have been sent.
+    res.json({ sentUids: [] });
+    return;
+  }
+
+  const rows = await db
+    .select({ recipientUid: revealRequestsTable.recipientUid })
+    .from(revealRequestsTable)
+    .where(
+      and(
+        eq(revealRequestsTable.senderUid, managerUid),
+        inArray(revealRequestsTable.status, ["pending", "accepted"]),
+      ),
+    );
+
+  res.json({ sentUids: rows.map((r) => r.recipientUid) });
 });
 
 export default router;
