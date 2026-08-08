@@ -282,11 +282,9 @@ export function useHubCheckin(): {
 
         if (!mountedRef.current) return;
 
-        if (venues.length === 1) {
-          // Only one venue — auto-checkin without prompting the user.
-          await performCheckin(venues[0]!, pos);
-        } else {
-          // Multiple venues — surface the selection modal.
+        if (venues.length >= 1) {
+          // Always surface the selection modal so the user can see and confirm
+          // the venue name before the check-in is recorded.
           setPendingVenues(venues);
         }
       } catch (err: unknown) {

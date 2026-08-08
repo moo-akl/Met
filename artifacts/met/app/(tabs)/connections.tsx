@@ -678,6 +678,10 @@ function ConnectionRow({
       : chatLast.text;
     timestamp = chatLast.sentAt;
     previewColor = chatUnread ? colors.foreground : colors.mutedForeground;
+  } else if (!om) {
+    // No chat messages and no opening message — nudge the user to break the ice.
+    preview = "💬 Break the ice";
+    previewColor = colors.primary;
   }
 
   const unread = openingUnread || chatUnread;

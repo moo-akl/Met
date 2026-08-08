@@ -10,7 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // FREE_HISTORY_ENCOUNTERS controls how many past-day encounters free users can
 // see as a taste before hitting the upgrade prompt.
 
-export const FREE_REVEALS_PER_DAY = 6;
+export const FREE_REVEALS_PER_DAY = 4;
 export const PLUS_OPENING_MESSAGES_PER_DAY = 5;
 export const PRO_OPENING_MESSAGES_PER_DAY = Infinity;
 export const FREE_VISIBLE_ENCOUNTERS = 20;

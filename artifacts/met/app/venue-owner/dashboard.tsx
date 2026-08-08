@@ -17,6 +17,7 @@ import {
   Text,
   View,
 } from "react-native";
+import * as Sharing from "expo-sharing";
 import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -264,14 +265,30 @@ export default function VenueOwnerDashboardScreen() {
                 {venueName}
               </Text>
 
-              {/* Share link button */}
+              {/* Save / share QR as photo */}
               <Pressable
-                onPress={async () => {
-                  const url = api.getVenueCheckInUrl(application?.placeId ?? "");
-                  await Share.share({
-                    message: `Check in at ${venueName} on Met 👑\n${url}`,
-                    url,
-                    title: `${venueName} — Check-in`,
+                onPress={() => {
+                  if (!qrSvgRef.current?.toDataURL) {
+                    Alert.alert("Not ready", "QR not yet rendered — try again.");
+                    return;
+                  }
+                  qrSvgRef.current.toDataURL(async (base64: string) => {
+                    try {
+                      const FS = await import("expo-file-system/legacy");
+                      const path =
+                        (FS.cacheDirectory ?? "") +
+                        `checkin-qr-${Date.now()}.png`;
+                      await FS.writeAsStringAsync(path, base64, {
+                        encoding: FS.EncodingType.Base64,
+                      });
+                      await Sharing.shareAsync(path, {
+                        mimeType: "image/png",
+                        dialogTitle: `${venueName} — Check-in QR`,
+                        UTI: "public.png",
+                      });
+                    } catch {
+                      Alert.alert("Couldn't save QR", "Please try again.");
+                    }
                   });
                 }}
                 style={({ pressed }) => ({
@@ -285,7 +302,7 @@ export default function VenueOwnerDashboardScreen() {
                 })}
               >
                 <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>
-                  Share Check-in Link
+                  Save QR as Photo
                 </Text>
               </Pressable>
 
