@@ -1,7 +1,8 @@
 diff --git a/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm b/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
+index 2a67797..a299b7c 100644
 --- a/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
 +++ b/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
-@@ -435,7 +435,12 @@ void ObjCTurboModule::performVoidMethodInvocation(
+@@ -435,7 +435,13 @@ void ObjCTurboModule::performVoidMethodInvocation(
      @try {
        [inv invokeWithTarget:strongModule];
      } @catch (NSException *exception) {
@@ -13,6 +14,6 @@ diff --git a/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTur
 +      // See: https://github.com/reactwg/react-native-new-architecture/discussions/276
 +      RCTLogError(@"[TurboModule] Exception in void method %s::%s - %@",
 +                  moduleName, methodNameStr.c_str(), exception);
+     } @finally {
+       [retainedObjectsForInvocation removeAllObjects];
      }
-   });
- }
