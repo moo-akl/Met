@@ -1224,7 +1224,13 @@ router.get("/venue-manager/businesses/:businessId/guests", requireSession, async
         profilesTable.interests,
         profilesTable.isPioneer,
       )
-      .orderBy(desc(count(hubCheckinsTable.id)))
+      .orderBy(
+        desc(count(hubCheckinsTable.id)),
+        // Secondary: most recent visitor first when counts are tied.
+        // Tertiary: stable UID sort so rows never shift between pages.
+        desc(sql<string>`MAX(${hubCheckinsTable.createdAt})`),
+        hubCheckinsTable.userUid,
+      )
       .limit(limit)
       .offset(offset),
     db

@@ -1056,6 +1056,12 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   const [revealStatus, setRevealStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [revealErr, setRevealErr] = useState("");
   const [sent, setSent] = useState<Set<string>>(new Set());
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Epoch increments every time the filter (business/period/search) changes.
+  // loadMore captures the epoch at call-time and discards the response if it
+  // no longer matches — preventing stale pages from appending to a new filter.
+  const queryEpochRef = useRef(0);
+  const loadMoreAbortRef = useRef<AbortController | null>(null);
 
   // Fetch the manager's existing outbound reveals on mount so the "Reveal sent"
   // badge survives navigation — the local `sent` state resets on unmount, but
@@ -1138,6 +1144,15 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   }, [search]);
 
   useEffect(() => {
+    // Abort any in-flight loadMore from the previous filter so it can't
+    // append stale results after this new page-1 response lands.
+    loadMoreAbortRef.current?.abort();
+    loadMoreAbortRef.current = null;
+    setLoadingMore(false);
+    // Increment the epoch so any concurrent loadMore that hasn't returned
+    // yet knows its response is no longer valid.
+    queryEpochRef.current += 1;
+
     setLoading(true); setLoadErr("");
     const controller = new AbortController();
     const params = new URLSearchParams({ limit: "100" });
@@ -1156,6 +1171,36 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [business.businessId, period, debouncedSearch]);
+
+  async function loadMore() {
+    if (loadingMore) return;
+    // Snapshot the epoch and offset at call-time. If the filter changes while
+    // the request is in flight, epoch will have been incremented and we discard.
+    const epoch = queryEpochRef.current;
+    const nextOffset = guests.length;
+    const controller = new AbortController();
+    loadMoreAbortRef.current = controller;
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams({ limit: "100", offset: String(nextOffset) });
+      if (period !== "all") params.set("period", period);
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+      const r = await fetch(
+        `/api/venue-manager/businesses/${business.businessId}/guests?${params.toString()}`,
+        { credentials: "include", signal: controller.signal },
+      );
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { message?: string }).message ?? "Failed to load guests.");
+      const data = (await r.json()) as { guests?: VenueGuest[]; total?: number };
+      // Discard if the filter changed while this request was in flight.
+      if (queryEpochRef.current !== epoch) return;
+      setGuests((prev) => [...prev, ...(data.guests ?? [])]);
+      setTotal(data.total ?? 0);
+    } catch (e: unknown) {
+      if ((e as { name?: string }).name !== "AbortError") setLoadErr((e as Error).message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   function openReveal(guest: VenueGuest) {
     setSelected(guest); setRevealOpen(true);
@@ -1247,6 +1292,14 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
         </button>
       ))}
     </div>
+
+    {guests.length > 0 && guests.length < total && (
+      <div className="vm-load-more">
+        <button className="vm-secondary" type="button" onClick={() => void loadMore()} disabled={loadingMore}>
+          {loadingMore ? "Loading…" : `Load more · ${total - guests.length} remaining`}
+        </button>
+      </div>
+    )}
 
     {selected && (
       <div className="vm-drawer-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeDrawer(); }}>
