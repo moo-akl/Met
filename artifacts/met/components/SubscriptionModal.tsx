@@ -34,15 +34,15 @@ interface Props {
 }
 
 const PLUS_FEATURES = [
-  "subscription.featureUnlimitedViews",
-  "subscription.featurePlusBadge",
   "subscription.featureEncounters",
+  "subscription.featureOpeners5Day",
+  "subscription.featureHistory30",
+  "subscription.featurePlusBadge",
 ] as const;
 
 const PRO_FEATURES = [
-  "subscription.featureUnlimitedViews",
-  "subscription.featurePlusBadge",
   "subscription.featureEncounters",
+  "subscription.featureUnlimitedViews",
   "subscription.featureRadarSpotlight",
   "subscription.featureProBadge",
 ] as const;
@@ -154,7 +154,11 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
                   key={key}
                   label={t(key)}
                   colors={colors}
-                  highlight={key === "subscription.featureRadarSpotlight" || key === "subscription.featureProBadge"}
+                  highlight={
+                    key === "subscription.featureUnlimitedViews" ||
+                    key === "subscription.featureRadarSpotlight" ||
+                    key === "subscription.featureProBadge"
+                  }
                 />
               ))}
             </View>
