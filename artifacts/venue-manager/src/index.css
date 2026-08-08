@@ -86,3 +86,41 @@
 .vm-spark-qr i{flex:1;min-width:0;max-height:44px;border-radius:4px 4px 2px 2px;background:linear-gradient(#4db394,#0d7659);opacity:.75;transition:opacity .15s}
 .vm-spark-qr i:hover{opacity:1}
 .vm-spark-label{font:500 9px "DM Mono",monospace;color:#a0b4ab;letter-spacing:.8px;margin-top:5px}
+
+/* ── Guests page ─────────────────────────────────────────────────────────── */
+.vm-guests-header{margin-bottom:20px}
+.vm-guests-total{font:700 15px "DM Sans",sans-serif;color:#1a3328}
+.vm-guests-hint{font-size:13px;color:#6a8f82;margin:4px 0 0}
+.vm-guests-list{display:flex;flex-direction:column;gap:6px}
+.vm-guest-row{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #dde9e4;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;transition:border-color .15s,box-shadow .15s;width:100%}
+.vm-guest-row:hover{border-color:#0d7659;box-shadow:0 2px 8px rgba(13,118,89,.08)}
+.vm-guest-rank{font:600 12px "DM Mono",monospace;color:#9dbfb0;width:28px;flex-shrink:0}
+.vm-guest-avatar{width:38px;height:38px;border-radius:50%;background-size:cover;background-position:center;flex-shrink:0;background-color:#d6eae1}
+.vm-guest-avatar.initials{display:flex;align-items:center;justify-content:center;font:700 14px "DM Sans",sans-serif;color:#0d7659}
+.vm-guest-info{flex:1;min-width:0}
+.vm-guest-info strong{display:block;font-size:14px;color:#1a3328;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vm-guest-info small{font-size:12px;color:#7a9189}
+.vm-guest-badge{background:#f0f8f4;border:1px solid #c4ddd5;color:#0d7659;font:700 12px "DM Mono",monospace;padding:3px 8px;border-radius:20px;flex-shrink:0}
+
+/* Drawer */
+.vm-drawer-overlay{position:fixed;inset:0;background:rgba(10,25,20,.35);z-index:200;display:flex;justify-content:flex-end}
+.vm-drawer{width:min(420px,100vw);background:#fff;height:100%;overflow-y:auto;display:flex;flex-direction:column;box-shadow:-4px 0 24px rgba(0,0,0,.12)}
+.vm-drawer-head{display:flex;justify-content:flex-end;padding:14px 16px 0}
+.vm-drawer-profile{display:flex;gap:16px;align-items:flex-start;padding:0 20px 16px;border-bottom:1px solid #eaf2ec}
+.vm-drawer-avatar{width:64px;height:64px;border-radius:50%;background-size:cover;background-position:center;flex-shrink:0;background-color:#d6eae1}
+.vm-drawer-avatar.initials{display:flex;align-items:center;justify-content:center;font:700 22px "DM Sans",sans-serif;color:#0d7659}
+.vm-drawer-profile h2{font:700 17px "DM Sans",sans-serif;color:#1a3328;margin:6px 0 4px}
+.vm-drawer-meta{font-size:13px;color:#7a9189;margin:0}
+.vm-pioneer-badge{font-size:11px;color:#b07d00;background:#fff8e0;border:1px solid #f0d97a;border-radius:20px;padding:1px 7px;margin-left:6px;vertical-align:middle}
+.vm-drawer-bio{font-size:13px;color:#3d5148;line-height:1.55;margin:14px 20px 0;padding-bottom:14px;border-bottom:1px solid #eaf2ec}
+.vm-drawer-tags{display:flex;flex-wrap:wrap;gap:6px;padding:14px 20px;border-bottom:1px solid #eaf2ec}
+.vm-tag{background:#f0f8f4;border:1px solid #c4ddd5;color:#0d7659;font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px}
+.vm-drawer-actions{padding:18px 20px;margin-top:auto}
+
+/* Reveal compose */
+.vm-reveal-compose{display:flex;flex-direction:column;gap:10px}
+.vm-reveal-label{font:600 13px "DM Sans",sans-serif;color:#3d5148}
+.vm-reveal-label small{font-weight:400;color:#9dbfb0}
+.vm-reveal-textarea{border:1px solid #cad8d0;border-radius:8px;padding:10px 12px;font:14px "DM Sans",sans-serif;color:#1a3328;resize:vertical;width:100%;box-sizing:border-box}
+.vm-reveal-textarea:focus{outline:none;border-color:#0d7659;box-shadow:0 0 0 3px rgba(13,118,89,.1)}
+.vm-reveal-actions{display:flex;gap:8px;justify-content:flex-end}

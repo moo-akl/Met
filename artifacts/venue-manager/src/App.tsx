@@ -46,7 +46,7 @@ import {
   type VenueManagerRecentQrVerification,
 } from "@workspace/api-client-react";
 import QRCode from "react-qr-code";
-import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, QrCode, RefreshCw, Settings2, ShieldCheck, Users, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, QrCode, RefreshCw, Settings2, ShieldCheck, Trophy, Users, X } from "lucide-react";
 import { applyWebsiteUrlBlur, validateWebsiteUrl } from "./lib/websiteUrl";
 import "./index.css";
 
@@ -65,7 +65,19 @@ function invalidateVenueManagerData() {
 
 type Session = { authenticated: true; csrfToken: string; expiresAt: string };
 type Role = "owner" | "manager" | "editor";
-type Page = "overview" | "venue" | "events" | "rewards" | "announcements" | "analytics" | "team";
+type Page = "overview" | "venue" | "events" | "rewards" | "announcements" | "analytics" | "team" | "guests";
+
+type VenueGuest = {
+  rank: number;
+  uid: string;
+  displayName: string;
+  photoUrl: string | null;
+  bio: string | null;
+  interests: string[];
+  isPioneer: boolean;
+  checkinCount: number;
+  lastCheckinAt: string;
+};
 type ApiError = Error & { status?: number };
 
 function apiError(error: unknown): string {
@@ -451,7 +463,7 @@ function Workspace({ businesses, session, onSessionChange }: { businesses: Venue
   const business = businesses.find((item) => item.businessId === businessId) ?? businesses[0];
   const page = (params.page ?? "overview") as Page;
   useEffect(() => { if (!businesses.some((item) => item.businessId === businessId)) navigate(`/${business.businessId}/overview`, { replace: true }); }, [businessId, business, businesses, navigate]);
-  const allowed: Page[] = business.role === "editor" ? ["overview", "events", "announcements", "analytics"] : business.role === "manager" ? ["overview", "venue", "events", "rewards", "announcements", "analytics"] : ["overview", "venue", "events", "rewards", "announcements", "analytics", "team"];
+  const allowed: Page[] = business.role === "editor" ? ["overview", "events", "announcements", "analytics", "guests"] : business.role === "manager" ? ["overview", "venue", "events", "rewards", "announcements", "analytics", "guests"] : ["overview", "venue", "events", "rewards", "announcements", "analytics", "team", "guests"];
   const activePage = allowed.includes(page) ? page : "overview";
   return <Shell>
     <div className="vm-workspace">
@@ -468,8 +480,8 @@ function Workspace({ businesses, session, onSessionChange }: { businesses: Venue
 }
 
 function NavItem({ page, active, onClick }: { page: Page; active: boolean; onClick: () => void }) {
-  const icons: Record<Page, ReactNode> = { overview: <LayoutDashboard />, venue: <Building2 />, events: <CalendarDays />, rewards: <Gift />, announcements: <Bell />, analytics: <BarChart3 />, team: <Users /> };
-  const labels: Record<Page, string> = { overview: "Overview", venue: "Venue profile", events: "Events", rewards: "Rewards", announcements: "Announcements", analytics: "Analytics", team: "Team" };
+  const icons: Record<Page, ReactNode> = { overview: <LayoutDashboard />, venue: <Building2 />, events: <CalendarDays />, rewards: <Gift />, announcements: <Bell />, analytics: <BarChart3 />, team: <Users />, guests: <Trophy /> };
+  const labels: Record<Page, string> = { overview: "Overview", venue: "Venue profile", events: "Events", rewards: "Rewards", announcements: "Announcements", analytics: "Analytics", team: "Team", guests: "Guests" };
   return <button className={`vm-nav ${active ? "active" : ""}`} onClick={onClick}>{icons[page]}<span>{labels[page]}</span></button>;
 }
 
@@ -489,7 +501,8 @@ function PageContent({ page, business, csrfToken, onSession }: { page: Page; bus
   const labels: Record<Page, [string, string]> = {
     overview: ["Good to see you.", "The pulse of your place, right now."], venue: ["Your venue, your voice.", "Keep the public face of your place current."],
     events: ["Make a reason to gather.", "Create moments your community can RSVP to."], rewards: ["Reward the regulars.", "Set a little anticipation in motion."],
-    announcements: ["Say what’s happening.", "Share updates with people who know your place."], analytics: ["Read the room.", "Signals from your venue community."], team: ["Your people.", "Give the right access to the right hands."],
+    announcements: ["Say what's happening.", "Share updates with people who know your place."], analytics: ["Read the room.", "Signals from your venue community."], team: ["Your people.", "Give the right access to the right hands."],
+    guests: ["Your regulars.", "People who keep coming back. Reach out personally."],
   };
   return <div className="vm-page"><div className="vm-page-intro"><div><p className="vm-eyebrow">{business.placeName.toUpperCase()}</p><h1>{labels[page][0]}</h1><p>{labels[page][1]}</p></div><div className="vm-location"><MapPin size={16} />{business.placeName}</div></div>
     {page === "overview" && <Overview business={business} />}
@@ -499,6 +512,7 @@ function PageContent({ page, business, csrfToken, onSession }: { page: Page; bus
     {page === "announcements" && <Announcements business={business} csrfToken={csrfToken} />}
     {page === "analytics" && <Analytics business={business} />}
     {page === "team" && <Team business={business} csrfToken={csrfToken} onSession={onSession} />}
+    {page === "guests" && <Guests business={business} csrfToken={csrfToken} />}
   </div>;
 }
 
@@ -1027,6 +1041,142 @@ function Team({ business, csrfToken, onSession }: { business: VenueManagerBusine
   const remove = useMutation({ mutationFn: (managerId: number) => removeVenueManager(business.businessId, managerId, csrf(csrfToken)), onSuccess: () => invalidateVenueManagerData() });
   const password = useMutation({ mutationFn: (data: { currentPassword: string; newPassword: string }) => changeVenueManagerPassword(data, csrf(csrfToken)), onSuccess: (next) => onSession(next as Session), onError: (e) => setMessage(apiError(e)) });
   return <div className="vm-team"><section><div className="vm-toolbar"><span>{members.data?.members.length ?? 0} active people</span><button className="vm-primary compact" onClick={() => { setMessage(""); setInvite(true); }}><Plus size={16} />Invite team member</button></div><div className="vm-stack">{(members.data?.members ?? []).map((member) => <article className="vm-member" key={member.managerId}><span className="vm-person">{member.displayName.slice(0, 1)}</span><div><strong>{member.displayName}</strong><small>{member.email}</small></div>{member.role === "owner" ? <span className="vm-status live">Owner</span> : <select value={member.role} onChange={(e) => role.mutate({ managerId: member.managerId, value: e.target.value as "manager" | "editor" })}><option value="manager">Manager</option><option value="editor">Editor</option></select>} {member.role !== "owner" && <button className="danger-text" onClick={() => { if (confirm(`Remove ${member.displayName}?`)) remove.mutate(member.managerId); }}>Remove</button>}</article>)}</div></section><section className="vm-panel vm-password"><Settings2 /><h2>Account security</h2><p>Change your business password. You’ll stay signed in here and other sessions will end.</p><form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); password.mutate({ currentPassword: String(f.get("currentPassword")), newPassword: String(f.get("newPassword")) }); }}><label>Current password<input name="currentPassword" type="password" required /></label><label>New password<input name="newPassword" type="password" minLength={12} required /></label><button className="vm-secondary" disabled={password.isPending}>{password.isPending ? "Updating…" : "Change password"}</button></form></section>{invite && <Modal title="Invite a teammate" onClose={() => setInvite(false)}><form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); add.mutate({ email: String(f.get("email")), role: f.get("role") as "manager" | "editor" }); }}><label>Email<input name="email" type="email" required /></label><label>Access level<select name="role"><option value="manager">Manager — profile, content, rewards, analytics</option><option value="editor">Editor — events and announcements</option></select></label>{message && <div className={`vm-notice ${add.isSuccess ? "success" : "error"}`}>{message}</div>}<div className="vm-form-actions"><button type="button" className="vm-secondary" onClick={() => setInvite(false)}>Close</button><button className="vm-primary" disabled={add.isPending}>{add.isPending ? "Creating…" : "Create invitation"}</button></div></form></Modal>}</div>;
+}
+
+function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
+  const [guests, setGuests] = useState<VenueGuest[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState("");
+  const [selected, setSelected] = useState<VenueGuest | null>(null);
+  const [revealOpen, setRevealOpen] = useState(false);
+  const [revealMsg, setRevealMsg] = useState("");
+  const [revealStatus, setRevealStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [revealErr, setRevealErr] = useState("");
+  const [sent, setSent] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setLoading(true); setLoadErr("");
+    fetch(`/api/venue-manager/businesses/${business.businessId}/guests?limit=100`, { credentials: "include" })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message ?? "Failed to load guests.");
+        return r.json();
+      })
+      .then((data) => { setGuests(data.guests ?? []); setTotal(data.total ?? 0); })
+      .catch((e) => setLoadErr(e.message))
+      .finally(() => setLoading(false));
+  }, [business.businessId]);
+
+  function openReveal(guest: VenueGuest) {
+    setSelected(guest); setRevealOpen(true);
+    setRevealMsg(""); setRevealStatus("idle"); setRevealErr("");
+  }
+
+  function closeDrawer() { setSelected(null); setRevealOpen(false); }
+
+  async function sendReveal() {
+    if (!selected) return;
+    setRevealStatus("sending"); setRevealErr("");
+    try {
+      const r = await fetch(`/api/venue-manager/businesses/${business.businessId}/guests/${selected.uid}/reveal`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({ message: revealMsg.trim() || null }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message ?? "Failed to send reveal.");
+      setRevealStatus("sent");
+      setSent((prev) => new Set(prev).add(selected.uid));
+    } catch (e) {
+      setRevealStatus("error");
+      setRevealErr((e as Error).message);
+    }
+  }
+
+  function formatLast(iso: string) {
+    const ms = Date.now() - new Date(iso).getTime();
+    const d = Math.floor(ms / 86_400_000);
+    if (d === 0) return "Today";
+    if (d === 1) return "Yesterday";
+    if (d < 30) return `${d}d ago`;
+    return new Date(iso).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  }
+
+  if (loading) return <SectionLoading />;
+  if (loadErr) return <div className="vm-notice error">{loadErr}</div>;
+
+  return <>
+    <div className="vm-guests-header">
+      <span className="vm-guests-total">{total} {total === 1 ? "guest" : "guests"} checked in</span>
+      <p className="vm-guests-hint">Tap a guest to view their profile and connect personally.</p>
+    </div>
+    {!guests.length && <Empty text="No check-ins recorded yet at this venue." />}
+    <div className="vm-guests-list">
+      {guests.map((g) => (
+        <button key={g.uid} className="vm-guest-row" onClick={() => setSelected(g)}>
+          <span className="vm-guest-rank">#{g.rank}</span>
+          {g.photoUrl
+            ? <span className="vm-guest-avatar" style={{ backgroundImage: `url(${g.photoUrl})` }} />
+            : <span className="vm-guest-avatar initials">{g.displayName.slice(0, 1).toUpperCase()}</span>}
+          <div className="vm-guest-info">
+            <strong>{g.displayName}{g.isPioneer ? " ★" : ""}</strong>
+            <small>Last seen {formatLast(g.lastCheckinAt)}</small>
+          </div>
+          <span className="vm-guest-badge">{g.checkinCount}×</span>
+        </button>
+      ))}
+    </div>
+
+    {selected && (
+      <div className="vm-drawer-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeDrawer(); }}>
+        <aside className="vm-drawer">
+          <header className="vm-drawer-head">
+            <button className="icon-button" onClick={closeDrawer} aria-label="Close"><X /></button>
+          </header>
+          <div className="vm-drawer-profile">
+            {selected.photoUrl
+              ? <div className="vm-drawer-avatar" style={{ backgroundImage: `url(${selected.photoUrl})` }} />
+              : <div className="vm-drawer-avatar initials">{selected.displayName.slice(0, 1).toUpperCase()}</div>}
+            <div>
+              <h2>{selected.displayName}{selected.isPioneer ? <span className="vm-pioneer-badge"> ★ Pioneer</span> : null}</h2>
+              <p className="vm-drawer-meta">{selected.checkinCount} check-in{selected.checkinCount !== 1 ? "s" : ""} · Last {formatLast(selected.lastCheckinAt)}</p>
+            </div>
+          </div>
+          {selected.bio && <p className="vm-drawer-bio">{selected.bio}</p>}
+          {selected.interests.length > 0 && (
+            <div className="vm-drawer-tags">
+              {selected.interests.map((tag) => <span key={tag} className="vm-tag">{tag}</span>)}
+            </div>
+          )}
+          <div className="vm-drawer-actions">
+            {sent.has(selected.uid)
+              ? <div className="vm-notice success" style={{ margin: 0 }}>Reveal sent — they'll see it in their Met app.</div>
+              : revealOpen
+                ? <div className="vm-reveal-compose">
+                    <label className="vm-reveal-label">Opening note <small>(optional · 240 chars max)</small></label>
+                    <textarea
+                      className="vm-reveal-textarea"
+                      rows={3}
+                      maxLength={240}
+                      placeholder="Hey! I'm the manager here, always good to see you…"
+                      value={revealMsg}
+                      onChange={(e) => setRevealMsg(e.target.value)}
+                    />
+                    {revealStatus === "error" && <div className="vm-notice error" style={{ marginTop: 8 }}>{revealErr}</div>}
+                    <div className="vm-reveal-actions">
+                      <button className="vm-secondary" onClick={() => setRevealOpen(false)}>Cancel</button>
+                      <button className="vm-primary" disabled={revealStatus === "sending"} onClick={sendReveal}>
+                        {revealStatus === "sending" ? "Sending…" : "Send reveal"}
+                      </button>
+                    </div>
+                  </div>
+                : <button className="vm-primary" onClick={() => openReveal(selected)}>
+                    <CircleUserRound size={16} /> Send reveal request
+                  </button>}
+          </div>
+        </aside>
+      </div>
+    )}
+  </>;
 }
 
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) { return <div className="vm-modal-backdrop" role="presentation"><section className="vm-modal" role="dialog" aria-modal="true"><header><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Close"><X /></button></header>{children}</section></div>; }

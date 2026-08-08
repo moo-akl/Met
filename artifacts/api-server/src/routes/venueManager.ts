@@ -19,10 +19,14 @@ import {
   venueAnnouncementsTable,
   hubCheckinsTable,
   profilesTable,
+  revealRequestsTable,
   venueQrVerificationsTable,
   type VenueMembershipRole,
 } from "@workspace/db";
 import { createIpRateLimiter } from "../middlewares/rateLimit";
+import { adminAuth } from "../lib/firebaseAdmin";
+import { mirrorRevealRequest } from "../lib/firestoreMirror";
+import { sendPush } from "../lib/push";
 
 const router: IRouter = Router();
 const COOKIE = "met_venue_manager";
@@ -1124,5 +1128,147 @@ export function createVenueManagerClaimRouter(requireUid: (req: Request, res: Re
   });
   return claimRouter;
 }
+
+// ── Guests leaderboard ──────────────────────────────────────────────────────
+
+router.get("/venue-manager/businesses/:businessId/guests", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  if (!business) return void res.status(404).json({ message: "Venue not found." });
+  const placeId = business.business.placeId;
+
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+  const [guestRows, totalRows] = await Promise.all([
+    db.select({
+      uid: hubCheckinsTable.userUid,
+      displayName: profilesTable.displayName,
+      photoUrl: profilesTable.photoUrl,
+      bio: profilesTable.bio,
+      interests: profilesTable.interests,
+      isPioneer: profilesTable.isPioneer,
+      checkinCount: count(hubCheckinsTable.id),
+      lastCheckinAt: sql<string>`MAX(${hubCheckinsTable.createdAt})`,
+    })
+      .from(hubCheckinsTable)
+      .leftJoin(profilesTable, eq(hubCheckinsTable.userUid, profilesTable.uid))
+      .where(eq(hubCheckinsTable.placeId, placeId))
+      .groupBy(
+        hubCheckinsTable.userUid,
+        profilesTable.displayName,
+        profilesTable.photoUrl,
+        profilesTable.bio,
+        profilesTable.interests,
+        profilesTable.isPioneer,
+      )
+      .orderBy(desc(count(hubCheckinsTable.id)))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: sql<number>`COUNT(DISTINCT ${hubCheckinsTable.userUid})` })
+      .from(hubCheckinsTable)
+      .where(eq(hubCheckinsTable.placeId, placeId)),
+  ]);
+
+  res.json({
+    guests: guestRows.map((row, i) => ({
+      rank: offset + i + 1,
+      uid: row.uid,
+      displayName: row.displayName ?? "Met member",
+      photoUrl: row.photoUrl ?? null,
+      bio: row.bio ?? null,
+      interests: row.interests ?? [],
+      isPioneer: row.isPioneer ?? false,
+      checkinCount: Number(row.checkinCount),
+      lastCheckinAt: row.lastCheckinAt,
+    })),
+    total: Number(totalRows[0]?.total ?? 0),
+  });
+});
+
+router.post("/venue-manager/businesses/:businessId/guests/:uid/reveal", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  if (!business) return void res.status(404).json({ message: "Venue not found." });
+  const placeId = business.business.placeId;
+
+  const recipientUid = req.params["uid"] as string;
+  const message = typeof req.body?.message === "string" ? req.body.message.trim().slice(0, 240) || null : null;
+
+  // Resolve the manager's email to find their Met Firebase UID.
+  const [managerRow] = await db
+    .select({ email: venueManagersTable.email })
+    .from(venueManagersTable)
+    .where(eq(venueManagersTable.id, req.venueManagerSession!.managerId))
+    .limit(1);
+  if (!managerRow) return void res.status(401).json({ message: "Session manager not found." });
+
+  let managerUid: string;
+  try {
+    const firebaseUser = await adminAuth().getUserByEmail(managerRow.email);
+    managerUid = firebaseUser.uid;
+  } catch {
+    res.status(422).json({
+      message: "No Met account found for your email address. Create a Met account using the same email to send reveals.",
+    });
+    return;
+  }
+
+  if (managerUid === recipientUid) {
+    res.status(400).json({ message: "Cannot send a reveal to yourself." });
+    return;
+  }
+
+  // Confirm the target has a Met profile.
+  const [recipient] = await db
+    .select({ pushToken: profilesTable.pushToken, displayName: profilesTable.displayName })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, recipientUid))
+    .limit(1);
+  if (!recipient) return void res.status(404).json({ message: "Guest profile not found." });
+
+  // Confirm the guest actually checked in at this venue — prevents messaging strangers.
+  const [checkin] = await db
+    .select({ id: hubCheckinsTable.id })
+    .from(hubCheckinsTable)
+    .where(and(eq(hubCheckinsTable.placeId, placeId), eq(hubCheckinsTable.userUid, recipientUid)))
+    .limit(1);
+  if (!checkin) return void res.status(400).json({ message: "This guest has not checked in at your venue." });
+
+  // Confirm the manager themselves has a Met profile so the reveal has a real sender.
+  const [senderProfile] = await db
+    .select({ displayName: profilesTable.displayName })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, managerUid))
+    .limit(1);
+  if (!senderProfile) {
+    res.status(422).json({
+      message: "Your Met profile was not found. Make sure your Met account is set up before sending reveals.",
+    });
+    return;
+  }
+
+  const now = new Date();
+  await db
+    .insert(revealRequestsTable)
+    .values({ senderUid: managerUid, recipientUid, message, status: "pending" })
+    .onConflictDoUpdate({
+      target: [revealRequestsTable.senderUid, revealRequestsTable.recipientUid],
+      set: { message, status: "pending", createdAt: now, updatedAt: now, respondedAt: null },
+    });
+
+  await mirrorRevealRequest({ senderUid: managerUid, recipientUid, status: "pending", message });
+
+  await sendPush(recipient.pushToken, {
+    title: `${senderProfile.displayName ?? "Someone"} wants to reveal to you`,
+    body: "Tap to view their request.",
+    data: { type: "reveal_request", fromUid: managerUid },
+  });
+
+  res.status(201).json({ message: "Reveal sent." });
+});
 
 export default router;
