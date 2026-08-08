@@ -86,6 +86,8 @@ const RAW_SESSION_TOKEN = `${TEST_PREFIX}-session-token`;
 const USER_ALICE = `${TEST_PREFIX}-alice`;
 const USER_BOB = `${TEST_PREFIX}-bob`;
 const USER_CHARLIE = `${TEST_PREFIX}-charlie`;
+/** A UID that intentionally has no row in the profiles table. */
+const USER_GHOST = `${TEST_PREFIX}-ghost`;
 
 function hashOpaque(value: string): string {
   return createHash("sha256").update(value).digest("base64url");
@@ -539,6 +541,56 @@ describe.skipIf(!hasDatabase)(
 
       expect(res.status).toBe(200);
       expect(res.body.total).toBe(2);
+    });
+
+    // -----------------------------------------------------------------------
+    // NULL displayName — guest without a profile row is excluded by search
+    // -----------------------------------------------------------------------
+    it("a guest whose UID has no profile row does not appear in search results", async () => {
+      // USER_GHOST has a checkin but no row in the profiles table, so the LEFT
+      // JOIN produces NULL for displayName.  Any non-empty search term uses
+      // ILIKE which evaluates to NULL (falsy) for a NULL column, so the guest
+      // must be excluded from the results.
+      await insertCheckin(USER_GHOST);
+      await insertCheckin(USER_ALICE); // control: Alice has a profile and should appear
+
+      const ghostRes = await request(app)
+        .get(
+          `/api/venue-manager/businesses/${businessId}/guests?search=ghost`,
+        )
+        .set("Cookie", sessionCookieHeader());
+
+      expect(ghostRes.status).toBe(200);
+      expect(ghostRes.body.total).toBe(0);
+      expect(ghostRes.body.guests).toHaveLength(0);
+
+      // Also verify that searching for Alice still works — the ghost checkin
+      // must not corrupt the result set.
+      const aliceRes = await request(app)
+        .get(
+          `/api/venue-manager/businesses/${businessId}/guests?search=Alice`,
+        )
+        .set("Cookie", sessionCookieHeader());
+
+      expect(aliceRes.status).toBe(200);
+      expect(aliceRes.body.total).toBe(1);
+      expect(aliceRes.body.guests[0].uid).toBe(USER_ALICE);
+    });
+
+    it("any non-empty search term excludes a guest with a NULL displayName even when their UID matches no profile", async () => {
+      // Seed only USER_GHOST (no profile row → NULL displayName).
+      // A search for a term that would match anything must still return 0.
+      await insertCheckin(USER_GHOST);
+
+      const res = await request(app)
+        .get(
+          `/api/venue-manager/businesses/${businessId}/guests?search=a`,
+        )
+        .set("Cookie", sessionCookieHeader());
+
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(0);
+      expect(res.body.guests).toHaveLength(0);
     });
 
     // -----------------------------------------------------------------------
