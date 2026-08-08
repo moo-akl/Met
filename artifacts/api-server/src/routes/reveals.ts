@@ -4,6 +4,7 @@ import {
   db,
   profilesTable,
   revealRequestsTable,
+  subscriptionsTable,
   type Profile,
   type RevealRequest,
 } from "@workspace/db";
@@ -150,11 +151,16 @@ router.get("/reveals/inbox", requireUid, async (req, res) => {
     .select({
       reveal: revealRequestsTable,
       profile: profilesTable,
+      sub: subscriptionsTable,
     })
     .from(revealRequestsTable)
     .leftJoin(
       profilesTable,
       eq(profilesTable.uid, revealRequestsTable.senderUid),
+    )
+    .leftJoin(
+      subscriptionsTable,
+      eq(subscriptionsTable.userUid, revealRequestsTable.senderUid),
     )
     .where(
       and(
@@ -168,7 +174,10 @@ router.get("/reveals/inbox", requireUid, async (req, res) => {
     .filter((r) => r.profile !== null)
     .map((r) => ({
       ...serializeReveal(r.reveal),
-      profile: serializeProfile(r.profile!),
+      profile: {
+        ...serializeProfile(r.profile!),
+        peerTier: (r.sub?.status === "active" ? r.sub?.tier : undefined) ?? "free",
+      },
     }));
   res.json(ListInboundRevealsResponse.parse(items));
 });
@@ -182,11 +191,16 @@ router.get("/reveals/outbox", requireUid, async (req, res) => {
     .select({
       reveal: revealRequestsTable,
       profile: profilesTable,
+      sub: subscriptionsTable,
     })
     .from(revealRequestsTable)
     .leftJoin(
       profilesTable,
       eq(profilesTable.uid, revealRequestsTable.recipientUid),
+    )
+    .leftJoin(
+      subscriptionsTable,
+      eq(subscriptionsTable.userUid, revealRequestsTable.recipientUid),
     )
     .where(eq(revealRequestsTable.senderUid, uid))
     .orderBy(desc(revealRequestsTable.updatedAt));
@@ -195,7 +209,10 @@ router.get("/reveals/outbox", requireUid, async (req, res) => {
     .filter((r) => r.profile !== null)
     .map((r) => ({
       ...serializeReveal(r.reveal),
-      profile: serializeProfile(r.profile!),
+      profile: {
+        ...serializeProfile(r.profile!),
+        peerTier: (r.sub?.status === "active" ? r.sub?.tier : undefined) ?? "free",
+      },
     }));
   res.json(ListOutboundRevealsResponse.parse(items));
 });

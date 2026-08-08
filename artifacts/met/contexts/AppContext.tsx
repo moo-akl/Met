@@ -939,6 +939,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               socials: (r.profile.socials ??
                 existing.socials) as Encounter["socials"],
               interests: (r.profile.interests ?? existing.interests) as string[] | undefined,
+              tier: (r.profile.peerTier ?? existing.tier) as Encounter["tier"],
             };
             if (targetStatus === "request_received" && message)
               next.revealMessage = message;
@@ -956,6 +957,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               bio: r.profile.bio ?? "",
               socials: (r.profile.socials ?? {}) as Encounter["socials"],
               interests: (r.profile.interests ?? undefined) as string[] | undefined,
+              tier: r.profile.peerTier as Encounter["tier"],
               encounterCount: 1,
               firstSeenAt: createdTs,
               lastSeenAt: createdTs,
@@ -1003,6 +1005,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 bio: r.profile.bio ?? "",
                 socials: (r.profile.socials ?? {}) as Encounter["socials"],
                 interests: (r.profile.interests ?? undefined) as string[] | undefined,
+                tier: r.profile.peerTier as Encounter["tier"],
                 encounterCount: 1,
                 firstSeenAt: createdTs,
                 lastSeenAt: createdTs,
@@ -1051,6 +1054,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               socials: (r.profile.socials ??
                 existing.socials) as Encounter["socials"],
               interests: (r.profile.interests ?? existing.interests) as string[] | undefined,
+              tier: (r.profile.peerTier ?? existing.tier) as Encounter["tier"],
             };
             delete (next as { requestSentAt?: number }).requestSentAt;
             delete (next as { revealMessage?: string }).revealMessage;

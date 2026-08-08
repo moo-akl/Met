@@ -101,7 +101,14 @@ export function EncounterRow({ encounter }: Props) {
         <Avatar
           uri={encounter.photoUri}
           size={54}
-          ring={encounter.status === "request_received"}
+          ring={encounter.status === "request_received" || encounter.tier === "pro" || encounter.tier === "plus"}
+          ringColor={
+            encounter.tier === "pro"
+              ? "#F59E0B"
+              : encounter.tier === "plus"
+              ? "#3B82F6"
+              : undefined
+          }
         />
         <View style={styles.body}>
           <View style={styles.nameRow}>

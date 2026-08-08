@@ -350,6 +350,8 @@ export interface RemoteProfile {
   subscriptionTier?: "free" | "plus" | "pro" | null;
   /** True when the user has an active Plus or Pro subscription. Present on GET /profiles/me. */
   isSubscribed?: boolean;
+  /** Peer's active subscription tier. Present on reveal inbox/outbox and encounter responses. */
+  peerTier?: "free" | "plus" | "pro";
 }
 
 export interface UpsertProfileInput {

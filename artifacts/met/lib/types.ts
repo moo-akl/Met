@@ -70,4 +70,7 @@ export type Encounter = {
   revealMessage?: string;
   // Peer's selected interests, synced from server during encounter enrichment.
   interests?: string[];
+  // Peer's active subscription tier, synced from server. Used to render the
+  // tier-coloured avatar ring on encounter cards (gold=pro, blue=plus).
+  tier?: "free" | "plus" | "pro";
 };

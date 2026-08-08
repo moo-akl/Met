@@ -5,6 +5,7 @@ import {
   encountersTable,
   profilesTable,
   revealRequestsTable,
+  subscriptionsTable,
   type Encounter,
   type Profile,
 } from "@workspace/db";
@@ -157,11 +158,16 @@ router.get("/encounters", requireUid, async (req, res) => {
     .select({
       encounter: encountersTable,
       profile: profilesTable,
+      sub: subscriptionsTable,
     })
     .from(encountersTable)
     .leftJoin(
       profilesTable,
       eq(profilesTable.uid, encountersTable.observedUid),
+    )
+    .leftJoin(
+      subscriptionsTable,
+      eq(subscriptionsTable.userUid, encountersTable.observedUid),
     )
     .where(eq(encountersTable.observerUid, uid))
     .orderBy(desc(encountersTable.lastSeenAt));
@@ -172,7 +178,10 @@ router.get("/encounters", requireUid, async (req, res) => {
     .filter((r) => r.profile !== null)
     .map((r) => ({
       ...serializeEncounter(r.encounter),
-      profile: serializeProfile(r.profile!),
+      profile: {
+        ...serializeProfile(r.profile!),
+        peerTier: (r.sub?.status === "active" ? r.sub?.tier : undefined) ?? "free",
+      },
     }));
 
   res.json(ListMyEncountersResponse.parse(items));

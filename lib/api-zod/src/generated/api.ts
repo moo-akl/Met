@@ -168,6 +168,7 @@ export const ListMyEncountersResponseItem = zod
           ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
+        peerTier: zod.enum(["free", "plus", "pro"]).optional(),
       }),
     }),
   );
@@ -324,6 +325,7 @@ export const ListInboundRevealsResponseItem = zod
           ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
+        peerTier: zod.enum(["free", "plus", "pro"]).optional(),
       }),
     }),
   );
@@ -368,6 +370,7 @@ export const ListOutboundRevealsResponseItem = zod
           ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
+        peerTier: zod.enum(["free", "plus", "pro"]).optional(),
       }),
     }),
   );
