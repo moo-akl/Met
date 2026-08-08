@@ -655,7 +655,7 @@ const styles = StyleSheet.create({
   heatmapSection: {
     marginHorizontal: 12,
     height: 340,
-    borderRadius: 24,
+    borderRadius: 170, // full circle — half of the 340px height
     marginTop: 16,
     borderWidth: 1, borderColor: AG_BORDER,
     overflow: "hidden",

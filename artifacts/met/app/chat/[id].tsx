@@ -1295,7 +1295,7 @@ export default function ChatScreen() {
             }
             renderItem={renderItem}
             ListHeaderComponent={
-              visibleMessages.length === 0 && encounter ? (
+              visibleMessages.length === 0 ? (
                 <View
                   style={{
                     margin: 16,
@@ -1315,12 +1315,12 @@ export default function ChatScreen() {
                     </Text>
                   </View>
                   <Text style={{ fontFamily: "Inter_400Regular", fontSize: 14, color: colors.foreground, lineHeight: 20 }}>
-                    {(encounter.encounterCount ?? 1) >= 5
-                      ? `You've crossed paths ${encounter.encounterCount} times${encounter.lastLocation ? ` near ${encounter.lastLocation}` : ""}. They already know your face — say something.`
-                      : encounter.lastLocation
+                    {(encounter?.encounterCount ?? 1) >= 5
+                      ? `You've crossed paths ${encounter?.encounterCount ?? "several"} times${encounter?.lastLocation ? ` near ${encounter.lastLocation}` : ""}. They already know your face — say something.`
+                      : encounter?.lastLocation
                       ? `You were both near ${encounter.lastLocation}. That's already something to talk about.`
-                      : (encounter.encounterCount ?? 1) > 1
-                      ? `You've crossed paths ${encounter.encounterCount} times. Be the one who starts.`
+                      : (encounter?.encounterCount ?? 1) > 1
+                      ? `You've crossed paths ${encounter?.encounterCount} times. Be the one who starts.`
                       : "Send something genuine — not just \"hey\". You've already met in person."}
                   </Text>
                 </View>

@@ -5,11 +5,11 @@
  * section: Events, Rewards, Announcements, Edit Profile, and the public
  * venue page.
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Linking,
+  Modal,
   Pressable,
   ScrollView,
   Share,
@@ -17,6 +17,7 @@ import {
   Text,
   View,
 } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
@@ -50,6 +51,8 @@ export default function VenueOwnerDashboardScreen() {
   const [dashboard, setDashboard] = useState<VenueOwnerDashboard | null>(null);
   const [dashLoading, setDashLoading] = useState(true);
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const qrSvgRef = useRef<{ toDataURL?: (cb: (data: string) => void) => void } | null>(null);
 
   const handleInviteStaff = async () => {
     if (!authedUid || inviteLoading) return;
@@ -69,10 +72,7 @@ export default function VenueOwnerDashboardScreen() {
     }
   };
 
-  const handleOpenQrKit = () => {
-    const url = api.getQrKitUrl(application?.placeId ?? "");
-    void Linking.openURL(url);
-  };
+  const handleOpenQrKit = () => setShowQrModal(true);
 
   // Load quick stats
   useEffect(() => {
@@ -218,6 +218,84 @@ export default function VenueOwnerDashboardScreen() {
           <Text style={[styles.chevron, { color: colors.primary }]}>›</Text>
         </Pressable>
       </ScrollView>
+
+      {/* ── QR Check-in Kit Modal ── */}
+      <Modal
+        visible={showQrModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowQrModal(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}
+          onPress={() => setShowQrModal(false)}
+        >
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <View style={{
+              backgroundColor: "#1A1A1E",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              padding: 28,
+              alignItems: "center",
+              gap: 14,
+            }}>
+              {/* Grab handle */}
+              <View style={{ width: 40, height: 4, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 2 }} />
+
+              <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 18 }}>
+                Check-in QR Kit
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, textAlign: "center" }}>
+                Display at your venue so guests can check in with their camera
+              </Text>
+
+              {/* QR code on white background */}
+              <View style={{ backgroundColor: "#fff", padding: 16, borderRadius: 16 }}>
+                <QRCode
+                  getRef={(ref) => { qrSvgRef.current = ref as typeof qrSvgRef.current; }}
+                  value={api.getVenueCheckInUrl(application?.placeId ?? "placeholder")}
+                  size={220}
+                  color="#111"
+                  backgroundColor="#fff"
+                />
+              </View>
+
+              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, fontFamily: "Inter_400Regular" }}>
+                {venueName}
+              </Text>
+
+              {/* Share link button */}
+              <Pressable
+                onPress={async () => {
+                  const url = api.getVenueCheckInUrl(application?.placeId ?? "");
+                  await Share.share({
+                    message: `Check in at ${venueName} on Met 👑\n${url}`,
+                    url,
+                    title: `${venueName} — Check-in`,
+                  });
+                }}
+                style={({ pressed }) => ({
+                  backgroundColor: colors.primary,
+                  borderRadius: 12,
+                  paddingHorizontal: 24,
+                  paddingVertical: 13,
+                  width: "100%",
+                  alignItems: "center",
+                  opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>
+                  Share Check-in Link
+                </Text>
+              </Pressable>
+
+              <Pressable onPress={() => setShowQrModal(false)} style={{ paddingVertical: 6 }}>
+                <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Close</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

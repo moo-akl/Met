@@ -1413,4 +1413,7 @@ export const api = {
 
   /** Build the URL for the printable QR check-in kit page for a given venue. */
   getQrKitUrl: (placeId: string): string => `${BASE_URL}/api/venue-owner/${placeId}/qr-kit`,
+
+  /** Deep-link / web URL that a guest's camera app opens to reach a venue's check-in page. */
+  getVenueCheckInUrl: (placeId: string): string => `${BASE_URL}/v/${placeId}`,
 };

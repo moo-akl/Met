@@ -44,7 +44,7 @@ const authLimit = createIpRateLimiter({
 });
 
 function passwordIsStrong(password: string): boolean {
-  return password.length >= 12 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password);
+  return password.length >= 8 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password);
 }
 
 function normalizeEmail(email: string): string {
@@ -732,7 +732,7 @@ router.post("/venue-manager/register", authLimit, async (req, res): Promise<void
   const displayName = typeof req.body?.displayName === "string" ? req.body.displayName.trim().slice(0, 120) : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!token || !email || !displayName || !passwordIsStrong(password)) {
-    res.status(400).json({ message: "Provide a registration token, email, name, and a strong password (12+ chars, upper, lower, number)." });
+    res.status(400).json({ message: "Provide a registration token, email, name, and a strong password (8+ chars, upper, lower, number)." });
     return;
   }
   const tokenHash = crypto.createHash("sha256").update(token).digest("base64url");
