@@ -35,6 +35,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { api, type VenueReward } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
+import { useSubscription } from "@/lib/revenuecat";
 import { VenueRewardBanner } from "@/components/VenueRewardBanner";
 
 // ---------------------------------------------------------------------------
@@ -264,11 +265,13 @@ function LeaderboardRow({
   isCurrentUser,
   isChampion,
   animStyle,
+  currentUserTier,
 }: {
   item: LeaderboardEntry;
   isCurrentUser: boolean;
   isChampion: boolean;
   animStyle: { opacity: Animated.Value; translateY: Animated.Value };
+  currentUserTier?: "free" | "plus" | "pro";
 }) {
   const colors = useColors();
   const { t } = useT();
@@ -332,19 +335,33 @@ function LeaderboardRow({
           )}
         </View>
 
-        {/* Avatar */}
+        {/* Avatar — tier-coloured ring for current user's own row */}
         {item.photoUrl ? (
-          <Image
-            source={{ uri: item.photoUrl }}
-            style={[
-              styles.avatar,
-              isTop3 && {
-                borderWidth: 2,
-                borderColor: MEDAL[item.rank as 1 | 2 | 3].glow + "80",
-              },
-            ]}
-            accessibilityIgnoresInvertColors
-          />
+          <View
+            style={
+              isCurrentUser && currentUserTier && currentUserTier !== "free"
+                ? [
+                    styles.avatarRing,
+                    {
+                      borderColor:
+                        currentUserTier === "pro" ? "#D4AF37" : "#0369A1",
+                    },
+                  ]
+                : undefined
+            }
+          >
+            <Image
+              source={{ uri: item.photoUrl }}
+              style={[
+                styles.avatar,
+                isTop3 && {
+                  borderWidth: 2,
+                  borderColor: MEDAL[item.rank as 1 | 2 | 3].glow + "80",
+                },
+              ]}
+              accessibilityIgnoresInvertColors
+            />
+          </View>
         ) : (
           <View style={[styles.avatarFallback, { backgroundColor: "#2C2C2E" }]}>
             <Feather name="user" size={16} color="rgba(255,255,255,0.4)" />
@@ -377,6 +394,18 @@ function LeaderboardRow({
                 <Text style={styles.youBadgeText}>
                   {t("leaderboard.youLabel")}
                 </Text>
+              </View>
+            )}
+            {isCurrentUser && currentUserTier === "plus" && (
+              <View style={[styles.subBadge, { backgroundColor: "#0369A1" }]}>
+                <Feather name="zap" size={8} color="#fff" />
+                <Text style={styles.subBadgeText}>PLUS</Text>
+              </View>
+            )}
+            {isCurrentUser && currentUserTier === "pro" && (
+              <View style={[styles.subBadge, { backgroundColor: "#1B7A23" }]}>
+                <Feather name="star" size={8} color="#fff" />
+                <Text style={styles.subBadgeText}>PRO</Text>
               </View>
             )}
             {isChampion && (
@@ -425,6 +454,7 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const { authedUid } = useApp();
+  const { tier } = useSubscription();
 
   const [period, setPeriod] = useState<Period>("current_month");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -547,9 +577,10 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
         isCurrentUser={item.uid === authedUid}
         isChampion={championUids.has(item.uid)}
         animStyle={getRowAnim(item.uid)}
+        currentUserTier={item.uid === authedUid ? tier : undefined}
       />
     ),
-    [authedUid, championUids], // eslint-disable-line react-hooks/exhaustive-deps
+    [authedUid, championUids, tier], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const isEmpty = !loading && !error && entries.length === 0;
@@ -787,6 +818,11 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
   },
+  avatarRing: {
+    padding: 2,
+    borderRadius: 22,
+    borderWidth: 2,
+  },
   avatarFallback: {
     width: 38,
     height: 38,
@@ -840,6 +876,20 @@ const styles = StyleSheet.create({
   trophyIcon: {
     fontSize: 14,
     lineHeight: 18,
+  },
+  subBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  subBadgeText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 8,
+    color: "#fff",
+    letterSpacing: 0.4,
   },
   countCol: {
     alignItems: "flex-end",

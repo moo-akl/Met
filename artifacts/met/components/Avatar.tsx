@@ -9,10 +9,12 @@ type Props = {
   uri?: string | null;
   size?: number;
   ring?: boolean;
+  /** Override the ring border colour. Defaults to the theme primary colour. */
+  ringColor?: string;
   fallbackText?: string;
 };
 
-export function Avatar({ uri, size = 56, ring, fallbackText }: Props) {
+export function Avatar({ uri, size = 56, ring, ringColor, fallbackText }: Props) {
   const colors = useColors();
   const radius = size / 2;
 
@@ -68,7 +70,7 @@ export function Avatar({ uri, size = 56, ring, fallbackText }: Props) {
         padding: 2,
         borderRadius: radius + 3,
         borderWidth: 2,
-        borderColor: colors.primary,
+        borderColor: ringColor ?? colors.primary,
       }}
     >
       {inner}

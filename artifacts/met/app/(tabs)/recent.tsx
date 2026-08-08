@@ -18,7 +18,7 @@ import { useVisibility } from "@/hooks/useVisibility";
 import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
-import { FREE_VISIBLE_ENCOUNTERS, startOfTodayMs } from "@/lib/usage";
+import { FREE_HISTORY_ENCOUNTERS, FREE_VISIBLE_ENCOUNTERS, startOfTodayMs } from "@/lib/usage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -44,6 +44,7 @@ export default function RecentScreen() {
     [encounters],
   );
   const { isPlusSubscriber, isProSubscriber, isSubscriptionReady } = useSubscription();
+
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
 
@@ -95,13 +96,15 @@ export default function RecentScreen() {
     [encounters],
   );
 
-  // Free users only see the most recent N encounters per *day* — the bucket
-  // resets at midnight. Until RevenueCat resolves we show everything (we'd
-  // rather over-show briefly than blink the list down for a paid user).
+  // Tier-gated encounter feed visibility:
+  //   Pro  — unlimited today + full history.
+  //   Plus — unlimited today + last 30 days of history.
+  //   Free — up to FREE_VISIBLE_ENCOUNTERS today + FREE_HISTORY_ENCOUNTERS
+  //           from older days as a taste.
+  // Until RevenueCat resolves we show everything so paid users never blink.
   const { visible, hiddenCount } = useMemo(() => {
-    if (!isSubscriptionReady || isPlusSubscriber) {
-      return { visible: sorted, hiddenCount: 0 };
-    }
+    if (!isSubscriptionReady) return { visible: sorted, hiddenCount: 0 };
+
     const dayStart = startOfTodayMs();
     const today: typeof sorted = [];
     const earlier: typeof sorted = [];
@@ -109,13 +112,31 @@ export default function RecentScreen() {
       if (e.lastSeenAt >= dayStart) today.push(e);
       else earlier.push(e);
     }
+
+    if (isProSubscriber) {
+      return { visible: sorted, hiddenCount: 0 };
+    }
+
+    if (isPlusSubscriber) {
+      const thirtyDaysAgo = Date.now() - 30 * DAY_MS;
+      const recentEarlier = earlier.filter((e) => e.lastSeenAt >= thirtyDaysAgo);
+      const hiddenEarlier = earlier.length - recentEarlier.length;
+      return {
+        visible: [...today, ...recentEarlier],
+        hiddenCount: hiddenEarlier,
+      };
+    }
+
+    // Free tier
     const todayVisible = today.slice(0, FREE_VISIBLE_ENCOUNTERS);
     const todayHidden = Math.max(0, today.length - todayVisible.length);
+    const historyVisible = earlier.slice(0, FREE_HISTORY_ENCOUNTERS);
+    const historyHidden = Math.max(0, earlier.length - historyVisible.length);
     return {
-      visible: [...todayVisible, ...earlier],
-      hiddenCount: todayHidden,
+      visible: [...todayVisible, ...historyVisible],
+      hiddenCount: todayHidden + historyHidden,
     };
-  }, [sorted, isSubscriptionReady, isPlusSubscriber]);
+  }, [sorted, isSubscriptionReady, isPlusSubscriber, isProSubscriber]);
 
   const webBot = Platform.OS === "web" ? 34 : 0;
 

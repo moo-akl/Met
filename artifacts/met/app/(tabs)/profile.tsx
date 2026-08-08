@@ -767,7 +767,13 @@ export default function ProfileScreen() {
                   styles.photoFrame,
                   {
                     backgroundColor: colors.card,
-                    borderColor: colors.border,
+                    borderColor:
+                      tier === "pro"
+                        ? "#D4AF37"
+                        : tier === "plus"
+                          ? "#0369A1"
+                          : colors.border,
+                    borderWidth: tier !== "free" ? 3 : 1,
                   },
                 ]}
               >

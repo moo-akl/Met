@@ -534,6 +534,57 @@ router.post(
         /* noop — never fail the check-in response */
       }
     })();
+
+    // ── Proactive crown-defense WARNING push ──────────────────────────────
+    // Fire-and-forget: if the current user is #2 and within 2 check-ins of
+    // the existing #1, warn the leader before they get dethroned.
+    void (async () => {
+      try {
+        const monthStart = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+        );
+        const topTwo = await db
+          .select({
+            userUid: hubCheckinsTable.userUid,
+            cnt: count(hubCheckinsTable.id),
+            pushToken: profilesTable.pushToken,
+          })
+          .from(hubCheckinsTable)
+          .leftJoin(profilesTable, eq(profilesTable.uid, hubCheckinsTable.userUid))
+          .where(
+            and(
+              eq(hubCheckinsTable.placeId, place.placeId),
+              gte(hubCheckinsTable.createdAt, monthStart),
+            ),
+          )
+          .groupBy(hubCheckinsTable.userUid, profilesTable.pushToken)
+          .orderBy(desc(sql`count(${hubCheckinsTable.id})`))
+          .limit(2);
+
+        // Only fire when current user is #2 (not #1) and within 2 check-ins of #1
+        if (
+          topTwo.length >= 2 &&
+          topTwo[0]!.userUid !== uid &&
+          topTwo[1]!.userUid === uid &&
+          Number(topTwo[0]!.cnt) - Number(topTwo[1]!.cnt) <= 2 &&
+          topTwo[0]!.pushToken
+        ) {
+          const [me] = await db
+            .select({ displayName: profilesTable.displayName })
+            .from(profilesTable)
+            .where(eq(profilesTable.uid, uid))
+            .limit(1);
+          const gap = Number(topTwo[0]!.cnt) - Number(topTwo[1]!.cnt);
+          await sendPush(topTwo[0]!.pushToken, {
+            title: "⚠️ Your crown is under threat!",
+            body: `${me?.displayName ?? "Someone"} is only ${gap} check-in${gap === 1 ? "" : "s"} behind you at ${place.displayName}. Time to check in!`,
+            data: { type: "crown_defense", placeId: place.placeId },
+          });
+        }
+      } catch {
+        /* noop — never fail the check-in response */
+      }
+    })();
   },
 );
 
