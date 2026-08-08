@@ -1,6 +1,6 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { and, count, desc, eq, gte, gt, isNull, lt, notInArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, gt, ilike, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   db,
@@ -1141,6 +1141,35 @@ router.get("/venue-manager/businesses/:businessId/guests", requireSession, async
   const limit = Math.min(Number(req.query.limit) || 50, 100);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
 
+  const periodParam = req.query.period;
+  const now = new Date();
+  let sinceDate: Date | null = null;
+  if (periodParam === "month") {
+    sinceDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (periodParam === "week") {
+    const dayOfWeek = now.getDay(); // 0=Sun
+    sinceDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
+  }
+
+  const searchParam = typeof req.query.search === "string" ? req.query.search.trim() : "";
+
+  // Build the checkin date predicate
+  const checkinWhere = sinceDate
+    ? and(eq(hubCheckinsTable.placeId, placeId), gte(hubCheckinsTable.createdAt, sinceDate))
+    : eq(hubCheckinsTable.placeId, placeId);
+
+  // When a name search is present we filter HAVING (after GROUP BY) via a
+  // subquery so both the leaderboard rows and the accurate total respect it.
+  // We achieve this by joining only the aggregated subquery and applying the
+  // name filter there — Drizzle's fluent API makes the inline approach easier,
+  // so we use raw sql for the HAVING-equivalent filter on displayName.
+  const nameFilter = searchParam
+    ? ilike(profilesTable.displayName, `%${searchParam}%`)
+    : undefined;
+
+  // Combined WHERE: checkin date + (optional) profile name match
+  const fullWhere = nameFilter ? and(checkinWhere, nameFilter) : checkinWhere;
+
   const [guestRows, totalRows] = await Promise.all([
     db.select({
       uid: hubCheckinsTable.userUid,
@@ -1154,7 +1183,7 @@ router.get("/venue-manager/businesses/:businessId/guests", requireSession, async
     })
       .from(hubCheckinsTable)
       .leftJoin(profilesTable, eq(hubCheckinsTable.userUid, profilesTable.uid))
-      .where(eq(hubCheckinsTable.placeId, placeId))
+      .where(fullWhere)
       .groupBy(
         hubCheckinsTable.userUid,
         profilesTable.displayName,
@@ -1169,7 +1198,8 @@ router.get("/venue-manager/businesses/:businessId/guests", requireSession, async
     db
       .select({ total: sql<number>`COUNT(DISTINCT ${hubCheckinsTable.userUid})` })
       .from(hubCheckinsTable)
-      .where(eq(hubCheckinsTable.placeId, placeId)),
+      .leftJoin(profilesTable, eq(hubCheckinsTable.userUid, profilesTable.uid))
+      .where(fullWhere),
   ]);
 
   res.json({

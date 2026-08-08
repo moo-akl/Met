@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
@@ -1043,6 +1043,8 @@ function Team({ business, csrfToken, onSession }: { business: VenueManagerBusine
   return <div className="vm-team"><section><div className="vm-toolbar"><span>{members.data?.members.length ?? 0} active people</span><button className="vm-primary compact" onClick={() => { setMessage(""); setInvite(true); }}><Plus size={16} />Invite team member</button></div><div className="vm-stack">{(members.data?.members ?? []).map((member) => <article className="vm-member" key={member.managerId}><span className="vm-person">{member.displayName.slice(0, 1)}</span><div><strong>{member.displayName}</strong><small>{member.email}</small></div>{member.role === "owner" ? <span className="vm-status live">Owner</span> : <select value={member.role} onChange={(e) => role.mutate({ managerId: member.managerId, value: e.target.value as "manager" | "editor" })}><option value="manager">Manager</option><option value="editor">Editor</option></select>} {member.role !== "owner" && <button className="danger-text" onClick={() => { if (confirm(`Remove ${member.displayName}?`)) remove.mutate(member.managerId); }}>Remove</button>}</article>)}</div></section><section className="vm-panel vm-password"><Settings2 /><h2>Account security</h2><p>Change your business password. You’ll stay signed in here and other sessions will end.</p><form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); password.mutate({ currentPassword: String(f.get("currentPassword")), newPassword: String(f.get("newPassword")) }); }}><label>Current password<input name="currentPassword" type="password" required /></label><label>New password<input name="newPassword" type="password" minLength={12} required /></label><button className="vm-secondary" disabled={password.isPending}>{password.isPending ? "Updating…" : "Change password"}</button></form></section>{invite && <Modal title="Invite a teammate" onClose={() => setInvite(false)}><form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); add.mutate({ email: String(f.get("email")), role: f.get("role") as "manager" | "editor" }); }}><label>Email<input name="email" type="email" required /></label><label>Access level<select name="role"><option value="manager">Manager — profile, content, rewards, analytics</option><option value="editor">Editor — events and announcements</option></select></label>{message && <div className={`vm-notice ${add.isSuccess ? "success" : "error"}`}>{message}</div>}<div className="vm-form-actions"><button type="button" className="vm-secondary" onClick={() => setInvite(false)}>Close</button><button className="vm-primary" disabled={add.isPending}>{add.isPending ? "Creating…" : "Create invitation"}</button></div></form></Modal>}</div>;
 }
 
+type GuestPeriod = "all" | "month" | "week";
+
 function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
   const [guests, setGuests] = useState<VenueGuest[]>([]);
   const [total, setTotal] = useState(0);
@@ -1054,18 +1056,35 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   const [revealStatus, setRevealStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [revealErr, setRevealErr] = useState("");
   const [sent, setSent] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [period, setPeriod] = useState<GuestPeriod>("all");
+
+  // Debounce the search term so we don't fire a request on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     setLoading(true); setLoadErr("");
-    fetch(`/api/venue-manager/businesses/${business.businessId}/guests?limit=100`, { credentials: "include" })
+    const controller = new AbortController();
+    const params = new URLSearchParams({ limit: "100" });
+    if (period !== "all") params.set("period", period);
+    if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+    fetch(`/api/venue-manager/businesses/${business.businessId}/guests?${params.toString()}`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message ?? "Failed to load guests.");
         return r.json();
       })
       .then((data) => { setGuests(data.guests ?? []); setTotal(data.total ?? 0); })
-      .catch((e) => setLoadErr(e.message))
+      .catch((e: unknown) => { if ((e as { name?: string }).name !== "AbortError") setLoadErr((e as Error).message); })
       .finally(() => setLoading(false));
-  }, [business.businessId]);
+    return () => controller.abort();
+  }, [business.businessId, period, debouncedSearch]);
 
   function openReveal(guest: VenueGuest) {
     setSelected(guest); setRevealOpen(true);
@@ -1105,11 +1124,33 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   if (loadErr) return <div className="vm-notice error">{loadErr}</div>;
 
   return <>
+    <div className="vm-guests-controls">
+      <input
+        className="vm-guests-search"
+        type="search"
+        placeholder="Search by name…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        aria-label="Search guests by name"
+      />
+      <div className="vm-guests-period">
+        {(["all", "month", "week"] as GuestPeriod[]).map((p) => (
+          <button
+            key={p}
+            type="button"
+            className={`vm-period-btn${period === p ? " active" : ""}`}
+            onClick={() => setPeriod(p)}
+          >
+            {p === "all" ? "All time" : p === "month" ? "This month" : "This week"}
+          </button>
+        ))}
+      </div>
+    </div>
     <div className="vm-guests-header">
       <span className="vm-guests-total">{total} {total === 1 ? "guest" : "guests"} checked in</span>
       <p className="vm-guests-hint">Tap a guest to view their profile and connect personally.</p>
     </div>
-    {!guests.length && <Empty text="No check-ins recorded yet at this venue." />}
+    {!guests.length && <Empty text={debouncedSearch.trim() ? "No guests match your search." : "No check-ins recorded yet at this venue."} />}
     <div className="vm-guests-list">
       {guests.map((g) => (
         <button key={g.uid} className="vm-guest-row" onClick={() => setSelected(g)}>
