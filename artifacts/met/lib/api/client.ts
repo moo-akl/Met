@@ -248,6 +248,11 @@ export interface VenueOwnerGuest {
   interests: string[];
   isPioneer: boolean;
   checkinCount: number;
+  /**
+   * Number of visits where the guest physically scanned the venue QR code.
+   * 0 means the guest was only detected via GPS / Bluetooth proximity.
+   */
+  qrVerifiedCount: number;
   lastCheckinAt: string;
 }
 

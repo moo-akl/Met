@@ -308,9 +308,6 @@ router.post(
     // ---------------------------------------------------------------------------
     // Single round-trip: cooldown + registered-venue status + QR verification +
     // current user_stats — all four gates must pass before we write anything.
-    // Keeping the INSERT after the gates means an unverified visit at a
-    // registered venue never gets a hub_checkins row, so the leaderboard count
-    // is never inflated by unscanned check-ins.
     // ---------------------------------------------------------------------------
     const [recentCheckinArr, registeredRow, qrRow, statsRow] = await Promise.all([
       db
@@ -386,8 +383,19 @@ router.post(
     const prevStreaks = (stats?.hubStreaks ?? {}) as Record<string, number>;
     const prevStreak = prevStreaks[place.placeId] ?? 0;
 
-    // QR gate — return before inserting so the leaderboard count is unaffected.
+    // Proximity-only path — registered venue but no QR scan yet.
+    // We still insert a hub_checkins row (source='proximity') so the guest
+    // appears on the venue owner's guest list, but we skip streak / pioneer
+    // updates and return early without full leaderboard credit.
     if (isRegisteredVenue && !isQrVerified) {
+      await db.insert(hubCheckinsTable).values({
+        userUid: uid,
+        placeId: place.placeId,
+        placeName: place.displayName,
+        lat: String(lat),
+        lng: String(lng),
+        source: "proximity",
+      });
       res.json({
         placeId: place.placeId,
         placeName: place.displayName,
@@ -400,13 +408,14 @@ router.post(
       return;
     }
 
-    // All gates passed — record the check-in now.
+    // All gates passed — record the check-in with full credit.
     await db.insert(hubCheckinsTable).values({
       userUid: uid,
       placeId: place.placeId,
       placeName: place.displayName,
       lat: String(lat),
       lng: String(lng),
+      source: isRegisteredVenue ? "qr_verified" : "proximity",
     });
 
     // Full leaderboard credit — non-registered venue or already QR-verified.
@@ -458,7 +467,9 @@ router.post(
     const checkinMultiplier = isPioneer ? 1.5 : 1.0;
     const streakPoints = Math.round(streak * checkinMultiplier);
 
-    // Keep pioneer_score current after every check-in.
+    // Keep pioneer_score current after every QR-verified check-in.
+    // Only qr_verified rows count toward the score — proximity rows are
+    // visitor-list data only and must not inflate the leaderboard metric.
     if (isPioneer) {
       void db.execute(sql`
         UPDATE profiles
@@ -466,7 +477,7 @@ router.post(
           (referral_count * 20)
           + (
               COALESCE(
-                (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid),
+                (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid AND source = 'qr_verified'),
                 0
               ) * 2
             )
@@ -495,6 +506,8 @@ router.post(
         const monthStart = new Date(
           Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
         );
+        // Crown defense counts only QR-verified check-ins so proximity-only
+        // rows cannot affect leaderboard rank or trigger dethronement pushes.
         const topTwo = await db
           .select({
             userUid: hubCheckinsTable.userUid,
@@ -507,6 +520,7 @@ router.post(
             and(
               eq(hubCheckinsTable.placeId, place.placeId),
               gte(hubCheckinsTable.createdAt, monthStart),
+              eq(hubCheckinsTable.source, "qr_verified"),
             ),
           )
           .groupBy(hubCheckinsTable.userUid, profilesTable.pushToken)
@@ -543,6 +557,7 @@ router.post(
         const monthStart = new Date(
           Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
         );
+        // Only QR-verified rows count toward leaderboard ranking.
         const topTwo = await db
           .select({
             userUid: hubCheckinsTable.userUid,
@@ -555,6 +570,7 @@ router.post(
             and(
               eq(hubCheckinsTable.placeId, place.placeId),
               gte(hubCheckinsTable.createdAt, monthStart),
+              eq(hubCheckinsTable.source, "qr_verified"),
             ),
           )
           .groupBy(hubCheckinsTable.userUid, profilesTable.pushToken)
@@ -665,14 +681,23 @@ router.post(
       .orderBy(desc(hubCheckinsTable.createdAt))
       .limit(1);
 
-    if (!recentCheckin) {
-      await db.insert(hubCheckinsTable).values({ userUid: uid, placeId });
+    if (recentCheckin) {
+      // Upgrade an existing proximity row to qr_verified so the source reflects
+      // that the guest physically scanned the QR code.
+      await db
+        .update(hubCheckinsTable)
+        .set({ source: "qr_verified" })
+        .where(eq(hubCheckinsTable.id, recentCheckin.id));
+      logger.info({ uid, placeId, id: recentCheckin.id }, "hub_checkins source upgraded to qr_verified");
+    } else {
+      await db.insert(hubCheckinsTable).values({ userUid: uid, placeId, source: "qr_verified" });
       logger.info({ uid, placeId }, "hub_checkins row inserted via QR verify");
     }
 
-    // Apply leaderboard/streak credit.  We use the second-most-recent check-in
-    // at this place (offset 1) as the "previous" visit for streak continuity —
-    // the most recent is the row we just inserted (or the GPS one already there).
+    // Apply leaderboard/streak credit.  We use the second-most-recent
+    // QR-VERIFIED check-in at this place (offset 1) as the "previous" visit
+    // for streak continuity — proximity-only rows must not count toward streak
+    // since they do not earn leaderboard credit.
     let streak = 0;
     try {
       const [[statsRow], [prevCheckinRow]] = await Promise.all([
@@ -688,6 +713,7 @@ router.post(
             and(
               eq(hubCheckinsTable.userUid, uid),
               eq(hubCheckinsTable.placeId, placeId),
+              eq(hubCheckinsTable.source, "qr_verified"),
             ),
           )
           .orderBy(desc(hubCheckinsTable.createdAt))
@@ -946,6 +972,8 @@ router.get(
           )
         : null;
 
+    // Public leaderboard ranks only QR-verified check-ins so proximity-only
+    // detections (BLE/GPS without QR scan) don't inflate rankings.
     const rows = await db
       .select({
         userUid: hubCheckinsTable.userUid,
@@ -963,8 +991,12 @@ router.get(
           ? and(
               eq(hubCheckinsTable.placeId, placeId),
               gte(hubCheckinsTable.createdAt, monthStart),
+              eq(hubCheckinsTable.source, "qr_verified"),
             )
-          : eq(hubCheckinsTable.placeId, placeId),
+          : and(
+              eq(hubCheckinsTable.placeId, placeId),
+              eq(hubCheckinsTable.source, "qr_verified"),
+            ),
       )
       .groupBy(
         hubCheckinsTable.userUid,

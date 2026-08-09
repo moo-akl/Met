@@ -1776,7 +1776,9 @@ router.post(
           continue;
         }
 
-        // Top check-in user during the reward period
+        // Top check-in user during the reward period.
+        // Only QR-verified check-ins count toward reward eligibility — proximity
+        // rows from BLE/GPS detection are guest-list data only.
         const topUsers = await db
           .select({
             userUid: hubCheckinsTable.userUid,
@@ -1788,6 +1790,7 @@ router.post(
               eq(hubCheckinsTable.placeId, reward.placeId),
               gte(hubCheckinsTable.createdAt, reward.startDate),
               lt(hubCheckinsTable.createdAt, reward.endDate),
+              eq(hubCheckinsTable.source, "qr_verified"),
             ),
           )
           .groupBy(hubCheckinsTable.userUid)
@@ -2188,7 +2191,8 @@ router.get(
       .groupBy(sql`DATE(${hubCheckinsTable.createdAt})`)
       .orderBy(sql`DATE(${hubCheckinsTable.createdAt})`);
 
-    // Top 5 visitors this month
+    // Top 5 visitors this month — QR-verified only so proximity-only detections
+    // don't inflate the dashboard ranking shown to venue owners.
     const topVisitors = await db
       .select({
         userUid: hubCheckinsTable.userUid,
@@ -2199,6 +2203,7 @@ router.get(
         and(
           eq(hubCheckinsTable.placeId, placeId),
           gte(hubCheckinsTable.createdAt, monthStart),
+          eq(hubCheckinsTable.source, "qr_verified"),
         ),
       )
       .groupBy(hubCheckinsTable.userUid)
@@ -2374,6 +2379,10 @@ router.get(
           interests: profilesTable.interests,
           isPioneer: profilesTable.isPioneer,
           checkinCount: count(hubCheckinsTable.id),
+          // Count of visits where the guest physically scanned the QR code.
+          // Uses PostgreSQL's aggregate FILTER clause (ISO SQL:2003) which is
+          // more readable and avoids CASE WHEN NULL-counting issues.
+          qrVerifiedCount: sql<number>`CAST(COUNT(*) FILTER (WHERE hub_checkins.source = 'qr_verified') AS INTEGER)`,
           lastCheckinAt: sql<string>`MAX(${hubCheckinsTable.createdAt})`,
         })
         .from(hubCheckinsTable)
@@ -2411,6 +2420,10 @@ router.get(
         interests: (row.interests as string[] | null) ?? [],
         isPioneer: row.isPioneer ?? false,
         checkinCount: Number(row.checkinCount),
+        // Number of visits where the guest scanned the venue QR code.
+        // Guests with qrVerifiedCount > 0 have confirmed physical presence.
+        // Guests with qrVerifiedCount === 0 were detected via GPS/Bluetooth proximity only.
+        qrVerifiedCount: Number(row.qrVerifiedCount),
         lastCheckinAt: row.lastCheckinAt,
       })),
       total: Number(totalRows[0]?.total ?? 0),

@@ -29,6 +29,15 @@ export const hubCheckinsTable = pgTable(
     placeName: text("place_name"),
     lat: text("lat"),
     lng: text("lng"),
+    /**
+     * How this visit was recorded:
+     *   'proximity' — GPS/BLE detection only (no QR scan). Counts toward
+     *                 the guest list but does not award streak points or
+     *                 unlock reward eligibility.
+     *   'qr_verified' — guest physically scanned the venue QR code. Full
+     *                   leaderboard credit, streaks, and reward eligibility.
+     */
+    source: text("source").notNull().default("proximity"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

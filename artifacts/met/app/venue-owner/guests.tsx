@@ -249,6 +249,11 @@ export default function VenueOwnerGuestsScreen() {
                   {"  ·  "}
                   {formatLastSeen(item.lastCheckinAt)}
                 </Text>
+                {item.qrVerifiedCount > 0 ? (
+                  <Text style={styles.qrBadge}>✓ Scanned QR</Text>
+                ) : (
+                  <Text style={styles.proximityBadge}>📡 Nearby only</Text>
+                )}
               </View>
 
               {sentUids.has(item.uid) ? (
@@ -310,6 +315,19 @@ export default function VenueOwnerGuestsScreen() {
                       {"  ·  "}
                       Last seen {formatLastSeen(selected.lastCheckinAt)}
                     </Text>
+
+                    {/* QR / proximity badge */}
+                    {selected.qrVerifiedCount > 0 ? (
+                      <Text style={[styles.drawerQrBadge, { color: "#4ADE80" }]}>
+                        ✓ Scanned QR code {selected.qrVerifiedCount === selected.checkinCount
+                          ? "(all visits)"
+                          : `(${selected.qrVerifiedCount} of ${selected.checkinCount} visits)`}
+                      </Text>
+                    ) : (
+                      <Text style={styles.drawerProximityBadge}>
+                        📡 Detected nearby — hasn't scanned QR yet
+                      </Text>
+                    )}
 
                     {/* Bio */}
                     {!!selected.bio && (
@@ -490,6 +508,18 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: 2,
   },
+  qrBadge: {
+    color: "#4ADE80",
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    marginTop: 3,
+  },
+  proximityBadge: {
+    color: "rgba(255,255,255,0.25)",
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 3,
+  },
   sentBadge: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   chevron: { color: "rgba(255,255,255,0.2)", fontSize: 22 },
 
@@ -544,7 +574,20 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.4)",
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    marginBottom: 12,
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  drawerQrBadge: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  drawerProximityBadge: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 10,
     textAlign: "center",
   },
   drawerBio: {
