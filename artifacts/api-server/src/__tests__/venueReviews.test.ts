@@ -266,6 +266,82 @@ describe.skipIf(!hasDatabase)(
     });
 
     // -----------------------------------------------------------------------
+    // 4b. GET /reviews is accessible without any authentication (public)
+    // -----------------------------------------------------------------------
+    it("GET /reviews returns 200 with no authentication header", async () => {
+      // No .set(uid(...)) — completely unauthenticated request.
+      const res = await request(app).get(`/api/hubs/${PLACE_ID}/reviews`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("reviews");
+      expect(res.body).toHaveProperty("averageRating");
+      expect(res.body).toHaveProperty("total");
+    });
+
+    // -----------------------------------------------------------------------
+    // 4c. GET /reviews returns reviews ordered newest-first
+    // -----------------------------------------------------------------------
+    it("GET /reviews returns reviews ordered newest-first", async () => {
+      // At this point USER_UID (3 stars) and USER2_UID (5 stars) have reviews.
+      // We insert a third review with a forced earlier createdAt to verify ordering.
+      const THIRD_PLACE = `${TP}-order`;
+      const OLD_UID = `${TP}-old`;
+      const NEW_UID = `${TP}-new`;
+
+      try {
+        for (const u of [OLD_UID, NEW_UID]) {
+          await db
+            .insert(profilesTable)
+            .values({ uid: u, displayName: `Order ${u}` })
+            .onConflictDoNothing();
+        }
+        await db.insert(venueQrVerificationsTable).values([
+          { userUid: OLD_UID, placeId: THIRD_PLACE },
+          { userUid: NEW_UID, placeId: THIRD_PLACE },
+        ]);
+        // OLD_UID review inserted first (older timestamp)
+        await db.insert(venueReviewsTable).values({
+          userUid: OLD_UID,
+          placeId: THIRD_PLACE,
+          starRating: 2,
+          comment: "Older review",
+        });
+        // Small delay to guarantee a different createdAt timestamp
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        // NEW_UID review inserted second (newer timestamp)
+        await db.insert(venueReviewsTable).values({
+          userUid: NEW_UID,
+          placeId: THIRD_PLACE,
+          starRating: 4,
+          comment: "Newer review",
+        });
+
+        const res = await request(app).get(
+          `/api/hubs/${THIRD_PLACE}/reviews`,
+        );
+
+        expect(res.status).toBe(200);
+        const { reviews } = res.body as {
+          reviews: { comment: string; starRating: number }[];
+        };
+        expect(reviews).toHaveLength(2);
+        // First element must be the more recently created review.
+        expect(reviews[0]!.comment).toBe("Newer review");
+        expect(reviews[1]!.comment).toBe("Older review");
+      } finally {
+        await db
+          .delete(venueReviewsTable)
+          .where(eq(venueReviewsTable.placeId, THIRD_PLACE));
+        await db
+          .delete(venueQrVerificationsTable)
+          .where(eq(venueQrVerificationsTable.placeId, THIRD_PLACE));
+        for (const u of [OLD_UID, NEW_UID]) {
+          await db.delete(profilesTable).where(eq(profilesTable.uid, u));
+        }
+      }
+    });
+
+    // -----------------------------------------------------------------------
     // 5a. GET /my-review returns the caller's own review
     // -----------------------------------------------------------------------
     it("GET /my-review returns the caller's own review", async () => {

@@ -81,10 +81,11 @@ router.post(
 );
 
 // ── GET /hubs/:placeId/reviews ─────────────────────────────────────────────
+// Public endpoint — no authentication required. Any caller (guest or
+// authenticated user) may view a venue's reviews and aggregate score.
 
 router.get(
   "/hubs/:placeId/reviews",
-  requireUid,
   async (req, res): Promise<void> => {
     const { placeId } = req.params as { placeId: string };
 
