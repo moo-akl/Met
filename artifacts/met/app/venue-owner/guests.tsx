@@ -16,6 +16,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -270,21 +271,28 @@ export default function VenueOwnerGuestsScreen() {
         />
       )}
 
-      {/* Guest Profile Drawer */}
+      {/* Guest Full Profile Sheet */}
       <Modal
         visible={drawerVisible}
-        transparent
         animationType="slide"
+        presentationStyle="pageSheet"
         onRequestClose={closeDrawer}
       >
-        <Pressable style={styles.drawerBackdrop} onPress={closeDrawer}>
+        <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+          <View style={[styles.sheetTopBar, { borderBottomColor: colors.border }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <Pressable style={styles.sheetCloseBtn} onPress={closeDrawer} hitSlop={12}>
+              <Text style={[styles.sheetCloseTxt, { color: colors.mutedForeground }]}>✕</Text>
+            </Pressable>
+          </View>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={{ width: "100%" }}
+            style={{ flex: 1 }}
           >
-            <Pressable onPress={(e) => e.stopPropagation()}>
-              <View style={[styles.drawer, { backgroundColor: colors.card, paddingBottom: insets.bottom + 20 }]}>
-                <View style={[styles.drawerHandle, { backgroundColor: colors.border }]} />
+            <ScrollView
+              contentContainerStyle={[styles.sheetContent, { paddingBottom: insets.bottom + 32 }]}
+              showsVerticalScrollIndicator={false}
+            >
 
                 {selected && (
                   <>
@@ -410,18 +418,20 @@ export default function VenueOwnerGuestsScreen() {
                     )}
                   </>
                 )}
-              </View>
-            </Pressable>
+            </ScrollView>
           </KeyboardAvoidingView>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );
 }
 
-function formatLastSeen(isoStr: string): string {
+function formatLastSeen(isoStr: string | null | undefined): string {
+  if (!isoStr) return "recently";
   const date = new Date(isoStr);
+  if (isNaN(date.getTime())) return "recently";
   const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return "recently";
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays === 0) return "today";
   if (diffDays === 1) return "yesterday";
@@ -529,7 +539,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
 
-  // Drawer
+  // Full-screen profile sheet (pageSheet presentation)
+  sheet: { flex: 1 },
+  sheetTopBar: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    position: "relative",
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 4,
+  },
+  sheetCloseBtn: {
+    position: "absolute",
+    right: 16,
+    top: 8,
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetCloseTxt: {
+    fontSize: 18,
+    fontFamily: "Inter_600SemiBold",
+  },
+  sheetContent: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    alignItems: "center",
+    width: "100%",
+  },
+
+  // Drawer (legacy — kept for inner content reuse)
   drawerBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.72)",

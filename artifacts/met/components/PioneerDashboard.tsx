@@ -26,6 +26,7 @@ import Svg, { Path } from "react-native-svg";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
 
@@ -67,6 +68,7 @@ interface PioneerEntry {
   photoUrl: string | null;
   pioneerScore: number;
   referralCount: number;
+  hubCheckins: number;
   chatConnections: number;
   isTopContributor: boolean;
   random_prize_eligibility: boolean;
@@ -88,6 +90,11 @@ function PioneerRow({
 }) {
   const { t } = useT();
   const colors = useColors();
+  const { isDark } = useTheme();
+
+  // Theme-aware gold: bright #FFD700 on dark backgrounds, dark amber on light
+  const goldText   = isDark ? "#FFD700" : "#8B5E00";
+  const goldBadgeBg = isDark ? "rgba(255,215,0,0.15)" : "rgba(180,100,0,0.12)";
 
   return (
     <Animated.View
@@ -101,10 +108,10 @@ function PioneerRow({
         },
       ]}
     >
-      {isCurrentUser && <View style={styles.currentUserAccent} />}
+      {isCurrentUser && <View style={[styles.currentUserAccent, { backgroundColor: goldText }]} />}
 
       {/* Rank */}
-      <Text style={[styles.rank, { color: colors.mutedForeground }, isCurrentUser && styles.rankHighlight]}>
+      <Text style={[styles.rank, { color: colors.mutedForeground }, isCurrentUser && { color: goldText }]}>
         {item.rank <= 3
           ? ["🥇", "🥈", "🥉"][item.rank - 1]
           : `#${item.rank}`}
@@ -130,9 +137,9 @@ function PioneerRow({
             {item.displayName}
           </Text>
           {item.isTopContributor && (
-            <View style={styles.topBadge}>
-              <Feather name="star" size={9} color="#FFD700" />
-              <Text style={styles.topBadgeText}>{t("pioneer.topContributor")}</Text>
+            <View style={[styles.topBadge, { backgroundColor: goldBadgeBg }]}>
+              <Feather name="star" size={9} color={goldText} />
+              <Text style={[styles.topBadgeText, { color: goldText }]}>{t("pioneer.topContributor")}</Text>
             </View>
           )}
           {item.random_prize_eligibility && !item.isTopContributor && (
@@ -144,13 +151,14 @@ function PioneerRow({
         <Text style={[styles.subtext, { color: colors.mutedForeground }]}>
           {t("pioneer.scoreBreakdown", {
             referrals: item.referralCount,
+            checkins: item.hubCheckins,
             chats: item.chatConnections,
           })}
         </Text>
       </View>
 
       {/* Score */}
-      <Text style={[styles.score, { color: colors.mutedForeground }, isCurrentUser && styles.scoreHighlight]}>
+      <Text style={[styles.score, { color: colors.mutedForeground }, isCurrentUser && { color: goldText }]}>
         {item.pioneerScore.toLocaleString()}
       </Text>
     </Animated.View>
@@ -171,6 +179,14 @@ export function PioneerDashboard({ visible, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { authedUid } = useApp();
+  const { isDark } = useTheme();
+
+  // Theme-aware gold: vibrant on dark bg, dark-amber readable on light bg
+  const goldText      = isDark ? "#FFD700" : "#8B5E00";
+  const goldTextFaded = isDark ? "rgba(255,215,0,0.7)" : "rgba(139,94,0,0.85)";
+  const goldSubtle    = isDark ? "rgba(255,215,0,0.45)" : "rgba(139,94,0,0.55)";
+  const goldBg        = isDark ? "rgba(255,215,0,0.08)" : "rgba(180,100,0,0.06)";
+  const goldBorder    = isDark ? "rgba(255,215,0,0.2)" : "rgba(180,100,0,0.22)";
 
   const [entries, setEntries] = useState<PioneerEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -255,24 +271,24 @@ export function PioneerDashboard({ visible, onClose }: Props) {
             <Feather name="x" size={22} color={colors.foreground} />
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>{t("pioneer.dashboardTitle")}</Text>
+            <Text style={[styles.headerTitle, { color: goldText }]}>{t("pioneer.dashboardTitle")}</Text>
             <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>{t("pioneer.dashboardSub")}</Text>
           </View>
           <View style={{ width: 44 }} />
         </LinearGradient>
 
         {/* Score formula pill */}
-        <View style={styles.formulaPill}>
-          <Text style={styles.formulaText}>{t("pioneer.formula")}</Text>
+        <View style={[styles.formulaPill, { backgroundColor: goldBg, borderColor: goldBorder }]}>
+          <Text style={[styles.formulaText, { color: goldTextFaded }]}>{t("pioneer.formula")}</Text>
         </View>
 
         {/* How score works */}
-        <View style={styles.howScoreCard}>
-          <Text style={styles.howScoreTitle}>{t("pioneer.howScoreTitle")}</Text>
+        <View style={[styles.howScoreCard, { backgroundColor: goldBg, borderColor: goldBorder }]}>
+          <Text style={[styles.howScoreTitle, { color: goldText }]}>{t("pioneer.howScoreTitle")}</Text>
           <View style={styles.howScoreRows}>
             <View style={styles.howScoreRow}>
               <View style={styles.howScoreIconWrap}>
-                <ReferralShareIcon size={18} color="rgba(255,215,0,0.85)" />
+                <ReferralShareIcon size={18} color={goldText} />
               </View>
               <Text style={[styles.howScoreText, { color: colors.foreground }]}>{t("pioneer.howScoreReferrals")}</Text>
             </View>
@@ -285,7 +301,7 @@ export function PioneerDashboard({ visible, onClose }: Props) {
               <Text style={[styles.howScoreText, { color: colors.foreground }]}>{t("pioneer.howScoreChats")}</Text>
             </View>
           </View>
-          <Text style={styles.howScoreNote}>{t("pioneer.howScoreNote")}</Text>
+          <Text style={[styles.howScoreNote, { color: goldSubtle }]}>{t("pioneer.howScoreNote")}</Text>
         </View>
 
         {/* Content */}

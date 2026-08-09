@@ -1260,7 +1260,7 @@ export const es: LocaleTree = {
     dashboardSub: "Top 50 Pioneros por puntuación",
     formula: "Referencias ×20 · Check-ins ×2 · Chats ×5",
     topContributor: "Colaborador Principal",
-    scoreBreakdown: "{{referrals}} referencias · {{chats}} chats",
+    scoreBreakdown: "{{referrals}} refs · {{checkins}} check-ins · {{chats}} chats",
     loadError: "No se pudo cargar — toca para reintentar",
     viewLeaderboard: "Ver Clasificación Pioneer →",
     leaderboardBtn: "Clasificación Pioneros",

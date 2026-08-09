@@ -20,6 +20,7 @@ import venueOwnerRouter from "./venueOwner";
 import venueManagerRouter, { createVenueManagerClaimRouter } from "./venueManager";
 import { requireUid } from "../middlewares/requireUid";
 import deepLinkCheckRouter from "./deepLinkCheck";
+import venueReviewsRouter from "./venueReviews";
 
 const router: IRouter = Router();
 
@@ -43,6 +44,7 @@ router.use(trophiesRouter);
 router.use(venueOwnerRouter);
 router.use(venueManagerRouter);
 router.use(createVenueManagerClaimRouter(requireUid));
+router.use(venueReviewsRouter);
 router.use(deepLinkCheckRouter);
 
 export default router;

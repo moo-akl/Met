@@ -1268,7 +1268,7 @@ export const nl: LocaleTree = {
     dashboardSub: "Top 50 Pioniers gerangschikt op score",
     formula: "Verwijzingen ×20 · Check-ins ×2 · Chats ×5",
     topContributor: "Beste bijdrager",
-    scoreBreakdown: "{{referrals}} verwijzingen · {{chats}} chats",
+    scoreBreakdown: "{{referrals}} refs · {{checkins}} check-ins · {{chats}} chats",
     loadError: "Kon niet laden — tik om opnieuw te proberen",
     viewLeaderboard: "Pioneer-ranglijst bekijken →",
     leaderboardBtn: "Pioniers-ranglijst",

@@ -21,7 +21,7 @@ import {
   venueEventRsvpsTable,
 } from "@workspace/db";
 import { eq, or } from "drizzle-orm";
-import { adminAuth, adminDb } from "./firebaseAdmin";
+import { adminAuth, adminDb, adminStorage } from "./firebaseAdmin";
 import { logger } from "./logger";
 
 /**
@@ -35,6 +35,7 @@ import { logger } from "./logger";
 export async function deleteUserData(uid: string): Promise<void> {
   await deletePostgresUserData(uid);
   await deleteFirestoreUserData(uid);
+  await deleteStorageAssets(uid);
   await deleteFirebaseAuthUser(uid);
 }
 
@@ -158,6 +159,17 @@ async function deleteFirestoreUserData(uid: string): Promise<void> {
   }
 
   await userRef.delete();
+}
+
+async function deleteStorageAssets(uid: string): Promise<void> {
+  try {
+    const bucket = adminStorage().bucket();
+    // Profile photos are stored as profile-photos/{uid}.{ext}
+    const [files] = await bucket.getFiles({ prefix: `profile-photos/${uid}.` });
+    await Promise.all(files.map((f) => f.delete().catch(() => { /* already gone */ })));
+  } catch (err) {
+    logger.warn({ err, uid }, "Non-fatal: failed to delete Storage assets during user cleanup");
+  }
 }
 
 async function deleteFirebaseAuthUser(uid: string): Promise<void> {

@@ -16,12 +16,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Image } from "expo-image";
@@ -359,6 +361,12 @@ export default function VenueProfileScreen() {
   const [showEndedRewards, setShowEndedRewards] = useState(false);
   const [myLeaderboardEntry, setMyLeaderboardEntry] = useState<{ rank: number; checkinCount: number } | null>(null);
 
+  // ── Venue review state ───────────────────────────────────────────────────
+  const [myReview, setMyReview]           = useState<{ starRating: number; comment: string | null } | null>(null);
+  const [reviewStars, setReviewStars]     = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
   // QR verification state — initialised from the in-session module cache so
   // navigating to the venue page after a successful qr-scan shows it unlocked.
   const [isQrVerified, setIsQrVerified] = useState<boolean>(() =>
@@ -386,6 +394,38 @@ export default function VenueProfileScreen() {
       }
     }, [placeId]),
   );
+
+  // Pre-populate the review form whenever the user proves presence via QR.
+  useEffect(() => {
+    if (!isQrVerified || !authedUid || !placeId) return;
+    api
+      .getMyVenueReview({ uid: authedUid }, placeId)
+      .then(({ review }) => {
+        if (review) {
+          setMyReview({ starRating: review.starRating, comment: review.comment });
+          setReviewStars(review.starRating);
+          setReviewComment(review.comment ?? "");
+        }
+      })
+      .catch(() => { /* non-critical — form just starts empty */ });
+  }, [isQrVerified, authedUid, placeId]);
+
+  const handleSubmitReview = useCallback(async () => {
+    if (!authedUid || !placeId || reviewStars === 0 || reviewSubmitting) return;
+    setReviewSubmitting(true);
+    try {
+      const { review } = await api.submitVenueReview(
+        { uid: authedUid },
+        { placeId, starRating: reviewStars, comment: reviewComment.trim() || null },
+      );
+      setMyReview({ starRating: review.starRating, comment: review.comment });
+      Alert.alert("Thanks!", "Your review has been saved.");
+    } catch {
+      Alert.alert("Couldn't save", "Please try again.");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }, [authedUid, placeId, reviewStars, reviewComment, reviewSubmitting]);
 
   const fetchAll = useCallback(async () => {
     if (!authedUid || !placeId) return;
@@ -781,6 +821,51 @@ export default function VenueProfileScreen() {
                     <Text style={styles.lbCountLabel}>visits</Text>
                   </View>
                 ))}
+              </View>
+            </View>
+          )}
+
+          {/* ── 5. Review ──────────────────────────────────────────────── */}
+          {isQrVerified && (
+            <View style={styles.section}>
+              <SectionLabel title="Rate This Venue" />
+              <View style={[styles.reviewCard, cardShadow]}>
+                <Text style={styles.reviewPrompt}>How was your experience?</Text>
+                <View style={styles.starsRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Pressable key={star} onPress={() => setReviewStars(star)} hitSlop={8}>
+                      <Text style={[styles.starChar, reviewStars >= star && styles.starCharActive]}>★</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {reviewStars > 0 && (
+                  <>
+                    <TextInput
+                      style={styles.reviewInput}
+                      placeholder="Add a comment (optional)"
+                      placeholderTextColor={MUTED}
+                      value={reviewComment}
+                      onChangeText={setReviewComment}
+                      maxLength={300}
+                      multiline
+                    />
+                    <Pressable
+                      style={[styles.reviewSubmitBtn, reviewSubmitting && { opacity: 0.6 }]}
+                      onPress={() => void handleSubmitReview()}
+                      disabled={reviewSubmitting}
+                    >
+                      <Text style={styles.reviewSubmitText}>
+                        {reviewSubmitting ? "Saving…" : myReview ? "Update review" : "Submit review"}
+                      </Text>
+                    </Pressable>
+                  </>
+                )}
+                {myReview && reviewStars === 0 && (
+                  <Text style={styles.reviewExisting}>
+                    {"★".repeat(myReview.starRating)}{"☆".repeat(5 - myReview.starRating)}
+                    {myReview.comment ? `  "${myReview.comment}"` : ""}
+                  </Text>
+                )}
               </View>
             </View>
           )}
@@ -1202,4 +1287,57 @@ const styles = StyleSheet.create({
   infoIcon: { fontSize: 16, width: 24, textAlign: "center" },
   infoText: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT, flex: 1 },
   infoLink: { color: CORAL, fontFamily: "Inter_500Medium" },
+
+  // ── Review ────────────────────────────────────────────────────────────────
+  reviewCard: {
+    backgroundColor: CARD,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  reviewPrompt: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: TEXT,
+  },
+  starsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  starChar: {
+    fontSize: 36,
+    color: "#D1D5DB",
+  },
+  starCharActive: {
+    color: "#FFC107",
+  },
+  reviewInput: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: TEXT,
+    minHeight: 72,
+    textAlignVertical: "top",
+  },
+  reviewSubmitBtn: {
+    backgroundColor: CORAL,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  reviewSubmitText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+  reviewExisting: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: TEXT2,
+    lineHeight: 22,
+  },
 });

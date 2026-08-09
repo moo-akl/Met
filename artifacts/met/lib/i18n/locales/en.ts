@@ -1273,7 +1273,7 @@ export const en = {
     dashboardSub: "Top 50 Pioneers ranked by score",
     formula: "Referrals ×20 · Check-ins ×2 · Chats ×5",
     topContributor: "Top Contributor",
-    scoreBreakdown: "{{referrals}} referrals · {{chats}} chats",
+    scoreBreakdown: "{{referrals}} refs · {{checkins}} check-ins · {{chats}} chats",
     loadError: "Couldn't load — tap to retry",
     viewLeaderboard: "View Pioneer Leaderboard →",
     leaderboardBtn: "Pioneers Leaderboard",

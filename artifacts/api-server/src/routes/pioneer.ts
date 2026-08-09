@@ -34,18 +34,29 @@ router.get("/pioneer-leaderboard", requireUid, async (req, res): Promise<void> =
     .orderBy(desc(profilesTable.pioneerScore))
     .limit(50);
 
-  const leaderboard = rows.map((r, i) => ({
-    rank: i + 1,
-    uid: r.uid,
-    displayName: r.displayName,
-    photoUrl: r.photoUrl ?? null,
-    pioneerScore: r.pioneerScore,
-    referralCount: r.referralCount,
-    chatConnections: r.chatConnections,
-    isTopContributor: i === 0,
-    random_prize_eligibility: i < 5,
-    prize_label: i < 5 ? "Eligible for Founder's Surprise Prize" : null,
-  }));
+  const leaderboard = rows.map((r, i) => {
+    // Derive hub check-in count from the pre-computed score.
+    // Formula: pioneer_score = referrals×20 + hub_checkins×2 + chat_connections×5
+    // So: hub_checkins = (score − referrals×20 − chats×5) / 2
+    const hubCheckins = Math.max(
+      0,
+      Math.round((r.pioneerScore - r.referralCount * 20 - r.chatConnections * 5) / 2),
+    );
+
+    return {
+      rank: i + 1,
+      uid: r.uid,
+      displayName: r.displayName,
+      photoUrl: r.photoUrl ?? null,
+      pioneerScore: r.pioneerScore,
+      referralCount: r.referralCount,
+      hubCheckins,
+      chatConnections: r.chatConnections,
+      isTopContributor: i === 0,
+      random_prize_eligibility: i < 5,
+      prize_label: i < 5 ? "Eligible for Founder's Surprise Prize" : null,
+    };
+  });
 
   res.json({ leaderboard });
 });

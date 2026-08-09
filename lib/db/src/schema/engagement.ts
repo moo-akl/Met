@@ -297,3 +297,35 @@ export const venueQrVerificationsTable = pgTable(
 );
 
 export type VenueQrVerification = typeof venueQrVerificationsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// venue_reviews
+// Guests leave a 1–5 star rating (+ optional comment) for a venue after
+// proving physical presence via QR scan. One review per (user, placeId);
+// subsequent submissions update in place (UPSERT on the unique index).
+// ---------------------------------------------------------------------------
+export const venueReviewsTable = pgTable(
+  "venue_reviews",
+  {
+    id: serial("id").primaryKey(),
+    userUid: text("user_uid").notNull(),
+    placeId: text("place_id").notNull(),
+    starRating: integer("star_rating").notNull(),
+    comment: text("comment"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    uniqueUserPlace: uniqueIndex("venue_reviews_user_place_idx").on(
+      t.userUid,
+      t.placeId,
+    ),
+    placeIdx: index("venue_reviews_place_idx").on(t.placeId),
+  }),
+);
+
+export type VenueReview = typeof venueReviewsTable.$inferSelect;

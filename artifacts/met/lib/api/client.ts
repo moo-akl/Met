@@ -253,7 +253,17 @@ export interface VenueOwnerGuest {
    * 0 means the guest was only detected via GPS / Bluetooth proximity.
    */
   qrVerifiedCount: number;
-  lastCheckinAt: string;
+  lastCheckinAt: string | null;
+}
+
+/** A guest's star-rating review for a venue. */
+export interface VenueReview {
+  id: number;
+  starRating: number;
+  comment: string | null;
+  createdAt: string;
+  displayName: string;
+  photoUrl: string | null;
 }
 
 export interface VenueOwnerDashboard {
@@ -997,6 +1007,7 @@ export const api = {
         photoUrl: string | null;
         pioneerScore: number;
         referralCount: number;
+        hubCheckins: number;
         chatConnections: number;
         isTopContributor: boolean;
         random_prize_eligibility: boolean;
@@ -1463,4 +1474,31 @@ export const api = {
 
   /** Deep-link / web URL that a guest's camera app opens to reach a venue's check-in page. */
   getVenueCheckInUrl: (placeId: string): string => `${BASE_URL}/v/${placeId}`,
+
+  // ── Venue reviews ─────────────────────────────────────────────────────────
+
+  /**
+   * Submit or update the calling user's star rating for a venue.
+   * Requires at least one QR-verified check-in at that venue (403 otherwise).
+   */
+  submitVenueReview: (
+    opts: ApiOptions,
+    params: { placeId: string; starRating: number; comment?: string | null },
+  ) =>
+    request<{ review: VenueReview }>("POST", `/api/hubs/${params.placeId}/review`, opts, {
+      starRating: params.starRating,
+      comment: params.comment ?? null,
+    }),
+
+  /** List the most recent reviews for a venue (max 20) with average rating. */
+  getVenueReviews: (opts: ApiOptions, placeId: string) =>
+    request<{ reviews: VenueReview[]; averageRating: number | null; total: number }>(
+      "GET",
+      `/api/hubs/${placeId}/reviews`,
+      opts,
+    ),
+
+  /** The calling user's own review for this venue, or null if none yet. */
+  getMyVenueReview: (opts: ApiOptions, placeId: string) =>
+    request<{ review: VenueReview | null }>("GET", `/api/hubs/${placeId}/my-review`, opts),
 };
