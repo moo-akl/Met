@@ -392,6 +392,8 @@ export default function VenueProfileScreen() {
   const reviewFetchGenRef                     = useRef(0);
   /** Incrementing this triggers a manual retry of the current filter. */
   const [reviewRetryKey, setReviewRetryKey]   = useState(0);
+  /** Client-side sort order for the displayed reviews. */
+  const [reviewSort, setReviewSort] = useState<"recent" | "highest" | "lowest">("recent");
 
   // QR verification state — initialised from the in-session module cache so
   // navigating to the venue page after a successful qr-scan shows it unlocked.
@@ -1000,6 +1002,34 @@ export default function VenueProfileScreen() {
                 })}
               </ScrollView>
 
+              {/* ── Sort selector ── */}
+              <View style={styles.reviewSortRow}>
+                <Text style={styles.reviewSortLabel}>Sort:</Text>
+                {(
+                  [
+                    { key: "recent",  label: "Most recent"  },
+                    { key: "highest", label: "Highest rated" },
+                    { key: "lowest",  label: "Lowest rated"  },
+                  ] as const
+                ).map(({ key, label }) => {
+                  const active = reviewSort === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      onPress={() => setReviewSort(key)}
+                      style={[styles.reviewSortChip, active && styles.reviewSortChipActive]}
+                      accessibilityRole="button"
+                      accessibilityLabel={label}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Text style={[styles.reviewSortChipText, active && styles.reviewSortChipTextActive]}>
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
               {/* Reviews list or loading / error / empty state */}
               {reviewsLoading ? (
                 <ActivityIndicator color={CORAL} style={{ marginVertical: 20 }} />
@@ -1020,7 +1050,14 @@ export default function VenueProfileScreen() {
                 </View>
               ) : venueReviews.length > 0 ? (
                 <View style={[styles.guestReviewsCard, cardShadow]}>
-                  {venueReviews.map((rv, index) => (
+                  {[...venueReviews]
+                    .sort((a, b) => {
+                      if (reviewSort === "highest") return b.starRating - a.starRating;
+                      if (reviewSort === "lowest")  return a.starRating - b.starRating;
+                      // "recent" — newest first
+                      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                    })
+                    .map((rv, index) => (
                     <View key={rv.id} style={[styles.guestReviewRow, index > 0 && styles.guestReviewDivider]}>
                       {/* Avatar */}
                       {rv.photoUrl ? (
@@ -1675,5 +1712,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: MUTED,
+  },
+  reviewSortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  reviewSortLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: MUTED,
+    marginRight: 2,
+  },
+  reviewSortChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+  },
+  reviewSortChipActive: {
+    backgroundColor: TEXT,
+    borderColor: TEXT,
+  },
+  reviewSortChipText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: TEXT2,
+  },
+  reviewSortChipTextActive: {
+    color: "#FFFFFF",
+    fontFamily: "Inter_600SemiBold",
   },
 });
