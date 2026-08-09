@@ -87,12 +87,14 @@ function PioneerRow({
   animStyle: { opacity: Animated.Value; translateY: Animated.Value };
 }) {
   const { t } = useT();
+  const colors = useColors();
 
   return (
     <Animated.View
       style={[
         styles.row,
-        isCurrentUser && styles.rowCurrentUser,
+        { backgroundColor: colors.card },
+        isCurrentUser && [styles.rowCurrentUser, { backgroundColor: colors.secondary }],
         {
           opacity: animStyle.opacity,
           transform: [{ translateY: animStyle.translateY }],
@@ -102,7 +104,7 @@ function PioneerRow({
       {isCurrentUser && <View style={styles.currentUserAccent} />}
 
       {/* Rank */}
-      <Text style={[styles.rank, isCurrentUser && styles.rankHighlight]}>
+      <Text style={[styles.rank, { color: colors.mutedForeground }, isCurrentUser && styles.rankHighlight]}>
         {item.rank <= 3
           ? ["🥇", "🥈", "🥉"][item.rank - 1]
           : `#${item.rank}`}
@@ -113,8 +115,8 @@ function PioneerRow({
         {item.photoUrl ? (
           <Image source={{ uri: item.photoUrl }} style={styles.avatar} />
         ) : (
-          <View style={[styles.avatar, styles.avatarFallback]}>
-            <Text style={styles.avatarInitial}>
+          <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.muted }]}>
+            <Text style={[styles.avatarInitial, { color: colors.mutedForeground }]}>
               {(item.displayName[0] ?? "?").toUpperCase()}
             </Text>
           </View>
@@ -124,7 +126,7 @@ function PioneerRow({
       {/* Name & badges */}
       <View style={styles.nameBlock}>
         <View style={styles.nameRow}>
-          <Text style={styles.displayName} numberOfLines={1}>
+          <Text style={[styles.displayName, { color: colors.foreground }]} numberOfLines={1}>
             {item.displayName}
           </Text>
           {item.isTopContributor && (
@@ -139,7 +141,7 @@ function PioneerRow({
             </View>
           )}
         </View>
-        <Text style={styles.subtext}>
+        <Text style={[styles.subtext, { color: colors.mutedForeground }]}>
           {t("pioneer.scoreBreakdown", {
             referrals: item.referralCount,
             chats: item.chatConnections,
@@ -148,7 +150,7 @@ function PioneerRow({
       </View>
 
       {/* Score */}
-      <Text style={[styles.score, isCurrentUser && styles.scoreHighlight]}>
+      <Text style={[styles.score, { color: colors.mutedForeground }, isCurrentUser && styles.scoreHighlight]}>
         {item.pioneerScore.toLocaleString()}
       </Text>
     </Animated.View>
@@ -243,18 +245,18 @@ export function PioneerDashboard({ visible, onClose }: Props) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={[styles.container, { backgroundColor: "#0F0F12" }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* Header */}
         <LinearGradient
-          colors={["#1a0a00", "#0F0F12"]}
+          colors={["rgba(212,175,55,0.18)", colors.background] as [string, string]}
           style={[styles.header, { paddingTop: insets.top + 16 }]}
         >
           <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={12}>
-            <Feather name="x" size={22} color="rgba(255,255,255,0.7)" />
+            <Feather name="x" size={22} color={colors.foreground} />
           </Pressable>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>{t("pioneer.dashboardTitle")}</Text>
-            <Text style={styles.headerSub}>{t("pioneer.dashboardSub")}</Text>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>{t("pioneer.dashboardSub")}</Text>
           </View>
           <View style={{ width: 44 }} />
         </LinearGradient>
@@ -272,15 +274,15 @@ export function PioneerDashboard({ visible, onClose }: Props) {
               <View style={styles.howScoreIconWrap}>
                 <ReferralShareIcon size={18} color="rgba(255,215,0,0.85)" />
               </View>
-              <Text style={styles.howScoreText}>{t("pioneer.howScoreReferrals")}</Text>
+              <Text style={[styles.howScoreText, { color: colors.foreground }]}>{t("pioneer.howScoreReferrals")}</Text>
             </View>
             <View style={styles.howScoreRow}>
               <Text style={styles.howScoreEmoji}>📍</Text>
-              <Text style={styles.howScoreText}>{t("pioneer.howScoreCheckins")}</Text>
+              <Text style={[styles.howScoreText, { color: colors.foreground }]}>{t("pioneer.howScoreCheckins")}</Text>
             </View>
             <View style={styles.howScoreRow}>
               <Text style={styles.howScoreEmoji}>💬</Text>
-              <Text style={styles.howScoreText}>{t("pioneer.howScoreChats")}</Text>
+              <Text style={[styles.howScoreText, { color: colors.foreground }]}>{t("pioneer.howScoreChats")}</Text>
             </View>
           </View>
           <Text style={styles.howScoreNote}>{t("pioneer.howScoreNote")}</Text>
@@ -288,10 +290,10 @@ export function PioneerDashboard({ visible, onClose }: Props) {
 
         {/* Content */}
         {loading ? (
-          <ActivityIndicator style={{ flex: 1 }} color="#FFD700" />
+          <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />
         ) : error ? (
           <Pressable style={styles.errorBox} onPress={fetchLeaderboard}>
-            <Text style={styles.errorText}>{t("pioneer.loadError")}</Text>
+            <Text style={[styles.errorText, { color: colors.mutedForeground }]}>{t("pioneer.loadError")}</Text>
           </Pressable>
         ) : (
           <FlatList

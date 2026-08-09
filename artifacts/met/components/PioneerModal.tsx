@@ -9,6 +9,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 
 const PIONEER_MODAL_SEEN_KEY = "met:pioneer_modal_seen:v1";
@@ -32,6 +33,7 @@ type Props = {
 
 export function PioneerModal({ visible, onClose }: Props) {
   const { t } = useT();
+  const colors = useColors();
   const [page, setPage] = useState(0);
 
   const isLast = page === SLIDE_COUNT - 1;
@@ -67,9 +69,9 @@ export function PioneerModal({ visible, onClose }: Props) {
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: "rgba(212,175,55,0.35)" }]}>
           <LinearGradient
-            colors={["#1a0a00", "#2d1800"]}
+            colors={["rgba(212,175,55,0.25)", "rgba(212,175,55,0.05)"]}
             style={styles.headerGradient}
           >
             <View style={styles.iconRing}>
@@ -79,15 +81,15 @@ export function PioneerModal({ visible, onClose }: Props) {
           </LinearGradient>
 
           <View style={styles.body}>
-            <Text style={styles.partTitle}>{slide.title}</Text>
-            <Text style={styles.partBody}>{slide.body}</Text>
+            <Text style={[styles.partTitle, { color: colors.foreground }]}>{slide.title}</Text>
+            <Text style={[styles.partBody, { color: colors.mutedForeground }]}>{slide.body}</Text>
           </View>
 
           <View style={styles.dots}>
             {slides.map((_, i) => (
               <View
                 key={i}
-                style={[styles.dot, i === page && styles.dotActive]}
+                style={[styles.dot, { backgroundColor: colors.border }, i === page && styles.dotActive]}
               />
             ))}
           </View>

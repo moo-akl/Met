@@ -70,7 +70,7 @@ function AnimatedStar({ star, value, onChange }: AnimatedStarProps) {
         <Feather
           name="star"
           size={40}
-          color={filled ? fillColor : "rgba(255,255,255,0.35)"}
+          color={filled ? fillColor : colors.border}
           style={{ marginHorizontal: 4 }}
         />
       </Animated.View>
@@ -207,8 +207,8 @@ export function ReviewModal({ visible, receiverUid, receiverName, context = "cha
               </Text>
 
               {/* 5-star picker */}
-              <View style={[styles.starCard, { backgroundColor: "#18181B", borderColor: "rgba(255,255,255,0.1)" }]}>
-                <Text style={[styles.starLabel, { color: "#FFFFFF" }]}>
+              <View style={[styles.starCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Text style={[styles.starLabel, { color: colors.foreground }]}>
                   {t("review.starLabel")}
                 </Text>
                 <StarPicker value={starRating} onChange={setStarRating} />
