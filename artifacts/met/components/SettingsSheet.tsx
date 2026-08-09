@@ -457,7 +457,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
             },
           ]}
         >
-          <View style={styles.handle} />
+          <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
 
           <View style={styles.headerRow}>
             {view !== "menu" ? (
@@ -1823,7 +1823,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 5,
     borderRadius: 3,
-    backgroundColor: "#D1D5DB",
     alignSelf: "center",
     marginBottom: 4,
   },

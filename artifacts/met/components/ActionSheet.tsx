@@ -65,7 +65,7 @@ export function ActionSheet({
             },
           ]}
         >
-          <View style={styles.handle} />
+          <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
 
           {title ? (
             <Text style={[styles.title, { color: colors.foreground }]}>
@@ -161,7 +161,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 5,
     borderRadius: 3,
-    backgroundColor: "#D1D5DB",
     alignSelf: "center",
     marginBottom: 4,
   },
