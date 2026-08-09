@@ -49,6 +49,25 @@ const withAndroidBuildFixes = (config) => {
   // own build.gradle; JitPack intermittently fails to serve that artifact
   // (returns 0 bytes). This resolution strategy overrides every subproject's
   // dependency resolution to use 1.5.0 instead.
+  // Fix #0 — Inject ndkVersion into the root project ext so that native
+  // modules that read rootProject.ext.ndkVersion (e.g. react-native-gesture-handler)
+  // use the same NDK as ReactAndroid's prefab package was compiled with.
+  // Without this, RNGH's CMake prefab_command step fails with exit code 1
+  // because the NDK version mismatches the one baked into the ReactAndroid
+  // shared libraries.  RN 0.81.x requires NDK 27.1.12297006.
+  config = withProjectBuildGradle(config, (cfg) => {
+    if (cfg.modResults.language !== "groovy") return cfg;
+    if (cfg.modResults.contents.includes("// with-android-build-fixes:ndkVersion")) {
+      return cfg;
+    }
+    // Prepend before the first line so it's available to all subprojects
+    // during the configuration phase.
+    cfg.modResults.contents =
+      `// with-android-build-fixes:ndkVersion\next.ndkVersion = "27.1.12297006"\n\n` +
+      cfg.modResults.contents;
+    return cfg;
+  });
+
   config = withProjectBuildGradle(config, (cfg) => {
     if (cfg.modResults.language !== "groovy") return cfg;
     if (cfg.modResults.contents.includes("// with-android-build-fixes:tiktok-pin")) {
