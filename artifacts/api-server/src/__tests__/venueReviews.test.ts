@@ -382,6 +382,23 @@ describe.skipIf(!hasDatabase)(
     });
 
     // -----------------------------------------------------------------------
+    // 6b. QR scan for venue A does NOT allow reviewing venue B
+    // -----------------------------------------------------------------------
+    it("returns 403 when the caller has a QR scan for a different venue", async () => {
+      // USER_UID is verified for PLACE_ID but has no scan for PLACE_ID_B.
+      const PLACE_ID_B = `${TP}-place-b`;
+
+      const res = await request(app)
+        .post(`/api/hubs/${PLACE_ID_B}/review`)
+        .set(uid(USER_UID))
+        .send({ starRating: 5 });
+
+      expect(res.status).toBe(403);
+      expect(res.body).toHaveProperty("error");
+      expect(res.body.error).toMatch(/QR/i);
+    });
+
+    // -----------------------------------------------------------------------
     // 7. Aggregate stats cover ALL reviews even when list is capped at 20
     // -----------------------------------------------------------------------
     it("returns venue-wide total and averageRating even when there are more than 20 reviews", async () => {
