@@ -304,5 +304,69 @@ describe.skipIf(!hasDatabase)(
 
       expect(res.status).toBe(400);
     });
+
+    // -----------------------------------------------------------------------
+    // 7. Aggregate stats cover ALL reviews even when list is capped at 20
+    // -----------------------------------------------------------------------
+    it("returns venue-wide total and averageRating even when there are more than 20 reviews", async () => {
+      // Seed 25 extra profiles + QR verifications + reviews (all 5-star)
+      // for a separate place so other tests are not affected.
+      const MANY_PLACE = `${TP}-many`;
+      const extraUids = Array.from({ length: 25 }, (_, i) => `${TP}-extra${i}`);
+
+      try {
+        // Insert profiles
+        for (const u of extraUids) {
+          await db
+            .insert(profilesTable)
+            .values({ uid: u, displayName: `Extra ${u}` })
+            .onConflictDoNothing();
+        }
+        // Insert QR verifications
+        await db.insert(venueQrVerificationsTable).values(
+          extraUids.map((u) => ({ userUid: u, placeId: MANY_PLACE })),
+        );
+        // Insert reviews with a mix of ratings: first 20 are 5-star, last 5 are 1-star
+        // This lets us check that the average covers all 25, not just the 20 returned.
+        await db.insert(venueReviewsTable).values(
+          extraUids.map((u, i) => ({
+            userUid: u,
+            placeId: MANY_PLACE,
+            starRating: i < 20 ? 5 : 1,
+            comment: null,
+          })),
+        );
+
+        const res = await request(app)
+          .get(`/api/hubs/${MANY_PLACE}/reviews`)
+          .set(uid(USER_UID));
+
+        expect(res.status).toBe(200);
+
+        const { reviews, averageRating, total } = res.body as {
+          reviews: unknown[];
+          averageRating: number;
+          total: number;
+        };
+
+        // total must reflect all 25 reviews
+        expect(total).toBe(25);
+        // list must be capped at 20
+        expect(reviews.length).toBe(20);
+        // average: (20×5 + 5×1) / 25 = 105/25 = 4.2
+        expect(averageRating).toBe(4.2);
+      } finally {
+        // Cleanup
+        await db
+          .delete(venueReviewsTable)
+          .where(eq(venueReviewsTable.placeId, MANY_PLACE));
+        await db
+          .delete(venueQrVerificationsTable)
+          .where(eq(venueQrVerificationsTable.placeId, MANY_PLACE));
+        for (const u of extraUids) {
+          await db.delete(profilesTable).where(eq(profilesTable.uid, u));
+        }
+      }
+    });
   },
 );

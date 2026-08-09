@@ -77,6 +77,16 @@ const AVATAR_GRADIENTS: [string, string][] = [
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+/** Returns a short relative-time string, e.g. "2h ago", "3d ago", "just now". */
+function relativeTime(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  if (diff < 60_000)  return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 2_592_000_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return new Date(isoString).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 type RewardStatus = "Active" | "Upcoming" | "Ended";
 
 function getRewardStatus(reward: { status: string; startDate: string; endDate: string }, now: Date): RewardStatus {
@@ -367,6 +377,11 @@ export default function VenueProfileScreen() {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
+  // ── Guest reviews (public) ───────────────────────────────────────────────
+  const [venueReviews, setVenueReviews]       = useState<import("@/lib/api/client").VenueReview[]>([]);
+  const [averageRating, setAverageRating]     = useState<number | null>(null);
+  const [totalReviewCount, setTotalReviewCount] = useState(0);
+
   // QR verification state — initialised from the in-session module cache so
   // navigating to the venue page after a successful qr-scan shows it unlocked.
   const [isQrVerified, setIsQrVerified] = useState<boolean>(() =>
@@ -432,13 +447,14 @@ export default function VenueProfileScreen() {
     setLoading(true);
     setError(false);
     try {
-      const [profileData, eventsData, rewardsData, announcementsData, leaderboardData] =
+      const [profileData, eventsData, rewardsData, announcementsData, leaderboardData, reviewsData] =
         await Promise.all([
           api.getVenueOwnerProfile({ uid: authedUid }, placeId),
           api.getVenueEvents({ uid: authedUid }, placeId).catch(() => ({ events: [] })),
           api.getVenueRewards({ uid: authedUid }, placeId).catch(() => ({ rewards: [] })),
           api.getVenueAnnouncements({ uid: authedUid }, placeId).catch(() => ({ announcements: [] })),
           api.getLeaderboard({ uid: authedUid }, placeId, "current_month").catch(() => []),
+          api.getVenueReviews({ uid: authedUid }, placeId).catch(() => ({ reviews: [], averageRating: null, total: 0 })),
         ]);
       setProfile(profileData.profile);
       setEvents(eventsData.events);
@@ -447,6 +463,10 @@ export default function VenueProfileScreen() {
       const myEntry = leaderboardData.find((e: { uid: string; rank: number; checkinCount: number }) => e.uid === authedUid);
       setMyLeaderboardEntry(myEntry ? { rank: myEntry.rank, checkinCount: myEntry.checkinCount } : null);
       setTopVisitors(leaderboardData.slice(0, 3));
+      // Guest reviews
+      setVenueReviews(reviewsData.reviews.slice(0, 20));
+      setAverageRating(reviewsData.averageRating);
+      setTotalReviewCount(reviewsData.total);
       // Derive registered venue status from the profile.
       setIsRegisteredVenue(profileData.profile?.isApproved ?? false);
     } catch {
@@ -610,6 +630,12 @@ export default function VenueProfileScreen() {
               {profile.tagline ? (
                 <Text numberOfLines={1} style={styles.heroTagline}>{profile.tagline}</Text>
               ) : null}
+              {averageRating !== null && totalReviewCount > 0 && (
+                <Text style={styles.heroRating}>
+                  {"★".repeat(Math.round(averageRating))}{"☆".repeat(5 - Math.round(averageRating))}
+                  {"  "}{averageRating.toFixed(1)} ({totalReviewCount} {totalReviewCount === 1 ? "review" : "reviews"})
+                </Text>
+              )}
             </View>
           </View>
         </View>
@@ -866,6 +892,51 @@ export default function VenueProfileScreen() {
                     {myReview.comment ? `  "${myReview.comment}"` : ""}
                   </Text>
                 )}
+              </View>
+            </View>
+          )}
+
+          {/* ── 6. Guest Reviews ───────────────────────────────────────── */}
+          {venueReviews.length > 0 && (
+            <View style={styles.section}>
+              {/* Aggregate headline */}
+              <View style={styles.reviewsHeader}>
+                <SectionLabel title="Guest Reviews" />
+                {averageRating !== null && totalReviewCount > 0 && (
+                  <View style={styles.reviewsAggregate}>
+                    <Text style={styles.reviewsAggStar}>★</Text>
+                    <Text style={styles.reviewsAggScore}>{averageRating.toFixed(1)}</Text>
+                    <Text style={styles.reviewsAggCount}>({totalReviewCount} {totalReviewCount === 1 ? "review" : "reviews"})</Text>
+                  </View>
+                )}
+              </View>
+              <View style={[styles.guestReviewsCard, cardShadow]}>
+                {venueReviews.map((rv, index) => (
+                  <View key={rv.id} style={[styles.guestReviewRow, index > 0 && styles.guestReviewDivider]}>
+                    {/* Avatar */}
+                    {rv.photoUrl ? (
+                      <Image source={{ uri: rv.photoUrl }} style={styles.guestReviewAvatar} contentFit="cover" />
+                    ) : (
+                      <View style={styles.guestReviewAvatarFallback}>
+                        <Text style={styles.guestReviewAvatarChar}>
+                          {rv.displayName.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.guestReviewContent}>
+                      <View style={styles.guestReviewTopRow}>
+                        <Text style={styles.guestReviewName} numberOfLines={1}>{rv.displayName}</Text>
+                        <Text style={styles.guestReviewTime}>{relativeTime(rv.createdAt)}</Text>
+                      </View>
+                      <Text style={styles.guestReviewStars}>
+                        {"★".repeat(rv.starRating)}{"☆".repeat(5 - rv.starRating)}
+                      </Text>
+                      {rv.comment ? (
+                        <Text style={styles.guestReviewComment} numberOfLines={4}>{rv.comment}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                ))}
               </View>
             </View>
           )}
@@ -1339,5 +1410,112 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: TEXT2,
     lineHeight: 22,
+  },
+
+  // ── Hero rating ───────────────────────────────────────────────────────────
+  heroRating: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "#FFC107",
+    marginTop: 4,
+    letterSpacing: 0.2,
+  },
+
+  // ── Guest Reviews ─────────────────────────────────────────────────────────
+  reviewsHeader: {
+    marginBottom: 12,
+  },
+  reviewsAggregate: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: -6,
+    marginBottom: 4,
+  },
+  reviewsAggStar: {
+    fontSize: 18,
+    color: "#FFC107",
+  },
+  reviewsAggScore: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    color: TEXT,
+  },
+  reviewsAggCount: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: MUTED,
+    marginLeft: 2,
+  },
+  guestReviewsCard: {
+    backgroundColor: CARD,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    overflow: "hidden",
+  },
+  guestReviewRow: {
+    flexDirection: "row",
+    padding: 14,
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  guestReviewDivider: {
+    borderTopWidth: 1,
+    borderTopColor: DIVIDER,
+  },
+  guestReviewAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    flexShrink: 0,
+  },
+  guestReviewAvatarFallback: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: `${CORAL}18`,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  guestReviewAvatarChar: {
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+    color: CORAL,
+  },
+  guestReviewContent: {
+    flex: 1,
+    gap: 3,
+  },
+  guestReviewTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  guestReviewName: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: TEXT,
+    flex: 1,
+  },
+  guestReviewTime: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: MUTED,
+    flexShrink: 0,
+  },
+  guestReviewStars: {
+    fontSize: 13,
+    color: "#FFC107",
+    letterSpacing: 1,
+  },
+  guestReviewComment: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: TEXT2,
+    lineHeight: 19,
+    marginTop: 2,
   },
 });

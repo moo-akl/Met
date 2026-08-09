@@ -11,7 +11,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, avg, count, desc, eq, sql } from "drizzle-orm";
 import {
   db,
   profilesTable,
@@ -88,6 +88,23 @@ router.get(
   async (req, res): Promise<void> => {
     const { placeId } = req.params as { placeId: string };
 
+    // Compute aggregate stats over ALL reviews for this venue (not just the
+    // page-limited list), so averageRating and total are always venue-wide.
+    const [agg] = await db
+      .select({
+        total: count(),
+        averageRating: avg(venueReviewsTable.starRating),
+      })
+      .from(venueReviewsTable)
+      .where(eq(venueReviewsTable.placeId, placeId));
+
+    const total = agg?.total ?? 0;
+    const averageRating =
+      total > 0 && agg?.averageRating != null
+        ? Math.round(Number(agg.averageRating) * 10) / 10
+        : null;
+
+    // Return the 20 most recent reviews for display.
     const rows = await db
       .select({
         id: venueReviewsTable.id,
@@ -105,14 +122,6 @@ router.get(
       .where(eq(venueReviewsTable.placeId, placeId))
       .orderBy(desc(venueReviewsTable.createdAt))
       .limit(20);
-
-    const total = rows.length;
-    const averageRating =
-      total > 0
-        ? Math.round(
-            (rows.reduce((s, r) => s + r.starRating, 0) / total) * 10,
-          ) / 10
-        : null;
 
     res.json({ reviews: rows, averageRating, total });
   },
