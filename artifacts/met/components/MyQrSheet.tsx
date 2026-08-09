@@ -56,7 +56,7 @@ export function MyQrSheet({ visible, onClose, profile }: Props) {
             },
           ]}
         >
-          <View style={styles.handle} />
+          <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
           <View style={styles.headerRow}>
             <View style={{ width: 28 }} />
             <Text style={[styles.title, { color: colors.foreground }]}>
@@ -127,7 +127,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 5,
     borderRadius: 3,
-    backgroundColor: "#D1D5DB",
     marginBottom: 6,
   },
   headerRow: {
