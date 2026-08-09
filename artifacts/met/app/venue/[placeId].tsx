@@ -859,9 +859,9 @@ export default function VenueProfileScreen() {
               <SectionLabel title="Rate This Venue" />
               <View style={[styles.reviewCard, cardShadow]}>
                 <Text style={styles.reviewPrompt}>How was your experience?</Text>
-                <View style={styles.starsRow}>
+                <View testID="review-stars-row" style={styles.starsRow}>
                   {[1, 2, 3, 4, 5].map((star) => (
-                    <Pressable key={star} onPress={() => setReviewStars(star)} hitSlop={8}>
+                    <Pressable key={star} testID={`review-star-${star}`} onPress={() => setReviewStars(star)} hitSlop={8}>
                       <Text style={[styles.starChar, reviewStars >= star && styles.starCharActive]}>★</Text>
                     </Pressable>
                   ))}
@@ -869,6 +869,7 @@ export default function VenueProfileScreen() {
                 {reviewStars > 0 && (
                   <>
                     <TextInput
+                      testID="review-comment-input"
                       style={styles.reviewInput}
                       placeholder="Add a comment (optional)"
                       placeholderTextColor={MUTED}
@@ -878,18 +879,19 @@ export default function VenueProfileScreen() {
                       multiline
                     />
                     <Pressable
+                      testID="review-submit-btn"
                       style={[styles.reviewSubmitBtn, reviewSubmitting && { opacity: 0.6 }]}
                       onPress={() => void handleSubmitReview()}
                       disabled={reviewSubmitting}
                     >
-                      <Text style={styles.reviewSubmitText}>
+                      <Text testID="review-submit-label" style={styles.reviewSubmitText}>
                         {reviewSubmitting ? "Saving…" : myReview ? "Update review" : "Submit review"}
                       </Text>
                     </Pressable>
                   </>
                 )}
                 {myReview && reviewStars === 0 && (
-                  <Text style={styles.reviewExisting}>
+                  <Text testID="review-existing-summary" style={styles.reviewExisting}>
                     {"★".repeat(myReview.starRating)}{"☆".repeat(5 - myReview.starRating)}
                     {myReview.comment ? `  "${myReview.comment}"` : ""}
                   </Text>
