@@ -239,6 +239,18 @@ export interface VenueOwnerMapPoint {
   hasUpcomingEvent: boolean;
 }
 
+export interface VenueOwnerGuest {
+  rank: number;
+  uid: string;
+  displayName: string;
+  photoUrl: string | null;
+  bio: string | null;
+  interests: string[];
+  isPioneer: boolean;
+  checkinCount: number;
+  lastCheckinAt: string;
+}
+
 export interface VenueOwnerDashboard {
   placeId: string;
   placeName: string;
@@ -1406,6 +1418,22 @@ export const api = {
   /** Fetch owner analytics dashboard. */
   getVenueOwnerDashboard: (opts: ApiOptions) =>
     request<VenueOwnerDashboard>("GET", "/api/venue-owner/me/dashboard", opts),
+  getVenueOwnerGuests: (
+    opts: ApiOptions,
+    params?: { period?: "all" | "month" | "week"; search?: string; limit?: number; offset?: number },
+  ) => {
+    const qs = new URLSearchParams();
+    if (params?.period && params.period !== "all") qs.set("period", params.period);
+    if (params?.search) qs.set("search", params.search);
+    if (params?.limit != null) qs.set("limit", String(params.limit));
+    if (params?.offset != null) qs.set("offset", String(params.offset));
+    const query = qs.toString();
+    return request<{ guests: VenueOwnerGuest[]; total: number }>(
+      "GET",
+      `/api/venue-owner/me/guests${query ? `?${query}` : ""}`,
+      opts,
+    );
+  },
 
   /** Generate a one-time staff registration link for sharing via mobile Share sheet. */
   createStaffInvite: (opts: ApiOptions) =>

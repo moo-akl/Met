@@ -37,6 +37,7 @@ type ManagementSection = {
 };
 
 const SECTIONS: ManagementSection[] = [
+  { icon: "🏆", label: "Guests", sub: "See who's coming back — connect personally", route: "/venue-owner/guests", accent: "#60A5FA" },
   { icon: "📅", label: "Events", sub: "Create & manage events", route: "/venue-owner/events", accent: "#818CF8" },
   { icon: "🎁", label: "Rewards", sub: "Run reward campaigns", route: "/venue-owner/rewards", accent: "#34D399" },
   { icon: "📢", label: "Announcements", sub: "Post updates to guests", route: "/venue-owner/announcements", accent: "#FBBF24" },

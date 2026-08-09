@@ -25,6 +25,7 @@
  * GET    /api/hubs/venue-owners                   — map layer GeoJSON-style points
  *
  * GET    /venue-owner/me/dashboard               — owner analytics
+ * GET    /venue-owner/me/guests                — guest leaderboard (search + period filter)
  *
  * GET    /admin/venue-owner/pending              — admin: list pending claims
  * POST   /admin/venue-owner/approve/:id          — admin: approve
@@ -2278,6 +2279,99 @@ router.get(
       topVisitors: topVisitorsEnriched,
       eventRsvpCounts,
       activeReward: activeReward ?? null,
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /venue-owner/me/guests
+// Ranked leaderboard of unique guests who have checked in at the owner's venue.
+// Query params: period=all|month|week, search=<name>, limit, offset
+// ---------------------------------------------------------------------------
+router.get(
+  "/venue-owner/me/guests",
+  requireUid,
+  venueOwnerReadLimit,
+  async (req: Request, res: Response) => {
+    const access = await requireVenueAccess(req, res, ["owner", "manager"], "An approved manager membership is required");
+    if (!access) return;
+    const placeId = access.placeId;
+
+    const limit = Math.min(Number(req.query.limit) || 30, 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+    const periodParam = req.query.period;
+    const now = new Date();
+    let sinceDate: Date | null = null;
+    if (periodParam === "month") {
+      sinceDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (periodParam === "week") {
+      const dayOfWeek = now.getDay();
+      sinceDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
+    }
+
+    const searchParam = typeof req.query.search === "string" ? req.query.search.trim() : "";
+
+    const checkinWhere = sinceDate
+      ? and(eq(hubCheckinsTable.placeId, placeId), gte(hubCheckinsTable.createdAt, sinceDate))
+      : eq(hubCheckinsTable.placeId, placeId);
+
+    const nameFilter = searchParam
+      ? ilike(profilesTable.displayName, `%${searchParam}%`)
+      : undefined;
+
+    const fullWhere = nameFilter ? and(checkinWhere, nameFilter) : checkinWhere;
+
+    const [guestRows, totalRows] = await Promise.all([
+      db
+        .select({
+          uid: hubCheckinsTable.userUid,
+          displayName: profilesTable.displayName,
+          photoUrl: profilesTable.photoUrl,
+          bio: profilesTable.bio,
+          interests: profilesTable.interests,
+          isPioneer: profilesTable.isPioneer,
+          checkinCount: count(hubCheckinsTable.id),
+          lastCheckinAt: sql<string>`MAX(${hubCheckinsTable.createdAt})`,
+        })
+        .from(hubCheckinsTable)
+        .leftJoin(profilesTable, eq(hubCheckinsTable.userUid, profilesTable.uid))
+        .where(fullWhere)
+        .groupBy(
+          hubCheckinsTable.userUid,
+          profilesTable.displayName,
+          profilesTable.photoUrl,
+          profilesTable.bio,
+          profilesTable.interests,
+          profilesTable.isPioneer,
+        )
+        .orderBy(
+          desc(count(hubCheckinsTable.id)),
+          desc(sql<string>`MAX(${hubCheckinsTable.createdAt})`),
+          hubCheckinsTable.userUid,
+        )
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: sql<number>`COUNT(DISTINCT ${hubCheckinsTable.userUid})` })
+        .from(hubCheckinsTable)
+        .leftJoin(profilesTable, eq(hubCheckinsTable.userUid, profilesTable.uid))
+        .where(fullWhere),
+    ]);
+
+    res.json({
+      guests: guestRows.map((row, i) => ({
+        rank: offset + i + 1,
+        uid: row.uid,
+        displayName: row.displayName ?? "Met member",
+        photoUrl: row.photoUrl ?? null,
+        bio: row.bio ?? null,
+        interests: (row.interests as string[] | null) ?? [],
+        isPioneer: row.isPioneer ?? false,
+        checkinCount: Number(row.checkinCount),
+        lastCheckinAt: row.lastCheckinAt,
+      })),
+      total: Number(totalRows[0]?.total ?? 0),
     });
   },
 );
