@@ -434,6 +434,8 @@ export default function VenueProfileScreen() {
         { placeId, starRating: reviewStars, comment: reviewComment.trim() || null },
       );
       setMyReview({ starRating: review.starRating, comment: review.comment });
+      setReviewStars(0);   // collapse form back to summary row
+      setReviewComment(""); // clear text field
       Alert.alert("Thanks!", "Your review has been saved.");
     } catch {
       Alert.alert("Couldn't save", "Please try again.");
