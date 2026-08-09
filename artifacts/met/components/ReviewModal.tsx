@@ -23,6 +23,7 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
+import { SheetHandle } from "@/components/SheetHandle";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api/client";
@@ -171,7 +172,7 @@ export function ReviewModal({ visible, receiverUid, receiverName, context = "cha
           onPress={() => {}}
         >
           {/* Handle */}
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          <SheetHandle style={{ marginBottom: 20 }} />
 
           {submitted ? (
             <View style={styles.successContainer}>
@@ -308,13 +309,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 36,
     paddingTop: 12,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 20,
   },
   header: {
     flexDirection: "row",

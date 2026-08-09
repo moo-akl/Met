@@ -15,6 +15,7 @@ import {
 import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { SheetHandle } from "@/components/SheetHandle";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import type { Profile } from "@/lib/types";
@@ -93,7 +94,7 @@ export function ShareCardSheet({ visible, onClose, profile }: Props) {
           ]}
           onStartShouldSetResponder={() => true}
         >
-          <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
+          <SheetHandle style={{ marginBottom: 4 }} />
 
           <View style={styles.headerRow}>
             <View style={{ width: 28 }} />
@@ -193,12 +194,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     alignItems: "center",
     gap: 16,
-  },
-  handle: {
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    marginBottom: 4,
   },
   headerRow: {
     flexDirection: "row",

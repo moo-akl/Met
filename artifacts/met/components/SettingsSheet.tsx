@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
 import { Avatar } from "@/components/Avatar";
+import { SheetHandle } from "@/components/SheetHandle";
 import { PhotoVerifier } from "@/components/PhotoVerifier";
 import { TierBadge } from "@/components/TierBadge";
 import { useApp } from "@/contexts/AppContext";
@@ -457,7 +458,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
             },
           ]}
         >
-          <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
+          <SheetHandle />
 
           <View style={styles.headerRow}>
             {view !== "menu" ? (
@@ -1818,13 +1819,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     gap: 14,
-  },
-  handle: {
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    alignSelf: "center",
-    marginBottom: 4,
   },
   headerRow: {
     flexDirection: "row",

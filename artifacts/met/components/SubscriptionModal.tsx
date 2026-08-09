@@ -22,6 +22,7 @@ import {
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 
+import { SheetHandle } from "@/components/SheetHandle";
 import { useColors } from "@/hooks/useColors";
 import { useSlideUpModal } from "@/hooks/useSlideUpModal";
 import { useT } from "@/lib/i18n";
@@ -75,7 +76,7 @@ export function SubscriptionModal({ visible, onDismiss, reason }: Props) {
           onPress={() => {}}
         >
           {/* Handle */}
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          <SheetHandle style={{ marginBottom: 18 }} />
 
           {/* Header */}
           <View style={styles.headerRow}>
@@ -233,13 +234,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 36,
     paddingTop: 12,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 18,
   },
   headerRow: {
     flexDirection: "row",

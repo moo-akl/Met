@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { useSlideUpModal } from "@/hooks/useSlideUpModal";
+import { SheetHandle } from "@/components/SheetHandle";
 
 type IconName = React.ComponentProps<typeof Feather>["name"];
 
@@ -65,7 +66,7 @@ export function ActionSheet({
             },
           ]}
         >
-          <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
+          <SheetHandle style={{ marginBottom: 4 }} />
 
           {title ? (
             <Text style={[styles.title, { color: colors.foreground }]}>
@@ -156,13 +157,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     gap: 14,
-  },
-  handle: {
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    alignSelf: "center",
-    marginBottom: 4,
   },
   title: {
     fontFamily: "Inter_700Bold",

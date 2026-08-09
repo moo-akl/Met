@@ -36,6 +36,7 @@ import {
   type VenueReward,
   type VenueAnnouncement,
 } from "@/lib/api/client";
+import { SheetHandle } from "@/components/SheetHandle";
 import { VenueEventCard } from "@/components/VenueEventCard";
 import {
   getQrVerified,
@@ -150,7 +151,7 @@ function WinnerModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={wm.backdrop} onPress={onClose} />
       <View style={[wm.sheet, { paddingBottom: insets.bottom + 24 }]}>
-        <View style={wm.handle} />
+        <SheetHandle style={{ marginBottom: 20 }} />
 
         {/* Prize card — coral accent */}
         <View style={wm.prizeCard}>
@@ -202,10 +203,6 @@ const wm = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
-  },
-  handle: {
-    alignSelf: "center", width: 40, height: 4,
-    borderRadius: 2, backgroundColor: BORDER, marginBottom: 20,
   },
   prizeCard: {
     flexDirection: "row",
@@ -481,7 +478,7 @@ export default function VenueProfileScreen() {
   return (
     <View style={styles.root}>
       {/* Drag handle — visible when presented as a bottom sheet (containedModal) */}
-      <View style={styles.dragHandle} />
+      <SheetHandle style={{ marginTop: 10, marginBottom: 4 }} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
@@ -1100,17 +1097,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_500Medium",
     color: MUTED,
-  },
-
-  // ── Sheet drag handle (containedModal presentation) ────────────────────────
-  dragHandle: {
-    alignSelf: "center",
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: BORDER,
-    marginTop: 10,
-    marginBottom: 4,
   },
 
   // ── Reward lock overlay ───────────────────────────────────────────────────

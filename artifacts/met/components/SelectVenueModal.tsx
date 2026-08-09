@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
+import { SheetHandle } from "@/components/SheetHandle";
 import { useColors } from "@/hooks/useColors";
 import { useSlideUpModal } from "@/hooks/useSlideUpModal";
 import { useT } from "@/lib/i18n";
@@ -54,9 +55,7 @@ export function SelectVenueModal({
         {/* Stop tap propagation so tapping the sheet itself doesn't dismiss */}
         <Pressable style={[styles.sheet, { backgroundColor: colors.card }]} onPress={() => {}}>
           {/* Drag handle */}
-          <View
-            style={[styles.handle, { backgroundColor: colors.border }]}
-          />
+          <SheetHandle style={{ marginBottom: 16 }} />
 
           <Text style={[styles.title, { color: colors.foreground }]}>
             {t("venue.selectTitle")}
@@ -146,13 +145,6 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: -4 },
     elevation: 12,
-  },
-  handle: {
-    alignSelf: "center",
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    marginBottom: 16,
   },
   title: {
     fontFamily: "Inter_700Bold",

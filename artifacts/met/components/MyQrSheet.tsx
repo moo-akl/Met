@@ -12,6 +12,7 @@ import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
+import { SheetHandle } from "@/components/SheetHandle";
 import { TierBadge } from "@/components/TierBadge";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
@@ -56,7 +57,7 @@ export function MyQrSheet({ visible, onClose, profile }: Props) {
             },
           ]}
         >
-          <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
+          <SheetHandle style={{ marginBottom: 6 }} />
           <View style={styles.headerRow}>
             <View style={{ width: 28 }} />
             <Text style={[styles.title, { color: colors.foreground }]}>
@@ -122,12 +123,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     alignItems: "center",
     gap: 18,
-  },
-  handle: {
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    marginBottom: 6,
   },
   headerRow: {
     flexDirection: "row",

@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
+import { SheetHandle } from "@/components/SheetHandle";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
@@ -101,7 +102,7 @@ export function RequestsSheet({ visible, onClose }: Props) {
             },
           ]}
         >
-          <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
+          <SheetHandle style={{ marginBottom: 4 }} />
 
           <View style={styles.headerRow}>
             <View style={{ width: 24 }} />
@@ -273,13 +274,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     gap: 14,
-  },
-  handle: {
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    alignSelf: "center",
-    marginBottom: 4,
   },
   headerRow: {
     flexDirection: "row",
