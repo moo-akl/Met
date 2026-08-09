@@ -1319,6 +1319,30 @@ router.post("/venue-manager/businesses/:businessId/guests/:uid/reveal", requireS
     return;
   }
 
+  // Enforce a 7-day cool-down after a guest declines a reveal.  The unique
+  // constraint on (senderUid, recipientUid) means there is at most one row;
+  // we check its status and when it was last updated.
+  const REVEAL_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+  const cooldownCutoff = new Date(Date.now() - REVEAL_COOLDOWN_MS);
+  const [existingReveal] = await db
+    .select({ status: revealRequestsTable.status, updatedAt: revealRequestsTable.updatedAt })
+    .from(revealRequestsTable)
+    .where(
+      and(
+        eq(revealRequestsTable.senderUid, managerUid),
+        eq(revealRequestsTable.recipientUid, recipientUid),
+      ),
+    )
+    .limit(1);
+
+  if (existingReveal?.status === "declined" && existingReveal.updatedAt > cooldownCutoff) {
+    const daysLeft = Math.ceil((existingReveal.updatedAt.getTime() + REVEAL_COOLDOWN_MS - Date.now()) / 86_400_000);
+    res.status(429).json({
+      message: `This guest declined your last reveal. You can try again in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
+    });
+    return;
+  }
+
   const now = new Date();
   await db
     .insert(revealRequestsTable)
@@ -1340,9 +1364,12 @@ router.post("/venue-manager/businesses/:businessId/guests/:uid/reveal", requireS
 });
 
 // GET /api/venue-manager/businesses/:businessId/guests/reveals
-// Returns the recipient UIDs of pending or accepted outbound reveal requests
-// sent by this manager's Met account.  Used by the Guests page to pre-populate
-// the "Reveal sent" state on load so navigating away and back doesn't reset it.
+// Returns the recipient UIDs of outbound reveal requests sent by this
+// manager's Met account, split by status:
+//   sentUids     — pending or accepted (shown as "Reveal sent")
+//   declinedUids — declined by the guest (shown as "Previously declined")
+// Used by the Guests page to pre-populate the reveal state on load so
+// navigating away and back doesn't reset it.
 router.get("/venue-manager/businesses/:businessId/guests/reveals", requireSession, async (req, res): Promise<void> => {
   const membership = await requireBusinessRole(req, res, roles);
   if (!membership) return;
@@ -1361,21 +1388,24 @@ router.get("/venue-manager/businesses/:businessId/guests/reveals", requireSessio
     managerUid = firebaseUser.uid;
   } catch {
     // Manager has no Met account yet — no reveals have been sent.
-    res.json({ sentUids: [] });
+    res.json({ sentUids: [], declinedUids: [] });
     return;
   }
 
   const rows = await db
-    .select({ recipientUid: revealRequestsTable.recipientUid })
+    .select({ recipientUid: revealRequestsTable.recipientUid, status: revealRequestsTable.status })
     .from(revealRequestsTable)
     .where(
       and(
         eq(revealRequestsTable.senderUid, managerUid),
-        inArray(revealRequestsTable.status, ["pending", "accepted"]),
+        inArray(revealRequestsTable.status, ["pending", "accepted", "declined"]),
       ),
     );
 
-  res.json({ sentUids: rows.map((r) => r.recipientUid) });
+  const sentUids = rows.filter((r) => r.status !== "declined").map((r) => r.recipientUid);
+  const declinedUids = rows.filter((r) => r.status === "declined").map((r) => r.recipientUid);
+
+  res.json({ sentUids, declinedUids });
 });
 
 export default router;

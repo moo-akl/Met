@@ -135,3 +135,5 @@
 .vm-met-link-banner{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px}
 .vm-reveal-disabled-wrap{display:flex;flex-direction:column;gap:6px;width:100%}
 .vm-reveal-disabled-hint{font-size:12px;color:#9dbfb0;line-height:1.4}
+.vm-reveal-declined-wrap{display:flex;flex-direction:column;gap:4px;width:100%}
+.vm-notice-declined{color:#7a5c1a;background:#fdf6e3;border:1px solid #f0d98a;font-size:13px}

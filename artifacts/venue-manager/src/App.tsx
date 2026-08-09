@@ -1056,6 +1056,7 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   const [revealStatus, setRevealStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [revealErr, setRevealErr] = useState("");
   const [sent, setSent] = useState<Set<string>>(new Set());
+  const [declined, setDeclined] = useState<Set<string>>(new Set());
   const [loadingMore, setLoadingMore] = useState(false);
   // Epoch increments every time the filter (business/period/search) changes.
   // loadMore captures the epoch at call-time and discards the response if it
@@ -1064,28 +1065,38 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   const loadMoreAbortRef = useRef<AbortController | null>(null);
 
   // Fetch the manager's existing outbound reveals on mount so the "Reveal sent"
-  // badge survives navigation — the local `sent` state resets on unmount, but
-  // the server knows which requests are already pending or accepted.
-  const sentQuery = useQuery<{ sentUids: string[] }>({
+  // and "Previously declined" badges survive navigation — the local state
+  // resets on unmount, but the server knows which requests are already
+  // pending, accepted, or declined.
+  const sentQuery = useQuery<{ sentUids: string[]; declinedUids: string[] }>({
     queryKey: ["/api/venue-manager/businesses", business.businessId, "guests/reveals"],
     queryFn: async () => {
       const r = await fetch(`/api/venue-manager/businesses/${business.businessId}/guests/reveals`, { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load sent reveals.");
-      return r.json() as Promise<{ sentUids: string[] }>;
+      return r.json() as Promise<{ sentUids: string[]; declinedUids: string[] }>;
     },
     staleTime: 30_000,
     retry: 1,
   });
 
-  // Merge server-known sent UIDs into the local set once the query resolves.
+  // Merge server-known UIDs into the local sets once the query resolves.
   // Uses a functional update so any UIDs added during this session are preserved.
   useEffect(() => {
-    if (sentQuery.isSuccess && sentQuery.data.sentUids.length > 0) {
-      setSent((prev) => {
-        const next = new Set(prev);
-        for (const uid of sentQuery.data.sentUids) next.add(uid);
-        return next;
-      });
+    if (sentQuery.isSuccess) {
+      if (sentQuery.data.sentUids.length > 0) {
+        setSent((prev) => {
+          const next = new Set(prev);
+          for (const uid of sentQuery.data.sentUids) next.add(uid);
+          return next;
+        });
+      }
+      if ((sentQuery.data.declinedUids ?? []).length > 0) {
+        setDeclined((prev) => {
+          const next = new Set(prev);
+          for (const uid of sentQuery.data.declinedUids) next.add(uid);
+          return next;
+        });
+      }
     }
   }, [sentQuery.isSuccess, sentQuery.data]);
 
@@ -1221,6 +1232,8 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message ?? "Failed to send reveal.");
       setRevealStatus("sent");
       setSent((prev) => new Set(prev).add(selected.uid));
+      // Remove from declined if they were in that state — the new reveal is now pending.
+      setDeclined((prev) => { const next = new Set(prev); next.delete(selected.uid); return next; });
     } catch (e) {
       setRevealStatus("error");
       setRevealErr((e as Error).message);
@@ -1327,6 +1340,11 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
               ? <div className="vm-notice success" style={{ margin: 0 }}>Reveal sent — they'll see it in their Met app.</div>
               : revealOpen
                 ? <div className="vm-reveal-compose">
+                    {declined.has(selected.uid) && (
+                      <div className="vm-notice warning vm-reveal-retry-note" style={{ marginBottom: 8 }}>
+                        This guest previously declined a reveal. Your new request will be sent if the cool-down period has passed.
+                      </div>
+                    )}
                     <label className="vm-reveal-label">Opening note <small>(optional · 240 chars max)</small></label>
                     <textarea
                       className="vm-reveal-textarea"
@@ -1344,7 +1362,18 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
                       </button>
                     </div>
                   </div>
-                : canSendReveal
+                : declined.has(selected.uid)
+                  ? <div className="vm-reveal-declined-wrap">
+                      <div className="vm-notice vm-notice-declined" style={{ margin: 0 }}>
+                        Previously declined — this guest declined a past reveal request.
+                      </div>
+                      {canSendReveal && (
+                        <button className="vm-secondary" style={{ marginTop: 8 }} onClick={() => openReveal(selected)}>
+                          <CircleUserRound size={16} /> Send again
+                        </button>
+                      )}
+                    </div>
+                  : canSendReveal
                   ? <button className="vm-primary" onClick={() => openReveal(selected)}>
                       <CircleUserRound size={16} /> Send reveal request
                     </button>
