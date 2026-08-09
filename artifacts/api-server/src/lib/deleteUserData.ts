@@ -162,13 +162,55 @@ async function deleteFirestoreUserData(uid: string): Promise<void> {
 }
 
 async function deleteStorageAssets(uid: string): Promise<void> {
+  const failedFiles: string[] = [];
+  let listFailed = false;
+
   try {
     const bucket = adminStorage().bucket();
     // Profile photos are stored as profile-photos/{uid}.{ext}
     const [files] = await bucket.getFiles({ prefix: `profile-photos/${uid}.` });
-    await Promise.all(files.map((f) => f.delete().catch(() => { /* already gone */ })));
+
+    await Promise.all(
+      files.map(async (f) => {
+        try {
+          await f.delete();
+        } catch (err: unknown) {
+          // Ignore 404 — file is already gone, which is a success for our purposes.
+          const code = (err as { code?: number })?.code;
+          if (code === 404) return;
+          failedFiles.push(f.name);
+          logger.warn(
+            { err, uid, file: f.name },
+            "Non-fatal: failed to delete Storage file during user cleanup",
+          );
+        }
+      }),
+    );
   } catch (err) {
-    logger.warn({ err, uid }, "Non-fatal: failed to delete Storage assets during user cleanup");
+    logger.warn({ err, uid }, "Non-fatal: failed to list Storage assets during user cleanup");
+    listFailed = true;
+  }
+
+  // If anything went wrong, persist the uid so an admin can retry cleanup.
+  if (listFailed || failedFiles.length > 0) {
+    try {
+      const fsDb = adminDb();
+      await fsDb
+        .collection("admin")
+        .doc("failed-storage-cleanup")
+        .collection("uids")
+        .doc(uid)
+        .set({
+          uid,
+          failedAt: new Date().toISOString(),
+          ...(listFailed ? { error: "failed to list files" } : { failedFiles }),
+        });
+    } catch (fsErr) {
+      logger.warn(
+        { fsErr, uid },
+        "Could not persist failed-storage-cleanup record to Firestore",
+      );
+    }
   }
 }
 
