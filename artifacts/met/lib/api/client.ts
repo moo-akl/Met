@@ -1490,11 +1490,20 @@ export const api = {
       comment: params.comment ?? null,
     }),
 
-  /** List the most recent reviews for a venue (max 20) with average rating. */
-  getVenueReviews: (opts: ApiOptions, placeId: string) =>
-    request<{ reviews: VenueReview[]; averageRating: number | null; total: number }>(
+  /** List the most recent reviews for a venue (max 20) with average rating.
+   * Pass starRating (1–5) to server-filter to only that star tier. */
+  getVenueReviews: (opts: ApiOptions, placeId: string, starRating?: number) =>
+    request<{
+      reviews: VenueReview[];
+      averageRating: number | null;
+      total: number;
+      /** Count of reviews per star rating across the whole venue (not just this page). */
+      ratingCounts: Partial<Record<number, number>>;
+    }>(
       "GET",
-      `/api/hubs/${placeId}/reviews`,
+      starRating != null
+        ? `/api/hubs/${placeId}/reviews?starRating=${starRating}`
+        : `/api/hubs/${placeId}/reviews`,
       opts,
     ),
 

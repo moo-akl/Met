@@ -11,7 +11,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { and, avg, count, desc, eq, sql } from "drizzle-orm";
+import { and, avg, count, desc, eq, sql, inArray } from "drizzle-orm";
 import {
   db,
   profilesTable,
@@ -83,14 +83,25 @@ router.post(
 // ── GET /hubs/:placeId/reviews ─────────────────────────────────────────────
 // Public endpoint — no authentication required. Any caller (guest or
 // authenticated user) may view a venue's reviews and aggregate score.
+//
+// Optional query param:
+//   starRating=1..5  — filter the returned list to only that star tier.
+//                      The aggregate (averageRating, total, ratingCounts)
+//                      always reflects the full venue, not the filtered page.
 
 router.get(
   "/hubs/:placeId/reviews",
   async (req, res): Promise<void> => {
     const { placeId } = req.params as { placeId: string };
 
-    // Compute aggregate stats over ALL reviews for this venue (not just the
-    // page-limited list), so averageRating and total are always venue-wide.
+    // Parse optional starRating filter (1–5).
+    const rawStar = req.query["starRating"];
+    const starFilter =
+      typeof rawStar === "string" && /^[1-5]$/.test(rawStar)
+        ? parseInt(rawStar, 10)
+        : null;
+
+    // Compute venue-wide aggregate stats (always unfiltered).
     const [agg] = await db
       .select({
         total: count(),
@@ -105,7 +116,30 @@ router.get(
         ? Math.round(Number(agg.averageRating) * 10) / 10
         : null;
 
-    // Return the 20 most recent reviews for display.
+    // Per-rating counts across the whole venue (not page-limited).
+    const countRows = await db
+      .select({
+        starRating: venueReviewsTable.starRating,
+        cnt: count(),
+      })
+      .from(venueReviewsTable)
+      .where(eq(venueReviewsTable.placeId, placeId))
+      .groupBy(venueReviewsTable.starRating);
+
+    const ratingCounts: Record<number, number> = {};
+    for (const row of countRows) {
+      ratingCounts[row.starRating] = row.cnt;
+    }
+
+    // Return the 20 most recent reviews, optionally filtered by star rating.
+    const listWhere =
+      starFilter !== null
+        ? and(
+            eq(venueReviewsTable.placeId, placeId),
+            eq(venueReviewsTable.starRating, starFilter),
+          )
+        : eq(venueReviewsTable.placeId, placeId);
+
     const rows = await db
       .select({
         id: venueReviewsTable.id,
@@ -120,11 +154,11 @@ router.get(
         profilesTable,
         eq(venueReviewsTable.userUid, profilesTable.uid),
       )
-      .where(eq(venueReviewsTable.placeId, placeId))
+      .where(listWhere)
       .orderBy(desc(venueReviewsTable.createdAt))
       .limit(20);
 
-    res.json({ reviews: rows, averageRating, total });
+    res.json({ reviews: rows, averageRating, total, ratingCounts });
   },
 );
 

@@ -381,6 +381,17 @@ export default function VenueProfileScreen() {
   const [venueReviews, setVenueReviews]       = useState<import("@/lib/api/client").VenueReview[]>([]);
   const [averageRating, setAverageRating]     = useState<number | null>(null);
   const [totalReviewCount, setTotalReviewCount] = useState(0);
+  /** Count of reviews per star (1–5) across the whole venue, from the API. */
+  const [ratingCounts, setRatingCounts]       = useState<Partial<Record<number, number>>>({});
+  // 0 = All, 1-5 = specific star rating
+  const [reviewFilter, setReviewFilter]       = useState(0);
+  const [reviewsLoading, setReviewsLoading]   = useState(false);
+  /** True when the most-recent filter fetch failed (shows retry UI). */
+  const [reviewsError, setReviewsError]       = useState(false);
+  /** Incremented on every filter change; lets the effect detect stale responses. */
+  const reviewFetchGenRef                     = useRef(0);
+  /** Incrementing this triggers a manual retry of the current filter. */
+  const [reviewRetryKey, setReviewRetryKey]   = useState(0);
 
   // QR verification state — initialised from the in-session module cache so
   // navigating to the venue page after a successful qr-scan shows it unlocked.
@@ -456,7 +467,7 @@ export default function VenueProfileScreen() {
           api.getVenueRewards({ uid: authedUid }, placeId).catch(() => ({ rewards: [] })),
           api.getVenueAnnouncements({ uid: authedUid }, placeId).catch(() => ({ announcements: [] })),
           api.getLeaderboard({ uid: authedUid }, placeId, "current_month").catch(() => []),
-          api.getVenueReviews({ uid: authedUid }, placeId).catch(() => ({ reviews: [], averageRating: null, total: 0 })),
+          api.getVenueReviews({ uid: authedUid }, placeId).catch(() => ({ reviews: [], averageRating: null, total: 0, ratingCounts: {} })),
         ]);
       setProfile(profileData.profile);
       setEvents(eventsData.events);
@@ -469,6 +480,7 @@ export default function VenueProfileScreen() {
       setVenueReviews(reviewsData.reviews.slice(0, 20));
       setAverageRating(reviewsData.averageRating);
       setTotalReviewCount(reviewsData.total);
+      setRatingCounts(reviewsData.ratingCounts ?? {});
       // Derive registered venue status from the profile.
       setIsRegisteredVenue(profileData.profile?.isApproved ?? false);
     } catch {
@@ -479,6 +491,45 @@ export default function VenueProfileScreen() {
   }, [authedUid, placeId]);
 
   useEffect(() => { void fetchAll(); }, [fetchAll]);
+
+  // Re-fetch the reviews list whenever the star-rating filter changes.
+  // Uses an AbortController so the previous in-flight request is cancelled
+  // when a new filter is selected, and a generation counter so a response
+  // that arrives after a later request has already started is discarded.
+  useEffect(() => {
+    if (!authedUid || !placeId) return;
+    const gen = ++reviewFetchGenRef.current;
+    const controller = new AbortController();
+    setReviewsLoading(true);
+    setReviewsError(false);
+    api
+      .getVenueReviews(
+        { uid: authedUid, signal: controller.signal },
+        placeId,
+        reviewFilter === 0 ? undefined : reviewFilter,
+      )
+      .then((data) => {
+        // Discard the response if a newer request has already started.
+        if (gen !== reviewFetchGenRef.current) return;
+        setVenueReviews(data.reviews.slice(0, 20));
+        // Always keep venue-wide aggregates (ratingCounts, total, average).
+        setAverageRating(data.averageRating);
+        setTotalReviewCount(data.total);
+        setRatingCounts(data.ratingCounts ?? {});
+      })
+      .catch((err: unknown) => {
+        if (gen !== reviewFetchGenRef.current) return;
+        // Don't show an error for intentional aborts (user changed filter quickly).
+        if (err instanceof Error && err.name === "AbortError") return;
+        setReviewsError(true);
+        setVenueReviews([]);
+      })
+      .finally(() => {
+        if (gen === reviewFetchGenRef.current) setReviewsLoading(false);
+      });
+    return () => { controller.abort(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewFilter, reviewRetryKey, authedUid, placeId]);
 
   // Deep-link path: when the user arrives via /v/[placeId]?t=<token>, the
   // venue redirect screen passes qrToken here. Auto-verify on mount (once).
@@ -901,47 +952,110 @@ export default function VenueProfileScreen() {
           )}
 
           {/* ── 6. Guest Reviews ───────────────────────────────────────── */}
-          {venueReviews.length > 0 && (
+          {(totalReviewCount > 0) && (
             <View style={styles.section}>
-              {/* Aggregate headline */}
+              {/* Aggregate headline — always venue-wide */}
               <View style={styles.reviewsHeader}>
                 <SectionLabel title="Guest Reviews" />
                 {averageRating !== null && totalReviewCount > 0 && (
                   <View style={styles.reviewsAggregate}>
                     <Text style={styles.reviewsAggStar}>★</Text>
                     <Text style={styles.reviewsAggScore}>{averageRating.toFixed(1)}</Text>
-                    <Text style={styles.reviewsAggCount}>({totalReviewCount} {totalReviewCount === 1 ? "review" : "reviews"})</Text>
+                    <Text style={styles.reviewsAggCount}>
+                      ({reviewFilter === 0
+                        ? `${totalReviewCount} ${totalReviewCount === 1 ? "review" : "reviews"}`
+                        : `${ratingCounts[reviewFilter] ?? 0} of ${totalReviewCount}`
+                      })
+                    </Text>
                   </View>
                 )}
               </View>
-              <View style={[styles.guestReviewsCard, cardShadow]}>
-                {venueReviews.map((rv, index) => (
-                  <View key={rv.id} style={[styles.guestReviewRow, index > 0 && styles.guestReviewDivider]}>
-                    {/* Avatar */}
-                    {rv.photoUrl ? (
-                      <Image source={{ uri: rv.photoUrl }} style={styles.guestReviewAvatar} contentFit="cover" />
-                    ) : (
-                      <View style={styles.guestReviewAvatarFallback}>
-                        <Text style={styles.guestReviewAvatarChar}>
-                          {rv.displayName.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={styles.guestReviewContent}>
-                      <View style={styles.guestReviewTopRow}>
-                        <Text style={styles.guestReviewName} numberOfLines={1}>{rv.displayName}</Text>
-                        <Text style={styles.guestReviewTime}>{relativeTime(rv.createdAt)}</Text>
-                      </View>
-                      <Text style={styles.guestReviewStars}>
-                        {"★".repeat(rv.starRating)}{"☆".repeat(5 - rv.starRating)}
+
+              {/* ── Star-rating filter chips ── */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.reviewFilterRow}
+                contentContainerStyle={styles.reviewFilterContent}
+              >
+                {([0, 5, 4, 3, 2, 1] as const).map((star) => {
+                  const active = reviewFilter === star;
+                  // Show count badge on non-"All" chips so guests can see
+                  // at a glance how many reviews exist per tier.
+                  const cnt = star === 0 ? totalReviewCount : (ratingCounts[star] ?? 0);
+                  return (
+                    <Pressable
+                      key={star}
+                      onPress={() => setReviewFilter(active ? 0 : star)}
+                      style={[styles.reviewFilterChip, active && styles.reviewFilterChipActive]}
+                      accessibilityRole="button"
+                      accessibilityLabel={star === 0 ? "Show all reviews" : `Show ${star}-star reviews`}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Text style={[styles.reviewFilterChipText, active && styles.reviewFilterChipTextActive]}>
+                        {star === 0 ? `All (${cnt})` : `${"★".repeat(star)} (${cnt})`}
                       </Text>
-                      {rv.comment ? (
-                        <Text style={styles.guestReviewComment} numberOfLines={4}>{rv.comment}</Text>
-                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Reviews list or loading / error / empty state */}
+              {reviewsLoading ? (
+                <ActivityIndicator color={CORAL} style={{ marginVertical: 20 }} />
+              ) : reviewsError ? (
+                <View style={styles.reviewFilterEmpty}>
+                  <Text style={styles.reviewFilterEmptyText}>
+                    Couldn't load reviews — tap to retry
+                  </Text>
+                  <Pressable
+                    onPress={() => setReviewRetryKey((k) => k + 1)}
+                    style={{ marginTop: 8 }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={{ color: CORAL, fontSize: 14, fontFamily: "Inter_600SemiBold" }}>
+                      Retry
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : venueReviews.length > 0 ? (
+                <View style={[styles.guestReviewsCard, cardShadow]}>
+                  {venueReviews.map((rv, index) => (
+                    <View key={rv.id} style={[styles.guestReviewRow, index > 0 && styles.guestReviewDivider]}>
+                      {/* Avatar */}
+                      {rv.photoUrl ? (
+                        <Image source={{ uri: rv.photoUrl }} style={styles.guestReviewAvatar} contentFit="cover" />
+                      ) : (
+                        <View style={styles.guestReviewAvatarFallback}>
+                          <Text style={styles.guestReviewAvatarChar}>
+                            {rv.displayName.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.guestReviewContent}>
+                        <View style={styles.guestReviewTopRow}>
+                          <Text style={styles.guestReviewName} numberOfLines={1}>{rv.displayName}</Text>
+                          <Text style={styles.guestReviewTime}>{relativeTime(rv.createdAt)}</Text>
+                        </View>
+                        <Text style={styles.guestReviewStars}>
+                          {"★".repeat(rv.starRating)}{"☆".repeat(5 - rv.starRating)}
+                        </Text>
+                        {rv.comment ? (
+                          <Text style={styles.guestReviewComment} numberOfLines={4}>{rv.comment}</Text>
+                        ) : null}
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.reviewFilterEmpty}>
+                  <Text style={styles.reviewFilterEmptyText}>
+                    {reviewFilter === 0
+                      ? "No reviews yet"
+                      : `No ${"★".repeat(reviewFilter)} reviews at this venue`}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -1521,5 +1635,45 @@ const styles = StyleSheet.create({
     color: TEXT2,
     lineHeight: 19,
     marginTop: 2,
+  },
+
+  // ── Review filter chips ───────────────────────────────────────────────────
+  reviewFilterRow: {
+    marginBottom: 12,
+  },
+  reviewFilterContent: {
+    flexDirection: "row",
+    gap: 8,
+    paddingRight: 4,
+  },
+  reviewFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+  },
+  reviewFilterChipActive: {
+    backgroundColor: CORAL,
+    borderColor: CORAL,
+  },
+  reviewFilterChipText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: TEXT2,
+  },
+  reviewFilterChipTextActive: {
+    color: "#FFFFFF",
+    fontFamily: "Inter_600SemiBold",
+  },
+  reviewFilterEmpty: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  reviewFilterEmptyText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: MUTED,
   },
 });

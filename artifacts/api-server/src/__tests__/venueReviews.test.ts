@@ -399,6 +399,88 @@ describe.skipIf(!hasDatabase)(
     });
 
     // -----------------------------------------------------------------------
+    // 6c. GET /reviews?starRating= filters list to matching tier only
+    // -----------------------------------------------------------------------
+    it("GET /reviews?starRating=5 returns only 5-star reviews in the list", async () => {
+      // At this point PLACE_ID has: USER_UID→3 stars, USER2_UID→5 stars.
+      const res = await request(app)
+        .get(`/api/hubs/${PLACE_ID}/reviews?starRating=5`)
+        .set(uid(USER_UID));
+
+      expect(res.status).toBe(200);
+      const { reviews, total, ratingCounts } = res.body as {
+        reviews: { starRating: number }[];
+        total: number;
+        ratingCounts: Record<string, number>;
+      };
+      // List must only contain 5-star reviews.
+      expect(reviews.every((r) => r.starRating === 5)).toBe(true);
+      // total must still reflect ALL venue reviews (venue-wide, not filtered).
+      expect(total).toBe(2);
+      // ratingCounts must be present and accurate.
+      expect(ratingCounts["5"]).toBe(1);
+      expect(ratingCounts["3"]).toBe(1);
+    });
+
+    it("GET /reviews?starRating=1 returns empty list when no 1-star reviews exist", async () => {
+      // PLACE_ID has 3-star and 5-star reviews but no 1-star.
+      const res = await request(app)
+        .get(`/api/hubs/${PLACE_ID}/reviews?starRating=1`)
+        .set(uid(USER_UID));
+
+      expect(res.status).toBe(200);
+      const { reviews, total } = res.body as {
+        reviews: unknown[];
+        total: number;
+      };
+      expect(reviews).toHaveLength(0);
+      // Venue-wide total still reflects all reviews.
+      expect(total).toBe(2);
+    });
+
+    // -----------------------------------------------------------------------
+    // 6d. GET /reviews?starRating= with an invalid value is treated as no filter
+    // -----------------------------------------------------------------------
+    it("GET /reviews?starRating=99 ignores the invalid value and returns all reviews", async () => {
+      const res = await request(app)
+        .get(`/api/hubs/${PLACE_ID}/reviews?starRating=99`)
+        .set(uid(USER_UID));
+
+      expect(res.status).toBe(200);
+      const { reviews } = res.body as { reviews: unknown[] };
+      // Invalid starRating is silently ignored; all reviews returned.
+      expect(reviews.length).toBe(2);
+    });
+
+    it("GET /reviews?starRating=abc ignores non-numeric value and returns all reviews", async () => {
+      const res = await request(app)
+        .get(`/api/hubs/${PLACE_ID}/reviews?starRating=abc`)
+        .set(uid(USER_UID));
+
+      expect(res.status).toBe(200);
+      const { reviews } = res.body as { reviews: unknown[] };
+      expect(reviews.length).toBe(2);
+    });
+
+    // -----------------------------------------------------------------------
+    // 6e. ratingCounts is always present in the response
+    // -----------------------------------------------------------------------
+    it("GET /reviews always includes a ratingCounts object", async () => {
+      const res = await request(app)
+        .get(`/api/hubs/${PLACE_ID}/reviews`)
+        .set(uid(USER_UID));
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("ratingCounts");
+      const { ratingCounts } = res.body as { ratingCounts: Record<string, number> };
+      // All counts must be positive integers.
+      for (const cnt of Object.values(ratingCounts)) {
+        expect(typeof cnt).toBe("number");
+        expect(cnt).toBeGreaterThan(0);
+      }
+    });
+
+    // -----------------------------------------------------------------------
     // 7. Aggregate stats cover ALL reviews even when list is capped at 20
     // -----------------------------------------------------------------------
     it("returns venue-wide total and averageRating even when there are more than 20 reviews", async () => {
