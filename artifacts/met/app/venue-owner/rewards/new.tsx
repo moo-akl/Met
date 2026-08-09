@@ -94,7 +94,7 @@ export default function NewVenueRewardScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: "#0F0F12" }]}
+      style={[styles.root, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <VenueOwnerHeader title="New Reward" onBack={() => router.back()} backLabel="Cancel" />
@@ -106,7 +106,7 @@ export default function NewVenueRewardScreen() {
       >
         {/* Reward type selector */}
         <View>
-          <Text style={styles.fieldLabel}>Reward Type</Text>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Reward Type</Text>
           <View style={styles.typeRow}>
             {REWARD_TYPES.map((rt) => (
               <Pressable
@@ -115,13 +115,13 @@ export default function NewVenueRewardScreen() {
                 style={[
                   styles.typeBtn,
                   {
-                    backgroundColor: rewardType === rt.value ? colors.primary + "20" : "#1A1A1E",
-                    borderColor: rewardType === rt.value ? colors.primary : "rgba(255,255,255,0.1)",
+                    backgroundColor: rewardType === rt.value ? colors.primary + "20" : colors.card,
+                    borderColor: rewardType === rt.value ? colors.primary : colors.border,
                   },
                 ]}
               >
                 <Text style={styles.typeIcon}>{rt.icon}</Text>
-                <Text style={[styles.typeLabel, { color: rewardType === rt.value ? colors.primary : "rgba(255,255,255,0.5)" }]}>
+                <Text style={[styles.typeLabel, { color: rewardType === rt.value ? colors.primary : colors.mutedForeground }]}>
                   {rt.label}
                 </Text>
               </Pressable>
@@ -154,22 +154,28 @@ export default function NewVenueRewardScreen() {
         {/* Activate now toggle */}
         <Pressable
           onPress={() => setActivateNow(!activateNow)}
-          style={[styles.activateToggle, { borderColor: activateNow ? colors.primary : "rgba(255,255,255,0.1)" }]}
+          style={[
+            styles.activateToggle,
+            { borderColor: activateNow ? colors.primary : colors.border, backgroundColor: colors.card },
+          ]}
         >
-          <View style={[styles.activateCheck, { backgroundColor: activateNow ? colors.primary : "transparent", borderColor: activateNow ? colors.primary : "rgba(255,255,255,0.3)" }]}>
-            {activateNow && <Text style={styles.activateCheckMark}>✓</Text>}
+          <View style={[
+            styles.activateCheck,
+            { backgroundColor: activateNow ? colors.primary : "transparent", borderColor: activateNow ? colors.primary : colors.mutedForeground },
+          ]}>
+            {activateNow && <Text style={[styles.activateCheckMark, { color: colors.primaryForeground }]}>✓</Text>}
           </View>
-          <Text style={[styles.activateLabel, { color: activateNow ? "#fff" : "rgba(255,255,255,0.6)" }]}>
+          <Text style={[styles.activateLabel, { color: activateNow ? colors.foreground : colors.mutedForeground }]}>
             Activate immediately
           </Text>
         </Pressable>
 
         <Pressable
-          style={[styles.submitBtn, { backgroundColor: canSubmit && !submitting ? colors.primary : "#333" }]}
+          style={[styles.submitBtn, { backgroundColor: canSubmit && !submitting ? colors.primary : colors.secondary }]}
           onPress={handleCreate}
           disabled={!canSubmit || submitting}
         >
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>{activateNow ? "Create & Activate" : "Save as Draft"}</Text>}
+          {submitting ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={[styles.submitBtnText, { color: colors.primaryForeground }]}>{activateNow ? "Create & Activate" : "Save as Draft"}</Text>}
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -179,16 +185,20 @@ export default function NewVenueRewardScreen() {
 function Field({ label, value, onChangeText, placeholder, multiline, numberOfLines, autoCapitalize = "sentences", colors }: {
   label: string; value: string; onChangeText: (v: string) => void; placeholder?: string;
   multiline?: boolean; numberOfLines?: number; autoCapitalize?: "none" | "sentences";
-  colors: { primary: string };
+  colors: { primary: string; foreground: string; card: string; mutedForeground: string; border: string };
 }) {
   return (
     <View>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
       <TextInput
         value={value} onChangeText={onChangeText} placeholder={placeholder}
-        placeholderTextColor="rgba(255,255,255,0.25)" multiline={multiline}
+        placeholderTextColor={colors.mutedForeground} multiline={multiline}
         numberOfLines={numberOfLines} autoCapitalize={autoCapitalize}
-        style={[styles.fieldInput, multiline && { height: (numberOfLines ?? 1) * 24 + 20, textAlignVertical: "top" }, { borderColor: colors.primary + "40" }]}
+        style={[
+          styles.fieldInput,
+          multiline && { height: (numberOfLines ?? 1) * 24 + 20, textAlignVertical: "top" },
+          { borderColor: colors.primary + "40", backgroundColor: colors.card, color: colors.foreground },
+        ]}
       />
     </View>
   );
@@ -198,16 +208,16 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { flex: 1 },
   content: { padding: 24, gap: 18 },
-  fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
-  fieldInput: { backgroundColor: "#1A1A1E", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15 },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
+  fieldInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   typeRow: { flexDirection: "row", gap: 8, marginBottom: 0 },
   typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: "center", gap: 3 },
   typeIcon: { fontSize: 20 },
   typeLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  activateToggle: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 10, padding: 14, backgroundColor: "#1A1A1E" },
+  activateToggle: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 10, padding: 14 },
   activateCheck: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  activateCheckMark: { color: "#fff", fontSize: 13, fontFamily: "Inter_700Bold" },
+  activateCheckMark: { fontSize: 13, fontFamily: "Inter_700Bold" },
   activateLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   submitBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  submitBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });

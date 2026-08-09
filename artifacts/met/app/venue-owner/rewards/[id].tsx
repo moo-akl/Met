@@ -117,7 +117,7 @@ export default function EditVenueRewardScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: "#0F0F12" }]}
+      style={[styles.root, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <VenueOwnerHeader title="Edit Reward" onBack={() => router.back()} backLabel="Cancel" />
@@ -129,7 +129,7 @@ export default function EditVenueRewardScreen() {
       >
         {/* Reward type selector */}
         <View>
-          <Text style={styles.fieldLabel}>Reward Type</Text>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Reward Type</Text>
           <View style={styles.typeRow}>
             {REWARD_TYPES.map((rt) => (
               <Pressable
@@ -138,13 +138,13 @@ export default function EditVenueRewardScreen() {
                 style={[
                   styles.typeBtn,
                   {
-                    backgroundColor: rewardType === rt.value ? colors.primary + "20" : "#1A1A1E",
-                    borderColor: rewardType === rt.value ? colors.primary : "rgba(255,255,255,0.1)",
+                    backgroundColor: rewardType === rt.value ? colors.primary + "20" : colors.card,
+                    borderColor: rewardType === rt.value ? colors.primary : colors.border,
                   },
                 ]}
               >
                 <Text style={styles.typeIcon}>{rt.icon}</Text>
-                <Text style={[styles.typeLabel, { color: rewardType === rt.value ? colors.primary : "rgba(255,255,255,0.5)" }]}>
+                <Text style={[styles.typeLabel, { color: rewardType === rt.value ? colors.primary : colors.mutedForeground }]}>
                   {rt.label}
                 </Text>
               </Pressable>
@@ -189,11 +189,11 @@ export default function EditVenueRewardScreen() {
             </Pressable>
           )}
           <Pressable
-            style={[styles.saveBtn, { flex: 1, backgroundColor: canSubmit && !submitting ? colors.primary : "#333" }]}
+            style={[styles.saveBtn, { flex: 1, backgroundColor: canSubmit && !submitting ? colors.primary : colors.secondary }]}
             onPress={() => void handleSave()}
             disabled={!canSubmit || submitting}
           >
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
+            {submitting ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>Save Changes</Text>}
           </Pressable>
         </View>
       </ScrollView>
@@ -206,16 +206,20 @@ function Field({
 }: {
   label: string; value: string; onChangeText: (v: string) => void; placeholder?: string;
   multiline?: boolean; numberOfLines?: number; autoCapitalize?: "none" | "sentences";
-  colors: { primary: string };
+  colors: { primary: string; foreground: string; card: string; mutedForeground: string; border: string };
 }) {
   return (
     <View>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
       <TextInput
         value={value} onChangeText={onChangeText} placeholder={placeholder}
-        placeholderTextColor="rgba(255,255,255,0.25)" multiline={multiline}
+        placeholderTextColor={colors.mutedForeground} multiline={multiline}
         numberOfLines={numberOfLines} autoCapitalize={autoCapitalize}
-        style={[styles.fieldInput, multiline && { height: (numberOfLines ?? 1) * 24 + 20, textAlignVertical: "top" }, { borderColor: colors.primary + "40" }]}
+        style={[
+          styles.fieldInput,
+          multiline && { height: (numberOfLines ?? 1) * 24 + 20, textAlignVertical: "top" },
+          { borderColor: colors.primary + "40", backgroundColor: colors.card, color: colors.foreground },
+        ]}
       />
     </View>
   );
@@ -225,8 +229,8 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { flex: 1 },
   content: { padding: 24, gap: 18 },
-  fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 },
-  fieldInput: { backgroundColor: "#1A1A1E", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular" },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 },
+  fieldInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular" },
   typeRow: { flexDirection: "row", gap: 8 },
   typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: "center", gap: 3 },
   typeIcon: { fontSize: 20 },
@@ -235,5 +239,5 @@ const styles = StyleSheet.create({
   activateBtn: { borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, alignItems: "center" },
   activateBtnText: { fontSize: 14, fontFamily: "Inter_700Bold" },
   saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  saveBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });

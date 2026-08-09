@@ -151,7 +151,7 @@ export default function VenueOwnerGuestsScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <VenueOwnerHeader title="Guests" onBack={() => router.back()} />
 
       {/* Period filter */}
@@ -162,10 +162,14 @@ export default function VenueOwnerGuestsScreen() {
             onPress={() => setPeriod(p)}
             style={[
               styles.periodBtn,
-              period === p && { backgroundColor: colors.primary + "22", borderColor: colors.primary },
+              { borderColor: period === p ? colors.primary : colors.border },
+              period === p && { backgroundColor: colors.primary + "22" },
             ]}
           >
-            <Text style={[styles.periodBtnText, period === p && { color: colors.primary }]}>
+            <Text style={[
+              styles.periodBtnText,
+              { color: period === p ? colors.primary : colors.mutedForeground },
+            ]}>
               {PERIOD_LABELS[p]}
             </Text>
           </Pressable>
@@ -175,9 +179,9 @@ export default function VenueOwnerGuestsScreen() {
       {/* Search */}
       <View style={styles.searchWrap}>
         <TextInput
-          style={[styles.searchInput, { color: "#fff", borderColor: "rgba(255,255,255,0.1)" }]}
+          style={[styles.searchInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
           placeholder="Search guests…"
-          placeholderTextColor="rgba(255,255,255,0.3)"
+          placeholderTextColor={colors.mutedForeground}
           value={search}
           onChangeText={handleSearchChange}
           returnKeyType="search"
@@ -187,7 +191,7 @@ export default function VenueOwnerGuestsScreen() {
 
       {/* Total count */}
       {!loading && (
-        <Text style={styles.totalText}>
+        <Text style={[styles.totalText, { color: colors.mutedForeground }]}>
           {total} {total === 1 ? "guest" : "guests"} checked in
         </Text>
       )}
@@ -207,7 +211,7 @@ export default function VenueOwnerGuestsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>👥</Text>
-              <Text style={styles.emptyText}>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
                 {debouncedSearch.trim()
                   ? "No guests match your search."
                   : "No check-ins recorded yet at your venue."}
@@ -224,10 +228,10 @@ export default function VenueOwnerGuestsScreen() {
               onPress={() => openGuest(item)}
               style={({ pressed }) => [
                 styles.guestRow,
-                { backgroundColor: "#1A1A1E", borderColor: "rgba(255,255,255,0.07)", opacity: pressed ? 0.75 : 1 },
+                { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
               ]}
             >
-              <Text style={styles.rank}>#{item.rank}</Text>
+              <Text style={[styles.rank, { color: colors.mutedForeground }]}>#{item.rank}</Text>
 
               {item.photoUrl ? (
                 <Image source={{ uri: item.photoUrl }} style={styles.avatar} />
@@ -241,10 +245,10 @@ export default function VenueOwnerGuestsScreen() {
 
               <View style={styles.guestInfo}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.guestName} numberOfLines={1}>{item.displayName}</Text>
+                  <Text style={[styles.guestName, { color: colors.foreground }]} numberOfLines={1}>{item.displayName}</Text>
                   {item.isPioneer && <Text style={styles.pioneerStar}>⭐</Text>}
                 </View>
-                <Text style={styles.guestMeta}>
+                <Text style={[styles.guestMeta, { color: colors.mutedForeground }]}>
                   {item.checkinCount} {item.checkinCount === 1 ? "visit" : "visits"}
                   {"  ·  "}
                   {formatLastSeen(item.lastCheckinAt)}
@@ -252,14 +256,14 @@ export default function VenueOwnerGuestsScreen() {
                 {item.qrVerifiedCount > 0 ? (
                   <Text style={styles.qrBadge}>✓ Scanned QR</Text>
                 ) : (
-                  <Text style={styles.proximityBadge}>📡 Nearby only</Text>
+                  <Text style={[styles.proximityBadge, { color: colors.mutedForeground }]}>📡 Nearby only</Text>
                 )}
               </View>
 
               {sentUids.has(item.uid) ? (
                 <Text style={[styles.sentBadge, { color: colors.primary }]}>Sent ✓</Text>
               ) : (
-                <Text style={styles.chevron}>›</Text>
+                <Text style={[styles.chevron, { color: colors.mutedForeground }]}>›</Text>
               )}
             </Pressable>
           )}
@@ -279,8 +283,8 @@ export default function VenueOwnerGuestsScreen() {
             style={{ width: "100%" }}
           >
             <Pressable onPress={(e) => e.stopPropagation()}>
-              <View style={[styles.drawer, { paddingBottom: insets.bottom + 20 }]}>
-                <View style={styles.drawerHandle} />
+              <View style={[styles.drawer, { backgroundColor: colors.card, paddingBottom: insets.bottom + 20 }]}>
+                <View style={[styles.drawerHandle, { backgroundColor: colors.border }]} />
 
                 {selected && (
                   <>
@@ -304,13 +308,13 @@ export default function VenueOwnerGuestsScreen() {
                     </View>
 
                     {/* Name + pioneer */}
-                    <Text style={styles.drawerName}>{selected.displayName}</Text>
+                    <Text style={[styles.drawerName, { color: colors.foreground }]}>{selected.displayName}</Text>
                     {selected.isPioneer && (
                       <Text style={[styles.drawerPioneer, { color: "#FBBF24" }]}>⭐ Pioneer member</Text>
                     )}
 
                     {/* Visit stats */}
-                    <Text style={styles.drawerStats}>
+                    <Text style={[styles.drawerStats, { color: colors.mutedForeground }]}>
                       {selected.checkinCount} {selected.checkinCount === 1 ? "visit" : "visits"}
                       {"  ·  "}
                       Last seen {formatLastSeen(selected.lastCheckinAt)}
@@ -324,14 +328,14 @@ export default function VenueOwnerGuestsScreen() {
                           : `(${selected.qrVerifiedCount} of ${selected.checkinCount} visits)`}
                       </Text>
                     ) : (
-                      <Text style={styles.drawerProximityBadge}>
+                      <Text style={[styles.drawerProximityBadge, { color: colors.mutedForeground }]}>
                         📡 Detected nearby — hasn't scanned QR yet
                       </Text>
                     )}
 
                     {/* Bio */}
                     {!!selected.bio && (
-                      <Text style={styles.drawerBio}>{selected.bio}</Text>
+                      <Text style={[styles.drawerBio, { color: colors.secondaryForeground }]}>{selected.bio}</Text>
                     )}
 
                     {/* Interests */}
@@ -366,24 +370,24 @@ export default function VenueOwnerGuestsScreen() {
                           { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
                         ]}
                       >
-                        <Text style={styles.revealBtnText}>Send Reveal Request</Text>
+                        <Text style={[styles.revealBtnText, { color: colors.primaryForeground }]}>Send Reveal Request</Text>
                       </Pressable>
                     ) : (
                       <View style={styles.composerWrap}>
                         <TextInput
                           style={[
                             styles.composerInput,
-                            { color: "#fff", borderColor: "rgba(255,255,255,0.12)" },
+                            { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted },
                           ]}
                           placeholder="Add a personal note… (optional)"
-                          placeholderTextColor="rgba(255,255,255,0.3)"
+                          placeholderTextColor={colors.mutedForeground}
                           value={revealMessage}
                           onChangeText={setRevealMessage}
                           maxLength={240}
                           multiline
                           autoFocus
                         />
-                        <Text style={styles.charCount}>{revealMessage.length}/240</Text>
+                        <Text style={[styles.charCount, { color: colors.mutedForeground }]}>{revealMessage.length}/240</Text>
                         <Pressable
                           onPress={handleSendReveal}
                           disabled={revealSending}
@@ -392,7 +396,7 @@ export default function VenueOwnerGuestsScreen() {
                             { backgroundColor: colors.primary, opacity: pressed || revealSending ? 0.7 : 1 },
                           ]}
                         >
-                          <Text style={styles.revealBtnText}>
+                          <Text style={[styles.revealBtnText, { color: colors.primaryForeground }]}>
                             {revealSending ? "Sending…" : "Send Reveal Request"}
                           </Text>
                         </Pressable>
@@ -400,7 +404,7 @@ export default function VenueOwnerGuestsScreen() {
                           onPress={() => { setComposerOpen(false); setRevealMessage(""); }}
                           style={styles.cancelWrap}
                         >
-                          <Text style={styles.cancelText}>Cancel</Text>
+                          <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
                         </Pressable>
                       </View>
                     )}
@@ -442,12 +446,10 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
     paddingVertical: 7,
     alignItems: "center",
   },
   periodBtnText: {
-    color: "rgba(255,255,255,0.45)",
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
   },
@@ -455,7 +457,6 @@ const styles = StyleSheet.create({
   // Search
   searchWrap: { paddingHorizontal: 16, paddingVertical: 10 },
   searchInput: {
-    backgroundColor: "#1A1A1E",
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 14,
@@ -466,7 +467,6 @@ const styles = StyleSheet.create({
 
   // Total
   totalText: {
-    color: "rgba(255,255,255,0.35)",
     fontSize: 12,
     fontFamily: "Inter_500Medium",
     paddingHorizontal: 18,
@@ -484,7 +484,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rank: {
-    color: "rgba(255,255,255,0.3)",
     fontSize: 12,
     fontFamily: "Inter_700Bold",
     width: 28,
@@ -496,14 +495,12 @@ const styles = StyleSheet.create({
   guestInfo: { flex: 1 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   guestName: {
-    color: "#fff",
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     flexShrink: 1,
   },
   pioneerStar: { fontSize: 12 },
   guestMeta: {
-    color: "rgba(255,255,255,0.38)",
     fontSize: 12,
     fontFamily: "Inter_400Regular",
     marginTop: 2,
@@ -515,19 +512,17 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   proximityBadge: {
-    color: "rgba(255,255,255,0.25)",
     fontSize: 11,
     fontFamily: "Inter_400Regular",
     marginTop: 3,
   },
   sentBadge: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  chevron: { color: "rgba(255,255,255,0.2)", fontSize: 22 },
+  chevron: { fontSize: 22 },
 
   // Empty state
   emptyState: { alignItems: "center", paddingTop: 72 },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },
   emptyText: {
-    color: "rgba(255,255,255,0.35)",
     fontSize: 15,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
@@ -541,7 +536,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   drawer: {
-    backgroundColor: "#1A1A1E",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
@@ -551,7 +545,6 @@ const styles = StyleSheet.create({
   drawerHandle: {
     width: 40,
     height: 4,
-    backgroundColor: "rgba(255,255,255,0.15)",
     borderRadius: 2,
     marginBottom: 20,
   },
@@ -559,7 +552,6 @@ const styles = StyleSheet.create({
   drawerAvatar: { width: 88, height: 88, borderRadius: 44 },
   drawerAvatarInitial: { fontSize: 36, fontFamily: "Inter_700Bold" },
   drawerName: {
-    color: "#fff",
     fontSize: 22,
     fontFamily: "Inter_700Bold",
     textAlign: "center",
@@ -571,7 +563,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   drawerStats: {
-    color: "rgba(255,255,255,0.4)",
     fontSize: 13,
     fontFamily: "Inter_400Regular",
     marginBottom: 6,
@@ -584,14 +575,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   drawerProximityBadge: {
-    color: "rgba(255,255,255,0.3)",
     fontSize: 12,
     fontFamily: "Inter_400Regular",
     marginBottom: 10,
     textAlign: "center",
   },
   drawerBio: {
-    color: "rgba(255,255,255,0.65)",
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
@@ -633,12 +622,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
-  revealBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  revealBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   composerWrap: { width: "100%", gap: 8, marginTop: 4 },
   composerInput: {
     borderWidth: 1,
     borderRadius: 10,
-    backgroundColor: "#111115",
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
@@ -647,11 +635,10 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   charCount: {
-    color: "rgba(255,255,255,0.25)",
     fontSize: 11,
     fontFamily: "Inter_400Regular",
     alignSelf: "flex-end",
   },
   cancelWrap: { alignItems: "center", paddingVertical: 8 },
-  cancelText: { color: "rgba(255,255,255,0.3)", fontSize: 14, fontFamily: "Inter_400Regular" },
+  cancelText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 });
