@@ -2284,6 +2284,48 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
+// GET /venue-owner/me/qr
+// Returns the authenticated venue owner's QR token and check-in URL so the
+// mobile app can display a scannable code identical to the web venue-manager.
+// ---------------------------------------------------------------------------
+router.get(
+  "/venue-owner/me/qr",
+  requireUid,
+  venueOwnerReadLimit,
+  async (req: Request, res: Response) => {
+    const access = await requireVenueAccess(req, res, ["owner", "manager"], "An approved manager membership is required");
+    if (!access) return;
+
+    const [profile] = await db
+      .select({ qrToken: venueOwnerProfilesTable.qrToken })
+      .from(venueOwnerProfilesTable)
+      .where(eq(venueOwnerProfilesTable.id, access.profileId))
+      .limit(1);
+
+    if (!profile) {
+      res.status(404).json({ message: "Venue profile not found" });
+      return;
+    }
+
+    // Auto-generate a token if one doesn't exist yet.
+    let token = profile.qrToken;
+    if (!token) {
+      token = crypto.randomUUID();
+      await db
+        .update(venueOwnerProfilesTable)
+        .set({ qrToken: token, updatedAt: new Date() })
+        .where(eq(venueOwnerProfilesTable.id, access.profileId));
+    }
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.json({
+      qrToken: token,
+      qrUrl: `${baseUrl}/v/${access.placeId}?t=${token}`,
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
 // GET /venue-owner/me/guests
 // Ranked leaderboard of unique guests who have checked in at the owner's venue.
 // Query params: period=all|month|week, search=<name>, limit, offset

@@ -1442,6 +1442,18 @@ export const api = {
     ),
 
   /** Build the URL for the printable QR check-in kit page for a given venue. */
+  /**
+   * Returns the venue owner's QR token and the full check-in URL to embed in
+   * the mobile QR code. Mirrors the web venue-manager's /api/venue-manager/qr
+   * endpoint but uses Firebase auth instead of a cookie session.
+   */
+  getVenueOwnerQr: (opts: ApiOptions) =>
+    request<{ qrToken: string; qrUrl: string }>(
+      "GET",
+      "/api/venue-owner/me/qr",
+      opts,
+    ),
+
   getQrKitUrl: (placeId: string): string => `${BASE_URL}/api/venue-owner/${placeId}/qr-kit`,
 
   /** Deep-link / web URL that a guest's camera app opens to reach a venue's check-in page. */

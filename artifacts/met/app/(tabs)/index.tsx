@@ -35,6 +35,7 @@ import { RequestsSheet } from "@/components/RequestsSheet";
 import { MyRankings } from "@/components/MyRankings";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useCountUp } from "@/hooks/useCountUp";
 import { usePermissionReminders } from "@/hooks/usePermissionReminders";
 import { usePermissionStatus } from "@/hooks/usePermissionStatus";
@@ -64,8 +65,16 @@ const CHECKIN_CTA_KEY = "met:checkin_cta_last_shown";
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
 export default function HomeScreen() {
-  const _colors = useColors(); // kept so shared components that read context still work
+  const colors = useColors();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
+
+  // Conditional palette — Aurora Glass in dark mode, theme tokens in light mode
+  const bg     = isDark ? AG_BG    : colors.background;
+  const card   = isDark ? AG_CARD  : colors.card;
+  const border = isDark ? AG_BORDER : "rgba(0,0,0,0.08)";
+  const text   = isDark ? AG_TEXT  : colors.text;
+  const muted  = isDark ? AG_MUTED : colors.mutedForeground;
   const router = useRouter();
   const { t } = useT();
   const [langPickerOpen, setLangPickerOpen] = useState(false);
@@ -219,29 +228,33 @@ export default function HomeScreen() {
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   return (
-    <View style={styles.container}>
-      {/* ── Aurora ambient glow blobs ─────────────────────────────── */}
-      <LinearGradient
-        colors={["rgba(168,85,247,0.28)", "rgba(168,85,247,0.08)", "transparent"]}
-        style={styles.auroraBlob1}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={["rgba(6,182,212,0.2)", "rgba(6,182,212,0.06)", "transparent"]}
-        style={styles.auroraBlob2}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={["rgba(99,102,241,0.18)", "rgba(99,102,241,0.04)", "transparent"]}
-        style={styles.auroraBlob3}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        pointerEvents="none"
-      />
+    <View style={[styles.container, { backgroundColor: bg }]}>
+      {/* ── Aurora ambient glow blobs (dark mode only) ──────────────── */}
+      {isDark && (
+        <>
+          <LinearGradient
+            colors={["rgba(168,85,247,0.28)", "rgba(168,85,247,0.08)", "transparent"]}
+            style={styles.auroraBlob1}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={["rgba(6,182,212,0.2)", "rgba(6,182,212,0.06)", "transparent"]}
+            style={styles.auroraBlob2}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={["rgba(99,102,241,0.18)", "rgba(99,102,241,0.04)", "transparent"]}
+            style={styles.auroraBlob3}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            pointerEvents="none"
+          />
+        </>
+      )}
 
       <GridOverlay />
       <AppHeader
@@ -302,27 +315,27 @@ export default function HomeScreen() {
             )}
             style={({ pressed }) => [
               styles.banner,
-              { backgroundColor: AG_CARD, borderColor: AG_PURPLE, opacity: pressed ? 0.85 : 1 },
+              { backgroundColor: card, borderColor: AG_PURPLE, opacity: pressed ? 0.85 : 1 },
             ]}
           >
             <View style={styles.bannerAvatars}>
               {incoming.slice(0, 3).map((e, i) => (
                 <View
                   key={e.id}
-                  style={[styles.avatarStack, { marginLeft: i === 0 ? 0 : -10, borderColor: AG_BG, zIndex: 10 - i }]}
+                  style={[styles.avatarStack, { marginLeft: i === 0 ? 0 : -10, borderColor: bg, zIndex: 10 - i }]}
                 >
                   <Avatar uri={e.photoUri} size={32} />
                 </View>
               ))}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.bannerTitle, { color: AG_TEXT }]}>
+              <Text style={[styles.bannerTitle, { color: text }]}>
                 {t(
                   incoming.length === 1 ? "home.peopleWantReveal_one" : "home.peopleWantReveal_other",
                   { count: incoming.length },
                 )}
               </Text>
-              <Text style={[styles.bannerSub, { color: AG_MUTED }]}>{t("home.tapToReview")}</Text>
+              <Text style={[styles.bannerSub, { color: muted }]}>{t("home.tapToReview")}</Text>
             </View>
             <Feather name="chevron-right" size={20} color={AG_PURPLE} />
           </Pressable>
@@ -330,16 +343,16 @@ export default function HomeScreen() {
 
         {/* ── Beacon status pill ────────────────────────────────────── */}
         <View style={styles.beaconPillRow}>
-          <View style={[styles.beaconPill, { borderColor: isVisible ? "rgba(168,85,247,0.4)" : AG_BORDER }]}>
+          <View style={[styles.beaconPill, { backgroundColor: card, borderColor: isVisible ? "rgba(168,85,247,0.4)" : border }]}>
             {isVisible ? (
               <View style={styles.liveDotWrap}>
                 <Animated.View style={[styles.liveDotPing, { opacity: livePulse }]} />
                 <View style={styles.liveDotCore} />
               </View>
             ) : (
-              <View style={[styles.liveDotCore, { backgroundColor: AG_MUTED_SOLID }]} />
+              <View style={[styles.liveDotCore, { backgroundColor: isDark ? AG_MUTED_SOLID : colors.mutedForeground }]} />
             )}
-            <Text style={[styles.beaconLabel, { color: isVisible ? "#D8B4FE" : AG_MUTED }]}>
+            <Text style={[styles.beaconLabel, { color: isVisible ? "#D8B4FE" : muted }]}>
               {isVisible ? t("home.beaconActive") : t("home.beaconOff")}
             </Text>
           </View>
@@ -349,8 +362,8 @@ export default function HomeScreen() {
         <View style={styles.heroSection}>
           {isVisible ? (
             <>
-              <Text style={styles.heroNumber}>{animatedWithin}</Text>
-              <Text style={styles.heroSub}>
+              <Text style={[styles.heroNumber, { color: isDark ? AG_PURPLE : colors.primary }]}>{animatedWithin}</Text>
+              <Text style={[styles.heroSub, { color: muted }]}>
                 {t("home.peopleWithinSuffix", {
                   label: t(withinRange === 1 ? "home.person" : "home.people"),
                   m: rangeM,
@@ -358,7 +371,7 @@ export default function HomeScreen() {
               </Text>
             </>
           ) : (
-            <Text style={styles.heroOffline}>{t("home.invisibleHeadline")}</Text>
+            <Text style={[styles.heroOffline, { color: text }]}>{t("home.invisibleHeadline")}</Text>
           )}
 
           {vibe && isVisible ? (
@@ -381,13 +394,13 @@ export default function HomeScreen() {
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.quickActionCard,
-              { opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
+              { backgroundColor: card, borderColor: border, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
             ]}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: "rgba(6,182,212,0.15)" }]}>
               <Feather name="map-pin" size={20} color={AG_CYAN} />
             </View>
-            <Text style={styles.quickActionLabel}>{t("home.checkInCta")}</Text>
+            <Text style={[styles.quickActionLabel, { color: text }]}>{t("home.checkInCta")}</Text>
           </Pressable>
 
           <Pressable
@@ -401,19 +414,19 @@ export default function HomeScreen() {
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.quickActionCard,
-              { opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
+              { backgroundColor: card, borderColor: border, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
             ]}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: "rgba(168,85,247,0.15)" }]}>
               <Feather name="award" size={20} color={AG_PURPLE} />
             </View>
-            <Text style={styles.quickActionLabel}>Leaderboard</Text>
+            <Text style={[styles.quickActionLabel, { color: text }]}>Leaderboard</Text>
           </Pressable>
         </View>
 
         {/* ── This Week ────────────────────────────────────────────── */}
-        <View style={styles.weeklyCard}>
-          <Text style={styles.sectionLabel}>{t("home.thisWeek")}</Text>
+        <View style={[styles.weeklyCard, { backgroundColor: card, borderColor: border }]}>
+          <Text style={[styles.sectionLabel, { color: muted }]}>{t("home.thisWeek")}</Text>
           <View style={styles.weeklyRow}>
             <Pressable
               onPress={() => router.push({ pathname: "/(tabs)/recent", params: { filter: "new" } })}
@@ -424,15 +437,15 @@ export default function HomeScreen() {
                 { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
               ]}
             >
-              <Text style={styles.weeklyValue}>{weekly.newPeople}</Text>
-              <Text style={styles.weeklyLabel}>
+              <Text style={[styles.weeklyValue, { color: text }]}>{weekly.newPeople}</Text>
+              <Text style={[styles.weeklyLabel, { color: muted }]}>
                 {t(weekly.newPeople === 1 ? "home.newPerson_one" : "home.newPerson_other")}
               </Text>
               <View style={styles.weeklyChev}>
-                <Feather name="chevron-right" size={14} color={AG_MUTED} />
+                <Feather name="chevron-right" size={14} color={muted} />
               </View>
             </Pressable>
-            <View style={styles.weeklyDivider} />
+            <View style={[styles.weeklyDivider, { backgroundColor: border }]} />
             <Pressable
               onPress={() => router.push({ pathname: "/(tabs)/recent", params: { filter: "repeats" } })}
               accessibilityRole="button"
@@ -442,14 +455,14 @@ export default function HomeScreen() {
                 { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
               ]}
             >
-              <Text style={styles.weeklyValue}>{weekly.repeats}</Text>
-              <Text style={styles.weeklyLabel}>{t("home.crossedAgainLabel")}</Text>
+              <Text style={[styles.weeklyValue, { color: text }]}>{weekly.repeats}</Text>
+              <Text style={[styles.weeklyLabel, { color: muted }]}>{t("home.crossedAgainLabel")}</Text>
               <View style={styles.weeklyChev}>
-                <Feather name="chevron-right" size={14} color={AG_MUTED} />
+                <Feather name="chevron-right" size={14} color={muted} />
               </View>
             </Pressable>
           </View>
-          <Text style={styles.weeklyHint}>
+          <Text style={[styles.weeklyHint, { color: muted, borderTopColor: border }]}>
             {weekly.newPeople === 0 && weekly.repeats === 0
               ? t("home.weeklyHintQuiet")
               : t("home.weeklyHintActive")}
@@ -493,7 +506,7 @@ export default function HomeScreen() {
             <View style={[styles.referralIconWrap, { backgroundColor: "rgba(249,115,22,0.2)" }]}>
               <Feather name="radio" size={16} color="#FB923C" />
             </View>
-            <Text style={[styles.referralTitle, { color: AG_TEXT, flex: 1 }]}>Set up your beacon</Text>
+            <Text style={[styles.referralTitle, { color: text, flex: 1 }]}>Set up your beacon</Text>
             <Feather name="chevron-right" size={16} color="#FB923C" />
           </Pressable>
         ) : (
@@ -503,7 +516,7 @@ export default function HomeScreen() {
             accessibilityLabel={t("home.referralCtaTitle")}
             style={({ pressed }) => [
               styles.referralCard,
-              { opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] },
+              { borderColor: border, opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] },
             ]}
           >
             <LinearGradient
@@ -515,7 +528,7 @@ export default function HomeScreen() {
             <View style={[styles.referralIconWrap, { backgroundColor: "rgba(168,85,247,0.2)" }]}>
               <Feather name="gift" size={16} color={AG_PURPLE} />
             </View>
-            <Text style={[styles.referralTitle, { color: AG_TEXT, flex: 1 }]}>
+            <Text style={[styles.referralTitle, { color: text, flex: 1 }]}>
               {t("home.referralCtaTitle")}
             </Text>
             <Feather name="arrow-right" size={16} color={AG_PURPLE} />
@@ -533,15 +546,15 @@ export default function HomeScreen() {
       >
         <View style={styles.langBackdrop}>
           <Pressable style={{ flex: 1 }} onPress={() => setLangPickerOpen(false)} />
-          <View style={[styles.langSheet, { backgroundColor: "#0F0F1A", paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.langHandle} />
+          <View style={[styles.langSheet, { backgroundColor: isDark ? "#0F0F1A" : colors.card, paddingBottom: insets.bottom + 20 }]}>
+            <View style={[styles.langHandle, { backgroundColor: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.12)" }]} />
             <View style={styles.langHeader}>
-              <Text style={[styles.langTitle, { color: AG_TEXT }]}>{t("language.title")}</Text>
+              <Text style={[styles.langTitle, { color: text }]}>{t("language.title")}</Text>
               <Pressable onPress={() => setLangPickerOpen(false)} hitSlop={12}>
-                <Feather name="x" size={22} color={AG_TEXT} />
+                <Feather name="x" size={22} color={text} />
               </Pressable>
             </View>
-            <Text style={[styles.langSub, { color: AG_MUTED }]}>{t("language.subtitle")}</Text>
+            <Text style={[styles.langSub, { color: muted }]}>{t("language.subtitle")}</Text>
             <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 12 }}>
               {SUPPORTED_LANGUAGES.map((opt) => {
                 const active = opt.code === currentLang;
@@ -552,18 +565,18 @@ export default function HomeScreen() {
                     style={({ pressed }) => [
                       styles.langRow,
                       {
-                        backgroundColor: active ? "rgba(168,85,247,0.2)" : "rgba(255,255,255,0.04)",
-                        borderColor: active ? AG_PURPLE : AG_BORDER,
+                        backgroundColor: active ? "rgba(168,85,247,0.2)" : isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                        borderColor: active ? AG_PURPLE : border,
                         opacity: pressed ? 0.8 : 1,
                       },
                     ]}
                   >
-                    <View style={[styles.langRowIcon, { backgroundColor: active ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.06)" }]}>
-                      <Feather name="globe" size={16} color={active ? AG_PURPLE : AG_MUTED} />
+                    <View style={[styles.langRowIcon, { backgroundColor: active ? "rgba(168,85,247,0.15)" : isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }]}>
+                      <Feather name="globe" size={16} color={active ? AG_PURPLE : muted} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.langRowLabel, { color: active ? "#D8B4FE" : AG_TEXT }]}>{opt.native}</Text>
-                      <Text style={[styles.langRowSub, { color: AG_MUTED }]}>
+                      <Text style={[styles.langRowLabel, { color: active ? "#D8B4FE" : text }]}>{opt.native}</Text>
+                      <Text style={[styles.langRowSub, { color: muted }]}>
                         {opt.label}{opt.rtl ? "  •  RTL" : ""}
                       </Text>
                     </View>

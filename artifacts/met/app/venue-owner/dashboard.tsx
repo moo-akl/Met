@@ -54,6 +54,8 @@ export default function VenueOwnerDashboardScreen() {
   const [dashLoading, setDashLoading] = useState(true);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [qrUrlLoading, setQrUrlLoading] = useState(false);
   const qrSvgRef = useRef<{ toDataURL?: (cb: (data: string) => void) => void } | null>(null);
 
   const handleInviteStaff = async () => {
@@ -74,7 +76,19 @@ export default function VenueOwnerDashboardScreen() {
     }
   };
 
-  const handleOpenQrKit = () => setShowQrModal(true);
+  const handleOpenQrKit = async () => {
+    setShowQrModal(true);
+    if (qrUrl || !authedUid) return; // already fetched
+    setQrUrlLoading(true);
+    try {
+      const result = await api.getVenueOwnerQr({ uid: authedUid });
+      setQrUrl(result.qrUrl);
+    } catch {
+      Alert.alert("Couldn't load QR", "Please close and try again.");
+    } finally {
+      setQrUrlLoading(false);
+    }
+  };
 
   // Load quick stats
   useEffect(() => {
@@ -252,14 +266,18 @@ export default function VenueOwnerDashboardScreen() {
               </Text>
 
               {/* QR code on white background */}
-              <View style={{ backgroundColor: "#fff", padding: 16, borderRadius: 16 }}>
-                <QRCode
-                  getRef={(ref) => { qrSvgRef.current = ref as typeof qrSvgRef.current; }}
-                  value={api.getVenueCheckInUrl(application?.placeId ?? "placeholder")}
-                  size={220}
-                  color="#111"
-                  backgroundColor="#fff"
-                />
+              <View style={{ backgroundColor: "#fff", padding: 16, borderRadius: 16, minHeight: 252, alignItems: "center", justifyContent: "center" }}>
+                {qrUrlLoading || !qrUrl ? (
+                  <ActivityIndicator size="large" color="#111" style={{ width: 220, height: 220 }} />
+                ) : (
+                  <QRCode
+                    getRef={(ref) => { qrSvgRef.current = ref as typeof qrSvgRef.current; }}
+                    value={qrUrl}
+                    size={220}
+                    color="#111"
+                    backgroundColor="#fff"
+                  />
+                )}
               </View>
 
               <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, fontFamily: "Inter_400Regular" }}>
