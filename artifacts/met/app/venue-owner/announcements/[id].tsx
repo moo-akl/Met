@@ -1,6 +1,9 @@
 /**
  * Edit Venue Announcement screen.
  *
+ * Aurora (dark):  deep #0A0518 bg, translucent glass inputs, white typography.
+ * Signal (light): #FAFAF8 editorial bg, clean inputs, #0D0D0D typography.
+ *
  * Receives announcement fields via router params (from the announcements list
  * screen), pre-fills the form, and updates via PUT /api/venue-owner/me/announcements/:id.
  */
@@ -25,11 +28,15 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+
+const GREEN = "#00E87A";
 
 export default function EditVenueAnnouncementScreen() {
   const { authedUid } = useApp();
   const colors = useColors();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -51,6 +58,20 @@ export default function EditVenueAnnouncementScreen() {
 
   const canSubmit = title.trim().length > 0 && body.trim().length > 0;
 
+  // ── Venue theme tokens ──────────────────────────────────────────────────────
+  const vBg          = isDark ? "#0A0518"                : "#FAFAF8";
+  const vInput       = isDark ? "#1A1A1E"                : "rgba(0,0,0,0.04)";
+  const vText        = isDark ? "#fff"                   : "#0D0D0D";
+  const vMuted       = isDark ? "rgba(255,255,255,0.4)"  : "rgba(0,0,0,0.38)";
+  const vLabel       = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)";
+  const vPlaceholder = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)";
+  const vToggleBg    = isDark ? "#1A1A1E"                : "rgba(0,0,0,0.04)";
+  const vToggleBorder= isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const vToggleLabel = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.75)";
+  const vToggleSub   = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const vDisabledBtn = isDark ? "#333"                   : "rgba(0,0,0,0.1)";
+  const accent       = isDark ? colors.primary           : GREEN;
+
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -65,7 +86,7 @@ export default function EditVenueAnnouncementScreen() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     if (!asset.base64) { Alert.alert("Error", "Could not read image data."); return; }
-    const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+    const MAX_BYTES = 5 * 1024 * 1024;
     const byteSize = asset.fileSize ?? Math.floor(asset.base64.length * 3 / 4);
     if (byteSize > MAX_BYTES) {
       Alert.alert("Image too large", "Please choose an image under 5 MB.");
@@ -107,7 +128,7 @@ export default function EditVenueAnnouncementScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: "#0F0F12" }]}
+      style={[styles.root, { backgroundColor: vBg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <VenueOwnerHeader title="Edit Announcement" onBack={() => router.back()} backLabel="Cancel" />
@@ -118,28 +139,28 @@ export default function EditVenueAnnouncementScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Title *</Text>
+          <Text style={[styles.fieldLabel, { color: vLabel }]}>Title *</Text>
           <TextInput
             value={title} onChangeText={setTitle} placeholder="Happy Hour Extended!"
-            placeholderTextColor="rgba(255,255,255,0.25)"
-            style={[styles.fieldInput, { borderColor: colors.primary + "40" }]}
+            placeholderTextColor={vPlaceholder}
+            style={[styles.fieldInput, { backgroundColor: vInput, borderColor: accent + "40", color: vText }]}
           />
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Message *</Text>
+          <Text style={[styles.fieldLabel, { color: vLabel }]}>Message *</Text>
           <TextInput
             value={body} onChangeText={setBody}
             placeholder="We're extending happy hour every Friday until 9pm this month..."
-            placeholderTextColor="rgba(255,255,255,0.25)"
+            placeholderTextColor={vPlaceholder}
             multiline numberOfLines={5}
-            style={[styles.fieldInput, { borderColor: colors.primary + "40", height: 140, textAlignVertical: "top" }]}
+            style={[styles.fieldInput, { backgroundColor: vInput, borderColor: accent + "40", color: vText, height: 140, textAlignVertical: "top" }]}
           />
         </View>
 
-        {/* ── Cover Image ────────────────────────────────────────────────── */}
+        {/* ── Cover Image ── */}
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Image (optional)</Text>
+          <Text style={[styles.fieldLabel, { color: vLabel }]}>Image (optional)</Text>
           {imageUrl ? (
             <View style={styles.imagePreviewWrap}>
               <Image source={{ uri: imageUrl }} style={styles.imagePreview} resizeMode="cover" />
@@ -155,33 +176,35 @@ export default function EditVenueAnnouncementScreen() {
             <Pressable
               onPress={pickImage}
               disabled={imageUploading}
-              style={[styles.imagePickerBtn, { borderColor: colors.primary + "40" }]}
+              style={[styles.imagePickerBtn, { backgroundColor: vInput, borderColor: accent + "40" }]}
             >
               {imageUploading
-                ? <ActivityIndicator color={colors.primary} />
-                : <Text style={styles.imagePickerText}>＋ Add Image</Text>}
+                ? <ActivityIndicator color={accent} />
+                : <Text style={[styles.imagePickerText, { color: vMuted }]}>＋ Add Image</Text>}
             </Pressable>
           )}
         </View>
 
-        <View style={styles.toggleRow}>
+        <View style={[styles.toggleRow, { backgroundColor: vToggleBg, borderColor: vToggleBorder }]}>
           <View>
-            <Text style={styles.toggleLabel}>Pin this announcement</Text>
-            <Text style={styles.toggleSub}>Pinned posts always appear first</Text>
+            <Text style={[styles.toggleLabel, { color: vToggleLabel }]}>Pin this announcement</Text>
+            <Text style={[styles.toggleSub, { color: vToggleSub }]}>Pinned posts always appear first</Text>
           </View>
           <Switch
             value={isPinned} onValueChange={setIsPinned}
-            trackColor={{ false: "#333", true: colors.primary + "80" }}
-            thumbColor={isPinned ? colors.primary : "#888"}
+            trackColor={{ false: isDark ? "#333" : "rgba(0,0,0,0.12)", true: accent + "80" }}
+            thumbColor={isPinned ? accent : isDark ? "#888" : "#bbb"}
           />
         </View>
 
         <Pressable
-          style={[styles.saveBtn, { backgroundColor: canSubmit && !submitting ? colors.primary : "#333" }]}
+          style={[styles.saveBtn, { backgroundColor: canSubmit && !submitting ? accent : vDisabledBtn }]}
           onPress={() => void handleSave()}
           disabled={!canSubmit || submitting}
         >
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
+          {submitting
+            ? <ActivityIndicator color={isDark ? "#fff" : "#0D0D0D"} />
+            : <Text style={[styles.saveBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>Save Changes</Text>}
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -193,17 +216,17 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 24, gap: 18 },
   field: {},
-  fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
-  fieldInput: { backgroundColor: "#1A1A1E", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15 },
-  imagePickerBtn: { backgroundColor: "#1A1A1E", borderWidth: 1, borderStyle: "dashed", borderRadius: 10, paddingVertical: 20, alignItems: "center", justifyContent: "center" },
-  imagePickerText: { color: "rgba(255,255,255,0.45)", fontSize: 14, fontFamily: "Inter_500Medium" },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
+  fieldInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  imagePickerBtn: { borderWidth: 1, borderStyle: "dashed", borderRadius: 10, paddingVertical: 20, alignItems: "center", justifyContent: "center" },
+  imagePickerText: { fontSize: 14, fontFamily: "Inter_500Medium" },
   imagePreviewWrap: { borderRadius: 10, overflow: "hidden", position: "relative" },
   imagePreview: { width: "100%", height: 160, borderRadius: 10 },
   imageRemoveBtn: { position: "absolute", top: 8, right: 8, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   imageRemoveText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#1A1A1E", borderRadius: 10, padding: 14 },
-  toggleLabel: { color: "rgba(255,255,255,0.85)", fontSize: 15, fontFamily: "Inter_500Medium" },
-  toggleSub: { color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 2 },
+  toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1, padding: 14 },
+  toggleLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  toggleSub: { fontSize: 12, marginTop: 2 },
   saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  saveBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });

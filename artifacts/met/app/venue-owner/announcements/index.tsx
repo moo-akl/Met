@@ -1,5 +1,8 @@
 /**
  * Venue Owner Announcements List
+ *
+ * Aurora (dark):  deep #0A0518 bg, translucent glass cards, white typography.
+ * Signal (light): #FAFAF8 editorial bg, rule-separated rows, #0D0D0D typography.
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -16,17 +19,33 @@ import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, type VenueAnnouncement } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+
+const GREEN = "#00E87A";
 
 export default function VenueOwnerAnnouncementsScreen() {
   const { authedUid } = useApp();
   const colors = useColors();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { profile, isLoading: ownerLoading, error: ownerError } = useVenueOwner();
   const [announcements, setAnnouncements] = useState<VenueAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // ── Venue theme tokens ──────────────────────────────────────────────────────
+  const vBg         = isDark ? "#0A0518"                : "#FAFAF8";
+  const vCard       = isDark ? "rgba(255,255,255,0.06)" : "#fff";
+  const vCardPress  = isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.03)";
+  const vCardBorder = isDark ? "rgba(255,255,255,0.1)"  : "rgba(0,0,0,0.08)";
+  const vText       = isDark ? "#fff"                   : "#0D0D0D";
+  const vBody       = isDark ? "rgba(255,255,255,0.5)"  : "rgba(0,0,0,0.5)";
+  const vDate       = isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.28)";
+  const vEmpty      = isDark ? "rgba(255,255,255,0.4)"  : "rgba(0,0,0,0.38)";
+  const vEmptyTitle = isDark ? "#fff"                   : "#0D0D0D";
+  const accent      = isDark ? colors.primary           : GREEN;
 
   const fetchAnnouncements = useCallback(async () => {
     if (!authedUid || !profile?.placeId) return;
@@ -66,10 +85,10 @@ export default function VenueOwnerAnnouncementsScreen() {
 
   if (ownerLoading || loading) {
     return (
-      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+      <View style={[styles.root, { backgroundColor: vBg }]}>
         <VenueOwnerHeader title="Announcements" />
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={accent} />
         </View>
       </View>
     );
@@ -77,17 +96,17 @@ export default function VenueOwnerAnnouncementsScreen() {
 
   if (ownerError || !profile) {
     return (
-      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+      <View style={[styles.root, { backgroundColor: vBg }]}>
         <VenueOwnerHeader title="Announcements" />
         <View style={styles.center}>
-          <Text style={styles.emptyText}>We couldn't refresh your venue access.</Text>
+          <Text style={[styles.emptyText, { color: vEmpty }]}>We couldn't refresh your venue access.</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+    <View style={[styles.root, { backgroundColor: vBg }]}>
       <VenueOwnerHeader
         title="Announcements"
         onBack={() => router.back()}
@@ -95,9 +114,9 @@ export default function VenueOwnerAnnouncementsScreen() {
           <Pressable
             testID="venue-owner-new-announcement"
             onPress={() => router.push("/venue-owner/announcements/new" as never)}
-            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            style={[styles.addBtn, { backgroundColor: accent }]}
           >
-            <Text style={styles.addBtnText}>+ New</Text>
+            <Text style={[styles.addBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>+ New</Text>
           </Pressable>
         }
       />
@@ -109,13 +128,13 @@ export default function VenueOwnerAnnouncementsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>📢</Text>
-            <Text style={styles.emptyTitle}>No announcements yet</Text>
-            <Text style={styles.emptyText}>Post updates, promos, or news for guests visiting your venue.</Text>
+            <Text style={[styles.emptyTitle, { color: vEmptyTitle }]}>No announcements yet</Text>
+            <Text style={[styles.emptyText, { color: vEmpty }]}>Post updates, promos, or news for guests visiting your venue.</Text>
             <Pressable
               onPress={() => router.push("/venue-owner/announcements/new" as never)}
-              style={[styles.emptyBtn, { borderColor: colors.primary }]}
+              style={[styles.emptyBtn, { borderColor: accent }]}
             >
-              <Text style={[styles.emptyBtnText, { color: colors.primary }]}>Create your first announcement</Text>
+              <Text style={[styles.emptyBtnText, { color: accent }]}>Create your first announcement</Text>
             </Pressable>
           </View>
         }
@@ -135,7 +154,7 @@ export default function VenueOwnerAnnouncementsScreen() {
             }
             style={({ pressed }) => [
               styles.card,
-              { backgroundColor: pressed ? "#222228" : "#1A1A1E", borderColor: "rgba(255,255,255,0.07)" },
+              { backgroundColor: pressed ? vCardPress : vCard, borderColor: vCardBorder },
             ]}
           >
             <View style={{ flex: 1, gap: 4 }}>
@@ -143,10 +162,10 @@ export default function VenueOwnerAnnouncementsScreen() {
                 {item.isPinned && (
                   <Text style={styles.pinBadge}>📌</Text>
                 )}
-                <Text numberOfLines={1} style={styles.cardTitle}>{item.title}</Text>
+                <Text numberOfLines={1} style={[styles.cardTitle, { color: vText }]}>{item.title}</Text>
               </View>
-              <Text numberOfLines={2} style={styles.cardBody}>{item.body}</Text>
-              <Text style={styles.cardDate}>
+              <Text numberOfLines={2} style={[styles.cardBody, { color: vBody }]}>{item.body}</Text>
+              <Text style={[styles.cardDate, { color: vDate }]}>
                 {new Date(item.createdAt).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
@@ -174,28 +193,33 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   addBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  addBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_700Bold" },
+  addBtnText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   list: { padding: 16, gap: 10 },
   card: {
     flexDirection: "row",
     alignItems: "flex-start",
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
     padding: 14,
     gap: 12,
+    shadowColor: "rgba(139,92,246,0.15)",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   pinBadge: { fontSize: 14 },
-  cardTitle: { flex: 1, color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  cardBody: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
-  cardDate: { color: "rgba(255,255,255,0.28)", fontSize: 11, fontFamily: "Inter_400Regular" },
+  cardTitle: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  cardBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  cardDate: { fontSize: 11, fontFamily: "Inter_400Regular" },
   cardActions: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   deleteBtn: { paddingTop: 2 },
   deleteBtnText: { fontSize: 18 },
   emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 32 },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { color: "#fff", fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 8 },
-  emptyText: { color: "rgba(255,255,255,0.4)", fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", marginBottom: 20, lineHeight: 20 },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 8 },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", marginBottom: 20, lineHeight: 20 },
   emptyBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
   emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

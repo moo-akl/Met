@@ -1,6 +1,9 @@
 /**
  * Edit Venue Event screen.
  *
+ * Aurora (dark):  deep #0A0518 bg, translucent glass inputs, white typography.
+ * Signal (light): #FAFAF8 editorial bg, clean inputs, #0D0D0D typography.
+ *
  * Receives event fields via router params (from the events list screen),
  * pre-fills the form, and updates via PUT /api/venue-owner/me/events/:id.
  */
@@ -25,8 +28,11 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { DateTimePicker } from "@/components/DateTimePicker";
+
+const GREEN = "#00E87A";
 
 function defaultStartsAt(): Date {
   const d = new Date();
@@ -38,6 +44,7 @@ function defaultStartsAt(): Date {
 export default function EditVenueEventScreen() {
   const { authedUid } = useApp();
   const colors = useColors();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -71,6 +78,20 @@ export default function EditVenueEventScreen() {
 
   const canSubmit = title.trim().length > 0;
 
+  // ── Venue theme tokens ──────────────────────────────────────────────────────
+  const vBg          = isDark ? "#0A0518"                : "#FAFAF8";
+  const vInput       = isDark ? "#1A1A1E"                : "rgba(0,0,0,0.04)";
+  const vText        = isDark ? "#fff"                   : "#0D0D0D";
+  const vMuted       = isDark ? "rgba(255,255,255,0.4)"  : "rgba(0,0,0,0.38)";
+  const vLabel       = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)";
+  const vPlaceholder = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)";
+  const vToggleBg    = isDark ? "#1A1A1E"                : "rgba(0,0,0,0.04)";
+  const vToggleBorder= isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const vToggleLabel = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.75)";
+  const vToggleSub   = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const vDisabledBtn = isDark ? "#333"                   : "rgba(0,0,0,0.1)";
+  const accent       = isDark ? colors.primary           : GREEN;
+
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -85,7 +106,7 @@ export default function EditVenueEventScreen() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     if (!asset.base64) { Alert.alert("Error", "Could not read image data."); return; }
-    const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+    const MAX_BYTES = 5 * 1024 * 1024;
     const byteSize = asset.fileSize ?? Math.floor(asset.base64.length * 3 / 4);
     if (byteSize > MAX_BYTES) {
       Alert.alert("Image too large", "Please choose an image under 5 MB.");
@@ -129,12 +150,11 @@ export default function EditVenueEventScreen() {
     }
   };
 
-  // Default end time = startsAt + 3 h (used as picker seed when endsAt is null)
   const endsAtValue = endsAt ?? new Date(startsAt.getTime() + 3 * 60 * 60 * 1000);
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: "#0F0F12" }]}
+      style={[styles.root, { backgroundColor: vBg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <VenueOwnerHeader title="Edit Event" onBack={() => router.back()} backLabel="Cancel" />
@@ -144,13 +164,15 @@ export default function EditVenueEventScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Field label="Title *" value={title} onChangeText={setTitle} placeholder="Open Mic Night" colors={colors} />
+        <Field label="Title *" value={title} onChangeText={setTitle} placeholder="Open Mic Night"
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
         <Field label="Description" value={description} onChangeText={setDescription}
-          placeholder="What's happening at the event?" multiline numberOfLines={4} colors={colors} />
+          placeholder="What's happening at the event?" multiline numberOfLines={4}
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
 
-        {/* ── Cover Image ────────────────────────────────────────────────── */}
+        {/* ── Cover Image ── */}
         <View>
-          <Text style={styles.fieldLabel}>Cover Image (optional)</Text>
+          <Text style={[styles.fieldLabel, { color: vLabel }]}>Cover Image (optional)</Text>
           {imageUrl ? (
             <View style={styles.imagePreviewWrap}>
               <Image source={{ uri: imageUrl }} style={styles.imagePreview} resizeMode="cover" />
@@ -166,11 +188,11 @@ export default function EditVenueEventScreen() {
             <Pressable
               onPress={pickImage}
               disabled={imageUploading}
-              style={[styles.imagePickerBtn, { borderColor: colors.primary + "40" }]}
+              style={[styles.imagePickerBtn, { backgroundColor: vInput, borderColor: accent + "40" }]}
             >
               {imageUploading
-                ? <ActivityIndicator color={colors.primary} />
-                : <Text style={styles.imagePickerText}>＋ Add Cover Photo</Text>}
+                ? <ActivityIndicator color={accent} />
+                : <Text style={[styles.imagePickerText, { color: vMuted }]}>＋ Add Cover Photo</Text>}
             </Pressable>
           )}
         </View>
@@ -180,13 +202,18 @@ export default function EditVenueEventScreen() {
           mode="datetime"
           value={startsAt}
           onChange={setStartsAt}
-          primaryColor={colors.primary}
+          primaryColor={accent}
+          labelColor={vLabel}
+          rowBg={vInput}
+          valueColor={vText}
+          chevronColor={vMuted}
+          isDark={isDark}
         />
 
         <View>
           <View style={styles.optionalRow}>
-            <Text style={styles.fieldLabel}>End Date & Time</Text>
-            <Text style={styles.optionalBadge}>optional</Text>
+            <Text style={[styles.fieldLabel, { color: vLabel }]}>End Date & Time</Text>
+            <Text style={[styles.optionalBadge, { color: vMuted }]}>optional</Text>
             {endsAt !== null && (
               <Pressable onPress={() => setEndsAt(null)} style={styles.clearBtn}>
                 <Text style={styles.clearBtnText}>Clear</Text>
@@ -198,34 +225,42 @@ export default function EditVenueEventScreen() {
             mode="datetime"
             value={endsAtValue}
             onChange={setEndsAt}
-            primaryColor={colors.primary}
+            primaryColor={accent}
+            labelColor={vLabel}
+            rowBg={vInput}
+            valueColor={vText}
+            chevronColor={vMuted}
+            isDark={isDark}
             optional
           />
         </View>
 
         <Field label="Capacity Limit (optional)" value={capacityLimit} onChangeText={setCapacityLimit}
-          placeholder="100" colors={colors} />
+          placeholder="100"
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
 
         {/* Publish toggle */}
-        <View style={[styles.toggleRow, { backgroundColor: "#1A1A1E", borderColor: colors.primary + "30" }]}>
+        <View style={[styles.toggleRow, { backgroundColor: vToggleBg, borderColor: vToggleBorder }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.toggleLabel}>Published</Text>
-            <Text style={styles.toggleSub}>Guests can see and RSVP to this event</Text>
+            <Text style={[styles.toggleLabel, { color: vToggleLabel }]}>Published</Text>
+            <Text style={[styles.toggleSub, { color: vToggleSub }]}>Guests can see and RSVP to this event</Text>
           </View>
           <Switch
             value={isPublished}
             onValueChange={setIsPublished}
-            trackColor={{ false: "#333", true: colors.primary + "80" }}
-            thumbColor={isPublished ? colors.primary : "#888"}
+            trackColor={{ false: isDark ? "#333" : "rgba(0,0,0,0.12)", true: accent + "80" }}
+            thumbColor={isPublished ? accent : isDark ? "#888" : "#bbb"}
           />
         </View>
 
         <Pressable
-          style={[styles.saveBtn, { backgroundColor: canSubmit && !submitting ? colors.primary : "#333" }]}
+          style={[styles.saveBtn, { backgroundColor: canSubmit && !submitting ? accent : vDisabledBtn }]}
           onPress={() => void handleSave()}
           disabled={!canSubmit || submitting}
         >
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
+          {submitting
+            ? <ActivityIndicator color={isDark ? "#fff" : "#0D0D0D"} />
+            : <Text style={[styles.saveBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>Save Changes</Text>}
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -233,20 +268,25 @@ export default function EditVenueEventScreen() {
 }
 
 function Field({
-  label, value, onChangeText, placeholder, multiline, numberOfLines, autoCapitalize = "sentences", colors,
+  label, value, onChangeText, placeholder, multiline, numberOfLines, autoCapitalize = "sentences",
+  vInput, vText, vLabel, vPlaceholder, accent,
 }: {
   label: string; value: string; onChangeText: (v: string) => void; placeholder?: string;
   multiline?: boolean; numberOfLines?: number; autoCapitalize?: "none" | "sentences";
-  colors: { primary: string };
+  vInput: string; vText: string; vLabel: string; vPlaceholder: string; accent: string;
 }) {
   return (
     <View>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: vLabel }]}>{label}</Text>
       <TextInput
         value={value} onChangeText={onChangeText} placeholder={placeholder}
-        placeholderTextColor="rgba(255,255,255,0.25)" multiline={multiline}
+        placeholderTextColor={vPlaceholder} multiline={multiline}
         numberOfLines={numberOfLines} autoCapitalize={autoCapitalize}
-        style={[styles.fieldInput, multiline && { height: (numberOfLines ?? 1) * 24 + 20, textAlignVertical: "top" }, { borderColor: colors.primary + "40" }]}
+        style={[
+          styles.fieldInput,
+          multiline && { height: (numberOfLines ?? 1) * 24 + 20, textAlignVertical: "top" },
+          { backgroundColor: vInput, borderColor: accent + "40", color: vText },
+        ]}
       />
     </View>
   );
@@ -256,21 +296,21 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { flex: 1 },
   content: { padding: 24, gap: 18 },
-  fieldLabel: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 },
-  fieldInput: { backgroundColor: "#1A1A1E", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular" },
-  imagePickerBtn: { backgroundColor: "#1A1A1E", borderWidth: 1, borderStyle: "dashed", borderRadius: 10, paddingVertical: 20, alignItems: "center", justifyContent: "center" },
-  imagePickerText: { color: "rgba(255,255,255,0.45)", fontSize: 14, fontFamily: "Inter_500Medium" },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 },
+  fieldInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular" },
+  imagePickerBtn: { borderWidth: 1, borderStyle: "dashed", borderRadius: 10, paddingVertical: 20, alignItems: "center", justifyContent: "center" },
+  imagePickerText: { fontSize: 14, fontFamily: "Inter_500Medium" },
   imagePreviewWrap: { borderRadius: 10, overflow: "hidden", position: "relative" },
   imagePreview: { width: "100%", height: 160, borderRadius: 10 },
   imageRemoveBtn: { position: "absolute", top: 8, right: 8, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   imageRemoveText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   optionalRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
-  optionalBadge: { color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "Inter_400Regular" },
+  optionalBadge: { fontSize: 11, fontFamily: "Inter_400Regular" },
   clearBtn: { marginLeft: "auto" },
   clearBtnText: { color: "rgba(255,80,80,0.8)", fontSize: 12, fontFamily: "Inter_500Medium" },
   toggleRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, padding: 14 },
-  toggleLabel: { color: "rgba(255,255,255,0.85)", fontSize: 15, fontFamily: "Inter_500Medium" },
-  toggleSub: { color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 2 },
+  toggleLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  toggleSub: { fontSize: 12, marginTop: 2 },
   saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  saveBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });

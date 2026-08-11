@@ -9,8 +9,15 @@
  *   onChange     — called with the new Date when the user confirms a selection
  *   mode         — 'date' (date only) or 'datetime' (date + time)
  *   label        — field label shown above the picker row
- *   primaryColor — accent colour from useColors()
+ *   primaryColor — accent colour used for the border
  *   optional     — when true the label does NOT get the " *" required marker
+ *
+ * Theme props (all optional — defaults to the original Aurora/dark values):
+ *   labelColor   — colour of the field label text
+ *   rowBg        — background colour of the picker row
+ *   valueColor   — colour of the formatted date/time text
+ *   chevronColor — colour of the "›" arrow
+ *   isDark       — drives iOS themeVariant + textColor (true = dark, false = light)
  */
 import React, { useState } from "react";
 import {
@@ -55,6 +62,16 @@ interface DateTimePickerProps {
   label: string;
   primaryColor: string;
   optional?: boolean;
+  /** Colour of the field label. Defaults to dark-theme muted white. */
+  labelColor?: string;
+  /** Background of the picker row. Defaults to #1A1A1E. */
+  rowBg?: string;
+  /** Colour of the formatted date/time text. Defaults to #fff. */
+  valueColor?: string;
+  /** Colour of the "›" chevron. Defaults to rgba(255,255,255,0.35). */
+  chevronColor?: string;
+  /** Drives iOS themeVariant ("dark" | "light") and textColor. Defaults to true (dark). */
+  isDark?: boolean;
 }
 
 export function DateTimePicker({
@@ -64,6 +81,11 @@ export function DateTimePicker({
   label,
   primaryColor,
   optional = false,
+  labelColor = "rgba(255,255,255,0.55)",
+  rowBg = "#1A1A1E",
+  valueColor = "#fff",
+  chevronColor = "rgba(255,255,255,0.35)",
+  isDark = true,
 }: DateTimePickerProps) {
   const [showIOS, setShowIOS] = useState(false);
 
@@ -98,17 +120,19 @@ export function DateTimePicker({
 
     return (
       <View>
-        <Text style={styles.label}>
-          {label}
-          {!optional && <Text style={{ color: "#FF6B6B" }}> *</Text>}
-        </Text>
+        {!!label && (
+          <Text style={[styles.label, { color: labelColor }]}>
+            {label}
+            {!optional && <Text style={{ color: "#FF6B6B" }}> *</Text>}
+          </Text>
+        )}
         <Pressable
           onPress={openAndroid}
-          style={[styles.row, { borderColor: primaryColor + "40" }]}
+          style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
         >
           <Text style={styles.calIcon}>📅</Text>
-          <Text style={styles.valueText}>{formatted}</Text>
-          <Text style={styles.chevron}>›</Text>
+          <Text style={[styles.valueText, { color: valueColor }]}>{formatted}</Text>
+          <Text style={[styles.chevron, { color: chevronColor }]}>›</Text>
         </Pressable>
       </View>
     );
@@ -117,27 +141,29 @@ export function DateTimePicker({
   // ── iOS ───────────────────────────────────────────────────────────────────
   return (
     <View>
-      <Text style={styles.label}>
-        {label}
-        {!optional && <Text style={{ color: "#FF6B6B" }}> *</Text>}
-      </Text>
+      {!!label && (
+        <Text style={[styles.label, { color: labelColor }]}>
+          {label}
+          {!optional && <Text style={{ color: "#FF6B6B" }}> *</Text>}
+        </Text>
+      )}
       <Pressable
         onPress={() => setShowIOS((v) => !v)}
-        style={[styles.row, { borderColor: primaryColor + "40" }]}
+        style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
       >
         <Text style={styles.calIcon}>📅</Text>
-        <Text style={styles.valueText}>{formatted}</Text>
-        <Text style={[styles.chevron, showIOS && styles.chevronOpen]}>›</Text>
+        <Text style={[styles.valueText, { color: valueColor }]}>{formatted}</Text>
+        <Text style={[styles.chevron, { color: chevronColor }, showIOS && styles.chevronOpen]}>›</Text>
       </Pressable>
 
       {showIOS && (
-        <View style={styles.iosPickerWrap}>
+        <View style={[styles.iosPickerWrap, { backgroundColor: rowBg }]}>
           <RNDateTimePicker
             value={value}
             mode={mode}
             display="spinner"
-            textColor="#fff"
-            themeVariant="dark"
+            textColor={isDark ? "#fff" : "#0D0D0D"}
+            themeVariant={isDark ? "dark" : "light"}
             onChange={(_evt, picked) => {
               if (picked) onChange(picked);
             }}
@@ -153,7 +179,6 @@ export function DateTimePicker({
 
 const styles = StyleSheet.create({
   label: {
-    color: "rgba(255,255,255,0.55)",
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
     textTransform: "uppercase",
@@ -163,7 +188,6 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1A1A1E",
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 14,
@@ -175,12 +199,10 @@ const styles = StyleSheet.create({
   },
   valueText: {
     flex: 1,
-    color: "#fff",
     fontSize: 15,
     fontFamily: "Inter_400Regular",
   },
   chevron: {
-    color: "rgba(255,255,255,0.35)",
     fontSize: 20,
     lineHeight: 22,
   },
@@ -189,7 +211,6 @@ const styles = StyleSheet.create({
   },
   iosPickerWrap: {
     marginTop: 4,
-    backgroundColor: "#1A1A1E",
     borderRadius: 10,
     overflow: "hidden",
   },

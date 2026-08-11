@@ -1,5 +1,8 @@
 /**
  * New Venue Reward screen
+ *
+ * Aurora (dark):  deep #0A0518 bg, translucent glass inputs, white typography.
+ * Signal (light): #FAFAF8 editorial bg, clean inputs, #0D0D0D typography.
  */
 import React, { useState } from "react";
 import {
@@ -19,8 +22,11 @@ import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { DateTimePicker } from "@/components/DateTimePicker";
+
+const GREEN = "#00E87A";
 
 type RewardType = "free_drink" | "discount" | "experience" | "custom";
 
@@ -47,6 +53,7 @@ function thirtyDaysFromNow(): Date {
 export default function NewVenueRewardScreen() {
   const { authedUid } = useApp();
   const colors = useColors();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -60,9 +67,21 @@ export default function NewVenueRewardScreen() {
   const [activateNow, setActivateNow] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit =
-    title.trim().length > 0 &&
-    prizeDescription.trim().length > 0;
+  // ── Venue theme tokens ──────────────────────────────────────────────────────
+  const vBg          = isDark ? "#0A0518"                : "#FAFAF8";
+  const vInput       = isDark ? "#1A1A1E"                : "rgba(0,0,0,0.04)";
+  const vTypeCard    = isDark ? "rgba(255,255,255,0.06)" : "#fff";
+  const vTypeBorder  = isDark ? "rgba(255,255,255,0.1)"  : "rgba(0,0,0,0.1)";
+  const vText        = isDark ? "#fff"                   : "#0D0D0D";
+  const vMuted       = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.38)";
+  const vLabel       = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)";
+  const vPlaceholder = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)";
+  const vDisabledBtn = isDark ? "#333"                   : "rgba(0,0,0,0.1)";
+  const vToggleBg    = isDark ? "rgba(255,255,255,0.06)" : "#fff";
+  const vToggleBorder= isDark ? "rgba(255,255,255,0.1)"  : "rgba(0,0,0,0.1)";
+  const accent       = isDark ? colors.primary           : GREEN;
+
+  const canSubmit = title.trim().length > 0 && prizeDescription.trim().length > 0;
 
   const handleCreate = async () => {
     if (!authedUid || !canSubmit || submitting) return;
@@ -94,7 +113,7 @@ export default function NewVenueRewardScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.background }]}
+      style={[styles.root, { backgroundColor: vBg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <VenueOwnerHeader title="New Reward" onBack={() => router.back()} backLabel="Cancel" />
@@ -106,7 +125,7 @@ export default function NewVenueRewardScreen() {
       >
         {/* Reward type selector */}
         <View>
-          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Reward Type</Text>
+          <Text style={[styles.fieldLabel, { color: vLabel }]}>Reward Type</Text>
           <View style={styles.typeRow}>
             {REWARD_TYPES.map((rt) => (
               <Pressable
@@ -115,13 +134,13 @@ export default function NewVenueRewardScreen() {
                 style={[
                   styles.typeBtn,
                   {
-                    backgroundColor: rewardType === rt.value ? colors.primary + "20" : colors.card,
-                    borderColor: rewardType === rt.value ? colors.primary : colors.border,
+                    backgroundColor: rewardType === rt.value ? accent + "20" : vTypeCard,
+                    borderColor: rewardType === rt.value ? accent : vTypeBorder,
                   },
                 ]}
               >
                 <Text style={styles.typeIcon}>{rt.icon}</Text>
-                <Text style={[styles.typeLabel, { color: rewardType === rt.value ? colors.primary : colors.mutedForeground }]}>
+                <Text style={[styles.typeLabel, { color: rewardType === rt.value ? accent : vMuted }]}>
                   {rt.label}
                 </Text>
               </Pressable>
@@ -129,16 +148,26 @@ export default function NewVenueRewardScreen() {
           </View>
         </View>
 
-        <Field label="Title *" value={title} onChangeText={setTitle} placeholder="August Check-in Champion" colors={colors} />
-        <Field label="Prize Description *" value={prizeDescription} onChangeText={setPrizeDescription} placeholder="Free cocktail of your choice" colors={colors} />
-        <Field label="Campaign Details" value={description} onChangeText={setDescription} placeholder="More info about the campaign..." multiline numberOfLines={3} colors={colors} />
+        <Field label="Title *" value={title} onChangeText={setTitle} placeholder="August Check-in Champion"
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
+        <Field label="Prize Description *" value={prizeDescription} onChangeText={setPrizeDescription}
+          placeholder="Free cocktail of your choice"
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
+        <Field label="Campaign Details" value={description} onChangeText={setDescription}
+          placeholder="More info about the campaign..." multiline numberOfLines={3}
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
 
         <DateTimePicker
           label="Start Date"
           mode="date"
           value={startDate}
           onChange={setStartDate}
-          primaryColor={colors.primary}
+          primaryColor={accent}
+          labelColor={vLabel}
+          rowBg={vInput}
+          valueColor={vText}
+          chevronColor={vMuted}
+          isDark={isDark}
         />
 
         <DateTimePicker
@@ -146,58 +175,72 @@ export default function NewVenueRewardScreen() {
           mode="date"
           value={endDate}
           onChange={setEndDate}
-          primaryColor={colors.primary}
+          primaryColor={accent}
+          labelColor={vLabel}
+          rowBg={vInput}
+          valueColor={vText}
+          chevronColor={vMuted}
+          isDark={isDark}
         />
 
-        <Field label="Venue Timezone (e.g. America/New_York)" value={venueTimezone} onChangeText={setVenueTimezone} placeholder="UTC" autoCapitalize="none" colors={colors} />
+        <Field label="Venue Timezone (e.g. America/New_York)" value={venueTimezone} onChangeText={setVenueTimezone}
+          placeholder="UTC" autoCapitalize="none"
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
 
         {/* Activate now toggle */}
         <Pressable
           onPress={() => setActivateNow(!activateNow)}
           style={[
             styles.activateToggle,
-            { borderColor: activateNow ? colors.primary : colors.border, backgroundColor: colors.card },
+            { borderColor: activateNow ? accent : vToggleBorder, backgroundColor: activateNow ? accent + "10" : vToggleBg },
           ]}
         >
           <View style={[
             styles.activateCheck,
-            { backgroundColor: activateNow ? colors.primary : "transparent", borderColor: activateNow ? colors.primary : colors.mutedForeground },
+            { backgroundColor: activateNow ? accent : "transparent", borderColor: activateNow ? accent : vMuted },
           ]}>
-            {activateNow && <Text style={[styles.activateCheckMark, { color: colors.primaryForeground }]}>✓</Text>}
+            {activateNow && <Text style={[styles.activateCheckMark, { color: isDark ? "#000" : "#fff" }]}>✓</Text>}
           </View>
-          <Text style={[styles.activateLabel, { color: activateNow ? colors.foreground : colors.mutedForeground }]}>
+          <Text style={[styles.activateLabel, { color: activateNow ? (isDark ? "#fff" : "#0D0D0D") : vMuted }]}>
             Activate immediately
           </Text>
         </Pressable>
 
         <Pressable
-          style={[styles.submitBtn, { backgroundColor: canSubmit && !submitting ? colors.primary : colors.secondary }]}
+          style={[styles.submitBtn, { backgroundColor: canSubmit && !submitting ? accent : vDisabledBtn }]}
           onPress={handleCreate}
           disabled={!canSubmit || submitting}
         >
-          {submitting ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={[styles.submitBtnText, { color: colors.primaryForeground }]}>{activateNow ? "Create & Activate" : "Save as Draft"}</Text>}
+          {submitting
+            ? <ActivityIndicator color={isDark ? "#fff" : "#0D0D0D"} />
+            : <Text style={[styles.submitBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>
+                {activateNow ? "Create & Activate" : "Save as Draft"}
+              </Text>}
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-function Field({ label, value, onChangeText, placeholder, multiline, numberOfLines, autoCapitalize = "sentences", colors }: {
+function Field({
+  label, value, onChangeText, placeholder, multiline, numberOfLines, autoCapitalize = "sentences",
+  vInput, vText, vLabel, vPlaceholder, accent,
+}: {
   label: string; value: string; onChangeText: (v: string) => void; placeholder?: string;
   multiline?: boolean; numberOfLines?: number; autoCapitalize?: "none" | "sentences";
-  colors: { primary: string; foreground: string; card: string; mutedForeground: string; border: string };
+  vInput: string; vText: string; vLabel: string; vPlaceholder: string; accent: string;
 }) {
   return (
     <View>
-      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: vLabel }]}>{label}</Text>
       <TextInput
         value={value} onChangeText={onChangeText} placeholder={placeholder}
-        placeholderTextColor={colors.mutedForeground} multiline={multiline}
+        placeholderTextColor={vPlaceholder} multiline={multiline}
         numberOfLines={numberOfLines} autoCapitalize={autoCapitalize}
         style={[
           styles.fieldInput,
           multiline && { height: (numberOfLines ?? 1) * 24 + 20, textAlignVertical: "top" },
-          { borderColor: colors.primary + "40", backgroundColor: colors.card, color: colors.foreground },
+          { backgroundColor: vInput, borderColor: accent + "40", color: vText },
         ]}
       />
     </View>

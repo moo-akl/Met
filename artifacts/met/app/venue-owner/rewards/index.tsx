@@ -1,5 +1,8 @@
 /**
  * Venue Owner Rewards List
+ *
+ * Aurora (dark):  deep #0A0518 bg, translucent glass cards, white typography.
+ * Signal (light): #FAFAF8 editorial bg, rule-separated rows, #0D0D0D typography.
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -16,24 +19,43 @@ import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, type VenueReward } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 
-const STATUS_COLOR: Record<string, string> = {
-  draft: "rgba(255,255,255,0.3)",
-  active: "#34C759",
-  completed: "#FFD700",
-  cancelled: "#FF3B30",
-};
+const GREEN = "#00E87A";
 
 export default function VenueOwnerRewardsScreen() {
   const { authedUid } = useApp();
   const colors = useColors();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { profile, isLoading: ownerLoading, error: ownerError } = useVenueOwner();
   const [rewards, setRewards] = useState<VenueReward[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // ── Venue theme tokens ──────────────────────────────────────────────────────
+  const vBg         = isDark ? "#0A0518"                : "#FAFAF8";
+  const vCard       = isDark ? "rgba(255,255,255,0.06)" : "#fff";
+  const vCardBorder = isDark ? "rgba(255,255,255,0.1)"  : "rgba(0,0,0,0.08)";
+  const vText       = isDark ? "#fff"                   : "#0D0D0D";
+  const vMuted      = isDark ? "rgba(255,255,255,0.4)"  : "rgba(0,0,0,0.38)";
+  const vEmpty      = isDark ? "rgba(255,255,255,0.4)"  : "rgba(0,0,0,0.38)";
+  const accent      = isDark ? colors.primary           : GREEN;
+
+  // Status colours adapted per theme
+  const STATUS_COLOR: Record<string, string> = isDark ? {
+    draft: "rgba(255,255,255,0.3)",
+    active: "#34C759",
+    completed: "#FFD700",
+    cancelled: "#FF3B30",
+  } : {
+    draft: "rgba(0,0,0,0.28)",
+    active: "#16A34A",
+    completed: "#B45309",
+    cancelled: "#DC2626",
+  };
 
   const fetchRewards = useCallback(async () => {
     if (!authedUid || !profile?.placeId) return;
@@ -71,10 +93,10 @@ export default function VenueOwnerRewardsScreen() {
 
   if (ownerLoading || loading) {
     return (
-      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+      <View style={[styles.root, { backgroundColor: vBg }]}>
         <VenueOwnerHeader title="Rewards" />
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={accent} />
         </View>
       </View>
     );
@@ -82,17 +104,17 @@ export default function VenueOwnerRewardsScreen() {
 
   if (ownerError || !profile) {
     return (
-      <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+      <View style={[styles.root, { backgroundColor: vBg }]}>
         <VenueOwnerHeader title="Rewards" />
         <View style={styles.center}>
-          <Text style={styles.emptyText}>We couldn’t refresh your venue access.</Text>
+          <Text style={[styles.emptyText, { color: vEmpty }]}>We couldn't refresh your venue access.</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: "#0F0F12" }]}>
+    <View style={[styles.root, { backgroundColor: vBg }]}>
       <VenueOwnerHeader
         title="Rewards"
         onBack={() => router.back()}
@@ -100,9 +122,9 @@ export default function VenueOwnerRewardsScreen() {
           <Pressable
             testID="venue-owner-new-reward"
             onPress={() => router.push("/venue-owner/rewards/new" as never)}
-            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            style={[styles.addBtn, { backgroundColor: accent }]}
           >
-            <Text style={styles.addBtnText}>+ New</Text>
+            <Text style={[styles.addBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>+ New</Text>
           </Pressable>
         }
       />
@@ -114,32 +136,32 @@ export default function VenueOwnerRewardsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🎁</Text>
-            <Text style={styles.emptyText}>No reward campaigns yet</Text>
+            <Text style={[styles.emptyText, { color: vEmpty }]}>No reward campaigns yet</Text>
             <Pressable
               onPress={() => router.push("/venue-owner/rewards/new" as never)}
-              style={[styles.emptyBtn, { borderColor: colors.primary }]}
+              style={[styles.emptyBtn, { borderColor: accent }]}
             >
-              <Text style={[styles.emptyBtnText, { color: colors.primary }]}>Create your first reward</Text>
+              <Text style={[styles.emptyBtnText, { color: accent }]}>Create your first reward</Text>
             </Pressable>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: "#1A1A1E", borderColor: "rgba(255,255,255,0.07)" }]}>
+          <View style={[styles.card, { backgroundColor: vCard, borderColor: vCardBorder }]}>
             <View style={{ flex: 1 }}>
               <View style={styles.cardHeader}>
-                <Text numberOfLines={1} style={styles.cardTitle}>{item.title}</Text>
-                <Text style={[styles.statusChip, { color: STATUS_COLOR[item.status] ?? "#fff", borderColor: STATUS_COLOR[item.status] ?? "#fff" }]}>
+                <Text numberOfLines={1} style={[styles.cardTitle, { color: vText }]}>{item.title}</Text>
+                <Text style={[styles.statusChip, { color: STATUS_COLOR[item.status] ?? vText, borderColor: STATUS_COLOR[item.status] ?? vText }]}>
                   {item.status}
                 </Text>
               </View>
-              <Text numberOfLines={1} style={styles.cardPrize}>{item.prizeDescription}</Text>
-              <Text style={styles.cardDates}>
+              <Text numberOfLines={1} style={[styles.cardPrize, { color: isDark ? "#FFD700" : "#B45309" }]}>{item.prizeDescription}</Text>
+              <Text style={[styles.cardDates, { color: vMuted }]}>
                 {new Date(item.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 {" → "}
                 {new Date(item.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </Text>
               {item.winnerUid && (
-                <Text style={[styles.winnerLabel, { color: "#FFD700" }]}>🏆 Winner selected</Text>
+                <Text style={[styles.winnerLabel, { color: isDark ? "#FFD700" : "#B45309" }]}>🏆 Winner selected</Text>
               )}
             </View>
             <View style={styles.cardActions}>
@@ -167,7 +189,7 @@ export default function VenueOwnerRewardsScreen() {
               </Pressable>
               {item.status === "active" && (
                 <Pressable onPress={() => handleCancel(item.id)} hitSlop={8} style={styles.cancelBtn}>
-                  <Text style={styles.cancelBtnText}>✕</Text>
+                  <Text style={[styles.cancelBtnText, { color: vMuted }]}>✕</Text>
                 </Pressable>
               )}
             </View>
@@ -181,27 +203,35 @@ export default function VenueOwnerRewardsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
-  backText: { color: "rgba(255,255,255,0.55)", fontSize: 15 },
-  title: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
   addBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  addBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_700Bold" },
+  addBtnText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   list: { padding: 16, gap: 10 },
-  card: { borderRadius: 10, borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "flex-start" },
+  card: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    shadowColor: "rgba(139,92,246,0.15)",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  cardTitle: { flex: 1, color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  cardTitle: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
   statusChip: { fontSize: 11, fontFamily: "Inter_600SemiBold", borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, textTransform: "uppercase" },
-  cardPrize: { color: "#FFD700", fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 4 },
-  cardDates: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontFamily: "Inter_400Regular" },
+  cardPrize: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 4 },
+  cardDates: { fontSize: 12, fontFamily: "Inter_400Regular" },
   winnerLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 4 },
   cardActions: { flexDirection: "column", alignItems: "center", gap: 4 },
   editBtn: { padding: 4 },
   editBtnText: { fontSize: 16 },
   cancelBtn: { padding: 4 },
-  cancelBtnText: { color: "rgba(255,255,255,0.4)", fontSize: 18 },
+  cancelBtnText: { fontSize: 18 },
   emptyState: { alignItems: "center", paddingTop: 60 },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyText: { color: "rgba(255,255,255,0.4)", fontSize: 16, marginBottom: 20 },
+  emptyText: { fontSize: 16, marginBottom: 20, fontFamily: "Inter_400Regular" },
   emptyBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
   emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });
