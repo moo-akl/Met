@@ -214,9 +214,9 @@ function AuroraScreen({
   onBack, onNav, onInviteStaff, onOpenQrKit, onViewPage,
 }: SharedProps & { activeRewardName: string }) {
   const STATS = [
-    { value: dashLoading ? "—" : String(totalCheckIns), label: "Check-ins", sub: "this month", borderColor: "rgba(99,102,241,0.4)", glowColor: "rgba(99,102,241,0.25)" },
-    { value: dashLoading ? "—" : String(upcomingEvents), label: "Events",     sub: "upcoming",   borderColor: "rgba(52,211,153,0.4)",  glowColor: "rgba(52,211,153,0.2)"  },
-    { value: dashLoading ? "—" : hasActiveReward ? "Live" : "None", label: "Reward", sub: "active", borderColor: "rgba(251,191,36,0.4)", glowColor: "rgba(251,191,36,0.2)" },
+    { value: dashLoading ? "—" : String(totalCheckIns), label: "Check-ins", sub: "this month", borderColor: "rgba(99,102,241,0.4)",  androidBorderColor: "rgba(99,102,241,0.8)",  glowColor: "rgba(99,102,241,0.25)" },
+    { value: dashLoading ? "—" : String(upcomingEvents), label: "Events",     sub: "upcoming",   borderColor: "rgba(52,211,153,0.4)",   androidBorderColor: "rgba(52,211,153,0.8)",   glowColor: "rgba(52,211,153,0.2)"  },
+    { value: dashLoading ? "—" : hasActiveReward ? "Live" : "None", label: "Reward", sub: "active", borderColor: "rgba(251,191,36,0.4)", androidBorderColor: "rgba(251,191,36,0.8)", glowColor: "rgba(251,191,36,0.2)" },
   ];
 
   return (
@@ -280,13 +280,13 @@ function AuroraScreen({
               style={{
                 flex: 1,
                 backgroundColor: "rgba(255,255,255,0.06)",
-                borderWidth: 1,
-                borderColor: s.borderColor,
+                borderWidth: Platform.OS === "android" ? 1.5 : 1,
+                borderColor: Platform.OS === "android" ? s.androidBorderColor : s.borderColor,
                 borderRadius: 18,
                 paddingVertical: 14,
                 paddingHorizontal: 8,
                 alignItems: "center",
-                // iOS glow
+                // iOS glow — shadowColor is ignored on Android
                 shadowColor: s.glowColor,
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 1,
@@ -316,8 +316,10 @@ function AuroraScreen({
               <View style={{
                 width: 54, height: 54, borderRadius: 17,
                 backgroundColor: "rgba(255,255,255,0.07)",
-                borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
+                borderWidth: Platform.OS === "android" ? 1.5 : 1,
+                borderColor: Platform.OS === "android" ? s.glowColor : "rgba(255,255,255,0.12)",
                 alignItems: "center", justifyContent: "center",
+                // iOS glow — shadowColor is ignored on Android
                 shadowColor: s.glowColor, shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 1, shadowRadius: 10, elevation: 3,
               }}>
@@ -416,8 +418,11 @@ function GlassCard({ children }: { children: React.ReactNode }) {
       </BlurView>
     );
   }
+  // Android: layered semi-transparent dark card approximating frosted glass.
+  // BlurView falls back to a plain View on Android so we use a more opaque
+  // dark background + a slightly lighter border to give the card visual depth.
   return (
-    <View style={{ backgroundColor: "rgba(255,255,255,0.07)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", borderRadius: 24, overflow: "hidden", marginBottom: 8 }}>
+    <View style={{ backgroundColor: "rgba(15,8,35,0.88)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)", borderRadius: 24, overflow: "hidden", marginBottom: 8 }}>
       {children}
     </View>
   );
