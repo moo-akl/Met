@@ -273,6 +273,8 @@ export const venueEventsTable = pgTable(
     /** Denormalized going+maybe RSVP count — updated on each RSVP change. */
     rsvpCount: integer("rsvp_count").notNull().default(0),
     isPublished: boolean("is_published").notNull().default(true),
+    /** Hidden by a moderator (admin) after a content report. Not shown to guests. */
+    isHidden: boolean("is_hidden").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -406,6 +408,8 @@ export const venueAnnouncementsTable = pgTable(
     imageUrl: text("image_url"),
     /** Pinned announcements are always shown first. At most one per venue. */
     isPinned: boolean("is_pinned").notNull().default(false),
+    /** Hidden by a moderator (admin) after a content report. Not shown to guests. */
+    isHidden: boolean("is_hidden").notNull().default(false),
     /** Extra metadata (links, tags, etc.) — open-ended JSONB for extensibility. */
     meta: jsonb("meta").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true })

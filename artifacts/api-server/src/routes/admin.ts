@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { db, profilesTable } from "@workspace/db";
-import { inArray } from "drizzle-orm";
+import { db, profilesTable, venueEventsTable, venueAnnouncementsTable } from "@workspace/db";
+import { inArray, eq } from "drizzle-orm";
 import { adminAuth, adminDb, adminStorage } from "../lib/firebaseAdmin";
 import { deleteUserData } from "../lib/deleteUserData";
 import { logger } from "../lib/logger";
@@ -263,6 +263,66 @@ router.get(
       deleted_files: deleted,
       errors: deleteErrors,
     });
+  },
+);
+
+/**
+ * PATCH /api/admin/venue-content/:entityType/:id
+ *
+ * Moderator action: hide a specific piece of venue-generated UGC that was
+ * flagged via POST /api/venue-content-reports. Sets isHidden=true on the row
+ * so the content is suppressed from guest-facing queries without deleting it
+ * (preserving the record for potential appeals).
+ *
+ * entityType: 'event' | 'announcement'
+ * body: { hidden: boolean }  — pass false to un-hide (restore) content
+ *
+ * Requires header: X-Admin-Secret: <ADMIN_SECRET env var>
+ */
+router.patch(
+  "/admin/venue-content/:entityType/:id",
+  requireAdminSecret,
+  async (req: Request, res: Response) => {
+    const { entityType, id } = req.params as { entityType: string; id: string };
+    const entityId = parseInt(id, 10);
+    if (isNaN(entityId)) {
+      res.status(400).json({ message: "Invalid entity id" });
+      return;
+    }
+
+    const hidden: boolean = (req.body as { hidden?: boolean }).hidden ?? true;
+
+    if (entityType === "event") {
+      const [updated] = await db
+        .update(venueEventsTable)
+        .set({ isHidden: hidden })
+        .where(eq(venueEventsTable.id, entityId))
+        .returning({ id: venueEventsTable.id, placeId: venueEventsTable.placeId });
+      if (!updated) {
+        res.status(404).json({ message: "Event not found" });
+        return;
+      }
+      logger.info({ entityType, entityId, hidden }, "venue content moderated");
+      res.json({ success: true, entityType, entityId, hidden });
+      return;
+    }
+
+    if (entityType === "announcement") {
+      const [updated] = await db
+        .update(venueAnnouncementsTable)
+        .set({ isHidden: hidden })
+        .where(eq(venueAnnouncementsTable.id, entityId))
+        .returning({ id: venueAnnouncementsTable.id, placeId: venueAnnouncementsTable.placeId });
+      if (!updated) {
+        res.status(404).json({ message: "Announcement not found" });
+        return;
+      }
+      logger.info({ entityType, entityId, hidden }, "venue content moderated");
+      res.json({ success: true, entityType, entityId, hidden });
+      return;
+    }
+
+    res.status(400).json({ message: `Unsupported entityType: ${entityType}. Use 'event' or 'announcement'.` });
   },
 );
 

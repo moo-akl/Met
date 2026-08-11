@@ -3,7 +3,7 @@ import { z } from "zod";
 import { and, eq, count, or, sql } from "drizzle-orm";
 import { requireUid } from "../middlewares/requireUid";
 import { adminDb } from "../lib/firebaseAdmin";
-import { db, userReportsTable, userStatsTable, reviewsTable } from "@workspace/db";
+import { db, userReportsTable, userStatsTable, reviewsTable, venueContentReportsTable } from "@workspace/db";
 import { recalcUserRating } from "../lib/reviewRecalc";
 
 const router: IRouter = Router();
@@ -148,6 +148,78 @@ router.post("/reports", requireUid, async (req, res) => {
       // Postgres mirror is best-effort — report is already safely in Firestore.
       req.log?.warn?.({ err }, "failed to mirror report to Postgres");
     }
+  }
+
+  res.json({ id: firestoreId });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/venue-content-reports
+//
+// Guests report venue-generated UGC (events, announcements, the venue itself).
+// Satisfies Apple App Store Review Guideline §5.1.2: apps with UGC must provide
+// a mechanism for users to flag inappropriate content.
+//
+// The report is persisted in Firestore (primary, team-monitored) and mirrored
+// to Postgres (venue_content_reports) for admin querying and bulk actions.
+// ---------------------------------------------------------------------------
+const VenueContentReportBody = z.object({
+  entityType: z.enum(["event", "announcement", "venue"]),
+  entityId: z.number().int().nonnegative().default(0),
+  placeId: z.string().min(1).max(256),
+  reason: z.enum(["inappropriate", "harassment", "spam", "offensive_image", "other"]),
+});
+
+router.post("/venue-content-reports", requireUid, async (req, res) => {
+  const reporterUid = req.uid!;
+  let body: z.infer<typeof VenueContentReportBody>;
+  try {
+    body = VenueContentReportBody.parse(req.body);
+  } catch (err) {
+    res.status(400).json({ message: (err as Error).message });
+    return;
+  }
+
+  // ── 1. Write to Firestore (primary, team monitors this collection) ─────────
+  let firestoreId: string | null = null;
+  try {
+    const docRef = await adminDb()
+      .collection("venue_content_reports")
+      .add({
+        reporterUid,
+        entityType: body.entityType,
+        entityId: body.entityId,
+        placeId: body.placeId,
+        reason: body.reason,
+        createdAt: new Date().toISOString(),
+        status: "open",
+      });
+    firestoreId = docRef.id;
+    req.log?.info?.(
+      { id: docRef.id, reporterUid, entityType: body.entityType, entityId: body.entityId, placeId: body.placeId },
+      "venue content report written to Firestore",
+    );
+  } catch (err) {
+    req.log?.error?.({ err }, "failed to write venue content report to Firestore");
+    res.status(500).json({ message: "Failed to record report" });
+    return;
+  }
+
+  // ── 2. Mirror to Postgres (best-effort; report is safe in Firestore) ───────
+  try {
+    await db
+      .insert(venueContentReportsTable)
+      .values({
+        reporterUid,
+        entityType: body.entityType,
+        entityId: body.entityId,
+        placeId: body.placeId,
+        reason: body.reason,
+        firestoreId,
+      })
+      .onConflictDoNothing(); // unique: reporter × entityType × entityId
+  } catch (err) {
+    req.log?.warn?.({ err }, "failed to mirror venue content report to Postgres");
   }
 
   res.json({ id: firestoreId });

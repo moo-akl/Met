@@ -248,6 +248,45 @@ export const userReportsTable = pgTable(
 export type UserReport = typeof userReportsTable.$inferSelect;
 
 // ---------------------------------------------------------------------------
+// venue_content_reports
+// Abuse/safety reports filed by guests against venue-generated content
+// (events, announcements). Primary copy goes to Firestore; this Postgres
+// mirror lets admins query, count, and bulk-action flagged content.
+//
+// entityType: 'event' | 'announcement' | 'venue'
+// entityId:   the integer PK of the offending row (or 0 for 'venue')
+// placeId:    the venue's Google Places ID (always set; used for lookup)
+// ---------------------------------------------------------------------------
+export const venueContentReportsTable = pgTable(
+  "venue_content_reports",
+  {
+    id: serial("id").primaryKey(),
+    reporterUid: text("reporter_uid").notNull(),
+    entityType: text("entity_type").notNull(), // 'event' | 'announcement' | 'venue'
+    entityId: integer("entity_id").notNull().default(0),
+    placeId: text("place_id").notNull(),
+    reason: text("reason").notNull(),
+    firestoreId: text("firestore_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    placeIdx: index("venue_content_reports_place_idx").on(t.placeId),
+    entityIdx: index("venue_content_reports_entity_idx").on(t.entityType, t.entityId),
+    reporterIdx: index("venue_content_reports_reporter_idx").on(t.reporterUid),
+    // One report per reporter per entity — prevents vote-stuffing.
+    uniq: uniqueIndex("venue_content_reports_reporter_entity_uniq").on(
+      t.reporterUid,
+      t.entityType,
+      t.entityId,
+    ),
+  }),
+);
+
+export type VenueContentReport = typeof venueContentReportsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
 // subscriptions
 // Server-side record of a user's subscription tier. Written by the client
 // after a successful RevenueCat purchase (or manually by the dev toggle for

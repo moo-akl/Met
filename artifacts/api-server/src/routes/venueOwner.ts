@@ -1404,6 +1404,7 @@ router.get(
         and(
           eq(venueEventsTable.placeId, placeId),
           eq(venueEventsTable.isPublished, true),
+          eq(venueEventsTable.isHidden, false),
         ),
       )
       .orderBy(desc(venueEventsTable.startsAt));
@@ -2015,7 +2016,12 @@ router.get(
     const announcements = await db
       .select()
       .from(venueAnnouncementsTable)
-      .where(eq(venueAnnouncementsTable.placeId, placeId))
+      .where(
+        and(
+          eq(venueAnnouncementsTable.placeId, placeId),
+          eq(venueAnnouncementsTable.isHidden, false),
+        ),
+      )
       .orderBy(desc(venueAnnouncementsTable.isPinned), desc(venueAnnouncementsTable.createdAt));
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     res.json({ announcements: announcements.map((a) => serializePublicVenueAnnouncement(a, baseUrl)) });

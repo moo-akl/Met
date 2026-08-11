@@ -1510,4 +1510,18 @@ export const api = {
   /** The calling user's own review for this venue, or null if none yet. */
   getMyVenueReview: (opts: ApiOptions, placeId: string) =>
     request<{ review: VenueReview | null }>("GET", `/api/hubs/${placeId}/my-review`, opts),
+
+  /**
+   * Report venue-generated content (event, announcement, or the venue itself)
+   * as inappropriate. Satisfies App Store §5.1.2 UGC flagging requirement.
+   */
+  reportVenueContent: (
+    opts: ApiOptions,
+    body: {
+      entityType: "event" | "announcement" | "venue";
+      entityId: number;
+      placeId: string;
+      reason: "inappropriate" | "harassment" | "spam" | "offensive_image" | "other";
+    },
+  ) => request<{ id: string | null }>("POST", "/api/venue-content-reports", opts, body),
 };

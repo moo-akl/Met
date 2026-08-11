@@ -371,6 +371,45 @@ export default function VenueProfileScreen() {
   const [showEndedRewards, setShowEndedRewards] = useState(false);
   const [myLeaderboardEntry, setMyLeaderboardEntry] = useState<{ rank: number; checkinCount: number } | null>(null);
 
+  // ── Content reporting (Apple §5.1.2) ────────────────────────────────────
+  const showContentReportSheet = (
+    entityType: "event" | "announcement" | "venue",
+    entityId: number,
+    targetPlaceId: string,
+  ) => {
+    if (!authedUid) return;
+    Alert.alert(
+      "Report Content",
+      "Why are you reporting this?",
+      [
+        { text: "Inappropriate", onPress: () => submitContentReport(entityType, entityId, targetPlaceId, "inappropriate") },
+        { text: "Offensive image", onPress: () => submitContentReport(entityType, entityId, targetPlaceId, "offensive_image") },
+        { text: "Spam", onPress: () => submitContentReport(entityType, entityId, targetPlaceId, "spam") },
+        { text: "Harassment", onPress: () => submitContentReport(entityType, entityId, targetPlaceId, "harassment") },
+        { text: "Other", onPress: () => submitContentReport(entityType, entityId, targetPlaceId, "other") },
+        { text: "Cancel", style: "cancel" },
+      ],
+    );
+  };
+
+  const submitContentReport = async (
+    entityType: "event" | "announcement" | "venue",
+    entityId: number,
+    targetPlaceId: string,
+    reason: "inappropriate" | "harassment" | "spam" | "offensive_image" | "other",
+  ) => {
+    if (!authedUid) return;
+    try {
+      await api.reportVenueContent(
+        { uid: authedUid },
+        { entityType, entityId, placeId: targetPlaceId, reason },
+      );
+      Alert.alert("Thanks", "Your report has been submitted. We review all flagged content within 24 hours.");
+    } catch {
+      Alert.alert("Couldn't submit report", "Please try again in a moment.");
+    }
+  };
+
   // ── Venue review state ───────────────────────────────────────────────────
   const [myReview, setMyReview]           = useState<{ starRating: number; comment: string | null } | null>(null);
   const [reviewStars, setReviewStars]     = useState(0);
@@ -747,9 +786,19 @@ export default function VenueProfileScreen() {
                     )}
                     <Text style={styles.annTitle}>{ann.title}</Text>
                     <Text numberOfLines={3} style={styles.annText}>{ann.body}</Text>
-                    <Text style={styles.annDate}>
-                      {new Date(ann.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+                      <Text style={styles.annDate}>
+                        {new Date(ann.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </Text>
+                      <Pressable
+                        onPress={() => showContentReportSheet("announcement", ann.id, placeId ?? "")}
+                        hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel="Report this announcement"
+                      >
+                        <Text style={{ fontSize: 11, color: MUTED }}>Report</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
               ))}
@@ -1179,6 +1228,14 @@ export default function VenueProfileScreen() {
                     👥  {selectedEvent.rsvpCount} going
                   </Text>
                 </View>
+                <Pressable
+                  onPress={() => showContentReportSheet("event", selectedEvent.id, placeId ?? "")}
+                  style={{ marginTop: 16, alignSelf: "flex-start" }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report this event"
+                >
+                  <Text style={{ fontSize: 12, color: MUTED }}>Report this event</Text>
+                </Pressable>
               </View>
             </Pressable>
           </Pressable>
