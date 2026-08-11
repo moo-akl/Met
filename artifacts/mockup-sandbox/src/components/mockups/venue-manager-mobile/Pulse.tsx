@@ -1,125 +1,116 @@
 /**
- * Pulse — Dark command-centre feel.
- * Hero stat at the top. Vertical full-width nav list instead of grid.
- * Clean, no emojis, geometric icon containers.
+ * Signal — Editorial / magazine cover.
+ * White background. The venue name is a MASSIVE typographic presence.
+ * Stats as hairline-divided newspaper numbers. Navigation as minimal text links.
+ * One electric accent: #00E87A. Inspired by high-fashion editorial layouts.
  */
 
-const W = 375;
-const H = 812;
-
-const NAV = [
-  { icon: "👥", label: "Guests", sub: "Who's been visiting", accent: "#60A5FA" },
-  { icon: "📅", label: "Events", sub: "Upcoming & past", accent: "#818CF8" },
-  { icon: "🎁", label: "Rewards", sub: "Active campaigns", accent: "#34D399" },
-  { icon: "📢", label: "Announcements", sub: "Posts to guests", accent: "#FBBF24" },
-  { icon: "✏️", label: "Edit Profile", sub: "Photos, hours, description", accent: "#F472B6" },
-];
-
-const TOOLS = [
-  { icon: "👥", label: "Invite Staff", sub: "One-time registration link", accent: "#A78BFA" },
-  { icon: "🖨️", label: "QR Check-in Kit", sub: "Print a table tent", accent: "#34D399" },
-];
+const GREEN = "#00E87A";
+const BLACK = "#0D0D0D";
 
 export default function Pulse() {
   return (
-    <div style={{ width: W, height: H, background: "#0A0A0D", fontFamily: "'Inter', system-ui, sans-serif", overflow: "hidden", display: "flex", flexDirection: "column", position: "relative" }}>
+    <div style={{ width: 375, height: 812, background: "#FAFAF8", fontFamily: "'Inter', system-ui, sans-serif", overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
       {/* Status bar */}
       <div style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", paddingInline: 20, flexShrink: 0 }}>
-        <span style={{ color: "#fff", fontSize: 15, fontWeight: 600 }}>9:41</span>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="3" width="3" height="9" rx="1" fill="white" opacity="0.4"/><rect x="4.5" y="2" width="3" height="10" rx="1" fill="white" opacity="0.6"/><rect x="9" y="0" width="3" height="12" rx="1" fill="white" opacity="0.8"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="white"/></svg>
-          <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 2.5C10.5 2.5 12.7 3.6 14.2 5.3L15.5 4C13.6 1.9 10.9 0.5 8 0.5C5.1 0.5 2.4 1.9 0.5 4L1.8 5.3C3.3 3.6 5.5 2.5 8 2.5Z" fill="white" opacity="0.5"/><path d="M8 5.5C9.7 5.5 11.2 6.2 12.3 7.4L13.6 6.1C12.1 4.6 10.2 3.5 8 3.5C5.8 3.5 3.9 4.6 2.4 6.1L3.7 7.4C4.8 6.2 6.3 5.5 8 5.5Z" fill="white" opacity="0.7"/><circle cx="8" cy="10" r="1.5" fill="white"/></svg>
-          <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
-            <div style={{ width: 22, height: 11, border: "1.5px solid rgba(255,255,255,0.5)", borderRadius: 3, padding: 1.5, display: "flex", alignItems: "center" }}>
-              <div style={{ width: "80%", height: "100%", background: "#4ADE80", borderRadius: 1.5 }} />
-            </div>
+        <span style={{ color: BLACK, fontSize: 15, fontWeight: 600 }}>9:41</span>
+        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+          <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="3" width="3" height="9" rx="1" fill={BLACK} opacity="0.25"/><rect x="4.5" y="2" width="3" height="10" rx="1" fill={BLACK} opacity="0.45"/><rect x="9" y="0" width="3" height="12" rx="1" fill={BLACK} opacity="0.7"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill={BLACK}/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 2.5C10.5 2.5 12.7 3.6 14.2 5.3L15.5 4C13.6 1.9 10.9 0.5 8 0.5C5.1 0.5 2.4 1.9 0.5 4L1.8 5.3C3.3 3.6 5.5 2.5 8 2.5Z" fill={BLACK} opacity="0.4"/><path d="M8 5.5C9.7 5.5 11.2 6.2 12.3 7.4L13.6 6.1C12.1 4.6 10.2 3.5 8 3.5C5.8 3.5 3.9 4.6 2.4 6.1L3.7 7.4C4.8 6.2 6.3 5.5 8 5.5Z" fill={BLACK} opacity="0.7"/><circle cx="8" cy="10" r="1.5" fill={BLACK}/></svg>
+          <div style={{ width: 22, height: 11, border: `1.5px solid rgba(0,0,0,0.35)`, borderRadius: 3, padding: 1.5, display: "flex", alignItems: "center" }}>
+            <div style={{ width: "80%", height: "100%", background: GREEN, borderRadius: 1.5 }} />
           </div>
         </div>
       </div>
 
-      {/* Header */}
-      <div style={{ paddingInline: 20, paddingBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-        <div>
-          <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 2 }}>Venue Manager</div>
-          <div style={{ color: "#fff", fontSize: 22, fontWeight: 700, letterSpacing: -0.5 }}>The Grand Terrace</div>
+      {/* ── Top strip: eyebrow + approved badge ── */}
+      <div style={{ paddingInline: 22, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, paddingTop: 4, paddingBottom: 8 }}>
+        <span style={{ color: "rgba(0,0,0,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>Venue Manager</span>
+        <span style={{ background: GREEN, color: BLACK, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, borderRadius: 100, paddingInline: 10, paddingBlock: 4 }}>✓ APPROVED</span>
+      </div>
+
+      {/* ── HERO: giant venue name ── */}
+      <div style={{ paddingInline: 22, flexShrink: 0, borderBottom: "1.5px solid rgba(0,0,0,0.08)", paddingBottom: 20 }}>
+        <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: -2, lineHeight: 1.0, color: BLACK, textTransform: "uppercase" }}>
+          The Grand<br />Terrace
         </div>
-        <div style={{ background: "#16A34A1A", border: "1px solid #16A34A50", borderRadius: 8, padding: "4px 10px" }}>
-          <span style={{ color: "#4ADE80", fontSize: 12, fontWeight: 700 }}>✓ Approved</span>
+        <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: GREEN }} />
+          <span style={{ color: "rgba(0,0,0,0.4)", fontSize: 11, fontWeight: 500 }}>Chelsea, London</span>
         </div>
       </div>
 
-      {/* Hero stats strip */}
-      <div style={{ marginInline: 16, marginTop: 12, background: "#141418", borderRadius: 16, border: "1px solid rgba(255,255,255,0.07)", padding: "14px 16px", display: "flex", gap: 0, flexShrink: 0 }}>
+      {/* ── Newspaper stats row ── */}
+      <div style={{ display: "flex", borderBottom: "1.5px solid rgba(0,0,0,0.08)", flexShrink: 0 }}>
         {[
-          { value: "1,284", label: "Check-ins", sub: "this month", color: "#818CF8" },
-          { value: "3", label: "Events", sub: "upcoming", color: "#34D399" },
-          { value: "Active", label: "Reward", sub: "running", color: "#FBBF24" },
+          { value: "1,284", label: "Check-ins", flag: "30d" },
+          { value: "3", label: "Events", flag: "ahead" },
+          { value: "1", label: "Reward", flag: "live" },
         ].map((s, i) => (
-          <div key={i} style={{ flex: 1, textAlign: "center", borderRight: i < 2 ? "1px solid rgba(255,255,255,0.07)" : "none", padding: "0 8px" }}>
-            <div style={{ color: s.color, fontSize: 20, fontWeight: 700, letterSpacing: -0.5 }}>{s.value}</div>
-            <div style={{ color: "#fff", fontSize: 12, fontWeight: 600, marginTop: 1 }}>{s.label}</div>
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginTop: 1 }}>{s.sub}</div>
+          <div key={i} style={{ flex: 1, padding: "16px 14px 14px", borderRight: i < 2 ? "1.5px solid rgba(0,0,0,0.08)" : "none" }}>
+            <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: -1.5, color: BLACK, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ marginTop: 4, display: "flex", gap: 5, alignItems: "baseline" }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)" }}>{s.label}</span>
+              <span style={{ fontSize: 9, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.flag}</span>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px 24px" }}>
+      {/* ── Scrollable nav ── */}
+      <div style={{ flex: 1, overflowY: "auto" }}>
 
-        {/* MANAGE label */}
-        <div style={{ color: "rgba(255,255,255,0.28)", fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8, marginTop: 4 }}>Manage</div>
+        {/* Manage links */}
+        <div style={{ paddingInline: 22, paddingTop: 20, paddingBottom: 4 }}>
+          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 2, color: "rgba(0,0,0,0.3)", textTransform: "uppercase", marginBottom: 14 }}>Manage</div>
 
-        {/* Vertical nav list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-          {NAV.map((item) => (
-            <div key={item.label} style={{ background: "#141418", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "13px 14px", display: "flex", alignItems: "center", gap: 13 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 11, background: item.accent + "1A", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <span style={{ fontSize: 20 }}>{item.icon}</span>
+          {[
+            { label: "Guests", meta: "Who's been visiting" },
+            { label: "Events", meta: "Upcoming & past" },
+            { label: "Rewards", meta: "Active campaigns" },
+            { label: "Announcements", meta: "Posts to guests" },
+            { label: "Edit Profile", meta: "Photos, hours, description" },
+          ].map((item, i) => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", paddingBlock: 15, borderTop: i === 0 ? "none" : "1px solid rgba(0,0,0,0.06)" }}>
+              {/* Large index number */}
+              <span style={{ color: "rgba(0,0,0,0.12)", fontSize: 12, fontWeight: 800, fontVariantNumeric: "tabular-nums", width: 22, flexShrink: 0 }}>0{i + 1}</span>
+              <div style={{ flex: 1, marginLeft: 10 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.5, color: BLACK }}>{item.label}</div>
+                <div style={{ fontSize: 11, color: "rgba(0,0,0,0.38)", marginTop: 1 }}>{item.meta}</div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: "#fff", fontSize: 15, fontWeight: 600 }}>{item.label}</div>
-                <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 12, marginTop: 2 }}>{item.sub}</div>
-              </div>
-              <div style={{ color: item.accent, fontSize: 22, lineHeight: 1, opacity: 0.7 }}>›</div>
+              {/* Electric arrow */}
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M4 10h12M11 5l5 5-5 5" stroke={GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
           ))}
         </div>
 
-        {/* TOOLS */}
-        <div style={{ color: "rgba(255,255,255,0.28)", fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>Tools</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-          {TOOLS.map((item) => (
-            <div key={item.label} style={{ background: "#141418", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "13px 14px", display: "flex", alignItems: "center", gap: 13 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 11, background: item.accent + "1A", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <span style={{ fontSize: 20 }}>{item.icon}</span>
-              </div>
+        {/* Divider */}
+        <div style={{ height: 1.5, background: "rgba(0,0,0,0.08)", marginInline: 22, marginTop: 4, marginBottom: 20 }} />
+
+        {/* Tools + Venue page as compact text links */}
+        <div style={{ paddingInline: 22, paddingBottom: 28, display: "flex", flexDirection: "column", gap: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 2, color: "rgba(0,0,0,0.3)", textTransform: "uppercase", marginBottom: 14 }}>Tools</div>
+          {[
+            { label: "Invite Staff", meta: "One-time registration link" },
+            { label: "QR Check-in Kit", meta: "Print a table tent" },
+            { label: "View public page →", meta: "See how guests find you", accent: true },
+          ].map((item, i) => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", paddingBlock: 13, borderTop: i === 0 ? "none" : "1px solid rgba(0,0,0,0.06)" }}>
               <div style={{ flex: 1 }}>
-                <div style={{ color: "#fff", fontSize: 15, fontWeight: 600 }}>{item.label}</div>
-                <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 12, marginTop: 2 }}>{item.sub}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.3, color: item.accent ? GREEN : BLACK }}>{item.label}</div>
+                <div style={{ fontSize: 11, color: "rgba(0,0,0,0.38)", marginTop: 1 }}>{item.meta}</div>
               </div>
-              <div style={{ color: item.accent, fontSize: 22, lineHeight: 1, opacity: 0.7 }}>›</div>
             </div>
           ))}
-        </div>
-
-        {/* View public page */}
-        <div style={{ color: "rgba(255,255,255,0.28)", fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>Venue Page</div>
-        <div style={{ background: "#141418", border: "1px solid #6366F140", borderRadius: 14, padding: "13px 14px", display: "flex", alignItems: "center", gap: 13 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 11, background: "#6366F115", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <span style={{ fontSize: 20 }}>👁</span>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ color: "#fff", fontSize: 15, fontWeight: 600 }}>View public page</div>
-            <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 12, marginTop: 2 }}>See how guests discover you</div>
-          </div>
-          <div style={{ color: "#818CF8", fontSize: 22, lineHeight: 1 }}>›</div>
         </div>
       </div>
 
-      {/* Bottom home indicator */}
-      <div style={{ paddingBottom: 8, display: "flex", justifyContent: "center", flexShrink: 0 }}>
-        <div style={{ width: 134, height: 5, background: "rgba(255,255,255,0.2)", borderRadius: 3 }} />
+      {/* Home indicator */}
+      <div style={{ paddingBottom: 8, display: "flex", justifyContent: "center", flexShrink: 0, background: "#FAFAF8" }}>
+        <div style={{ width: 134, height: 5, background: "rgba(0,0,0,0.1)", borderRadius: 3 }} />
       </div>
     </div>
   );

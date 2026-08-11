@@ -1,125 +1,134 @@
 /**
- * Forge — Mid-tone blue-grey.
- * Slate blue surface, white cards, green/teal accent.
- * Not pure dark, not pure light — muted professional.
- * Feels like a modern productivity app (Notion, Linear).
+ * Terminal — Brutalist / data-terminal aesthetic.
+ * Absolute black. One electric accent: #C8FF00 (chartreuse).
+ * Monospaced stat numbers. Sharp corners. Grid-ruled layout.
+ * Inspired by Bloomberg Terminal, Teenage Engineering, and Virgil Abloh's OFF-WHITE.
+ * The most distinctive design direction of the three.
  */
+
+const LIME = "#C8FF00";
+const BG = "#060606";
+
+function Divider() {
+  return <div style={{ height: 1, background: "rgba(200,255,0,0.12)", marginInline: 0 }} />;
+}
 
 export default function Forge() {
   return (
-    <div style={{ width: 375, height: 812, background: "#1E2A3A", fontFamily: "'Inter', system-ui, sans-serif", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div style={{ width: 375, height: 812, background: BG, fontFamily: "'Courier New', 'Courier', monospace", overflow: "hidden", display: "flex", flexDirection: "column", position: "relative" }}>
 
-      {/* Status bar */}
-      <div style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", paddingInline: 20, flexShrink: 0 }}>
-        <span style={{ color: "#E2E8F0", fontSize: 15, fontWeight: 600 }}>9:41</span>
-        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-          <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="3" width="3" height="9" rx="1" fill="#94A3B8" opacity="0.5"/><rect x="4.5" y="2" width="3" height="10" rx="1" fill="#94A3B8" opacity="0.7"/><rect x="9" y="0" width="3" height="12" rx="1" fill="#94A3B8" opacity="0.9"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#E2E8F0"/></svg>
-          <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 2.5C10.5 2.5 12.7 3.6 14.2 5.3L15.5 4C13.6 1.9 10.9 0.5 8 0.5C5.1 0.5 2.4 1.9 0.5 4L1.8 5.3C3.3 3.6 5.5 2.5 8 2.5Z" fill="#94A3B8" opacity="0.5"/><path d="M8 5.5C9.7 5.5 11.2 6.2 12.3 7.4L13.6 6.1C12.1 4.6 10.2 3.5 8 3.5C5.8 3.5 3.9 4.6 2.4 6.1L3.7 7.4C4.8 6.2 6.3 5.5 8 5.5Z" fill="#94A3B8" opacity="0.8"/><circle cx="8" cy="10" r="1.5" fill="#E2E8F0"/></svg>
-          <div style={{ width: 22, height: 11, border: "1.5px solid rgba(148,163,184,0.5)", borderRadius: 3, padding: 1.5, display: "flex", alignItems: "center" }}>
-            <div style={{ width: "80%", height: "100%", background: "#2DD4BF", borderRadius: 1.5 }} />
-          </div>
-        </div>
-      </div>
-
-      {/* Header */}
-      <div style={{ paddingInline: 20, paddingBottom: 14, flexShrink: 0 }}>
-        <div style={{ color: "#64748B", fontSize: 12, fontWeight: 600, letterSpacing: 0.5, marginBottom: 3 }}>Venue Manager</div>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-          <div style={{ color: "#F1F5F9", fontSize: 23, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.15 }}>The Grand Terrace</div>
-          <div style={{ background: "#134E2C", borderRadius: 100, padding: "4px 10px", flexShrink: 0, marginLeft: 10, marginTop: 3 }}>
-            <span style={{ color: "#4ADE80", fontSize: 11, fontWeight: 700 }}>✓ Approved</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats row — white cards */}
-      <div style={{ paddingInline: 16, marginBottom: 14, display: "flex", gap: 9, flexShrink: 0 }}>
-        {[
-          { value: "1,284", label: "Check-ins", color: "#2DD4BF" },
-          { value: "3", label: "Events", color: "#60A5FA" },
-          { value: "Live", label: "Reward", color: "#A78BFA" },
-        ].map((s, i) => (
-          <div key={i} style={{ flex: 1, background: "#243447", borderRadius: 14, padding: "12px 10px", textAlign: "center", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ color: s.color, fontSize: 18, fontWeight: 800 }}>{s.value}</div>
-            <div style={{ color: "#94A3B8", fontSize: 10, fontWeight: 600, marginTop: 3 }}>{s.label}</div>
-          </div>
+      {/* Subtle grid lines */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0, opacity: 0.04 }}>
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div key={i} style={{ position: "absolute", left: 0, right: 0, top: i * 40, height: 1, background: LIME }} />
+        ))}
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left: i * 42, width: 1, background: LIME }} />
         ))}
       </div>
 
-      {/* Scrollable body */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 24px" }}>
+      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
 
-        <div style={{ color: "#475569", fontSize: 11, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 9 }}>Manage</div>
+        {/* Status bar — monospaced */}
+        <div style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", paddingInline: 18, flexShrink: 0, borderBottom: `1px solid rgba(200,255,0,0.12)` }}>
+          <span style={{ color: LIME, fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>09:41</span>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span style={{ color: "rgba(200,255,0,0.4)", fontSize: 11, letterSpacing: 1 }}>▲▲▲▲</span>
+            <span style={{ color: "rgba(200,255,0,0.5)", fontSize: 11 }}>WiFi</span>
+            <span style={{ color: LIME, fontSize: 11 }}>████</span>
+          </div>
+        </div>
 
-        {/* 2-column grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 9 }}>
+        {/* ── Header block ── */}
+        <div style={{ paddingInline: 18, paddingTop: 16, paddingBottom: 16, borderBottom: `1px solid rgba(200,255,0,0.12)`, flexShrink: 0 }}>
+          <div style={{ color: "rgba(200,255,0,0.45)", fontSize: 10, letterSpacing: 3, textTransform: "uppercase", marginBottom: 8 }}>// VENUE_MANAGER.APP</div>
+          <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -0.5, color: "#fff", lineHeight: 1.05, textTransform: "uppercase" }}>THE GRAND<br />TERRACE</div>
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ background: LIME, color: BG, fontSize: 9, fontWeight: 900, letterSpacing: 1.5, paddingInline: 8, paddingBlock: 3, textTransform: "uppercase" }}>
+              ✓ APPROVED
+            </div>
+            <span style={{ color: "rgba(200,255,0,0.3)", fontSize: 10, letterSpacing: 1 }}>CHELSEA · LONDON</span>
+          </div>
+        </div>
+
+        {/* ── Stats: big monospaced numbers ── */}
+        <div style={{ display: "flex", borderBottom: `1px solid rgba(200,255,0,0.12)`, flexShrink: 0 }}>
           {[
-            { icon: "👥", label: "Guests", sub: "See regulars", accent: "#2DD4BF", bg: "#0D3330" },
-            { icon: "📅", label: "Events", sub: "Create & manage", accent: "#60A5FA", bg: "#0D1F3A" },
-            { icon: "🎁", label: "Rewards", sub: "Run campaigns", accent: "#A78BFA", bg: "#1A143A" },
-            { icon: "📢", label: "Announce", sub: "Post updates", accent: "#FBBF24", bg: "#2A1F05" },
-          ].map((item) => (
-            <div key={item.label} style={{ background: "#243447", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 13px 12px", display: "flex", flexDirection: "column", gap: 9 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: item.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 20 }}>{item.icon}</span>
-              </div>
-              <div>
-                <div style={{ color: "#F1F5F9", fontSize: 14, fontWeight: 700 }}>{item.label}</div>
-                <div style={{ color: "#64748B", fontSize: 11, marginTop: 2 }}>{item.sub}</div>
-              </div>
+            { value: "1284", label: "CHECK-INS", meta: "30D" },
+            { value: "003", label: "EVENTS", meta: "LIVE" },
+            { value: "001", label: "REWARDS", meta: "ACTIVE" },
+          ].map((s, i) => (
+            <div key={i} style={{ flex: 1, padding: "14px 14px 12px", borderRight: i < 2 ? `1px solid rgba(200,255,0,0.12)` : "none" }}>
+              <div style={{ color: LIME, fontSize: 28, fontWeight: 900, letterSpacing: -1, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ marginTop: 5, color: "rgba(255,255,255,0.35)", fontSize: 9, letterSpacing: 1.5 }}>{s.label}</div>
+              <div style={{ color: "rgba(200,255,0,0.5)", fontSize: 8, letterSpacing: 1, marginTop: 2 }}>[{s.meta}]</div>
             </div>
           ))}
         </div>
 
-        {/* Edit profile full-width */}
-        <div style={{ background: "#243447", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "13px 14px", display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 11, background: "#2A1A30", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <span style={{ fontSize: 20 }}>✏️</span>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ color: "#F1F5F9", fontSize: 14, fontWeight: 700 }}>Edit Profile</div>
-            <div style={{ color: "#64748B", fontSize: 11, marginTop: 2 }}>Name, photos, description</div>
-          </div>
-          <span style={{ color: "#475569", fontSize: 22 }}>›</span>
-        </div>
+        {/* ── Navigation: terminal-list style ── */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
 
-        {/* Tools */}
-        <div style={{ color: "#475569", fontSize: 11, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 9 }}>Tools</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 16 }}>
+          {/* Section: MANAGE */}
+          <div style={{ paddingInline: 18, paddingTop: 14, paddingBottom: 4 }}>
+            <div style={{ color: "rgba(200,255,0,0.35)", fontSize: 9, letterSpacing: 3, marginBottom: 10 }}>// MANAGE</div>
+          </div>
+
           {[
-            { icon: "👥", label: "Invite Staff", sub: "One-time registration link", accent: "#A78BFA", bg: "#1A143A" },
-            { icon: "🖨️", label: "QR Check-in Kit", sub: "Print a table tent", accent: "#2DD4BF", bg: "#0D3330" },
-          ].map((item) => (
-            <div key={item.label} style={{ background: "#243447", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "13px 14px", display: "flex", alignItems: "center", gap: 13 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: item.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <span style={{ fontSize: 20 }}>{item.icon}</span>
+            { cmd: "guests", label: "GUESTS", desc: "WHO IS RETURNING" },
+            { cmd: "events", label: "EVENTS", desc: "UPCOMING + PAST" },
+            { cmd: "rewards", label: "REWARDS", desc: "ACTIVE CAMPAIGNS" },
+            { cmd: "announce", label: "ANNOUNCE", desc: "PUSH TO GUESTS" },
+            { cmd: "profile", label: "PROFILE", desc: "EDIT VENUE DATA" },
+          ].map((item, i) => (
+            <div key={item.cmd}>
+              {i > 0 && <Divider />}
+              <div style={{ paddingInline: 18, paddingBlock: 13, display: "flex", alignItems: "center", gap: 0 }}>
+                <span style={{ color: "rgba(200,255,0,0.35)", fontSize: 11, letterSpacing: 0.5, width: 20, flexShrink: 0 }}>›</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: "#fff", fontSize: 15, fontWeight: 900, letterSpacing: 0.5, textTransform: "uppercase" }}>{item.label}</div>
+                  <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 9, letterSpacing: 1.5, marginTop: 2 }}>{item.desc}</div>
+                </div>
+                <span style={{ color: LIME, fontSize: 14, letterSpacing: -0.5 }}>⟶</span>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: "#F1F5F9", fontSize: 14, fontWeight: 700 }}>{item.label}</div>
-                <div style={{ color: "#64748B", fontSize: 11, marginTop: 2 }}>{item.sub}</div>
-              </div>
-              <span style={{ color: item.accent, fontSize: 22, opacity: 0.7 }}>›</span>
             </div>
           ))}
+
+          {/* Section: TOOLS */}
+          <div style={{ marginTop: 4 }}>
+            <div style={{ height: 1, background: `rgba(200,255,0,0.2)` }} />
+            <div style={{ paddingInline: 18, paddingTop: 14, paddingBottom: 4 }}>
+              <div style={{ color: "rgba(200,255,0,0.35)", fontSize: 9, letterSpacing: 3, marginBottom: 10 }}>// TOOLS</div>
+            </div>
+            {[
+              { cmd: "staff", label: "INVITE STAFF", desc: "GENERATE ONE-TIME LINK" },
+              { cmd: "qr", label: "QR KIT", desc: "EXPORT CHECK-IN CODE" },
+              { cmd: "page", label: "VIEW PAGE", desc: "GUEST-FACING PROFILE" },
+            ].map((item, i) => (
+              <div key={item.cmd}>
+                {i > 0 && <Divider />}
+                <div style={{ paddingInline: 18, paddingBlock: 12, display: "flex", alignItems: "center", gap: 0 }}>
+                  <span style={{ color: "rgba(200,255,0,0.35)", fontSize: 11, letterSpacing: 0.5, width: 20, flexShrink: 0 }}>›</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: "#fff", fontSize: 14, fontWeight: 900, letterSpacing: 0.5, textTransform: "uppercase" }}>{item.label}</div>
+                    <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 9, letterSpacing: 1.5, marginTop: 2 }}>{item.desc}</div>
+                  </div>
+                  <span style={{ color: LIME, fontSize: 14 }}>⟶</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom signature */}
+          <div style={{ paddingInline: 18, paddingTop: 16, paddingBottom: 8 }}>
+            <div style={{ color: "rgba(200,255,0,0.18)", fontSize: 9, letterSpacing: 2 }}>MET™ VENUE_OPS v2.1 — {new Date().toISOString().split("T")[0]}</div>
+          </div>
         </div>
 
-        {/* View public page */}
-        <div style={{ color: "#475569", fontSize: 11, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 9 }}>Venue Page</div>
-        <div style={{ background: "#243447", border: "1px solid #2DD4BF30", borderRadius: 14, padding: "13px 14px", display: "flex", alignItems: "center", gap: 13 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 11, background: "#0D3330", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <span style={{ fontSize: 20 }}>👁</span>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ color: "#F1F5F9", fontSize: 14, fontWeight: 700 }}>View public page</div>
-            <div style={{ color: "#64748B", fontSize: 11, marginTop: 2 }}>See how guests discover you</div>
-          </div>
-          <span style={{ color: "#2DD4BF", fontSize: 22 }}>›</span>
+        {/* Home indicator */}
+        <div style={{ paddingBottom: 8, display: "flex", justifyContent: "center", flexShrink: 0, borderTop: `1px solid rgba(200,255,0,0.08)` }}>
+          <div style={{ width: 134, height: 5, marginTop: 8, background: "rgba(200,255,0,0.15)", borderRadius: 3 }} />
         </div>
-      </div>
-
-      {/* Home indicator */}
-      <div style={{ paddingBottom: 8, display: "flex", justifyContent: "center", flexShrink: 0, background: "#1E2A3A" }}>
-        <div style={{ width: 134, height: 5, background: "rgba(255,255,255,0.1)", borderRadius: 3 }} />
       </div>
     </div>
   );
