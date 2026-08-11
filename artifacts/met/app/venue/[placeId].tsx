@@ -381,10 +381,6 @@ export default function VenueProfileScreen() {
   const [venueReviews, setVenueReviews]       = useState<import("@/lib/api/client").VenueReview[]>([]);
   const [averageRating, setAverageRating]     = useState<number | null>(null);
   const [totalReviewCount, setTotalReviewCount] = useState(0);
-  /** Count of reviews per star (1–5) across the whole venue, from the API. */
-  const [ratingCounts, setRatingCounts]       = useState<Partial<Record<number, number>>>({});
-  // 0 = All, 1-5 = specific star rating
-  const [reviewFilter, setReviewFilter]       = useState(0);
   const [reviewsLoading, setReviewsLoading]   = useState(false);
   /** True when the most-recent filter fetch failed (shows retry UI). */
   const [reviewsError, setReviewsError]       = useState(false);
@@ -469,7 +465,7 @@ export default function VenueProfileScreen() {
           api.getVenueRewards({ uid: authedUid }, placeId).catch(() => ({ rewards: [] })),
           api.getVenueAnnouncements({ uid: authedUid }, placeId).catch(() => ({ announcements: [] })),
           api.getLeaderboard({ uid: authedUid }, placeId, "current_month").catch(() => []),
-          api.getVenueReviews({ uid: authedUid }, placeId).catch(() => ({ reviews: [], averageRating: null, total: 0, ratingCounts: {} })),
+          api.getVenueReviews({ uid: authedUid }, placeId).catch(() => ({ reviews: [], averageRating: null, total: 0 })),
         ]);
       setProfile(profileData.profile);
       setEvents(eventsData.events);
@@ -482,7 +478,6 @@ export default function VenueProfileScreen() {
       setVenueReviews(reviewsData.reviews.slice(0, 20));
       setAverageRating(reviewsData.averageRating);
       setTotalReviewCount(reviewsData.total);
-      setRatingCounts(reviewsData.ratingCounts ?? {});
       // Derive registered venue status from the profile.
       setIsRegisteredVenue(profileData.profile?.isApproved ?? false);
     } catch {
@@ -508,7 +503,7 @@ export default function VenueProfileScreen() {
       .getVenueReviews(
         { uid: authedUid, signal: controller.signal },
         placeId,
-        reviewFilter === 0 ? undefined : reviewFilter,
+        undefined,
       )
       .then((data) => {
         // Discard the response if a newer request has already started.
@@ -517,7 +512,6 @@ export default function VenueProfileScreen() {
         // Always keep venue-wide aggregates (ratingCounts, total, average).
         setAverageRating(data.averageRating);
         setTotalReviewCount(data.total);
-        setRatingCounts(data.ratingCounts ?? {});
       })
       .catch((err: unknown) => {
         if (gen !== reviewFetchGenRef.current) return;
@@ -531,7 +525,7 @@ export default function VenueProfileScreen() {
       });
     return () => { controller.abort(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewFilter, reviewRetryKey, authedUid, placeId]);
+  }, [reviewRetryKey, authedUid, placeId]);
 
   // Deep-link path: when the user arrives via /v/[placeId]?t=<token>, the
   // venue redirect screen passes qrToken here. Auto-verify on mount (once).
@@ -964,43 +958,11 @@ export default function VenueProfileScreen() {
                     <Text style={styles.reviewsAggStar}>★</Text>
                     <Text style={styles.reviewsAggScore}>{averageRating.toFixed(1)}</Text>
                     <Text style={styles.reviewsAggCount}>
-                      ({reviewFilter === 0
-                        ? `${totalReviewCount} ${totalReviewCount === 1 ? "review" : "reviews"}`
-                        : `${ratingCounts[reviewFilter] ?? 0} of ${totalReviewCount}`
-                      })
+                      ({totalReviewCount} {totalReviewCount === 1 ? "review" : "reviews"})
                     </Text>
                   </View>
                 )}
               </View>
-
-              {/* ── Star-rating filter chips ── */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.reviewFilterRow}
-                contentContainerStyle={styles.reviewFilterContent}
-              >
-                {([0, 5, 4, 3, 2, 1] as const).map((star) => {
-                  const active = reviewFilter === star;
-                  // Show count badge on non-"All" chips so guests can see
-                  // at a glance how many reviews exist per tier.
-                  const cnt = star === 0 ? totalReviewCount : (ratingCounts[star] ?? 0);
-                  return (
-                    <Pressable
-                      key={star}
-                      onPress={() => setReviewFilter(active ? 0 : star)}
-                      style={[styles.reviewFilterChip, active && styles.reviewFilterChipActive]}
-                      accessibilityRole="button"
-                      accessibilityLabel={star === 0 ? "Show all reviews" : `Show ${star}-star reviews`}
-                      accessibilityState={{ selected: active }}
-                    >
-                      <Text style={[styles.reviewFilterChipText, active && styles.reviewFilterChipTextActive]}>
-                        {star === 0 ? `All (${cnt})` : `${"★".repeat(star)} (${cnt})`}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
 
               {/* ── Sort selector ── */}
               <View style={styles.reviewSortRow}>
@@ -1086,11 +1048,7 @@ export default function VenueProfileScreen() {
                 </View>
               ) : (
                 <View style={styles.reviewFilterEmpty}>
-                  <Text style={styles.reviewFilterEmptyText}>
-                    {reviewFilter === 0
-                      ? "No reviews yet"
-                      : `No ${"★".repeat(reviewFilter)} reviews at this venue`}
-                  </Text>
+                  <Text style={styles.reviewFilterEmptyText}>No reviews yet</Text>
                 </View>
               )}
             </View>
@@ -1674,36 +1632,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // ── Review filter chips ───────────────────────────────────────────────────
-  reviewFilterRow: {
-    marginBottom: 12,
-  },
-  reviewFilterContent: {
-    flexDirection: "row",
-    gap: 8,
-    paddingRight: 4,
-  },
-  reviewFilterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
-  },
-  reviewFilterChipActive: {
-    backgroundColor: CORAL,
-    borderColor: CORAL,
-  },
-  reviewFilterChipText: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    color: TEXT2,
-  },
-  reviewFilterChipTextActive: {
-    color: "#FFFFFF",
-    fontFamily: "Inter_600SemiBold",
-  },
   reviewFilterEmpty: {
     paddingVertical: 24,
     alignItems: "center",
