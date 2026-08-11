@@ -1,5 +1,6 @@
 // Obsidian — Dark luxury hospitality SaaS
 // Deep emerald-on-black palette. Feels like a premium venue operating platform.
+// Note: uses system fonts only (no @fontsource import needed).
 
 const EMERALD = "#10B981";
 const EMERALD_DIM = "rgba(16,185,129,0.12)";
