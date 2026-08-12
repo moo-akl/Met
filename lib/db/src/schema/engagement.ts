@@ -267,12 +267,15 @@ export const venueContentReportsTable = pgTable(
     placeId: text("place_id").notNull(),
     reason: text("reason").notNull(),
     firestoreId: text("firestore_id"),
+    /** 'open' | 'actioned' | 'dismissed' — updated by admin when they review */
+    status: text("status").notNull().default("open"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => ({
     placeIdx: index("venue_content_reports_place_idx").on(t.placeId),
+    statusIdx: index("venue_content_reports_status_idx").on(t.status),
     entityIdx: index("venue_content_reports_entity_idx").on(t.entityType, t.entityId),
     reporterIdx: index("venue_content_reports_reporter_idx").on(t.reporterUid),
     // One report per reporter per entity — prevents vote-stuffing.

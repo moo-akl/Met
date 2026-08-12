@@ -59,6 +59,7 @@ import {
   venueEventRsvpsTable,
   venueRewardsTable,
   venueAnnouncementsTable,
+  venueContentReportsTable,
   hubCheckinsTable,
   profilesTable,
   venueAdminCredentialsTable,
@@ -4720,6 +4721,147 @@ router.post(
         approvedAt: v.approvedAt,
       })),
     });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /admin/venue-owner/content-reports
+//
+// List venue UGC reports for admin review. Protected by admin session cookie.
+// Query params:
+//   status   — 'open' | 'actioned' | 'dismissed' | 'all' (default: 'open')
+//   entityType — 'event' | 'announcement' | 'venue' | 'all' (default: 'all')
+//   limit    — max rows to return (default 50, max 200)
+// ---------------------------------------------------------------------------
+router.get(
+  "/admin/venue-owner/content-reports",
+  requireAdminSession,
+  async (req: Request, res: Response) => {
+    const statusFilter = String(req.query["status"] ?? "open");
+    const entityTypeFilter = String(req.query["entityType"] ?? "all");
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query["limit"] ?? "50"), 10) || 50));
+
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (statusFilter !== "all") {
+      conditions.push(eq(venueContentReportsTable.status, statusFilter));
+    }
+    if (entityTypeFilter !== "all") {
+      conditions.push(eq(venueContentReportsTable.entityType, entityTypeFilter));
+    }
+
+    const reports = await db
+      .select()
+      .from(venueContentReportsTable)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(venueContentReportsTable.createdAt))
+      .limit(limit);
+
+    // For each event/announcement report, fetch the current isHidden status so
+    // the admin can see whether the content has already been actioned.
+    const eventIds = reports
+      .filter((r) => r.entityType === "event" && r.entityId > 0)
+      .map((r) => r.entityId);
+    const announcementIds = reports
+      .filter((r) => r.entityType === "announcement" && r.entityId > 0)
+      .map((r) => r.entityId);
+
+    const [hiddenEvents, hiddenAnnouncements] = await Promise.all([
+      eventIds.length
+        ? db.select({ id: venueEventsTable.id, isHidden: venueEventsTable.isHidden, title: venueEventsTable.title })
+            .from(venueEventsTable).where(inArray(venueEventsTable.id, eventIds))
+        : Promise.resolve([]),
+      announcementIds.length
+        ? db.select({ id: venueAnnouncementsTable.id, isHidden: venueAnnouncementsTable.isHidden, title: venueAnnouncementsTable.title })
+            .from(venueAnnouncementsTable).where(inArray(venueAnnouncementsTable.id, announcementIds))
+        : Promise.resolve([]),
+    ]);
+
+    const eventMap = Object.fromEntries(hiddenEvents.map((e) => [e.id, e]));
+    const announcementMap = Object.fromEntries(hiddenAnnouncements.map((a) => [a.id, a]));
+
+    const enriched = reports.map((r) => ({
+      ...r,
+      contentTitle:
+        r.entityType === "event"
+          ? (eventMap[r.entityId]?.title ?? null)
+          : r.entityType === "announcement"
+            ? (announcementMap[r.entityId]?.title ?? null)
+            : null,
+      contentIsHidden:
+        r.entityType === "event"
+          ? (eventMap[r.entityId]?.isHidden ?? null)
+          : r.entityType === "announcement"
+            ? (announcementMap[r.entityId]?.isHidden ?? null)
+            : null,
+    }));
+
+    res.json({ reports: enriched, total: enriched.length });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// PATCH /admin/venue-owner/content-reports/:reportId
+//
+// Admin takes action on a content report. Protected by admin session cookie.
+// body: { action: "hide_content" | "restore_content" | "dismiss" }
+//
+// hide_content    → sets isHidden=true on the event/announcement + marks report actioned
+// restore_content → sets isHidden=false on the event/announcement + marks report dismissed
+// dismiss         → marks report dismissed without touching the content
+// ---------------------------------------------------------------------------
+router.patch(
+  "/admin/venue-owner/content-reports/:reportId",
+  requireAdminSession,
+  async (req: Request, res: Response) => {
+    const reportId = parseInt(String(req.params["reportId"] ?? ""), 10);
+    if (isNaN(reportId)) {
+      res.status(400).json({ message: "Invalid reportId" });
+      return;
+    }
+
+    const action = (req.body as { action?: string }).action;
+    if (!action || !["hide_content", "restore_content", "dismiss"].includes(action)) {
+      res.status(400).json({ message: "action must be 'hide_content', 'restore_content', or 'dismiss'" });
+      return;
+    }
+
+    const [report] = await db
+      .select()
+      .from(venueContentReportsTable)
+      .where(eq(venueContentReportsTable.id, reportId))
+      .limit(1);
+
+    if (!report) {
+      res.status(404).json({ message: "Report not found" });
+      return;
+    }
+
+    // Apply content mutation for hide/restore actions
+    if (action === "hide_content" || action === "restore_content") {
+      const hidden = action === "hide_content";
+      if (report.entityType === "event" && report.entityId > 0) {
+        await db
+          .update(venueEventsTable)
+          .set({ isHidden: hidden })
+          .where(eq(venueEventsTable.id, report.entityId));
+      } else if (report.entityType === "announcement" && report.entityId > 0) {
+        await db
+          .update(venueAnnouncementsTable)
+          .set({ isHidden: hidden })
+          .where(eq(venueAnnouncementsTable.id, report.entityId));
+      }
+      // venue-level reports have entityId=0; no content row to hide
+    }
+
+    const newStatus = action === "hide_content" ? "actioned" : "dismissed";
+    const [updated] = await db
+      .update(venueContentReportsTable)
+      .set({ status: newStatus })
+      .where(eq(venueContentReportsTable.id, reportId))
+      .returning();
+
+    req.log?.info?.({ reportId, action, entityType: report.entityType, entityId: report.entityId }, "venue content report actioned");
+    res.json({ report: updated });
   },
 );
 

@@ -49,7 +49,8 @@ import {
   CheckCircle2,
   Users,
   ArrowLeft,
-  UserCheck
+  UserCheck,
+  Flag
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -71,6 +72,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import AgentsPanel from "@/components/AgentsPanel";
+import ContentReportsPanel from "@/components/ContentReportsPanel";
 
 function isApiError(error: unknown): error is Error & { status: number, data: unknown } {
   return error instanceof Error && 'status' in error;
@@ -146,7 +148,7 @@ export default function Dashboard() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Sales-agent management
-  const [adminView, setAdminView] = useState<"applications" | "agents">("applications");
+  const [adminView, setAdminView] = useState<"applications" | "agents" | "content-reports">("applications");
   const [assignAgentOpen, setAssignAgentOpen] = useState(false);
   const [assignableAgents, setAssignableAgents] = useState<Array<{ id: number; displayName: string; email: string }>>([]);
   const [loadingAssignableAgents, setLoadingAssignableAgents] = useState(false);
@@ -640,6 +642,15 @@ export default function Dashboard() {
             Venue T&S
           </div>
           <div className="flex items-center gap-1">
+            <Button
+              variant={adminView === "content-reports" ? "secondary" : "ghost"}
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setAdminView(v => v === "content-reports" ? "applications" : "content-reports")}
+              title="Content Reports"
+            >
+              <Flag className="w-4 h-4" />
+            </Button>
             <Button
               variant={adminView === "agents" ? "secondary" : "ghost"}
               size="icon"
@@ -1435,6 +1446,54 @@ export default function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Content Reports overlay — mounts over the full UI */}
+      {adminView === "content-reports" && (
+        <div className="absolute inset-0 z-20 flex flex-col bg-background">
+          <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-card shrink-0">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setAdminView("applications")}
+                title="Back to Applications"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <div className="flex items-center gap-2 font-bold tracking-tight text-lg">
+                <div className="w-8 h-8 bg-primary text-primary-foreground rounded flex items-center justify-center">
+                  <Flag className="w-4 h-4" />
+                </div>
+                Content Reports
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setPasswordDialogOpen(true)}
+                title="Change password"
+              >
+                <KeyRound className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={handleLogout}
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <ContentReportsPanel />
+          </div>
+        </div>
+      )}
 
       {/* Sales Agents overlay — mounts over the full UI */}
       {adminView === "agents" && (
