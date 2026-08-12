@@ -1159,6 +1159,18 @@ export default function VenueProfileScreen() {
             </View>
           )}
 
+          {/* ── Report venue ───────────────────────────────────────────── */}
+          {profile && (
+            <Pressable
+              onPress={() => showContentReportSheet("venue", 0, placeId ?? "")}
+              style={{ alignItems: "center", paddingVertical: 20, paddingBottom: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Report this venue"
+            >
+              <Text style={{ fontSize: 12, color: MUTED }}>Report this venue</Text>
+            </Pressable>
+          )}
+
         </View>
       </ScrollView>
 
