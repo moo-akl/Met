@@ -39,3 +39,4 @@
 - [formSheet detent API](formsheet-detent-api.md) — SDK 54 / Expo Router 6 / RN native-stack 7: sheetAllowedDetents: number[] (0-1 fractions), sheetInitialDetentIndex: number, sheetGrabberVisible: bool, sheetExpandsWhenScrolledToEdge: bool. Works on formSheet presentation only.
 - [iOS SIGABRT — EAS Xcode image update](ios-sigabrt-xcode-image.md) — same code, different build, silent crash = EAS updated Xcode image triggering RN TurboModule NSException bug; fix is RCTTurboModule.mm patch via withDangerousMod plugin (NOT patchedDependencies).
 - [pnpm patchedDependencies breaks Android prefab CLI](pnpm-patch-hash-prefab-crash.md) — patch_hash= in pnpm paths causes prefab CLI v2.1.0 to abort "no such option"; use withDangerousMod config plugins for RN patches instead.
+- [Apple Sign in button compliance](apple-signin-button.md) — use Expo's native AppleAuthenticationButton; a custom Apple icon/text Pressable can fail App Review Guideline 4.
