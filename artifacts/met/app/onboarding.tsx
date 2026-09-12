@@ -48,6 +48,7 @@ import { validateHandle, checkHandleReachable } from "@/lib/socialValidation";
 import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { loadDragHintDismissed, loadProfile, loadValueTourSeen, saveDragHintDismissed } from "@/lib/storage";
+import { runAppleSignIn } from "@/lib/onboardingAppleAuth";
 import { ValueTour } from "@/components/ValueTour";
 import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
@@ -445,11 +446,11 @@ export default function OnboardingScreen() {
 
   const handleApple = async () => {
     if (!requireTerms()) return;
-    setAuthBusy(true);
-    try {
-      // Returns null when the user cancels the Apple sheet — silent.
-      const result = await signInWithApple();
-      if (result) {
+    await runAppleSignIn({
+      signIn: signInWithApple,
+      setBusy: setAuthBusy,
+      onError: showSignInError,
+      onSuccess: async (result) => {
         setFromAppleSignIn(true);
         // Always skip the info/name step for Apple users — we either have
         // the name from Apple or from the Firebase cache; if neither is
@@ -474,12 +475,8 @@ export default function OnboardingScreen() {
           }
         }
         await goToProfileSetup("apple");
-      }
-    } catch {
-      showSignInError();
-    } finally {
-      setAuthBusy(false);
-    }
+      },
+    });
   };
 
   const handleGoogle = async () => {

@@ -31,7 +31,7 @@ describe("iOS onboarding Apple sign-in button", () => {
 
   it("keeps the native button wired to the existing Apple auth handler", () => {
     expect(onboardingSource).toMatch(
-      /const handleApple = async \(\) => \{[\s\S]*await signInWithApple\(\)/,
+      /const handleApple = async \(\) => \{[\s\S]*await runAppleSignIn\(\{[\s\S]*signIn:\s*signInWithApple/,
     );
 
     const appleButtonProps = appleButtonMatch?.[1] ?? "";
