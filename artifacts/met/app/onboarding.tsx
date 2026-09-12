@@ -49,6 +49,7 @@ import { ensureMyCode, recordReferral } from "@/lib/referrals";
 import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { loadDragHintDismissed, loadProfile, loadValueTourSeen, saveDragHintDismissed } from "@/lib/storage";
 import { runAppleSignIn } from "@/lib/onboardingAppleAuth";
+import { runGoogleSignIn } from "@/lib/onboardingGoogleAuth";
 import { ValueTour } from "@/components/ValueTour";
 import type { Profile, SocialLinks, SocialPlatform } from "@/lib/types";
 
@@ -481,16 +482,12 @@ export default function OnboardingScreen() {
 
   const handleGoogle = async () => {
     if (!requireTerms()) return;
-    setAuthBusy(true);
-    try {
-      // Returns null when the user cancels the Google sheet — silent.
-      const uid = await signInWithGoogle();
-      if (uid) await goToProfileSetup("google");
-    } catch {
-      showSignInError();
-    } finally {
-      setAuthBusy(false);
-    }
+    await runGoogleSignIn({
+      signIn: signInWithGoogle,
+      setBusy: setAuthBusy,
+      onError: showSignInError,
+      onSuccess: () => goToProfileSetup("google"),
+    });
   };
 
   const handleEmailAuth = async () => {
