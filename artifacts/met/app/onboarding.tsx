@@ -1,5 +1,10 @@
 import { Feather, FontAwesome } from "@expo/vector-icons";
 import { Image } from "@/components/MetImage";
+import {
+  AppleAuthenticationButton,
+  AppleAuthenticationButtonStyle,
+  AppleAuthenticationButtonType,
+} from "expo-apple-authentication";
 import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -1403,22 +1408,15 @@ export default function OnboardingScreen() {
             </Text>
 
             {Platform.OS === "ios" ? (
-              <Pressable
-                onPress={handleApple}
-                disabled={authBusy}
-                style={({ pressed }) => [
-                  styles.ssoBtn,
-                  {
-                    backgroundColor: "#000",
-                    opacity: pressed || authBusy ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <FontAwesome name="apple" size={18} color="#fff" />
-                <Text style={[styles.ssoBtnText, { color: "#fff" }]}>
-                  {t("onboarding.continueWithApple")}
-                </Text>
-              </Pressable>
+              <View pointerEvents={authBusy ? "none" : "auto"}>
+                <AppleAuthenticationButton
+                  buttonType={AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={AppleAuthenticationButtonStyle.BLACK}
+                  cornerRadius={14}
+                  onPress={handleApple}
+                  style={styles.appleAuthButton}
+                />
+              </View>
             ) : null}
 
             <Pressable
@@ -2277,6 +2275,10 @@ const styles = StyleSheet.create({
   ssoBtnText: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 15,
+  },
+  appleAuthButton: {
+    width: "100%",
+    height: 52,
   },
   divider: {
     flexDirection: "row",
