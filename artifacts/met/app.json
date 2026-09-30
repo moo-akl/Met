@@ -2,7 +2,7 @@
   "expo": {
     "name": "Met",
     "slug": "met",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "met",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "290",
+      "buildNumber": "291",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "associatedDomains": ["applinks:metapp.replit.app"],
