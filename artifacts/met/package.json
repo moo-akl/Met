@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "eas-build-pre-install": "node ./scripts/eas-pre-install.js",
     "eas-build-post-install": "node ./scripts/eas-post-install.js",
-    "test": "jest --config jest.config.js"
+    "test": "jest --config jest.config.js",
+    "test:metro-assets": "node --test scripts/metro-assets.test.cjs"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
