@@ -146,17 +146,50 @@ function jsonResponse(body, status = 200) {
 test("default arguments are read-only and --apply is the only write gate", () => {
   assert.deepEqual(repair.parseArguments([]), { apply: false });
   assert.deepEqual(repair.parseArguments(["--apply"]), { apply: true });
+  assert.deepEqual(repair.parseArguments(["--diagnose"]), {
+    apply: false,
+    diagnose: true,
+  });
+  assert.deepEqual(repair.parseArguments(["--apply", "--reuse-repair-profile"]), {
+    apply: true,
+    reuseRepairProfile: true,
+  });
   for (const args of [
     ["--force"],
     ["--apply", "--apply"],
     ["--apply", "--yes"],
     ["--inspect"],
+    ["--diagnose", "--apply"],
+    ["--reuse-repair-profile"],
+    ["--apply", "--reuse-repair-profile", "--force"],
   ]) {
     assert.throws(
       () => repair.parseArguments(args),
       (error) => error.diagnostic === "FAILED_INVALID_ARGUMENTS",
     );
   }
+});
+
+test("repair candidate freshness requires a canonical ISO timestamp and UUID within six hours", () => {
+  const nowMs = Date.parse("2025-01-01T00:00:00.000Z");
+  const candidate = (name, type = "profiles") => ({
+    type,
+    id: "candidate-id",
+    attributes: { name, profileType: "IOS_APP_ADHOC" },
+  });
+  const validName = `${repair.PROFILE_NAME_PREFIX}2024-12-31T23:00:00.000Z f3d8e9a1-06a7-4cb3-8e60-2f1d5a7b9c41`;
+  const resources = [
+    candidate(validName),
+    candidate(`${repair.PROFILE_NAME_PREFIX}2024-12-31T17:59:59.999Z f3d8e9a1-06a7-4cb3-8e60-2f1d5a7b9c41`),
+    candidate(`${repair.PROFILE_NAME_PREFIX}2025-01-01T00:00:01.000Z f3d8e9a1-06a7-4cb3-8e60-2f1d5a7b9c41`),
+    candidate(`${repair.PROFILE_NAME_PREFIX}not-a-date f3d8e9a1-06a7-4cb3-8e60-2f1d5a7b9c41`),
+    candidate(`${repair.PROFILE_NAME_PREFIX}2024-12-31T23:00:00.000Z not-a-uuid`),
+    candidate("another-profile"),
+  ];
+  assert.deepEqual(
+    repair.freshRepairCandidates(resources, nowMs).map((resource) => resource.id),
+    ["candidate-id"],
+  );
 });
 
 test("project config confirms the static bundle, project UUID, and internal preview target", () => {
@@ -869,30 +902,48 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
   fs.chmodSync(keyPath, 0o600);
 
   const now = new Date("2025-01-01T00:00:00.000Z");
-  const existingAppleProfile = {
-    type: "profiles",
-    id: "old-apple-profile-id",
-    attributes: { profileType: "IOS_APP_ADHOC" },
-    relationships: {
-      bundleId: { data: { type: "bundleIds", id: "asc-bundle-id" } },
-      certificates: {
-        data: [{ type: "certificates", id: "apple-certificate-id" }],
+  function existingAppleProfile(profileId = "old-apple-profile-id") {
+    return {
+      type: "profiles",
+      id: profileId,
+      attributes: { profileType: "IOS_APP_ADHOC" },
+      relationships: {
+        bundleId: { data: { type: "bundleIds", id: "asc-bundle-id" } },
+        certificates: {
+          data: [{ type: "certificates", id: "apple-certificate-id" }],
+        },
+        devices: {
+          data: [
+            { type: "devices", id: "asc-device-a" },
+            { type: "devices", id: "asc-device-b" },
+          ],
+        },
       },
-      devices: {
-        data: [
-          { type: "devices", id: "asc-device-a" },
-          { type: "devices", id: "asc-device-b" },
-        ],
-      },
-    },
-  };
+    };
+  }
   let createdName;
 
-  async function runFakeApply({ driftBeforeUpdate = false } = {}) {
+  async function runFakeApply({
+    driftBeforeUpdate = false,
+    args = ["--apply"],
+    candidates = [],
+    installedCandidate = false,
+  } = {}) {
     const events = [];
     let credentialReadCount = 0;
     let mutationCount = 0;
     let profileCreateCount = 0;
+    const selectedCandidate = candidates[0];
+    const savedProfileId = installedCandidate
+      ? selectedCandidate?.id
+      : "old-apple-profile-id";
+    const targetProfileId = selectedCandidate?.id || PROFILE_RESOURCE_ID;
+    const targetProfileName =
+      selectedCandidate?.attributes?.name ?? createdName;
+    const targetProfileUuid =
+      selectedCandidate?.attributes?.uuid ?? PROFILE_UUID;
+    const targetProfileExpiration =
+      selectedCandidate?.attributes?.expirationDate ?? NEW_PROFILE_EXPIRATION;
     const fetchImpl = async (input, options) => {
       const url = new URL(String(input));
       if (url.origin === new URL(repair.EAS_GRAPHQL_URL).origin) {
@@ -932,7 +983,18 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
         ) {
           credentialReadCount += 1;
           events.push("eas:credentials");
-          if (credentialReadCount === 1) return gqlResponse(credentialsData());
+          if (credentialReadCount === 1) {
+            return gqlResponse(
+              installedCandidate
+                ? credentialsData({
+                    profile: {
+                      developerPortalIdentifier: savedProfileId,
+                      expiration: targetProfileExpiration,
+                    },
+                  })
+                : credentialsData(),
+            );
+          }
           if (credentialReadCount === 2 && driftBeforeUpdate) {
             return gqlResponse(
               credentialsData({
@@ -940,12 +1002,23 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
               }),
             );
           }
-          if (credentialReadCount === 2) return gqlResponse(credentialsData());
+          if (credentialReadCount === 2) {
+            return gqlResponse(
+              installedCandidate
+                ? credentialsData({
+                    profile: {
+                      developerPortalIdentifier: savedProfileId,
+                      expiration: targetProfileExpiration,
+                    },
+                  })
+                : credentialsData(),
+            );
+          }
           return gqlResponse(
             credentialsData({
               profile: {
-                developerPortalIdentifier: PROFILE_RESOURCE_ID,
-                expiration: NEW_PROFILE_EXPIRATION,
+                developerPortalIdentifier: targetProfileId,
+                expiration: targetProfileExpiration,
               },
             }),
           );
@@ -959,13 +1032,13 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
           );
           assert.equal(
             request.variables.appleProvisioningProfileInput.developerPortalIdentifier,
-            PROFILE_RESOURCE_ID,
+            targetProfileId,
           );
           return gqlResponse({
             appleProvisioningProfile: {
               updateAppleProvisioningProfile: {
                 id: "eas-profile-record",
-                developerPortalIdentifier: PROFILE_RESOURCE_ID,
+                 developerPortalIdentifier: targetProfileId,
               },
             },
           });
@@ -1019,10 +1092,18 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
           ],
         });
       }
-      if (route === "GET /v1/profiles/old-apple-profile-id") {
-        return jsonResponse({ data: existingAppleProfile });
+      if (route === `GET /v1/profiles/${savedProfileId}`) {
+        return jsonResponse({
+          data: installedCandidate
+            ? selectedCandidate
+            : existingAppleProfile(savedProfileId),
+        });
       }
-      if (route === "GET /v1/profiles") return jsonResponse({ data: [] });
+      if (route === "GET /v1/profiles") {
+        return jsonResponse({
+          data: url.searchParams.has("filter[name]") ? [] : candidates,
+        });
+      }
       if (route === "POST /v1/profiles") {
         profileCreateCount += 1;
         const body = JSON.parse(options.body);
@@ -1030,6 +1111,14 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
         assert.equal(body.data.attributes.profileType, "IOS_APP_ADHOC");
         return jsonResponse({
           data: { type: "profiles", id: PROFILE_RESOURCE_ID },
+        });
+      }
+      if (
+        candidates.some((candidate) => route === `GET /v1/profiles/${candidate.id}`)
+      ) {
+        const id = url.pathname.split("/").at(-1);
+        return jsonResponse({
+          data: candidates.find((candidate) => candidate.id === id),
         });
       }
       if (route === `GET /v1/profiles/${PROFILE_RESOURCE_ID}`) {
@@ -1049,7 +1138,7 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
     let error;
     try {
       result = await repair.runRepair({
-        args: ["--apply"],
+        args,
         env: {
           EXPO_TOKEN: "offline-eas-token",
           EXPO_ASC_API_KEY_PATH: keyPath,
@@ -1060,11 +1149,14 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
         projectRoot: PROJECT_ROOT,
         fetchImpl,
         now: () => now,
-        randomUUID: () => "offline-name-uuid",
+        randomUUID: () => "f3d8e9a1-06a7-4cb3-8e60-2f1d5a7b9c41",
         decodeProfile: () =>
           embeddedProfile({
-            Name: createdName,
-            ExpirationDate: NEW_PROFILE_EXPIRATION,
+            Name: selectedCandidate?.attributes?.name ?? createdName,
+            UUID: selectedCandidate?.attributes?.uuid ?? PROFILE_UUID,
+            ExpirationDate:
+              selectedCandidate?.attributes?.expirationDate ??
+              NEW_PROFILE_EXPIRATION,
           }),
       });
     } catch (caught) {
@@ -1086,8 +1178,122 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
 
     const drift = await runFakeApply({ driftBeforeUpdate: true });
     assert.equal(drift.error?.diagnostic, "FAILED_VALIDATION");
+    assert.equal(drift.error?.stage, "SNAPSHOT_BEFORE_MUTATION");
     assert.equal(drift.mutationCount, 0);
     assert.equal(drift.events.at(-1), "eas:credentials");
+
+    const candidateResource = (id = "repair-candidate-id") =>
+      ascProfileResource({
+        attributes: {
+          name: `${repair.PROFILE_NAME_PREFIX}2024-12-31T23:00:00.000Z f3d8e9a1-06a7-4cb3-8e60-2f1d5a7b9c41`,
+          expirationDate: NEW_PROFILE_EXPIRATION,
+        },
+        resource: { id },
+      });
+    const candidate = candidateResource();
+    const diagnosis = await runFakeApply({
+      args: ["--diagnose"],
+      candidates: [candidate],
+    });
+    assert.equal(diagnosis.error, undefined);
+    assert.equal(diagnosis.result.diagnostic, "DIAGNOSE_COMPLETE");
+    assert.equal(diagnosis.result.candidateCount, 1);
+    assert.equal(diagnosis.result.validatedCandidateCount, 1);
+    assert.equal(diagnosis.result.savedProfileIsCandidate, false);
+    assert.equal(
+      diagnosis.result.candidateStageResults.PLIST_PARSE.passedCount,
+      1,
+    );
+    assert.equal(diagnosis.mutationCount, 0);
+    assert.equal(diagnosis.profileCreateCount, 0);
+    assert.ok(
+      diagnosis.events.every(
+        (event) =>
+          !event.startsWith("asc:POST") && event !== "eas:mutation",
+      ),
+    );
+    const candidateStageFailure = await runFakeApply({
+      args: ["--diagnose"],
+      candidates: [
+        ascProfileResource({
+          attributes: {
+            name: `${repair.PROFILE_NAME_PREFIX}2024-12-31T23:00:00.000Z f3d8e9a1-06a7-4cb3-8e60-2f1d5a7b9c41`,
+            profileState: "INVALID",
+          },
+          resource: { id: "invalid-repair-candidate" },
+        }),
+      ],
+    });
+    assert.equal(candidateStageFailure.result?.diagnostic, "DIAGNOSE_COMPLETE");
+    assert.equal(
+      candidateStageFailure.result.candidateStageResults.CANDIDATE_CREATE_READBACK
+        .failedCount,
+      1,
+    );
+    assert.equal(candidateStageFailure.mutationCount, 0);
+    assert.equal(candidateStageFailure.profileCreateCount, 0);
+
+    const reuse = await runFakeApply({
+      args: ["--apply", "--reuse-repair-profile"],
+      candidates: [candidate],
+    });
+    assert.equal(reuse.result?.diagnostic, "REPAIR_COMPLETE");
+    assert.equal(reuse.profileCreateCount, 0);
+    assert.equal(reuse.mutationCount, 1);
+
+    const noFallback = await runFakeApply({
+      args: ["--apply", "--reuse-repair-profile"],
+    });
+    assert.equal(noFallback.error?.diagnostic, "FAILED_VALIDATION");
+    assert.equal(noFallback.error?.stage, "CANDIDATE_ENUMERATION");
+    assert.equal(noFallback.profileCreateCount, 0);
+    assert.equal(noFallback.mutationCount, 0);
+
+    const invalidReuseCandidate = await runFakeApply({
+      args: ["--apply", "--reuse-repair-profile"],
+      candidates: [
+        ascProfileResource({
+          attributes: {
+            name: `${repair.PROFILE_NAME_PREFIX}2024-12-31T23:00:00.000Z f3d8e9a1-06a7-4cb3-8e60-2f1d5a7b9c41`,
+            profileState: "INVALID",
+          },
+          resource: { id: "invalid-repair-candidate" },
+        }),
+      ],
+    });
+    assert.equal(invalidReuseCandidate.error?.diagnostic, "FAILED_VALIDATION");
+    assert.equal(invalidReuseCandidate.profileCreateCount, 0);
+    assert.equal(invalidReuseCandidate.mutationCount, 0);
+
+    const ambiguous = await runFakeApply({
+      args: ["--apply", "--reuse-repair-profile"],
+      candidates: [candidate, candidateResource("another-candidate-id")],
+    });
+    assert.equal(ambiguous.error?.diagnostic, "FAILED_AMBIGUOUS");
+    assert.equal(ambiguous.error?.stage, "CANDIDATE_ENUMERATION");
+    assert.equal(ambiguous.profileCreateCount, 0);
+    assert.equal(ambiguous.mutationCount, 0);
+
+    const installed = await runFakeApply({
+      candidates: [candidate],
+      installedCandidate: true,
+    });
+    assert.equal(installed.result?.diagnostic, "REPAIR_COMPLETE");
+    assert.equal(installed.profileCreateCount, 0);
+    assert.equal(installed.mutationCount, 0);
+    assert.equal(installed.events.some((event) => event === "eas:mutation"), false);
+    assert.equal(installed.events.at(-1), "eas:credentials");
+
+    const installedDrift = await runFakeApply({
+      candidates: [candidate],
+      installedCandidate: true,
+      driftBeforeUpdate: true,
+    });
+    assert.equal(installedDrift.error?.diagnostic, "FAILED_VALIDATION");
+    assert.equal(installedDrift.error?.stage, "SNAPSHOT_BEFORE_MUTATION");
+    assert.equal(installedDrift.profileCreateCount, 0);
+    assert.equal(installedDrift.mutationCount, 0);
+    assert.equal(installedDrift.events.at(-1), "eas:credentials");
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

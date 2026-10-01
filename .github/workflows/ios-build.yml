@@ -33,16 +33,22 @@ on:
         default: false
         type: boolean
       signing_profile_action:
-        description: "Signing profile: none, read-only inspection, or targeted Ad Hoc replacement"
+        description: "Signing profile: none, read-only inspection/diagnostics, or targeted Ad Hoc replacement"
         required: false
         default: none
         type: choice
         options:
           - none
           - inspect
+          - diagnose
           - repair
       confirm_signing_repair:
         description: "Approve a replacement Ad Hoc profile, preserving certificate and devices"
+        required: false
+        default: false
+        type: boolean
+      reuse_repair_profile:
+        description: "Reuse one fresh, fully validated profile from a previous repair attempt"
         required: false
         default: false
         type: boolean
@@ -82,6 +88,16 @@ jobs:
             exit 1
           fi
 
+      - name: Validate profile reuse input
+        if: ${{ github.event.inputs.reuse_repair_profile == 'true' }}
+        env:
+          SIGNING_ACTION: ${{ github.event.inputs.signing_profile_action }}
+        run: |
+          if [ "$SIGNING_ACTION" != "repair" ]; then
+            echo "::error::Profile reuse requires the explicitly approved repair action."
+            exit 1
+          fi
+
       - name: Select latest Xcode with installed iOS SDK
         run: |
           # The macos-15 runner ships several Xcode versions, but only some
@@ -114,6 +130,7 @@ jobs:
           ruby --version
           which pod || gem install cocoapods --no-document
           pod --version
+          python3 --version
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -134,7 +151,7 @@ jobs:
 
       - name: Check iOS build integrity
         working-directory: artifacts/met
-        run: node --test scripts/native-build-integrity.test.cjs scripts/sanitize-ios-build-log.test.cjs scripts/repair-ios-signing-profile.test.cjs scripts/metro-expo-observer-adapter.test.cjs
+        run: node --test scripts/native-build-integrity.test.cjs scripts/sanitize-ios-build-log.test.cjs scripts/repair-ios-signing-profile.test.cjs scripts/metro-expo-observer-adapter.test.cjs scripts/ios-profile-plist.test.cjs scripts/ios-profile-cms.test.cjs
 
       - name: Install EAS CLI
         run: npm install -g eas-cli@18.9.1
@@ -171,24 +188,31 @@ jobs:
           echo "Selected EAS profile: ${PROFILE}"
 
       - name: Inspect or repair Ad Hoc signing profile
-        if: ${{ github.event.inputs.signing_profile_action == 'inspect' || github.event.inputs.signing_profile_action == 'repair' }}
+        if: ${{ github.event.inputs.signing_profile_action == 'inspect' || github.event.inputs.signing_profile_action == 'diagnose' || github.event.inputs.signing_profile_action == 'repair' }}
         working-directory: artifacts/met
         env:
           SIGNING_ACTION: ${{ github.event.inputs.signing_profile_action }}
           BUILD_PROFILE: ${{ steps.profile.outputs.name }}
+          REUSE_REPAIR_PROFILE: ${{ github.event.inputs.reuse_repair_profile }}
         run: |
           if [ "$SIGNING_ACTION" = "repair" ]; then
             if [ "$BUILD_PROFILE" != "preview:device" ]; then
               echo "::error::Ad Hoc repair requires the preview:device profile."
               exit 1
             fi
-            node scripts/repair-ios-signing-profile.cjs --apply
+            ARGS=(--apply)
+            if [ "$REUSE_REPAIR_PROFILE" = "true" ]; then
+              ARGS+=(--reuse-repair-profile)
+            fi
+            node scripts/repair-ios-signing-profile.cjs "${ARGS[@]}"
+          elif [ "$SIGNING_ACTION" = "diagnose" ]; then
+            node scripts/repair-ios-signing-profile.cjs --diagnose
           else
             node scripts/repair-ios-signing-profile.cjs
           fi
 
       - name: Build iOS locally (no EAS credits)
-        if: ${{ github.event.inputs.signing_profile_action != 'inspect' }}
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         working-directory: artifacts/met
         run: |
           set -o pipefail
@@ -200,13 +224,13 @@ jobs:
             --non-interactive 2>&1 | node scripts/sanitize-ios-build-log.cjs
 
       - name: Verify output
-        if: ${{ github.event.inputs.signing_profile_action != 'inspect' }}
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         run: |
           ls -lh "artifacts/met/${{ steps.profile.outputs.output }}"
           file "artifacts/met/${{ steps.profile.outputs.output }}"
 
       - name: Upload iOS build artifact
-        if: ${{ github.event.inputs.signing_profile_action != 'inspect' }}
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         uses: actions/upload-artifact@v4
         with:
           name: met-ios-build-${{ github.run_number }}
@@ -215,7 +239,7 @@ jobs:
           if-no-files-found: error
 
       - name: Submit to TestFlight
-        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.submit == 'true' && steps.profile.outputs.name == 'production' }}
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' && github.event.inputs.submit == 'true' && steps.profile.outputs.name == 'production' }}
         working-directory: artifacts/met
         run: |
           echo "Uploading met-ios.ipa to App Store Connect (TestFlight)..."

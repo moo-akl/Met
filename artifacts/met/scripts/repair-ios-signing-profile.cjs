@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { parseProvisioningPlist } = require("./ios-profile-plist.cjs");
 
 // These GraphQL operations follow the EAS CLI 18.9.1 source installed by the
 // iOS build workflow:
@@ -23,6 +24,7 @@ const MAX_ASC_PAGES = 200;
 const MAX_ASC_RESPONSE_BYTES = 12 * 1024 * 1024;
 const DIAGNOSTICS = new Set([
   "INSPECT_ONLY",
+  "DIAGNOSE_COMPLETE",
   "REPAIR_COMPLETE",
   "FAILED_INVALID_ARGUMENTS",
   "FAILED_CONFIGURATION",
@@ -32,6 +34,32 @@ const DIAGNOSTICS = new Set([
   "FAILED_AMBIGUOUS",
   "FAILED_VALIDATION",
   "FAILED_PLATFORM",
+]);
+const FAILURE_DIAGNOSTICS = new Set(
+  [...DIAGNOSTICS].filter((diagnostic) => diagnostic.startsWith("FAILED_")),
+);
+const STAGES = new Set([
+  "ARGUMENTS",
+  "CONFIGURATION",
+  "AUTHENTICATION",
+  "ASC_AUTHENTICATION",
+  "EAS_PROJECT",
+  "EAS_APP_IDENTIFIER",
+  "EAS_CREDENTIAL_SNAPSHOT",
+  "ASC_BUNDLE_LOOKUP",
+  "ASC_CERTIFICATE_LOOKUP",
+  "ASC_DEVICE_LOOKUP",
+  "EXISTING_PROFILE_RELATIONSHIPS",
+  "CANDIDATE_ENUMERATION",
+  "CANDIDATE_CREATE_READBACK",
+  "CMS_DECODE",
+  "PLIST_PARSE",
+  "EMBEDDED_ENTITLEMENTS",
+  "SNAPSHOT_BEFORE_MUTATION",
+  "MUTATION_ACK",
+  "POST_EXPIRY_VALIDATION",
+  "COMPLETE",
+  "UNCLASSIFIED",
 ]);
 
 const APP_BY_ID_QUERY = `
@@ -135,15 +163,16 @@ const UPDATE_EXISTING_PROFILE_MUTATION = `
 `;
 
 class RepairError extends Error {
-  constructor(diagnostic) {
+  constructor(diagnostic, stage = "UNCLASSIFIED") {
     super(diagnostic);
     this.name = "RepairError";
     this.diagnostic = diagnostic;
+    this.stage = STAGES.has(stage) ? stage : "UNCLASSIFIED";
   }
 }
 
-function fail(diagnostic) {
-  throw new RepairError(diagnostic);
+function fail(diagnostic, stage = "UNCLASSIFIED") {
+  throw new RepairError(diagnostic, stage);
 }
 
 function parseArguments(args) {
@@ -153,7 +182,17 @@ function parseArguments(args) {
   if (args.length === 1 && args[0] === "--apply") {
     return { apply: true };
   }
-  fail("FAILED_INVALID_ARGUMENTS");
+  if (args.length === 1 && args[0] === "--diagnose") {
+    return { apply: false, diagnose: true };
+  }
+  if (
+    args.length === 2 &&
+    args[0] === "--apply" &&
+    args[1] === "--reuse-repair-profile"
+  ) {
+    return { apply: true, reuseRepairProfile: true };
+  }
+  fail("FAILED_INVALID_ARGUMENTS", "ARGUMENTS");
 }
 
 function readProjectConfiguration(projectRoot) {
@@ -628,8 +667,11 @@ function validateEmbeddedProfile(plist, expected) {
   }
 }
 
-function decodeProvisioningProfile(profileContent, { tempRoot = os.tmpdir(), spawn = spawnSync } = {}) {
-  if (process.platform !== "darwin") fail("FAILED_PLATFORM");
+function decodeProvisioningProfile(
+  profileContent,
+  { tempRoot = os.tmpdir(), spawn = spawnSync, platform = process.platform } = {},
+) {
+  if (platform !== "darwin") fail("FAILED_PLATFORM");
   const cmsBytes = parsePlistData(profileContent);
   let directory;
   try {
@@ -640,24 +682,19 @@ function decodeProvisioningProfile(profileContent, { tempRoot = os.tmpdir(), spa
     const decoded = spawn("security", ["cms", "-D", "-i", profilePath], {
       encoding: "buffer",
       maxBuffer: MAX_ASC_RESPONSE_BYTES,
+      timeout: 30_000,
       windowsHide: true,
     });
     if (decoded.error || decoded.status !== 0 || !Buffer.isBuffer(decoded.stdout)) {
-      fail("FAILED_VALIDATION");
-    }
-    const parsed = spawn("plutil", ["-convert", "json", "-o", "-", "-"], {
-      input: decoded.stdout,
-      encoding: "utf8",
-      maxBuffer: MAX_ASC_RESPONSE_BYTES,
-      windowsHide: true,
-    });
-    if (parsed.error || parsed.status !== 0 || typeof parsed.stdout !== "string") {
-      fail("FAILED_VALIDATION");
+      fail("FAILED_VALIDATION", "CMS_DECODE");
     }
     try {
-      return JSON.parse(parsed.stdout);
+      return parseProvisioningPlist(decoded.stdout, {
+        spawn,
+        maxBuffer: MAX_ASC_RESPONSE_BYTES,
+      });
     } catch {
-      fail("FAILED_VALIDATION");
+      fail("FAILED_VALIDATION", "PLIST_PARSE");
     }
   } catch (error) {
     if (error instanceof RepairError) throw error;
@@ -779,6 +816,66 @@ async function listAscResources(request, pathAndQuery) {
   return all;
 }
 
+async function atStage(stage, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof RepairError) {
+      error.stage =
+        stage === "CMS_DECODE" && error.stage === "PLIST_PARSE"
+          ? "PLIST_PARSE"
+          : STAGES.has(stage)
+            ? stage
+            : "UNCLASSIFIED";
+      throw error;
+    }
+    const decoderStage = ["CMS_DECODE", "PLIST_PARSE", "EMBEDDED_ENTITLEMENTS"].includes(
+      stage,
+    );
+    const diagnostic = FAILURE_DIAGNOSTICS.has(error?.diagnostic)
+      ? error.diagnostic
+      : decoderStage
+        ? "FAILED_VALIDATION"
+        : "FAILED_API";
+    const errorStage = STAGES.has(error?.stage) ? error.stage : stage;
+    fail(diagnostic, errorStage);
+  }
+}
+
+function freshRepairCandidates(resources, nowMs) {
+  const sixHoursMs = 6 * 60 * 60 * 1000;
+  return resources.filter((resource) => {
+    const name = resource?.attributes?.name;
+    if (typeof name !== "string" || !name.startsWith(PROFILE_NAME_PREFIX)) {
+      return false;
+    }
+    const suffix = name.slice(PROFILE_NAME_PREFIX.length);
+    const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z) ([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.exec(
+      suffix,
+    );
+    if (!match) return false;
+    const createdAt = Date.parse(match[1]);
+    if (
+      !Number.isFinite(createdAt) ||
+      new Date(createdAt).toISOString() !== match[1] ||
+      createdAt > nowMs ||
+      nowMs - createdAt > sixHoursMs
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function validateSavedProfileExpiration(snapshot, profile) {
+  if (
+    normalizeTimestamp(snapshot.profileExpiration) !==
+    normalizeTimestamp(profile.expirationDate)
+  ) {
+    fail("FAILED_VALIDATION");
+  }
+}
+
 function buildCollectionPath(resource, filters = {}) {
   const url = new URL(resource, ASC_API_ROOT);
   for (const [key, value] of Object.entries(filters)) {
@@ -826,86 +923,112 @@ async function runRepair({
   randomUUID = crypto.randomUUID,
   decodeProfile = decodeProvisioningProfile,
 } = {}) {
-  const { apply } = parseArguments(args);
+  const options = parseArguments(args);
+  const { apply, diagnose = false, reuseRepairProfile = false } = options;
+  const useAsc = apply || diagnose;
   let privateKey;
-  if (apply) {
-    if (platform !== "darwin") fail("FAILED_PLATFORM");
-    privateKey = readPrivateKey(env, platform);
+  if (useAsc) {
+    privateKey = await atStage("ASC_AUTHENTICATION", () => {
+      if (platform !== "darwin") fail("FAILED_PLATFORM");
+      return readPrivateKey(env, platform);
+    });
   }
-  const config = readProjectConfiguration(projectRoot);
-  const easToken = requireEasToken(env);
+  const config = await atStage("CONFIGURATION", () =>
+    readProjectConfiguration(projectRoot),
+  );
+  const easToken = await atStage("AUTHENTICATION", () =>
+    requireEasToken(env),
+  );
   const easRequest = createEasRequest(fetchImpl);
 
-  const projectData = await easRequest(
-    APP_BY_ID_QUERY,
-    { appId: config.projectId },
-    easToken,
+  const projectData = await atStage("EAS_PROJECT", () =>
+    easRequest(
+      APP_BY_ID_QUERY,
+      { appId: config.projectId },
+      easToken,
+    ),
   );
   const app = projectData?.app?.byId;
-  const project = validateProject(app, config);
-  const identifierData = await easRequest(
-    APPLE_APP_IDENTIFIER_QUERY,
-    {
-      accountName: project.accountName,
-      bundleIdentifier: config.bundleIdentifier,
-    },
-    easToken,
+  const project = await atStage("EAS_PROJECT", () =>
+    validateProject(app, config),
   );
-  const appleIdentifier = exactlyOne(
-    identifierData?.account?.byName?.appleAppIdentifiers,
+  const identifierData = await atStage("EAS_APP_IDENTIFIER", () =>
+    easRequest(
+      APPLE_APP_IDENTIFIER_QUERY,
+      {
+        accountName: project.accountName,
+        bundleIdentifier: config.bundleIdentifier,
+      },
+      easToken,
+    ),
+  );
+  const appleIdentifier = await atStage("EAS_APP_IDENTIFIER", () =>
+    exactlyOne(identifierData?.account?.byName?.appleAppIdentifiers),
   );
   if (
     identifierData?.account?.byName?.id !== project.accountId ||
     !appleIdentifier.id ||
     appleIdentifier.bundleIdentifier !== config.bundleIdentifier
   ) {
-    fail("FAILED_VALIDATION");
+    fail("FAILED_VALIDATION", "EAS_APP_IDENTIFIER");
   }
-  const credentialsData = await easRequest(
-    IOS_APP_CREDENTIALS_QUERY,
-    {
-      projectFullName: project.projectFullName,
-      appleAppIdentifierId: appleIdentifier.id,
-      iosDistributionType: "AD_HOC",
-    },
-    easToken,
+  const credentialsData = await atStage("EAS_CREDENTIAL_SNAPSHOT", () =>
+    easRequest(
+      IOS_APP_CREDENTIALS_QUERY,
+      {
+        projectFullName: project.projectFullName,
+        appleAppIdentifierId: appleIdentifier.id,
+        iosDistributionType: "AD_HOC",
+      },
+      easToken,
+    ),
   );
-  const snapshot = validateCredentialSnapshot(credentialsData, {
-    config,
-    project,
-    appleAppIdentifierId: appleIdentifier.id,
-  });
-
-  if (!apply) return { diagnostic: "INSPECT_ONLY" };
-
-  const ascToken = createAscJwt({
-    keyId: env.EXPO_ASC_KEY_ID,
-    issuerId: env.EXPO_ASC_ISSUER_ID,
-    privateKey,
-    nowSeconds: Math.floor(now().getTime() / 1000),
-  });
-  const ascRequest = createAscRequest({ token: ascToken, fetchImpl });
-
-  const bundleIds = await listAscResources(
-    ascRequest,
-    buildCollectionPath("bundleIds", {
-      "filter[identifier]": config.bundleIdentifier,
-      limit: "200",
+  const snapshot = await atStage("EAS_CREDENTIAL_SNAPSHOT", () =>
+    validateCredentialSnapshot(credentialsData, {
+      config,
+      project,
+      appleAppIdentifierId: appleIdentifier.id,
     }),
   );
-  const bundleId = exactlyOne(
-    bundleIds.filter(
-      (item) =>
-        item?.type === "bundleIds" &&
-        item.attributes?.identifier === config.bundleIdentifier,
+
+  if (!useAsc) return { diagnostic: "INSPECT_ONLY" };
+
+  const ascToken = await atStage("ASC_AUTHENTICATION", () =>
+    createAscJwt({
+      keyId: env.EXPO_ASC_KEY_ID,
+      issuerId: env.EXPO_ASC_ISSUER_ID,
+      privateKey,
+      nowSeconds: Math.floor(now().getTime() / 1000),
+    }),
+  );
+  const ascRequest = createAscRequest({ token: ascToken, fetchImpl });
+
+  const bundleIds = await atStage("ASC_BUNDLE_LOOKUP", () =>
+    listAscResources(
+      ascRequest,
+      buildCollectionPath("bundleIds", {
+        "filter[identifier]": config.bundleIdentifier,
+        limit: "200",
+      }),
+    ),
+  );
+  const bundleId = await atStage("ASC_BUNDLE_LOOKUP", () =>
+    exactlyOne(
+      bundleIds.filter(
+        (item) =>
+          item?.type === "bundleIds" &&
+          item.attributes?.identifier === config.bundleIdentifier,
+      ),
     ),
   );
   if (!["IOS", "UNIVERSAL"].includes(bundleId.attributes?.platform)) {
-    fail("FAILED_VALIDATION");
+    fail("FAILED_VALIDATION", "ASC_BUNDLE_LOOKUP");
   }
-  const certificateResponse = await ascRequest(
-    "GET",
-    `certificates/${encodeURIComponent(snapshot.certificatePortalId)}`,
+  const certificateResponse = await atStage("ASC_CERTIFICATE_LOOKUP", () =>
+    ascRequest(
+      "GET",
+      `certificates/${encodeURIComponent(snapshot.certificatePortalId)}`,
+    ),
   );
   const certificate = certificateResponse?.data;
   if (
@@ -917,116 +1040,332 @@ async function runRepair({
     ) ||
     !certificate.attributes?.certificateContent
   ) {
-    fail("FAILED_VALIDATION");
+    fail("FAILED_VALIDATION", "ASC_CERTIFICATE_LOOKUP");
   }
 
-  const allDevices = await listAscResources(
-    ascRequest,
-    buildCollectionPath("devices", { limit: "200" }),
+  const allDevices = await atStage("ASC_DEVICE_LOOKUP", () =>
+    listAscResources(
+      ascRequest,
+      buildCollectionPath("devices", { limit: "200" }),
+    ),
   );
-  const ascDevices = snapshot.deviceUdids.map((udid) =>
-    exactlyOne(
-      allDevices.filter(
-        (item) =>
-          item?.type === "devices" &&
-          typeof item.id === "string" &&
-          typeof item.attributes?.udid === "string" &&
-          item.attributes.udid.toUpperCase() === udid,
+  const ascDevices = await atStage("ASC_DEVICE_LOOKUP", () =>
+    snapshot.deviceUdids.map((udid) =>
+      exactlyOne(
+        allDevices.filter(
+          (item) =>
+            item?.type === "devices" &&
+            typeof item.id === "string" &&
+            typeof item.attributes?.udid === "string" &&
+            item.attributes.udid.toUpperCase() === udid,
+        ),
       ),
     ),
   );
-  const ascDeviceIds = normalizeSet(ascDevices.map((device) => device.id));
+  const ascDeviceIds = await atStage("ASC_DEVICE_LOOKUP", () =>
+    normalizeSet(ascDevices.map((device) => device.id)),
+  );
   if (ascDeviceIds.length !== snapshot.deviceIds.length) {
-    fail("FAILED_VALIDATION");
+    fail("FAILED_VALIDATION", "ASC_DEVICE_LOOKUP");
   }
 
-  const existingProfileResponse = await ascRequest(
-    "GET",
-    `profiles/${encodeURIComponent(snapshot.oldProfilePortalId)}?include=bundleId,certificates,devices`,
+  const existingProfileResponse = await atStage(
+    "EXISTING_PROFILE_RELATIONSHIPS",
+    () =>
+      ascRequest(
+        "GET",
+        `profiles/${encodeURIComponent(snapshot.oldProfilePortalId)}?include=bundleId,certificates,devices`,
+      ),
   );
-  validateExistingAscProfileResource(existingProfileResponse?.data, {
-    profileId: snapshot.oldProfilePortalId,
-    bundleId: bundleId.id,
-    certificateId: snapshot.certificatePortalId,
-    deviceIds: ascDeviceIds,
-  });
+  await atStage("EXISTING_PROFILE_RELATIONSHIPS", () =>
+    validateExistingAscProfileResource(existingProfileResponse?.data, {
+      profileId: snapshot.oldProfilePortalId,
+      bundleId: bundleId.id,
+      certificateId: snapshot.certificatePortalId,
+      deviceIds: ascDeviceIds,
+    }),
+  );
 
-  const uniqueName = `${PROFILE_NAME_PREFIX}${now().toISOString()} ${randomUUID()}`;
-  const existingNamePath = buildCollectionPath("profiles", {
-    "filter[name]": uniqueName,
-    "filter[profileType]": "IOS_APP_ADHOC",
-    limit: "200",
-  });
-  const duplicateNames = await listAscResources(ascRequest, existingNamePath);
-  if (
-    duplicateNames.some(
-      (item) =>
-        item?.type === "profiles" &&
-        item.attributes?.name === uniqueName &&
-        item.attributes?.profileType === "IOS_APP_ADHOC",
-    )
-  ) {
-    fail("FAILED_AMBIGUOUS");
+  const allProfiles = await atStage("CANDIDATE_ENUMERATION", () =>
+    listAscResources(
+      ascRequest,
+      buildCollectionPath("profiles", {
+        limit: "200",
+        include: "bundleId,certificates,devices",
+      }),
+    ),
+  );
+  const candidates = freshRepairCandidates(allProfiles, now().getTime());
+
+  async function validateCandidate(candidate, onPassed = () => {}) {
+    if (
+      candidate?.type !== "profiles" ||
+      typeof candidate.id !== "string" ||
+      !candidate.id
+    ) {
+      fail("FAILED_VALIDATION", "CANDIDATE_CREATE_READBACK");
+    }
+    const response = await atStage("CANDIDATE_CREATE_READBACK", () =>
+      ascRequest(
+        "GET",
+        `profiles/${encodeURIComponent(candidate.id)}?include=bundleId,certificates,devices`,
+      ),
+    );
+    const profile = await atStage("CANDIDATE_CREATE_READBACK", () =>
+      validateAscProfileResource(response?.data, {
+        name: candidate.attributes.name,
+        bundleId: bundleId.id,
+        certificateId: certificate.id,
+        deviceIds: ascDeviceIds,
+      }),
+    );
+    onPassed("CANDIDATE_CREATE_READBACK");
+    let parsedProfile;
+    try {
+      parsedProfile = await atStage("CMS_DECODE", () =>
+        decodeProfile(profile.profileContent),
+      );
+    } catch (error) {
+      // A typed parser failure occurs only after CMS decoding has succeeded.
+      if (error?.stage === "PLIST_PARSE") onPassed("CMS_DECODE");
+      throw error;
+    }
+    onPassed("CMS_DECODE");
+    onPassed("PLIST_PARSE");
+    await atStage("EMBEDDED_ENTITLEMENTS", () =>
+      validateEmbeddedProfile(parsedProfile, {
+        teamIdentifier: config.teamIdentifier,
+        bundleIdentifier: config.bundleIdentifier,
+        associatedDomains: config.associatedDomains,
+        name: profile.name,
+        profileUUID: profile.profileUUID,
+        deviceUdids: snapshot.deviceUdids,
+        certificateContent: certificate.attributes.certificateContent,
+        expirationDate: profile.expirationDate,
+        nowMs: now().getTime(),
+      }),
+    );
+    onPassed("EMBEDDED_ENTITLEMENTS");
+    return profile;
   }
 
-  const createBody = buildAscProfilePayload({
-    name: uniqueName,
-    bundleId: bundleId.id,
-    certificateId: certificate.id,
-    deviceIds: ascDeviceIds,
-  });
-  const createdResponse = await ascRequest("POST", "profiles", createBody);
-  const created = createdResponse?.data;
-  if (!created?.id) fail("FAILED_API");
+  if (diagnose) {
+    const outcomes = [];
+    for (const candidate of candidates) {
+      const passed = [];
+      let failure = null;
+      try {
+        await validateCandidate(candidate, (stage) => passed.push(stage));
+        if (candidate.id === snapshot.oldProfilePortalId) {
+          await atStage("POST_EXPIRY_VALIDATION", () =>
+            validateSavedProfileExpiration(snapshot, {
+              expirationDate: candidate.attributes.expirationDate,
+            }),
+          );
+          passed.push("POST_EXPIRY_VALIDATION");
+        }
+      } catch (error) {
+        failure = {
+          stage: STAGES.has(error?.stage) ? error.stage : "UNCLASSIFIED",
+          diagnostic: FAILURE_DIAGNOSTICS.has(error?.diagnostic)
+            ? error.diagnostic
+            : "FAILED_API",
+        };
+      }
+      outcomes.push({ passed, failure });
+    }
+    const candidateStageResults = {};
+    const installedCandidatePresent = candidates.some(
+      (candidate) => candidate?.id === snapshot.oldProfilePortalId,
+    );
+    for (const stage of [
+      "CANDIDATE_CREATE_READBACK",
+      "CMS_DECODE",
+      "PLIST_PARSE",
+      "EMBEDDED_ENTITLEMENTS",
+      "POST_EXPIRY_VALIDATION",
+    ]) {
+      const failures = outcomes.filter((outcome) => outcome.failure?.stage === stage);
+      const passedCount = outcomes.filter((outcome) => outcome.passed.includes(stage)).length;
+      candidateStageResults[stage] = {
+        passedCount,
+        failedCount: failures.length,
+        diagnostic:
+          failures[0]?.failure.diagnostic ||
+          (passedCount > 0
+            ? "PASSED"
+            : stage === "POST_EXPIRY_VALIDATION" && !installedCandidatePresent
+              ? "NOT_APPLICABLE"
+              : "NOT_RUN"),
+      };
+    }
+    return {
+      diagnostic: "DIAGNOSE_COMPLETE",
+      stage: "COMPLETE",
+      candidateCount: candidates.length,
+      validatedCandidateCount: outcomes.filter((outcome) => !outcome.failure).length,
+      savedProfileIsCandidate: candidates.some(
+        (candidate) => candidate?.id === snapshot.oldProfilePortalId,
+      ),
+      candidateStageResults,
+    };
+  }
 
-  // Read the just-created profile back from Apple so validation is against the
-  // authoritative resource, not only the POST echo.
-  const profileResponse = await ascRequest(
-    "GET",
-    `profiles/${encodeURIComponent(created.id)}?include=bundleId,certificates,devices`,
+  let profile;
+  let profileAlreadyInstalled = false;
+  if (reuseRepairProfile) {
+    if (candidates.length === 0) fail("FAILED_VALIDATION", "CANDIDATE_ENUMERATION");
+    if (candidates.length !== 1) fail("FAILED_AMBIGUOUS", "CANDIDATE_ENUMERATION");
+  }
+  const savedCandidate = candidates.find(
+    (candidate) => candidate?.id === snapshot.oldProfilePortalId,
   );
-  const profile = validateAscProfileResource(profileResponse?.data, {
-    name: uniqueName,
-    bundleId: bundleId.id,
-    certificateId: certificate.id,
-    deviceIds: ascDeviceIds,
-  });
-  const parsedProfile = decodeProfile(profile.profileContent);
-  validateEmbeddedProfile(parsedProfile, {
-    teamIdentifier: config.teamIdentifier,
-    bundleIdentifier: config.bundleIdentifier,
-    associatedDomains: config.associatedDomains,
-    name: profile.name,
-    profileUUID: profile.profileUUID,
-    deviceUdids: snapshot.deviceUdids,
-    certificateContent: certificate.attributes.certificateContent,
-    expirationDate: profile.expirationDate,
-    nowMs: now().getTime(),
-  });
+  if (savedCandidate) {
+    profile = await validateCandidate(savedCandidate);
+    profileAlreadyInstalled = true;
+    await atStage("POST_EXPIRY_VALIDATION", () =>
+      validateSavedProfileExpiration(snapshot, profile),
+    );
+  } else if (reuseRepairProfile) {
+    profile = await validateCandidate(candidates[0]);
+  }
+
+  if (profileAlreadyInstalled) {
+    const installedSnapshotData = await atStage("SNAPSHOT_BEFORE_MUTATION", () =>
+      easRequest(
+        IOS_APP_CREDENTIALS_QUERY,
+        {
+          projectFullName: project.projectFullName,
+          appleAppIdentifierId: appleIdentifier.id,
+          iosDistributionType: "AD_HOC",
+        },
+        easToken,
+      ),
+    );
+    const installedSnapshot = await atStage("SNAPSHOT_BEFORE_MUTATION", () =>
+      validateCredentialSnapshot(installedSnapshotData, {
+        config,
+        project,
+        appleAppIdentifierId: appleIdentifier.id,
+      }),
+    );
+    await atStage("SNAPSHOT_BEFORE_MUTATION", () =>
+      assertCredentialSnapshotUnchanged(snapshot, installedSnapshot),
+    );
+    if (installedSnapshot.oldProfilePortalId !== profile.id) {
+      fail("FAILED_VALIDATION", "POST_EXPIRY_VALIDATION");
+    }
+    await atStage("POST_EXPIRY_VALIDATION", () =>
+      validateSavedProfileExpiration(installedSnapshot, profile),
+    );
+    return { diagnostic: "REPAIR_COMPLETE" };
+  }
+
+  if (!reuseRepairProfile) {
+    const creationTime = now().toISOString();
+    const creationUuid = randomUUID();
+    if (!isUuid(creationUuid)) {
+      fail("FAILED_VALIDATION", "CANDIDATE_ENUMERATION");
+    }
+    const uniqueName = `${PROFILE_NAME_PREFIX}${creationTime} ${creationUuid}`;
+    const existingNamePath = buildCollectionPath("profiles", {
+      "filter[name]": uniqueName,
+      "filter[profileType]": "IOS_APP_ADHOC",
+      limit: "200",
+    });
+    const duplicateNames = await atStage("CANDIDATE_ENUMERATION", () =>
+      listAscResources(ascRequest, existingNamePath),
+    );
+    if (
+      duplicateNames.some(
+        (item) =>
+          item?.type === "profiles" &&
+          item.attributes?.name === uniqueName &&
+          item.attributes?.profileType === "IOS_APP_ADHOC",
+      )
+    ) {
+      fail("FAILED_AMBIGUOUS", "CANDIDATE_ENUMERATION");
+    }
+    const createBody = await atStage("CANDIDATE_CREATE_READBACK", () =>
+      buildAscProfilePayload({
+        name: uniqueName,
+        bundleId: bundleId.id,
+        certificateId: certificate.id,
+        deviceIds: ascDeviceIds,
+      }),
+    );
+    const createdResponse = await atStage("CANDIDATE_CREATE_READBACK", () =>
+      ascRequest("POST", "profiles", createBody),
+    );
+    const created = createdResponse?.data;
+    if (!created?.id) fail("FAILED_API", "CANDIDATE_CREATE_READBACK");
+
+    // Read the new profile back from Apple; never trust only the POST echo.
+    const profileResponse = await atStage("CANDIDATE_CREATE_READBACK", () =>
+      ascRequest(
+        "GET",
+        `profiles/${encodeURIComponent(created.id)}?include=bundleId,certificates,devices`,
+      ),
+    );
+    profile = await atStage("CANDIDATE_CREATE_READBACK", () =>
+      validateAscProfileResource(profileResponse?.data, {
+        name: uniqueName,
+        bundleId: bundleId.id,
+        certificateId: certificate.id,
+        deviceIds: ascDeviceIds,
+      }),
+    );
+    const parsedProfile = await atStage("CMS_DECODE", () =>
+      decodeProfile(profile.profileContent),
+    );
+    await atStage("EMBEDDED_ENTITLEMENTS", () =>
+      validateEmbeddedProfile(parsedProfile, {
+        teamIdentifier: config.teamIdentifier,
+        bundleIdentifier: config.bundleIdentifier,
+        associatedDomains: config.associatedDomains,
+        name: profile.name,
+        profileUUID: profile.profileUUID,
+        deviceUdids: snapshot.deviceUdids,
+        certificateContent: certificate.attributes.certificateContent,
+        expirationDate: profile.expirationDate,
+        nowMs: now().getTime(),
+      }),
+    );
+  }
 
   // Re-read immediately before mutation. Never update if any EAS association
   // changed while the Apple profile was being created or validated.
-  const beforeUpdateData = await easRequest(
-    IOS_APP_CREDENTIALS_QUERY,
-    {
-      projectFullName: project.projectFullName,
-      appleAppIdentifierId: appleIdentifier.id,
-      iosDistributionType: "AD_HOC",
-    },
-    easToken,
+  const beforeUpdateData = await atStage("SNAPSHOT_BEFORE_MUTATION", () =>
+    easRequest(
+      IOS_APP_CREDENTIALS_QUERY,
+      {
+        projectFullName: project.projectFullName,
+        appleAppIdentifierId: appleIdentifier.id,
+        iosDistributionType: "AD_HOC",
+      },
+      easToken,
+    ),
   );
-  const beforeUpdateSnapshot = validateCredentialSnapshot(beforeUpdateData, {
-    config,
-    project,
-    appleAppIdentifierId: appleIdentifier.id,
-  });
-  assertCredentialSnapshotUnchanged(snapshot, beforeUpdateSnapshot);
+  const beforeUpdateSnapshot = await atStage("SNAPSHOT_BEFORE_MUTATION", () =>
+    validateCredentialSnapshot(beforeUpdateData, {
+      config,
+      project,
+      appleAppIdentifierId: appleIdentifier.id,
+    }),
+  );
+  await atStage("SNAPSHOT_BEFORE_MUTATION", () =>
+    assertCredentialSnapshotUnchanged(snapshot, beforeUpdateSnapshot),
+  );
 
-  const updateRequest = buildEasProfileUpdateRequest(snapshot, profile);
-  const updateData = await easRequest(
-    updateRequest.query,
-    updateRequest.variables,
-    easToken,
+  const updateRequest = await atStage("SNAPSHOT_BEFORE_MUTATION", () =>
+    buildEasProfileUpdateRequest(snapshot, profile),
+  );
+  const updateData = await atStage("MUTATION_ACK", () =>
+    easRequest(
+      updateRequest.query,
+      updateRequest.variables,
+      easToken,
+    ),
   );
   const updatedProfile =
     updateData?.appleProvisioningProfile?.updateAppleProvisioningProfile;
@@ -1034,25 +1373,29 @@ async function runRepair({
     updatedProfile?.id !== snapshot.profileId ||
     updatedProfile?.developerPortalIdentifier !== profile.id
   ) {
-    fail("FAILED_VALIDATION");
+    fail("FAILED_VALIDATION", "MUTATION_ACK");
   }
 
-  const finalData = await easRequest(
-    IOS_APP_CREDENTIALS_QUERY,
-    {
-      projectFullName: project.projectFullName,
-      appleAppIdentifierId: appleIdentifier.id,
-      iosDistributionType: "AD_HOC",
-    },
-    easToken,
+  const finalData = await atStage("POST_EXPIRY_VALIDATION", () =>
+    easRequest(
+      IOS_APP_CREDENTIALS_QUERY,
+      {
+        projectFullName: project.projectFullName,
+        appleAppIdentifierId: appleIdentifier.id,
+        iosDistributionType: "AD_HOC",
+      },
+      easToken,
+    ),
   );
-  validateBuildCredentialsAfterUpdate(finalData, {
-    config,
-    project,
-    snapshot,
-    newProfileId: profile.id,
-    newProfileExpiration: profile.expirationDate,
-  });
+  await atStage("POST_EXPIRY_VALIDATION", () =>
+    validateBuildCredentialsAfterUpdate(finalData, {
+      config,
+      project,
+      snapshot,
+      newProfileId: profile.id,
+      newProfileExpiration: profile.expirationDate,
+    }),
+  );
   return { diagnostic: "REPAIR_COMPLETE" };
 }
 
@@ -1064,12 +1407,31 @@ async function main() {
       process.exitCode = 1;
       return;
     }
-    process.stdout.write(`${result.diagnostic}\n`);
+    const stage = STAGES.has(result.stage) ? result.stage : "COMPLETE";
+    if (result.diagnostic === "DIAGNOSE_COMPLETE") {
+      const lines = [
+        `${result.diagnostic} ${stage}`,
+        `CANDIDATES ${result.candidateCount} VALIDATED ${result.validatedCandidateCount} SAVED_PROFILE_CANDIDATE ${result.savedProfileIsCandidate ? "YES" : "NO"}`,
+      ];
+      for (const [candidateStage, outcome] of Object.entries(
+        result.candidateStageResults || {},
+      )) {
+        if (STAGES.has(candidateStage)) {
+          lines.push(
+            `CANDIDATE_STAGE ${candidateStage} PASSED ${outcome.passedCount} FAILED ${outcome.failedCount} ${["PASSED", "NOT_RUN", "NOT_APPLICABLE"].includes(outcome.diagnostic) || FAILURE_DIAGNOSTICS.has(outcome.diagnostic) ? outcome.diagnostic : "FAILED_API"}`,
+          );
+        }
+      }
+      process.stdout.write(`${lines.join("\n")}\n`);
+    } else {
+      process.stdout.write(`${result.diagnostic} ${stage}\n`);
+    }
   } catch (error) {
-    const diagnostic = DIAGNOSTICS.has(error?.diagnostic)
+    const diagnostic = FAILURE_DIAGNOSTICS.has(error?.diagnostic)
       ? error.diagnostic
       : "FAILED_API";
-    process.stderr.write(`${diagnostic}\n`);
+    const stage = STAGES.has(error?.stage) ? error.stage : "UNCLASSIFIED";
+    process.stderr.write(`${diagnostic} ${stage}\n`);
     process.exitCode = 1;
   }
 }
@@ -1083,6 +1445,7 @@ module.exports = {
   APPLE_APP_IDENTIFIER_QUERY,
   ASC_API_ROOT,
   DIAGNOSTICS,
+  STAGES,
   EAS_GRAPHQL_URL,
   IOS_APP_CREDENTIALS_QUERY,
   PROFILE_NAME_PREFIX,
@@ -1097,6 +1460,7 @@ module.exports = {
   createEasRequest,
   decodeProvisioningProfile,
   exactlyOne,
+  freshRepairCandidates,
   isUuid,
   normalizeSet,
   normalizeTimestamp,
