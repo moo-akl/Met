@@ -1565,3 +1565,224 @@ export interface VenueManagerQrCode {
   /** Full check-in URL to encode as QR. */
   qrUrl: string;
 }
+
+
+
+export type VenueOutreachInputTemplate =
+  (typeof VenueOutreachInputTemplate)[keyof typeof VenueOutreachInputTemplate];
+
+
+export const VenueOutreachInputTemplate = {
+  contact_request: "contact_request",
+  met_launch_with_links: "met_launch_with_links",
+  met_launch_without_links: "met_launch_without_links",
+  preapproval_video_application: "preapproval_video_application",
+  introduction: "introduction",
+  benefits: "benefits",
+  events: "events",
+  rewards: "rewards",
+  follow_up: "follow_up",
+} as const;
+
+
+export interface VenueOutreachInput {
+  /**
+   * @minLength 2
+   * @maxLength 150
+   */
+  businessName: string;
+  /** @maxLength 255 */
+  recipientEmail: string;
+  template?: VenueOutreachInputTemplate;
+}
+
+
+export interface VenueOutreachPreviewInput {
+  /**
+   * @minLength 2
+   * @maxLength 150
+   */
+  businessName: string;
+}
+
+
+export type VenueOutreachHistoryEntryKind =
+  (typeof VenueOutreachHistoryEntryKind)[keyof typeof VenueOutreachHistoryEntryKind];
+
+
+export const VenueOutreachHistoryEntryKind = {
+  new_venue_outreach: "new_venue_outreach",
+  contact_request: "contact_request",
+  registration_invite: "registration_invite",
+} as const;
+
+
+export type VenueOutreachHistoryEntryDeliveryStatus =
+  (typeof VenueOutreachHistoryEntryDeliveryStatus)[keyof typeof VenueOutreachHistoryEntryDeliveryStatus];
+
+
+export const VenueOutreachHistoryEntryDeliveryStatus = {
+  sending: "sending",
+  sent: "sent",
+  delivery_uncertain: "delivery_uncertain",
+  failed: "failed",
+} as const;
+
+
+export type VenueOutreachHistoryEntryLinkStatus =
+  (typeof VenueOutreachHistoryEntryLinkStatus)[keyof typeof VenueOutreachHistoryEntryLinkStatus];
+
+
+export const VenueOutreachHistoryEntryLinkStatus = {
+  none: "none",
+  active: "active",
+  expired: "expired",
+  used: "used",
+  superseded: "superseded",
+  unknown: "unknown",
+} as const;
+
+
+export interface VenueOutreachHistoryEntry {
+  id: string;
+  kind: VenueOutreachHistoryEntryKind;
+  businessName: string;
+  recipientEmail: string;
+  template: string;
+  deliveryStatus: VenueOutreachHistoryEntryDeliveryStatus;
+  createdAt: string;
+  /** @nullable */
+  sentAt: string | null;
+  /** @nullable */
+  venueOwnerProfileId: number | null;
+  /** @nullable */
+  applicationId: number | null;
+  /** @nullable */
+  applicationStatus: string | null;
+  /** @nullable */
+  expiresAt: string | null;
+  linkStatus: VenueOutreachHistoryEntryLinkStatus;
+}
+
+
+export interface VenueOutreachHistoryResponse {
+  emails: VenueOutreachHistoryEntry[];
+}
+
+
+export interface VenueOwnerApplicationInput {
+  /** @maxLength 255 */
+  contactEmail: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  contactName: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  placeId: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  placeName: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  businessName: string;
+  /**
+   * @minimum -90
+   * @maximum 90
+   */
+  lat: number;
+  /**
+   * @minimum -180
+   * @maximum 180
+   */
+  lng: number;
+  /**
+   * @maxLength 160
+   * @nullable
+   */
+  tagline?: string | null;
+  /**
+   * @maxLength 1000
+   * @nullable
+   */
+  description?: string | null;
+  /** @maxLength 2000 */
+  verificationDocUrl: string;
+  /**
+   * @maxLength 500
+   * @nullable
+   */
+  registrationNotes?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 256
+   */
+  applicationInviteToken?: string;
+}
+
+
+export type VenueOwnerApplicationResultStatus =
+  (typeof VenueOwnerApplicationResultStatus)[keyof typeof VenueOwnerApplicationResultStatus];
+
+
+export const VenueOwnerApplicationResultStatus = {
+  submitted: "submitted",
+} as const;
+
+
+export interface VenueOwnerApplicationResult {
+  applicationId: number;
+  status: VenueOwnerApplicationResultStatus;
+}
+
+
+export type VenueRegistrationLinkInputTemplate =
+  (typeof VenueRegistrationLinkInputTemplate)[keyof typeof VenueRegistrationLinkInputTemplate];
+
+
+export const VenueRegistrationLinkInputTemplate = {
+  registration: "registration",
+  registration_with_video: "registration_with_video",
+} as const;
+
+
+export interface VenueRegistrationLinkInput {
+  sendEmail: boolean;
+  /** @maxLength 255 */
+  recipientEmail?: string;
+  template?: VenueRegistrationLinkInputTemplate;
+}
+
+
+/**
+ * @nullable
+ */
+export type VenueRegistrationLinkResultEmailError =
+  | (typeof VenueRegistrationLinkResultEmailError)[keyof typeof VenueRegistrationLinkResultEmailError]
+  | null;
+
+
+export const VenueRegistrationLinkResultEmailError = {
+  not_configured: "not_configured",
+  auth_failed: "auth_failed",
+  gmail_connection_failed: "gmail_connection_failed",
+  delivery_failed: "delivery_failed",
+} as const;
+
+
+export interface VenueRegistrationLinkResult {
+  token: string;
+  expiresAt: string;
+  emailSent: boolean;
+  /** @nullable */
+  emailError?: VenueRegistrationLinkResultEmailError;
+  /** @nullable */
+  contactEmail: string | null;
+}
