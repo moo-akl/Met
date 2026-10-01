@@ -641,6 +641,31 @@ test("embedded CMS plist validation requires push, app links, team, exact device
   assert.doesNotThrow(() =>
     repair.validateEmbeddedProfile(
       embeddedProfile({
+        Entitlements: {
+          ...embeddedProfile().Entitlements,
+          "com.apple.developer.associated-domains": "*",
+        },
+      }),
+      expected,
+    ),
+  );
+  assert.doesNotThrow(() =>
+    repair.validateEmbeddedProfile(
+      embeddedProfile({
+        Entitlements: {
+          ...embeddedProfile().Entitlements,
+          "com.apple.developer.associated-domains": [
+            "*",
+            ...CONFIG.associatedDomains,
+          ],
+        },
+      }),
+      expected,
+    ),
+  );
+  assert.doesNotThrow(() =>
+    repair.validateEmbeddedProfile(
+      embeddedProfile({
         ApplicationIdentifierPrefix: ["LEGACY0001"],
         Entitlements: {
           ...embeddedProfile().Entitlements,
@@ -667,6 +692,20 @@ test("embedded CMS plist validation requires push, app links, team, exact device
         "com.apple.developer.associated-domains": ["applinks:other.example"],
       },
     }),
+    embeddedProfile({
+      Entitlements: {
+        ...embeddedProfile().Entitlements,
+        "com.apple.developer.associated-domains": ["*", null],
+      },
+    }),
+    ...["* ", " *", "applinks:metapp.replit.app"].map((grant) =>
+      embeddedProfile({
+        Entitlements: {
+          ...embeddedProfile().Entitlements,
+          "com.apple.developer.associated-domains": grant,
+        },
+      }),
+    ),
     missingDomains,
     embeddedProfile({ TeamIdentifier: ["OTHERTEAM1"] }),
     embeddedProfile({ ProvisionedDevices: [DEVICE_A] }),
@@ -777,7 +816,8 @@ test("embedded invariant summaries identify each mismatch using only fixed enums
     profile.Entitlements["com.apple.developer.associated-domains"] = "*";
   });
   assert.equal(summarize(stringWildcard).associatedDomainsKind, "STRING_WILDCARD");
-  assert.equal(summarize(stringWildcard).associatedDomainsAuthorized, "FAIL");
+  assert.equal(summarize(stringWildcard).associatedDomainsAuthorized, "PASS");
+  assert.doesNotThrow(() => repair.validateEmbeddedProfile(stringWildcard, expected));
   const absentDomains = withProfile((profile) => {
     delete profile.Entitlements["com.apple.developer.associated-domains"];
   });
@@ -791,6 +831,36 @@ test("embedded invariant summaries identify each mismatch using only fixed enums
   });
   assert.equal(summarize(arrayWildcard).associatedDomainsKind, "ARRAY_WILDCARD");
   assert.equal(summarize(arrayWildcard).associatedDomainsAuthorized, "PASS");
+  const mixedArrayWildcard = withProfile((profile) => {
+    profile.Entitlements["com.apple.developer.associated-domains"] = [
+      "*",
+      ...expected.associatedDomains,
+    ];
+  });
+  assert.equal(
+    summarize(mixedArrayWildcard).associatedDomainsAuthorized,
+    "PASS",
+  );
+  assert.doesNotThrow(() =>
+    repair.validateEmbeddedProfile(mixedArrayWildcard, expected),
+  );
+
+  for (const grant of [
+    "* ",
+    " *",
+    "applinks:PRIVATE_ASSOCIATED_DOMAIN",
+    ["*", null],
+    ["PRIVATE_OTHER_DOMAIN"],
+  ]) {
+    const rejected = withProfile((profile) => {
+      profile.Entitlements["com.apple.developer.associated-domains"] = grant;
+    });
+    assert.equal(summarize(rejected).associatedDomainsAuthorized, "FAIL");
+    assert.throws(
+      () => repair.validateEmbeddedProfile(rejected, expected),
+      (error) => error.diagnostic === "FAILED_VALIDATION",
+    );
+  }
 
   const rendered = repair.formatCandidateInvariantResult(1, baseline);
   const combined = `${JSON.stringify(baseline)} ${rendered}`;
@@ -1369,7 +1439,7 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
       decodeOverrides: {
         Entitlements: {
           ...embeddedProfile().Entitlements,
-          "com.apple.developer.associated-domains": "*",
+          "com.apple.developer.associated-domains": "* ",
         },
       },
     });
@@ -1382,7 +1452,7 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
     assert.equal(
       domainInvariantFailure.result.candidateInvariantResults[0].invariants
         .associatedDomainsKind,
-      "STRING_WILDCARD",
+      "INVALID",
     );
     assert.equal(
       domainInvariantFailure.result.candidateInvariantResults[0].invariants
@@ -1391,6 +1461,25 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
     );
     assert.equal(domainInvariantFailure.mutationCount, 0);
     assert.equal(domainInvariantFailure.profileCreateCount, 0);
+
+    const reuseStringWildcard = await runFakeApply({
+      args: ["--apply", "--reuse-repair-profile"],
+      candidates: [candidate],
+      decodeOverrides: {
+        Entitlements: {
+          ...embeddedProfile().Entitlements,
+          "com.apple.developer.associated-domains": "*",
+        },
+      },
+    });
+    assert.equal(reuseStringWildcard.result?.diagnostic, "REPAIR_COMPLETE");
+    assert.equal(reuseStringWildcard.error, undefined);
+    assert.equal(reuseStringWildcard.profileCreateCount, 0);
+    assert.equal(reuseStringWildcard.mutationCount, 1);
+    assert.equal(
+      reuseStringWildcard.events.some((event) => event === "asc:POST /v1/profiles"),
+      false,
+    );
 
     const reuse = await runFakeApply({
       args: ["--apply", "--reuse-repair-profile"],

@@ -596,6 +596,22 @@ function parsePlistData(value) {
   return data;
 }
 
+function isAssociatedDomainsAuthorized(domains, expectedDomains) {
+  if (domains === "*") return true;
+  if (
+    !Array.isArray(domains) ||
+    domains.length === 0 ||
+    domains.some((domain) => typeof domain !== "string" || domain.length === 0)
+  ) {
+    return false;
+  }
+  if (domains.includes("*")) return true;
+  return (
+    Array.isArray(expectedDomains) &&
+    !expectedDomains.some((domain) => !domains.includes(domain))
+  );
+}
+
 function validateEmbeddedProfile(plist, expected) {
   const entitlements = plist?.Entitlements;
   const applicationIdentifierPrefixes = plist?.ApplicationIdentifierPrefix;
@@ -618,15 +634,7 @@ function validateEmbeddedProfile(plist, expected) {
     ) ||
     entitlements?.["com.apple.developer.team-identifier"] !== expected.teamIdentifier ||
     entitlements?.["aps-environment"] !== "production" ||
-    !Array.isArray(authorizedDomains) ||
-    authorizedDomains.length === 0 ||
-    authorizedDomains.some(
-      (domain) => typeof domain !== "string" || domain.length === 0,
-    ) ||
-    (!authorizedDomains.includes("*") &&
-      expected.associatedDomains.some(
-        (domain) => !authorizedDomains.includes(domain),
-      )) ||
+    !isAssociatedDomainsAuthorized(authorizedDomains, expected.associatedDomains) ||
     plist.Name !== expected.name ||
     !isUuid(plist.UUID) ||
     plist.UUID.toLowerCase() !== expected.profileUUID.toLowerCase() ||
@@ -694,12 +702,10 @@ function summarizeEmbeddedProfileInvariants(plist, expected) {
   } else if (domains === "*") {
     associatedDomainsKind = "STRING_WILDCARD";
   }
-  const associatedDomainsAuthorized =
-    Array.isArray(domains) &&
-    domains.length > 0 &&
-    domains.every((domain) => typeof domain === "string" && domain.length > 0) &&
-    (domains.includes("*") ||
-      !expected.associatedDomains.some((domain) => !domains.includes(domain)));
+  const associatedDomainsAuthorized = isAssociatedDomainsAuthorized(
+    domains,
+    expected.associatedDomains,
+  );
 
   const certificates = plist?.DeveloperCertificates;
   const certificateCount = Array.isArray(certificates) ? certificates.length : 0;
@@ -1663,6 +1669,7 @@ module.exports = {
   exactlyOne,
   freshRepairCandidates,
   formatCandidateInvariantResult,
+  isAssociatedDomainsAuthorized,
   isUuid,
   normalizeSet,
   normalizeTimestamp,
