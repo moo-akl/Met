@@ -168,6 +168,8 @@ import type {
   ErrorType,
 } from "../custom-fetch";
 
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
 /**
  * Returns server health status
  * @summary Health check
