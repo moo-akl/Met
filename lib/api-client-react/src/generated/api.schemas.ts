@@ -13,6 +13,84 @@ export interface Error {
   message: string;
 }
 
+/**
+ * @nullable
+ */
+export type VenueActivationRemovalReason =
+  | (typeof VenueActivationRemovalReason)[keyof typeof VenueActivationRemovalReason]
+  | null;
+
+export const VenueActivationRemovalReason = {
+  registration: "registration",
+  qr_checkins: "qr_checkins",
+} as const;
+
+export interface VenueActivation {
+  /** @nullable */
+  firstInvitationSentAt: string | null;
+  /** @nullable */
+  registrationDeadline: string | null;
+  /** @nullable */
+  registeredAt: string | null;
+  /** @nullable */
+  qrDeadline: string | null;
+  /** @minimum 0 */
+  qrVerifiedCheckins: number;
+  /** @nullable */
+  reminder5SentAt: string | null;
+  /** @nullable */
+  reminder10SentAt: string | null;
+  /** @nullable */
+  reminder5AttemptedAt: string | null;
+  /** @nullable */
+  reminder10AttemptedAt: string | null;
+  /** @nullable */
+  unlistedAt: string | null;
+  /** @nullable */
+  removalReason: VenueActivationRemovalReason;
+  exempt: boolean;
+}
+
+export interface VenueActivationResponse {
+  activation: VenueActivation;
+}
+
+export type VenueActivationReminderResponse = VenueActivationResponse & {
+  sent: boolean;
+};
+
+export interface VenueActivationReminderInput {
+  [key: string]: unknown;
+}
+
+export interface VenueActivationExceptionInput {
+  exempt: boolean;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  reason: string;
+}
+
+export interface VenueActivationReinstateInput {
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  reason: string;
+}
+
+export interface VenueActivationProcessResponse {
+  /** @minimum 0 */
+  remindersClaimed: number;
+  /** @minimum 0 */
+  reminderSent: number;
+  /** @minimum 0 */
+  unlistedRegistration: number;
+  /** @minimum 0 */
+  unlistedQrCheckins: number;
+}
+
 export interface VenueAdminPassword {
   /** @minLength 12 */
   password: string;
@@ -54,11 +132,304 @@ export interface VenueManagerSession {
   expiresAt: string;
 }
 
+export interface VenueManagerFirebaseConfig {
+  /** @minLength 1 */
+  apiKey: string;
+  /** @minLength 1 */
+  authDomain: string;
+  /** @minLength 1 */
+  projectId: string;
+}
+
+export interface VenueManagerFirebaseProof {
+  /** @minLength 1 */
+  idToken: string;
+}
+
+export interface VenueManagerFirebaseLink {
+  /** @minLength 1 */
+  idToken: string;
+  /** @minLength 1 */
+  legacyPassword: string;
+}
+
+export interface VenueContactRequestInput {
+  /** @maxLength 255 */
+  recipientEmail: string;
+}
+
+export type VenueOutreachInputTemplate =
+  (typeof VenueOutreachInputTemplate)[keyof typeof VenueOutreachInputTemplate];
+
+export const VenueOutreachInputTemplate = {
+  contact_request: "contact_request",
+  met_launch_with_links: "met_launch_with_links",
+  met_launch_without_links: "met_launch_without_links",
+  preapproval_video_application: "preapproval_video_application",
+  introduction: "introduction",
+  benefits: "benefits",
+  events: "events",
+  rewards: "rewards",
+  follow_up: "follow_up",
+} as const;
+
+export interface VenueOutreachInput {
+  /**
+   * @minLength 2
+   * @maxLength 150
+   */
+  businessName: string;
+  /** @maxLength 255 */
+  recipientEmail: string;
+  template?: VenueOutreachInputTemplate;
+}
+
+export interface VenueOutreachPreviewInput {
+  /**
+   * @minLength 2
+   * @maxLength 150
+   */
+  businessName: string;
+}
+
+export type VenueOutreachTemplatePreviewId =
+  (typeof VenueOutreachTemplatePreviewId)[keyof typeof VenueOutreachTemplatePreviewId];
+
+export const VenueOutreachTemplatePreviewId = {
+  contact_request: "contact_request",
+  met_launch_with_links: "met_launch_with_links",
+  met_launch_without_links: "met_launch_without_links",
+  preapproval_video_application: "preapproval_video_application",
+  introduction: "introduction",
+  benefits: "benefits",
+  events: "events",
+  rewards: "rewards",
+  follow_up: "follow_up",
+} as const;
+
+export interface VenueOutreachTemplatePreview {
+  id: VenueOutreachTemplatePreviewId;
+  label: string;
+  description: string;
+  subject: string;
+  text: string;
+}
+
+export type VenueOutreachHistoryEntryKind =
+  (typeof VenueOutreachHistoryEntryKind)[keyof typeof VenueOutreachHistoryEntryKind];
+
+export const VenueOutreachHistoryEntryKind = {
+  new_venue_outreach: "new_venue_outreach",
+  contact_request: "contact_request",
+  registration_invite: "registration_invite",
+} as const;
+
+export type VenueOutreachHistoryEntryDeliveryStatus =
+  (typeof VenueOutreachHistoryEntryDeliveryStatus)[keyof typeof VenueOutreachHistoryEntryDeliveryStatus];
+
+export const VenueOutreachHistoryEntryDeliveryStatus = {
+  sending: "sending",
+  sent: "sent",
+  delivery_uncertain: "delivery_uncertain",
+  failed: "failed",
+} as const;
+
+export type VenueOutreachHistoryEntryLinkStatus =
+  (typeof VenueOutreachHistoryEntryLinkStatus)[keyof typeof VenueOutreachHistoryEntryLinkStatus];
+
+export const VenueOutreachHistoryEntryLinkStatus = {
+  none: "none",
+  active: "active",
+  expired: "expired",
+  used: "used",
+  superseded: "superseded",
+  unknown: "unknown",
+} as const;
+
+export interface VenueOutreachHistoryEntry {
+  id: string;
+  kind: VenueOutreachHistoryEntryKind;
+  businessName: string;
+  recipientEmail: string;
+  template: string;
+  deliveryStatus: VenueOutreachHistoryEntryDeliveryStatus;
+  createdAt: string;
+  /** @nullable */
+  sentAt: string | null;
+  /** @nullable */
+  venueOwnerProfileId: number | null;
+  /** @nullable */
+  applicationId: number | null;
+  /** @nullable */
+  applicationStatus: string | null;
+  /** @nullable */
+  expiresAt: string | null;
+  linkStatus: VenueOutreachHistoryEntryLinkStatus;
+}
+
+export interface VenueOutreachHistoryResponse {
+  emails: VenueOutreachHistoryEntry[];
+}
+
+export interface VenueContactRequestResult {
+  emailSent: boolean;
+  recipientEmail: string;
+}
+
+export interface VenueApplicationInviteValidationInput {
+  /**
+   * @minLength 1
+   * @maxLength 256
+   */
+  token: string;
+}
+
+export interface VenueApplicationInviteValidationResult {
+  invitedEmail: string;
+  businessName: string;
+  expiresAt: string;
+}
+
+export interface VenueOwnerApplicationInput {
+  /** @maxLength 255 */
+  contactEmail: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  contactName: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  placeId: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  placeName: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  businessName: string;
+  /**
+   * @minimum -90
+   * @maximum 90
+   */
+  lat: number;
+  /**
+   * @minimum -180
+   * @maximum 180
+   */
+  lng: number;
+  /**
+   * @maxLength 160
+   * @nullable
+   */
+  tagline?: string | null;
+  /**
+   * @maxLength 1000
+   * @nullable
+   */
+  description?: string | null;
+  /** @maxLength 2000 */
+  verificationDocUrl: string;
+  /**
+   * @maxLength 500
+   * @nullable
+   */
+  registrationNotes?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 256
+   */
+  applicationInviteToken?: string;
+}
+
+export type VenueOwnerApplicationResultStatus =
+  (typeof VenueOwnerApplicationResultStatus)[keyof typeof VenueOwnerApplicationResultStatus];
+
+export const VenueOwnerApplicationResultStatus = {
+  submitted: "submitted",
+} as const;
+
+export interface VenueOwnerApplicationResult {
+  applicationId: number;
+  status: VenueOwnerApplicationResultStatus;
+}
+
+export type VenueRegistrationLinkInputTemplate =
+  (typeof VenueRegistrationLinkInputTemplate)[keyof typeof VenueRegistrationLinkInputTemplate];
+
+export const VenueRegistrationLinkInputTemplate = {
+  registration: "registration",
+  registration_with_video: "registration_with_video",
+} as const;
+
+export interface VenueRegistrationLinkInput {
+  sendEmail: boolean;
+  /** @maxLength 255 */
+  recipientEmail?: string;
+  template?: VenueRegistrationLinkInputTemplate;
+}
+
+/**
+ * @nullable
+ */
+export type VenueRegistrationLinkResultEmailError =
+  | (typeof VenueRegistrationLinkResultEmailError)[keyof typeof VenueRegistrationLinkResultEmailError]
+  | null;
+
+export const VenueRegistrationLinkResultEmailError = {
+  not_configured: "not_configured",
+  auth_failed: "auth_failed",
+  gmail_connection_failed: "gmail_connection_failed",
+  delivery_failed: "delivery_failed",
+} as const;
+
+export interface VenueRegistrationLinkResult {
+  token: string;
+  expiresAt: string;
+  emailSent: boolean;
+  /** @nullable */
+  emailError?: VenueRegistrationLinkResultEmailError;
+  /** @nullable */
+  contactEmail: string | null;
+}
+
+export type VenueManagerFirebaseRegistrationAcceptedTermsVersion =
+  (typeof VenueManagerFirebaseRegistrationAcceptedTermsVersion)[keyof typeof VenueManagerFirebaseRegistrationAcceptedTermsVersion];
+
+export const VenueManagerFirebaseRegistrationAcceptedTermsVersion = {
+  "venue-2026-09": "venue-2026-09",
+} as const;
+
+export interface VenueManagerFirebaseRegistration {
+  /** @minLength 1 */
+  token: string;
+  /** @minLength 1 */
+  idToken: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  displayName: string;
+  acceptedTermsVersion: VenueManagerFirebaseRegistrationAcceptedTermsVersion;
+}
+
 export interface VenueManagerSignIn {
   email: string;
   /** @minLength 12 */
   password: string;
 }
+
+export type VenueManagerInvitationAcceptanceAcceptedTermsVersion =
+  (typeof VenueManagerInvitationAcceptanceAcceptedTermsVersion)[keyof typeof VenueManagerInvitationAcceptanceAcceptedTermsVersion];
+
+export const VenueManagerInvitationAcceptanceAcceptedTermsVersion = {
+  "venue-2026-09": "venue-2026-09",
+} as const;
 
 export interface VenueManagerInvitationAcceptance {
   /** @minLength 1 */
@@ -70,6 +441,28 @@ export interface VenueManagerInvitationAcceptance {
   displayName: string;
   /** @minLength 12 */
   password: string;
+  acceptedTermsVersion: VenueManagerInvitationAcceptanceAcceptedTermsVersion;
+}
+
+export type VenueManagerOwnerRegistrationAcceptedTermsVersion =
+  (typeof VenueManagerOwnerRegistrationAcceptedTermsVersion)[keyof typeof VenueManagerOwnerRegistrationAcceptedTermsVersion];
+
+export const VenueManagerOwnerRegistrationAcceptedTermsVersion = {
+  "venue-2026-09": "venue-2026-09",
+} as const;
+
+export interface VenueManagerOwnerRegistration {
+  /** @minLength 1 */
+  token: string;
+  email: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  displayName: string;
+  /** @minLength 8 */
+  password: string;
+  acceptedTermsVersion: VenueManagerOwnerRegistrationAcceptedTermsVersion;
 }
 
 export interface VenueManagerPasswordChange {
@@ -85,6 +478,13 @@ export interface VenueManagerRecovery {
   newPassword: string;
 }
 
+export type VenueManagerClaimAcceptedTermsVersion =
+  (typeof VenueManagerClaimAcceptedTermsVersion)[keyof typeof VenueManagerClaimAcceptedTermsVersion];
+
+export const VenueManagerClaimAcceptedTermsVersion = {
+  "venue-2026-09": "venue-2026-09",
+} as const;
+
 export interface VenueManagerClaim {
   email: string;
   /**
@@ -92,8 +492,7 @@ export interface VenueManagerClaim {
    * @maxLength 120
    */
   displayName: string;
-  /** @minLength 12 */
-  password: string;
+  acceptedTermsVersion: VenueManagerClaimAcceptedTermsVersion;
 }
 
 export type VenueManagerInvitationRole =
@@ -237,6 +636,11 @@ export interface VenueManagerBusinessUpdate {
   openingHours?: VenueManagerBusinessUpdateOpeningHours;
 }
 
+export interface VenueManagerQrCode {
+  qrToken: string;
+  qrUrl: string;
+}
+
 export interface VenueManagerRemovalRequest {
   /** @maxLength 2000 */
   reason?: string;
@@ -244,6 +648,35 @@ export interface VenueManagerRemovalRequest {
 
 export interface VenueManagerRemovalResponse {
   message: string;
+}
+
+export type AdminManagedImageUploadInputContentType =
+  (typeof AdminManagedImageUploadInputContentType)[keyof typeof AdminManagedImageUploadInputContentType];
+
+export const AdminManagedImageUploadInputContentType = {
+  "image/jpeg": "image/jpeg",
+  "image/png": "image/png",
+  "image/webp": "image/webp",
+  "image/gif": "image/gif",
+} as const;
+
+export interface AdminManagedImageUploadInput {
+  contentType: AdminManagedImageUploadInputContentType;
+}
+
+export interface AdminManagedImageUploadResponse {
+  uploadURL: string;
+  objectPath: string;
+  confirmationToken: string;
+}
+
+export interface AdminManagedImageConfirmInput {
+  objectPath: string;
+  confirmationToken: string;
+}
+
+export interface AdminManagedImageConfirmResponse {
+  url: string;
 }
 
 export interface VenueManagerEvent {
@@ -455,6 +888,7 @@ export interface VenueManagerAnnouncement {
   /** @nullable */
   imageUrl?: string | null;
   isPinned: boolean;
+  isHidden: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -481,6 +915,40 @@ export interface VenueManagerAnnouncementInput {
   /** @nullable */
   imageUrl?: string | null;
   isPinned?: boolean;
+}
+
+export interface AdminManagedAnnouncementInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  title: string;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  body: string;
+  /** @nullable */
+  imageUrl?: string | null;
+  isPinned?: boolean;
+  isHidden?: boolean;
+}
+
+export interface AdminManagedAnnouncementUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  title?: string;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  body?: string;
+  /** @nullable */
+  imageUrl?: string | null;
+  isPinned?: boolean;
+  isHidden?: boolean;
 }
 
 export type VenueManagerMemberRole =
@@ -534,24 +1002,19 @@ export interface VenueManagerEventRsvpCount {
   maybe: number;
 }
 
+export interface VenueManagerRecentQrVerification {
+  displayName: string;
+  /** @nullable */
+  photoUrl: string | null;
+  verifiedAt: string;
+}
+
 /**
  * @nullable
  */
 export type VenueManagerDashboardActiveReward = {
   [key: string]: unknown;
 } | null;
-
-export interface VenueManagerQrVerificationBucket {
-  day: string;
-  count: number;
-}
-
-export interface VenueManagerRecentQrVerification {
-  displayName: string;
-  /** @nullable */
-  photoUrl?: string | null;
-  verifiedAt: string;
-}
 
 export interface VenueManagerDashboard {
   checkInTrend: VenueManagerCheckInBucket[];
@@ -560,7 +1023,7 @@ export interface VenueManagerDashboard {
   /** @nullable */
   activeReward: VenueManagerDashboardActiveReward;
   qrVerificationsToday: number;
-  qrVerificationsTrend: VenueManagerQrVerificationBucket[];
+  qrVerificationsTrend: VenueManagerCheckInBucket[];
   recentQrVerifications: VenueManagerRecentQrVerification[];
 }
 
@@ -617,7 +1080,7 @@ export interface VenueApplication {
   /** @nullable */
   contactName?: string | null;
   /**
-   * mobile | web | null for legacy rows
+   * mobile | web | agent | admin | null for legacy rows
    * @nullable
    */
   applicationSource?: string | null;
@@ -642,6 +1105,165 @@ export interface VenueApplication {
   expiredAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminVenuePlace {
+  placeId: string;
+  placeName: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  googleMapsUri?: string | null;
+  lat: number;
+  lng: number;
+}
+
+export type AdminQuickAddVenueRequestManagementMode =
+  (typeof AdminQuickAddVenueRequestManagementMode)[keyof typeof AdminQuickAddVenueRequestManagementMode];
+
+export const AdminQuickAddVenueRequestManagementMode = {
+  invite_owner: "invite_owner",
+  admin: "admin",
+} as const;
+
+export interface AdminQuickAddVenueRequest {
+  /** @maxLength 255 */
+  placeId: string;
+  /** @maxLength 255 */
+  placeName: string;
+  /** @maxLength 255 */
+  businessName: string;
+  /**
+   * @minimum -90
+   * @maximum 90
+   */
+  lat: number;
+  /**
+   * @minimum -180
+   * @maximum 180
+   */
+  lng: number;
+  managementMode: AdminQuickAddVenueRequestManagementMode;
+  /** @maxLength 255 */
+  contactName?: string;
+  /** @maxLength 255 */
+  contactEmail?: string;
+}
+
+/**
+ * @nullable
+ */
+export type AdminQuickAddVenueResponseEmailError =
+  | (typeof AdminQuickAddVenueResponseEmailError)[keyof typeof AdminQuickAddVenueResponseEmailError]
+  | null;
+
+export const AdminQuickAddVenueResponseEmailError = {
+  not_configured: "not_configured",
+  gmail_connection_failed: "gmail_connection_failed",
+  delivery_failed: "delivery_failed",
+} as const;
+
+export interface AdminQuickAddVenueResponse {
+  profile: VenueApplication;
+  emailSent: boolean;
+  /** @nullable */
+  emailError: AdminQuickAddVenueResponseEmailError;
+}
+
+/**
+ * @nullable
+ */
+export type AdminManagedVenueOpeningHours = {
+  [key: string]: {
+    open: string;
+    close: string;
+  } | null;
+} | null;
+
+export interface AdminManagedVenue {
+  id: number;
+  placeId: string;
+  placeName: string;
+  businessName: string;
+  /** @nullable */
+  qrUrl: string | null;
+  /** @nullable */
+  tagline?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
+  /** @nullable */
+  publicEmail?: string | null;
+  /** @nullable */
+  coverPhotoUrl?: string | null;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  openingHours?: AdminManagedVenueOpeningHours;
+}
+
+export interface AdminManagedVenueResponse {
+  profile: AdminManagedVenue;
+}
+
+/**
+ * @nullable
+ */
+export type AdminManagedVenueUpdateOpeningHours = {
+  [key: string]: {
+    open: string;
+    close: string;
+  } | null;
+} | null;
+
+export interface AdminManagedVenueUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  businessName?: string;
+  /**
+   * @maxLength 160
+   * @nullable
+   */
+  tagline?: string | null;
+  /**
+   * @maxLength 1000
+   * @nullable
+   */
+  description?: string | null;
+  /**
+   * @maxLength 60
+   * @nullable
+   */
+  phone?: string | null;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  websiteUrl?: string | null;
+  /**
+   * @maxLength 320
+   * @nullable
+   */
+  publicEmail?: string | null;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  coverPhotoUrl?: string | null;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  logoUrl?: string | null;
+  /** @nullable */
+  openingHours?: AdminManagedVenueUpdateOpeningHours;
 }
 
 export type VenueBusinessAuthorizationRole =
@@ -1420,6 +2042,8 @@ export interface SubmitAnswersRequest {
 
 export type VenueManagerCsrfParameter = string;
 
+export type CronSecretParameter = string;
+
 export type NearbyPresenceParams = {
   lat: number;
   lng: number;
@@ -1535,6 +2159,17 @@ export type DeleteAnnouncement200 = {
   success: boolean;
 };
 
+export type SearchAdminVenuePlacesParams = {
+  /**
+   * @minLength 2
+   */
+  query: string;
+};
+
+export type SearchAdminVenuePlaces200 = {
+  places: AdminVenuePlace[];
+};
+
 export type ListVenueApplicationsParams = {
   /**
    * `queue` (default), `all`, or a comma-separated list of lifecycle statuses.
@@ -1554,14 +2189,21 @@ export type ListVenueApplicationsParams = {
    */
   search?: string;
   /**
-   * Filter by application source: `mobile`, `web`, or `agent`.
+   * Filter by application source: `mobile`, `web`, `agent`, or `admin`.
    */
-  source?: string;
+  source?: ListVenueApplicationsSource;
 };
 
-export interface VenueManagerQrCode {
-  /** UUID token embedded in the QR code URL. */
-  qrToken: string;
-  /** Full check-in URL to encode as QR. */
-  qrUrl: string;
-}
+export type ListVenueApplicationsSource =
+  (typeof ListVenueApplicationsSource)[keyof typeof ListVenueApplicationsSource];
+
+export const ListVenueApplicationsSource = {
+  mobile: "mobile",
+  web: "web",
+  agent: "agent",
+  admin: "admin",
+} as const;
+
+export type PreviewNewVenueOutreach200 = {
+  templates: VenueOutreachTemplatePreview[];
+};
