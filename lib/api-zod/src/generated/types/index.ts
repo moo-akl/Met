@@ -92,6 +92,8 @@ export * from "./venueApplicationDecision";
 export * from "./venueApplicationHistoryEntry";
 export * from "./venueApplicationHistoryEntryFromStatus";
 export * from "./venueApplicationHistoryEntryToStatus";
+export * from "./venueApplicationInviteValidationInput";
+export * from "./venueApplicationInviteValidationResult";
 export * from "./venueApplicationNote";
 export * from "./venueApplicationNoteOnly";
 export * from "./venueApplicationQueue";

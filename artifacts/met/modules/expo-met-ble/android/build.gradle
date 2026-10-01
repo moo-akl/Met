@@ -1,0 +1,37 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+group = 'expo.modules.metble'
+version = '1.0.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useDefaultAndroidSdkVersions()
+useCoreDependencies()
+useExpoPublishing()
+
+android {
+  namespace "expo.modules.metble"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+  // The compileSdk and other shared toolchain values are inherited
+  // from the parent project via Expo's react-native-gradle-plugin.
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+
+  // Firebase Firestore + Auth — used by the native background scanner to
+  // write ble_detections docs when a peer is discovered while the JS
+  // thread is suspended. Firebase is already initialised by RNFirebase
+  // before BLE proximity starts, so calling getInstance() is always safe.
+  implementation platform('com.google.firebase:firebase-bom:33.0.0')
+  implementation 'com.google.firebase:firebase-firestore'
+  implementation 'com.google.firebase:firebase-auth'
+}
