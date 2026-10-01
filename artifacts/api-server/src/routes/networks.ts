@@ -125,6 +125,7 @@ function serializeProfile(p: Profile) {
     socials: (p.socials ?? {}) as Record<string, string>,
     interests: (p.interests ?? []) as string[],
     isVisible: p.isVisible,
+    visibilityVersion: p.updatedAt.toISOString(),
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -239,6 +240,15 @@ router.get("/networks/mine", requireUid, async (req, res) => {
 router.post("/networks", requireUid, networkWriteLimit, async (req, res) => {
   const uid = req.uid!;
   const body = CreateNetworkBody.parse(req.body);
+  const [profile] = await db
+    .select({ isVisible: profilesTable.isVisible })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, uid))
+    .limit(1);
+  if (!profile || !profile.isVisible) {
+    res.status(404).json({ message: "Profile not found" });
+    return;
+  }
 
   let neighborhoodName: string | null = null;
   if (body.category === "neighborhood" && body.locationLat != null && body.locationLng != null) {
@@ -377,6 +387,16 @@ router.post("/networks/:id/join", requireUid, networkWriteLimit, async (req, res
     return;
   }
 
+  const [profile] = await db
+    .select({ isVisible: profilesTable.isVisible })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, uid))
+    .limit(1);
+  if (!profile || !profile.isVisible) {
+    res.status(404).json({ message: "Network not found" });
+    return;
+  }
+
   const existing = await getMembership(id, uid);
   if (existing && (existing.status === "active" || existing.status === "pending")) {
     res.status(409).json({ message: "Already a member" });
@@ -440,6 +460,7 @@ router.delete("/networks/:id/members/me", requireUid, async (req, res) => {
 // ── GET /networks/:id/members ─────────────────────────────────────────────────
 
 router.get("/networks/:id/members", requireUid, async (req, res) => {
+  const uid = req.uid!;
   const { id } = ListNetworkMembersParams.parse({ id: req.params.id });
 
   const [network] = await db
@@ -449,6 +470,11 @@ router.get("/networks/:id/members", requireUid, async (req, res) => {
     .limit(1);
   if (!network) {
     res.status(404).json({ message: "Network not found" });
+    return;
+  }
+  const callerMembership = await getMembership(id, uid);
+  if (!callerMembership || callerMembership.status !== "active") {
+    res.status(403).json({ message: "Active network membership required" });
     return;
   }
 
@@ -630,7 +656,10 @@ router.get("/networks/:id/pending", requireUid, async (req, res) => {
   const profileMap = new Map(profiles.map((p) => [p.uid, p]));
 
   const result = pending
-    .filter((m) => profileMap.has(m.uid))
+    .filter((m) => {
+      const profile = profileMap.get(m.uid);
+      return profile !== undefined && profile.isVisible;
+    })
     .map((m) => ({
       ...serializeMembership(m),
       profile: serializeProfile(profileMap.get(m.uid)!),
@@ -659,6 +688,15 @@ router.post("/networks/:id/members/:uid/approve", requireUid, async (req, res) =
   }
 
   if (body.approve) {
+    const [targetProfile] = await db
+      .select({ isVisible: profilesTable.isVisible })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, targetUid))
+      .limit(1);
+    if (!targetProfile || !targetProfile.isVisible) {
+      res.status(404).json({ message: "Pending request not found" });
+      return;
+    }
     await db
       .update(networkMembersTable)
       .set({ status: "active" })
@@ -793,6 +831,18 @@ router.post("/networks/:id/invite", requireUid, networkWriteLimit, async (req, r
   const existing = await getMembership(id, body.uid);
   if (existing && (existing.status === "active" || existing.status === "pending")) {
     res.status(409).json({ message: "Already a member" });
+    return;
+  }
+
+  const [targetProfile] = await db
+    .select({ isVisible: profilesTable.isVisible })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, body.uid))
+    .limit(1);
+  if (!targetProfile || !targetProfile.isVisible) {
+    // Joining by invite is explicit for the recipient; an inviter cannot
+    // expose a hidden profile to the rest of the network.
+    res.status(404).json({ message: "User not found" });
     return;
   }
 

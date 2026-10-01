@@ -32,6 +32,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 import { useT } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
+import { visibleDiscoveryPeers } from "@/lib/discoveryVisibility";
 import { subscribeToChatMeta } from "@/lib/firestore/chat";
 import {
   DISCOVERY_RANGE_METERS,
@@ -110,10 +111,13 @@ export default function ConnectionsScreen() {
   const rangeM = DISCOVERY_RANGE_METERS[preferences.discoveryRange];
   const nonConnections = useMemo(
     () =>
-      encounters.filter(
-        (e) => e.status !== "connected" && e.lastDistanceM <= rangeM,
+      visibleDiscoveryPeers(
+        isVisible,
+        encounters.filter(
+          (e) => e.status !== "connected" && e.lastDistanceM <= rangeM,
+        ),
       ),
-    [encounters, rangeM],
+    [encounters, rangeM, isVisible],
   );
   const blips: RadarBlip[] = useMemo(
     () =>

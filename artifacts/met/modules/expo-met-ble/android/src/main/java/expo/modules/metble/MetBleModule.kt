@@ -162,7 +162,13 @@ class MetBleModule : Module() {
       ownerUid = uid
       ownerHashHex = hashHex
       saveOwnerToPrefs(uid, hashHex)
-      return@AsyncFunction startGattAdvertisingImpl(hashHex)
+      val started = startGattAdvertisingImpl(hashHex)
+      if (!started) {
+        // Do not leave a restorable owner behind when the radio or
+        // permissions prevented advertising from actually starting.
+        stopGattAdvertisingImpl()
+      }
+      return@AsyncFunction started
     }
 
     AsyncFunction("stopAdvertising") {
@@ -211,6 +217,7 @@ class MetBleModule : Module() {
       stopGattAdvertisingImpl()
       stopBeaconAdvertisingImpl()
       stopAllBeaconRangingImpl()
+      setBackgroundModeImpl(false)
     }
   }
 
@@ -340,6 +347,11 @@ class MetBleModule : Module() {
     val cb = object : AdvertiseCallback() {
       override fun onStartFailure(errorCode: Int) {
         Log.w(TAG, "GATT advertising failed: $errorCode")
+        if (this@MetBleModule.callback === this) {
+          // Clear persisted owner and background-scanner state after an
+          // asynchronous radio/permission failure, not only sync throws.
+          this@MetBleModule.stopGattAdvertisingImpl()
+        }
       }
     }
     callback = cb
@@ -347,6 +359,7 @@ class MetBleModule : Module() {
 
     return try {
       adv.startAdvertising(settings, data, cb)
+      if (callback !== cb) return false
       fgAdvertising = true
       ensureForegroundService()
       // Start the background scanner so peers are detected even when the
@@ -364,12 +377,14 @@ class MetBleModule : Module() {
 
   @Suppress("MissingPermission")
   private fun stopGattAdvertisingImpl() {
-    val adv = advertiser ?: return
-    val cb = callback ?: return
-    try {
-      adv.stopAdvertising(cb)
-    } catch (e: Exception) {
-      Log.w(TAG, "stopAdvertising threw", e)
+    val adv = advertiser
+    val cb = callback
+    if (adv != null && cb != null) {
+      try {
+        adv.stopAdvertising(cb)
+      } catch (e: Exception) {
+        Log.w(TAG, "stopAdvertising threw", e)
+      }
     }
     callback = null
     advertiser = null
@@ -571,12 +586,14 @@ class MetBleModule : Module() {
 
   @Suppress("MissingPermission")
   private fun stopBeaconAdvertisingImpl() {
-    val adv = beaconAdvertiser ?: return
-    val cb = beaconCallback ?: return
-    try {
-      adv.stopAdvertising(cb)
-    } catch (e: Exception) {
-      Log.w(TAG, "stopBeaconAdvertising threw", e)
+    val adv = beaconAdvertiser
+    val cb = beaconCallback
+    if (adv != null && cb != null) {
+      try {
+        adv.stopAdvertising(cb)
+      } catch (e: Exception) {
+        Log.w(TAG, "stopBeaconAdvertising threw", e)
+      }
     }
     beaconCallback = null
     beaconAdvertiser = null
@@ -663,9 +680,11 @@ class MetBleModule : Module() {
 
   @Suppress("MissingPermission")
   private fun stopAllBeaconRangingImpl() {
-    val s = scanner ?: return
-    val cb = scanCallback ?: return
-    try { s.stopScan(cb) } catch (_: Exception) {}
+    val s = scanner
+    val cb = scanCallback
+    if (s != null && cb != null) {
+      try { s.stopScan(cb) } catch (_: Exception) {}
+    }
     scanner = null
     scanCallback = null
     rangingUuids.clear()

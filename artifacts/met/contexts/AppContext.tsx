@@ -33,6 +33,7 @@ import {
 import {
   startFirestoreProximity,
   stopFirestoreProximity,
+  suppressFirestorePresence,
 } from "@/lib/firestore/presence";
 import {
   subscribeToMetPeople,
@@ -158,8 +159,25 @@ function pickReply(seed: string): string {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+type MetPeopleSynthesisGuard = {
+  synthesisGeneration: number;
+  visibilityRevision: number;
+  subscriptionGeneration: number;
+};
+
+type ProximityDetectionWithMetPeopleGuard = (
+  | ProximityDetection
+  | BleProximityDetection
+) & {
+  metPeopleGuard?: MetPeopleSynthesisGuard;
+};
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
+  const [appIsActive, setAppIsActive] = useState(
+    AppState.currentState !== "background" &&
+      AppState.currentState !== "inactive",
+  );
   const [profile, setProfileState] = useState<Profile | null>(null);
   const [allEncounters, setAllEncounters] = useState<Encounter[]>([]);
   // Mirror of `allEncounters` for synchronous reads from Firestore
@@ -177,10 +195,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // in scope for the callback definitions below; the auth-state
   // subscription that populates it lives later in this component.
   const [authedUid, setAuthedUid] = useState<string | null>(null);
+  const authUidRef = useRef<string | null>(null);
+  const [visibilityReconciledUid, setVisibilityReconciledUid] = useState<
+    string | null
+  >(null);
   const [permissionsCompleted, setPermissionsCompletedState] = useState(false);
   const [preferences, setPreferencesState] = useState<Preferences>(
     DEFAULT_PREFERENCES,
   );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setAppIsActive(nextState === "active");
+    });
+    return () => subscription.remove();
+  }, []);
 
   // Refs mirror the latest committed state so async write callbacks
   // (`updatePreferences`, `markPhotoVerified`) never race on a stale closure
@@ -189,6 +218,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   preferencesRef.current = preferences;
   const profileRef = useRef<Profile | null>(null);
   profileRef.current = profile;
+  const profileVisibilityRevisionRef = useRef(0);
+  const metPeopleSynthesisGenerationRef = useRef(0);
+  const metPeopleSubscriptionGenerationRef = useRef(0);
+  const metPeopleSnapshotRef = useRef<{
+    subscriptionGeneration: number;
+    memberUids: Set<string>;
+  }>({ subscriptionGeneration: 0, memberUids: new Set() });
+  const fabricatedFromMetPeopleRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -269,6 +306,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setProfile = useCallback(async (p: Profile) => {
+    const previous = profileRef.current;
+    if (previous?.isVisible !== p.isVisible) {
+      profileVisibilityRevisionRef.current += 1;
+      if (p.isVisible !== true) {
+        metPeopleSynthesisGenerationRef.current += 1;
+        fabricatedFromMetPeopleRef.current.clear();
+      }
+    }
+    const visibilityRevision = profileVisibilityRevisionRef.current;
+    if (p.isVisible && previous?.isVisible !== true) {
+      // Do not expose a newly visible profile to service effects until the
+      // explicit opt-in is durable on this device.
+      await saveProfile(p);
+      // A hide can happen while the visible profile is being persisted.
+      // Never let that stale save publish the visible state after Hide.
+      if (visibilityRevision !== profileVisibilityRevisionRef.current) {
+        const latest = profileRef.current;
+        if (latest) await saveProfile(latest).catch(() => {});
+        return;
+      }
+      profileRef.current = p;
+      setProfileState(p);
+      return;
+    }
+    // Hiding is immediate even if local persistence is unavailable.
+    profileRef.current = p;
     setProfileState(p);
     await saveProfile(p);
   }, []);
@@ -559,12 +622,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Detected encounters land in the neutral "encounter" status — the
   // user explicitly initiates a reveal request via UI, never the system.
   const upsertEncounterFromProximity = useCallback(
-    async (event: ProximityDetection | BleProximityDetection) => {
+    async (event: ProximityDetectionWithMetPeopleGuard) => {
       const now = event.observedAt;
       const distance = Math.round(event.distanceM);
       const sourceLabel = event.source === "ble" ? "In the room" : "Nearby";
       let next: Encounter[] = [];
       setAllEncounters((prev) => {
+        const guard = event.metPeopleGuard;
+        if (
+          guard &&
+          (profileRef.current?.isVisible !== true ||
+            profileVisibilityRevisionRef.current !== guard.visibilityRevision ||
+            metPeopleSynthesisGenerationRef.current !==
+              guard.synthesisGeneration ||
+            metPeopleSubscriptionGenerationRef.current !==
+              guard.subscriptionGeneration ||
+            metPeopleSnapshotRef.current.subscriptionGeneration !==
+              guard.subscriptionGeneration ||
+            !metPeopleSnapshotRef.current.memberUids.has(event.uid))
+        ) {
+          next = prev;
+          return prev;
+        }
         const existing = prev.find((e) => e.id === event.uid);
         if (existing) {
           // Re-emit window in proximity service is 10 min; this branch
@@ -624,6 +703,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   upsertProximityRef.current = upsertEncounterFromProximity;
   useEffect(() => {
     const unsub = subscribeToAuthState((uid) => {
+      if (authUidRef.current !== uid) {
+        authUidRef.current = uid;
+        setVisibilityReconciledUid(null);
+      }
       setAuthedUid(uid);
       if (uid) {
         Purchases.logIn(uid).catch(() => {});
@@ -640,6 +723,165 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     return () => unsub();
   }, []);
+
+  // Local storage is only a cache. Resolve visibility from the canonical
+  // server record before any saved `isVisible: true` can start discovery.
+  // For an already-visible account, an explicit version-checked upsert is
+  // also the authoritative acknowledgement that the server mirror is ready.
+  useEffect(() => {
+    if (
+      !ready ||
+      !authedUid ||
+      !profile ||
+      visibilityReconciledUid === authedUid
+    ) {
+      return;
+    }
+    let cancelled = false;
+    const uid = authedUid;
+    const initialVisibilityRevision = profileVisibilityRevisionRef.current;
+    const stopLocalDiscovery = async () => {
+      stopProximity();
+      stopFirestoreProximity(uid);
+      void stopBleProximity().catch(() => {});
+      try {
+        return await suppressFirestorePresence(uid);
+      } catch (err) {
+        console.warn("[appcontext] hidden Firestore reconciliation failed", err);
+        return false;
+      }
+    };
+    const writeCanonicalHide = async (current: Profile | null) => {
+      if (!api.isConfigured()) return false;
+      try {
+        const acknowledged = await api.upsertMyProfile(
+          { uid },
+          {
+            displayName: current?.name ?? "",
+            photoUrl: current?.photoUri ?? null,
+            bio: current?.bio ?? null,
+            socials: current?.socials ?? {},
+            interests: current?.interests ?? null,
+            isVisible: false,
+          },
+        );
+        return acknowledged.isVisible === false;
+      } catch (err) {
+        console.warn("[appcontext] canonical hidden reconciliation failed", err);
+        return false;
+      }
+    };
+    const reportUnresolvedHide = () => {
+      Alert.alert(
+        "You're hidden on this device",
+        "We couldn't confirm account-wide hiding with every service. Your device is not advertising or discovering new people, but your account's remote visibility may still be active. Check your connection before relying on this setting on another device.",
+      );
+    };
+    const finishReconciliation = () => {
+      if (!cancelled && authUidRef.current === uid) {
+        setVisibilityReconciledUid(uid);
+      }
+    };
+    void (async () => {
+      try {
+        if (!api.isConfigured()) {
+          const latest = profileRef.current;
+          if (latest) {
+            await setProfile({ ...latest, isVisible: false }).catch((err) => {
+              console.warn("[appcontext] failed to persist hidden state", err);
+            });
+          }
+          await stopLocalDiscovery();
+          reportUnresolvedHide();
+          finishReconciliation();
+          return;
+        }
+        const remote = await api.getMyProfile({ uid });
+        if (cancelled || authUidRef.current !== uid) return;
+        if (profileVisibilityRevisionRef.current !== initialVisibilityRevision) {
+          // A local visibility action superseded this startup read.
+          finishReconciliation();
+          return;
+        }
+        const current = profileRef.current;
+        if (!current) return;
+
+        if (current.isVisible !== true || remote.isVisible !== true) {
+          if (current.isVisible !== false) {
+            await setProfile({ ...current, isVisible: false }).catch((err) => {
+              console.warn("[appcontext] failed to persist canonical hidden state", err);
+            });
+          }
+          const firestoreHidden = await stopLocalDiscovery();
+          const serverHidden =
+            remote.isVisible === false || (await writeCanonicalHide(current));
+          if (!serverHidden || !firestoreHidden) reportUnresolvedHide();
+          finishReconciliation();
+          return;
+        }
+
+        const version = remote.visibilityVersion;
+        if (typeof version !== "string" || version.length === 0) {
+          throw new Error("Server profile is missing visibilityVersion");
+        }
+        const ack = await api.upsertMyProfile(
+          { uid },
+          {
+            displayName: remote.displayName,
+            photoUrl: remote.photoUrl ?? null,
+            bio: remote.bio ?? null,
+            socials: remote.socials ?? {},
+            interests: remote.interests ?? null,
+            isVisible: true,
+            expectedVisibilityVersion: version,
+          },
+        );
+        if (cancelled || authUidRef.current !== uid) return;
+        if (ack.isVisible !== true) {
+          throw new Error("Server did not acknowledge visible presence");
+        }
+        if (
+          profileVisibilityRevisionRef.current !== initialVisibilityRevision ||
+          profileRef.current?.isVisible === false
+        ) {
+          // A Hide action won while this server acknowledgement was delayed.
+          // The hide request is authoritative; this stale response must not
+          // turn discovery back on locally.
+          finishReconciliation();
+          return;
+        }
+        const latest = profileRef.current;
+        if (!latest) return;
+        await setProfile({ ...latest, isVisible: true });
+        finishReconciliation();
+      } catch (err) {
+        if (cancelled || authUidRef.current !== uid) return;
+        console.warn("[appcontext] canonical visibility lookup failed", err);
+        const latest = profileRef.current;
+        if (latest) {
+          await setProfile({ ...latest, isVisible: false }).catch(() => {});
+        }
+        const firestoreHidden = await stopLocalDiscovery();
+        const staleOptInConflict =
+          err instanceof ApiError && err.status === 409;
+        const serverHidden = staleOptInConflict
+          ? false
+          : await writeCanonicalHide(latest);
+        if (!serverHidden || !firestoreHidden) reportUnresolvedHide();
+        finishReconciliation();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authedUid,
+    ready,
+    profile?.id,
+    setProfile,
+    profileVisibilityRevisionRef,
+    visibilityReconciledUid,
+  ]);
 
   // Re-sync referral state from the server whenever the user signs in.
   // initReferrals() is called once at app start in _layout.tsx, but that
@@ -668,7 +910,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // updating it doesn't retrigger this effect.
   const lastSyncedPhotoUrlRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!authedUid || !profile || !api.isConfigured()) return;
+    if (
+      !authedUid ||
+      !profile ||
+      !api.isConfigured() ||
+      visibilityReconciledUid !== authedUid
+    ) {
+      return;
+    }
     const ctrl = new AbortController();
     void (async () => {
       const localUri = profile.photoUri || null;
@@ -758,7 +1007,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     })();
     return () => ctrl.abort();
-  }, [authedUid, profile]);
+  }, [authedUid, profile, visibilityReconciledUid]);
 
   // Start/stop legacy api-server-backed proximity loop. Kept running
   // alongside the Firestore loop because it exercises /api/encounters
@@ -766,7 +1015,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // users/{me}/met_people via /api/encounters/record. Per-peer dedup
   // windows in each module prevent duplicate UI emissions.
   useEffect(() => {
-    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+    if (
+      !authedUid ||
+      !permissionsCompleted ||
+      !api.isConfigured() ||
+      visibilityReconciledUid !== authedUid ||
+      !profile?.isVisible ||
+      !appIsActive
+    ) {
       stopProximity();
       return;
     }
@@ -774,6 +1030,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       const result = await startProximity({
         uid: authedUid,
+        isVisible: true,
         listener: (event) => {
           // Always read the latest upsert callback through the ref so
           // rerenders that change it don't require restarting the loop.
@@ -795,9 +1052,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       stopProximity();
     };
-  }, [authedUid, permissionsCompleted]);
+  }, [
+    authedUid,
+    permissionsCompleted,
+    profile?.isVisible,
+    appIsActive,
+    visibilityReconciledUid,
+  ]);
 
-  // Firestore-backed proximity loop. Replaces the legacy api-server
+  // Firestore-backed foreground proximity loop. Replaces the legacy api-server
   // pipeline on native: writes our location+geohash to users/{uid},
   // queries other users within 50m, and calls /api/encounters/record
   // (which batch-writes to BOTH users' met_people subcollections via
@@ -810,20 +1073,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // the Firestore location-push loop so invisible users never write
     // their geohash to Firestore (read rules alone aren't sufficient —
     // the write itself should be suppressed).
-    if (!authedUid || !permissionsCompleted || !api.isConfigured() || !profile?.isVisible) {
-      stopFirestoreProximity();
+    if (
+      !authedUid ||
+      !permissionsCompleted ||
+      !api.isConfigured() ||
+      visibilityReconciledUid !== authedUid ||
+      !profile?.isVisible ||
+      !appIsActive
+    ) {
+      stopFirestoreProximity(authedUid);
+      if (authedUid && !profile?.isVisible) {
+        void suppressFirestorePresence(authedUid).catch((err) => {
+          console.warn("[appcontext] Firestore presence cleanup failed", err);
+        });
+      }
       return;
     }
     let cancelled = false;
     void (async () => {
       const result = await startFirestoreProximity({
         uid: authedUid,
+        isVisible: true,
         listener: (event) => {
           void upsertProximityRef.current(event);
         },
       });
       if (cancelled) {
-        stopFirestoreProximity();
+        stopFirestoreProximity(authedUid);
         return;
       }
       if (!result.started) {
@@ -835,10 +1111,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })();
     return () => {
       cancelled = true;
-      stopFirestoreProximity();
+      stopFirestoreProximity(authedUid);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authedUid, permissionsCompleted, profile?.isVisible]);
+  }, [
+    authedUid,
+    permissionsCompleted,
+    profile?.isVisible,
+    appIsActive,
+    visibilityReconciledUid,
+  ]);
 
   // Per-peer watermarks track the latest reveal `updatedAt` (epoch ms)
   // we've already applied to local state. They protect against two
@@ -1177,7 +1458,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // /api/profiles/<uid> roundtrip. Repeated on every snapshot would
   // waste bandwidth, so we track which uids we've already fabricated
   // an encounter for in a ref and skip them on subsequent snapshots.
-  const fabricatedFromMetPeopleRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     // Same reasoning as the reveal poll above: the met_people stream
     // surfaces peers who detected US first, which is purely server-side
@@ -1186,15 +1466,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // peers populate their encounter list before granting permissions.
     if (!authedUid || !api.isConfigured()) {
       fabricatedFromMetPeopleRef.current = new Set();
+      metPeopleSynthesisGenerationRef.current += 1;
+      metPeopleSubscriptionGenerationRef.current += 1;
+      metPeopleSnapshotRef.current = {
+        subscriptionGeneration: metPeopleSubscriptionGenerationRef.current,
+        memberUids: new Set(),
+      };
       return;
     }
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
+    const subscriptionGeneration =
+      ++metPeopleSubscriptionGenerationRef.current;
+    metPeopleSnapshotRef.current = {
+      subscriptionGeneration,
+      memberUids: new Set(),
+    };
     void (async () => {
       unsubscribe = await subscribeToMetPeople(
         authedUid,
         (people: MetPersonDoc[]) => {
           if (cancelled) return;
+          const memberUids = new Set(people.map((person) => person.otherUid));
+          metPeopleSnapshotRef.current = {
+            subscriptionGeneration,
+            memberUids,
+          };
+          for (const uid of fabricatedFromMetPeopleRef.current) {
+            if (!memberUids.has(uid)) fabricatedFromMetPeopleRef.current.delete(uid);
+          }
 
           // Apply tier updates to existing encounters so the subscriber ring
           // stays current even for encounters loaded from local storage or
@@ -1218,18 +1518,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             });
           }
 
-          // Snapshot the local list once per stream tick; the actual
-          // mutation happens inside setAllEncounters so we always see
-          // the freshest committed state.
-          const knownIds = new Set<string>();
-          setAllEncounters((prev) => {
-            for (const e of prev) knownIds.add(e.id);
-            return prev;
-          });
+          // Read the latest committed list once per stream tick. The
+          // guarded upsert below re-checks the encounter state at commit.
+          const knownIds = new Set(allEncountersRef.current.map((e) => e.id));
           for (const p of people) {
+            if (profileRef.current?.isVisible !== true) continue;
             if (knownIds.has(p.otherUid)) continue;
             if (fabricatedFromMetPeopleRef.current.has(p.otherUid)) continue;
             fabricatedFromMetPeopleRef.current.add(p.otherUid);
+            const guard: MetPeopleSynthesisGuard = {
+              synthesisGeneration: metPeopleSynthesisGenerationRef.current,
+              visibilityRevision: profileVisibilityRevisionRef.current,
+              subscriptionGeneration,
+            };
             // Off-thread: fetch profile, then synthesize an encounter
             // via the same upsertEncounterFromProximity callback the
             // local detection paths use, so the merge logic stays in
@@ -1240,14 +1541,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   { uid: authedUid },
                   p.otherUid,
                 );
-                if (cancelled) return;
+                const membership = metPeopleSnapshotRef.current;
+                const stillEligible =
+                  !cancelled &&
+                  profileRef.current?.isVisible === true &&
+                  profileVisibilityRevisionRef.current ===
+                    guard.visibilityRevision &&
+                  metPeopleSynthesisGenerationRef.current ===
+                    guard.synthesisGeneration &&
+                  metPeopleSubscriptionGenerationRef.current ===
+                    guard.subscriptionGeneration &&
+                  membership.subscriptionGeneration ===
+                    guard.subscriptionGeneration &&
+                  membership.memberUids.has(p.otherUid);
+                if (!stillEligible) return;
                 await upsertProximityRef.current({
                   uid: p.otherUid,
                   distanceM: 0,
                   source: "gps",
                   profile,
                   observedAt: p.lastMet || Date.now(),
+                  metPeopleGuard: guard,
                 });
+                const latestMembership = metPeopleSnapshotRef.current;
+                if (
+                  cancelled ||
+                  profileRef.current?.isVisible !== true ||
+                  profileVisibilityRevisionRef.current !==
+                    guard.visibilityRevision ||
+                  metPeopleSynthesisGenerationRef.current !==
+                    guard.synthesisGeneration ||
+                  metPeopleSubscriptionGenerationRef.current !==
+                    guard.subscriptionGeneration ||
+                  latestMembership.subscriptionGeneration !==
+                    guard.subscriptionGeneration ||
+                  !latestMembership.memberUids.has(p.otherUid)
+                ) {
+                  return;
+                }
                 // Patch in the tier from the Firestore doc now that the
                 // encounter has been fabricated into local state.
                 if (p.tier && p.tier !== "free") {
@@ -1268,7 +1599,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   );
                 }
                 // Allow retry on the next snapshot tick.
-                fabricatedFromMetPeopleRef.current.delete(p.otherUid);
+                if (
+                  metPeopleSynthesisGenerationRef.current ===
+                    guard.synthesisGeneration &&
+                  metPeopleSubscriptionGenerationRef.current ===
+                    guard.subscriptionGeneration &&
+                  metPeopleSnapshotRef.current.memberUids.has(p.otherUid)
+                ) {
+                  fabricatedFromMetPeopleRef.current.delete(p.otherUid);
+                }
               }
             })();
           }
@@ -1281,9 +1620,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })();
     return () => {
       cancelled = true;
+      metPeopleSynthesisGenerationRef.current += 1;
+      if (
+        metPeopleSubscriptionGenerationRef.current === subscriptionGeneration
+      ) {
+        metPeopleSubscriptionGenerationRef.current += 1;
+      }
+      if (
+        metPeopleSnapshotRef.current.subscriptionGeneration ===
+        subscriptionGeneration
+      ) {
+        metPeopleSnapshotRef.current = {
+          subscriptionGeneration: metPeopleSubscriptionGenerationRef.current,
+          memberUids: new Set(),
+        };
+      }
+      fabricatedFromMetPeopleRef.current.clear();
       if (unsubscribe) unsubscribe();
     };
-  }, [authedUid]);
+  }, [authedUid, profile?.isVisible]);
 
   // Firestore real-time subscription for reveal requests. Fires the
   // existing REST poll on any server-side change so accept/decline
@@ -1451,9 +1806,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!authedUid) throw new Error("Not signed in");
       if (!api.isConfigured()) throw new Error("API not configured");
       const trimmed = message?.trim();
-      // Pessimistic order: API first, then local state. If the network
-      // call fails we throw and the encounter screen surfaces an error
-      // rather than leaving the user with a fake "waiting" spinner.
+      // Reveal-request creation is server-only (Firestore rules deny client
+      // creates). Use the authenticated API first, then local state. If the
+      // request fails, throw so the UI reports it instead of showing a
+      // fake "waiting" spinner or relying on a Firestore fallback.
       const created = await api.sendReveal(
         { uid: authedUid },
         {
@@ -1542,11 +1898,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [authedUid, updateEncounterStatus, bumpOutboundWatermark],
   );
 
-  // Start/stop BLE proximity (scan + advertise). Same gating as GPS.
-  // Independent effect so a failure in one pipeline doesn't tear down
-  // the other. In Expo Go both halves no-op cleanly.
+  // BLE identity advertising and discovery both stop while hidden.
+  // Independent effect so a failure in one pipeline doesn't tear down the other.
   useEffect(() => {
-    if (!authedUid || !permissionsCompleted || !api.isConfigured()) {
+    if (
+      !authedUid ||
+      !permissionsCompleted ||
+      !api.isConfigured() ||
+      visibilityReconciledUid !== authedUid ||
+      profile?.isVisible !== true
+    ) {
       void stopBleProximity();
       return;
     }
@@ -1554,6 +1915,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       const result = await startBleProximity({
         uid: authedUid,
+        isVisible: true,
         listener: (event) => {
           void upsertProximityRef.current(event);
           // Mirror the BLE detection into Firestore via the symmetric
@@ -1587,7 +1949,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         },
       });
       if (cancelled) {
-        void stopBleProximity();
         return;
       }
       if (!result.scanner.started) {
@@ -1607,7 +1968,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       void stopBleProximity();
     };
-  }, [authedUid, permissionsCompleted]);
+  }, [
+    authedUid,
+    permissionsCompleted,
+    profile?.isVisible,
+    visibilityReconciledUid,
+  ]);
 
   const upsertEncounterFromQr = useCallback(
     async (data: { id: string; name: string }) => {

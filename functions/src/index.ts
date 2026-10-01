@@ -47,6 +47,11 @@ import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { Pool } from "pg";
 import * as admin from "firebase-admin";
+import {
+  acquireProfilePrivacyLocks,
+  isExplicitRevealRelationshipStatus,
+  withPostgresTransaction,
+} from "./privacy";
 
 admin.initializeApp();
 
@@ -171,83 +176,157 @@ export const mirrorRevealStatusToPostgres = onDocumentWrittenWithAuthContext(
 
     const db = getPool();
     const client = await db.connect();
+    let skipReason: string | null = null;
+    let rowsUpdated = 0;
+    let requestWasAlreadyAccepted = false;
     try {
-      await client.query("BEGIN");
+      const result = await withPostgresTransaction(client, async () => {
+        let requestWasAlreadyAccepted = false;
+        if (status === "accepted") {
+          await acquireProfilePrivacyLocks(client, [senderUid, recipientUid]);
 
-      // Forward update — gated on status='pending' so re-delivery of
-      // the same event is a no-op (UPDATE returns 0 rows).
-      const forward = await client.query(
-        `UPDATE reveal_requests
-            SET status = $1,
-                responded_at = NOW(),
-                updated_at = NOW()
-          WHERE sender_uid = $2
-            AND recipient_uid = $3
-            AND status = 'pending'
-          RETURNING id`,
-        [status, senderUid, recipientUid],
-      );
+          // Read canonical visibility only after both locks are held. Hide
+          // takes the same locks until its Firestore and Postgres changes end.
+          const profileResult = await client.query<{
+            uid: string;
+            is_visible: boolean;
+          }>(
+            `SELECT uid, is_visible
+               FROM profiles
+              WHERE uid = $1 OR uid = $2`,
+            [senderUid, recipientUid],
+          );
+          const senderProfile = profileResult.rows.find(
+            (profile) => profile.uid === senderUid,
+          );
+          const recipientProfile = profileResult.rows.find(
+            (profile) => profile.uid === recipientUid,
+          );
+          if (!senderProfile || !recipientProfile) {
+            return {
+              skipReason: "profile_not_found",
+              rowsUpdated: 0,
+              requestWasAlreadyAccepted: false,
+            };
+          }
 
-      // Mutual-consent shortcut — only on accept, AND only if the
-      // forward update actually flipped a real pending row. Without
-      // this gate, a stray "accepted" write on the inbound doc with
-      // no matching forward pending row could still flip an
-      // unrelated reverse pending row to accepted, manufacturing a
-      // connection without genuine recipient consent. This mirrors
-      // the api-server's accept route which only runs the reverse
-      // update inside the same transaction after confirming the
-      // forward row existed.
-      if (status === "accepted" && (forward.rowCount ?? 0) > 0) {
-        await client.query(
+          // Hidden users may still accept an existing explicit request. Check
+          // its canonical Postgres row while holding the pair's privacy locks;
+          // never turn a missing/declined request into a new connection.
+          const requestResult = await client.query<{ status: string }>(
+            `SELECT status
+               FROM reveal_requests
+              WHERE sender_uid = $1
+                AND recipient_uid = $2
+              FOR UPDATE`,
+            [senderUid, recipientUid],
+          );
+          const requestStatus = requestResult.rows[0]?.status;
+          requestWasAlreadyAccepted = requestStatus === "accepted";
+          const hasExistingRelationship =
+            isExplicitRevealRelationshipStatus(requestStatus);
+          const bothProfilesVisible =
+            senderProfile.is_visible && recipientProfile.is_visible;
+
+          if (!bothProfilesVisible && !hasExistingRelationship) {
+            return {
+              skipReason: !senderProfile.is_visible
+                ? "hidden_sender"
+                : "hidden_recipient",
+              rowsUpdated: 0,
+              requestWasAlreadyAccepted,
+            };
+          }
+          if (!hasExistingRelationship) {
+            return {
+              skipReason: "reveal_request_not_found",
+              rowsUpdated: 0,
+              requestWasAlreadyAccepted: false,
+            };
+          }
+
+          // This barrier also serializes against direct client-side fail-safe
+          // Hide writes, which do not acquire the API's Postgres advisory lock.
+          const firestoreDb = admin.firestore();
+          const senderUserRef = firestoreDb.collection("users").doc(senderUid);
+          const recipientUserRef = firestoreDb
+            .collection("users")
+            .doc(recipientUid);
+          const firestoreSkipReason = await firestoreDb.runTransaction(
+            async (transaction): Promise<string | null> => {
+              // Read both visibility mirrors so direct client-side hide writes
+              // serialize with this barrier. An existing canonical request is
+              // nevertheless explicit consent, so mirror visibility (including
+              // stale/missing visibility data) does not revoke it.
+              await transaction.get(senderUserRef);
+              await transaction.get(recipientUserRef);
+              const currentRequest = await transaction.get(after.ref);
+
+              if (
+                !currentRequest.exists ||
+                currentRequest.get("direction") !== "inbound" ||
+                currentRequest.get("status") !== status
+              ) {
+                return "stale_request";
+              }
+
+              // Existing pending/accepted requests remain explicit
+              // relationships when either participant is hidden. Commit the
+              // read set together with a same-value request write; it adds no
+              // public fields and its follow-up trigger is a no-op.
+              transaction.set(after.ref, { status }, { merge: true });
+              return null;
+            },
+          );
+          if (firestoreSkipReason) {
+            return {
+              skipReason: firestoreSkipReason,
+              rowsUpdated: 0,
+              requestWasAlreadyAccepted,
+            };
+          }
+        }
+
+        // Forward update — gated on status='pending' so re-delivery of the
+        // same event is a no-op (UPDATE returns 0 rows).
+        const forward = await client.query(
           `UPDATE reveal_requests
-              SET status = 'accepted',
+              SET status = $1,
                   responded_at = NOW(),
                   updated_at = NOW()
-            WHERE sender_uid = $1
-              AND recipient_uid = $2
-              AND status = 'pending'`,
-          [recipientUid, senderUid],
+            WHERE sender_uid = $2
+              AND recipient_uid = $3
+              AND status = 'pending'
+            RETURNING id`,
+          [status, senderUid, recipientUid],
         );
-      }
 
-      await client.query("COMMIT");
+        // Only accept the reverse pending request when the forward row was
+        // genuinely pending, avoiding manufacturing mutual consent.
+        if (status === "accepted" && (forward.rowCount ?? 0) > 0) {
+          await client.query(
+            `UPDATE reveal_requests
+                SET status = 'accepted',
+                    responded_at = NOW(),
+                    updated_at = NOW()
+              WHERE sender_uid = $1
+                AND recipient_uid = $2
+                AND status = 'pending'`,
+            [recipientUid, senderUid],
+          );
+        }
 
-      const rowsUpdated = forward.rowCount ?? 0;
-
-      // A rowCount of 0 means no matching pending row existed in Postgres
-      // at the time of the mirror — Postgres and Firestore have diverged.
-      // This can happen when a previous mirror succeeded (idempotent path)
-      // but may also indicate a genuine consistency gap if the api-server
-      // never wrote the original pending row. Log it distinctly so a
-      // Cloud Logging alert on `alert = "reveal_mirror_no_row"` can surface
-      // these divergence events before a user reports "nothing happened".
-      if (rowsUpdated === 0) {
-        logger.warn(
-          {
-            alert: "reveal_mirror_no_row",
-            senderUid,
-            recipientUid,
-            status,
-          },
-          "Mirror reveal status: no pending row found in Postgres (possible divergence or duplicate delivery)",
-        );
-      } else {
-        logger.info(
-          {
-            senderUid,
-            recipientUid,
-            status,
-            rowsUpdated,
-          },
-          "Mirrored reveal status to Postgres",
-        );
-      }
+        return {
+          skipReason: null,
+          rowsUpdated: forward.rowCount ?? 0,
+          requestWasAlreadyAccepted,
+        };
+      });
+      skipReason = result.skipReason;
+      rowsUpdated = result.rowsUpdated;
+      requestWasAlreadyAccepted = result.requestWasAlreadyAccepted;
     } catch (err) {
-      await client.query("ROLLBACK").catch(() => undefined);
-      // Re-throw so Cloud Functions retries per its policy. The Postgres
-      // gating clause makes retries safe.
-      // The `alert` field makes this line filterable as a Cloud Logging
-      // log-based alert: severity=ERROR AND jsonPayload.alert="reveal_mirror_failed".
+      // withPostgresTransaction rolls back and releases the client on error.
       logger.error(
         {
           alert: "reveal_mirror_failed",
@@ -259,8 +338,43 @@ export const mirrorRevealStatusToPostgres = onDocumentWrittenWithAuthContext(
         "Failed to mirror reveal status to Postgres",
       );
       throw err;
-    } finally {
-      client.release();
+    }
+
+    if (skipReason) {
+      logger.info(
+        { senderUid, recipientUid, status, skipReason },
+        "Skipping accepted reveal mirror because visibility or the existing request does not permit it",
+      );
+      return;
+    }
+
+    // A rowCount of 0 means no matching pending row existed in Postgres at
+    // the time of the mirror (possible divergence or duplicate delivery).
+    if (rowsUpdated === 0 && requestWasAlreadyAccepted) {
+      logger.info(
+        { senderUid, recipientUid, status },
+        "Reveal request was already accepted; mirror is idempotent",
+      );
+    } else if (rowsUpdated === 0) {
+      logger.warn(
+        {
+          alert: "reveal_mirror_no_row",
+          senderUid,
+          recipientUid,
+          status,
+        },
+        "Mirror reveal status: no pending row found in Postgres (possible divergence or duplicate delivery)",
+      );
+    } else {
+      logger.info(
+        {
+          senderUid,
+          recipientUid,
+          status,
+          rowsUpdated,
+        },
+        "Mirrored reveal status to Postgres",
+      );
     }
   },
 );
@@ -322,106 +436,6 @@ export const onBleDetectionCreated = onDocumentCreated(
       return;
     }
 
-    const db = getPool();
-
-    // ── Resolve observedHash → profile ──────────────────────────────────
-    const observedResult = await db.query<{
-      uid: string;
-      push_token: string | null;
-      is_visible: boolean;
-    }>(
-      `SELECT uid, push_token, is_visible
-         FROM profiles
-        WHERE uid_hash = $1
-        LIMIT 1`,
-      [observedHash],
-    );
-
-    if (observedResult.rows.length === 0) {
-      logger.info(
-        { observedHash },
-        "onBleDetectionCreated: no profile for hash — skipping",
-      );
-      await snap.ref.update({ processed: true, skipped: "hash_not_found" });
-      return;
-    }
-
-    const observedRow = observedResult.rows[0]!;
-    const observedUid = observedRow.uid;
-
-    if (observedUid === observerUid) {
-      await snap.ref.update({ processed: true, skipped: "self" });
-      return;
-    }
-
-    if (!observedRow.is_visible) {
-      await snap.ref.update({ processed: true, skipped: "ghost_mode" });
-      return;
-    }
-
-    // Observer's push token — their JS was frozen when the native scanner
-    // fired, so they haven't seen the encounter in the UI yet.
-    const observerResult = await db.query<{ push_token: string | null }>(
-      `SELECT push_token FROM profiles WHERE uid = $1 LIMIT 1`,
-      [observerUid],
-    );
-    const observerPushToken = observerResult.rows[0]?.push_token ?? null;
-
-    // ── Postgres encounter upsert (both directions, 10-min dedup) ────────
-    // Mirrors the logic in POST /api/encounters (encounters.ts). Using a
-    // single ON CONFLICT statement is cleaner and avoids a SELECT round-trip.
-    const upsertSql = `
-      INSERT INTO encounters (observer_uid, observed_uid, last_rssi)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (observer_uid, observed_uid) DO UPDATE SET
-        last_seen_at    = NOW(),
-        last_rssi       = COALESCE($3, encounters.last_rssi),
-        encounter_count = CASE
-          WHEN NOW() - encounters.last_seen_at > INTERVAL '10 minutes'
-          THEN encounters.encounter_count + 1
-          ELSE encounters.encounter_count
-        END`;
-    await db.query(upsertSql, [observerUid, observedUid, rssi]);
-    await db.query(upsertSql, [observedUid, observerUid, rssi]);
-
-    // ── Firestore met_people symmetric mirror ────────────────────────────
-    // Replicates recordSymmetricEncounter from api-server/firestoreMirror.ts.
-    const firestoreDb = admin.firestore();
-    const aRef = firestoreDb
-      .collection("users")
-      .doc(observerUid)
-      .collection("met_people")
-      .doc(observedUid);
-    const bRef = firestoreDb
-      .collection("users")
-      .doc(observedUid)
-      .collection("met_people")
-      .doc(observerUid);
-    const serverNow = admin.firestore.FieldValue.serverTimestamp();
-    const metBatch = firestoreDb.batch();
-    metBatch.set(
-      aRef,
-      {
-        uid: observedUid,
-        lastMet: serverNow,
-        metCount: admin.firestore.FieldValue.increment(1),
-        createdAt: serverNow,
-      },
-      { merge: true },
-    );
-    metBatch.set(
-      bRef,
-      {
-        uid: observerUid,
-        lastMet: serverNow,
-        metCount: admin.firestore.FieldValue.increment(1),
-        createdAt: serverNow,
-      },
-      { merge: true },
-    );
-    await metBatch.commit();
-
-    // ── Push notifications ───────────────────────────────────────────────
     const sendExpoPush = async (
       token: string,
       encounterId: string,
@@ -453,20 +467,164 @@ export const onBleDetectionCreated = onDocumentCreated(
       }
     };
 
-    // Notify the observed user (they were detected — their token is handy)
-    if (observedRow.push_token) {
-      await sendExpoPush(observedRow.push_token, observerUid);
-    }
-    // Notify the observer — their JS was frozen, so they missed the event
-    if (observerPushToken) {
-      await sendExpoPush(observerPushToken, observedUid);
+    const client = await getPool().connect();
+    let outcome: {
+      skipReason: string | null;
+      observedUid: string | null;
+    };
+    try {
+      outcome = await withPostgresTransaction(client, async () => {
+        // Resolve only the UID before locking; visibility and push-token
+        // snapshots are fetched again under the shared per-profile locks.
+        const observedResult = await client.query<{ uid: string }>(
+          `SELECT uid
+             FROM profiles
+            WHERE uid_hash = $1
+            LIMIT 1`,
+          [observedHash],
+        );
+        const observedUid = observedResult.rows[0]?.uid;
+        if (!observedUid) {
+          return { skipReason: "hash_not_found", observedUid: null };
+        }
+        if (observedUid === observerUid) {
+          return { skipReason: "self", observedUid };
+        }
+
+        await acquireProfilePrivacyLocks(client, [observerUid, observedUid]);
+
+        // This is the canonical visibility/token read. It follows acquisition
+        // of both locks, so it cannot use a pre-Hide profile or token snapshot.
+        const profileResult = await client.query<{
+          uid: string;
+          uid_hash: string | null;
+          push_token: string | null;
+          is_visible: boolean;
+        }>(
+          `SELECT uid, uid_hash, push_token, is_visible
+             FROM profiles
+            WHERE uid = $1 OR uid = $2`,
+          [observerUid, observedUid],
+        );
+        const observerRow = profileResult.rows.find(
+          (profile) => profile.uid === observerUid,
+        );
+        const observedRow = profileResult.rows.find(
+          (profile) => profile.uid === observedUid,
+        );
+        if (!observerRow) {
+          return { skipReason: "observer_not_found", observedUid };
+        }
+        if (!observedRow || observedRow.uid_hash !== observedHash) {
+          return { skipReason: "hash_not_found", observedUid };
+        }
+        if (!observerRow.is_visible) {
+          return { skipReason: "hidden_observer", observedUid };
+        }
+        if (!observedRow.is_visible) {
+          return { skipReason: "ghost_mode", observedUid };
+        }
+
+        // ── Firestore met_people symmetric mirror ─────────────────────────
+        // Check current Firestore state and commit both discovery mirrors
+        // while the same Postgres privacy locks remain held.
+        const firestoreDb = admin.firestore();
+        const observerUserRef = firestoreDb.collection("users").doc(observerUid);
+        const observedUserRef = firestoreDb.collection("users").doc(observedUid);
+        const aRef = observerUserRef
+          .collection("met_people")
+          .doc(observedUid);
+        const bRef = observedUserRef
+          .collection("met_people")
+          .doc(observerUid);
+        const firestoreSkipReason = await firestoreDb.runTransaction(
+          async (transaction): Promise<string | null> => {
+            const observerUser = await transaction.get(observerUserRef);
+            const observedUser = await transaction.get(observedUserRef);
+
+            if (!observerUser.exists) return "observer_not_found";
+            if (observerUser.get("isVisible") !== true) return "hidden_observer";
+            if (!observedUser.exists) return "observed_user_not_found";
+            if (observedUser.get("isVisible") !== true) return "ghost_mode";
+
+            const serverNow = admin.firestore.FieldValue.serverTimestamp();
+            transaction.set(
+              aRef,
+              {
+                uid: observedUid,
+                lastMet: serverNow,
+                metCount: admin.firestore.FieldValue.increment(1),
+                createdAt: serverNow,
+              },
+              { merge: true },
+            );
+            transaction.set(
+              bRef,
+              {
+                uid: observerUid,
+                lastMet: serverNow,
+                metCount: admin.firestore.FieldValue.increment(1),
+                createdAt: serverNow,
+              },
+              { merge: true },
+            );
+            return null;
+          },
+        );
+        if (firestoreSkipReason) {
+          return { skipReason: firestoreSkipReason, observedUid };
+        }
+
+        // ── Postgres encounter upsert (both directions, 10-min dedup) ────
+        const upsertSql = `
+          INSERT INTO encounters (observer_uid, observed_uid, last_rssi)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (observer_uid, observed_uid) DO UPDATE SET
+            last_seen_at    = NOW(),
+            last_rssi       = COALESCE($3, encounters.last_rssi),
+            encounter_count = CASE
+              WHEN NOW() - encounters.last_seen_at > INTERVAL '10 minutes'
+              THEN encounters.encounter_count + 1
+              ELSE encounters.encounter_count
+            END`;
+        await client.query(upsertSql, [observerUid, observedUid, rssi]);
+        await client.query(upsertSql, [observedUid, observerUid, rssi]);
+
+        // Keep notification delivery inside the same lock window as discovery
+        // writes; a Hide request must wait for any in-flight alert to finish.
+        if (observedRow.push_token) {
+          await sendExpoPush(observedRow.push_token, observerUid);
+        }
+        if (observerRow.push_token) {
+          await sendExpoPush(observerRow.push_token, observedUid);
+        }
+
+        return { skipReason: null, observedUid };
+      });
+    } catch (err) {
+      logger.error(
+        { err, observerUid, observedHash },
+        "onBleDetectionCreated: privacy-guarded encounter transaction failed",
+      );
+      throw err;
     }
 
-    // Mark processed and record the resolved observedUid for debugging
-    await snap.ref.update({ processed: true, observedUid });
+    if (outcome.skipReason) {
+      await snap.ref.update({
+        processed: true,
+        skipped: outcome.skipReason,
+      });
+      return;
+    }
+
+    // Mark processed after the guarded transaction commits.
+    await snap.ref.update({
+      processed: true,
+      observedUid: outcome.observedUid,
+    });
 
     logger.info(
-      { observerUid, observedUid },
+      { observerUid, observedUid: outcome.observedUid },
       "onBleDetectionCreated: encounter recorded via background BLE",
     );
   },
@@ -501,22 +659,15 @@ export const onBleDetectionCreated = onDocumentCreated(
  * deliveries — the user may see a second notification, but no data is
  * corrupted. This is acceptable given how rarely retries occur.
  *
- * Skips
- * -----
- * - Recipient has no push token stored → skip silently (notifications disabled
- *   or token not yet registered).
- * - Sender == recipient (self-chat edge case) → skip.
- * - nextSenderUid missing and participants unavailable → skip.
- * - Expo API non-OK response → log warning, do not retry (Expo errors on
- *   invalid tokens are permanent; retrying would not help).
+ * This trigger is intentionally a no-op hook: notification delivery is
+ * owned by the API server, which can honor notification preferences and keep
+ * push tokens out of broadly readable Firestore presence documents.
  */
 export const sendChatMessageNotification = onDocumentCreated(
   {
     document: "chats/{chatId}/messages/{msgId}",
-    // No Postgres access needed — push tokens and display names are read
-    // from Firestore (users/{uid}.pushToken / .displayName), which is
-    // already accessible via the Admin SDK without extra secrets.
-    // DATABASE_URL (Replit-internal) is unreachable from Cloud Functions.
+    // The API server handles chat push delivery. User documents retain only
+    // the public presence fields required by existing nearby-user queries.
     maxInstances: 10,
   },
   async (event) => {
@@ -570,46 +721,13 @@ export const sendChatMessageNotification = onDocumentCreated(
     // Guard against the self-chat edge case.
     if (recipientUid === senderUid) return;
 
-    // Read sender profile (for display name) and recipient profile (for push
-    // token) from Firestore. The api-server mirrors displayName on every
-    // profile upsert, and mirrors pushToken on every push-token registration,
-    // so both fields are reliably present for active users.
-    const [senderSnap, recipientSnap] = await Promise.all([
-      firestoreDb.collection("users").doc(senderUid).get(),
-      firestoreDb.collection("users").doc(recipientUid).get(),
-    ]);
-
-    const senderData = senderSnap.data() as Record<string, unknown> | undefined;
-    const recipientData = recipientSnap.data() as
-      | Record<string, unknown>
-      | undefined;
-
-    const pushToken =
-      typeof recipientData?.["pushToken"] === "string"
-        ? recipientData["pushToken"]
-        : null;
-    if (!pushToken) {
-      // Recipient has push notifications disabled or hasn't registered a
-      // token yet — skip silently.
-      logger.info(
-        { recipientUid },
-        "sendChatMessageNotification: no push token for recipient, skipping",
-      );
-      return;
-    }
-
-    const senderName =
-      typeof senderData?.["displayName"] === "string"
-        ? senderData["displayName"]
-        : "Someone";
-
     // Chat push notifications are handled by the API server (POST /api/chats/notify),
     // which respects the recipient's notifyChat notification preference. Sending here
     // too would cause duplicate notifications, so this Cloud Function intentionally
     // skips the FCM send and serves only as a hook for future server-side logic
     // (analytics, moderation, etc.).
     logger.info(
-      { recipientUid, senderUid, senderName },
+      { recipientUid, senderUid },
       "sendChatMessageNotification: skipping FCM — notification delegated to API server",
     );
   },

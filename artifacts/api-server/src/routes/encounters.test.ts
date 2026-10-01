@@ -5,6 +5,14 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 // ---------------------------------------------------------------------------
 
 const dbMocks = vi.hoisted(() => {
+  const sessionDb = {
+    transaction: vi.fn(),
+  };
+  const poolClient = {
+    query: vi.fn(),
+    release: vi.fn(),
+  };
+  const poolConnect = vi.fn();
   const chain = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -15,9 +23,17 @@ const dbMocks = vi.hoisted(() => {
     returning: vi.fn(),
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    onConflictDoUpdate: vi.fn().mockReturnThis(),
+    execute: vi.fn(),
+    transaction: vi.fn(),
   };
-  return { chain };
+  return { chain, sessionDb, poolClient, poolConnect };
 });
+
+const drizzleMocks = vi.hoisted(() => ({
+  drizzle: vi.fn(),
+}));
 
 // Hoisted push mock refs — captured before vi.mock runs so the factory can
 // reference them AND tests can call mockReturnValueOnce directly without a
@@ -32,6 +48,8 @@ const pushMocks = vi.hoisted(() => ({
 // the route response, so a lost impl causes a try/catch 502 before push runs).
 const firestoreMirrorMocks = vi.hoisted(() => ({
   mirrorProfileToFirestore: vi.fn().mockResolvedValue(undefined),
+  hideProfileFromFirestore: vi.fn().mockResolvedValue({ ok: true }),
+  clearEncounterMirrorsForHiddenUser: vi.fn().mockResolvedValue({ ok: true }),
   recordSymmetricEncounter: vi.fn().mockResolvedValue({
     otherUid: "bob",
     metCount: 1,
@@ -43,14 +61,23 @@ const firestoreMirrorMocks = vi.hoisted(() => ({
 
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
+  pool: { connect: dbMocks.poolConnect },
   profilesTable: {},
   encountersTable: {},
   revealRequestsTable: {},
   subscriptionsTable: {},
+  presenceTable: {},
+}));
+
+vi.mock("drizzle-orm/node-postgres", () => ({
+  drizzle: drizzleMocks.drizzle,
 }));
 
 vi.mock("../lib/firestoreMirror", () => ({
   mirrorProfileToFirestore: firestoreMirrorMocks.mirrorProfileToFirestore,
+  hideProfileFromFirestore: firestoreMirrorMocks.hideProfileFromFirestore,
+  clearEncounterMirrorsForHiddenUser:
+    firestoreMirrorMocks.clearEncounterMirrorsForHiddenUser,
   recordSymmetricEncounter: firestoreMirrorMocks.recordSymmetricEncounter,
   mirrorRevealRequest: firestoreMirrorMocks.mirrorRevealRequest,
   mirrorRevealStatus: firestoreMirrorMocks.mirrorRevealStatus,
@@ -90,6 +117,35 @@ const encounterFixture = {
   encounterCount: 1,
   lastRssi: null,
 };
+const profileFixture = {
+  uid: "alice",
+  displayName: "Alice",
+  photoUrl: null,
+  bio: null,
+  socials: {},
+  interests: [],
+  isVisible: false,
+  createdAt: new Date("2024-01-01T00:00:00Z"),
+  updatedAt: new Date("2024-01-01T00:00:00Z"),
+};
+
+let transactionTail: Promise<void> = Promise.resolve();
+
+async function runSerializedTransaction<T>(
+  callback: (tx: typeof dbMocks.chain) => Promise<T>,
+): Promise<T> {
+  const previous = transactionTail;
+  let release!: () => void;
+  transactionTail = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await callback(dbMocks.chain);
+  } finally {
+    release();
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Ensure no real Redis connection is attempted.
@@ -112,6 +168,8 @@ beforeEach(() => {
   dbMocks.chain.values.mockReturnThis();
   dbMocks.chain.update.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
+  dbMocks.chain.delete.mockReturnThis();
+  dbMocks.chain.onConflictDoUpdate.mockReturnThis();
   // Default push behaviour: no-op send, rate-limit always denies.
   pushMocks.sendPush.mockResolvedValue(undefined);
   pushMocks.checkNearbyPushAllowed.mockReturnValue(false);
@@ -119,9 +177,21 @@ beforeEach(() => {
   // the push-token profile fetch added to POST /encounters) returns []
   // instead of undefined and causing a 500.
   dbMocks.chain.limit.mockResolvedValue([]);
+  dbMocks.chain.execute.mockResolvedValue({ rows: [] });
+  transactionTail = Promise.resolve();
+  dbMocks.chain.transaction.mockImplementation(runSerializedTransaction);
+  dbMocks.sessionDb.transaction.mockImplementation(runSerializedTransaction);
+  dbMocks.poolConnect.mockImplementation(async () => dbMocks.poolClient);
+  dbMocks.poolClient.query.mockResolvedValue({ rows: [] });
+  dbMocks.poolClient.release.mockReset();
+  drizzleMocks.drizzle.mockReturnValue(dbMocks.sessionDb);
   // Restore Firestore mirror impls wiped by resetAllMocks so routes that
   // call recordSymmetricEncounter don't hit the try/catch 502 path.
-  firestoreMirrorMocks.mirrorProfileToFirestore.mockResolvedValue(undefined);
+  firestoreMirrorMocks.mirrorProfileToFirestore.mockResolvedValue({ ok: true });
+  firestoreMirrorMocks.hideProfileFromFirestore.mockResolvedValue({ ok: true });
+  firestoreMirrorMocks.clearEncounterMirrorsForHiddenUser.mockResolvedValue({
+    ok: true,
+  });
   firestoreMirrorMocks.recordSymmetricEncounter.mockResolvedValue({
     otherUid: "bob",
     metCount: 1,
@@ -136,13 +206,42 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 function postEncounterAs(uid: string, body: Record<string, unknown>) {
+  if (typeof body.observedUid === "string") {
+    dbMocks.chain.where.mockResolvedValueOnce([
+      { uid, isVisible: true },
+      { uid: body.observedUid, isVisible: true },
+    ]);
+  }
   return request(app)
     .post("/api/encounters")
     .set("x-met-uid", uid)
     .send(body);
 }
 
-function postRecordEncounterAs(uid: string, body: Record<string, unknown>) {
+function postRecordEncounterAs(
+  uid: string,
+  body: Record<string, unknown>,
+  otherOverrides: Record<string, unknown> = {},
+  observerIsVisible = true,
+) {
+  if (typeof body.otherUid === "string") {
+    dbMocks.chain.where.mockResolvedValueOnce([
+      {
+        uid,
+        isVisible: observerIsVisible,
+      },
+      {
+        uid: body.otherUid,
+        isVisible: true,
+        pushToken: null,
+        interests: [],
+        preferredLocale: null,
+        displayName: "Peer",
+        notificationPrefs: null,
+        ...otherOverrides,
+      },
+    ]);
+  }
   return request(app)
     .post("/api/encounters/record")
     .set("x-met-uid", uid)
@@ -180,6 +279,18 @@ describe("POST /api/encounters", () => {
       expect(res.body).toHaveProperty("message");
       expect(res.body.message).toMatch(/self/i);
     });
+  });
+
+  it("rejects attempts to record a hidden peer as a new encounter", async () => {
+    dbMocks.chain.where.mockResolvedValueOnce([
+      { uid: "alice", isVisible: true },
+      { uid: "bob", isVisible: false },
+    ]);
+
+    const res = await postEncounterAs("alice", { observedUid: "bob" });
+
+    expect(res.status).toBe(404);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
   });
 
   describe("successful creation", () => {
@@ -248,16 +359,39 @@ describe("POST /api/encounters", () => {
     //   call 3: revealRequestsTable — re-encounter check (limit 1)
     //   call 4: profilesTable — caller interests or display name (only when push fires)
 
+    it("rejects both a hidden observer and a hidden target without writing a mirror", async () => {
+      const hiddenTarget = await postRecordEncounterAs(
+        "alice",
+        { otherUid: "bob" },
+        { isVisible: false },
+      );
+      expect(hiddenTarget.status).toBe(404);
+      expect(firestoreMirrorMocks.recordSymmetricEncounter).not.toHaveBeenCalled();
+
+      const hiddenObserver = await postRecordEncounterAs(
+        "alice",
+        { otherUid: "bob" },
+        {},
+        false,
+      );
+      expect(hiddenObserver.status).toBe(404);
+      expect(firestoreMirrorMocks.recordSymmetricEncounter).not.toHaveBeenCalled();
+      expect(pushMocks.sendPush).not.toHaveBeenCalled();
+    });
+
     it("sends a generic push body when there are no shared interests", async () => {
       pushMocks.checkNearbyPushAllowed.mockReturnValueOnce(true);
 
       dbMocks.chain.limit
-        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music"] }])
         .mockResolvedValueOnce([])  // tier lookup: both free
         .mockResolvedValueOnce([])  // re-encounter check: not connected
         .mockResolvedValueOnce([{ interests: [] }]);  // caller profile: no interests → no overlap
 
-      await postRecordEncounterAs("alice", { otherUid: "bob" });
+      await postRecordEncounterAs(
+        "alice",
+        { otherUid: "bob" },
+        { pushToken: "tok-bob", interests: ["Music"] },
+      );
 
       expect(pushMocks.sendPush).toHaveBeenCalledWith(
         "tok-bob",
@@ -269,12 +403,15 @@ describe("POST /api/encounters", () => {
       pushMocks.checkNearbyPushAllowed.mockReturnValueOnce(true);
 
       dbMocks.chain.limit
-        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"], preferredLocale: null }])
         .mockResolvedValueOnce([])  // tier lookup: both free
         .mockResolvedValueOnce([])  // re-encounter check: not connected
         .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]);  // "Travel" is shared
 
-      await postRecordEncounterAs("alice", { otherUid: "bob" });
+      await postRecordEncounterAs(
+        "alice",
+        { otherUid: "bob" },
+        { pushToken: "tok-bob", interests: ["Music", "Travel"] },
+      );
 
       expect(pushMocks.sendPush).toHaveBeenCalledWith(
         "tok-bob",
@@ -287,12 +424,19 @@ describe("POST /api/encounters", () => {
 
       // Bob prefers Spanish — "Travel" should appear as "Viajes" in the notification.
       dbMocks.chain.limit
-        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["Music", "Travel"], preferredLocale: "es" }])
         .mockResolvedValueOnce([])  // tier lookup: both free
         .mockResolvedValueOnce([])  // re-encounter check: not connected
         .mockResolvedValueOnce([{ interests: ["Travel", "Yoga"] }]);
 
-      await postRecordEncounterAs("alice", { otherUid: "bob" });
+      await postRecordEncounterAs(
+        "alice",
+        { otherUid: "bob" },
+        {
+          pushToken: "tok-bob",
+          interests: ["Music", "Travel"],
+          preferredLocale: "es",
+        },
+      );
 
       expect(pushMocks.sendPush).toHaveBeenCalledWith(
         "tok-bob",
@@ -306,12 +450,15 @@ describe("POST /api/encounters", () => {
       // Other user stores "music" in lower-case (legacy); caller has "Music" (title-case).
       // The normalised comparison should still detect the overlap.
       dbMocks.chain.limit
-        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: "tok-bob", interests: ["music"] }])
         .mockResolvedValueOnce([])  // tier lookup: both free
         .mockResolvedValueOnce([])  // re-encounter check: not connected
         .mockResolvedValueOnce([{ interests: ["Music"] }]);
 
-      await postRecordEncounterAs("alice", { otherUid: "bob" });
+      await postRecordEncounterAs(
+        "alice",
+        { otherUid: "bob" },
+        { pushToken: "tok-bob", interests: ["music"] },
+      );
 
       expect(pushMocks.sendPush).toHaveBeenCalledWith(
         "tok-bob",
@@ -326,7 +473,6 @@ describe("POST /api/encounters", () => {
       //   call 2: subscriptionsTable — tier lookup (alice=plus, bob missing → free)
       //   call 3: revealRequestsTable — re-encounter check
       dbMocks.chain.limit
-        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: null, interests: [] }])
         .mockResolvedValueOnce([{ userUid: "alice", tier: "plus", status: "active" }])
         .mockResolvedValueOnce([]);  // re-encounter check
 
@@ -344,7 +490,6 @@ describe("POST /api/encounters", () => {
       //   call 2: subscriptionsTable — tier lookup (bob=pro, alice missing → free)
       //   call 3: revealRequestsTable — re-encounter check
       dbMocks.chain.limit
-        .mockResolvedValueOnce([{ uid: "bob", isVisible: true, pushToken: null, interests: [] }])
         .mockResolvedValueOnce([{ userUid: "bob", tier: "pro", status: "active" }])
         .mockResolvedValueOnce([]);  // re-encounter check
 
@@ -379,5 +524,120 @@ describe("POST /api/encounters", () => {
       expect(retryAfter).toBeGreaterThan(0);
       expect(retryAfter).toBeLessThanOrEqual(60);
     });
+  });
+});
+
+describe("cross-process privacy serialization", () => {
+  it("finishes a delayed symmetric encounter before Hide clears discovery data", async () => {
+    const events: string[] = [];
+    let markEncounterStarted!: () => void;
+    let finishEncounter!: () => void;
+    let markPushStarted!: () => void;
+    let finishPush!: () => void;
+    const encounterStarted = new Promise<void>((resolve) => {
+      markEncounterStarted = resolve;
+    });
+    const delayedEncounter = new Promise<void>((resolve) => {
+      finishEncounter = resolve;
+    });
+    const pushStarted = new Promise<void>((resolve) => {
+      markPushStarted = resolve;
+    });
+    const delayedPush = new Promise<void>((resolve) => {
+      finishPush = resolve;
+    });
+    firestoreMirrorMocks.recordSymmetricEncounter.mockImplementationOnce(
+      async () => {
+        events.push("encounter-start");
+        markEncounterStarted();
+        await delayedEncounter;
+        events.push("encounter-finished");
+        return {
+          otherUid: "bob",
+          metCount: 1,
+          lastMet: new Date("2024-01-01T00:00:00Z"),
+        };
+      },
+    );
+    firestoreMirrorMocks.hideProfileFromFirestore.mockImplementationOnce(
+      async () => {
+        events.push("hide-mirror");
+        return { ok: true };
+      },
+    );
+    firestoreMirrorMocks.clearEncounterMirrorsForHiddenUser.mockImplementationOnce(
+      async () => {
+        events.push("hide-cleanup");
+        return { ok: true };
+      },
+    );
+    pushMocks.checkNearbyPushAllowed.mockReturnValue(true);
+    pushMocks.sendPush.mockImplementationOnce(async () => {
+      events.push("push-start");
+      markPushStarted();
+      await delayedPush;
+      events.push("push-finished");
+    });
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([]) // encounter subscription tier lookup
+      .mockResolvedValueOnce([
+        { isVisible: true, updatedAt: profileFixture.updatedAt },
+      ]) // profile version/state read by Hide
+      .mockResolvedValueOnce([]); // accepted reveal lookup after mirror write
+    dbMocks.chain.returning.mockResolvedValueOnce([
+      { ...profileFixture, isVisible: false },
+    ]);
+
+    const encounterRequest = postRecordEncounterAs(
+      "alice",
+      { otherUid: "bob" },
+      { pushToken: "peer-push-token" },
+    ).then((response) => response);
+    await encounterStarted;
+
+    let hideSettled = false;
+    const hideRequest = request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice", isVisible: false })
+      .then((response) => {
+        hideSettled = true;
+        return response;
+      });
+
+    await Promise.resolve();
+    expect(hideSettled).toBe(false);
+    expect(firestoreMirrorMocks.hideProfileFromFirestore).not.toHaveBeenCalled();
+
+    finishEncounter();
+    await pushStarted;
+    await Promise.resolve();
+    expect(hideSettled).toBe(false);
+    expect(firestoreMirrorMocks.hideProfileFromFirestore).not.toHaveBeenCalled();
+    finishPush();
+    const [encounterResponse, hideResponse] = await Promise.all([
+      encounterRequest,
+      hideRequest,
+    ]);
+
+    expect(encounterResponse.status).toBe(200);
+    expect(hideResponse.status).toBe(200);
+    expect(events).toEqual([
+      "encounter-start",
+      "encounter-finished",
+      "push-start",
+      "push-finished",
+      "hide-mirror",
+      "hide-cleanup",
+    ]);
+    // Encounter uses both xact locks; profile update uses the same session
+    // lock key on the same checked-out client that owns its Drizzle transaction.
+    expect(dbMocks.chain.execute).toHaveBeenCalledTimes(2);
+    expect(dbMocks.poolClient.query).toHaveBeenCalledTimes(2);
+    expect(drizzleMocks.drizzle).toHaveBeenCalledWith(
+      dbMocks.poolClient,
+      expect.any(Object),
+    );
+    expect(dbMocks.poolClient.release).toHaveBeenCalledTimes(1);
   });
 });

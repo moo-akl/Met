@@ -31,8 +31,11 @@ export const GetMyProfileResponse = zod.object({
   isVisible: zod
     .boolean()
     .describe(
-      "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+      "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
     ),
+  visibilityVersion: zod
+    .string()
+    .describe("Monotonic profile visibility version, derived from updatedAt."),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -64,6 +67,12 @@ export const UpsertMyProfileBody = zod.object({
     .boolean()
     .optional()
     .describe("Ghost Mode flag. Optional on upsert; preserved when omitted."),
+  expectedVisibilityVersion: zod
+    .string()
+    .optional()
+    .describe(
+      "Current visibilityVersion from GET \/profiles\/me. Required when\nisVisible is true; stale values are rejected with 409.\n",
+    ),
   preferredLocale: zod
     .string()
     .nullish()
@@ -85,8 +94,11 @@ export const UpsertMyProfileResponse = zod.object({
   isVisible: zod
     .boolean()
     .describe(
-      "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+      "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
     ),
+  visibilityVersion: zod
+    .string()
+    .describe("Monotonic profile visibility version, derived from updatedAt."),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -111,8 +123,11 @@ export const GetProfileResponse = zod.object({
   isVisible: zod
     .boolean()
     .describe(
-      "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+      "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
     ),
+  visibilityVersion: zod
+    .string()
+    .describe("Monotonic profile visibility version, derived from updatedAt."),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -164,11 +179,15 @@ export const ListMyEncountersResponseItem = zod
         isVisible: zod
           .boolean()
           .describe(
-            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
+          ),
+        visibilityVersion: zod
+          .string()
+          .describe(
+            "Monotonic profile visibility version, derived from updatedAt.",
           ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
-        peerTier: zod.enum(["free", "plus", "pro"]).optional(),
       }),
     }),
   );
@@ -279,7 +298,12 @@ export const CreateRevealRequestResponse = zod
         isVisible: zod
           .boolean()
           .describe(
-            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
+          ),
+        visibilityVersion: zod
+          .string()
+          .describe(
+            "Monotonic profile visibility version, derived from updatedAt.",
           ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
@@ -321,11 +345,15 @@ export const ListInboundRevealsResponseItem = zod
         isVisible: zod
           .boolean()
           .describe(
-            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
+          ),
+        visibilityVersion: zod
+          .string()
+          .describe(
+            "Monotonic profile visibility version, derived from updatedAt.",
           ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
-        peerTier: zod.enum(["free", "plus", "pro"]).optional(),
       }),
     }),
   );
@@ -366,11 +394,15 @@ export const ListOutboundRevealsResponseItem = zod
         isVisible: zod
           .boolean()
           .describe(
-            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
+          ),
+        visibilityVersion: zod
+          .string()
+          .describe(
+            "Monotonic profile visibility version, derived from updatedAt.",
           ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
-        peerTier: zod.enum(["free", "plus", "pro"]).optional(),
       }),
     }),
   );
@@ -457,7 +489,12 @@ export const BleResolveResponseItem = zod.object({
     isVisible: zod
       .boolean()
       .describe(
-        "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+        "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
+      ),
+    visibilityVersion: zod
+      .string()
+      .describe(
+        "Monotonic profile visibility version, derived from updatedAt.",
       ),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -957,7 +994,12 @@ export const ListNetworkMembersResponseItem = zod
         isVisible: zod
           .boolean()
           .describe(
-            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
+          ),
+        visibilityVersion: zod
+          .string()
+          .describe(
+            "Monotonic profile visibility version, derived from updatedAt.",
           ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
@@ -999,7 +1041,12 @@ export const ListPendingMembersResponseItem = zod
         isVisible: zod
           .boolean()
           .describe(
-            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to true on creation.\n",
+            "Ghost Mode flag. When false, this user is hidden from other\ndevices' nearby queries. Defaults to false on creation.\n",
+          ),
+        visibilityVersion: zod
+          .string()
+          .describe(
+            "Monotonic profile visibility version, derived from updatedAt.",
           ),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
@@ -2350,7 +2397,7 @@ export const GetMyVenueBranchesResponse = zod.object({
         applicationSource: zod
           .string()
           .nullish()
-          .describe("mobile | web | agent | admin | null for legacy rows"),
+          .describe("mobile | web | null for legacy rows"),
         isApproved: zod.boolean(),
         isVerified: zod.boolean(),
         rejectionReason: zod.string().nullish(),
@@ -2408,7 +2455,7 @@ export const GetMyVenueBranchesResponse = zod.object({
       applicationSource: zod
         .string()
         .nullish()
-        .describe("mobile | web | agent | admin | null for legacy rows"),
+        .describe("mobile | web | null for legacy rows"),
       isApproved: zod.boolean(),
       isVerified: zod.boolean(),
       rejectionReason: zod.string().nullish(),
@@ -2607,6 +2654,10 @@ export const ListVenueApplicationsQueryParams = zod.object({
     .describe(
       "Match business name, venue name, place ID, owner UID, or application ID.",
     ),
+  source: zod
+    .enum(["mobile", "web", "agent"])
+    .optional()
+    .describe("Filter by application source: `mobile`, `web`, or `agent`."),
 });
 
 export const ListVenueApplicationsResponse = zod.object({
@@ -3264,4 +3315,247 @@ export const AddVenueApplicationNoteBody = zod.object({
     .string()
     .min(1)
     .max(addVenueApplicationNoteBodyInternalNoteMax),
+});
+
+/**
+ * @summary Send a selected outreach template to a venue before it is added or approved
+ */
+export const sendNewVenueOutreachBodyBusinessNameMin = 2;
+export const sendNewVenueOutreachBodyBusinessNameMax = 150;
+
+export const sendNewVenueOutreachBodyRecipientEmailMax = 255;
+
+export const sendNewVenueOutreachBodyTemplateDefault = `contact_request`;
+
+export const SendNewVenueOutreachBody = zod.object({
+  businessName: zod
+    .string()
+    .min(sendNewVenueOutreachBodyBusinessNameMin)
+    .max(sendNewVenueOutreachBodyBusinessNameMax),
+  recipientEmail: zod
+    .string()
+    .email()
+    .max(sendNewVenueOutreachBodyRecipientEmailMax),
+  template: zod
+    .enum([
+      "contact_request",
+      "met_launch_with_links",
+      "met_launch_without_links",
+      "preapproval_video_application",
+      "introduction",
+      "benefits",
+      "events",
+      "rewards",
+      "follow_up",
+    ])
+    .default(sendNewVenueOutreachBodyTemplateDefault),
+});
+
+/**
+ * @summary List outreach emails and owner invitations sent to venues
+ */
+export const GetVenueOutreachHistoryResponse = zod.object({
+  emails: zod.array(
+    zod.object({
+      id: zod.string(),
+      kind: zod.enum([
+        "new_venue_outreach",
+        "contact_request",
+        "registration_invite",
+      ]),
+      businessName: zod.string(),
+      recipientEmail: zod.string().email(),
+      template: zod.string(),
+      deliveryStatus: zod.enum([
+        "sending",
+        "sent",
+        "delivery_uncertain",
+        "failed",
+      ]),
+      createdAt: zod.coerce.date(),
+      sentAt: zod.coerce.date().nullable(),
+      venueOwnerProfileId: zod.number().nullable(),
+      applicationId: zod.number().nullable(),
+      applicationStatus: zod.string().nullable(),
+      expiresAt: zod.coerce.date().nullable(),
+      linkStatus: zod.enum([
+        "none",
+        "active",
+        "expired",
+        "used",
+        "superseded",
+        "unknown",
+      ]),
+    }),
+  ),
+});
+
+/**
+ * @summary Check that a pre-approval application invitation is valid and unused
+ */
+export const validateVenueApplicationInviteBodyTokenMax = 256;
+
+export const ValidateVenueApplicationInviteBody = zod.object({
+  token: zod.string().min(1).max(validateVenueApplicationInviteBodyTokenMax),
+});
+
+export const ValidateVenueApplicationInviteResponse = zod.object({
+  invitedEmail: zod.string().email(),
+  businessName: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * An optional pre-approval invitation token is email-bound and consumed atomically with application creation. It never approves a venue or grants manager access.
+ * @summary Submit a venue application for Met review
+ */
+export const submitVenueOwnerApplicationBodyContactEmailMax = 255;
+
+export const submitVenueOwnerApplicationBodyContactNameMax = 255;
+
+export const submitVenueOwnerApplicationBodyPlaceIdMax = 255;
+
+export const submitVenueOwnerApplicationBodyPlaceNameMax = 255;
+
+export const submitVenueOwnerApplicationBodyBusinessNameMax = 255;
+
+export const submitVenueOwnerApplicationBodyLatMin = -90;
+export const submitVenueOwnerApplicationBodyLatMax = 90;
+
+export const submitVenueOwnerApplicationBodyLngMin = -180;
+export const submitVenueOwnerApplicationBodyLngMax = 180;
+
+export const submitVenueOwnerApplicationBodyTaglineMax = 160;
+
+export const submitVenueOwnerApplicationBodyDescriptionMax = 1000;
+
+export const submitVenueOwnerApplicationBodyVerificationDocUrlMax = 2000;
+
+export const submitVenueOwnerApplicationBodyRegistrationNotesMax = 500;
+
+export const submitVenueOwnerApplicationBodyApplicationInviteTokenMax = 256;
+
+export const SubmitVenueOwnerApplicationBody = zod.object({
+  contactEmail: zod
+    .string()
+    .email()
+    .max(submitVenueOwnerApplicationBodyContactEmailMax),
+  contactName: zod
+    .string()
+    .min(1)
+    .max(submitVenueOwnerApplicationBodyContactNameMax),
+  placeId: zod.string().min(1).max(submitVenueOwnerApplicationBodyPlaceIdMax),
+  placeName: zod
+    .string()
+    .min(1)
+    .max(submitVenueOwnerApplicationBodyPlaceNameMax),
+  businessName: zod
+    .string()
+    .min(1)
+    .max(submitVenueOwnerApplicationBodyBusinessNameMax),
+  lat: zod
+    .number()
+    .min(submitVenueOwnerApplicationBodyLatMin)
+    .max(submitVenueOwnerApplicationBodyLatMax),
+  lng: zod
+    .number()
+    .min(submitVenueOwnerApplicationBodyLngMin)
+    .max(submitVenueOwnerApplicationBodyLngMax),
+  tagline: zod
+    .string()
+    .max(submitVenueOwnerApplicationBodyTaglineMax)
+    .nullish(),
+  description: zod
+    .string()
+    .max(submitVenueOwnerApplicationBodyDescriptionMax)
+    .nullish(),
+  verificationDocUrl: zod
+    .string()
+    .url()
+    .max(submitVenueOwnerApplicationBodyVerificationDocUrlMax),
+  registrationNotes: zod
+    .string()
+    .max(submitVenueOwnerApplicationBodyRegistrationNotesMax)
+    .nullish(),
+  applicationInviteToken: zod
+    .string()
+    .min(1)
+    .max(submitVenueOwnerApplicationBodyApplicationInviteTokenMax)
+    .optional(),
+});
+
+/**
+ * @summary Preview the available pre-approval venue outreach email templates
+ */
+export const previewNewVenueOutreachBodyBusinessNameMin = 2;
+export const previewNewVenueOutreachBodyBusinessNameMax = 150;
+
+export const PreviewNewVenueOutreachBody = zod.object({
+  businessName: zod
+    .string()
+    .min(previewNewVenueOutreachBodyBusinessNameMin)
+    .max(previewNewVenueOutreachBodyBusinessNameMax),
+});
+
+export const PreviewNewVenueOutreachResponse = zod.object({
+  templates: zod.array(
+    zod.object({
+      id: zod.enum([
+        "contact_request",
+        "met_launch_with_links",
+        "met_launch_without_links",
+        "preapproval_video_application",
+        "introduction",
+        "benefits",
+        "events",
+        "rewards",
+        "follow_up",
+      ]),
+      label: zod.string(),
+      description: zod.string(),
+      subject: zod.string(),
+      text: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Ask a venue's public contact for the management email without creating an invitation
+ */
+
+export const SendVenueContactRequestParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const sendVenueContactRequestBodyRecipientEmailMax = 255;
+
+export const SendVenueContactRequestBody = zod.object({
+  recipientEmail: zod
+    .string()
+    .email()
+    .max(sendVenueContactRequestBodyRecipientEmailMax),
+});
+
+/**
+ * @summary Issue an email-bound one-time invitation for an approved venue
+ */
+
+export const CreateVenueRegistrationLinkParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const createVenueRegistrationLinkBodyRecipientEmailMax = 255;
+
+export const createVenueRegistrationLinkBodyTemplateDefault = `registration`;
+
+export const CreateVenueRegistrationLinkBody = zod.object({
+  sendEmail: zod.boolean(),
+  recipientEmail: zod
+    .string()
+    .email()
+    .max(createVenueRegistrationLinkBodyRecipientEmailMax)
+    .optional(),
+  template: zod
+    .enum(["registration", "registration_with_video"])
+    .default(createVenueRegistrationLinkBodyTemplateDefault),
 });

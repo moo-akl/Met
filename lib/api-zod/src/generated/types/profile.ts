@@ -16,9 +16,11 @@ export interface Profile {
   /** User-selected interest tags (predefined list, up to 10). */
   interests?: string[] | null;
   /** Ghost Mode flag. When false, this user is hidden from other
-devices' nearby queries. Defaults to true on creation.
+devices' nearby queries. Defaults to false on creation.
  */
   isVisible: boolean;
+  /** Monotonic profile visibility version, derived from updatedAt. */
+  visibilityVersion: string;
   createdAt: Date;
   updatedAt: Date;
 }

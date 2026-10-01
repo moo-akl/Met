@@ -29,8 +29,9 @@ import {
 } from "geofire-common";
 
 import { api, type RemoteProfile } from "../api/client";
-import { getFirestoreModule } from "./client";
+import { getFirestoreModule, getFirestoreSdk } from "./client";
 import { isInCooldown, markCooldown } from "./cooldown";
+import { isExplicitlyVisible } from "../discoveryVisibility";
 
 const PUSH_INTERVAL_MS = 60_000;
 const PULL_INTERVAL_MS = 30_000;
@@ -74,11 +75,23 @@ let nextGeneration = 1;
 export interface StartProximityOptions {
   uid: string;
   listener: ProximityListener;
+  isVisible: boolean;
 }
 
 export async function startFirestoreProximity(
   opts: StartProximityOptions,
 ): Promise<{ started: boolean; reason?: string }> {
+  if (!opts.isVisible) {
+    stopFirestoreProximity(opts.uid);
+    void suppressFirestorePresence(opts.uid).catch((err) => {
+      console.warn(
+        "[firestore-proximity] hidden presence suppression failed",
+        err,
+      );
+    });
+    return { started: false, reason: "User is hidden" };
+  }
+
   if (state) {
     if (state.uid === opts.uid) {
       state.listener = opts.listener;
@@ -91,6 +104,10 @@ export async function startFirestoreProximity(
     return { started: false, reason: "API not configured" };
   }
 
+  // Reserve a generation before the first async bridge lookup. stop() must
+  // be able to invalidate a start even if Firebase is still initializing.
+  const generation = nextGeneration++;
+
   // Make sure Firestore is reachable before we spin up the timers.
   // Web / Expo Go falls back to a noop here so the caller can decide
   // whether to keep using the legacy GPS-presence module.
@@ -98,8 +115,9 @@ export async function startFirestoreProximity(
   if (!fs) {
     return { started: false, reason: "Firestore native module unavailable" };
   }
-
-  const generation = nextGeneration++;
+  if (state !== null || generation + 1 !== nextGeneration) {
+    return { started: false, reason: "Superseded by newer start/stop" };
+  }
 
   const perm = await Location.getForegroundPermissionsAsync();
   if (perm.status !== "granted") {
@@ -137,16 +155,78 @@ export async function startFirestoreProximity(
   return { started: true };
 }
 
-export function stopFirestoreProximity(): void {
-  if (!state) return;
-  if (state.pushTimer) clearInterval(state.pushTimer);
-  if (state.pullTimer) clearInterval(state.pullTimer);
-  state.abort.abort();
+export function stopFirestoreProximity(uid?: string | null): void {
+  // Invalidate starts that are still waiting for permissions, and prevent
+  // an in-flight location lookup from starting a new Firestore write.
+  nextGeneration += 1;
+  const stopped = state;
+  if (stopped) {
+    if (stopped.pushTimer) clearInterval(stopped.pushTimer);
+    if (stopped.pullTimer) clearInterval(stopped.pullTimer);
+    stopped.abort.abort();
+  }
   state = null;
+  const stoppedUid = stopped?.uid ?? uid ?? undefined;
+  if (stoppedUid) {
+    // A stopped foreground location service must not leave an old geohash
+    // available to a later discovery query. Do not delete the user doc:
+    // it also carries profile/visibility data and existing connections.
+    void clearFirestoreLocation(stoppedUid, true).catch((err) => {
+      console.warn("[firestore-proximity] stale location cleanup failed", err);
+    });
+  }
 }
 
 export function isFirestoreProximityRunning(): boolean {
   return state !== null;
+}
+
+/**
+ * Hide the user's Firestore presence immediately, including a location
+ * left behind by a previous app session. This is a field update, not a
+ * document delete, so profile and connection data remain intact.
+ */
+export async function suppressFirestorePresence(uid: string): Promise<boolean> {
+  const fs = await getFirestoreModule();
+  if (!fs) return false;
+  const firestore = await getFirestoreSdk();
+  await fs.collection("users").doc(uid).set(
+    {
+      uid,
+      isVisible: false,
+      location: firestore.default.FieldValue.delete(),
+      geohash: firestore.default.FieldValue.delete(),
+    },
+    { merge: true },
+  );
+  return true;
+}
+
+/**
+ * Remove only the short-lived location fields. Visibility and all
+ * intentional profile/chat/connection data are preserved.
+ */
+export async function clearFirestoreLocation(
+  uid: string,
+  onlyIfStopped = false,
+): Promise<boolean> {
+  if (onlyIfStopped && state?.uid === uid) return false;
+  const fs = await getFirestoreModule();
+  if (!fs || (onlyIfStopped && state?.uid === uid)) return false;
+  const firestore = await getFirestoreSdk();
+  if (onlyIfStopped && state?.uid === uid) return false;
+  await fs.collection("users").doc(uid).update({
+    location: firestore.default.FieldValue.delete(),
+    geohash: firestore.default.FieldValue.delete(),
+  });
+  if (onlyIfStopped && state?.uid === uid) {
+    // A newer foreground session may have started while this cleanup write
+    // was in flight. Re-publish a fresh fix rather than leaving its document
+    // without a location or a pre-cleanup fix as the newest value.
+    state.lastPushed = null;
+    if (!state.pushInFlight) void runPushOnce(state.generation);
+  }
+  return true;
 }
 
 function liveStateFor(gen: number): ServiceState | null {
@@ -197,10 +277,15 @@ async function runPushOnce(gen: number): Promise<void> {
     }
 
     const fs = await getFirestoreModule();
-    if (!fs) return;
+    s = liveStateFor(gen);
+    if (!s || !fs) return;
     const geohash = geohashForLocation([here.lat, here.lng]);
     try {
-      const fsMod = await import("@react-native-firebase/firestore");
+      const fsMod = await getFirestoreSdk();
+      // Firebase module initialization is async; stop may have been called
+      // while it was loading. Revalidate before beginning the location write.
+      s = liveStateFor(gen);
+      if (!s) return;
       await fs
         .collection("users")
         .doc(s.uid)
@@ -214,7 +299,23 @@ async function runPushOnce(gen: number): Promise<void> {
           { merge: true },
         );
       const live = liveStateFor(gen);
-      if (live) live.lastPushed = here;
+      if (live) {
+        live.lastPushed = here;
+      } else if (state?.uid === s.uid) {
+        // A new visible session for the same uid may have started while the
+        // old write was in flight. Keep its next push eligible so it replaces
+        // any older fix that committed last.
+        state.lastPushed = null;
+      } else {
+        // A stop may race with the Firestore write itself. Re-clear after
+        // that write settles so stale coordinates cannot be the last write.
+        await clearFirestoreLocation(s.uid).catch((err) => {
+          console.warn(
+            "[firestore-proximity] stale location cleanup failed",
+            err,
+          );
+        });
+      }
     } catch (err) {
       console.warn("[firestore-proximity] presence push failed", err);
     }
@@ -240,7 +341,8 @@ async function runPullOnce(gen: number): Promise<void> {
     ];
 
     const fs = await getFirestoreModule();
-    if (!fs) return;
+    s = liveStateFor(gen);
+    if (!s || !fs) return;
 
     // geohashQueryBounds returns one or more [start, end] pairs; we
     // dispatch each pair as its own range query (Firestore can't OR
@@ -279,10 +381,7 @@ async function runPullOnce(gen: number): Promise<void> {
           // Server rules already enforce `isVisible == true` for reads
           // by other users, but we re-check defensively in case the
           // doc was readable for a different reason.
-          const isVisible =
-            typeof data["isVisible"] === "boolean"
-              ? (data["isVisible"] as boolean)
-              : true;
+          const isVisible = isExplicitlyVisible(data["isVisible"]);
           if (!isVisible) return;
           candidates.set(otherUid, {
             uid: otherUid,
@@ -314,51 +413,13 @@ async function runPullOnce(gen: number): Promise<void> {
       if (now - lastEmit < FIRE_REEMIT_MS) continue;
       s.lastEmitted.set(c.uid, now);
 
-      // Persistent 2h cooldown — gates the server-side encounter write
-      // (and therefore the bilateral met_people doc creation) but NOT
-      // the listener emission, since a returning encounter is still
-      // useful to surface in the UI.
-      const cooled = await isInCooldown(s.uid, c.uid);
-      const live = liveStateFor(gen);
-      if (!live) return;
-
-      let recorded = false;
-      if (!cooled) {
-        // Stamp the cooldown BEFORE the API call so a concurrent pull
-        // (or a parallel BLE detection in AppContext) can't read
-        // "not cooled" while our request is still in flight and fire
-        // a duplicate write. We accept the trade-off: if recordEncounter
-        // fails, the pair is locked out for 2h before we'd retry — but
-        // that's still strictly better than risking a double-increment
-        // of metCount on the server side.
-        await markCooldown(live.uid, c.uid);
-        try {
-          await api.recordEncounter(
-            { uid: live.uid, signal: live.abort.signal },
-            {
-              otherUid: c.uid,
-              location: { lat: c.lat, lng: c.lng },
-            },
-          );
-          recorded = true;
-        } catch (err) {
-          if ((err as { name?: string }).name !== "AbortError") {
-            console.warn(
-              "[firestore-proximity] recordEncounter failed",
-              c.uid,
-              err,
-            );
-          }
-        }
-      }
-
-      // Pull the profile for the listener payload. We do this even
-      // when the encounter was cooldown-suppressed so the in-app
-      // detection event still has a profile to render.
+      // Resolve the canonical profile before recording an encounter. The
+      // Firestore query is only a visibility snapshot and can race with a
+      // peer hiding themselves.
       let profile: RemoteProfile;
       try {
         profile = await api.getProfile(
-          { uid: live.uid, signal: live.abort.signal },
+          { uid: s.uid, signal: s.abort.signal },
           c.uid,
         );
       } catch (err) {
@@ -370,19 +431,55 @@ async function runPullOnce(gen: number): Promise<void> {
           );
         }
         // Roll back the in-app dedup slot so we'll retry next pull.
-        // Don't roll back the persistent cooldown — that's keyed off
-        // the server having recorded the encounter, which already
-        // happened (the row exists; we just couldn't fetch the avatar
-        // yet).
         const r = liveStateFor(gen);
-        if (r && !recorded) r.lastEmitted.delete(c.uid);
+        if (r) r.lastEmitted.delete(c.uid);
         continue;
       }
 
       const stillLive = liveStateFor(gen);
       if (!stillLive) return;
+      if (!isExplicitlyVisible(profile.isVisible)) {
+        stillLive.lastEmitted.delete(c.uid);
+        continue;
+      }
+
+      // Persistent 2h cooldown — gates the server-side encounter write
+      // (and therefore the bilateral met_people doc creation) but NOT
+      // the listener emission, since a returning encounter is still
+      // useful to surface in the UI.
+      const cooled = await isInCooldown(stillLive.uid, c.uid);
+      const current = liveStateFor(gen);
+      if (!current) return;
+
+      if (!cooled) {
+        // Stamp the cooldown BEFORE the API call so a concurrent pull
+        // (or a parallel BLE detection in AppContext) can't read
+        // "not cooled" while our request is still in flight and fire
+        // a duplicate write.
+        await markCooldown(current.uid, c.uid);
+        try {
+          await api.recordEncounter(
+            { uid: current.uid, signal: current.abort.signal },
+            {
+              otherUid: c.uid,
+              location: { lat: c.lat, lng: c.lng },
+            },
+          );
+        } catch (err) {
+          if ((err as { name?: string }).name !== "AbortError") {
+            console.warn(
+              "[firestore-proximity] recordEncounter failed",
+              c.uid,
+              err,
+            );
+          }
+        }
+      }
+
+      const liveAfterRecord = liveStateFor(gen);
+      if (!liveAfterRecord) return;
       try {
-        stillLive.listener({
+        liveAfterRecord.listener({
           uid: c.uid,
           distanceM,
           source: "gps",

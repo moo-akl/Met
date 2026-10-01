@@ -73,17 +73,21 @@ jest.mock("@/lib/api/client", () => ({
   ApiError: class ApiError extends Error {
     status: number;
     body: unknown;
-    constructor(status: number, body: unknown) {
-      super("ApiError");
+    constructor(message: string, status: number, body: unknown) {
+      super(message);
       this.status = status;
       this.body = body;
     }
   },
   api: {
     isConfigured: jest.fn().mockReturnValue(true),
+    getMyProfile: jest.fn().mockResolvedValue(undefined),
     upsertMyProfile: jest.fn().mockResolvedValue(undefined),
     uploadProfilePhoto: jest.fn().mockResolvedValue({ photoUrl: "" }),
     removeConnection: jest.fn().mockResolvedValue(undefined),
+    sendReveal: jest.fn().mockResolvedValue({ updatedAt: "2026-01-01T00:00:00.000Z" }),
+    listInboundReveals: jest.fn().mockResolvedValue([]),
+    listOutboundReveals: jest.fn().mockResolvedValue([]),
     getRevealRequests: jest.fn().mockResolvedValue({ inbox: [], outbox: [] }),
     registerPushToken: jest.fn().mockResolvedValue(undefined),
     getProfile: jest.fn().mockResolvedValue({
@@ -102,12 +106,13 @@ jest.mock("@/lib/proximity/presence", () => ({
 
 jest.mock("@/lib/ble", () => ({
   startBleProximity: jest.fn().mockResolvedValue({ started: false }),
-  stopBleProximity: jest.fn(),
+  stopBleProximity: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("@/lib/firestore/presence", () => ({
   startFirestoreProximity: jest.fn().mockResolvedValue({ started: false }),
   stopFirestoreProximity: jest.fn(),
+  suppressFirestorePresence: jest.fn().mockResolvedValue(true),
 }));
 
 // subscribeToMetPeople implementation is set per-test via mockImplementation.
@@ -146,6 +151,7 @@ jest.mock("@/lib/venueOwnerIntent", () => ({
 import React from "react";
 import TestRenderer from "react-test-renderer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Alert } from "react-native";
 import * as authLib from "@/lib/auth";
 import * as encountersMod from "@/lib/firestore/encounters";
 import type { MetPersonDoc } from "@/lib/firestore/encounters";
@@ -165,12 +171,14 @@ type MetPeopleListener = (people: MetPersonDoc[]) => void;
 
 let capturedAuthCallback: ((uid: string | null) => void) | null = null;
 let capturedMetPeopleListener: MetPeopleListener | null = null;
+const mountedRenderers = new Set<TestRenderer.ReactTestRenderer>();
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const ENCOUNTERS_KEY = "met:encounters:v1";
+const PROFILE_KEY = "met:profile:v1";
 
 const store = (AsyncStorage as unknown as { _store: Record<string, string> })
   ._store;
@@ -181,6 +189,18 @@ function clearStore() {
 
 function seedEncounters(encs: Encounter[]) {
   store[ENCOUNTERS_KEY] = JSON.stringify(encs);
+}
+
+function seedProfile(isVisible: boolean) {
+  store[PROFILE_KEY] = JSON.stringify({
+    id: "me-uid",
+    name: "Local User",
+    bio: "",
+    photoUri: "https://example.com/photo.png",
+    socials: {},
+    verified: true,
+    isVisible,
+  });
 }
 
 function makeEncounter(id: string): Encounter {
@@ -211,6 +231,34 @@ function TestConsumer({ capture }: { capture: EncountersCapture }) {
   return null;
 }
 
+type VisibilityCapture = {
+  profile: ReturnType<typeof useApp>["profile"];
+  ready: boolean;
+};
+
+type DiscoveryCapture = {
+  profile: ReturnType<typeof useApp>["profile"];
+  encounters: Encounter[];
+  setProfile: ReturnType<typeof useApp>["setProfile"];
+  sendRevealRequest: ReturnType<typeof useApp>["sendRevealRequest"];
+};
+
+function VisibilityConsumer({ capture }: { capture: VisibilityCapture }) {
+  const ctx = useApp();
+  capture.profile = ctx.profile;
+  capture.ready = ctx.ready;
+  return null;
+}
+
+function DiscoveryConsumer({ capture }: { capture: DiscoveryCapture }) {
+  const ctx = useApp();
+  capture.profile = ctx.profile;
+  capture.encounters = ctx.encounters;
+  capture.setProfile = ctx.setProfile;
+  capture.sendRevealRequest = ctx.sendRevealRequest;
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Main test helper
 // ---------------------------------------------------------------------------
@@ -238,11 +286,12 @@ async function renderAppAndAwaitListener(
   // Step 1: Mount the tree. Effects fire during act(), including
   // subscribeToAuthState which stores capturedAuthCallback.
   await TestRenderer.act(async () => {
-    TestRenderer.create(
+    const renderer = TestRenderer.create(
       <AppProvider>
         <TestConsumer capture={capture} />
       </AppProvider>,
     );
+    mountedRenderers.add(renderer);
   });
 
   // Step 2: Fire the auth callback so setAuthedUid(uid) is called,
@@ -273,6 +322,80 @@ async function renderAppAndAwaitListener(
   return { capture, listener: capturedMetPeopleListener };
 }
 
+async function renderVisibleDiscoveryConsumer(): Promise<{
+  capture: DiscoveryCapture;
+  listener: MetPeopleListener;
+}> {
+  seedProfile(true);
+  const apiMod = jest.requireMock("@/lib/api/client") as {
+    api: {
+      getMyProfile: jest.Mock;
+      upsertMyProfile: jest.Mock;
+      getProfile: jest.Mock;
+    };
+  };
+  apiMod.api.getMyProfile.mockResolvedValue({
+    uid: "me-uid",
+    displayName: "Local User",
+    photoUrl: "https://example.com/photo.png",
+    bio: "",
+    socials: {},
+    interests: null,
+    isVisible: true,
+    visibilityVersion: "version-1",
+  });
+  apiMod.api.upsertMyProfile.mockResolvedValue({ isVisible: true });
+  (encountersMod.subscribeToMetPeople as jest.Mock).mockImplementation(
+    (_uid: string, listener: MetPeopleListener) => {
+      capturedMetPeopleListener = listener;
+      return Promise.resolve(() => {});
+    },
+  );
+  const capture: DiscoveryCapture = {
+    profile: null,
+    encounters: [],
+    setProfile: async () => {},
+    sendRevealRequest: async () => {},
+  };
+
+  await TestRenderer.act(async () => {
+    const renderer = TestRenderer.create(
+      <AppProvider>
+        <DiscoveryConsumer capture={capture} />
+      </AppProvider>,
+    );
+    mountedRenderers.add(renderer);
+  });
+  await TestRenderer.act(async () => {
+    if (!capturedAuthCallback) {
+      throw new Error("subscribeToAuthState was never called");
+    }
+    capturedAuthCallback("me-uid");
+    for (let i = 0; i < 60; i += 1) await Promise.resolve();
+  });
+  if (!capturedMetPeopleListener || capture.profile?.isVisible !== true) {
+    throw new Error("Visible profile did not finish startup reconciliation");
+  }
+  return { capture, listener: capturedMetPeopleListener };
+}
+
+function makeMetPerson(otherUid: string): MetPersonDoc {
+  return {
+    otherUid,
+    lastMet: 1234,
+    metCount: 1,
+    location: null,
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 // ---------------------------------------------------------------------------
 // beforeEach / afterEach
 // ---------------------------------------------------------------------------
@@ -295,18 +418,28 @@ beforeEach(() => {
   const apiMod = jest.requireMock("@/lib/api/client") as {
     api: {
       isConfigured: jest.Mock;
+      getMyProfile: jest.Mock;
       upsertMyProfile: jest.Mock;
       uploadProfilePhoto: jest.Mock;
       getRevealRequests: jest.Mock;
+      sendReveal: jest.Mock;
       getProfile: jest.Mock;
+      listInboundReveals: jest.Mock;
+      listOutboundReveals: jest.Mock;
       registerPushToken: jest.Mock;
       removeConnection: jest.Mock;
     };
   };
   apiMod.api.isConfigured.mockReturnValue(true);
+  apiMod.api.getMyProfile.mockResolvedValue(undefined);
   apiMod.api.upsertMyProfile.mockResolvedValue(undefined);
   apiMod.api.uploadProfilePhoto.mockResolvedValue({ photoUrl: "" });
   apiMod.api.getRevealRequests.mockResolvedValue({ inbox: [], outbox: [] });
+  apiMod.api.sendReveal.mockResolvedValue({
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  apiMod.api.listInboundReveals.mockResolvedValue([]);
+  apiMod.api.listOutboundReveals.mockResolvedValue([]);
   apiMod.api.getProfile.mockResolvedValue({
     displayName: "Peer User",
     photoUrl: "",
@@ -328,6 +461,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  for (const renderer of mountedRenderers) {
+    TestRenderer.act(() => renderer.unmount());
+  }
+  mountedRenderers.clear();
   clearStore();
   jest.clearAllMocks();
 });
@@ -425,5 +562,249 @@ describe("AppContext met_people subscription — tier field mapping", () => {
     const result = capture.value.find((e) => e.id === "peer-uid-4");
     expect(result).toBeDefined();
     expect(result?.tier).toBe("pro");
+  });
+});
+
+describe("AppContext met_people deferred profile synthesis", () => {
+  it("does not synthesize or notify when Hide wins while a profile fetch is pending", async () => {
+    const apiMod = jest.requireMock("@/lib/api/client") as {
+      api: { getProfile: jest.Mock };
+    };
+    const pendingProfile = deferred<{
+      displayName: string;
+      photoUrl: string;
+      bio: string;
+      socials: Record<string, string>;
+      isVisible: boolean;
+    }>();
+    apiMod.api.getProfile.mockReturnValue(pendingProfile.promise);
+    const notifications = jest.requireMock("@/lib/notifications") as {
+      presentEncounterNotification: jest.Mock;
+    };
+    notifications.presentEncounterNotification.mockClear();
+    const { capture, listener } = await renderVisibleDiscoveryConsumer();
+
+    await TestRenderer.act(async () => {
+      listener([makeMetPerson("delayed-peer")]);
+      for (let i = 0; i < 20 && !apiMod.api.getProfile.mock.calls.length; i += 1) {
+        await Promise.resolve();
+      }
+    });
+    expect(apiMod.api.getProfile).toHaveBeenCalledWith(
+      { uid: "me-uid" },
+      "delayed-peer",
+    );
+
+    await TestRenderer.act(async () => {
+      await capture.setProfile({ ...capture.profile!, isVisible: false });
+    });
+    await TestRenderer.act(async () => {
+      pendingProfile.resolve({
+        displayName: "Delayed Peer",
+        photoUrl: "https://example.com/peer.png",
+        bio: "",
+        socials: {},
+        isVisible: true,
+      });
+      for (let i = 0; i < 40; i += 1) await Promise.resolve();
+    });
+
+    expect(capture.encounters.some((encounter) => encounter.id === "delayed-peer"))
+      .toBe(false);
+    expect(notifications.presentEncounterNotification).not.toHaveBeenCalled();
+  });
+
+  it("does not synthesize or notify when the peer leaves the current snapshot during a fetch", async () => {
+    const apiMod = jest.requireMock("@/lib/api/client") as {
+      api: { getProfile: jest.Mock };
+    };
+    const pendingProfile = deferred<{
+      displayName: string;
+      photoUrl: string;
+      bio: string;
+      socials: Record<string, string>;
+      isVisible: boolean;
+    }>();
+    apiMod.api.getProfile.mockReturnValue(pendingProfile.promise);
+    const notifications = jest.requireMock("@/lib/notifications") as {
+      presentEncounterNotification: jest.Mock;
+    };
+    notifications.presentEncounterNotification.mockClear();
+    const { capture, listener } = await renderVisibleDiscoveryConsumer();
+
+    await TestRenderer.act(async () => {
+      listener([makeMetPerson("removed-peer")]);
+      for (let i = 0; i < 20 && !apiMod.api.getProfile.mock.calls.length; i += 1) {
+        await Promise.resolve();
+      }
+      listener([]);
+    });
+    expect(apiMod.api.getProfile).toHaveBeenCalledWith(
+      { uid: "me-uid" },
+      "removed-peer",
+    );
+
+    await TestRenderer.act(async () => {
+      pendingProfile.resolve({
+        displayName: "Removed Peer",
+        photoUrl: "https://example.com/peer.png",
+        bio: "",
+        socials: {},
+        isVisible: true,
+      });
+      for (let i = 0; i < 40; i += 1) await Promise.resolve();
+    });
+
+    expect(capture.encounters.some((encounter) => encounter.id === "removed-peer"))
+      .toBe(false);
+    expect(notifications.presentEncounterNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe("AppContext reveal request creation", () => {
+  it("creates a request through the authenticated API before updating local state", async () => {
+    seedEncounters([makeEncounter("reveal-peer")]);
+    const apiMod = jest.requireMock("@/lib/api/client") as {
+      api: { sendReveal: jest.Mock };
+    };
+    apiMod.api.sendReveal.mockResolvedValue({
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const { capture } = await renderVisibleDiscoveryConsumer();
+
+    await TestRenderer.act(async () => {
+      await capture.sendRevealRequest("reveal-peer", "  hello  ");
+    });
+
+    expect(apiMod.api.sendReveal).toHaveBeenCalledWith(
+      { uid: "me-uid" },
+      { recipientUid: "reveal-peer", message: "hello" },
+    );
+    expect(
+      capture.encounters.find((encounter) => encounter.id === "reveal-peer")
+        ?.status,
+    ).toBe("request_sent");
+    expect(encountersMod.writeRevealResponse).not.toHaveBeenCalled();
+  });
+
+  it("surfaces an offline API failure without leaving a phantom request", async () => {
+    seedEncounters([makeEncounter("offline-peer")]);
+    const apiMod = jest.requireMock("@/lib/api/client") as {
+      api: { sendReveal: jest.Mock };
+    };
+    apiMod.api.sendReveal.mockRejectedValue(new Error("offline"));
+    const { capture } = await renderVisibleDiscoveryConsumer();
+    let failure: unknown;
+
+    await TestRenderer.act(async () => {
+      try {
+        await capture.sendRevealRequest("offline-peer", "hello");
+      } catch (err) {
+        failure = err;
+      }
+    });
+
+    expect(failure).toEqual(new Error("offline"));
+    expect(
+      capture.encounters.find((encounter) => encounter.id === "offline-peer")
+        ?.status,
+    ).toBe("encounter");
+    expect(encountersMod.writeRevealResponse).not.toHaveBeenCalled();
+  });
+});
+
+describe("AppContext visibility startup reconciliation", () => {
+  it("keeps a locally hidden profile hidden when the server still reports visible", async () => {
+    seedProfile(false);
+    const apiMod = jest.requireMock("@/lib/api/client") as {
+      api: {
+        getMyProfile: jest.Mock;
+        upsertMyProfile: jest.Mock;
+      };
+    };
+    apiMod.api.getMyProfile.mockResolvedValue({
+      uid: "me-uid",
+      displayName: "Local User",
+      photoUrl: "https://example.com/photo.png",
+      bio: "",
+      socials: {},
+      interests: null,
+      isVisible: true,
+      visibilityVersion: "version-1",
+    });
+    apiMod.api.upsertMyProfile.mockResolvedValue({ isVisible: false });
+    const capture: VisibilityCapture = { profile: null, ready: false };
+
+    await TestRenderer.act(async () => {
+      const renderer = TestRenderer.create(
+        <AppProvider>
+          <VisibilityConsumer capture={capture} />
+        </AppProvider>,
+      );
+      mountedRenderers.add(renderer);
+    });
+    await TestRenderer.act(async () => {
+      if (!capturedAuthCallback) {
+        throw new Error("subscribeToAuthState was never called");
+      }
+      capturedAuthCallback("me-uid");
+      for (let i = 0; i < 40; i += 1) await Promise.resolve();
+    });
+
+    expect(capture.profile?.isVisible).toBe(false);
+    expect(apiMod.api.upsertMyProfile).toHaveBeenCalledWith(
+      { uid: "me-uid" },
+      expect.objectContaining({ isVisible: false }),
+    );
+    expect(apiMod.api.upsertMyProfile).not.toHaveBeenCalledWith(
+      { uid: "me-uid" },
+      expect.objectContaining({ isVisible: true }),
+    );
+  });
+
+  it("fails closed and reports unresolved account-wide hiding after a failed read", async () => {
+    seedProfile(true);
+    const apiMod = jest.requireMock("@/lib/api/client") as {
+      api: {
+        getMyProfile: jest.Mock;
+        upsertMyProfile: jest.Mock;
+      };
+    };
+    apiMod.api.getMyProfile.mockRejectedValue(new Error("offline"));
+    apiMod.api.upsertMyProfile
+      .mockRejectedValueOnce(new Error("remote hide unavailable"))
+      .mockResolvedValue({ isVisible: false });
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const capture: VisibilityCapture = { profile: null, ready: false };
+
+    await TestRenderer.act(async () => {
+      const renderer = TestRenderer.create(
+        <AppProvider>
+          <VisibilityConsumer capture={capture} />
+        </AppProvider>,
+      );
+      mountedRenderers.add(renderer);
+    });
+    await TestRenderer.act(async () => {
+      if (!capturedAuthCallback) {
+        throw new Error("subscribeToAuthState was never called");
+      }
+      capturedAuthCallback("me-uid");
+      for (let i = 0; i < 40; i += 1) await Promise.resolve();
+    });
+
+    expect(capture.ready).toBe(true);
+    expect(capture.profile?.isVisible).toBe(false);
+    expect(apiMod.api.getMyProfile).toHaveBeenCalledWith({ uid: "me-uid" });
+    expect(apiMod.api.upsertMyProfile).toHaveBeenCalledWith(
+      { uid: "me-uid" },
+      expect.objectContaining({ isVisible: false }),
+    );
+    expect(alertSpy).toHaveBeenCalledWith(
+      "You're hidden on this device",
+      expect.stringContaining("account's remote visibility may still be active"),
+    );
+
+    alertSpy.mockRestore();
   });
 });

@@ -1,8 +1,11 @@
 import { Router, type IRouter } from "express";
+import { FieldValue } from "firebase-admin/firestore";
 import { and, eq, or, inArray, sql } from "drizzle-orm";
 import {
   db,
   profilesTable,
+  encountersTable,
+  presenceTable,
   revealRequestsTable,
   subscriptionsTable,
   venueOwnerProfilesTable,
@@ -17,7 +20,16 @@ import {
 } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
 import { uidToHash } from "../lib/uidHash";
-import { mirrorProfileToFirestore } from "../lib/firestoreMirror";
+import {
+  clearEncounterMirrorsForHiddenUser,
+  hideProfileFromFirestore,
+  mirrorProfileToFirestore,
+} from "../lib/firestoreMirror";
+import {
+  getExplicitlyKnownUids,
+  withProfilePrivacyLocks,
+  withProfilePrivacySessionLocks,
+} from "../lib/profilePrivacy";
 import { deleteUserData } from "../lib/deleteUserData";
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
@@ -33,6 +45,7 @@ function serialize(p: Profile) {
     socials: (p.socials ?? {}) as Record<string, string>,
     interests: (p.interests ?? []) as string[],
     isVisible: p.isVisible,
+    visibilityVersion: p.updatedAt.toISOString(),
     notificationPrefs: (p.notificationPrefs ?? null) as {
       notifyNewEncounters?: boolean;
       notifyReencounter?: boolean;
@@ -41,6 +54,25 @@ function serialize(p: Profile) {
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
+}
+
+type ProfilePrivacyTransaction = Parameters<
+  Parameters<typeof db.transaction>[0]
+>[0];
+
+async function clearPostgresDiscoveryData(
+  tx: ProfilePrivacyTransaction,
+  uid: string,
+): Promise<void> {
+  await tx.delete(presenceTable).where(eq(presenceTable.uid, uid));
+  await tx
+    .delete(encountersTable)
+    .where(
+      or(
+        eq(encountersTable.observerUid, uid),
+        eq(encountersTable.observedUid, uid),
+      ),
+    );
 }
 
 router.get("/profiles/me", requireUid, async (req, res) => {
@@ -75,113 +107,247 @@ router.get("/profiles/me", requireUid, async (req, res) => {
 router.put("/profiles/me", requireUid, async (req, res) => {
   const uid = req.uid!;
   const body = UpsertMyProfileBody.parse(req.body);
-  const now = new Date();
   const uidHash = uidToHash(uid);
+  const outcome = await withProfilePrivacySessionLocks([uid], async (sessionDb) => {
+    const committed = await sessionDb.transaction(async (tx) => {
+      const existingRows = await tx
+        .select({
+          isVisible: profilesTable.isVisible,
+          updatedAt: profilesTable.updatedAt,
+        })
+        .from(profilesTable)
+        .where(eq(profilesTable.uid, uid))
+        .limit(1);
+      const existingProfile = Array.isArray(existingRows)
+        ? existingRows[0]
+        : undefined;
 
-  const ALLOWED_INTERESTS = new Set([
-    "Sport", "Music", "Art", "Travel", "Food",
-    "Gaming", "Tech", "Fitness", "Photography",
-    "Reading", "Film", "Nature", "Cooking", "Fashion",
-    "Hiking", "Yoga", "Dancing", "Coffee", "Dogs", "Cats",
-    "Movies", "Cycling", "Wine", "Volunteering",
-    "Podcasts", "Wellness", "Running", "Board Games",
-  ]);
-  const ALLOWED_LOCALES = new Set([
-    "en", "es", "ar", "zh", "ru", "fr", "vi", "pt", "nl",
-  ]);
-  const MAX_INTERESTS = 10;
-  const cleanInterests =
-    body.interests != null
-      ? Array.from(
-          new Set(
-            (body.interests as string[])
-              .map((s) => s.trim())
-              .filter((s) => ALLOWED_INTERESTS.has(s)),
-          ),
-        ).slice(0, MAX_INTERESTS)
-      : undefined;
-
-  const cleanLocale =
-    typeof body.preferredLocale === "string" && ALLOWED_LOCALES.has(body.preferredLocale)
-      ? body.preferredLocale
-      : undefined;
-
-  // Accept notification preferences from the client. Validate only known keys
-  // to prevent arbitrary data from being stored.
-  const rawNotifPrefs = (body as Record<string, unknown>)["notificationPrefs"];
-  const cleanNotifPrefs =
-    rawNotifPrefs && typeof rawNotifPrefs === "object" && !Array.isArray(rawNotifPrefs)
-      ? {
-          ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyNewEncounters"] === "boolean"
-            ? { notifyNewEncounters: (rawNotifPrefs as Record<string, unknown>)["notifyNewEncounters"] as boolean }
-            : {}),
-          ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyReencounter"] === "boolean"
-            ? { notifyReencounter: (rawNotifPrefs as Record<string, unknown>)["notifyReencounter"] as boolean }
-            : {}),
-          ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyChat"] === "boolean"
-            ? { notifyChat: (rawNotifPrefs as Record<string, unknown>)["notifyChat"] as boolean }
-            : {}),
+      if (body.isVisible === true) {
+        if (typeof body.expectedVisibilityVersion !== "string") {
+          return {
+            status: 400 as const,
+            message: "expectedVisibilityVersion is required to enable visibility",
+          };
         }
-      : undefined;
+        if (
+          !existingProfile ||
+          body.expectedVisibilityVersion !== existingProfile.updatedAt.toISOString()
+        ) {
+          return {
+            status: 409 as const,
+            message: "Profile visibility changed. Refresh the profile and retry.",
+          };
+        }
+      }
 
-  // Pioneer assignment — grant pioneer status to the first 500 new users.
-  // Check count before the upsert so we can decide if this new row qualifies.
-  // Defensive: the mock chain in tests resolves to a non-array, so guard with Array.isArray.
-  let grantPioneer = false;
-  const countRows = await db
-    .select({ pioneerCount: sql<number>`cast(count(*) as int)` })
-    .from(profilesTable)
-    .where(eq(profilesTable.isPioneer, true));
-  if (Array.isArray(countRows)) {
-    grantPioneer = Number(countRows[0]?.pioneerCount ?? 500) < 500;
-  }
+      // New profiles start Hidden. Omitting isVisible on an existing profile
+      // preserves its current state.
+      const targetIsVisible =
+        body.isVisible ?? existingProfile?.isVisible ?? false;
 
-  const insertValues: typeof profilesTable.$inferInsert = {
-    uid,
-    uidHash,
-    displayName: body.displayName,
-    photoUrl: body.photoUrl ?? null,
-    bio: body.bio ?? null,
-    socials: body.socials ?? {},
-    interests: cleanInterests ?? [],
-    isVisible: body.isVisible ?? true,
-    preferredLocale: cleanLocale ?? null,
-    isPioneer: grantPioneer,
-  };
-  const updateValues: Partial<typeof profilesTable.$inferInsert> = {
-    uidHash,
-    displayName: body.displayName,
-    photoUrl: body.photoUrl ?? null,
-    bio: body.bio ?? null,
-    socials: body.socials ?? {},
-    updatedAt: now,
-  };
-  if (body.isVisible !== undefined) updateValues.isVisible = body.isVisible;
-  if (cleanInterests !== undefined) updateValues.interests = cleanInterests;
-  if (cleanLocale !== undefined) updateValues.preferredLocale = cleanLocale;
-  if (cleanNotifPrefs !== undefined) updateValues.notificationPrefs = cleanNotifPrefs;
+      // Hide Firestore before committing Hidden. Visible is never mirrored
+      // until after the canonical Postgres transaction has committed.
+      const hiddenBarrier = targetIsVisible
+        ? { ok: true as const }
+        : await hideProfileFromFirestore(uid);
 
-  const [row] = await db
-    .insert(profilesTable)
-    .values(insertValues)
-    .onConflictDoUpdate({
-      target: profilesTable.uid,
-      set: updateValues,
-    })
-    .returning();
+      const ALLOWED_INTERESTS = new Set([
+        "Sport", "Music", "Art", "Travel", "Food",
+        "Gaming", "Tech", "Fitness", "Photography",
+        "Reading", "Film", "Nature", "Cooking", "Fashion",
+        "Hiking", "Yoga", "Dancing", "Coffee", "Dogs", "Cats",
+        "Movies", "Cycling", "Wine", "Volunteering",
+        "Podcasts", "Wellness", "Running", "Board Games",
+      ]);
+      const ALLOWED_LOCALES = new Set([
+        "en", "es", "ar", "zh", "ru", "fr", "vi", "pt", "nl",
+      ]);
+      const MAX_INTERESTS = 10;
+      const cleanInterests =
+        body.interests != null
+          ? Array.from(
+              new Set(
+                (body.interests as string[])
+                  .map((s) => s.trim())
+                  .filter((s) => ALLOWED_INTERESTS.has(s)),
+              ),
+            ).slice(0, MAX_INTERESTS)
+          : undefined;
 
-  await mirrorProfileToFirestore({
-    uid: row!.uid,
-    uidHash: row!.uidHash,
-    displayName: row!.displayName,
-    photoUrl: row!.photoUrl ?? null,
-    bio: row!.bio ?? null,
-    socials: (row!.socials ?? {}) as Record<string, string>,
-    interests: (row!.interests ?? []) as string[],
-    isVisible: row!.isVisible,
+      const cleanLocale =
+        typeof body.preferredLocale === "string" && ALLOWED_LOCALES.has(body.preferredLocale)
+          ? body.preferredLocale
+          : undefined;
+
+      // Accept notification preferences from the client. Validate only known keys
+      // to prevent arbitrary data from being stored.
+      const rawNotifPrefs = (body as Record<string, unknown>)["notificationPrefs"];
+      const cleanNotifPrefs =
+        rawNotifPrefs && typeof rawNotifPrefs === "object" && !Array.isArray(rawNotifPrefs)
+          ? {
+              ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyNewEncounters"] === "boolean"
+                ? { notifyNewEncounters: (rawNotifPrefs as Record<string, unknown>)["notifyNewEncounters"] as boolean }
+                : {}),
+              ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyReencounter"] === "boolean"
+                ? { notifyReencounter: (rawNotifPrefs as Record<string, unknown>)["notifyReencounter"] as boolean }
+                : {}),
+              ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyChat"] === "boolean"
+                ? { notifyChat: (rawNotifPrefs as Record<string, unknown>)["notifyChat"] as boolean }
+                : {}),
+            }
+          : undefined;
+
+      // Pioneer assignment — grant pioneer status to the first 500 new users.
+      // Check count before the upsert so we can decide if this new row qualifies.
+      // Defensive: the mock chain in tests resolves to a non-array, so guard with Array.isArray.
+      let grantPioneer = false;
+      const countRows = await tx
+        .select({ pioneerCount: sql<number>`cast(count(*) as int)` })
+        .from(profilesTable)
+        .where(eq(profilesTable.isPioneer, true));
+      if (Array.isArray(countRows)) {
+        grantPioneer = Number(countRows[0]?.pioneerCount ?? 500) < 500;
+      }
+
+      const insertValues: typeof profilesTable.$inferInsert = {
+        uid,
+        uidHash,
+        displayName: body.displayName,
+        photoUrl: body.photoUrl ?? null,
+        bio: body.bio ?? null,
+        socials: body.socials ?? {},
+        interests: cleanInterests ?? [],
+        isVisible: targetIsVisible,
+        preferredLocale: cleanLocale ?? null,
+        isPioneer: grantPioneer,
+      };
+      const updateValues: Partial<typeof profilesTable.$inferInsert> = {
+        uidHash,
+        displayName: body.displayName,
+        photoUrl: body.photoUrl ?? null,
+        bio: body.bio ?? null,
+        socials: body.socials ?? {},
+        // Using a database-side monotonic clock gives the existing updatedAt
+        // column enough precision to serve as a stale-write token.
+        updatedAt: sql`GREATEST(now(), ${profilesTable.updatedAt} + INTERVAL '1 millisecond')` as unknown as Date,
+      };
+      if (body.isVisible !== undefined) updateValues.isVisible = body.isVisible;
+      if (cleanInterests !== undefined) updateValues.interests = cleanInterests;
+      if (cleanLocale !== undefined) updateValues.preferredLocale = cleanLocale;
+      if (cleanNotifPrefs !== undefined) updateValues.notificationPrefs = cleanNotifPrefs;
+
+      const [row] = await tx
+        .insert(profilesTable)
+        .values(insertValues)
+        .onConflictDoUpdate({
+          target: profilesTable.uid,
+          set: updateValues,
+        })
+        .returning();
+      if (!row) throw new Error("Profile upsert did not return a row");
+
+      return { status: 200 as const, row, targetIsVisible, hiddenBarrier };
+    });
+
+    if (committed.status !== 200) return committed;
+
+    if (committed.targetIsVisible) {
+      const mirror = await mirrorProfileToFirestore({
+        uid,
+        isVisible: true,
+      });
+      if (mirror.ok) return { status: 200 as const, row: committed.row };
+
+      // A failed Visible mirror is ambiguous: Firestore may have applied the
+      // write before the error. Re-hide Firestore, commit canonical Hidden on
+      // this same locked client, then clean stale discovery mirrors.
+      const compensationBarrier = await hideProfileFromFirestore(uid);
+      const hiddenRow = await sessionDb.transaction(async (tx) => {
+        const [row] = await tx
+          .update(profilesTable)
+          .set({
+            isVisible: false,
+            updatedAt: sql`GREATEST(now(), ${profilesTable.updatedAt} + INTERVAL '1 millisecond')`,
+          })
+          .where(eq(profilesTable.uid, uid))
+          .returning();
+        return row;
+      });
+      if (!hiddenRow) {
+        return {
+          status: 503 as const,
+          message:
+            "Visibility could not be confirmed. Retry this update; the profile must remain hidden until synchronization succeeds.",
+        };
+      }
+
+      let postgresCleanupOk = true;
+      try {
+        await sessionDb.transaction((tx) => clearPostgresDiscoveryData(tx, uid));
+      } catch (err) {
+        postgresCleanupOk = false;
+        req.log?.error({ err, uid }, "Failed to clear Postgres discovery data after opt-in mirror failure");
+      }
+      const hiddenMirror = await mirrorProfileToFirestore({ uid, isVisible: false });
+      const firestoreCleanup = await clearEncounterMirrorsForHiddenUser(uid);
+      if (
+        !compensationBarrier.ok ||
+        !hiddenMirror.ok ||
+        !postgresCleanupOk ||
+        !firestoreCleanup.ok
+      ) {
+        return {
+          status: 503 as const,
+          message:
+            "Visibility could not be synchronized. The canonical profile is Hidden; retry this update.",
+        };
+      }
+      return {
+        status: 503 as const,
+        message:
+          "The profile remains Hidden because its Visible mirror could not be confirmed. Retry this update.",
+      };
+    }
+
+    const mirror = await mirrorProfileToFirestore({ uid, isVisible: false });
+    let postgresCleanupOk = true;
+    try {
+      await sessionDb.transaction((tx) => clearPostgresDiscoveryData(tx, uid));
+    } catch (err) {
+      postgresCleanupOk = false;
+      req.log?.error({ err, uid }, "Failed to clear Postgres discovery data for Hidden profile");
+    }
+    const firestoreCleanup = await clearEncounterMirrorsForHiddenUser(uid);
+
+    if (!committed.hiddenBarrier.ok) {
+      return {
+        status: 503 as const,
+        message:
+          "Privacy settings were saved and your profile remains hidden, but Firestore could not confirm the privacy barrier. Retry this update.",
+      };
+    }
+    if (!mirror.ok) {
+      return {
+        status: 503 as const,
+        message:
+          "Privacy settings were saved, but the profile mirror could not be confirmed. Your profile remains hidden; retry this update.",
+      };
+    }
+    if (!postgresCleanupOk || !firestoreCleanup.ok) {
+      return {
+        status: 503 as const,
+        message:
+          "Privacy settings were saved, but stale encounter data could not be cleared. Retry this update.",
+      };
+    }
+    return { status: 200 as const, row: committed.row };
   });
 
-  res.json(UpsertMyProfileResponse.parse(serialize(row!)));
+  if (outcome.status !== 200) {
+    res.status(outcome.status).json({ message: outcome.message });
+    return;
+  }
+  res.json(UpsertMyProfileResponse.parse(serialize(outcome.row)));
 });
 
 // POST /api/profiles/me/push-token
@@ -193,11 +359,16 @@ router.post("/profiles/me/push-token", requireUid, async (req, res) => {
     res.status(400).json({ message: "token must be a non-empty string" });
     return;
   }
-  const updated = await db
-    .update(profilesTable)
-    .set({ pushToken: token, updatedAt: new Date() })
-    .where(eq(profilesTable.uid, uid))
-    .returning({ uid: profilesTable.uid });
+  const updated = await withProfilePrivacyLocks([uid], async (tx) =>
+    tx
+      .update(profilesTable)
+      .set({
+        pushToken: token,
+        updatedAt: sql`GREATEST(now(), ${profilesTable.updatedAt} + INTERVAL '1 millisecond')`,
+      })
+      .where(eq(profilesTable.uid, uid))
+      .returning({ uid: profilesTable.uid }),
+  );
   if (updated.length === 0) {
     res.status(404).json({ message: "Profile not found" });
     return;
@@ -208,7 +379,7 @@ router.post("/profiles/me/push-token", requireUid, async (req, res) => {
     await adminDb()
       .collection("users")
       .doc(uid)
-      .set({ pushToken: token }, { merge: true });
+      .update({ pushToken: FieldValue.delete() });
   } catch (err) {
     req.log.warn({ err }, "push-token: Firestore mirror failed (non-fatal)");
   }
@@ -224,6 +395,22 @@ router.get("/profiles/me/mutual", requireUid, async (req, res) => {
   if (!otherUid) {
     res.status(400).json({ message: "with query param required" });
     return;
+  }
+  const [otherProfile] = await db
+    .select({ uid: profilesTable.uid, isVisible: profilesTable.isVisible })
+    .from(profilesTable)
+    .where(eq(profilesTable.uid, otherUid))
+    .limit(1);
+  if (!otherProfile) {
+    res.status(404).json({ message: "Profile not found" });
+    return;
+  }
+  if (!otherProfile.isVisible) {
+    const known = await getExplicitlyKnownUids(uid, [otherUid]);
+    if (!known.has(otherUid)) {
+      res.status(404).json({ message: "Profile not found" });
+      return;
+    }
   }
 
   // Fetch all accepted reveal pairs that include me
@@ -390,27 +577,36 @@ router.patch("/profiles/me/notification-prefs", requireUid, async (req, res) => 
     if (typeof body[key] === "boolean") prefs[key] = body[key] as boolean;
   }
 
-  const [existing] = await db
-    .select({ notificationPrefs: profilesTable.notificationPrefs })
-    .from(profilesTable)
-    .where(eq(profilesTable.uid, uid))
-    .limit(1);
+  const outcome = await withProfilePrivacyLocks([uid], async (tx) => {
+    const existingRows = await tx
+      .select({ notificationPrefs: profilesTable.notificationPrefs })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, uid))
+      .limit(1);
+    const existing = Array.isArray(existingRows) ? existingRows[0] : undefined;
+    if (!existing) return { status: 404 as const };
 
-  if (!existing) {
+    const merged = { ...(existing.notificationPrefs ?? {}), ...prefs };
+    await tx
+      .update(profilesTable)
+      .set({
+        notificationPrefs: merged,
+        updatedAt: sql`GREATEST(now(), ${profilesTable.updatedAt} + INTERVAL '1 millisecond')`,
+      })
+      .where(eq(profilesTable.uid, uid));
+    return { status: 200 as const };
+  });
+
+  if (outcome.status === 404) {
     res.status(404).json({ message: "Profile not found" });
     return;
   }
-
-  const merged = { ...(existing.notificationPrefs ?? {}), ...prefs };
-  await db
-    .update(profilesTable)
-    .set({ notificationPrefs: merged, updatedAt: new Date() })
-    .where(eq(profilesTable.uid, uid));
 
   res.json({ success: true });
 });
 
 router.get("/profiles/:uid", requireUid, async (req, res) => {
+  const callerUid = req.uid!;
   const params = GetProfileParams.parse({ uid: req.params.uid });
   const [row] = await db
     .select()
@@ -420,6 +616,15 @@ router.get("/profiles/:uid", requireUid, async (req, res) => {
   if (!row) {
     res.status(404).json({ message: "Profile not found" });
     return;
+  }
+  if (!row.isVisible && callerUid !== row.uid) {
+    const known = await getExplicitlyKnownUids(callerUid, [row.uid]);
+    if (!known.has(row.uid)) {
+      // Use the same response as a nonexistent UID to avoid hidden-profile
+      // enumeration through the authenticated profile endpoint.
+      res.status(404).json({ message: "Profile not found" });
+      return;
+    }
   }
   res.json(GetProfileResponse.parse(serialize(row)));
 });

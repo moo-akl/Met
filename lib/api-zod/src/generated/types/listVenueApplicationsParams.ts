@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ListVenueApplicationsSource } from "./listVenueApplicationsSource";
 
 export type ListVenueApplicationsParams = {
   /**
@@ -27,5 +28,5 @@ export type ListVenueApplicationsParams = {
   /**
    * Filter by application source: `mobile`, `web`, or `agent`.
    */
-  source?: string;
+  source?: ListVenueApplicationsSource;
 };

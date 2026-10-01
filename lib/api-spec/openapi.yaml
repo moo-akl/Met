@@ -76,6 +76,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Profile"
+        "400":
+          description: expectedVisibilityVersion is required when enabling visibility
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Visibility changed since the client last read the profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /profiles/{uid}:
     get:
@@ -3473,7 +3485,10 @@ components:
           type: boolean
           description: |
             Ghost Mode flag. When false, this user is hidden from other
-            devices' nearby queries. Defaults to true on creation.
+            devices' nearby queries. Defaults to false on creation.
+        visibilityVersion:
+          type: string
+          description: Monotonic profile visibility version, derived from updatedAt.
         createdAt:
           type: string
           format: date-time
@@ -3484,6 +3499,7 @@ components:
         - uid
         - displayName
         - isVisible
+        - visibilityVersion
         - createdAt
         - updatedAt
     UpsertProfile:
@@ -3515,6 +3531,11 @@ components:
         isVisible:
           type: boolean
           description: Ghost Mode flag. Optional on upsert; preserved when omitted.
+        expectedVisibilityVersion:
+          type: string
+          description: |
+            Current visibilityVersion from GET /profiles/me. Required when
+            isVisible is true; stale values are rejected with 409.
         preferredLocale:
           type: string
           nullable: true

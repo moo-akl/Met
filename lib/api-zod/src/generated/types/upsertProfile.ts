@@ -24,6 +24,10 @@ export interface UpsertProfile {
   interests?: string[] | null;
   /** Ghost Mode flag. Optional on upsert; preserved when omitted. */
   isVisible?: boolean;
+  /** Current visibilityVersion from GET /profiles/me. Required when
+isVisible is true; stale values are rejected with 409.
+ */
+  expectedVisibilityVersion?: string;
   /** BCP-47 language code selected in the app. Optional on upsert; null preserves existing. */
   preferredLocale?: string | null;
 }

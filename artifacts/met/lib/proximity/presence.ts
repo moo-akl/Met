@@ -30,6 +30,7 @@
 
 import * as Location from "expo-location";
 import { api, type NearbyEntry, type RemoteProfile } from "../api/client";
+import { isExplicitlyVisible } from "../discoveryVisibility";
 
 const PUSH_INTERVAL_MS = 60_000;
 const PULL_INTERVAL_MS = 30_000;
@@ -70,11 +71,17 @@ let nextGeneration = 1;
 export interface StartProximityOptions {
   uid: string;
   listener: ProximityListener;
+  isVisible: boolean;
 }
 
 export async function startProximity(
   opts: StartProximityOptions,
 ): Promise<{ started: boolean; reason?: string }> {
+  if (!opts.isVisible) {
+    stopProximity();
+    return { started: false, reason: "User is hidden" };
+  }
+
   if (state) {
     if (state.uid === opts.uid) {
       // Already running for the same user — just refresh the listener.
@@ -127,10 +134,14 @@ export async function startProximity(
 }
 
 export function stopProximity(): void {
-  if (!state) return;
-  if (state.pushTimer) clearInterval(state.pushTimer);
-  if (state.pullTimer) clearInterval(state.pullTimer);
-  state.abort.abort();
+  // Invalidate a start that's still awaiting location permission even when
+  // no live state has been installed yet.
+  nextGeneration += 1;
+  if (state) {
+    if (state.pushTimer) clearInterval(state.pushTimer);
+    if (state.pullTimer) clearInterval(state.pullTimer);
+    state.abort.abort();
+  }
   state = null;
 }
 
@@ -242,6 +253,10 @@ async function runPullOnce(gen: number): Promise<void> {
       // Re-check liveness after each await — generation may have changed.
       const live = liveStateFor(gen);
       if (!live) return;
+      if (!isExplicitlyVisible(profile.isVisible)) {
+        live.lastEmitted.delete(entry.uid);
+        continue;
+      }
 
       try {
         await api.logEncounter(

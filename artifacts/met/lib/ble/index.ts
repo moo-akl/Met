@@ -42,15 +42,24 @@ export type BleProximityListener = (event: BleProximityDetection) => void;
 
 interface SessionState {
   uid: string;
-  generation: number;
+  listener: BleProximityListener;
+  isVisible: boolean;
   advertising: boolean;
 }
 
 let session: SessionState | null = null;
-let nextGeneration = 1;
+let advertisingQueue: Promise<void> = Promise.resolve();
+
+function serializeAdvertising(operation: () => Promise<void>): Promise<void> {
+  const next = advertisingQueue.then(operation, operation);
+  advertisingQueue = next.catch(() => {});
+  return next;
+}
 
 export interface StartBleProximityOptions {
   uid: string;
+  /** Only an explicitly visible user may publish a BLE identity beacon. */
+  isVisible: boolean;
   listener: BleProximityListener;
 }
 
@@ -60,14 +69,38 @@ export async function startBleProximity(
   scanner: { started: boolean; reason?: string };
   advertiser: { started: boolean; reason?: string };
 }> {
-  // Replace any in-flight session for a different uid.
+  if (!opts.isVisible) {
+    // Hidden mode stops both sides of proximity: neither our identity nor
+    // new nearby identities should be processed while discovery is off.
+    // stopBleProximity invalidates pending starts synchronously before its
+    // native cleanup awaits complete.
+    await stopBleProximity();
+    return {
+      scanner: { started: false, reason: "User is hidden" },
+      advertiser: { started: false, reason: "User is hidden" },
+    };
+  }
+
+  // Replace any session for a different identity. Hidden mode returned
+  // above, so active sessions always represent an explicit visible opt-in.
   if (session && session.uid !== opts.uid) {
     await stopBleProximity();
   }
 
-  const generation = nextGeneration++;
-  session = { uid: opts.uid, generation, advertising: false };
-  recordSelf(opts.uid, null);
+  let activeSession = session;
+  if (!activeSession || activeSession.uid !== opts.uid) {
+    activeSession = {
+      uid: opts.uid,
+      listener: opts.listener,
+      isVisible: opts.isVisible,
+      advertising: false,
+    };
+    session = activeSession;
+    recordSelf(opts.uid, null);
+  } else {
+    activeSession.listener = opts.listener;
+    activeSession.isVisible = opts.isVisible;
+  }
 
   // Android 13+ (API 33): request POST_NOTIFICATIONS permission so the
   // foreground-service notification is visible to the user. Without this
@@ -78,6 +111,12 @@ export async function startBleProximity(
       PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
     ).catch(() => {});
   }
+  if (session !== activeSession) {
+    return {
+      scanner: { started: false, reason: "Superseded" },
+      advertiser: { started: false, reason: "Superseded" },
+    };
+  }
 
   // Android: start the foreground service NOW so the process stays in
   // the foreground-service tier for the entire BLE proximity session.
@@ -86,12 +125,20 @@ export async function startBleProximity(
   // the service only when advertising succeeded, leaving those devices
   // with no background protection for the react-native-ble-plx scan).
   // No-op on iOS and Expo Go.
-  void setBackgroundMode(true);
+  await setBackgroundMode(true);
+  if (session !== activeSession) {
+    if (!session) void setBackgroundMode(false);
+    return {
+      scanner: { started: false, reason: "Superseded" },
+      advertiser: { started: false, reason: "Superseded" },
+    };
+  }
 
   const adapter: BleListener = (ev: BleDetection) => {
-    // Live-session check before forwarding.
-    if (!session || session.generation !== generation) return;
-    opts.listener({
+    // The same session can switch visibility or refresh its consumer
+    // callback without tearing down the scanner.
+    if (session !== activeSession) return;
+    activeSession.listener({
       uid: ev.uid,
       rssi: ev.rssi,
       distanceM: rssiToMeters(ev.rssi),
@@ -105,22 +152,38 @@ export async function startBleProximity(
     uid: opts.uid,
     listener: adapter,
   });
+  if (session !== activeSession) {
+    return {
+      scanner: { started: false, reason: "Superseded" },
+      advertiser: { started: false, reason: "Superseded" },
+    };
+  }
 
-  // Compute our own identity hash for the advertiser. If hashing fails
-  // somehow we still want the scanner running, so we don't bail.
   let advertiserResult = { started: false, reason: "Not attempted" };
   try {
     const hash = await uidToBleHash(opts.uid);
-    if (session && session.generation === generation) {
-      const ok = await startAdvertising(opts.uid, hash);
-      advertiserResult = ok
-        ? { started: true, reason: "" }
-        : { started: false, reason: "Advertiser unavailable or denied" };
-      if (session && session.generation === generation) {
-        session.advertising = ok;
-      }
+    if (session === activeSession && activeSession.isVisible) {
+      await serializeAdvertising(async () => {
+        // A hide/stop can be requested while a hash or native operation
+        // is pending. Check again inside the serialized native queue.
+        if (session !== activeSession || !activeSession!.isVisible) {
+          await stopAdvertising();
+          activeSession!.advertising = false;
+          return;
+        }
+        const ok = await startAdvertising(opts.uid, hash);
+        if (session !== activeSession || !activeSession!.isVisible) {
+          await stopAdvertising();
+          activeSession!.advertising = false;
+          return;
+        }
+        activeSession!.advertising = ok;
+        advertiserResult = ok
+          ? { started: true, reason: "" }
+          : { started: false, reason: "Advertiser unavailable or denied" };
+      });
     } else {
-      advertiserResult = { started: false, reason: "Superseded" };
+      advertiserResult = { started: false, reason: "Superseded or hidden" };
     }
   } catch (err) {
     advertiserResult = {
@@ -137,13 +200,17 @@ export async function stopBleProximity(): Promise<void> {
   const s = session;
   session = null;
   stopBleScanner();
-  if (s?.advertising) {
+  await serializeAdvertising(async () => {
+    // Always clear native persisted owner/restoration state, even when the
+    // JS session believes advertising never started or a previous start is
+    // still in flight.
     await stopAdvertising();
-  }
+    if (s) s.advertising = false;
+  });
   // Release the explicit background-mode hold. The native side is
   // reference-counted — it stops the foreground service only when
   // advertising and iBeacon scanning have also released it.
-  void setBackgroundMode(false);
+  if (!session) await setBackgroundMode(false);
 }
 
 export { isAdvertisingAvailable };

@@ -23,6 +23,7 @@ import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { mirrorRevealRequest, mirrorRevealStatus } from "../lib/firestoreMirror";
 import { sendPush } from "../lib/push";
 import { recordRevealOutcome } from "../lib/revealMonitor";
+import { withProfilePrivacyLocks } from "../lib/profilePrivacy";
 
 const router: IRouter = Router();
 
@@ -43,6 +44,7 @@ function serializeProfile(p: Profile) {
     bio: p.bio ?? null,
     socials: (p.socials ?? {}) as Record<string, string>,
     isVisible: p.isVisible,
+    visibilityVersion: p.updatedAt.toISOString(),
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -71,73 +73,94 @@ router.post("/reveals", requireUid, revealWriteLimit, async (req, res) => {
     return;
   }
 
-  // Recipient must exist as a Met user — otherwise they can never receive
-  // and respond to the request, which would leave the sender's UI stuck.
-  const [recipient] = await db
-    .select()
-    .from(profilesTable)
-    .where(eq(profilesTable.uid, body.recipientUid))
-    .limit(1);
-  if (!recipient) {
-    res.status(404).json({ message: "Recipient profile not found" });
+  const outcome = await withProfilePrivacyLocks(
+    [senderUid, body.recipientUid],
+    async (tx) => {
+      // Pending reveals are an explicit relationship exception after a user
+      // hides, but hidden users cannot create a new exception.
+      const senderRows = await tx
+        .select({ isVisible: profilesTable.isVisible })
+        .from(profilesTable)
+        .where(eq(profilesTable.uid, senderUid))
+        .limit(1);
+      const sender = Array.isArray(senderRows) ? senderRows[0] : undefined;
+      if (!sender || !sender.isVisible) {
+        return { status: 404 as const, message: "Recipient profile not found" };
+      }
+
+      const recipientRows = await tx
+        .select()
+        .from(profilesTable)
+        .where(eq(profilesTable.uid, body.recipientUid))
+        .limit(1);
+      const recipient = Array.isArray(recipientRows)
+        ? recipientRows[0]
+        : undefined;
+      if (!recipient || !recipient.isVisible) {
+        return { status: 404 as const, message: "Recipient profile not found" };
+      }
+
+      const now = new Date();
+      // Re-sending after a decline/expiry creates a fresh pending request.
+      const [row] = await tx
+        .insert(revealRequestsTable)
+        .values({
+          senderUid,
+          recipientUid: body.recipientUid,
+          message: body.message ?? null,
+          status: "pending",
+        })
+        .onConflictDoUpdate({
+          target: [
+            revealRequestsTable.senderUid,
+            revealRequestsTable.recipientUid,
+          ],
+          set: {
+            message: body.message ?? null,
+            status: "pending",
+            createdAt: now,
+            updatedAt: now,
+            respondedAt: null,
+          },
+        })
+        .returning();
+
+      // Keep both locks held until Firestore and push side effects finish.
+      await mirrorRevealRequest({
+        senderUid,
+        recipientUid: body.recipientUid,
+        status: "pending",
+        message: body.message ?? null,
+      });
+      const senderNameRows = await tx
+        .select({ displayName: profilesTable.displayName })
+        .from(profilesTable)
+        .where(eq(profilesTable.uid, senderUid))
+        .limit(1);
+      const senderNameRow = Array.isArray(senderNameRows)
+        ? senderNameRows[0]
+        : undefined;
+      await sendPush(recipient.pushToken, {
+        title: `${senderNameRow?.displayName ?? "Someone"} wants to reveal to you`,
+        body: "Tap to view their request.",
+        data: { type: "reveal_request", fromUid: senderUid },
+      });
+
+      return {
+        status: 200 as const,
+        body: CreateRevealRequestResponse.parse({
+          ...serializeReveal(row!),
+          profile: serializeProfile(recipient),
+        }),
+      };
+    },
+  );
+
+  if (outcome.status !== 200) {
+    res.status(outcome.status).json({ message: outcome.message });
     return;
   }
-
-  const now = new Date();
-  // Upsert on (sender, recipient) — re-sending after a previous decline /
-  // expiry resets the same row to `pending` with a fresh createdAt and
-  // null respondedAt so the recipient sees it as a brand-new request.
-  const [row] = await db
-    .insert(revealRequestsTable)
-    .values({
-      senderUid,
-      recipientUid: body.recipientUid,
-      message: body.message ?? null,
-      status: "pending",
-    })
-    .onConflictDoUpdate({
-      target: [
-        revealRequestsTable.senderUid,
-        revealRequestsTable.recipientUid,
-      ],
-      set: {
-        message: body.message ?? null,
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-        respondedAt: null,
-      },
-    })
-    .returning();
-
-  // Best-effort mirror to both users' Firestore `requests` subcollections
-  // so onSnapshot listeners on either side update without a refetch.
-  // Postgres remains the source of truth for the lifecycle.
-  await mirrorRevealRequest({
-    senderUid,
-    recipientUid: body.recipientUid,
-    status: "pending",
-    message: body.message ?? null,
-  });
-
-  // Best-effort push to recipient — fetch sender display name for copy.
-  const [senderRow] = await db
-    .select({ displayName: profilesTable.displayName })
-    .from(profilesTable)
-    .where(eq(profilesTable.uid, senderUid))
-    .limit(1);
-  await sendPush(recipient.pushToken, {
-    title: `${senderRow?.displayName ?? "Someone"} wants to reveal to you`,
-    body: "Tap to view their request.",
-    data: { type: "reveal_request", fromUid: senderUid },
-  });
-
-  res.json(
-    CreateRevealRequestResponse.parse({
-      ...serializeReveal(row!),
-      profile: serializeProfile(recipient),
-    }),
-  );
+  res.json(outcome.body);
 });
 
 // GET /api/reveals/inbox — pending AND accepted requests addressed to the

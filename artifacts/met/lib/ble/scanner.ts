@@ -36,6 +36,7 @@ import { api, type RemoteProfile } from "../api/client";
 import { extractHash } from "./encode";
 import { loadPlx, type PlxConnectedDevice, type PlxManager } from "./plx";
 import { MET_HASH_CHARACTERISTIC_UUID, MET_SERVICE_UUID } from "./uuids";
+import { isExplicitlyVisible } from "../discoveryVisibility";
 import {
   recordScannerStart,
   recordResolveAttempt,
@@ -217,6 +218,9 @@ async function _startBleScannerImpl(
 
 export function stopBleScanner(): void {
   const s = state;
+  // Invalidate a scan start that is still waiting for the Bluetooth radio
+  // to power on; it may not have installed `state` yet.
+  nextGeneration += 1;
   if (!s) return;
   state = null;
   if (s.resolveTimer) clearInterval(s.resolveTimer);
@@ -534,6 +538,10 @@ async function runResolveOnce(gen: number): Promise<void> {
     const now = Date.now();
     const matched = new Set<string>();
     for (const entry of entries) {
+      // The resolve response can race a visibility change or come from a
+      // peer hash cached before they went hidden. Fail closed: never add a
+      // hidden/malformed profile to newly discovered encounters.
+      if (!isExplicitlyVisible(entry.profile.isVisible)) continue;
       // Filter self by uid — our own broadcast can echo back to us via
       // BLE on Android, and the server would happily resolve it.
       if (entry.profile.uid === s.uid) continue;

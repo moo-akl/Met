@@ -8,6 +8,7 @@ import {
   NearbyPresenceResponse,
 } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
+import { withProfilePrivacyLocks } from "../lib/profilePrivacy";
 
 const router: IRouter = Router();
 
@@ -24,26 +25,58 @@ function serializePresence(p: Presence) {
 router.put("/presence", requireUid, async (req, res) => {
   const uid = req.uid!;
   const body = UpdatePresenceBody.parse(req.body);
-  const now = new Date();
-  const [row] = await db
-    .insert(presenceTable)
-    .values({
-      uid,
-      lat: body.lat,
-      lng: body.lng,
-      accuracyM: body.accuracyM ?? null,
-    })
-    .onConflictDoUpdate({
-      target: presenceTable.uid,
-      set: {
+  const outcome = await withProfilePrivacyLocks([uid], async (tx) => {
+    const profileRows = await tx
+      .select({ isVisible: profilesTable.isVisible })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, uid))
+      .limit(1);
+    const profile = Array.isArray(profileRows) ? profileRows[0] : undefined;
+    if (!profile) {
+      await tx.delete(presenceTable).where(eq(presenceTable.uid, uid));
+      return { status: 404 as const };
+    }
+    if (!profile.isVisible) {
+      // Hidden users do not refresh GPS presence; also clear any stale row left
+      // by an earlier visible session. 204 keeps the periodic writer successful
+      // without returning or persisting the submitted coordinates.
+      await tx.delete(presenceTable).where(eq(presenceTable.uid, uid));
+      return { status: 204 as const };
+    }
+    const now = new Date();
+    const [row] = await tx
+      .insert(presenceTable)
+      .values({
+        uid,
         lat: body.lat,
         lng: body.lng,
         accuracyM: body.accuracyM ?? null,
-        updatedAt: now,
-      },
-    })
-    .returning();
-  res.json(UpdatePresenceResponse.parse(serializePresence(row!)));
+      })
+      .onConflictDoUpdate({
+        target: presenceTable.uid,
+        set: {
+          lat: body.lat,
+          lng: body.lng,
+          accuracyM: body.accuracyM ?? null,
+          updatedAt: now,
+        },
+      })
+      .returning();
+    return {
+      status: 200 as const,
+      body: UpdatePresenceResponse.parse(serializePresence(row!)),
+    };
+  });
+
+  if (outcome.status === 404) {
+    res.status(404).json({ message: "Profile not found" });
+    return;
+  }
+  if (outcome.status === 204) {
+    res.status(204).send();
+    return;
+  }
+  res.json(outcome.body);
 });
 
 router.get("/presence/nearby", requireUid, async (req, res) => {
@@ -69,23 +102,25 @@ router.get("/presence/nearby", requireUid, async (req, res) => {
     updated_at: string;
   }>(sql`
     SELECT
-      uid,
+      p.uid,
       6371000 * acos(
         LEAST(1, GREATEST(-1,
-          cos(radians(${params.lat})) * cos(radians(lat)) *
-          cos(radians(lng) - radians(${params.lng})) +
-          sin(radians(${params.lat})) * sin(radians(lat))
+          cos(radians(${params.lat})) * cos(radians(p.lat)) *
+          cos(radians(p.lng) - radians(${params.lng})) +
+          sin(radians(${params.lat})) * sin(radians(p.lat))
         ))
       ) AS distance_m,
-      updated_at
-    FROM presence
-    WHERE uid <> ${uid}
-      AND updated_at > now() - (${maxAgeMin} || ' minutes')::interval
+      p.updated_at
+    FROM presence p
+    JOIN profiles profile ON profile.uid = p.uid
+    WHERE p.uid <> ${uid}
+      AND profile.is_visible = true
+      AND p.updated_at > now() - (${maxAgeMin} || ' minutes')::interval
       AND 6371000 * acos(
         LEAST(1, GREATEST(-1,
-          cos(radians(${params.lat})) * cos(radians(lat)) *
-          cos(radians(lng) - radians(${params.lng})) +
-          sin(radians(${params.lat})) * sin(radians(lat))
+          cos(radians(${params.lat})) * cos(radians(p.lat)) *
+          cos(radians(p.lng) - radians(${params.lng})) +
+          sin(radians(${params.lat})) * sin(radians(p.lat))
         ))
       ) <= ${radiusM}
     ORDER BY distance_m ASC

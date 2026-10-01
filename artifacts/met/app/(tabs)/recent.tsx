@@ -17,6 +17,7 @@ import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
+import { visibleDiscoveryPeers } from "@/lib/discoveryVisibility";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { FREE_HISTORY_ENCOUNTERS, FREE_VISIBLE_ENCOUNTERS, startOfTodayMs } from "@/lib/usage";
 
@@ -34,18 +35,18 @@ export default function RecentScreen() {
   const { t } = useT();
   const params = useLocalSearchParams<{ filter?: string }>();
   const { encounters, preferences, profile } = useApp();
+  const { isVisible, toggle: toggleVisibility } = useVisibility();
   const blips = useMemo<RadarBlip[]>(
     () =>
-      encounters.slice(0, 6).map((e, i) => ({
+      visibleDiscoveryPeers(isVisible, encounters.slice(0, 6)).map((e, i) => ({
         initials: (e.realName ?? "??").slice(0, 2).toUpperCase(),
         angle: (i * 73 + 22) % 360,
         radiusFraction: 0.38 + (i % 3) * 0.18,
       })),
-    [encounters],
+    [encounters, isVisible],
   );
   const { isPlusSubscriber, isProSubscriber, isSubscriptionReady } = useSubscription();
 
-  const { isVisible, toggle: toggleVisibility } = useVisibility();
   const [requestsOpen, setRequestsOpen] = useState(false);
 
   const weeklyFilter: WeeklyFilter =

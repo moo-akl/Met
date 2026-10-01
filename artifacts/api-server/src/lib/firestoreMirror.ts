@@ -18,19 +18,14 @@ import { logger } from "./logger";
 
 export type ProfileMirrorFields = {
   uid: string;
-  uidHash: string;
-  displayName: string;
-  photoUrl: string | null;
-  bio: string | null;
-  socials: Record<string, string>;
-  interests: string[];
   isVisible: boolean;
 };
 
 /**
- * Mirror a profile upsert to `users/{uid}` in Firestore. Best-effort:
- * Postgres remains the source of truth, so a Firestore outage must not
- * fail the API request.
+ * Mirror only the fields required for the existing client-side nearby-user
+ * query. Firestore rules cannot hide selected fields from a readable document,
+ * so profile details and stable BLE hashes remain in Postgres/API responses.
+ * Best-effort: Postgres remains the source of truth.
  */
 export async function mirrorProfileToFirestore(
   fields: ProfileMirrorFields,
@@ -40,13 +35,14 @@ export async function mirrorProfileToFirestore(
     await ref.set(
       {
         uid: fields.uid,
-        uidHash: fields.uidHash,
-        displayName: fields.displayName,
-        photoUrl: fields.photoUrl,
-        bio: fields.bio,
-        socials: fields.socials,
-        interests: fields.interests,
         isVisible: fields.isVisible,
+        uidHash: FieldValue.delete(),
+        displayName: FieldValue.delete(),
+        photoUrl: FieldValue.delete(),
+        bio: FieldValue.delete(),
+        socials: FieldValue.delete(),
+        interests: FieldValue.delete(),
+        pushToken: FieldValue.delete(),
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
@@ -55,6 +51,77 @@ export async function mirrorProfileToFirestore(
   } catch (err) {
     const error = (err as Error)?.message ?? String(err);
     logger.warn({ err: error, uid: fields.uid }, "Firestore profile mirror failed");
+    return { ok: false, error };
+  }
+}
+
+/**
+ * Apply Hidden to the discovery document before the canonical profile update.
+ * Callers still persist the opt-out if this barrier fails, then return a
+ * retryable error so the Firestore mirror can be repaired without restoring
+ * the canonical profile to Visible.
+ */
+export async function hideProfileFromFirestore(
+  uid: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await adminDb()
+      .collection("users")
+      .doc(uid)
+      .set(
+        {
+          isVisible: false,
+          location: FieldValue.delete(),
+          geohash: FieldValue.delete(),
+          lastActive: FieldValue.delete(),
+        },
+        { merge: true },
+      );
+    return { ok: true };
+  } catch (err) {
+    const error = (err as Error)?.message ?? String(err);
+    logger.warn({ err: error, uid }, "Firestore hide barrier failed");
+    return { ok: false, error };
+  }
+}
+
+/**
+ * Remove stale proximity history for a hidden user from both sides. Accepted
+ * reveal requests and chat documents are deliberately untouched, so existing
+ * connections remain available through their explicit relationship records.
+ */
+export async function clearEncounterMirrorsForHiddenUser(
+  uid: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const fsDb = adminDb();
+    const userRef = fsDb.collection("users").doc(uid);
+    const ownEncounterRefs = await userRef
+      .collection("met_people")
+      .listDocuments();
+    const refs = new Map<string, (typeof ownEncounterRefs)[number]>();
+    for (const encounterRef of ownEncounterRefs) {
+      refs.set(encounterRef.path, encounterRef);
+    }
+    // Find the reverse-side copies too, including asymmetric/stale records
+    // where the hidden user's own met_people doc was already removed.
+    const reciprocalDocs = await fsDb
+      .collectionGroup("met_people")
+      .where("uid", "==", uid)
+      .get();
+    for (const reciprocalDoc of reciprocalDocs.docs) {
+      refs.set(reciprocalDoc.ref.path, reciprocalDoc.ref);
+    }
+    const encounterRefs = [...refs.values()];
+    for (let i = 0; i < encounterRefs.length; i += 500) {
+      const batch = fsDb.batch();
+      encounterRefs.slice(i, i + 500).forEach((ref) => batch.delete(ref));
+      await batch.commit();
+    }
+    return { ok: true };
+  } catch (err) {
+    const error = (err as Error)?.message ?? String(err);
+    logger.warn({ err: error, uid }, "Hidden user's stale encounter mirrors could not be cleared");
     return { ok: false, error };
   }
 }
@@ -79,8 +146,9 @@ export type EncounterRecordResult = {
 /**
  * Symmetric encounter write — creates / updates BOTH
  * `users/{uidA}/met_people/{uidB}` and `users/{uidB}/met_people/{uidA}`
- * in a single batched commit. Increments `metCount` on each side and
- * stamps `lastMet` to the server time.
+ * in a single Firestore transaction, after reading both profile visibility
+ * documents. Increments `metCount` on each side and stamps `lastMet` to the
+ * server time.
  *
  * Returns the post-write state from uidA's perspective so callers can
  * surface the new metCount immediately without an extra round trip.
@@ -122,18 +190,30 @@ export async function recordSymmetricEncounter(
   if (args.tierB) aFields["tier"] = args.tierB; // uidB's tier goes on uidA's view
   if (args.tierA) bFields["tier"] = args.tierA; // uidA's tier goes on uidB's view
 
-  const batch = db.batch();
-  batch.set(
-    aRef,
-    { uid: args.uidB, ...aFields, createdAt: now },
-    { merge: true },
-  );
-  batch.set(
-    bRef,
-    { uid: args.uidA, ...bFields, createdAt: now },
-    { merge: true },
-  );
-  await batch.commit();
+  await db.runTransaction(async (transaction) => {
+    const [userASnapshot, userBSnapshot] = await Promise.all([
+      transaction.get(db.collection("users").doc(args.uidA)),
+      transaction.get(db.collection("users").doc(args.uidB)),
+    ]);
+    if (
+      !userASnapshot.exists ||
+      !userBSnapshot.exists ||
+      userASnapshot.get("isVisible") !== true ||
+      userBSnapshot.get("isVisible") !== true
+    ) {
+      throw new Error("Cannot record an encounter for a hidden profile");
+    }
+    transaction.set(
+      aRef,
+      { uid: args.uidB, ...aFields, createdAt: now },
+      { merge: true },
+    );
+    transaction.set(
+      bRef,
+      { uid: args.uidA, ...bFields, createdAt: now },
+      { merge: true },
+    );
+  });
 
   // Read back uidA's side so we can return the materialized server time
   // and current metCount. If the read fails (extremely unlikely after a

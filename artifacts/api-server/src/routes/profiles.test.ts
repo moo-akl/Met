@@ -5,6 +5,9 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 // ---------------------------------------------------------------------------
 
 const dbMocks = vi.hoisted(() => {
+  const sessionDb = {
+    transaction: vi.fn(),
+  };
   const chain = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -14,11 +17,21 @@ const dbMocks = vi.hoisted(() => {
     values: vi.fn().mockReturnThis(),
     onConflictDoUpdate: vi.fn().mockReturnThis(),
     returning: vi.fn(),
+    update: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     transaction: vi.fn(),
+    execute: vi.fn(),
   };
-  return { chain };
+  return { chain, sessionDb };
 });
+
+const drizzleMocks = vi.hoisted(() => ({
+  drizzle: vi.fn(),
+}));
+const poolMocks = vi.hoisted(() => ({
+  connect: vi.fn(),
+}));
 
 // Distinct objects so we can compare table references in delete-order assertions.
 const venueTableMocks = vi.hoisted(() => ({
@@ -33,11 +46,18 @@ const venueTableMocks = vi.hoisted(() => ({
 
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
+  pool: poolMocks,
   profilesTable: {},
   encountersTable: {},
+  presenceTable: {},
   revealRequestsTable: {},
   subscriptionsTable: {},
+  networkMembersTable: {},
   ...venueTableMocks,
+}));
+
+vi.mock("drizzle-orm/node-postgres", () => ({
+  drizzle: drizzleMocks.drizzle,
 }));
 
 vi.mock("../lib/deleteUserData", () => ({
@@ -51,6 +71,8 @@ vi.mock("../lib/deleteVenueOwnerProfile", () => ({
 
 vi.mock("../lib/firestoreMirror", () => ({
   mirrorProfileToFirestore: vi.fn().mockResolvedValue(undefined),
+  hideProfileFromFirestore: vi.fn().mockResolvedValue({ ok: true }),
+  clearEncounterMirrorsForHiddenUser: vi.fn().mockResolvedValue({ ok: true }),
   mirrorRevealRequest: vi.fn().mockResolvedValue(undefined),
   mirrorRevealStatus: vi.fn().mockResolvedValue(undefined),
   recordSymmetricEncounter: vi.fn().mockResolvedValue(undefined),
@@ -75,6 +97,11 @@ import app from "../app";
 import { deleteUserData } from "../lib/deleteUserData";
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
+import {
+  clearEncounterMirrorsForHiddenUser,
+  hideProfileFromFirestore,
+  mirrorProfileToFirestore,
+} from "../lib/firestoreMirror";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -102,20 +129,95 @@ beforeAll(() => {
   delete process.env["REDIS_URL"];
 });
 
+let sessionLockTails = new Map<string, Promise<void>>();
+let sessionEventLog: string[] = [];
+let sessionClients: Array<{
+  query: ReturnType<typeof vi.fn>;
+  release: ReturnType<typeof vi.fn>;
+}> = [];
+
+function createSessionPoolClient() {
+  const heldLocks = new Map<string, () => void>();
+  const client = {
+    query: vi.fn(async (statement: string, values?: unknown[]) => {
+      const key = String(values?.[0] ?? "");
+      if (statement.includes("pg_advisory_lock(") && !statement.includes("unlock")) {
+        const previous = sessionLockTails.get(key) ?? Promise.resolve();
+        let release!: () => void;
+        const current = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        sessionLockTails.set(key, current);
+        await previous;
+        heldLocks.set(key, release);
+      } else if (statement.includes("pg_advisory_unlock(")) {
+        heldLocks.get(key)?.();
+        heldLocks.delete(key);
+      }
+      return { rows: [] };
+    }),
+    release: vi.fn(),
+  };
+  sessionClients.push(client);
+  return client;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  // Restore chainable returns after clearAllMocks resets them.
-  dbMocks.chain.select.mockReturnThis();
-  dbMocks.chain.from.mockReturnThis();
-  dbMocks.chain.where.mockReturnThis();
-  dbMocks.chain.insert.mockReturnThis();
-  dbMocks.chain.values.mockReturnThis();
-  dbMocks.chain.onConflictDoUpdate.mockReturnThis();
-  dbMocks.chain.delete.mockReturnThis();
+  // Reset one-shot responses too: clearAllMocks only clears call history, so
+  // an early-returning request could otherwise shift a queued result into the
+  // next test's profile-preservation lookup.
+  dbMocks.chain.select.mockReset().mockReturnThis();
+  dbMocks.chain.from.mockReset().mockReturnThis();
+  dbMocks.chain.where.mockReset().mockReturnThis();
+  dbMocks.chain.limit.mockReset().mockResolvedValue([]);
+  dbMocks.chain.insert.mockReset().mockReturnThis();
+  dbMocks.chain.values.mockReset().mockReturnThis();
+  dbMocks.chain.onConflictDoUpdate.mockReset().mockReturnThis();
+  dbMocks.chain.returning.mockReset();
+  dbMocks.chain.update.mockReset().mockReturnThis();
+  dbMocks.chain.set.mockReset().mockReturnThis();
+  dbMocks.chain.delete.mockReset().mockReturnThis();
+  dbMocks.chain.transaction.mockReset();
+  dbMocks.chain.execute.mockReset().mockResolvedValue({ rows: [] });
   // Transaction executes callback immediately with the same mock db.
   dbMocks.chain.transaction.mockImplementation(
     async (cb: (tx: typeof dbMocks.chain) => Promise<void>) => cb(dbMocks.chain),
   );
+  dbMocks.sessionDb.transaction.mockReset().mockImplementation(
+    async (cb: (tx: typeof dbMocks.chain) => Promise<unknown>) => {
+      const result = await cb(dbMocks.chain);
+      sessionEventLog.push("pg-commit");
+      return result;
+    },
+  );
+  sessionLockTails = new Map();
+  sessionEventLog = [];
+  sessionClients = [];
+  poolMocks.connect.mockReset().mockImplementation(async () => createSessionPoolClient());
+  drizzleMocks.drizzle.mockReset().mockImplementation((client) => {
+    expect(client).toBe(sessionClients.at(-1));
+    return dbMocks.sessionDb;
+  });
+
+  (mirrorProfileToFirestore as ReturnType<typeof vi.fn>)
+    .mockReset()
+    .mockResolvedValue({ ok: true });
+  (hideProfileFromFirestore as ReturnType<typeof vi.fn>)
+    .mockReset()
+    .mockResolvedValue({ ok: true });
+  (clearEncounterMirrorsForHiddenUser as ReturnType<typeof vi.fn>)
+    .mockReset()
+    .mockResolvedValue({ ok: true });
+  (deleteUserData as ReturnType<typeof vi.fn>)
+    .mockReset()
+    .mockResolvedValue(undefined);
+  (deleteVenueOwnerProfile as ReturnType<typeof vi.fn>)
+    .mockReset()
+    .mockResolvedValue([]);
+  (deleteVenueStorageFiles as ReturnType<typeof vi.fn>)
+    .mockReset()
+    .mockResolvedValue(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -155,6 +257,7 @@ describe("GET /api/profiles/me", () => {
     expect(res.body).toMatchObject({
       uid: "alice",
       displayName: "Alice Wonderland",
+      visibilityVersion: profileFixture.updatedAt.toISOString(),
     });
   });
 });
@@ -189,7 +292,8 @@ describe("PUT /api/profiles/me", () => {
   });
 
   it("returns 200 with the upserted profile on a valid request", async () => {
-    dbMocks.chain.returning.mockResolvedValueOnce([profileFixture]);
+    const hiddenFixture = { ...profileFixture, isVisible: false };
+    dbMocks.chain.returning.mockResolvedValueOnce([hiddenFixture]);
 
     const res = await request(app)
       .put("/api/profiles/me")
@@ -200,7 +304,35 @@ describe("PUT /api/profiles/me", () => {
     expect(res.body).toMatchObject({
       uid: "alice",
       displayName: "Alice Wonderland",
+      isVisible: false,
     });
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ isVisible: false }),
+    );
+    expect(mirrorProfileToFirestore).toHaveBeenCalledWith({
+      uid: "alice",
+      isVisible: false,
+    });
+    expect(hideProfileFromFirestore).toHaveBeenCalledWith("alice");
+  });
+
+  it("creates a new profile Hidden when isVisible is omitted", async () => {
+    dbMocks.chain.limit.mockResolvedValueOnce([]);
+    dbMocks.chain.returning.mockResolvedValueOnce([
+      { ...profileFixture, isVisible: false },
+    ]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice Wonderland" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.isVisible).toBe(false);
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ isVisible: false }),
+    );
+    expect(hideProfileFromFirestore).toHaveBeenCalledWith("alice");
   });
 
   it("preserves optional fields when omitted from the request body", async () => {
@@ -219,6 +351,418 @@ describe("PUT /api/profiles/me", () => {
     expect(res.status).toBe(200);
     expect(res.body.bio).toBe("Hello!");
     expect(res.body.socials).toMatchObject({ twitter: "@alice" });
+  });
+
+  it("keeps Ghost Mode enabled when saving another profile field without isVisible", async () => {
+    const hiddenFixture = { ...profileFixture, isVisible: false };
+    dbMocks.chain.limit.mockResolvedValueOnce([{ isVisible: false }]);
+    dbMocks.chain.returning.mockResolvedValueOnce([hiddenFixture]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice Updated" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.isVisible).toBe(false);
+    expect(dbMocks.chain.onConflictDoUpdate.mock.calls[0]?.[0]?.set)
+      .not.toHaveProperty("isVisible");
+    expect(hideProfileFromFirestore).toHaveBeenCalledWith("alice");
+    expect(clearEncounterMirrorsForHiddenUser).toHaveBeenCalledWith("alice");
+  });
+
+  it("keeps the canonical profile Hidden when the Firestore privacy barrier fails", async () => {
+    (hideProfileFromFirestore as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      error: "Firestore unavailable",
+    });
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { isVisible: true, updatedAt: profileFixture.updatedAt },
+    ]);
+    dbMocks.chain.returning.mockResolvedValueOnce([
+      { ...profileFixture, isVisible: false },
+    ]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice", isVisible: false });
+
+    expect(res.status).toBe(503);
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ isVisible: false }),
+    );
+    expect(res.body.message).toMatch(/remains hidden/i);
+  });
+
+  it("persists Hidden and reports failure when the profile mirror fails", async () => {
+    (mirrorProfileToFirestore as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      error: "Firestore unavailable",
+    });
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { isVisible: true, updatedAt: profileFixture.updatedAt },
+    ]);
+    dbMocks.chain.returning.mockResolvedValueOnce([
+      { ...profileFixture, isVisible: false },
+    ]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice", isVisible: false });
+
+    expect(res.status).toBe(503);
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ isVisible: false }),
+    );
+    expect(res.body.message).toMatch(/remains hidden/i);
+  });
+
+  it("rejects an opt-in based on an outdated visibility version", async () => {
+    const currentVersion = "2025-01-02T00:00:00.000Z";
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { isVisible: false, updatedAt: new Date(currentVersion) },
+    ]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({
+        displayName: "Alice",
+        isVisible: true,
+        expectedVisibilityVersion: profileFixture.updatedAt.toISOString(),
+      });
+
+    expect(res.status).toBe(409);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+    expect(mirrorProfileToFirestore).not.toHaveBeenCalled();
+    expect(hideProfileFromFirestore).not.toHaveBeenCalled();
+  });
+
+  it("requires a visibility version when opting in", async () => {
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { isVisible: false, updatedAt: profileFixture.updatedAt },
+    ]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice", isVisible: true });
+
+    expect(res.status).toBe(400);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("opts in only with the current visibility version and returns a new version", async () => {
+    const currentVersion = profileFixture.updatedAt.toISOString();
+    const nextUpdatedAt = new Date(profileFixture.updatedAt.getTime() + 1);
+    const visibleFixture = {
+      ...profileFixture,
+      isVisible: true,
+      updatedAt: nextUpdatedAt,
+    };
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { isVisible: false, updatedAt: profileFixture.updatedAt },
+    ]);
+    dbMocks.chain.returning.mockResolvedValueOnce([visibleFixture]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({
+        displayName: "Alice",
+        isVisible: true,
+        expectedVisibilityVersion: currentVersion,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      isVisible: true,
+      visibilityVersion: nextUpdatedAt.toISOString(),
+    });
+    expect(dbMocks.chain.onConflictDoUpdate.mock.calls[0]?.[0]?.set)
+      .toHaveProperty("isVisible", true);
+    expect(mirrorProfileToFirestore).toHaveBeenCalledWith({
+      uid: "alice",
+      isVisible: true,
+    });
+    expect(hideProfileFromFirestore).not.toHaveBeenCalled();
+  });
+
+  it("compensates to canonical Hidden when the Visible Firestore mirror fails", async () => {
+    const currentVersion = profileFixture.updatedAt.toISOString();
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { isVisible: false, updatedAt: profileFixture.updatedAt },
+    ]);
+    dbMocks.chain.returning
+      .mockResolvedValueOnce([{ ...profileFixture, isVisible: true }])
+      .mockResolvedValueOnce([{ ...profileFixture, isVisible: false }]);
+    (mirrorProfileToFirestore as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ ok: false, error: "write outcome unknown" })
+      .mockResolvedValueOnce({ ok: true });
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({
+        displayName: "Alice",
+        isVisible: true,
+        expectedVisibilityVersion: currentVersion,
+      });
+
+    expect(res.status).toBe(503);
+    expect(dbMocks.sessionDb.transaction).toHaveBeenCalledTimes(3);
+    expect(dbMocks.chain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ isVisible: false }),
+    );
+    expect(mirrorProfileToFirestore).toHaveBeenNthCalledWith(1, {
+      uid: "alice",
+      isVisible: true,
+    });
+    expect(mirrorProfileToFirestore).toHaveBeenNthCalledWith(2, {
+      uid: "alice",
+      isVisible: false,
+    });
+    expect(hideProfileFromFirestore).toHaveBeenCalledWith("alice");
+    expect(clearEncounterMirrorsForHiddenUser).toHaveBeenCalledWith("alice");
+  });
+
+  it("does not publish Visible when the profile transaction commit fails", async () => {
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { isVisible: false, updatedAt: profileFixture.updatedAt },
+    ]);
+    dbMocks.chain.returning.mockResolvedValueOnce([
+      { ...profileFixture, isVisible: true },
+    ]);
+    dbMocks.sessionDb.transaction.mockImplementationOnce(async (callback) => {
+      await callback(dbMocks.chain);
+      throw new Error("simulated commit failure");
+    });
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({
+        displayName: "Alice",
+        isVisible: true,
+        expectedVisibilityVersion: profileFixture.updatedAt.toISOString(),
+      });
+
+    expect(res.status).toBe(500);
+    expect(mirrorProfileToFirestore).not.toHaveBeenCalled();
+    expect(sessionClients[0]?.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not acknowledge an opt-in before the Postgres commit", async () => {
+    const visibleProfile = {
+      ...profileFixture,
+      isVisible: true,
+      updatedAt: new Date(profileFixture.updatedAt.getTime() + 1),
+    };
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { isVisible: false, updatedAt: profileFixture.updatedAt },
+    ]);
+    dbMocks.chain.returning.mockResolvedValueOnce([visibleProfile]);
+
+    let markTransactionReady!: () => void;
+    let finishCommit!: () => void;
+    const transactionReady = new Promise<void>((resolve) => {
+      markTransactionReady = resolve;
+    });
+    const delayedCommit = new Promise<void>((resolve) => {
+      finishCommit = resolve;
+    });
+    dbMocks.sessionDb.transaction.mockImplementationOnce(async (callback) => {
+      const result = await callback(dbMocks.chain);
+      markTransactionReady();
+      await delayedCommit;
+      sessionEventLog.push("pg-commit");
+      return result;
+    });
+    (mirrorProfileToFirestore as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      async () => {
+        sessionEventLog.push("firestore-visible");
+        return { ok: true };
+      },
+    );
+
+    let responseSettled = false;
+    const responsePromise = request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({
+        displayName: "Alice",
+        isVisible: true,
+        expectedVisibilityVersion: profileFixture.updatedAt.toISOString(),
+      })
+      .then((response) => {
+        responseSettled = true;
+        sessionEventLog.push("http-response");
+        return response;
+      });
+
+    await transactionReady;
+    expect(responseSettled).toBe(false);
+    expect(mirrorProfileToFirestore).not.toHaveBeenCalled();
+    finishCommit();
+
+    const res = await responsePromise;
+    expect(res.status).toBe(200);
+    expect(sessionEventLog).toEqual([
+      "pg-commit",
+      "firestore-visible",
+      "http-response",
+    ]);
+  });
+
+  it("keeps a concurrent Hide after opt-in compensation from being overwritten", async () => {
+    const currentVersion = profileFixture.updatedAt.toISOString();
+    const compensatedVersion = new Date(profileFixture.updatedAt.getTime() + 2);
+    const hiddenAfterCompensation = {
+      ...profileFixture,
+      isVisible: false,
+      updatedAt: compensatedVersion,
+    };
+    const hiddenAfterHide = {
+      ...profileFixture,
+      isVisible: false,
+      updatedAt: new Date(profileFixture.updatedAt.getTime() + 3),
+    };
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([{ isVisible: false, updatedAt: profileFixture.updatedAt }])
+      .mockResolvedValueOnce([{ isVisible: false, updatedAt: compensatedVersion }]);
+    dbMocks.chain.returning
+      .mockResolvedValueOnce([{ ...profileFixture, isVisible: true }])
+      .mockResolvedValueOnce([hiddenAfterCompensation])
+      .mockResolvedValueOnce([hiddenAfterHide]);
+
+    const events: string[] = [];
+    let markVisibleMirrorStarted!: () => void;
+    let failVisibleMirror!: () => void;
+    const visibleMirrorStarted = new Promise<void>((resolve) => {
+      markVisibleMirrorStarted = resolve;
+    });
+    const visibleMirrorGate = new Promise<void>((resolve) => {
+      failVisibleMirror = resolve;
+    });
+    (mirrorProfileToFirestore as ReturnType<typeof vi.fn>).mockImplementation(
+      async ({ isVisible }: { uid: string; isVisible: boolean }) => {
+        if (isVisible) {
+          events.push("visible-mirror-start");
+          markVisibleMirrorStarted();
+          await visibleMirrorGate;
+          events.push("visible-mirror-failed");
+          return { ok: false, error: "write outcome unknown" };
+        }
+        events.push("hidden-mirror");
+        return { ok: true };
+      },
+    );
+    (hideProfileFromFirestore as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => {
+        events.push("hide-barrier");
+        return { ok: true };
+      },
+    );
+    (clearEncounterMirrorsForHiddenUser as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => {
+        events.push("encounter-cleanup");
+        return { ok: true };
+      },
+    );
+
+    let optInSettled = false;
+    const optInPromise = request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({
+        displayName: "Alice",
+        isVisible: true,
+        expectedVisibilityVersion: currentVersion,
+      })
+      .then((response) => {
+        optInSettled = true;
+        return response;
+      });
+    await visibleMirrorStarted;
+
+    let hideSettled = false;
+    const hidePromise = request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice", isVisible: false })
+      .then((response) => {
+        hideSettled = true;
+        events.push("hide-response");
+        return response;
+      });
+    await Promise.resolve();
+    expect(hideSettled).toBe(false);
+    expect(hideProfileFromFirestore).not.toHaveBeenCalled();
+
+    failVisibleMirror();
+    const [optInResponse, hideResponse] = await Promise.all([
+      optInPromise,
+      hidePromise,
+    ]);
+
+    expect(optInSettled).toBe(true);
+    expect(optInResponse.status).toBe(503);
+    expect(hideResponse.status).toBe(200);
+    expect(events).toEqual([
+      "visible-mirror-start",
+      "visible-mirror-failed",
+      "hide-barrier",
+      "hidden-mirror",
+      "encounter-cleanup",
+      "hide-barrier",
+      "hidden-mirror",
+      "encounter-cleanup",
+      "hide-response",
+    ]);
+    expect(events.slice(events.indexOf("hide-response") + 1))
+      .not.toContain("visible-mirror-start");
+    expect(sessionClients).toHaveLength(2);
+    for (const client of sessionClients) {
+      expect(client.query).toHaveBeenCalledWith(
+        expect.stringContaining("pg_advisory_lock("),
+        ["met-profile-privacy:alice"],
+      );
+      expect(client.query).toHaveBeenCalledWith(
+        expect.stringContaining("pg_advisory_unlock("),
+        ["met-profile-privacy:alice"],
+      );
+    }
+    expect(drizzleMocks.drizzle).toHaveBeenNthCalledWith(
+      1,
+      sessionClients[0],
+      expect.any(Object),
+    );
+    expect(drizzleMocks.drizzle).toHaveBeenNthCalledWith(
+      2,
+      sessionClients[1],
+      expect.any(Object),
+    );
+  });
+
+  it("reports incomplete stale-record cleanup instead of claiming success", async () => {
+    (clearEncounterMirrorsForHiddenUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      error: "Firestore unavailable",
+    });
+    dbMocks.chain.limit.mockResolvedValueOnce([]);
+    dbMocks.chain.returning.mockResolvedValueOnce([
+      { ...profileFixture, isVisible: false },
+    ]);
+
+    const res = await request(app)
+      .put("/api/profiles/me")
+      .set("x-met-uid", "alice")
+      .send({ displayName: "Alice", isVisible: false });
+
+    expect(res.status).toBe(503);
+    expect(res.body.message).toMatch(/stale encounter data/i);
   });
 
   it("does not expose the internal uidHash field in the response", async () => {
@@ -336,6 +880,40 @@ describe("PUT /api/profiles/me", () => {
       // An unknown locale is dropped; response still succeeds.
       expect(res.body).not.toHaveProperty("preferredLocale");
     });
+  });
+});
+
+describe("GET /api/profiles/:uid", () => {
+  it("returns the same not-found response for a hidden profile with no explicit relationship", async () => {
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { ...profileFixture, isVisible: false },
+    ]);
+    dbMocks.chain.where
+      .mockImplementationOnce(() => dbMocks.chain)
+      .mockResolvedValueOnce([]); // no pending reveal or connection
+
+    const res = await request(app)
+      .get("/api/profiles/alice")
+      .set("x-met-uid", "bob");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("preserves an already-explicit pending reveal identity for a hidden profile", async () => {
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { ...profileFixture, isVisible: false },
+    ]);
+    dbMocks.chain.where
+      .mockImplementationOnce(() => dbMocks.chain)
+      .mockResolvedValueOnce([{ senderUid: "bob", recipientUid: "alice" }]);
+
+    const res = await request(app)
+      .get("/api/profiles/alice")
+      .set("x-met-uid", "bob");
+
+    expect(res.status).toBe(200);
+    expect(res.body.uid).toBe("alice");
+    expect(res.body.isVisible).toBe(false);
   });
 });
 

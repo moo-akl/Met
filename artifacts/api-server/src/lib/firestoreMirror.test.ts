@@ -10,6 +10,11 @@ const batchMock = vi.hoisted(() => ({
   delete: vi.fn(),
   commit: vi.fn().mockResolvedValue(undefined),
 }));
+const transactionMock = vi.hoisted(() => ({
+  get: vi.fn(),
+  set: vi.fn(),
+}));
+const visibilityState = vi.hoisted(() => ({ bothVisible: true }));
 
 /** Tracks every doc ref created via collection().doc() so tests can
  *  find the one that corresponds to uidA or uidB. */
@@ -20,6 +25,7 @@ const adminDbMock = vi.hoisted(() => {
     const ref = {
       _path: path,
       collection: (sub: string) => makeDocRef(`${path}/${sub}`),
+      set: vi.fn().mockResolvedValue(undefined),
       doc: (id: string) => {
         const child = makeDocRef(`${path}/${id}`);
         createdRefs.push({ path: `${path}/${id}`, ref: child });
@@ -43,6 +49,8 @@ const adminDbMock = vi.hoisted(() => {
   return vi.fn(() => ({
     collection: rootCollection,
     batch: () => batchMock,
+    runTransaction: (callback: (transaction: typeof transactionMock) => Promise<unknown>) =>
+      callback(transactionMock),
   }));
 });
 
@@ -61,6 +69,7 @@ vi.mock("./logger", () => ({
 vi.mock("firebase-admin/firestore", () => ({
   FieldValue: {
     serverTimestamp: () => "__serverTimestamp__",
+    delete: () => "__deleted__",
     increment: (n: number) => ({ __increment: n }),
     arrayUnion: (...items: unknown[]) => ({ __arrayUnion: items }),
     arrayRemove: (...items: unknown[]) => ({ __arrayRemove: items }),
@@ -77,7 +86,7 @@ vi.mock("firebase-admin/firestore", () => ({
 // Subject under test
 // ---------------------------------------------------------------------------
 
-import { recordSymmetricEncounter } from "./firestoreMirror";
+import { mirrorProfileToFirestore, recordSymmetricEncounter } from "./firestoreMirror";
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -87,6 +96,38 @@ beforeEach(() => {
   vi.clearAllMocks();
   createdRefs.length = 0;
   batchMock.commit.mockResolvedValue(undefined);
+  visibilityState.bothVisible = true;
+  transactionMock.get.mockImplementation(async () => ({
+    exists: true,
+    get: (field: string) =>
+      field === "isVisible" ? visibilityState.bothVisible : undefined,
+  }));
+});
+
+describe("mirrorProfileToFirestore", () => {
+  it("keeps profile details and BLE hashes out of broadly readable user documents", async () => {
+    await mirrorProfileToFirestore({
+      uid: "alice",
+      isVisible: true,
+    });
+
+    const rootRef = createdRefs.find((entry) => entry.path === "users/alice")
+      ?.ref as { set: ReturnType<typeof vi.fn> };
+    expect(rootRef.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uid: "alice",
+        isVisible: true,
+        uidHash: "__deleted__",
+        displayName: "__deleted__",
+        photoUrl: "__deleted__",
+        bio: "__deleted__",
+        socials: "__deleted__",
+        interests: "__deleted__",
+        pushToken: "__deleted__",
+      }),
+      { merge: true },
+    );
+  });
 });
 
 describe("recordSymmetricEncounter — tier propagation", () => {
@@ -97,7 +138,7 @@ describe("recordSymmetricEncounter — tier propagation", () => {
   function setCallData(
     docId: string,
   ): Record<string, unknown> | undefined {
-    const call = batchMock.set.mock.calls.find((args: unknown[]) => {
+    const call = transactionMock.set.mock.calls.find((args: unknown[]) => {
       const ref = args[0] as { _path?: string };
       return ref?._path?.endsWith(`/met_people/${docId}`);
     });
@@ -172,8 +213,23 @@ describe("recordSymmetricEncounter — tier propagation", () => {
       tierB: "free",
     });
 
-    // Both sides written in one batch.commit().
-    expect(batchMock.set).toHaveBeenCalledTimes(2);
-    expect(batchMock.commit).toHaveBeenCalledTimes(1);
+    // Both sides are written atomically after reading both visibility barriers.
+    expect(transactionMock.get).toHaveBeenCalledTimes(2);
+    expect(transactionMock.set).toHaveBeenCalledTimes(2);
+    expect(batchMock.commit).not.toHaveBeenCalled();
+  });
+
+  it("does not create encounter mirrors if either Firestore profile is hidden", async () => {
+    visibilityState.bothVisible = false;
+
+    await expect(
+      recordSymmetricEncounter({
+        uidA: "alice",
+        uidB: "bob",
+      }),
+    ).rejects.toThrow(/hidden profile/i);
+
+    expect(transactionMock.get).toHaveBeenCalledTimes(2);
+    expect(transactionMock.set).not.toHaveBeenCalled();
   });
 });

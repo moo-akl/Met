@@ -9,10 +9,15 @@ import { Platform } from "react-native";
 
 type FirestoreModule = typeof import("@react-native-firebase/firestore").default;
 export type Firestore = ReturnType<FirestoreModule>;
+export type FirestoreSdk = typeof import("@react-native-firebase/firestore");
 
 let cached: Firestore | null = null;
 let nativeUnavailable = false;
 let appCheckInitialized = false;
+
+export async function getFirestoreSdk(): Promise<FirestoreSdk> {
+  return await import("@react-native-firebase/firestore");
+}
 
 export function isFirestoreAvailable(): boolean {
   if (nativeUnavailable) return false;
@@ -75,8 +80,8 @@ export async function getFirestoreModule(): Promise<Firestore | null> {
   try {
     // Import Firestore first — App Check is best-effort and must never
     // block or crash Firestore initialization.
-    const mod = await import("@react-native-firebase/firestore");
-    cached = mod.default();
+    const firestore = await getFirestoreSdk();
+    cached = firestore.default();
     // Fire-and-forget App Check after Firestore is ready.
     void initAppCheck();
     return cached;

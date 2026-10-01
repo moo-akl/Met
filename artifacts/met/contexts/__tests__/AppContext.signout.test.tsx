@@ -99,6 +99,7 @@ jest.mock("@/lib/ble", () => ({
 jest.mock("@/lib/firestore/presence", () => ({
   startFirestoreProximity: jest.fn().mockResolvedValue({ started: false }),
   stopFirestoreProximity: jest.fn(),
+  suppressFirestorePresence: jest.fn().mockResolvedValue(true),
 }));
 
 jest.mock("@/lib/firestore/encounters", () => ({

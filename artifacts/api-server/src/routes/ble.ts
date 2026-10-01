@@ -7,7 +7,7 @@
 // size (the batch is bounded to 64 by the OpenAPI schema).
 
 import { Router, type IRouter } from "express";
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, profilesTable, type Profile } from "@workspace/db";
 import { BleResolveBody, BleResolveResponse } from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
@@ -21,6 +21,9 @@ function serializeProfile(p: Profile) {
     photoUrl: p.photoUrl ?? null,
     bio: p.bio ?? null,
     socials: (p.socials ?? {}) as Record<string, string>,
+    interests: (p.interests ?? []) as string[],
+    isVisible: p.isVisible,
+    visibilityVersion: p.updatedAt.toISOString(),
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -40,9 +43,14 @@ router.post("/ble/resolve", requireUid, async (req, res) => {
   const rows = await db
     .select()
     .from(profilesTable)
-    .where(inArray(profilesTable.uidHash, hashes));
+    .where(
+      and(
+        inArray(profilesTable.uidHash, hashes),
+        eq(profilesTable.isVisible, true),
+      ),
+    );
 
-  const out = rows.map((row) => ({
+  const out = rows.filter((row) => row.isVisible).map((row) => ({
     hash: row.uidHash,
     profile: serializeProfile(row),
   }));

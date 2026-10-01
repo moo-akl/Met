@@ -392,6 +392,8 @@ export interface RemoteProfile {
   /** User-selected interest tags, may be null/absent for older server responses. */
   interests?: string[] | null;
   isVisible: boolean;
+  /** Version used to protect visibility opt-ins from stale cross-device writes. */
+  visibilityVersion: string;
   createdAt: string;
   updatedAt: string;
   /** True for the first 500 users (Founders). Present on GET /profiles/me. */
@@ -420,6 +422,11 @@ export interface UpsertProfileInput {
    * by saving an unrelated profile field.
    */
   isVisible?: boolean;
+  /**
+   * Required by the server when changing visibility to true. Optional for
+   * visibility-preserving profile writes and unconditional opt-outs.
+   */
+  expectedVisibilityVersion?: string;
   /** BCP-47 language code selected in the app. Optional; null preserves existing. */
   preferredLocale?: string | null;
   /** Server-side notification delivery flags. Null = all enabled (default). */

@@ -5,13 +5,6 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 // ---------------------------------------------------------------------------
 
 const dbMocks = vi.hoisted(() => {
-  const txChain = {
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    returning: vi.fn(),
-  };
-
   const chain = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -23,9 +16,10 @@ const dbMocks = vi.hoisted(() => {
     returning: vi.fn(),
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
-    transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(txChain)),
+    execute: vi.fn(),
+    transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(chain)),
   };
-  return { chain, txChain };
+  return { chain };
 });
 
 vi.mock("@workspace/db", () => ({
@@ -110,12 +104,11 @@ beforeEach(() => {
   dbMocks.chain.onConflictDoUpdate.mockReturnThis();
   dbMocks.chain.update.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
+  dbMocks.chain.execute.mockResolvedValue({ rows: [] });
   dbMocks.chain.transaction.mockImplementation(
-    async (cb: (tx: unknown) => Promise<unknown>) => cb(dbMocks.txChain),
+    async (cb: (tx: unknown) => Promise<unknown>) => cb(dbMocks.chain),
   );
-  dbMocks.txChain.update.mockReturnThis();
-  dbMocks.txChain.set.mockReturnThis();
-  dbMocks.txChain.where.mockReturnThis();
+  dbMocks.chain.returning.mockReset();
   // Default: limit returns an empty array so extra select queries (e.g.
   // sender profile lookups for push copy) don't throw when no specific
   // Once mock was set for them.
@@ -131,6 +124,14 @@ function postRevealAs(uid: string, body: Record<string, unknown>) {
     .post("/api/reveals")
     .set("x-met-uid", uid)
     .send(body);
+}
+
+function setVisibleSenderAndRecipient(
+  recipient = recipientFixture,
+) {
+  dbMocks.chain.limit
+    .mockResolvedValueOnce([{ isVisible: true }])
+    .mockResolvedValueOnce([recipient]);
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +167,9 @@ describe("POST /api/reveals", () => {
     });
 
     it("returns 404 when the recipient profile does not exist", async () => {
-      dbMocks.chain.limit.mockResolvedValueOnce([]);
+      dbMocks.chain.limit
+        .mockResolvedValueOnce([{ isVisible: true }])
+        .mockResolvedValueOnce([]);
 
       const res = await postRevealAs("alice", { recipientUid: "ghost" });
 
@@ -178,7 +181,7 @@ describe("POST /api/reveals", () => {
 
   describe("successful creation", () => {
     it("returns 200 with the reveal request and recipient profile on a valid request", async () => {
-      dbMocks.chain.limit.mockResolvedValueOnce([recipientFixture]);
+      setVisibleSenderAndRecipient();
       dbMocks.chain.returning.mockResolvedValueOnce([revealFixture]);
 
       const res = await postRevealAs("alice", { recipientUid: "bob" });
@@ -196,7 +199,7 @@ describe("POST /api/reveals", () => {
     it("accepts an optional message in the reveal request", async () => {
       const revealWithMessage = { ...revealFixture, message: "Hey, we met at the conference!" };
 
-      dbMocks.chain.limit.mockResolvedValueOnce([recipientFixture]);
+      setVisibleSenderAndRecipient();
       dbMocks.chain.returning.mockResolvedValueOnce([revealWithMessage]);
 
       const res = await postRevealAs("alice", {
@@ -209,13 +212,33 @@ describe("POST /api/reveals", () => {
     });
 
     it("does not expose the respondedAt field as non-null for a new pending request", async () => {
-      dbMocks.chain.limit.mockResolvedValueOnce([recipientFixture]);
+      setVisibleSenderAndRecipient();
       dbMocks.chain.returning.mockResolvedValueOnce([revealFixture]);
 
       const res = await postRevealAs("alice", { recipientUid: "bob" });
 
       expect(res.status).toBe(200);
       expect(res.body.respondedAt).toBeNull();
+    });
+
+    it("rejects a hidden sender so they cannot create a new pending reveal exception", async () => {
+      dbMocks.chain.limit.mockResolvedValueOnce([{ isVisible: false }]);
+
+      const res = await postRevealAs("alice", { recipientUid: "bob" });
+
+      expect(res.status).toBe(404);
+      expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+    });
+
+    it("does not create a new pending request for a hidden recipient", async () => {
+      dbMocks.chain.limit
+        .mockResolvedValueOnce([{ isVisible: true }])
+        .mockResolvedValueOnce([{ ...recipientFixture, isVisible: false }]);
+
+      const res = await postRevealAs("alice", { recipientUid: "bob" });
+
+      expect(res.status).toBe(404);
+      expect(dbMocks.chain.insert).not.toHaveBeenCalled();
     });
   });
 
@@ -263,7 +286,7 @@ describe("POST /api/reveals/accept", () => {
   describe("accept flow", () => {
     it("returns 404 when there is no pending request from the given sender", async () => {
       // Transaction inner call: forward update returns undefined (no row matched).
-      dbMocks.txChain.returning.mockResolvedValueOnce([]);
+      dbMocks.chain.returning.mockResolvedValueOnce([]);
 
       const res = await request(app)
         .post("/api/reveals/accept")
@@ -278,7 +301,7 @@ describe("POST /api/reveals/accept", () => {
       const acceptedReveal = { ...revealFixture, status: "accepted", respondedAt: new Date() };
 
       // First returning = forward update, second returning = reverse update (no-op).
-      dbMocks.txChain.returning
+      dbMocks.chain.returning
         .mockResolvedValueOnce([acceptedReveal])
         .mockResolvedValueOnce([]);
 
