@@ -134,7 +134,7 @@ jobs:
 
       - name: Check iOS build integrity
         working-directory: artifacts/met
-        run: node --test scripts/native-build-integrity.test.cjs scripts/sanitize-ios-build-log.test.cjs scripts/repair-ios-signing-profile.test.cjs
+        run: node --test scripts/native-build-integrity.test.cjs scripts/sanitize-ios-build-log.test.cjs scripts/repair-ios-signing-profile.test.cjs scripts/metro-expo-observer-adapter.test.cjs
 
       - name: Install EAS CLI
         run: npm install -g eas-cli@18.9.1
