@@ -154,6 +154,7 @@ jobs:
         run: node --test scripts/native-build-integrity.test.cjs scripts/sanitize-ios-build-log.test.cjs scripts/repair-ios-signing-profile.test.cjs scripts/metro-expo-observer-adapter.test.cjs scripts/ios-profile-plist.test.cjs scripts/ios-profile-cms.test.cjs
 
       - name: Install EAS CLI
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         run: npm install -g eas-cli@18.9.1
 
       - name: Restore App Store Connect API key

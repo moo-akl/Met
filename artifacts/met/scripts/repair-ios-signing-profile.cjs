@@ -667,6 +667,170 @@ function validateEmbeddedProfile(plist, expected) {
   }
 }
 
+function summarizeEmbeddedProfileInvariants(plist, expected) {
+  const entitlements = plist?.Entitlements;
+  const prefixes = plist?.ApplicationIdentifierPrefix;
+  const teamIdentifiers = plist?.TeamIdentifier;
+  const domains = entitlements?.["com.apple.developer.associated-domains"];
+  const prefixValid =
+    Array.isArray(prefixes) &&
+    prefixes.length > 0 &&
+    prefixes.every((prefix) => typeof prefix === "string" && prefix.length > 0);
+  const applicationIdentifierMatches =
+    Array.isArray(prefixes) &&
+    prefixes.some(
+      (prefix) =>
+        typeof prefix === "string" &&
+        entitlements?.["application-identifier"] ===
+          `${prefix}.${expected.bundleIdentifier}`,
+    );
+  let associatedDomainsKind = "INVALID";
+  if (domains === undefined || domains === null) {
+    associatedDomainsKind = "MISSING";
+  } else if (Array.isArray(domains)) {
+    associatedDomainsKind = domains.includes("*")
+      ? "ARRAY_WILDCARD"
+      : "ARRAY_DOMAINS";
+  } else if (domains === "*") {
+    associatedDomainsKind = "STRING_WILDCARD";
+  }
+  const associatedDomainsAuthorized =
+    Array.isArray(domains) &&
+    domains.length > 0 &&
+    domains.every((domain) => typeof domain === "string" && domain.length > 0) &&
+    (domains.includes("*") ||
+      !expected.associatedDomains.some((domain) => !domains.includes(domain)));
+
+  const certificates = plist?.DeveloperCertificates;
+  const certificateCount = Array.isArray(certificates) ? certificates.length : 0;
+  let certificateDERMatches = false;
+  if (Array.isArray(certificates) && certificates.length === 1) {
+    try {
+      const embeddedCertificate = Buffer.from(certificates[0], "base64");
+      const canonicalEmbedded =
+        typeof certificates[0] === "string" &&
+        certificates[0].length > 0 &&
+        embeddedCertificate.toString("base64") === certificates[0];
+      let expectedCertificate;
+      if (Buffer.isBuffer(expected.certificateContent)) {
+        expectedCertificate = expected.certificateContent;
+      } else if (typeof expected.certificateContent === "string") {
+        expectedCertificate = Buffer.from(expected.certificateContent, "base64");
+        if (
+          !expectedCertificate.length ||
+          expectedCertificate.toString("base64") !== expected.certificateContent
+        ) {
+          expectedCertificate = null;
+        }
+      }
+      certificateDERMatches =
+        canonicalEmbedded &&
+        Boolean(expectedCertificate?.length) &&
+        embeddedCertificate.equals(expectedCertificate);
+    } catch {
+      certificateDERMatches = false;
+    }
+  }
+
+  const deviceValues = plist?.ProvisionedDevices;
+  const deviceCount = Array.isArray(deviceValues) ? deviceValues.length : 0;
+  let devicesExact = false;
+  try {
+    const actualDevices = normalizeSet(deviceValues, (value) => value.toUpperCase());
+    const expectedDevices = normalizeSet(expected.deviceUdids, (value) =>
+      value.toUpperCase(),
+    );
+    devicesExact =
+      actualDevices.length === expectedDevices.length &&
+      actualDevices.every((device, index) => device === expectedDevices[index]);
+  } catch {
+    devicesExact = false;
+  }
+
+  const embeddedExpiration = Date.parse(plist?.ExpirationDate);
+  const ascExpiration = Date.parse(expected.expirationDate);
+  return {
+    applicationPrefixValid: prefixValid ? "PASS" : "FAIL",
+    applicationIdentifierMatches: applicationIdentifierMatches ? "PASS" : "FAIL",
+    teamIdentifiersIncludeExpected:
+      Array.isArray(teamIdentifiers) &&
+      teamIdentifiers.includes(expected.teamIdentifier)
+        ? "PASS"
+        : "FAIL",
+    teamEntitlementMatches:
+      entitlements?.["com.apple.developer.team-identifier"] ===
+      expected.teamIdentifier
+        ? "PASS"
+        : "FAIL",
+    productionPush:
+      entitlements?.["aps-environment"] === "production" ? "PASS" : "FAIL",
+    associatedDomainsKind,
+    associatedDomainsAuthorized: associatedDomainsAuthorized ? "PASS" : "FAIL",
+    nameMatches: plist?.Name === expected.name ? "PASS" : "FAIL",
+    uuidMatches:
+      isUuid(plist?.UUID) &&
+      typeof expected.profileUUID === "string" &&
+      plist.UUID.toLowerCase() === expected.profileUUID.toLowerCase()
+        ? "PASS"
+        : "FAIL",
+    certificateCount,
+    certificateDERMatches: certificateDERMatches ? "PASS" : "FAIL",
+    deviceCount,
+    expectedDeviceCount: Array.isArray(expected.deviceUdids)
+      ? expected.deviceUdids.length
+      : 0,
+    devicesExact: devicesExact ? "PASS" : "FAIL",
+    expirationFuture:
+      Number.isFinite(embeddedExpiration) &&
+      embeddedExpiration > expected.nowMs + 60_000
+        ? "PASS"
+        : "FAIL",
+    expirationMatchesAsc:
+      Number.isFinite(embeddedExpiration) &&
+      Number.isFinite(ascExpiration) &&
+      Math.abs(embeddedExpiration - ascExpiration) <= 5 * 60_000
+        ? "PASS"
+        : "FAIL",
+  };
+}
+
+function formatCandidateInvariantResult(index, summary) {
+  const safeIndex =
+    Number.isInteger(index) && index > 0 ? index : 0;
+  const status = (value) => (value === "PASS" ? "PASS" : "FAIL");
+  const domainKind = new Set([
+    "ARRAY_WILDCARD",
+    "ARRAY_DOMAINS",
+    "STRING_WILDCARD",
+    "MISSING",
+    "INVALID",
+  ]).has(summary?.associatedDomainsKind)
+    ? summary.associatedDomainsKind
+    : "INVALID";
+  const count = (value) =>
+    Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  return [
+    "CANDIDATE_INVARIANT",
+    `INDEX=${safeIndex}`,
+    `APP_PREFIX=${status(summary?.applicationPrefixValid)}`,
+    `APP_ID=${status(summary?.applicationIdentifierMatches)}`,
+    `TEAM_IDS=${status(summary?.teamIdentifiersIncludeExpected)}`,
+    `TEAM_ENTITLEMENT=${status(summary?.teamEntitlementMatches)}`,
+    `PUSH_PRODUCTION=${status(summary?.productionPush)}`,
+    `ASSOCIATED_DOMAINS_KIND=${domainKind}`,
+    `ASSOCIATED_DOMAINS_AUTHORIZED=${status(summary?.associatedDomainsAuthorized)}`,
+    `NAME=${status(summary?.nameMatches)}`,
+    `UUID=${status(summary?.uuidMatches)}`,
+    `CERT_COUNT=${count(summary?.certificateCount)}`,
+    `CERT_DER=${status(summary?.certificateDERMatches)}`,
+    `DEVICE_COUNT=${count(summary?.deviceCount)}`,
+    `EXPECTED_DEVICE_COUNT=${count(summary?.expectedDeviceCount)}`,
+    `DEVICES_EXACT=${status(summary?.devicesExact)}`,
+    `EXPIRY_FUTURE=${status(summary?.expirationFuture)}`,
+    `EXPIRY_ASC_MATCH=${status(summary?.expirationMatchesAsc)}`,
+  ].join(" ");
+}
+
 function decodeProvisioningProfile(
   profileContent,
   { tempRoot = os.tmpdir(), spawn = spawnSync, platform = process.platform } = {},
@@ -1097,7 +1261,11 @@ async function runRepair({
   );
   const candidates = freshRepairCandidates(allProfiles, now().getTime());
 
-  async function validateCandidate(candidate, onPassed = () => {}) {
+  async function validateCandidate(
+    candidate,
+    onPassed = () => {},
+    onParsed = null,
+  ) {
     if (
       candidate?.type !== "profiles" ||
       typeof candidate.id !== "string" ||
@@ -1132,6 +1300,21 @@ async function runRepair({
     }
     onPassed("CMS_DECODE");
     onPassed("PLIST_PARSE");
+    if (typeof onParsed === "function") {
+      onParsed(
+        summarizeEmbeddedProfileInvariants(parsedProfile, {
+          teamIdentifier: config.teamIdentifier,
+          bundleIdentifier: config.bundleIdentifier,
+          associatedDomains: config.associatedDomains,
+          name: profile.name,
+          profileUUID: profile.profileUUID,
+          deviceUdids: snapshot.deviceUdids,
+          certificateContent: certificate.attributes.certificateContent,
+          expirationDate: profile.expirationDate,
+          nowMs: now().getTime(),
+        }),
+      );
+    }
     await atStage("EMBEDDED_ENTITLEMENTS", () =>
       validateEmbeddedProfile(parsedProfile, {
         teamIdentifier: config.teamIdentifier,
@@ -1151,11 +1334,18 @@ async function runRepair({
 
   if (diagnose) {
     const outcomes = [];
-    for (const candidate of candidates) {
+    for (const [candidateIndex, candidate] of candidates.entries()) {
       const passed = [];
       let failure = null;
+      let invariants = null;
       try {
-        await validateCandidate(candidate, (stage) => passed.push(stage));
+        await validateCandidate(
+          candidate,
+          (stage) => passed.push(stage),
+          (summary) => {
+            invariants = summary;
+          },
+        );
         if (candidate.id === snapshot.oldProfilePortalId) {
           await atStage("POST_EXPIRY_VALIDATION", () =>
             validateSavedProfileExpiration(snapshot, {
@@ -1172,7 +1362,7 @@ async function runRepair({
             : "FAILED_API",
         };
       }
-      outcomes.push({ passed, failure });
+      outcomes.push({ index: candidateIndex + 1, passed, failure, invariants });
     }
     const candidateStageResults = {};
     const installedCandidatePresent = candidates.some(
@@ -1208,6 +1398,12 @@ async function runRepair({
         (candidate) => candidate?.id === snapshot.oldProfilePortalId,
       ),
       candidateStageResults,
+      candidateInvariantResults: outcomes
+        .filter((outcome) => outcome.invariants)
+        .map((outcome) => ({
+          index: outcome.index,
+          invariants: outcome.invariants,
+        })),
     };
   }
 
@@ -1422,6 +1618,11 @@ async function main() {
           );
         }
       }
+      for (const candidate of result.candidateInvariantResults || []) {
+        lines.push(
+          formatCandidateInvariantResult(candidate.index, candidate.invariants),
+        );
+      }
       process.stdout.write(`${lines.join("\n")}\n`);
     } else {
       process.stdout.write(`${result.diagnostic} ${stage}\n`);
@@ -1461,6 +1662,7 @@ module.exports = {
   decodeProvisioningProfile,
   exactlyOne,
   freshRepairCandidates,
+  formatCandidateInvariantResult,
   isUuid,
   normalizeSet,
   normalizeTimestamp,
@@ -1473,5 +1675,6 @@ module.exports = {
   validateBuildCredentialsAfterUpdate,
   validateCredentialSnapshot,
   validateEmbeddedProfile,
+  summarizeEmbeddedProfileInvariants,
   validateProject,
 };

@@ -683,6 +683,135 @@ test("embedded CMS plist validation requires push, app links, team, exact device
   }
 });
 
+test("embedded invariant summaries identify each mismatch using only fixed enums and counts", () => {
+  const expected = {
+    teamIdentifier: "PRIVATE_TEAM_VALUE",
+    bundleIdentifier: "PRIVATE_BUNDLE_VALUE",
+    associatedDomains: ["PRIVATE_ASSOCIATED_DOMAIN"],
+    name: "PRIVATE_PROFILE_NAME",
+    profileUUID: PROFILE_UUID,
+    deviceUdids: ["PRIVATE_DEVICE_ONE", "PRIVATE_DEVICE_TWO"],
+    certificateContent: Buffer.from("PRIVATE_CERTIFICATE_DER").toString("base64"),
+    expirationDate: "2035-01-01T00:00:00.000Z",
+    nowMs: Date.parse("2025-01-01T00:00:00.000Z"),
+  };
+  const validProfile = {
+    ApplicationIdentifierPrefix: [expected.teamIdentifier],
+    TeamIdentifier: [expected.teamIdentifier],
+    Entitlements: {
+      "application-identifier": `${expected.teamIdentifier}.${expected.bundleIdentifier}`,
+      "com.apple.developer.team-identifier": expected.teamIdentifier,
+      "aps-environment": "production",
+      "com.apple.developer.associated-domains": [
+        ...expected.associatedDomains,
+      ],
+    },
+    Name: expected.name,
+    UUID: expected.profileUUID,
+    ExpirationDate: expected.expirationDate,
+    DeveloperCertificates: [expected.certificateContent],
+    ProvisionedDevices: [...expected.deviceUdids],
+  };
+  const summarize = (profile, overrides = {}) =>
+    repair.summarizeEmbeddedProfileInvariants(profile, {
+      ...expected,
+      ...overrides,
+    });
+  const baseline = summarize(validProfile);
+  for (const key of [
+    "applicationPrefixValid",
+    "applicationIdentifierMatches",
+    "teamIdentifiersIncludeExpected",
+    "teamEntitlementMatches",
+    "productionPush",
+    "associatedDomainsAuthorized",
+    "nameMatches",
+    "uuidMatches",
+    "certificateDERMatches",
+    "devicesExact",
+    "expirationFuture",
+    "expirationMatchesAsc",
+  ]) {
+    assert.equal(baseline[key], "PASS", key);
+  }
+  assert.equal(baseline.associatedDomainsKind, "ARRAY_DOMAINS");
+  assert.equal(baseline.certificateCount, 1);
+  assert.equal(baseline.deviceCount, 2);
+  assert.equal(baseline.expectedDeviceCount, 2);
+
+  const withProfile = (edit) => {
+    const profile = structuredClone(validProfile);
+    edit(profile);
+    return profile;
+  };
+  const failures = [
+    ["applicationPrefixValid", withProfile((profile) => { profile.ApplicationIdentifierPrefix = [""]; })],
+    ["applicationIdentifierMatches", withProfile((profile) => { profile.Entitlements["application-identifier"] = "wrong"; })],
+    ["teamIdentifiersIncludeExpected", withProfile((profile) => { profile.TeamIdentifier = ["OTHER"]; })],
+    ["teamEntitlementMatches", withProfile((profile) => { profile.Entitlements["com.apple.developer.team-identifier"] = "OTHER"; })],
+    ["productionPush", withProfile((profile) => { profile.Entitlements["aps-environment"] = "development"; })],
+    ["associatedDomainsAuthorized", withProfile((profile) => { profile.Entitlements["com.apple.developer.associated-domains"] = ["PRIVATE_OTHER_DOMAIN"]; })],
+    ["nameMatches", withProfile((profile) => { profile.Name = "OTHER_PRIVATE_NAME"; })],
+    ["uuidMatches", withProfile((profile) => { profile.UUID = "not-a-uuid"; })],
+    ["certificateDERMatches", withProfile((profile) => { profile.DeveloperCertificates = [Buffer.from("OTHER_PRIVATE_CERT").toString("base64")]; })],
+    ["devicesExact", withProfile((profile) => { profile.ProvisionedDevices = ["PRIVATE_DEVICE_ONE"]; })],
+    ["expirationFuture", withProfile((profile) => { profile.ExpirationDate = "2020-01-01T00:00:00.000Z"; })],
+  ];
+  for (const [field, profile] of failures) {
+    assert.equal(summarize(profile)[field], "FAIL", field);
+  }
+  assert.equal(summarize(withProfile((profile) => {
+    profile.ApplicationIdentifierPrefix = [];
+    profile.DeveloperCertificates = [];
+  })).certificateCount, 0);
+  assert.equal(
+    summarize(
+      withProfile((profile) => {
+        profile.ExpirationDate = "2036-01-01T00:00:00.000Z";
+      }),
+    ).expirationMatchesAsc,
+    "FAIL",
+  );
+
+  const stringWildcard = withProfile((profile) => {
+    profile.Entitlements["com.apple.developer.associated-domains"] = "*";
+  });
+  assert.equal(summarize(stringWildcard).associatedDomainsKind, "STRING_WILDCARD");
+  assert.equal(summarize(stringWildcard).associatedDomainsAuthorized, "FAIL");
+  const absentDomains = withProfile((profile) => {
+    delete profile.Entitlements["com.apple.developer.associated-domains"];
+  });
+  assert.equal(summarize(absentDomains).associatedDomainsKind, "MISSING");
+  const invalidDomains = withProfile((profile) => {
+    profile.Entitlements["com.apple.developer.associated-domains"] = { grant: "*" };
+  });
+  assert.equal(summarize(invalidDomains).associatedDomainsKind, "INVALID");
+  const arrayWildcard = withProfile((profile) => {
+    profile.Entitlements["com.apple.developer.associated-domains"] = ["*"];
+  });
+  assert.equal(summarize(arrayWildcard).associatedDomainsKind, "ARRAY_WILDCARD");
+  assert.equal(summarize(arrayWildcard).associatedDomainsAuthorized, "PASS");
+
+  const rendered = repair.formatCandidateInvariantResult(1, baseline);
+  const combined = `${JSON.stringify(baseline)} ${rendered}`;
+  for (const privateValue of [
+    expected.teamIdentifier,
+    expected.bundleIdentifier,
+    expected.associatedDomains[0],
+    expected.name,
+    expected.profileUUID,
+    expected.deviceUdids[0],
+    expected.deviceUdids[1],
+    expected.certificateContent,
+    expected.expirationDate,
+  ]) {
+    assert.equal(combined.includes(privateValue), false, privateValue);
+  }
+  assert.match(rendered, /^CANDIDATE_INVARIANT INDEX=1 APP_PREFIX=PASS APP_ID=PASS/);
+  assert.match(rendered, /ASSOCIATED_DOMAINS_KIND=ARRAY_DOMAINS/);
+  assert.match(rendered, /CERT_COUNT=1 CERT_DER=PASS DEVICE_COUNT=2 EXPECTED_DEVICE_COUNT=2 DEVICES_EXACT=PASS/);
+});
+
 test("Apple request construction pins the HTTPS host and never follows redirects", async () => {
   let calls = 0;
   const request = repair.createAscRequest({
@@ -928,6 +1057,7 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
     args = ["--apply"],
     candidates = [],
     installedCandidate = false,
+    decodeOverrides = {},
   } = {}) {
     const events = [];
     let credentialReadCount = 0;
@@ -1157,6 +1287,7 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
             ExpirationDate:
               selectedCandidate?.attributes?.expirationDate ??
               NEW_PROFILE_EXPIRATION,
+            ...decodeOverrides,
           }),
       });
     } catch (caught) {
@@ -1232,6 +1363,34 @@ test("apply re-reads the complete EAS snapshot immediately before updating only 
     );
     assert.equal(candidateStageFailure.mutationCount, 0);
     assert.equal(candidateStageFailure.profileCreateCount, 0);
+    const domainInvariantFailure = await runFakeApply({
+      args: ["--diagnose"],
+      candidates: [candidate],
+      decodeOverrides: {
+        Entitlements: {
+          ...embeddedProfile().Entitlements,
+          "com.apple.developer.associated-domains": "*",
+        },
+      },
+    });
+    assert.equal(domainInvariantFailure.result?.diagnostic, "DIAGNOSE_COMPLETE");
+    assert.equal(
+      domainInvariantFailure.result.candidateStageResults.EMBEDDED_ENTITLEMENTS
+        .failedCount,
+      1,
+    );
+    assert.equal(
+      domainInvariantFailure.result.candidateInvariantResults[0].invariants
+        .associatedDomainsKind,
+      "STRING_WILDCARD",
+    );
+    assert.equal(
+      domainInvariantFailure.result.candidateInvariantResults[0].invariants
+        .associatedDomainsAuthorized,
+      "FAIL",
+    );
+    assert.equal(domainInvariantFailure.mutationCount, 0);
+    assert.equal(domainInvariantFailure.profileCreateCount, 0);
 
     const reuse = await runFakeApply({
       args: ["--apply", "--reuse-repair-profile"],
