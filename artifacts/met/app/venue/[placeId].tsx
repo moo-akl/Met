@@ -28,9 +28,11 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   api,
   type VenueOwnerProfile,
@@ -45,6 +47,16 @@ import {
   markQrVerified,
   subscribeQrVerification,
 } from "@/lib/qrVerificationState";
+import {
+  isStoreScreenshotDemo,
+  STORE_DEMO_ANNOUNCEMENTS,
+  STORE_DEMO_EVENTS,
+  STORE_DEMO_LEADERBOARD,
+  STORE_DEMO_PLACE_ID,
+  STORE_DEMO_PROFILE,
+  STORE_DEMO_REWARDS,
+  STORE_DEMO_REVIEWS,
+} from "@/lib/storeVenueDemo";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -352,8 +364,12 @@ const bw = StyleSheet.create({
 export default function VenueProfileScreen() {
   const { placeId, qrToken } = useLocalSearchParams<{ placeId: string; qrToken?: string }>();
   const { authedUid } = useApp();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const isScreenshotDemoVenue =
+    isStoreScreenshotDemo("venue") && placeId === STORE_DEMO_PLACE_ID;
+  const isBrightDemo = isScreenshotDemoVenue && !isDark;
 
   const [profile, setProfile]             = useState<VenueOwnerProfile | null>(null);
   const [events, setEvents]               = useState<VenueEvent[]>([]);
@@ -377,6 +393,10 @@ export default function VenueProfileScreen() {
     entityId: number,
     targetPlaceId: string,
   ) => {
+    if (isScreenshotDemoVenue) {
+      Alert.alert("Sample venue", "This is an illustrative preview. No live venue content is shown.");
+      return;
+    }
     if (!authedUid) return;
     Alert.alert(
       "Report Content",
@@ -398,6 +418,7 @@ export default function VenueProfileScreen() {
     targetPlaceId: string,
     reason: "inappropriate" | "harassment" | "spam" | "offensive_image" | "other",
   ) => {
+    if (isScreenshotDemoVenue) return;
     if (!authedUid) return;
     try {
       await api.reportVenueContent(
@@ -460,7 +481,7 @@ export default function VenueProfileScreen() {
 
   // Pre-populate the review form whenever the user proves presence via QR.
   useEffect(() => {
-    if (!isQrVerified || !authedUid || !placeId) return;
+    if (isScreenshotDemoVenue || !isQrVerified || !authedUid || !placeId) return;
     api
       .getMyVenueReview({ uid: authedUid }, placeId)
       .then(({ review }) => {
@@ -471,10 +492,10 @@ export default function VenueProfileScreen() {
         }
       })
       .catch(() => { /* non-critical — form just starts empty */ });
-  }, [isQrVerified, authedUid, placeId]);
+  }, [isScreenshotDemoVenue, isQrVerified, authedUid, placeId]);
 
   const handleSubmitReview = useCallback(async () => {
-    if (!authedUid || !placeId || reviewStars === 0 || reviewSubmitting) return;
+    if (isScreenshotDemoVenue || !authedUid || !placeId || reviewStars === 0 || reviewSubmitting) return;
     setReviewSubmitting(true);
     try {
       const { review } = await api.submitVenueReview(
@@ -490,9 +511,33 @@ export default function VenueProfileScreen() {
     } finally {
       setReviewSubmitting(false);
     }
-  }, [authedUid, placeId, reviewStars, reviewComment, reviewSubmitting]);
+  }, [authedUid, placeId, reviewStars, reviewComment, reviewSubmitting, isScreenshotDemoVenue]);
 
   const fetchAll = useCallback(async () => {
+    if (isScreenshotDemoVenue) {
+      setLoading(true);
+      setError(false);
+      setProfile(STORE_DEMO_PROFILE);
+      setEvents(STORE_DEMO_EVENTS);
+      setRewards(STORE_DEMO_REWARDS);
+      setAnnouncements(STORE_DEMO_ANNOUNCEMENTS);
+      setTopVisitors(
+        STORE_DEMO_LEADERBOARD.slice(0, 3).map((entry) => ({
+          rank: entry.rank,
+          uid: entry.uid,
+          displayName: entry.displayName,
+          photoUrl: entry.photoUrl,
+          checkinCount: entry.checkinCount,
+        })),
+      );
+      setMyLeaderboardEntry({ rank: 3, checkinCount: 7 });
+      setVenueReviews(STORE_DEMO_REVIEWS);
+      setAverageRating(4.9);
+      setTotalReviewCount(128);
+      setIsRegisteredVenue(true);
+      setLoading(false);
+      return;
+    }
     if (!authedUid || !placeId) return;
     setLoading(true);
     setError(false);
@@ -524,7 +569,7 @@ export default function VenueProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [authedUid, placeId]);
+  }, [authedUid, isScreenshotDemoVenue, placeId]);
 
   useEffect(() => { void fetchAll(); }, [fetchAll]);
 
@@ -533,6 +578,14 @@ export default function VenueProfileScreen() {
   // when a new filter is selected, and a generation counter so a response
   // that arrives after a later request has already started is discarded.
   useEffect(() => {
+    if (isScreenshotDemoVenue) {
+      setVenueReviews(STORE_DEMO_REVIEWS);
+      setAverageRating(4.9);
+      setTotalReviewCount(128);
+      setReviewsLoading(false);
+      setReviewsError(false);
+      return;
+    }
     if (!authedUid || !placeId) return;
     const gen = ++reviewFetchGenRef.current;
     const controller = new AbortController();
@@ -564,12 +617,12 @@ export default function VenueProfileScreen() {
       });
     return () => { controller.abort(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewRetryKey, authedUid, placeId]);
+  }, [reviewRetryKey, authedUid, isScreenshotDemoVenue, placeId]);
 
   // Deep-link path: when the user arrives via /v/[placeId]?t=<token>, the
   // venue redirect screen passes qrToken here. Auto-verify on mount (once).
   useEffect(() => {
-    if (!qrToken || !placeId || !authedUid || qrAutoVerifiedRef.current) return;
+    if (isScreenshotDemoVenue || !qrToken || !placeId || !authedUid || qrAutoVerifiedRef.current) return;
     qrAutoVerifiedRef.current = true;
     api
       .hubQrVerify({ uid: authedUid }, { placeId, token: qrToken })
@@ -580,7 +633,7 @@ export default function VenueProfileScreen() {
       .catch(() => {
         // Silent — invalid/expired token; user can still scan manually.
       });
-  }, [qrToken, placeId, authedUid]);
+  }, [qrToken, placeId, authedUid, isScreenshotDemoVenue]);
 
   const now = new Date();
   // Active / Upcoming shown by default; Ended hidden behind a toggle.
@@ -624,7 +677,7 @@ export default function VenueProfileScreen() {
 
   // ── render ───────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, isBrightDemo && brightDemo.root]}>
       {/* Drag handle — visible when presented as a bottom sheet (containedModal) */}
       <SheetHandle style={{ marginTop: 10, marginBottom: 4 }} />
       <ScrollView
@@ -634,9 +687,57 @@ export default function VenueProfileScreen() {
       >
 
         {/* ── Hero ──────────────────────────────────────────────────────── */}
-        <View style={styles.hero}>
+        <View style={[styles.hero, isScreenshotDemoVenue && styles.demoHero, isBrightDemo && brightDemo.hero]}>
           {/* Warm gradient background */}
-          {profile.coverPhotoUrl ? (
+          {isScreenshotDemoVenue ? (
+            <LinearGradient
+              colors={isBrightDemo ? ["#D6E9D9", "#F5E5BC", "#DF9B78"] : ["#A8D8C8", "#E6D5A4", "#DE9A65"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.heroCover, styles.demoHeroCover]}
+            >
+              <Svg
+                viewBox="0 0 360 286"
+                preserveAspectRatio="xMidYMid slice"
+                style={StyleSheet.absoluteFillObject}
+                accessibilityLabel="Illustration of a sample neighborhood café"
+              >
+                <Circle cx="292" cy="43" r="24" fill="#FFF4CD" opacity=".6" />
+                <Path d="M0 177C37 153 71 160 108 177v109H0Z" fill="#617C5B" />
+                <Path d="M0 189c30-31 48-53 60-83M21 168c-8-18-18-27-30-33m43 4c8-18 18-29 30-35m-37 70c17-8 30-8 44-4" fill="none" stroke="#395846" strokeWidth="8" strokeLinecap="round" />
+                <Circle cx="20" cy="118" r="23" fill="#6F9364" />
+                <Circle cx="58" cy="91" r="25" fill="#78996A" />
+                <Circle cx="76" cy="145" r="21" fill="#527650" />
+                <Path d="M0 225c67-28 123-15 188 12l-17 49H0Z" fill="#C5A875" />
+                <Rect x="105" y="82" width="244" height="148" rx="5" fill="#B96243" />
+                <Path d="m95 88 24-27h217l20 27Z" fill="#754337" />
+                <Rect x="119" y="103" width="214" height="14" rx="3" fill="#D78A5E" />
+                <Rect x="128" y="126" width="84" height="77" rx="3" fill="#223A3B" />
+                <Rect x="134" y="132" width="72" height="64" rx="2" fill="#E4AE68" />
+                <Rect x="137" y="136" width="66" height="55" fill="#75523E" />
+                <Path d="M170 136v55M137 161h66" stroke="#253D3A" strokeWidth="4" />
+                <Rect x="225" y="126" width="91" height="104" rx="3" fill="#21383A" />
+                <Rect x="231" y="132" width="79" height="92" rx="2" fill="#D8995B" />
+                <Rect x="263" y="132" width="5" height="92" fill="#283D3A" />
+                <Circle cx="258" cy="183" r="3" fill="#F7E2A8" />
+                <Path d="M110 121h230" stroke="#F0C17A" strokeWidth="4" />
+                <Circle cx="135" cy="119" r="3.5" fill="#FFE6A6" />
+                <Circle cx="160" cy="119" r="3.5" fill="#FFE6A6" />
+                <Circle cx="185" cy="119" r="3.5" fill="#FFE6A6" />
+                <Circle cx="210" cy="119" r="3.5" fill="#FFE6A6" />
+                <Circle cx="235" cy="119" r="3.5" fill="#FFE6A6" />
+                <Circle cx="260" cy="119" r="3.5" fill="#FFE6A6" />
+                <Circle cx="285" cy="119" r="3.5" fill="#FFE6A6" />
+                <Rect x="286" y="230" width="11" height="30" rx="3" fill="#544539" />
+                <Circle cx="292" cy="223" r="19" fill="#476A4E" />
+                <Circle cx="331" cy="241" r="23" fill="#57764F" />
+                <Path d="M0 267c92-31 177-24 267 19H0Z" fill="#45624A" opacity=".9" />
+              </Svg>
+              <View style={styles.illustrationBadge}>
+                <Text style={styles.illustrationBadgeText}>ILLUSTRATIVE SAMPLE VENUE</Text>
+              </View>
+            </LinearGradient>
+          ) : profile.coverPhotoUrl ? (
             <Pressable
               onPress={() => setPhotoViewerUrl(profile.coverPhotoUrl!)}
               accessibilityRole="imagebutton"
@@ -660,7 +761,7 @@ export default function VenueProfileScreen() {
 
           {/* Bottom fade to page background */}
           <LinearGradient
-            colors={["transparent", "rgba(250,250,248,0.65)", BG]}
+            colors={isBrightDemo ? ["transparent", "rgba(248,245,239,0.65)", "#F8F5EF"] : ["transparent", "rgba(250,250,248,0.65)", BG]}
             locations={[0.45, 0.75, 1]}
             style={StyleSheet.absoluteFillObject}
             pointerEvents="none"
@@ -708,6 +809,11 @@ export default function VenueProfileScreen() {
             <View style={styles.heroNameCol}>
               {/* Category + verified pills */}
               <View style={styles.heroPillRow}>
+                {isScreenshotDemoVenue && (
+                  <View style={[styles.verifiedPill, { backgroundColor: isBrightDemo ? "#EEE9F8" : "#EEF2FF" }]}>
+                    <Text style={[styles.verifiedPillText, { color: isBrightDemo ? "#6552AD" : "#5B5FC7" }]}>Sample venue</Text>
+                  </View>
+                )}
                 {profile.isVerified && (
                   <View style={styles.verifiedPill}>
                     <Text style={styles.verifiedPillText}>✓ Verified</Text>
@@ -729,11 +835,11 @@ export default function VenueProfileScreen() {
         </View>
 
         {/* ── Body ──────────────────────────────────────────────────────── */}
-        <View style={styles.body}>
+        <View style={[styles.body, isBrightDemo && brightDemo.body]}>
 
           {/* ── Welcome Back Banner ── */}
           {myLeaderboardEntry && myLeaderboardEntry.checkinCount > 0 && (
-            <View style={{
+            <View style={[{
               marginBottom: 8,
               padding: 14,
               borderRadius: 12,
@@ -743,14 +849,16 @@ export default function VenueProfileScreen() {
               flexDirection: "row",
               alignItems: "center",
               gap: 10,
-            }}>
+            }, isBrightDemo && brightDemo.welcome]}>
               <Text style={{ fontSize: 20 }}>🏠</Text>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: "Inter_700Bold", fontSize: 14, color: "#9A4A10" }}>
-                  Welcome back!
+                  {isScreenshotDemoVenue ? "Sample community preview" : "Welcome back!"}
                 </Text>
                 <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: "#9A4A10", marginTop: 2, lineHeight: 18 }}>
-                  {myLeaderboardEntry.checkinCount === 1
+                  {isScreenshotDemoVenue
+                    ? `Example activity: ${myLeaderboardEntry.checkinCount} visits · #${myLeaderboardEntry.rank} in sample standings`
+                    : myLeaderboardEntry.checkinCount === 1
                     ? "Your first check-in here — you're on the board 🎉"
                     : `You've checked in ${myLeaderboardEntry.checkinCount} times — you're #${myLeaderboardEntry.rank} here`}
                 </Text>
@@ -771,7 +879,7 @@ export default function VenueProfileScreen() {
             <View style={styles.section}>
               <SectionLabel title="Announcements" />
               {announcements.slice(0, 5).map((ann) => (
-                <View key={ann.id} style={[styles.annCard, cardShadow]}>
+                <View key={ann.id} style={[styles.annCard, cardShadow, isBrightDemo && brightDemo.card]}>
                   {"imageUrl" in ann && (ann as { imageUrl?: string | null }).imageUrl ? (
                     <Image
                       source={{ uri: (ann as { imageUrl: string }).imageUrl }}
@@ -924,7 +1032,7 @@ export default function VenueProfileScreen() {
               />
               <View style={styles.lbGrid}>
                 {topVisitors.map((v, i) => (
-                  <View key={v.uid} style={[styles.lbCard, cardShadow]}>
+                  <View key={v.uid} style={[styles.lbCard, cardShadow, isBrightDemo && brightDemo.card]}>
                     <Text style={styles.lbMedal}>{["🥇","🥈","🥉"][i]}</Text>
                     {v.photoUrl ? (
                       <Image source={{ uri: v.photoUrl }} style={styles.lbAvatar} contentFit="cover" transition={150} />
@@ -1060,7 +1168,7 @@ export default function VenueProfileScreen() {
                   </Pressable>
                 </View>
               ) : venueReviews.length > 0 ? (
-                <View style={[styles.guestReviewsCard, cardShadow]}>
+                <View style={[styles.guestReviewsCard, cardShadow, isBrightDemo && brightDemo.card]}>
                   {[...venueReviews]
                     .sort((a, b) => {
                       if (reviewSort === "highest") return b.starRating - a.starRating;
@@ -1107,7 +1215,7 @@ export default function VenueProfileScreen() {
           {(profile.phone || profile.websiteUrl || profile.publicEmail || todayLabel) && (
             <View style={styles.section}>
               <SectionLabel title="Info & Contact" />
-              <View style={[styles.infoCard, cardShadow]}>
+              <View style={[styles.infoCard, cardShadow, isBrightDemo && brightDemo.card]}>
                 {todayLabel && (
                   <View style={[styles.infoRow, { borderTopWidth: 0 }]}>
                     <Text style={styles.infoIcon}>🕐</Text>
@@ -1292,7 +1400,26 @@ const styles = StyleSheet.create({
 
   // ── Hero ──────────────────────────────────────────────────────────────────
   hero: { width: "100%", height: 380, overflow: "hidden" },
+  demoHero: { height: 286 },
   heroCover: { width: "100%", height: 380 },
+  demoHeroCover: { height: 286 },
+  illustrationBadge: {
+    position: "absolute",
+    top: 58,
+    right: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(31,41,36,.65)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,.3)",
+  },
+  illustrationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 7,
+    letterSpacing: 0.7,
+    fontFamily: "Inter_700Bold",
+  },
 
   backBtn: {
     position: "absolute",
@@ -1744,5 +1871,22 @@ const styles = StyleSheet.create({
   reviewSortChipTextActive: {
     color: "#FFFFFF",
     fontFamily: "Inter_600SemiBold",
+  },
+});
+
+// Screenshot-preview polish only. The original venue presentation remains
+// untouched for dark mode and for every real venue.
+const brightDemo = StyleSheet.create({
+  root: { backgroundColor: "#F8F5EF" },
+  hero: { backgroundColor: "#F8F5EF" },
+  body: { paddingHorizontal: 18, paddingTop: 12 },
+  welcome: { backgroundColor: "#FFF3DD", borderColor: "#EEDDBB", marginBottom: 18 },
+  card: {
+    backgroundColor: "#FFFEFB",
+    borderColor: "#E9E3D9",
+    shadowColor: "#716257",
+    shadowOpacity: 0.07,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 16,
   },
 });

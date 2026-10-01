@@ -13,6 +13,7 @@ export interface VenueManagerAnnouncement {
   /** @nullable */
   imageUrl?: string | null;
   isPinned: boolean;
+  isHidden: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -150,7 +150,7 @@ export default function VenueOwnerDashboardScreen() {
       item.applicationStatus,
     ),
   ).length;
-  const branchesSummary = t("venueBranchesManageSummary", {
+  const branchesSummary = t("settings.venueBranchesManageSummary", {
     count: branches.length,
     applications: openBranchApplications,
   });
@@ -162,7 +162,7 @@ export default function VenueOwnerDashboardScreen() {
       {isDark
         ? <AuroraScreen
             venueName={venueName}
-            branchesTitle={t("venueBranchesTitle")}
+            branchesTitle={t("settings.venueBranchesTitle")}
             branchesSummary={branchesSummary}
             onManageBranches={() => router.push("/venue-owner/branches" as never)}
             insets={insets}
@@ -180,7 +180,7 @@ export default function VenueOwnerDashboardScreen() {
           />
         : <SignalScreen
             venueName={venueName}
-            branchesTitle={t("venueBranchesTitle")}
+            branchesTitle={t("settings.venueBranchesTitle")}
             branchesSummary={branchesSummary}
             onManageBranches={() => router.push("/venue-owner/branches" as never)}
             insets={insets}

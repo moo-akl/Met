@@ -29,6 +29,7 @@ import { useColors } from "@/hooks/useColors";
 import { findBlockedTerm } from "@/lib/contentFilter";
 import { useT } from "@/lib/i18n";
 import { api, ApiError } from "@/lib/api/client";
+import { isStoreDemoEnabled, isStoreDemoShot } from "@/lib/storeDemo";
 import { type ReportReason, submitReport } from "@/lib/reports";
 import { useSubscription } from "@/lib/revenuecat";
 import {
@@ -49,6 +50,8 @@ function formatDate(ts: number, lang: string) {
 
 export default function EncounterDetail() {
   const colors = useColors();
+  const actionColor =
+    colors.primary === "#3DCC44" ? colors.secondaryForeground : colors.primary;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t, lang } = useT();
@@ -67,6 +70,8 @@ export default function EncounterDetail() {
     authedUid,
   } = useApp();
   const { isSubscribed, isSubscriptionReady } = useSubscription();
+  const storeDemo = isStoreDemoEnabled();
+  const compactDemoDetail = isStoreDemoShot(6);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [revealsRemaining, setRevealsRemaining] = useState<number | null>(null);
@@ -88,6 +93,10 @@ export default function EncounterDetail() {
   } | null>(null);
 
   useEffect(() => {
+    if (storeDemo) {
+      setRevealsRemaining(3);
+      return;
+    }
     let cancelled = false;
     getRevealsRemaining().then((r) => {
       if (cancelled) return;
@@ -96,7 +105,7 @@ export default function EncounterDetail() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storeDemo]);
 
   const encounter = useMemo(
     () => allEncounters.find((e) => e.id === id),
@@ -386,7 +395,12 @@ export default function EncounterDetail() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.heroWrap}>
+        <View
+          style={[
+            styles.heroWrap,
+            compactDemoDetail && styles.compactDemoHero,
+          ]}
+        >
           {encounter.photoUri ? (
             <Image
               source={{ uri: encounter.photoUri }}
@@ -461,6 +475,8 @@ export default function EncounterDetail() {
             styles.body,
             {
               backgroundColor: colors.card,
+              paddingTop: compactDemoDetail ? 14 : 22,
+              gap: compactDemoDetail ? 10 : 14,
             },
           ]}
         >
@@ -519,7 +535,7 @@ export default function EncounterDetail() {
                       style={[
                         styles.interestChip,
                         isShared
-                          ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                          ? { backgroundColor: actionColor, borderColor: actionColor }
                           : { backgroundColor: colors.muted, borderColor: colors.border },
                       ]}
                     >
@@ -539,7 +555,7 @@ export default function EncounterDetail() {
           ) : null}
 
           {/* ── Ice-Breaker Suggestion ── */}
-          <View style={[styles.section, {
+          {!compactDemoDetail ? <View style={[styles.section, {
             backgroundColor: `${colors.primary}10`,
             borderWidth: 1,
             borderColor: `${colors.primary}25`,
@@ -568,9 +584,9 @@ export default function EncounterDetail() {
                 return `Send something genuine — not just "hey". You've already met in person.`;
               })()}
             </Text>
-          </View>
+          </View> : null}
 
-          {encounter.lastLocation ? (
+          {!compactDemoDetail && encounter.lastLocation ? (
             <View style={styles.section}>
               <Text
                 style={[styles.sectionLabel, { color: colors.mutedForeground }]}
@@ -969,6 +985,9 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 480,
     position: "relative",
+  },
+  compactDemoHero: {
+    height: 260,
   },
   heroImg: { width: "100%", height: "100%" },
   heroPlaceholder: {

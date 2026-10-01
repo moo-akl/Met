@@ -32,6 +32,7 @@ import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { buildStoreDemoChat, isStoreDemoEnabled } from "@/lib/storeDemo";
 import {
   type ChatMessage,
   type ChatMeta,
@@ -141,6 +142,7 @@ function ReplyQuote({
   myName: string;
   colors: ReturnType<typeof useColors>;
 }) {
+  const isLightTheme = colors.primary === "#3DCC44";
   const quoteText =
     replyTo.mediaType === "image" && !replyTo.text ? "📷 Photo" : replyTo.text;
   return (
@@ -148,9 +150,15 @@ function ReplyQuote({
       style={[
         styles.replyQuote,
         {
-          borderLeftColor: isMine ? "rgba(255,255,255,0.5)" : colors.primary,
+          borderLeftColor: isMine
+            ? isLightTheme
+              ? colors.primary
+              : "rgba(255,255,255,0.5)"
+            : colors.primary,
           backgroundColor: isMine
-            ? "rgba(0,0,0,0.12)"
+            ? isLightTheme
+              ? "rgba(255,255,255,0.55)"
+              : "rgba(0,0,0,0.12)"
             : `${colors.primary}14`,
         },
       ]}
@@ -158,7 +166,13 @@ function ReplyQuote({
       <Text
         style={[
           styles.replyQuoteAuthor,
-          { color: isMine ? "rgba(255,255,255,0.8)" : colors.primary },
+          {
+            color: isMine
+              ? isLightTheme
+                ? colors.foreground
+                : "rgba(255,255,255,0.8)"
+              : colors.primary,
+          },
         ]}
         numberOfLines={1}
       >
@@ -167,7 +181,13 @@ function ReplyQuote({
       <Text
         style={[
           styles.replyQuoteText,
-          { color: isMine ? "rgba(255,255,255,0.7)" : colors.mutedForeground },
+          {
+            color: isMine
+              ? isLightTheme
+                ? colors.mutedForeground
+                : "rgba(255,255,255,0.7)"
+              : colors.mutedForeground,
+          },
         ]}
         numberOfLines={2}
       >
@@ -240,6 +260,8 @@ function AudioPlayer({
   isMine: boolean;
   colors: ReturnType<typeof useColors>;
 }) {
+  const isLightTheme = colors.primary === "#3DCC44";
+  const ownContentColor = isLightTheme ? colors.foreground : "#ffffff";
   const [isPlaying, setIsPlaying] = useState(false);
   const [posMs, setPosMs] = useState(0);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -296,7 +318,9 @@ function AudioPlayer({
           styles.audioPlayBtn,
           {
             backgroundColor: isMine
-              ? "rgba(255,255,255,0.25)"
+              ? isLightTheme
+                ? "rgba(0,0,0,0.08)"
+                : "rgba(255,255,255,0.25)"
               : "#00000018",
           },
         ]}
@@ -304,7 +328,7 @@ function AudioPlayer({
         <Feather
           name={isPlaying ? "pause" : "play"}
           size={15}
-          color={isMine ? "#ffffff" : colors.foreground}
+          color={isMine ? ownContentColor : colors.foreground}
         />
       </Pressable>
       <View style={styles.audioTrack}>
@@ -312,7 +336,7 @@ function AudioPlayer({
           style={[
             styles.audioTrackFill,
             {
-              backgroundColor: isMine ? "#ffffff" : colors.primary,
+              backgroundColor: isMine ? ownContentColor : colors.primary,
               width: `${Math.round(progress * 100)}%` as `${number}%`,
             },
           ]}
@@ -321,7 +345,13 @@ function AudioPlayer({
       <Text
         style={[
           styles.audioDuration,
-          { color: isMine ? "rgba(255,255,255,0.8)" : colors.mutedForeground },
+          {
+            color: isMine
+              ? isLightTheme
+                ? colors.mutedForeground
+                : "rgba(255,255,255,0.8)"
+              : colors.mutedForeground,
+          },
         ]}
       >
         {label}
@@ -357,6 +387,8 @@ function MessageBubble({
   onImagePress: (uri: string) => void;
   onLongPress: (message: ChatMessage) => void;
 }) {
+  const ownMessageForeground =
+    colors.primary === "#3DCC44" ? colors.foreground : "#ffffff";
   const hasMedia = !!message.mediaUri && message.mediaType === "image";
   const hasAudio = !!message.mediaUri && message.mediaType === "audio";
   const hasText = !!message.text;
@@ -412,7 +444,9 @@ function MessageBubble({
                 styles.bubbleDeletedText,
                 {
                   color: isMine
-                    ? "rgba(255,255,255,0.55)"
+                    ? colors.primary === "#3DCC44"
+                      ? colors.mutedForeground
+                      : "rgba(255,255,255,0.55)"
                     : colors.mutedForeground,
                 },
               ]}
@@ -441,7 +475,7 @@ function MessageBubble({
                 <Text
                   style={[
                     styles.bubbleText,
-                    { color: isMine ? "#ffffff" : colors.foreground },
+                    { color: isMine ? ownMessageForeground : colors.foreground },
                     hasMedia && !hasAudio ? styles.bubbleCaption : null,
                   ]}
                 >
@@ -655,11 +689,14 @@ function MessageActionMenu({
 
 export default function ChatScreen() {
   const colors = useColors();
+  const actionColor =
+    colors.primary === "#3DCC44" ? colors.secondaryForeground : colors.primary;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const { allEncounters, authedUid, profile } = useApp();
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const storeDemo = isStoreDemoEnabled();
   const [connectionQuality, setConnectionQuality] = useState<{
     messageCount: number;
     hasMetInRealLife: boolean;
@@ -668,7 +705,7 @@ export default function ChatScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const peerUid = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  const myUid = authedUid ?? "";
+  const myUid = storeDemo ? profile?.id ?? "" : authedUid ?? "";
   const myName = profile?.name ?? "You";
 
   const encounter = useMemo(
@@ -728,6 +765,17 @@ export default function ChatScreen() {
 
   const listRef = useRef<FlatList<ListItem>>(null);
 
+  useEffect(() => {
+    if (!storeDemo || !encounter || !peerUid) return;
+    const demoConversation = buildStoreDemoChat(peerUid, myUid);
+    setMessages(demoConversation.messages);
+    setMeta(demoConversation.meta);
+    setConnectionQuality({
+      messageCount: demoConversation.messages.length,
+      hasMetInRealLife: true,
+    });
+  }, [storeDemo, encounter?.id, myUid, peerUid]);
+
   const isLoading = meta === undefined;
   const isMyTurn =
     meta === undefined ||
@@ -766,7 +814,7 @@ export default function ChatScreen() {
 
   // Subscribe to chat meta (turn state + last message)
   useEffect(() => {
-    if (!myUid || !peerUid) return;
+    if (storeDemo || !myUid || !peerUid) return;
     let cancelled = false;
     let unsubFn: (() => void) | null = null;
     void subscribeToChatMeta(myUid, peerUid, (m) => {
@@ -779,11 +827,11 @@ export default function ChatScreen() {
       cancelled = true;
       if (unsubFn) unsubFn();
     };
-  }, [myUid, peerUid]);
+  }, [myUid, peerUid, storeDemo]);
 
   // Subscribe to messages
   useEffect(() => {
-    if (!myUid || !peerUid) return;
+    if (storeDemo || !myUid || !peerUid) return;
     let cancelled = false;
     let unsubFn: (() => void) | null = null;
     void subscribeToMessages(myUid, peerUid, (msgs) => {
@@ -796,7 +844,7 @@ export default function ChatScreen() {
       cancelled = true;
       if (unsubFn) unsubFn();
     };
-  }, [myUid, peerUid]);
+  }, [myUid, peerUid, storeDemo]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -810,19 +858,19 @@ export default function ChatScreen() {
 
   // Mark read when messages arrive
   useEffect(() => {
-    if (!myUid || !peerUid || visibleMessages.length === 0) return;
+    if (storeDemo || !myUid || !peerUid || visibleMessages.length === 0) return;
     void markChatRead(myUid, peerUid);
-  }, [myUid, peerUid, visibleMessages.length]);
+  }, [myUid, peerUid, visibleMessages.length, storeDemo]);
 
   // Fetch quality-threshold data when entering the chat so the Rate button
   // can check the 10-message or "met in real life" gate immediately.
   useEffect(() => {
-    if (!myUid || !peerUid) return;
+    if (storeDemo || !myUid || !peerUid) return;
     api
       .getConnectionQuality({ uid: myUid }, peerUid)
       .then((q) => setConnectionQuality(q))
       .catch(() => {});
-  }, [myUid, peerUid]);
+  }, [myUid, peerUid, storeDemo]);
 
   const handlePickImage = useCallback(async () => {
     if (!isMyTurn || sending) return;
@@ -930,6 +978,21 @@ export default function ChatScreen() {
     setSending(true);
     setSendError(null);
 
+    if (storeDemo) {
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: `store-demo-message-${Date.now()}`,
+          from: myUid,
+          text: trimmed,
+          sentAt: Date.now(),
+        },
+      ]);
+      setText("");
+      setSending(false);
+      return;
+    }
+
     const capturedMedia = pendingMedia;
     const capturedAudio = pendingAudio;
     const capturedAudioMs = pendingAudioMs;
@@ -992,7 +1055,7 @@ export default function ChatScreen() {
       if (capturedReplyTo) setReplyingTo(capturedReplyTo);
     }
     setSending(false);
-  }, [canSend, myUid, peerUid, text, pendingMedia, pendingAudio, pendingAudioMs, replyingTo, t]);
+  }, [canSend, myUid, peerUid, text, pendingMedia, pendingAudio, pendingAudioMs, replyingTo, t, storeDemo]);
 
   // AsyncStorage key for the 14-day frequency cap per connection.
   const reviewPromptKey = `@met/review_prompt_${peerUid ?? "unknown"}_last_date`;
@@ -1607,7 +1670,7 @@ export default function ChatScreen() {
             style={({ pressed }) => [
               styles.sendBtn,
               {
-                backgroundColor: canSend ? colors.primary : colors.muted,
+                backgroundColor: canSend ? actionColor : colors.muted,
                 opacity: pressed ? 0.8 : 1,
               },
             ]}

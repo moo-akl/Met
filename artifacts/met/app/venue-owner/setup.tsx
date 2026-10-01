@@ -99,7 +99,7 @@ export default function VenueOwnerSetupScreen() {
       }
     : {
         1: isBranchApplication
-          ? t("venueBranchApplySubtitle")
+          ? t("settings.venueBranchApplySubtitle")
           : "Search for your venue on Google, or enter its Place ID manually",
         2: "Tell us about your business",
         3: "Submit proof of ownership for review",
@@ -362,7 +362,7 @@ export default function VenueOwnerSetupScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <VenueOwnerHeader
-        title={isBranchApplication ? t("venueBranchApplyTitle") : "Venue Owner Portal"}
+        title={isBranchApplication ? t("settings.venueBranchApplyTitle") : "Venue Owner Portal"}
         onBack={step > 1 ? () => setStep((s) => (s - 1) as Step) : undefined}
       />
       <View style={styles.stepIndicatorWrap}>

@@ -153,6 +153,36 @@ export const venueOwnerProfilesTable = pgTable(
   }),
 );
 
+/**
+ * An opted-in activation clock. Existing venues have no row and are never
+ * retrospectively suspended. A resend must not change either deadline.
+ */
+export const venueActivationPoliciesTable = pgTable(
+  "venue_activation_policies",
+  {
+    id: serial("id").primaryKey(),
+    profileId: integer("profile_id").notNull(),
+    firstInvitationSentAt: timestamp("first_invitation_sent_at", { withTimezone: true }),
+    registrationDeadline: timestamp("registration_deadline", { withTimezone: true }),
+    registeredAt: timestamp("registered_at", { withTimezone: true }),
+    qrDeadline: timestamp("qr_deadline", { withTimezone: true }),
+    reminder5AttemptedAt: timestamp("reminder_5_attempted_at", { withTimezone: true }),
+    reminder10AttemptedAt: timestamp("reminder_10_attempted_at", { withTimezone: true }),
+    reminder5SentAt: timestamp("reminder_5_sent_at", { withTimezone: true }),
+    reminder10SentAt: timestamp("reminder_10_sent_at", { withTimezone: true }),
+    unlistedAt: timestamp("unlisted_at", { withTimezone: true }),
+    removalReason: text("removal_reason").$type<"registration" | "qr_checkins" | null>(),
+    exempt: boolean("exempt").notNull().default(false),
+    exceptionReason: text("exception_reason"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    profileUniq: uniqueIndex("venue_activation_policies_profile_uniq").on(t.profileId),
+    registrationDeadlineIdx: index("venue_activation_registration_deadline_idx").on(t.registrationDeadline),
+    qrDeadlineIdx: index("venue_activation_qr_deadline_idx").on(t.qrDeadline),
+  }),
+);
+
 export const insertVenueOwnerProfileSchema = createInsertSchema(
   venueOwnerProfilesTable,
 ).omit({ id: true, createdAt: true, updatedAt: true });
@@ -198,6 +228,38 @@ export const venueApplicationHistoryTable = pgTable(
 
 export type VenueApplicationHistoryEntry =
   typeof venueApplicationHistoryTable.$inferSelect;
+
+/**
+ * One-time pre-approval application invitations. Only the token hash is stored;
+ * the recipient can choose a venue when submitting their application.
+ */
+export const venueApplicationInviteTokensTable = pgTable(
+  "venue_application_invite_tokens",
+  {
+    id: serial("id").primaryKey(),
+    tokenHash: text("token_hash").notNull(),
+    invitedEmail: text("invited_email").notNull(),
+    businessName: text("business_name").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    applicationId: integer("application_id").references(
+      () => venueOwnerProfilesTable.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    tokenHashUniq: uniqueIndex("venue_application_invite_token_hash_uniq").on(t.tokenHash),
+    applicationIdUniq: uniqueIndex("venue_application_invite_application_uniq").on(t.applicationId),
+    inviteEmailIdx: index("venue_application_invite_email_idx").on(t.invitedEmail),
+    expiresAtIdx: index("venue_application_invite_expires_at_idx").on(t.expiresAt),
+  }),
+);
+
+export type VenueApplicationInviteToken =
+  typeof venueApplicationInviteTokensTable.$inferSelect;
 
 // ---------------------------------------------------------------------------
 // venue_admin_credentials

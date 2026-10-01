@@ -12,6 +12,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { isPathWithin, resolveStaticPath } = require("./static-path");
 
 const STATIC_ROOT = path.resolve(__dirname, "..", "static-build");
 const TEMPLATE_PATH = path.resolve(__dirname, "templates", "landing-page.html");
@@ -46,7 +47,16 @@ function getAppName() {
 }
 
 function serveManifest(platform, res) {
-  const manifestPath = path.join(STATIC_ROOT, platform, "manifest.json");
+  const manifestPath = resolveStaticPath(
+    STATIC_ROOT,
+    `/${platform}/manifest.json`,
+  );
+
+  if (!manifestPath) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
+  }
 
   if (!fs.existsSync(manifestPath)) {
     res.writeHead(404, { "content-type": "application/json" });
@@ -56,7 +66,15 @@ function serveManifest(platform, res) {
     return;
   }
 
-  const manifest = fs.readFileSync(manifestPath, "utf-8");
+  const realRoot = fs.realpathSync(STATIC_ROOT);
+  const realManifestPath = fs.realpathSync(manifestPath);
+  if (!isPathWithin(realRoot, realManifestPath)) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
+  }
+
+  const manifest = fs.readFileSync(realManifestPath, "utf-8");
   res.writeHead(200, {
     "content-type": "application/json",
     "expo-protocol-version": "1",
@@ -82,24 +100,44 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
 }
 
 function serveStaticFile(urlPath, res) {
-  const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, "");
-  const filePath = path.join(STATIC_ROOT, safePath);
+  let filePath;
+  try {
+    filePath = resolveStaticPath(STATIC_ROOT, urlPath);
+  } catch {
+    res.writeHead(400);
+    res.end("Bad Request");
+    return;
+  }
 
-  if (!filePath.startsWith(STATIC_ROOT)) {
+  if (!filePath) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
   }
 
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+  if (!fs.existsSync(filePath)) {
     res.writeHead(404);
     res.end("Not Found");
     return;
   }
 
-  const ext = path.extname(filePath).toLowerCase();
+  const realRoot = fs.realpathSync(STATIC_ROOT);
+  const realFilePath = fs.realpathSync(filePath);
+  if (!isPathWithin(realRoot, realFilePath)) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
+  }
+
+  if (fs.statSync(realFilePath).isDirectory()) {
+    res.writeHead(404);
+    res.end("Not Found");
+    return;
+  }
+
+  const ext = path.extname(realFilePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
-  const content = fs.readFileSync(filePath);
+  const content = fs.readFileSync(realFilePath);
   res.writeHead(200, { "content-type": contentType });
   res.end(content);
 }

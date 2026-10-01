@@ -8,6 +8,7 @@
 import type { VenueManagerCheckInBucket } from "./venueManagerCheckInBucket";
 import type { VenueManagerDashboardActiveReward } from "./venueManagerDashboardActiveReward";
 import type { VenueManagerEventRsvpCount } from "./venueManagerEventRsvpCount";
+import type { VenueManagerRecentQrVerification } from "./venueManagerRecentQrVerification";
 import type { VenueManagerTopVisitor } from "./venueManagerTopVisitor";
 
 export interface VenueManagerDashboard {
@@ -16,4 +17,7 @@ export interface VenueManagerDashboard {
   eventRsvpCounts: VenueManagerEventRsvpCount[];
   /** @nullable */
   activeReward: VenueManagerDashboardActiveReward;
+  qrVerificationsToday: number;
+  qrVerificationsTrend: VenueManagerCheckInBucket[];
+  recentQrVerifications: VenueManagerRecentQrVerification[];
 }

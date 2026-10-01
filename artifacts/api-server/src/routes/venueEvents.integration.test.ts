@@ -22,6 +22,14 @@ import {
   venueOwnerProfilesTable,
 } from "@workspace/db";
 
+const firebaseAuthStubs = vi.hoisted(() => ({
+  getUser: vi.fn(),
+}));
+vi.mock("../lib/firebaseAdmin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/firebaseAdmin")>();
+  return { ...actual, adminAuth: () => firebaseAuthStubs };
+});
+
 // Rate limiting is covered by its own middleware tests; bypass it here.
 vi.mock("../middlewares/rateLimit", () => ({
   createIpRateLimiter: () => (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -144,11 +152,21 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
   /** Claim an owner account for a fresh business; returns an authed agent. */
   async function claimOwner(name: string) {
     const { profile, business } = await makeBusiness(name);
+    firebaseAuthStubs.getUser.mockResolvedValueOnce({
+      uid: profile.ownerUid,
+      email: email(name),
+      emailVerified: true,
+    });
     const agent = request.agent(app);
     const res = await agent
       .post("/api/venue-manager/claim")
       .set("x-test-uid", profile.ownerUid)
-      .send({ email: email(name), displayName: `Owner ${name}`, password: STRONG });
+      .send({
+        email: email(name),
+        displayName: `Owner ${name}`,
+        password: STRONG,
+        acceptedTermsVersion: "venue-2026-09",
+      });
     expect(res.status).toBe(200);
     // Refresh CSRF token via GET /session so we have the latest value.
     const session = await agent.get("/api/venue-manager/session");

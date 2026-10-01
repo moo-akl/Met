@@ -32,7 +32,7 @@ catalog:
   tailwind-merge: ^3.3.1
   tailwindcss: ^4.1.14
   tsx: ^4.21.0
-  vite: ^7.3.2
+  vite: ^7.3.5
   zod: 3.25.76
 
 minimumReleaseAge: 1440
@@ -48,7 +48,62 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # Expo SDK 54 uses Metro 0.83. Keep its packages in lockstep; 0.83.8
+  # removes vulnerable image-size 1.x using upstream asset dimension parsers.
+  # These pins are also preserved by Met's EAS pre-install hook.
+  metro: 0.83.8
+  metro-babel-transformer: 0.83.8
+  metro-cache: 0.83.8
+  metro-cache-key: 0.83.8
+  metro-config: 0.83.8
+  metro-core: 0.83.8
+  metro-file-map: 0.83.8
+  metro-minify-terser: 0.83.8
+  metro-resolver: 0.83.8
+  metro-runtime: 0.83.8
+  metro-source-map: 0.83.8
+  metro-symbolicate: 0.83.8
+  metro-transform-plugins: 0.83.8
+  metro-transform-worker: 0.83.8
   'picomatch@2': '2.3.2'
+  '@grpc/grpc-js@^1.9.0': 1.13.6
+  '@grpc/grpc-js@^1.14.0': 1.14.5
+  '@babel/core@^7.0.0': 7.29.6
+  '@tootallnate/once@^2.0.0': 2.0.1
+  '@xmldom/xmldom@^0.8.0': 0.8.15
+  '@xmldom/xmldom@^0.9.0': 0.9.12
+  'body-parser@^2.0.0': 2.3.0
+  'brace-expansion@^1.0.0': 1.1.21
+  'brace-expansion@^2.0.0': 2.1.7
+  'brace-expansion@^5.0.0': 5.0.12
+  'browserslist@^4.0.0': 4.28.7
+  'decode-uri-component@^0.2.0': 0.5.0
+  'fast-uri@^3.0.0': 3.1.8
+  'fast-xml-builder@^1.0.0': 1.1.7
+  'fflate@^0.6.0': 0.6.11
+  'form-data@^2.0.0': 2.5.6
+  'form-data@^4.0.0': 4.0.6
+  'js-yaml@^3.0.0': 3.15.2
+  'js-yaml@^4.0.0': 4.3.2
+  'linkify-it@^5.0.0': 5.0.2
+  'lodash@^4.0.0': 4.18.0
+  'nanoid@^3.0.0': 3.3.18
+  'path-to-regexp@^8.0.0': 8.4.0
+  'picomatch@^4.0.0': 4.0.4
+  'postcss@^8.0.0': 8.5.23
+  'protobufjs@^7.0.0': 7.6.5
+  'qs@^6.0.0': 6.16.0
+  'shell-quote@^1.0.0': 1.9.0
+  'tar@^7.0.0': 7.5.21
+  'undici@^6.0.0': 6.28.1
+  'undici@^7.0.0': 7.29.1
+  'yaml@^2.0.0': 2.9.1
+  'uuid': 11.1.1
+  'vite@^7.3.0': 7.3.5
+  'websocket-driver': 0.7.5
+  'ws@^6.0.0': 6.2.4
+  'ws@^7.0.0': 7.5.11
+  'ws@^8.0.0': 8.21.0
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
@@ -70,7 +125,7 @@ overrides:
   '@tailwindcss/oxide>@tailwindcss/oxide-linux-x64-musl': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-win32-arm64-msvc': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-win32-x64-msvc': '-'
-  esbuild: 0.27.3
+  esbuild: 0.28.1
   esbuild>@esbuild/aix-ppc64: '-'
   esbuild>@esbuild/android-arm: '-'
   esbuild>@esbuild/android-arm64: '-'

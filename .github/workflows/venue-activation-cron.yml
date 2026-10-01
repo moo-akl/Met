@@ -1,0 +1,24 @@
+name: Process venue activation deadlines
+
+on:
+  schedule:
+    - cron: "10 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  activation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Process due venue reminders and reversible delistings
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::GitHub CRON_SECRET is not configured"
+            exit 1
+          fi
+          curl --silent --show-error --fail-with-body --max-time 180 \
+            -X POST "https://met-app.org/api/venue-owner/process-activation" \
+            -H "X-Cron-Secret: ${CRON_SECRET}"

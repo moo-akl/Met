@@ -58,18 +58,21 @@ export function resolveLifecycleRedirect(args: {
 }
 
 /**
- * Approved owners retain only the mobile portal handoff. Business tools live
- * in Venue Manager, so stale direct links to old mobile content screens cannot
- * expose an unsupported management surface.
+ * Approved owners may use management screens and explicitly apply for another
+ * branch, without reopening their original registration lifecycle.
  */
 export function isVenueOwnerPathAllowed(
   pathname: string,
   destination: VenueOwnerDestination,
   reapply?: string,
+  branch?: string,
 ): boolean {
   if (destination === "/venue-owner/dashboard") {
+    if (pathname === "/venue-owner/setup") {
+      return branch === "1" || branch === "true";
+    }
     // Approved owners can access the dashboard and all management sub-screens.
-    // Terminal lifecycle screens (setup / pending / rejected) are still off-limits.
+    // Other terminal lifecycle screens remain off-limits.
     const TERMINAL = ["/venue-owner/setup", "/venue-owner/pending", "/venue-owner/rejected", "/venue-owner"];
     return pathname.startsWith("/venue-owner/") && !TERMINAL.includes(pathname);
   }

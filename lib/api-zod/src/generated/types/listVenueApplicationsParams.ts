@@ -26,7 +26,7 @@ export type ListVenueApplicationsParams = {
    */
   search?: string;
   /**
-   * Filter by application source: `mobile`, `web`, or `agent`.
+   * Filter by application source: `mobile`, `web`, `agent`, or `admin`.
    */
   source?: ListVenueApplicationsSource;
 };

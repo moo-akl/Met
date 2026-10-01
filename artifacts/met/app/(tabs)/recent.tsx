@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -17,6 +17,7 @@ import { useColors } from "@/hooks/useColors";
 import { useVisibility } from "@/hooks/useVisibility";
 import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
+import { isStoreDemoEnabled, isStoreDemoShot } from "@/lib/storeDemo";
 import { visibleDiscoveryPeers } from "@/lib/discoveryVisibility";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { FREE_HISTORY_ENCOUNTERS, FREE_VISIBLE_ENCOUNTERS, startOfTodayMs } from "@/lib/usage";
@@ -30,12 +31,15 @@ type WeeklyFilter = "new" | "repeats" | null;
 
 export default function RecentScreen() {
   const colors = useColors();
+  const actionColor =
+    colors.primary === "#3DCC44" ? colors.secondaryForeground : colors.primary;
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
   const params = useLocalSearchParams<{ filter?: string }>();
   const { encounters, preferences, profile } = useApp();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
+  const storeDemo = isStoreDemoEnabled();
   const blips = useMemo<RadarBlip[]>(
     () =>
       visibleDiscoveryPeers(isVisible, encounters.slice(0, 6)).map((e, i) => ({
@@ -48,6 +52,12 @@ export default function RecentScreen() {
   const { isPlusSubscriber, isProSubscriber, isSubscriptionReady } = useSubscription();
 
   const [requestsOpen, setRequestsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!storeDemo || !isStoreDemoShot(7)) return;
+    const timer = setTimeout(() => setRequestsOpen(true), 350);
+    return () => clearTimeout(timer);
+  }, [storeDemo]);
 
   const weeklyFilter: WeeklyFilter =
     params.filter === "new" || params.filter === "repeats"
@@ -104,7 +114,9 @@ export default function RecentScreen() {
   //           from older days as a taste.
   // Until RevenueCat resolves we show everything so paid users never blink.
   const { visible, hiddenCount } = useMemo(() => {
-    if (!isSubscriptionReady) return { visible: sorted, hiddenCount: 0 };
+    if (storeDemo || !isSubscriptionReady) {
+      return { visible: sorted, hiddenCount: 0 };
+    }
 
     const dayStart = startOfTodayMs();
     const today: typeof sorted = [];
@@ -137,7 +149,7 @@ export default function RecentScreen() {
       visible: [...todayVisible, ...historyVisible],
       hiddenCount: todayHidden + historyHidden,
     };
-  }, [sorted, isSubscriptionReady, isPlusSubscriber, isProSubscriber]);
+  }, [sorted, isSubscriptionReady, isPlusSubscriber, isProSubscriber, storeDemo]);
 
   const webBot = Platform.OS === "web" ? 34 : 0;
 
@@ -230,7 +242,7 @@ export default function RecentScreen() {
             <View
               style={[
                 styles.nudgeIcon,
-                { backgroundColor: colors.primary },
+                { backgroundColor: actionColor },
               ]}
             >
               <Feather name="star" size={18} color="#FFFFFF" />
@@ -249,7 +261,7 @@ export default function RecentScreen() {
               onPress={handleAddInterests}
               style={({ pressed }) => [
                 styles.nudgeBtn,
-                { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+                { backgroundColor: actionColor, opacity: pressed ? 0.8 : 1 },
               ]}
               accessibilityRole="button"
               accessibilityLabel={t("recent.interestsNudgeBtn")}
@@ -318,7 +330,7 @@ export default function RecentScreen() {
               },
             ]}
           >
-            <View style={[styles.limitIcon, { backgroundColor: colors.primary }]}>
+            <View style={[styles.limitIcon, { backgroundColor: actionColor }]}>
               <Feather name="lock" size={20} color="#FFFFFF" />
             </View>
             <View style={{ flex: 1 }}>
@@ -337,7 +349,7 @@ export default function RecentScreen() {
               </Text>
             </View>
             <View
-              style={[styles.limitCta, { backgroundColor: colors.primary }]}
+              style={[styles.limitCta, { backgroundColor: actionColor }]}
             >
               <Text style={styles.limitCtaText}>{t("recent.upgradeBtn")}</Text>
             </View>

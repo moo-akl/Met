@@ -15,6 +15,7 @@ const dbMocks = vi.hoisted(() => {
     set: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([]),
     delete: vi.fn().mockReturnThis(),
+    transaction: vi.fn(),
   };
   return { chain };
 });
@@ -47,6 +48,15 @@ vi.mock("@workspace/db", () => ({
     internalNote: "internalNote",
     metadata: "metadata",
     createdAt: "createdAt",
+  },
+  venueApplicationInviteTokensTable: {
+    id: "id",
+    tokenHash: "tokenHash",
+    invitedEmail: "invitedEmail",
+    businessName: "businessName",
+    expiresAt: "expiresAt",
+    consumedAt: "consumedAt",
+    applicationId: "applicationId",
   },
   venueEventsTable: {},
   venueEventRsvpsTable: {},
@@ -140,6 +150,7 @@ beforeEach(() => {
   dbMocks.chain.update.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
   dbMocks.chain.delete.mockReturnThis();
+  dbMocks.chain.transaction.mockImplementation(async (callback) => callback(dbMocks.chain));
   dbMocks.chain.returning
     .mockResolvedValueOnce([submittedProfile])
     .mockResolvedValue([]);
@@ -298,6 +309,97 @@ describe("web application duplicate submission guard", () => {
     expect(response.status).toBe(201);
     expect(response.body.applicationId).toBe(55);
   });
+
+  it("validates a live one-time application invitation without exposing its token", async () => {
+    const expiresAt = new Date(Date.now() + 60_000);
+    dbMocks.chain.limit.mockResolvedValueOnce([{
+      invitedEmail: "owner@example.com",
+      businessName: "Web Venue Co",
+      expiresAt,
+    }]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/application-invites/validate")
+      .send({ token: "one-time-token" });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      invitedEmail: "owner@example.com",
+      businessName: "Web Venue Co",
+      expiresAt: expiresAt.toISOString(),
+    });
+    expect(JSON.stringify(response.body)).not.toContain("one-time-token");
+  });
+
+  it("rejects an application when its email differs from the invited address", async () => {
+    dbMocks.chain.limit.mockResolvedValueOnce([{ invitedEmail: "invited@example.com" }]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/apply")
+      .send({
+        ...validWebApplication,
+        applicationInviteToken: "one-time-token",
+      });
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toMatch(/email address this application invitation was sent to/i);
+    expect(dbMocks.chain.transaction).not.toHaveBeenCalled();
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("creates the application and consumes its invitation in the same transaction", async () => {
+    const invitation = { invitedEmail: "owner@example.com" };
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([invitation]) // Invitation pre-check
+      .mockResolvedValueOnce([]) // Duplicate email and venue check
+      .mockResolvedValueOnce([]) // No active application for the selected venue
+      .mockResolvedValueOnce([{ id: 11 }]); // Locked, still-unused invitation
+    dbMocks.chain.values.mockReturnThis();
+    dbMocks.chain.returning.mockReset();
+    dbMocks.chain.returning
+      .mockResolvedValueOnce([{ ...submittedProfile, id: 55 }])
+      .mockResolvedValueOnce([{ id: 11 }]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/apply")
+      .send({
+        ...validWebApplication,
+        applicationInviteToken: "one-time-token",
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.applicationId).toBe(55);
+    expect(dbMocks.chain.transaction).toHaveBeenCalledOnce();
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(expect.objectContaining({
+      applicationStatus: "submitted",
+      isApproved: false,
+      isVerified: false,
+    }));
+    expect(dbMocks.chain.set).toHaveBeenCalledWith(expect.objectContaining({
+      applicationId: 55,
+      consumedAt: expect.any(Date),
+    }));
+  });
+
+  it("does not create an application if the invitation was consumed after pre-validation", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([{ invitedEmail: "owner@example.com" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]); // The locked token query observes the prior consumption.
+
+    const response = await request(app)
+      .post("/api/venue-owner/apply")
+      .send({
+        ...validWebApplication,
+        applicationInviteToken: "already-consumed-token",
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toMatch(/invalid, expired, or already used/i);
+    expect(dbMocks.chain.transaction).toHaveBeenCalledOnce();
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
 });
 
 describe("venue search and expiry safeguards", () => {
@@ -320,6 +422,64 @@ describe("venue search and expiry safeguards", () => {
 
     expect(response.status).toBe(503);
     expect(response.body.message).toMatch(/not configured/i);
+  });
+
+  it("returns the public venue-search name and address contract used by applicants", async () => {
+    process.env["GOOGLE_API_KEY"] = "test-google-key";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        places: [
+          {
+            id: "place-applicant",
+            displayName: { text: "Corner Social" },
+            formattedAddress: "42 Main Street, London",
+            location: { latitude: 51.5, longitude: -0.12 },
+          },
+          {
+            id: "place-no-address",
+            displayName: { text: "New Venue" },
+            location: { latitude: 51.6, longitude: -0.13 },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const response = await request(app)
+        .get("/api/venue-owner/places-public/search")
+        .query({ query: "Corner" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        places: [
+          {
+            placeId: "place-applicant",
+            placeName: "Corner Social",
+            address: "42 Main Street, London",
+            category: null,
+            googleMapsUri: null,
+            lat: 51.5,
+            lng: -0.12,
+          },
+          {
+            placeId: "place-no-address",
+            placeName: "New Venue",
+            address: null,
+            category: null,
+            googleMapsUri: null,
+            lat: 51.6,
+            lng: -0.13,
+          },
+        ],
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://places.googleapis.com/v1/places:searchText",
+        expect.objectContaining({ method: "POST" }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("returns a deliberate upstream error when Google Places fails", async () => {

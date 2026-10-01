@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenueManagerClaimAcceptedTermsVersion } from "./venueManagerClaimAcceptedTermsVersion";
 
 export interface VenueManagerClaim {
   email: string;
@@ -13,6 +14,5 @@ export interface VenueManagerClaim {
    * @maxLength 120
    */
   displayName: string;
-  /** @minLength 12 */
-  password: string;
+  acceptedTermsVersion: VenueManagerClaimAcceptedTermsVersion;
 }

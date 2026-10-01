@@ -132,7 +132,7 @@ export default function AgentDashboard({ agent, onLogout }: AgentDashboardProps)
         );
         toast({ title: "Claim link sent!", description: `Email delivered to ${result.contactEmail}.` });
       } else {
-        toast({ variant: "destructive", title: "Email not delivered", description: "The registration link was generated but the email could not be sent. Check server SMTP configuration." });
+        toast({ variant: "destructive", title: "Email not delivered", description: "The registration link was generated but the email could not be sent. Check the connected Gmail account." });
       }
     } catch (err) {
       toast({ variant: "destructive", title: "Failed to send claim link", description: (err as Error).message });

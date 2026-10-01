@@ -127,6 +127,23 @@ function getExpoPublicReplId() {
   return process.env.REPL_ID || process.env.EXPO_PUBLIC_REPL_ID;
 }
 
+function getMetroCommand() {
+  return {
+    command: process.execPath,
+    args: [
+      path.join(__dirname, "start-expo-with-metro-observer-fix.cjs"),
+      "start",
+      "--no-dev",
+      "--minify",
+      "--localhost",
+      "--port",
+      "8081",
+      "--max-workers",
+      "1",
+    ],
+  };
+}
+
 async function startMetro(expoPublicDomain, expoPublicReplId) {
   const isRunning = await checkMetroHealth();
   if (isRunning) {
@@ -140,22 +157,17 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
     ...process.env,
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
     EXPO_PUBLIC_REPL_ID: expoPublicReplId,
+    EXPO_NO_TYPESCRIPT_SETUP: "1",
   };
 
   if (expoPublicReplId) {
     console.log(`Setting EXPO_PUBLIC_REPL_ID=${expoPublicReplId}`);
   }
 
+  const { command, args } = getMetroCommand();
   metroProcess = spawn(
-    "pnpm",
-    [
-      "exec",
-      "expo",
-      "start",
-      "--no-dev",
-      "--minify",
-      "--localhost",
-    ],
+    command,
+    args,
     {
       stdio: ["ignore", "pipe", "pipe"],
       detached: false,
@@ -564,10 +576,14 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((error) => {
-  console.error("Build failed:", error.message);
-  if (metroProcess) {
-    metroProcess.kill();
-  }
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("Build failed:", error.message);
+    if (metroProcess) {
+      metroProcess.kill();
+    }
+    process.exit(1);
+  });
+}
+
+module.exports = { getMetroCommand };

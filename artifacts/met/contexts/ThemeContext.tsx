@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { Platform } from "react-native";
 
 export type ThemeMode = "dark" | "light";
 
@@ -20,6 +21,13 @@ const ThemeContext = createContext<ThemeContextType>({
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<ThemeMode>("dark");
+  const screenshotLightTheme =
+    __DEV__ &&
+    Platform.OS === "web" &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("demo") === "1" &&
+    new URLSearchParams(window.location.search).get("storeTheme") === "light";
+  const currentTheme: ThemeMode = screenshotLightTheme ? "light" : theme;
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_KEY)
@@ -38,7 +46,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider
-      value={{ theme, toggleTheme, isDark: theme === "dark" }}
+      value={{ theme: currentTheme, toggleTheme, isDark: currentTheme === "dark" }}
     >
       {children}
     </ThemeContext.Provider>

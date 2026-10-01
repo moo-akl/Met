@@ -31,7 +31,7 @@ export interface VenueApplication {
   /** @nullable */
   contactName?: string | null;
   /**
-   * mobile | web | null for legacy rows
+   * mobile | web | agent | admin | null for legacy rows
    * @nullable
    */
   applicationSource?: string | null;

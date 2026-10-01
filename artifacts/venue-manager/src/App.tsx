@@ -2,14 +2,10 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
-  acceptVenueManagerInvitation,
-  changeVenueManagerPassword,
   createVenueManagerAnnouncement,
   createVenueManagerEvent,
   createVenueManagerInvitation,
   createVenueManagerReward,
-  createVenueManagerSession,
-  claimVenueManagerAccount,
   deleteVenueManagerAnnouncement,
   deleteVenueManagerEvent,
   deleteVenueManagerSession,
@@ -47,7 +43,10 @@ import {
 } from "@workspace/api-client-react";
 import QRCode from "react-qr-code";
 import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, QrCode, RefreshCw, Settings2, ShieldCheck, Trophy, Users, X } from "lucide-react";
+import { normalizeVenuePlaceSearchResult, type PlaceResult, type VenuePlaceSearchItem } from "./lib/venuePlaceSearch";
 import { applyWebsiteUrlBlur, validateWebsiteUrl } from "./lib/websiteUrl";
+import { metAuthError, metChangePassword, metPasswordCreate, metPasswordSignIn, metRefreshVerification, metResetPassword, metSendVerification, metSignOut, metSocialSignIn } from "./lib/firebaseAuth";
+import type { User } from "firebase/auth";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -66,6 +65,9 @@ function invalidateVenueManagerData() {
 type Session = { authenticated: true; csrfToken: string; expiresAt: string };
 type Role = "owner" | "manager" | "editor";
 type Page = "overview" | "venue" | "events" | "rewards" | "announcements" | "analytics" | "team" | "guests";
+const VENUE_MANAGER_TERMS_VERSION = "venue-2026-09";
+const VENUE_MANAGER_TERMS_URL = "/venue-manager-terms";
+const VENUE_MANAGER_PRIVACY_URL = "/venue-manager-privacy";
 
 type VenueGuest = {
   rank: number;
@@ -79,6 +81,23 @@ type VenueGuest = {
   lastCheckinAt: string;
 };
 type ApiError = Error & { status?: number };
+
+async function firebaseManagerRequest(path: string, data: Record<string, string>): Promise<Session> {
+  const response = await fetch(`/api/venue-manager/${path}`, {
+    method: "POST", credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({})) as { code?: string; message?: string };
+    throw Object.assign(new Error(error.message ?? "We couldn't open your venue account."), { status: response.status, code: error.code });
+  }
+  return response.json() as Promise<Session>;
+}
+
+async function managerSession(path: string, user: User, extra: Record<string, string> = {}): Promise<Session> {
+  return firebaseManagerRequest(path, { ...extra, idToken: await user.getIdToken() });
+}
 
 function apiError(error: unknown): string {
   if (error instanceof Error) return error.message.replace(/^Error:\s*/, "") || "Something went wrong.";
@@ -123,7 +142,9 @@ function SessionBootstrap() {
         return;
       }
       setSession(null);
-      setStatus(response.status === 401 ? "expired" : "error");
+      // A first-time visitor has no session, so 401 is not evidence that a
+      // previous session expired. Do not show an alarming error on fresh login.
+      setStatus(response.status === 401 ? "unauthed" : "error");
     } catch {
       setSession(null);
       setStatus("error");
@@ -140,157 +161,291 @@ function SessionBootstrap() {
   if (status === "error") {
     return <Shell><div className="vm-center"><p>We couldn’t reach the venue portal. Check your connection and try again.</p><button className="vm-primary" type="button" onClick={() => void loadSession()}>Retry</button></div></Shell>;
   }
-  return <LoginPage sessionExpired={status === "expired"} onSignedIn={() => void loadSession()} />;
+  return <LoginPage sessionExpired={status === "expired"} onSignedIn={(next) => { queryClient.clear(); setSession(next); }} />;
 }
 
-function AuthFrame({ children, title, subtitle }: { children: ReactNode; title: string; subtitle: string }) {
+function AuthFrame({ children, title, subtitle }: { children?: ReactNode; title: string; subtitle: string }) {
   return <Shell>
     <div className="vm-auth">
       <div className="vm-auth-brand"><div className="vm-mark">m</div><span>met <em>business</em></span></div>
       <main className="vm-auth-card"><p className="vm-eyebrow">VENUE MANAGER</p><h1>{title}</h1><p className="vm-subtitle">{subtitle}</p>{children}</main>
       <p className="vm-auth-foot">The operating space for the places people meet.</p>
+      <div className="vm-auth-legal" style={{ display: "flex", justifyContent: "center", gap: 18, marginTop: 14, fontSize: 12 }}><a data-testid="link-venue-manager-terms" href={VENUE_MANAGER_TERMS_URL} target="_blank" rel="noreferrer" style={{ color: "#16745a" }}>Venue Manager Terms</a><a data-testid="link-venue-manager-privacy" href={VENUE_MANAGER_PRIVACY_URL} target="_blank" rel="noreferrer" style={{ color: "#16745a" }}>Privacy</a></div>
     </div>
   </Shell>;
 }
 
-function LoginPage({ sessionExpired = false, onSignedIn }: { sessionExpired?: boolean; onSignedIn?: () => void }) {
+function VerificationActions({ email, pending, onResend, onVerified }: { email: string; pending: boolean; onResend: () => void; onVerified: () => void }) {
+  return <div className="vm-verification" role="group" aria-label="Verify your Met email">
+    <strong>Check your email</strong>
+    <p>Open the verification link sent to <b>{email}</b>. Return here after verifying to continue with the same Met account. Check your spam folder if it has not arrived.</p>
+    <button data-testid="button-email-verified" type="button" className="vm-primary" disabled={pending} onClick={onVerified}>{pending ? "Checking…" : "I verified my email"}</button>
+    <button data-testid="button-resend-verification" type="button" className="vm-auth-inline" disabled={pending} onClick={onResend}>Resend verification email</button>
+  </div>;
+}
+
+function LoginPage({ sessionExpired = false, onSignedIn }: { sessionExpired?: boolean; onSignedIn?: (session: Session) => void }) {
   const [, navigate] = useLocation();
   const [message, setMessage] = useState(sessionExpired ? "Your session ended. Sign in to continue." : "");
-  const login = useMutation({
-    mutationFn: ({ email, password }: { email: string; password: string }) => createVenueManagerSession({ email, password }),
-    onSuccess: () => { queryClient.clear(); navigate("/"); onSignedIn?.(); },
-    onError: (error) => setMessage(apiError(error)),
-  });
-  return <AuthFrame title="Run the room." subtitle="Sign in with your business account to manage your venue on Met.">
-    <form className="vm-form" onSubmit={(event) => {
-      event.preventDefault(); const form = new FormData(event.currentTarget);
-      login.mutate({ email: String(form.get("email")).trim(), password: String(form.get("password")) });
+  const [linkUser, setLinkUser] = useState<User | null>(null);
+  const [verificationUser, setVerificationUser] = useState<User | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [pending, setPending] = useState(false);
+  const beginVerification = async (user: User) => {
+    setVerificationUser(user);
+    setMessage("Verify your Met email before opening your venue account.");
+    try { await metSendVerification(user); } catch (error) { setMessage(`Your email is not verified yet. ${metAuthError(error)} You can resend below.`); }
+  };
+  const finish = (session: Session) => { queryClient.clear(); onSignedIn?.(session); navigate("/"); };
+  const exchange = async (user: User) => {
+    try { finish(await managerSession("session/firebase", user)); }
+    catch (error) {
+      const e = error as ApiError & { code?: string };
+      if (e.status === 409 && e.code === "link_required") {
+        setLinkUser(user);
+        setMessage("Your Met account is verified. Enter your old Venue Manager password once to connect your existing venue access.");
+      } else if (e.status === 404) {
+        setMessage("This Met account has no venue access yet. Use your registration code or accept an invitation below. We do not link accounts by email alone.");
+      } else setMessage(metAuthError(error));
+    }
+  };
+  const run = async (action: () => Promise<User>, newAccount = false) => {
+    setPending(true); setMessage(""); setLinkUser(null); setVerificationUser(null);
+    try {
+      const user = await action();
+      if (newAccount || (!user.emailVerified && !(await metRefreshVerification(user)))) await beginVerification(user);
+      else await exchange(user);
+    } catch (error) { setMessage(metAuthError(error)); }
+    finally { setPending(false); }
+  };
+  return <AuthFrame title="Run the room." subtitle="Use the same Met account you use in the mobile app to manage your venue.">
+    {message && <div className={`vm-notice ${linkUser || verificationUser ? "warning" : "error"}`} role="alert" data-testid="status-login">{message}</div>}
+    {verificationUser ? <VerificationActions email={verificationUser.email ?? "your Met email"} pending={pending} onResend={() => {
+      setPending(true); setMessage("");
+      void metSendVerification(verificationUser).then(() => setMessage("A new verification link is on its way.")).catch((error: unknown) => setMessage(metAuthError(error))).finally(() => setPending(false));
+    }} onVerified={() => {
+      setPending(true); setMessage("");
+      void metRefreshVerification(verificationUser).then(async (verified) => {
+        if (!verified) { setMessage("Email is not verified yet. Open the link in your inbox, then try again."); return; }
+        setVerificationUser(null);
+        await exchange(verificationUser);
+      }).catch((error: unknown) => setMessage(metAuthError(error))).finally(() => setPending(false));
+    }} /> : linkUser ? <form className="vm-form" onSubmit={async (event) => {
+      event.preventDefault(); const password = String(new FormData(event.currentTarget).get("legacyPassword") ?? "");
+      setPending(true); setMessage("");
+      try { finish(await managerSession("link/firebase", linkUser, { legacyPassword: password })); }
+      catch (error) { setMessage(metAuthError(error)); }
+      finally { setPending(false); }
     }}>
-      {message && <div className="vm-notice error">{message}</div>}
-      <label>Business email<input required name="email" type="email" autoComplete="email" placeholder="you@yourvenue.com" /></label>
-      <label>Password<input required name="password" type="password" autoComplete="current-password" placeholder="Your password" /></label>
-      <button className="vm-primary" disabled={login.isPending}>{login.isPending ? "Signing in…" : "Sign in"}</button>
-    </form>
-    <div className="vm-auth-links"><button type="button" onClick={() => navigate("/recover")}>Use a recovery link</button><button type="button" onClick={() => navigate("/invite")}>Accept an invitation</button><button type="button" onClick={() => navigate("/register")}>Register as venue owner</button><button type="button" onClick={() => navigate("/apply")}>Apply to list your venue</button></div>
+      <label>Old Venue Manager password<input data-testid="input-legacy-password" required name="legacyPassword" type="password" autoComplete="current-password" /></label>
+      <button data-testid="button-link-account" className="vm-primary" disabled={pending}>{pending ? "Connecting…" : "Connect venue access"}</button>
+      <button data-testid="button-cancel-link" type="button" className="vm-auth-inline" onClick={() => { setLinkUser(null); setMessage(""); void metSignOut().catch(() => {}); }}>Use a different account</button>
+    </form> : <>
+      {creating && <p className="vm-auth-hint">Already managed a venue here? Create a Met account with that email. Once verified, we’ll ask for your old Venue Manager password once to connect your venue. No invitation code needed.</p>}
+      <form className="vm-form" onSubmit={(event) => {
+        event.preventDefault(); const form = new FormData(event.currentTarget);
+        const email = String(form.get("email")).trim(); const password = String(form.get("password"));
+        void run(() => creating ? metPasswordCreate(email, password) : metPasswordSignIn(email, password), creating);
+      }}>
+        <label>Met account email<input data-testid="input-login-email" required name="email" type="email" autoComplete="email" placeholder="you@yourvenue.com" /></label>
+        <label>{creating ? "New Met password" : "Met password"}<input data-testid="input-login-password" required minLength={creating ? 6 : undefined} name="password" type="password" autoComplete={creating ? "new-password" : "current-password"} /></label>
+        <button data-testid="button-login-email" className="vm-primary" disabled={pending}>{pending ? "Connecting…" : creating ? "Create Met account" : "Sign in with email"}</button>
+      </form>
+      <button data-testid="button-toggle-create-met" type="button" className="vm-auth-inline" style={{ marginTop: 14 }} disabled={pending} onClick={() => { setCreating(!creating); setMessage(""); }}>{creating ? "I already have a Met account" : "Existing venue owner? Create your Met account"}</button>
+      <div className="vm-auth-divider">or continue with</div>
+      <div className="vm-social-actions"><button data-testid="button-login-google" type="button" disabled={pending} onClick={() => void run(() => metSocialSignIn("google"))}>Google</button><button data-testid="button-login-apple" type="button" disabled={pending} onClick={() => void run(() => metSocialSignIn("apple"))}>Apple</button></div>
+    </>}
+    <div className="vm-auth-links"><button type="button" onClick={() => navigate("/recover")}>Use a recovery link</button><button type="button" onClick={() => navigate("/invite")}>Accept an invitation</button><button type="button" onClick={() => navigate("/register")}>Register as venue owner</button><button type="button" onClick={() => navigate("/claim")}>Claim an approved venue</button><button type="button" onClick={() => navigate("/apply")}>Apply to list your venue</button></div>
   </AuthFrame>;
 }
 
-function InvitePage() {
+function EnrollmentPage({ invitation }: { invitation: boolean }) {
   const [, navigate] = useLocation();
+  const tokenFromUrl = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("token") ?? "";
   const [message, setMessage] = useState("");
-  const accept = useMutation({
-    mutationFn: (data: { token: string; displayName: string; password: string }) => acceptVenueManagerInvitation(data),
-    onSuccess: () => { queryClient.clear(); navigate("/"); },
-    onError: (error) => setMessage(apiError(error)),
-  });
-  return <AuthFrame title="Join your venue." subtitle="Create your secure business account from an invitation.">
-    <form className="vm-form" onSubmit={(event) => {
-      event.preventDefault(); const form = new FormData(event.currentTarget);
-      accept.mutate({ token: String(form.get("token")).trim(), displayName: String(form.get("displayName")).trim(), password: String(form.get("password")) });
-    }}>
-      {message && <div className="vm-notice error">{message}</div>}
-      <label>Invitation code<input required name="token" autoComplete="off" /></label>
-      <label>Your name<input required name="displayName" autoComplete="name" /></label>
-      <label>New password<input required minLength={12} name="password" type="password" autoComplete="new-password" placeholder="12+ characters, upper/lowercase and number" /></label>
-      <button className="vm-primary" disabled={accept.isPending}>{accept.isPending ? "Creating account…" : "Create business account"}</button>
-    </form><div className="vm-auth-links"><button type="button" onClick={() => navigate("/")}>Back to sign in</button></div>
+  const [existing, setExisting] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [verification, setVerification] = useState<{ user: User; token: string; displayName: string } | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const complete = async (details: { user: User; token: string; displayName: string }) => {
+    await managerSession(invitation ? "invitations/accept/firebase" : "register/firebase", details.user, {
+      token: details.token, displayName: details.displayName, acceptedTermsVersion: VENUE_MANAGER_TERMS_VERSION,
+    });
+    queryClient.clear(); navigate("/");
+  };
+  const checkVerification = async () => {
+    if (!verification) return;
+    setPending(true); setMessage("");
+    try {
+      if (!(await metRefreshVerification(verification.user))) {
+        setMessage("Email is not verified yet. Open the link in your inbox, then try again.");
+        return;
+      }
+      await complete(verification);
+    } catch (error) { setMessage(metAuthError(error)); }
+    finally { setPending(false); }
+  };
+  const enroll = async (method: "password" | "google" | "apple") => {
+    const formEl = formRef.current;
+    if (!formEl) return;
+    const requiredFields = ["token", "email", "displayName", "acceptedTermsVersion", ...(method === "password" ? ["password"] : [])];
+    const invalid = requiredFields.map((name) => ({ name, field: formEl.elements.namedItem(name) as HTMLInputElement | null })).find(({ name, field }) => !field || (name === "password" && !field.value) || !field.checkValidity());
+    if (invalid) { invalid.field?.reportValidity(); if (invalid.name === "password" && !invalid.field?.value) setMessage("Enter your Met password to continue."); return; }
+    const form = new FormData(formEl);
+    if (form.get("acceptedTermsVersion") !== VENUE_MANAGER_TERMS_VERSION) { setMessage("Please accept the Venue Manager Terms and Privacy notice to continue."); return; }
+    const email = String(form.get("email")).trim();
+    const password = String(form.get("password") ?? "");
+    setPending(true); setMessage("");
+    try {
+      const user = method === "password"
+        ? existing ? await metPasswordSignIn(email, password) : await metPasswordCreate(email, password)
+        : await metSocialSignIn(method);
+      if (!user.email || user.email.toLowerCase() !== email.toLowerCase()) {
+        setMessage("The Met account email must match the email on this registration or invitation. Choose the matching account and try again.");
+        return;
+      }
+      const details = { user, token: String(form.get("token")).trim(), displayName: String(form.get("displayName")).trim() };
+      if ((method === "password" && !existing) || (!user.emailVerified && !(await metRefreshVerification(user)))) {
+        setVerification(details);
+        const passwordInput = formEl.elements.namedItem("password") as HTMLInputElement | null;
+        if (passwordInput) passwordInput.value = "";
+        setMessage("Verify your Met email to finish connecting this venue. Your registration details are saved on this page.");
+        try { await metSendVerification(user); } catch (error) { setMessage(`Your email is not verified yet. ${metAuthError(error)} Use resend below.`); }
+        return;
+      }
+      await complete(details);
+    } catch (error) { setMessage(metAuthError(error)); }
+    finally { setPending(false); }
+  };
+  return <AuthFrame title={invitation ? "Join your venue." : "Set up your venue account."} subtitle="Connect your venue access to the Met account you use in the mobile app.">
+    {message && <div className={`vm-notice ${verification ? "warning" : "error"}`} role="alert" data-testid="status-enrollment">{message}</div>}
+    {verification && <><VerificationActions email={verification.user.email ?? "your Met email"} pending={pending} onVerified={() => void checkVerification()} onResend={() => {
+      setPending(true); setMessage("");
+      void metSendVerification(verification.user).then(() => setMessage("A new verification link is on its way.")).catch((error: unknown) => setMessage(metAuthError(error))).finally(() => setPending(false));
+    }} /><button data-testid="button-edit-enrollment" type="button" className="vm-auth-inline" onClick={() => { setVerification(null); setExisting(true); setMessage("Sign in to your existing Met account to update the code or details. Your account has already been created."); }}>Edit registration details</button></>}
+    <form ref={formRef} className="vm-form" style={verification ? { display: "none" } : undefined} onSubmit={(event) => { event.preventDefault(); void enroll("password"); }}>
+      <label>{invitation ? "Invitation code" : "Registration code"}<input data-testid="input-enrollment-token" required name="token" autoComplete="off" defaultValue={tokenFromUrl} /></label>
+      <label>Invited email<input data-testid="input-enrollment-email" required name="email" type="email" autoComplete="email" placeholder="you@yourvenue.com" /></label>
+      <label>Your name<input data-testid="input-enrollment-name" required name="displayName" autoComplete="name" /></label>
+      <label>Met {existing ? "password" : "new password"} <span className="vm-optional">(email sign-in only)</span><input data-testid="input-enrollment-password" minLength={existing ? undefined : 6} name="password" type="password" autoComplete={existing ? "current-password" : "new-password"} /></label>
+      <label className="checkbox" style={{ paddingTop: 0, alignItems: "flex-start", lineHeight: 1.5 }}><input data-testid={invitation ? "input-invite-terms-acceptance" : "input-owner-terms-acceptance"} required type="checkbox" name="acceptedTermsVersion" value={VENUE_MANAGER_TERMS_VERSION} style={{ width: 16, marginTop: 3, flexShrink: 0 }} /><span>I agree to the <a href={VENUE_MANAGER_TERMS_URL} target="_blank" rel="noreferrer">Venue Manager Terms</a> and acknowledge the <a href={VENUE_MANAGER_PRIVACY_URL} target="_blank" rel="noreferrer">Privacy notice</a> (version {VENUE_MANAGER_TERMS_VERSION}).</span></label>
+      <button data-testid="button-enroll-email" className="vm-primary" disabled={pending}>{pending ? "Connecting…" : existing ? "Continue with Met account" : "Create Met account and continue"}</button>
+    </form>
+    {!verification && <><button data-testid="button-toggle-existing-met" type="button" className="vm-auth-inline" style={{ marginTop: 15 }} onClick={() => setExisting(!existing)}>{existing ? "Create a new Met account instead" : "I already have a Met account"}</button>
+      <div className="vm-auth-divider">or use your Met account</div>
+      <div className="vm-social-actions"><button data-testid="button-enroll-google" type="button" disabled={pending} onClick={() => void enroll("google")}>Google</button><button data-testid="button-enroll-apple" type="button" disabled={pending} onClick={() => void enroll("apple")}>Apple</button></div></>}
+    <p className="vm-auth-hint">Email verification is required before venue access is granted. You may also need to finish Met mobile onboarding before all features are available.</p>
+    <div className="vm-auth-links"><button type="button" onClick={() => navigate("/")}>Back to sign in</button></div>
   </AuthFrame>;
 }
+function InvitePage() { return <EnrollmentPage invitation />; }
 
 function RecoveryPage() {
   const [, navigate] = useLocation();
   const [message, setMessage] = useState("");
+  const [legacy, setLegacy] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [success, setSuccess] = useState(false);
   const recover = useMutation({
     mutationFn: (data: { token: string; newPassword: string }) => recoverVenueManagerPassword(data),
-    onSuccess: () => { setMessage("Password updated. You can sign in now."); },
+    onSuccess: () => { setSuccess(true); setMessage("Old Venue Manager password updated. Sign in to Met, then connect your venue access."); },
     onError: (error) => setMessage(apiError(error)),
   });
-  return <AuthFrame title="Reset your password." subtitle="Use the recovery code shared by your venue owner.">
-    <form className="vm-form" onSubmit={(event) => {
+  return <AuthFrame title="Reset your password." subtitle={legacy ? "Use a recovery code for an account that has not been linked to Met yet." : "We'll send a reset link for your Met account password."}>
+    {!legacy ? <form className="vm-form" onSubmit={async (event) => {
+      event.preventDefault(); setPending(true); setMessage(""); setSuccess(false);
+      try { await metResetPassword(String(new FormData(event.currentTarget).get("email")).trim()); setSuccess(true); setMessage("If this email has a Met password account, a reset link is on its way. Check your inbox."); }
+      catch (error) { setMessage(metAuthError(error)); }
+      finally { setPending(false); }
+    }}>
+      {message && <div className={`vm-notice ${success ? "success" : "error"}`} role="status">{message}</div>}
+      <label>Met account email<input data-testid="input-reset-email" required name="email" type="email" autoComplete="email" /></label>
+      <button data-testid="button-reset-met" className="vm-primary" disabled={pending}>{pending ? "Sending…" : "Send reset link"}</button>
+    </form> : <form className="vm-form" onSubmit={(event) => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
       recover.mutate({ token: String(form.get("token")).trim(), newPassword: String(form.get("password")) });
     }}>
-      {message && <div className={`vm-notice ${recover.isSuccess ? "success" : "error"}`}>{message}</div>}
+      {message && <div className={`vm-notice ${success ? "success" : "error"}`}>{message}</div>}
       <label>Recovery code<input required name="token" autoComplete="off" /></label>
       <label>New password<input required minLength={12} name="password" type="password" autoComplete="new-password" /></label>
       <button className="vm-primary" disabled={recover.isPending}>{recover.isPending ? "Updating…" : "Update password"}</button>
-    </form><div className="vm-auth-links"><button type="button" onClick={() => navigate("/")}>Back to sign in</button></div>
+    </form>}
+    <div className="vm-auth-links"><button type="button" onClick={() => { setLegacy(!legacy); setMessage(""); setSuccess(false); }}>{legacy ? "Reset my Met password" : "I have an old Venue Manager recovery code"}</button><button type="button" onClick={() => navigate("/")}>Back to sign in</button></div>
   </AuthFrame>;
 }
 
-function RegisterPage() {
+function RegisterPage() { return <EnrollmentPage invitation={false} />; }
+
+function ClaimPage() {
   const [, navigate] = useLocation();
-  const tokenFromUrl = new URLSearchParams(
-    typeof window !== "undefined" ? window.location.search : "",
-  ).get("token") ?? "";
+  const [user, setUser] = useState<User | null>(null);
+  const [verificationUser, setVerificationUser] = useState<User | null>(null);
+  const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
-  const register = useMutation({
-    mutationFn: async (data: { token: string; email: string; displayName: string; password: string }) => {
-      const res = await fetch("/api/venue-manager/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { message?: string };
-        throw Object.assign(new Error(err.message ?? "Registration failed"), { status: res.status });
-      }
-    },
-    onSuccess: () => { queryClient.clear(); navigate("/"); },
-    onError: (error) => setMessage(apiError(error)),
-  });
-  return (
-    <AuthFrame
-      title="Set up your venue account."
-      subtitle="Create your owner account to manage your approved venue on Met."
-    >
-      <form
-        className="vm-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          register.mutate({
-            token: String(form.get("token")).trim(),
-            email: String(form.get("email")).trim(),
-            displayName: String(form.get("displayName")).trim(),
-            password: String(form.get("password")),
-          });
-        }}
-      >
-        {message && <div className="vm-notice error">{message}</div>}
-        <label>
-          Registration code
-          <input required name="token" autoComplete="off" defaultValue={tokenFromUrl} />
-        </label>
-        <label>
-          Business email
-          <input required name="email" type="email" autoComplete="email" placeholder="you@yourvenue.com" />
-        </label>
-        <label>
-          Your name
-          <input required name="displayName" autoComplete="name" placeholder="How you'll appear to your team" />
-        </label>
-        <label>
-          Password
-          <input
-            required
-            minLength={12}
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            placeholder="12+ characters, upper/lowercase and number"
-          />
-        </label>
-        <button className="vm-primary" disabled={register.isPending}>
-          {register.isPending ? "Creating account…" : "Create account"}
-        </button>
+  const authenticate = async (action: () => Promise<User>) => {
+    setPending(true); setMessage("");
+    try {
+      const signedIn = await action();
+      if (!signedIn.emailVerified && !(await metRefreshVerification(signedIn))) {
+        setVerificationUser(signedIn);
+        setMessage("Verify your Met email before claiming your venue.");
+        try { await metSendVerification(signedIn); } catch (error) { setMessage(`Your email is not verified yet. ${metAuthError(error)} Use resend below.`); }
+      } else { setVerificationUser(null); setUser(signedIn); }
+    } catch (error) { setMessage(metAuthError(error)); }
+    finally { setPending(false); }
+  };
+  return <AuthFrame title="Claim your venue." subtitle="Approved Met venue owners can connect their business without a separate password.">
+    {message && <div data-testid="status-claim" className={`vm-notice ${verificationUser ? "warning" : "error"}`} role="alert">{message}</div>}
+    {verificationUser ? <VerificationActions email={verificationUser.email ?? "your Met email"} pending={pending} onResend={() => {
+      setPending(true); setMessage("");
+      void metSendVerification(verificationUser).then(() => setMessage("A new verification link is on its way.")).catch((error: unknown) => setMessage(metAuthError(error))).finally(() => setPending(false));
+    }} onVerified={() => {
+      setPending(true); setMessage("");
+      void metRefreshVerification(verificationUser).then((verified) => {
+        if (!verified) { setMessage("Email is not verified yet. Open the link in your inbox, then try again."); return; }
+        setUser(verificationUser); setVerificationUser(null);
+      }).catch((error: unknown) => setMessage(metAuthError(error))).finally(() => setPending(false));
+    }} /> : !user ? <>
+      <p className="vm-auth-hint">Sign in with the verified Met account that owns your approved venue. Claims are checked against your Met owner profile; matching email alone does not grant access.</p>
+      <form className="vm-form" onSubmit={(event) => {
+        event.preventDefault(); const form = new FormData(event.currentTarget);
+        void authenticate(() => metPasswordSignIn(String(form.get("email")).trim(), String(form.get("password"))));
+      }}>
+        <label>Met email<input data-testid="input-claim-login-email" required name="email" type="email" autoComplete="email" /></label>
+        <label>Met password<input data-testid="input-claim-login-password" required name="password" type="password" autoComplete="current-password" /></label>
+        <button data-testid="button-claim-login" className="vm-primary" disabled={pending}>{pending ? "Signing in…" : "Continue with Met"}</button>
       </form>
-      <div className="vm-auth-links">
-        <button type="button" onClick={() => navigate("/")}>Back to sign in</button>
-      </div>
-    </AuthFrame>
-  );
+      <div className="vm-auth-divider">or continue with</div>
+      <div className="vm-social-actions"><button data-testid="button-claim-google" type="button" disabled={pending} onClick={() => void authenticate(() => metSocialSignIn("google"))}>Google</button><button data-testid="button-claim-apple" type="button" disabled={pending} onClick={() => void authenticate(() => metSocialSignIn("apple"))}>Apple</button></div>
+    </> : <form className="vm-form" onSubmit={async (event) => {
+      event.preventDefault(); const form = new FormData(event.currentTarget);
+      const email = String(form.get("email")).trim();
+      if (!user.email || email.toLowerCase() !== user.email.toLowerCase()) { setMessage("Use the verified email on your signed-in Met account."); return; }
+      if (form.get("acceptedTermsVersion") !== VENUE_MANAGER_TERMS_VERSION) { setMessage("Accept the Venue Manager Terms and Privacy notice to continue."); return; }
+      setPending(true); setMessage("");
+      try {
+        const response = await fetch("/api/venue-manager/claim", {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken(true)}` },
+          body: JSON.stringify({ email, displayName: String(form.get("displayName")).trim(), acceptedTermsVersion: VENUE_MANAGER_TERMS_VERSION }),
+        });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({})) as { code?: string; message?: string };
+          throw new Error(error.code === "link_required" ? "This email already has a Venue Manager account. Sign in and connect it with your old password instead of claiming by email." : error.message ?? "Unable to claim this venue. Please try again.");
+        }
+        await response.json() as Session;
+        queryClient.clear(); navigate("/");
+      } catch (error) { setMessage(metAuthError(error)); }
+      finally { setPending(false); }
+    }}>
+      <p className="vm-auth-hint">Signed in as {user.email}. Only the current approved owner can claim this venue.</p>
+      <label>Your name<input data-testid="input-claim-name" required maxLength={120} name="displayName" autoComplete="name" defaultValue={user.displayName ?? ""} /></label>
+      <label>Met account email<input data-testid="input-claim-email" required name="email" type="email" autoComplete="email" defaultValue={user.email ?? ""} /></label>
+      <label className="checkbox" style={{ paddingTop: 0, alignItems: "flex-start", lineHeight: 1.5 }}><input data-testid="input-claim-terms-acceptance" required type="checkbox" name="acceptedTermsVersion" value={VENUE_MANAGER_TERMS_VERSION} style={{ width: 16, marginTop: 3, flexShrink: 0 }} /><span>I agree to the <a href={VENUE_MANAGER_TERMS_URL} target="_blank" rel="noreferrer">Venue Manager Terms</a> and acknowledge the <a href={VENUE_MANAGER_PRIVACY_URL} target="_blank" rel="noreferrer">Privacy notice</a> (version {VENUE_MANAGER_TERMS_VERSION}).</span></label>
+      <button data-testid="button-submit-claim" className="vm-primary" disabled={pending}>{pending ? "Claiming venue…" : "Claim my venue"}</button>
+    </form>}
+    <div className="vm-auth-links"><button data-testid="button-claim-signin" type="button" onClick={() => navigate("/login")}>Back to sign in</button><button data-testid="button-claim-apply" type="button" onClick={() => navigate("/apply")}>Apply to list a venue</button></div>
+  </AuthFrame>;
 }
 
 function Tip({ children }: { children: string }) {
@@ -301,7 +456,6 @@ function Tip({ children }: { children: string }) {
   );
 }
 
-type PlaceResult = { placeId: string; name: string; address: string; lat: number; lng: number };
 type ApplyFormData = {
   contactEmail: string; contactName: string; place: PlaceResult | null;
   tagline: string; description: string; verificationDocUrl: string; registrationNotes: string;
@@ -309,6 +463,27 @@ type ApplyFormData = {
 
 function ApplyPage() {
   const [, navigate] = useLocation();
+  const [applicationInviteToken] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : new URLSearchParams(window.location.hash.slice(1)).get("invite") ?? "",
+  );
+  const isBranchApplication = typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("branch") === "1" &&
+    !applicationInviteToken;
+  const [branchAccountStatus, setBranchAccountStatus] = useState<"idle" | "loading" | "ready" | "unauthenticated" | "unlinked" | "error">(
+    isBranchApplication ? "loading" : "idle",
+  );
+  const [branchAccountError, setBranchAccountError] = useState("");
+  const [branchAccountRetry, setBranchAccountRetry] = useState(0);
+  const [inviteStatus, setInviteStatus] = useState<"none" | "loading" | "valid" | "invalid">(
+    applicationInviteToken ? "loading" : "none",
+  );
+  const [inviteDetails, setInviteDetails] = useState<{
+    invitedEmail: string;
+    businessName: string;
+    expiresAt: string;
+  } | null>(null);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<ApplyFormData>({ contactEmail: "", contactName: "", place: null, tagline: "", description: "", verificationDocUrl: "", registrationNotes: "" });
   const [search, setSearch] = useState("");
@@ -318,12 +493,87 @@ function ApplyPage() {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    if (search.length < 2) { setResults([]); return; }
+    if (!isBranchApplication) return;
+    let cancelled = false;
+    setBranchAccountStatus("loading");
+    setBranchAccountError("");
+    void fetch("/api/venue-manager/me/met-profile", { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({})) as { message?: string };
+          throw Object.assign(new Error(body.message ?? "Unable to verify your venue manager account."), {
+            status: response.status,
+          });
+        }
+        return response.json() as Promise<{
+          email: string;
+          firebaseAccountLinked?: boolean;
+        }>;
+      })
+      .then((account) => {
+        if (cancelled) return;
+        if (account.firebaseAccountLinked !== true || !account.email) {
+          setBranchAccountStatus("unlinked");
+          setBranchAccountError(
+            "Link this venue manager login to your verified Met account before submitting another venue.",
+          );
+          return;
+        }
+        setForm((current) => ({ ...current, contactEmail: account.email }));
+        setBranchAccountStatus("ready");
+      })
+      .catch((requestError: unknown) => {
+        if (cancelled) return;
+        const status = (requestError as { status?: number })?.status;
+        setBranchAccountStatus(status === 401 ? "unauthenticated" : "error");
+        setBranchAccountError(
+          status === 401
+            ? "Sign in to your Venue Manager account before registering another venue."
+            : apiError(requestError),
+        );
+      });
+    return () => { cancelled = true; };
+  }, [isBranchApplication, branchAccountRetry]);
+
+  useEffect(() => {
+    if (!applicationInviteToken) return;
+    let cancelled = false;
+    setInviteStatus("loading");
+    void fetch("/api/venue-owner/application-invites/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ token: applicationInviteToken }),
+    }).then(async (response) => {
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { message?: string };
+        throw new Error(body.message ?? "This invitation link is invalid, expired, or already used.");
+      }
+      return response.json() as Promise<{ invitedEmail: string; businessName: string; expiresAt: string }>;
+    }).then((details) => {
+      if (cancelled) return;
+      setInviteDetails(details);
+      setForm((current) => ({ ...current, contactEmail: details.invitedEmail }));
+      setInviteStatus("valid");
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      setError(error instanceof Error ? error.message : "Unable to verify this application invitation.");
+      setInviteStatus("invalid");
+    });
+    return () => { cancelled = true; };
+  }, [applicationInviteToken]);
+
+  useEffect(() => {
+    if (typeof search !== "string" || search.length < 2) { setResults([]); return; }
+    const query = search;
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await fetch(`/api/venue-owner/places-public/search?query=${encodeURIComponent(search)}`);
-        if (res.ok) { const json = await res.json() as { places: PlaceResult[] }; setResults(json.places); }
+        const res = await fetch(`/api/venue-owner/places-public/search?query=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          const json = await res.json() as { places: VenuePlaceSearchItem[] };
+          setResults(json.places.map(normalizeVenuePlaceSearchResult));
+        }
       } catch { /* ignore */ } finally { setSearching(false); }
     }, 400);
     return () => clearTimeout(timer);
@@ -333,7 +583,7 @@ function ApplyPage() {
     mutationFn: async () => {
       const res = await fetch("/api/venue-owner/apply", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ contactEmail: form.contactEmail, contactName: form.contactName, placeId: form.place!.placeId, placeName: form.place!.name, businessName: form.place!.name, lat: form.place!.lat, lng: form.place!.lng, tagline: form.tagline || null, description: form.description || null, verificationDocUrl: form.verificationDocUrl, registrationNotes: form.registrationNotes || null }),
+        body: JSON.stringify({ contactEmail: form.contactEmail, contactName: form.contactName, placeId: form.place!.placeId, placeName: form.place!.name, businessName: form.place!.name, lat: form.place!.lat, lng: form.place!.lng, tagline: form.tagline || null, description: form.description || null, verificationDocUrl: form.verificationDocUrl, registrationNotes: form.registrationNotes || null, ...(applicationInviteToken ? { applicationInviteToken } : {}) }),
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})) as { message?: string }; throw Object.assign(new Error(e.message ?? "Submission failed"), { status: res.status }); }
     },
@@ -341,10 +591,40 @@ function ApplyPage() {
     onError: (e) => setError(apiError(e)),
   });
 
+  if (inviteStatus === "loading") {
+    return <AuthFrame title="Checking your invitation." subtitle="Please wait while we verify the application link." />;
+  }
+  if (isBranchApplication && branchAccountStatus === "loading") {
+    return <AuthFrame title="Checking your Venue Manager account." subtitle="We’ll use its verified Met email for this separate venue application." />;
+  }
+  if (isBranchApplication && branchAccountStatus !== "ready") {
+    return <AuthFrame
+      title={branchAccountStatus === "unauthenticated" ? "Sign in to register another venue." : "Your account needs verification."}
+      subtitle="A new venue is reviewed separately. Account access is only granted after approval and registration."
+    >
+      <div className="vm-notice error" role="alert">{branchAccountError}</div>
+      <div className="vm-auth-links">
+        <button type="button" onClick={() => navigate("/")}>Back to sign in</button>
+        {branchAccountStatus === "error" && (
+          <button type="button" onClick={() => setBranchAccountRetry((attempt) => attempt + 1)}>Try again</button>
+        )}
+      </div>
+    </AuthFrame>;
+  }
+  if (inviteStatus === "invalid") {
+    return <AuthFrame title="This invitation link can’t be used." subtitle="It may have expired or already been used. Ask the Met venues team for a new link.">
+      <div className="vm-notice error" role="alert">{error}</div>
+      <div className="vm-auth-links"><button type="button" onClick={() => navigate("/")}>Back to sign in</button></div>
+    </AuthFrame>;
+  }
+
   if (submitted) return (
     <AuthFrame title="Application received." subtitle="We review every application carefully — usually within a few business days.">
-      <div className="vm-notice success">Your application for <strong>{form.place?.name}</strong> has been submitted. When approved you'll receive your registration link at <strong>{form.contactEmail}</strong>.</div>
-      <div className="vm-auth-links"><button type="button" onClick={() => navigate("/")}>Back to sign in</button></div>
+      <div className="vm-notice success">
+        Your application for <strong>{form.place?.name}</strong> has been submitted. When approved, a registration link will be sent to <strong>{form.contactEmail}</strong>.
+        {isBranchApplication && " This listing has its own review and venue data. Accept its registration link with the same verified Met account to add it to your venue switcher."}
+      </div>
+      <div className="vm-auth-links"><button type="button" onClick={() => navigate("/")}>{isBranchApplication ? "Return to your venues" : "Back to sign in"}</button></div>
     </AuthFrame>
   );
 
@@ -352,11 +632,13 @@ function ApplyPage() {
   return (
     <AuthFrame title="List your venue on Met." subtitle={`Step ${step} of 5 — ${stepLabels[step - 1]}`}>
       {error && <div className="vm-notice error">{error}</div>}
+      {isBranchApplication && <div className="vm-notice success">This will be a separate venue listing with its own approval. The registration link will be sent to your verified account email: <strong>{form.contactEmail}</strong>.</div>}
+      {inviteDetails && <div className="vm-notice success">You’re invited to apply for <strong>{inviteDetails.businessName}</strong>. Select your venue below and submit it for Met’s review. This invitation does not approve the venue or grant account access.</div>}
 
       {step === 1 && (
         <form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setForm(d => ({ ...d, contactEmail: String(f.get("email")).trim(), contactName: String(f.get("name")).trim() })); setError(""); setStep(2); }}>
           <label><span className="vm-label-row">Your name<Tip>Type your first and last name — e.g. "Sarah Johnson".</Tip></span><input required name="name" autoComplete="name" defaultValue={form.contactName} placeholder="Your full name" /></label>
-          <label><span className="vm-label-row">Your email<Tip>Type the email address you check regularly. Your registration link will arrive here once we approve your application.</Tip></span><input required name="email" type="email" autoComplete="email" defaultValue={form.contactEmail} placeholder="you@yourvenue.com" /></label>
+          <label><span className="vm-label-row">Your email<Tip>Type the email address you check regularly. Your registration link will arrive here once we approve your application.</Tip></span><input required name="email" type="email" autoComplete="email" value={form.contactEmail} readOnly={Boolean(applicationInviteToken || isBranchApplication)} onChange={(event) => setForm((current) => ({ ...current, contactEmail: event.target.value }))} placeholder="you@yourvenue.com" /></label>
           <button className="vm-primary">Next →</button>
         </form>
       )}
@@ -469,11 +751,33 @@ function Workspace({ businesses, session, onSessionChange }: { businesses: Venue
     <div className="vm-workspace">
       <aside className="vm-sidebar"><div className="vm-logo"><div className="vm-mark">m</div><span>met <em>business</em></span></div>
         <VenueChooser businesses={businesses} active={business} onChange={(id) => navigate(`/${id}/overview`)} />
+        <button className="vm-add-venue" type="button" onClick={() => navigate("/apply?branch=1")}>Register another venue</button>
         <nav>{allowed.map((item) => <NavItem key={item} page={item} active={activePage === item} onClick={() => navigate(`/${business.businessId}/${item}`)} />)}</nav>
         <div className="vm-sidebar-bottom"><div className="vm-role"><ShieldCheck size={16} /><span>{business.role} access</span></div><LogoutButton session={session} onDone={() => { queryClient.clear(); onSessionChange(null); navigate("/"); }} /></div>
       </aside>
-      <main className="vm-main"><header className="vm-mobile-head"><div className="vm-logo"><div className="vm-mark">m</div><span>met <em>business</em></span></div><span className="vm-mobile-role">{business.role}</span></header>
-        <PageContent page={activePage} business={business} csrfToken={session.csrfToken} onSession={onSessionChange} />
+      <main className="vm-main"><header className="vm-mobile-head">
+        <div className="vm-mobile-top">
+          <div className="vm-logo"><div className="vm-mark">m</div><span>met <em>business</em></span></div>
+          <span className="vm-mobile-role">{business.role} access</span>
+        </div>
+        <div className="vm-mobile-controls">
+          {businesses.length > 1 && (
+            <select
+              aria-label="Switch venue"
+              value={business.businessId}
+              onChange={(event) => navigate(`/${Number(event.target.value)}/overview`)}
+            >
+              {businesses.map((item) => (
+                <option key={item.businessId} value={item.businessId}>
+                  {item.businessName} — {item.placeName} · {item.role}
+                </option>
+              ))}
+            </select>
+          )}
+          <button className="vm-add-venue" type="button" onClick={() => navigate("/apply?branch=1")}>Register another venue</button>
+        </div>
+      </header>
+        <PageContent page={activePage} business={business} csrfToken={session.csrfToken} />
       </main>
     </div>
   </Shell>;
@@ -487,17 +791,31 @@ function NavItem({ page, active, onClick }: { page: Page; active: boolean; onCli
 
 function VenueChooser({ businesses, active, onChange }: { businesses: VenueManagerBusiness[]; active: VenueManagerBusiness; onChange: (id: number) => void }) {
   const [open, setOpen] = useState(false);
-  return <div className="vm-venue-picker"><button onClick={() => setOpen(!open)}><span className="vm-venue-avatar">{active.businessName.slice(0, 1)}</span><span><strong>{active.businessName}</strong><small>{active.placeName}</small></span><ChevronDown size={16} /></button>
-    {open && <div className="vm-venue-menu">{businesses.map((business) => <button key={business.businessId} onClick={() => { onChange(business.businessId); setOpen(false); }}><strong>{business.businessName}</strong><small>{business.placeName} · {business.role}</small></button>)}</div>}
+  return <div className="vm-venue-picker">
+    <button
+      type="button"
+      aria-label={`Switch venue. Current venue: ${active.businessName}`}
+      aria-haspopup="true"
+      aria-expanded={open}
+      aria-controls="vm-venue-menu"
+      onClick={() => setOpen(!open)}
+    ><span className="vm-venue-avatar">{active.businessName.slice(0, 1)}</span><span><strong>{active.businessName}</strong><small>{active.placeName}</small></span><ChevronDown size={16} /></button>
+    {open && <div className="vm-venue-menu" id="vm-venue-menu" aria-label="Choose a venue">{businesses.map((business) => <button type="button" key={business.businessId} aria-current={business.businessId === active.businessId ? "true" : undefined} onClick={() => { onChange(business.businessId); setOpen(false); }}><strong>{business.businessName}</strong><small>{business.placeName} · {business.role}</small></button>)}</div>}
   </div>;
 }
 
 function LogoutButton({ session, onDone }: { session: Session; onDone: () => void }) {
-  const logout = useMutation({ mutationFn: () => deleteVenueManagerSession(csrf(session.csrfToken)), onSettled: onDone });
-  return <button className="vm-logout" onClick={() => logout.mutate()} disabled={logout.isPending}><LogOut size={16} />{logout.isPending ? "Signing out…" : "Sign out"}</button>;
+  const logout = useMutation({
+    mutationFn: async () => {
+      await deleteVenueManagerSession(csrf(session.csrfToken));
+      await metSignOut().catch(() => {});
+    },
+    onSuccess: () => { queryClient.clear(); onDone(); },
+  });
+  return <><button data-testid="button-logout" className="vm-logout" onClick={() => logout.mutate()} disabled={logout.isPending}><LogOut size={16} />{logout.isPending ? "Signing out…" : "Sign out"}</button>{logout.isError && <small role="alert" style={{ color: "#f0c8bd", padding: 8 }}>Could not end this session. Please try again.</small>}</>;
 }
 
-function PageContent({ page, business, csrfToken, onSession }: { page: Page; business: VenueManagerBusiness; csrfToken: string; onSession: (session: Session) => void }) {
+function PageContent({ page, business, csrfToken }: { page: Page; business: VenueManagerBusiness; csrfToken: string }) {
   const labels: Record<Page, [string, string]> = {
     overview: ["Good to see you.", "The pulse of your place, right now."], venue: ["Your venue, your voice.", "Keep the public face of your place current."],
     events: ["Make a reason to gather.", "Create moments your community can RSVP to."], rewards: ["Reward the regulars.", "Set a little anticipation in motion."],
@@ -511,7 +829,7 @@ function PageContent({ page, business, csrfToken, onSession }: { page: Page; bus
     {page === "rewards" && <Rewards business={business} csrfToken={csrfToken} />}
     {page === "announcements" && <Announcements business={business} csrfToken={csrfToken} />}
     {page === "analytics" && <Analytics business={business} />}
-    {page === "team" && <Team business={business} csrfToken={csrfToken} onSession={onSession} />}
+    {page === "team" && <Team business={business} csrfToken={csrfToken} />}
     {page === "guests" && <Guests business={business} csrfToken={csrfToken} />}
   </div>;
 }
@@ -1034,13 +1352,13 @@ function Analytics({ business }: { business: VenueManagerBusiness }) {
   return <div className="vm-grid analytics-grid"><section className="vm-panel wide"><div className="vm-panel-title"><div><h2>Check-in rhythm</h2><p>Last 30 days</p></div><strong>{(data?.checkInTrend ?? []).reduce((s, v) => s + v.count, 0)} total</strong></div><div className="vm-chart">{(data?.checkInTrend ?? []).map((item) => <div key={item.day} title={`${item.day}: ${item.count}`}><i style={{ height: `${Math.max(4, item.count / max * 100)}%` }} /><small>{new Date(item.day).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}</small></div>)}</div></section><section className="vm-panel"><div className="vm-panel-title"><h2>Event interest</h2><CalendarDays /></div>{(data?.eventRsvpCounts ?? []).map((item) => <div className="vm-list-row" key={item.eventId}><span className="vm-person">E</span><div><strong>{item.title}</strong><small>{item.going} going · {item.maybe} maybe</small></div></div>)}{!(data?.eventRsvpCounts ?? []).length && <Empty text="Published events will show RSVP interest here." />}</section></div>;
 }
 
-function Team({ business, csrfToken, onSession }: { business: VenueManagerBusiness; csrfToken: string; onSession: (session: Session) => void }) {
+function Team({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
   const client = useQueryClient(); const members = useBusinessQuery<VenueManagerMemberList>(getListVenueManagerMembersQueryOptions, business.businessId); const [invite, setInvite] = useState(false); const [message, setMessage] = useState("");
   const add = useMutation({ mutationFn: (data: { email: string; role: "manager" | "editor" }) => createVenueManagerInvitation(business.businessId, data, csrf(csrfToken)), onSuccess: (result) => { setMessage(`Invitation code created: ${result.invitationToken}. Share it securely; it expires ${new Date(result.expiresAt).toLocaleString()}.`); invalidateVenueManagerData(); }, onError: (e) => setMessage(apiError(e)) });
   const role = useMutation({ mutationFn: ({ managerId, value }: { managerId: number; value: "manager" | "editor" }) => updateVenueManagerRole(business.businessId, managerId, { role: value }, csrf(csrfToken)), onSuccess: () => invalidateVenueManagerData() });
   const remove = useMutation({ mutationFn: (managerId: number) => removeVenueManager(business.businessId, managerId, csrf(csrfToken)), onSuccess: () => invalidateVenueManagerData() });
-  const password = useMutation({ mutationFn: (data: { currentPassword: string; newPassword: string }) => changeVenueManagerPassword(data, csrf(csrfToken)), onSuccess: (next) => onSession(next as Session), onError: (e) => setMessage(apiError(e)) });
-  return <div className="vm-team"><section><div className="vm-toolbar"><span>{members.data?.members.length ?? 0} active people</span><button className="vm-primary compact" onClick={() => { setMessage(""); setInvite(true); }}><Plus size={16} />Invite team member</button></div><div className="vm-stack">{(members.data?.members ?? []).map((member) => <article className="vm-member" key={member.managerId}><span className="vm-person">{member.displayName.slice(0, 1)}</span><div><strong>{member.displayName}</strong><small>{member.email}</small></div>{member.role === "owner" ? <span className="vm-status live">Owner</span> : <select value={member.role} onChange={(e) => role.mutate({ managerId: member.managerId, value: e.target.value as "manager" | "editor" })}><option value="manager">Manager</option><option value="editor">Editor</option></select>} {member.role !== "owner" && <button className="danger-text" onClick={() => { if (confirm(`Remove ${member.displayName}?`)) remove.mutate(member.managerId); }}>Remove</button>}</article>)}</div></section><section className="vm-panel vm-password"><Settings2 /><h2>Account security</h2><p>Change your business password. You’ll stay signed in here and other sessions will end.</p><form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); password.mutate({ currentPassword: String(f.get("currentPassword")), newPassword: String(f.get("newPassword")) }); }}><label>Current password<input name="currentPassword" type="password" required /></label><label>New password<input name="newPassword" type="password" minLength={12} required /></label><button className="vm-secondary" disabled={password.isPending}>{password.isPending ? "Updating…" : "Change password"}</button></form></section>{invite && <Modal title="Invite a teammate" onClose={() => setInvite(false)}><form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); add.mutate({ email: String(f.get("email")), role: f.get("role") as "manager" | "editor" }); }}><label>Email<input name="email" type="email" required /></label><label>Access level<select name="role"><option value="manager">Manager — profile, content, rewards, analytics</option><option value="editor">Editor — events and announcements</option></select></label>{message && <div className={`vm-notice ${add.isSuccess ? "success" : "error"}`}>{message}</div>}<div className="vm-form-actions"><button type="button" className="vm-secondary" onClick={() => setInvite(false)}>Close</button><button className="vm-primary" disabled={add.isPending}>{add.isPending ? "Creating…" : "Create invitation"}</button></div></form></Modal>}</div>;
+  const password = useMutation({ mutationFn: (data: { currentPassword: string; newPassword: string }) => metChangePassword(data.currentPassword, data.newPassword), onSuccess: () => setMessage("Met password updated."), onError: (e) => setMessage(metAuthError(e)) });
+  return <div className="vm-team"><section><div className="vm-toolbar"><span>{members.data?.members.length ?? 0} active people</span><button className="vm-primary compact" onClick={() => { setMessage(""); setInvite(true); }}><Plus size={16} />Invite team member</button></div><div className="vm-stack">{(members.data?.members ?? []).map((member) => <article className="vm-member" key={member.managerId}><span className="vm-person">{member.displayName.slice(0, 1)}</span><div><strong>{member.displayName}</strong><small>{member.email}</small></div>{member.role === "owner" ? <span className="vm-status live">Owner</span> : <select value={member.role} onChange={(e) => role.mutate({ managerId: member.managerId, value: e.target.value as "manager" | "editor" })}><option value="manager">Manager</option><option value="editor">Editor</option></select>} {member.role !== "owner" && <button className="danger-text" onClick={() => { if (confirm(`Remove ${member.displayName}?`)) remove.mutate(member.managerId); }}>Remove</button>}</article>)}</div></section><section className="vm-panel vm-password"><Settings2 /><h2>Account security</h2><p>Your password belongs to your Met account. Sign in with email and password to change it here; social sign-in accounts manage passwords with their provider.</p>{message && !invite && <div className={`vm-notice ${password.isSuccess ? "success" : "error"}`} role="status">{message}</div>}<form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); password.mutate({ currentPassword: String(f.get("currentPassword")), newPassword: String(f.get("newPassword")) }); }}><label>Current Met password<input name="currentPassword" type="password" autoComplete="current-password" required /></label><label>New Met password<input name="newPassword" type="password" autoComplete="new-password" minLength={6} required /></label><button className="vm-secondary" disabled={password.isPending}>{password.isPending ? "Updating…" : "Change Met password"}</button></form></section>{invite && <Modal title="Invite a teammate" onClose={() => setInvite(false)}><form className="vm-form" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); add.mutate({ email: String(f.get("email")), role: f.get("role") as "manager" | "editor" }); }}><label>Email<input name="email" type="email" required /></label><label>Access level<select name="role"><option value="manager">Manager — profile, content, rewards, analytics</option><option value="editor">Editor — events and announcements</option></select></label>{message && <div className={`vm-notice ${add.isSuccess ? "success" : "error"}`}>{message}</div>}<div className="vm-form-actions"><button type="button" className="vm-secondary" onClick={() => setInvite(false)}>Close</button><button className="vm-primary" disabled={add.isPending}>{add.isPending ? "Creating…" : "Create invitation"}</button></div></form></Modal>}</div>;
 }
 
 type GuestPeriod = "all" | "month" | "week";
@@ -1400,5 +1718,5 @@ function Modal({ title, children, onClose }: { title: string; children: ReactNod
 function Empty({ text }: { text: string }) { return <div className="vm-empty">{text}</div>; }
 function SectionLoading() { return <div className="vm-section-loading"><div className="vm-spinner" /></div>; }
 
-function Routes() { return <Switch><Route path="/invite" component={InvitePage} /><Route path="/recover" component={RecoveryPage} /><Route path="/register" component={RegisterPage} /><Route path="/apply" component={ApplyPage} /><Route component={SessionBootstrap} /></Switch>; }
+function Routes() { return <Switch><Route path="/invite" component={InvitePage} /><Route path="/recover" component={RecoveryPage} /><Route path="/register" component={RegisterPage} /><Route path="/claim" component={ClaimPage} /><Route path="/apply" component={ApplyPage} /><Route component={SessionBootstrap} /></Switch>; }
 export default function App() { return <QueryClientProvider client={queryClient}><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><Routes /></WouterRouter></QueryClientProvider>; }

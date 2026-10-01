@@ -95,26 +95,52 @@ describe("dashboard lifecycle guard (resolveLifecycleRedirect)", () => {
     ).toBe("/venue-owner/pending");
   });
 
-  it("keeps approved owners in the portal handoff only", () => {
+  it("keeps approved owners on their management sub-screens", () => {
     expect(
       isVenueOwnerPathAllowed(
         "/venue-owner/events",
         "/venue-owner/dashboard",
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isVenueOwnerPathAllowed(
         "/venue-owner/rewards/new",
         "/venue-owner/dashboard",
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isVenueOwnerPathAllowed(
         "/venue-owner/announcements/new",
         "/venue-owner/dashboard",
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
+
+  it.each(["1", "true"])("allows an approved owner to apply for a branch with branch=%s", (branch) => {
+    expect(isVenueOwnerPathAllowed(
+      "/venue-owner/setup", "/venue-owner/dashboard", undefined, branch,
+    )).toBe(true);
+  });
+
+  it.each([undefined, "", "0", "false", "invalid"])("blocks ordinary registration for an approved owner with branch=%s", (branch) => {
+    expect(isVenueOwnerPathAllowed(
+      "/venue-owner/setup", "/venue-owner/dashboard", undefined, branch,
+    )).toBe(false);
+  });
+
+  it.each(["/venue-owner/pending", "/venue-owner/rejected", "/venue-owner"])(
+    "does not let branch intent bypass the approved-owner restriction on %s",
+    (pathname) => {
+      expect(isVenueOwnerPathAllowed(pathname, "/venue-owner/dashboard", undefined, "1")).toBe(false);
+    },
+  );
+
+  it.each(["/venue-owner/pending", "/venue-owner/rejected"] as const)(
+    "does not let branch intent bypass an applicant's %s lifecycle",
+    (destination) => {
+      expect(isVenueOwnerPathAllowed("/venue-owner/setup", destination, undefined, "1")).toBe(false);
+    },
+  );
 
   it("does not allow applicants to open approved business tools", () => {
     expect(

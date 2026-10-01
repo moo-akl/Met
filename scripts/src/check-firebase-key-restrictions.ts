@@ -362,7 +362,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Service account : ${sa.client_email}`);
+  console.log("Service account : configured");
   console.log(`GCP project     : ${sa.project_id}`);
   console.log(`Mode            : ${shouldApply ? "apply + verify" : "verify only"}\n`);
 

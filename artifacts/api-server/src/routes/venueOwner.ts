@@ -41,6 +41,7 @@ import {
   and,
   desc,
   gte,
+  gt,
   lt,
   sql,
   count,
@@ -71,21 +72,36 @@ import {
   venueManagersTable,
   venueManagerSessionsTable,
   venueManagerTokensTable,
+  venueApplicationInviteTokensTable,
+  venueOutreachEmailLogsTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
 import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
+import { getRegistrationDeadline, recordVenueInvitation } from "../lib/venueActivation";
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 import { adminStorage } from "../lib/firebaseAdmin";
 import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
+import { ObjectStorageService } from "../lib/objectStorage";
+import { isAllowedImageMagicBytes } from "../lib/imageMagic";
 import {
-  sendVenueApprovedEmail,
+  PrepareAdminManagedImageBody,
+  PrepareAdminManagedImageResponse,
+  ConfirmAdminManagedImageBody,
+  ConfirmAdminManagedImageResponse,
+} from "@workspace/api-zod";
+import {
   sendVenueRejectedEmail,
   sendVenueChangesRequestedEmail,
   sendRegistrationLinkEmail,
+  sendVenueContactRequestEmail,
+  sendNewVenueOutreachEmail,
   sendClaimLinkOverdueAlertEmail,
+  getMetAppIntroVideoAssets,
+  getVenueManagerBaseUrl,
 } from "../lib/email.js";
+import { OUTREACH_TEMPLATE_IDS, OUTREACH_TEMPLATES, buildVenueOutreachEmail } from "../lib/venueOutreachEmail.js";
 import { z } from "zod/v4";
 import crypto from "node:crypto";
 
@@ -544,6 +560,57 @@ async function appendApplicationHistory(
   });
 }
 
+type VenueOutreachLogKind =
+  | "new_venue_outreach"
+  | "contact_request"
+  | "registration_invite";
+type VenueOutreachDeliveryStatus =
+  | "sending"
+  | "sent"
+  | "delivery_uncertain"
+  | "failed";
+const STALE_OUTREACH_SEND_MS = 5 * 60_000;
+
+async function createVenueOutreachLog(input: {
+  venueOwnerProfileId?: number | null;
+  applicationInviteTokenId?: number | null;
+  registrationTokenId?: number | null;
+  businessName: string;
+  recipientEmail: string;
+  template: string;
+  kind: VenueOutreachLogKind;
+  actorUid?: string | null;
+}): Promise<number> {
+  const [entry] = await db
+    .insert(venueOutreachEmailLogsTable)
+    .values({
+      ...input,
+      deliveryStatus: "sending",
+      actorUid: input.actorUid ?? null,
+    })
+    .returning({ id: venueOutreachEmailLogsTable.id });
+  if (!entry) throw new Error("Unable to create venue email audit record.");
+  return entry.id;
+}
+
+async function finishVenueOutreachLog(
+  id: number,
+  deliveryStatus: Exclude<VenueOutreachDeliveryStatus, "sending">,
+): Promise<void> {
+  await db
+    .update(venueOutreachEmailLogsTable)
+    .set({
+      deliveryStatus,
+      ...(deliveryStatus === "sent" ? { sentAt: new Date() } : {}),
+    })
+    .where(eq(venueOutreachEmailLogsTable.id, id));
+}
+
+function adminActorUid(req: Request): string | null {
+  const session = readAdminSession(req);
+  return session ? `admin:${session.credentialId}` : null;
+}
+
 async function ensureBusinessForApprovedProfile(
   profile: typeof venueOwnerProfilesTable.$inferSelect,
 ): Promise<void> {
@@ -761,7 +828,47 @@ const webApplicationSchema = z.object({
   description: z.string().trim().max(1000).optional().nullable(),
   verificationDocUrl: z.string().trim().url().max(2000),
   registrationNotes: z.string().trim().max(500).optional().nullable(),
+  applicationInviteToken: z.string().trim().min(1).max(256).optional(),
 });
+
+function hashVenueApplicationInviteToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("base64url");
+}
+
+router.post(
+  "/venue-owner/application-invites/validate",
+  webApplyLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = z.object({ token: z.string().trim().min(1).max(256) }).safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "A valid application invitation is required." });
+      return;
+    }
+    const tokenHash = hashVenueApplicationInviteToken(parsed.data.token);
+    const [invitation] = await db
+      .select({
+        invitedEmail: venueApplicationInviteTokensTable.invitedEmail,
+        businessName: venueApplicationInviteTokensTable.businessName,
+        expiresAt: venueApplicationInviteTokensTable.expiresAt,
+      })
+      .from(venueApplicationInviteTokensTable)
+      .where(and(
+        eq(venueApplicationInviteTokensTable.tokenHash, tokenHash),
+        isNull(venueApplicationInviteTokensTable.consumedAt),
+        gt(venueApplicationInviteTokensTable.expiresAt, new Date()),
+      ))
+      .limit(1);
+    if (!invitation) {
+      res.status(404).json({ message: "This invitation link is invalid, expired, or already used. Ask Met for a new link." });
+      return;
+    }
+    res.json({
+      invitedEmail: invitation.invitedEmail,
+      businessName: invitation.businessName,
+      expiresAt: invitation.expiresAt.toISOString(),
+    });
+  },
+);
 
 router.post(
   "/venue-owner/apply",
@@ -773,7 +880,32 @@ router.post(
       return;
     }
     const data = parsed.data;
+    const contactEmail = data.contactEmail.toLowerCase();
     const ownerUid = `web:${crypto.randomUUID()}`;
+    const tokenHash = data.applicationInviteToken
+      ? hashVenueApplicationInviteToken(data.applicationInviteToken)
+      : null;
+    if (tokenHash) {
+      const [invitation] = await db
+        .select({
+          invitedEmail: venueApplicationInviteTokensTable.invitedEmail,
+        })
+        .from(venueApplicationInviteTokensTable)
+        .where(and(
+          eq(venueApplicationInviteTokensTable.tokenHash, tokenHash),
+          isNull(venueApplicationInviteTokensTable.consumedAt),
+          gt(venueApplicationInviteTokensTable.expiresAt, new Date()),
+        ))
+        .limit(1);
+      if (!invitation) {
+        res.status(409).json({ message: "This invitation link is invalid, expired, or already used. Ask Met for a new link." });
+        return;
+      }
+      if (invitation.invitedEmail !== contactEmail) {
+        res.status(403).json({ message: "Use the email address this application invitation was sent to." });
+        return;
+      }
+    }
     // Check for a duplicate web submission first — same email + same venue with a pending
     // application. This must run before placeIsClaimedByAnotherOwner because that check
     // uses ownerUid (which is a fresh uuid each request) and would always fire for any
@@ -784,7 +916,7 @@ router.post(
       .from(venueOwnerProfilesTable)
       .where(
         and(
-          eq(venueOwnerProfilesTable.contactEmail, data.contactEmail),
+          sql`lower(btrim(${venueOwnerProfilesTable.contactEmail})) = ${contactEmail}`,
           eq(venueOwnerProfilesTable.placeId, data.placeId),
           inArray(venueOwnerProfilesTable.applicationStatus, [...PENDING_WEB_STATUSES]),
         ),
@@ -800,38 +932,87 @@ router.post(
     }
     try {
       const now = new Date();
-      const [profile] = await db
-        .insert(venueOwnerProfilesTable)
-        .values({
-          ownerUid,
-          placeId: data.placeId,
-          placeName: data.placeName,
-          businessName: data.businessName,
-          lat: String(data.lat),
-          lng: String(data.lng),
-          tagline: data.tagline ?? null,
-          description: data.description ?? null,
-          verificationDocUrl: data.verificationDocUrl,
-          registrationNotes: data.registrationNotes ?? null,
-          contactEmail: data.contactEmail,
-          contactName: data.contactName,
-          applicationSource: "web",
-          applicationStatus: "submitted",
-          submittedAt: now,
-          isApproved: false,
-          isVerified: false,
-        })
-        .returning();
-      await appendApplicationHistory({
-        venueOwnerProfileId: profile.id,
-        eventType: "submitted",
-        toStatus: "submitted",
-        actorRole: "applicant",
-        actorUid: ownerUid,
-        applicantMessage: "Web application submitted for review.",
-      });
-      res.status(201).json({ applicationId: profile.id, status: "submitted" });
+      const createValues = {
+        ownerUid,
+        placeId: data.placeId,
+        placeName: data.placeName,
+        businessName: data.businessName,
+        lat: String(data.lat),
+        lng: String(data.lng),
+        tagline: data.tagline ?? null,
+        description: data.description ?? null,
+        verificationDocUrl: data.verificationDocUrl,
+        registrationNotes: data.registrationNotes ?? null,
+        contactEmail,
+        contactName: data.contactName,
+        applicationSource: "web" as const,
+        applicationStatus: "submitted" as const,
+        submittedAt: now,
+        isApproved: false,
+        isVerified: false,
+      };
+      let applicationId: number;
+      if (tokenHash) {
+        applicationId = await db.transaction(async (tx) => {
+          const [lockedInvitation] = await tx
+            .select({ id: venueApplicationInviteTokensTable.id })
+            .from(venueApplicationInviteTokensTable)
+            .where(and(
+              eq(venueApplicationInviteTokensTable.tokenHash, tokenHash),
+              isNull(venueApplicationInviteTokensTable.consumedAt),
+              gt(venueApplicationInviteTokensTable.expiresAt, new Date()),
+            ))
+            .for("update")
+            .limit(1);
+          if (!lockedInvitation) throw new Error("application_invite_invalid");
+
+          const [profile] = await tx
+            .insert(venueOwnerProfilesTable)
+            .values(createValues)
+            .returning();
+          if (!profile) throw new Error("application_insert_failed");
+          await appendApplicationHistory({
+            venueOwnerProfileId: profile.id,
+            eventType: "submitted",
+            toStatus: "submitted",
+            actorRole: "applicant",
+            actorUid: ownerUid,
+            applicantMessage: "Web application submitted for review.",
+          }, tx);
+          const [consumed] = await tx
+            .update(venueApplicationInviteTokensTable)
+            .set({ consumedAt: now, applicationId: profile.id })
+            .where(and(
+              eq(venueApplicationInviteTokensTable.id, lockedInvitation.id),
+              isNull(venueApplicationInviteTokensTable.consumedAt),
+              gt(venueApplicationInviteTokensTable.expiresAt, now),
+            ))
+            .returning({ id: venueApplicationInviteTokensTable.id });
+          if (!consumed) throw new Error("application_invite_invalid");
+          return profile.id;
+        });
+      } else {
+        const [profile] = await db
+          .insert(venueOwnerProfilesTable)
+          .values(createValues)
+          .returning();
+        if (!profile) throw new Error("application_insert_failed");
+        await appendApplicationHistory({
+          venueOwnerProfileId: profile.id,
+          eventType: "submitted",
+          toStatus: "submitted",
+          actorRole: "applicant",
+          actorUid: ownerUid,
+          applicantMessage: "Web application submitted for review.",
+        });
+        applicationId = profile.id;
+      }
+      res.status(201).json({ applicationId, status: "submitted" });
     } catch (error) {
+      if (error instanceof Error && error.message === "application_invite_invalid") {
+        res.status(409).json({ message: "This invitation link is invalid, expired, or already used. Ask Met for a new link." });
+        return;
+      }
       if (isUniqueViolation(error)) {
         res.status(409).json({ message: "This venue already has a pending or active application." });
         return;
@@ -1220,12 +1401,12 @@ router.get(
       res.status(403).json({ message: "Only approved venue owners can request a setup link." });
       return;
     }
-    const url = await createVenueManagerRegistrationUrl(profile.id);
-    if (!url) {
+    const registrationLink = await createVenueManagerRegistrationUrl(profile.id);
+    if (!registrationLink) {
       res.status(503).json({ message: "Setup links are not available right now. Please try again later." });
       return;
     }
-    res.json({ url });
+    res.json({ url: registrationLink.url });
   },
 );
 
@@ -3131,10 +3312,12 @@ async function notifyApplicant(
 
 /**
  * Generates a one-time registration token for the venue manager portal and
- * returns the full URL. Returns null if the business record doesn't exist yet
- * or if VENUE_MANAGER_BASE_URL is not configured.
+ * returns the full URL and token metadata. Returns null if the business record
+ * doesn't exist yet or if VENUE_MANAGER_BASE_URL is not configured.
  */
-async function createVenueManagerRegistrationUrl(profileId: number): Promise<string | null> {
+async function createVenueManagerRegistrationUrl(
+  profileId: number,
+): Promise<{ url: string; tokenId: number; expiresAt: Date } | null> {
   const baseUrl = process.env["VENUE_MANAGER_BASE_URL"];
   if (!baseUrl) return null;
 
@@ -3147,12 +3330,20 @@ async function createVenueManagerRegistrationUrl(profileId: number): Promise<str
 
   const rawToken = crypto.randomBytes(32).toString("base64url");
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  await db
+  const existingDeadline = await getRegistrationDeadline(profileId);
+  if (existingDeadline && existingDeadline <= new Date()) return null;
+  const expiresAt = existingDeadline ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const [token] = await db
     .insert(venueManagerRegistrationTokensTable)
-    .values({ businessId: business.id, tokenHash, expiresAt });
+    .values({ businessId: business.id, tokenHash, expiresAt })
+    .returning({ id: venueManagerRegistrationTokensTable.id });
+  if (!token) return null;
 
-  return `${baseUrl.replace(/\/$/, "")}/register?token=${rawToken}`;
+  return {
+    url: `${baseUrl.replace(/\/$/, "")}/register?token=${rawToken}`,
+    tokenId: token.id,
+    expiresAt,
+  };
 }
 
 const reviewNoteSchema = z.string().trim().min(1).max(1000);
@@ -3162,7 +3353,602 @@ const adminListQuerySchema = z.object({
   from: z.string().trim().optional(),
   to: z.string().trim().optional(),
   search: z.string().trim().max(120).optional(),
-  source: z.enum(["mobile", "web", "agent"]).optional(),
+  source: z.enum(["mobile", "web", "agent", "admin"]).optional(),
+});
+
+const adminQuickAddVenueSchema = z.object({
+  placeId: z.string().trim().min(1).max(255),
+  placeName: z.string().trim().min(1).max(255),
+  businessName: z.string().trim().min(1).max(255),
+  lat: z.coerce.number().finite().gte(-90).lte(90),
+  lng: z.coerce.number().finite().gte(-180).lte(180),
+  managementMode: z.enum(["invite_owner", "admin"]),
+  contactName: z.string().trim().min(1).max(255).optional(),
+  contactEmail: z.string().trim().email().max(255).optional(),
+}).superRefine((data, ctx) => {
+  if (data.managementMode === "invite_owner" && (!data.contactName || !data.contactEmail)) {
+    ctx.addIssue({ code: "custom", message: "Owner name and email are required when inviting an owner." });
+  }
+  if (data.managementMode === "admin" && (data.contactName || data.contactEmail)) {
+    ctx.addIssue({ code: "custom", message: "Do not supply owner contact details for an admin-managed venue." });
+  }
+});
+
+const adminManagedVenueUpdateSchema = z.object({
+  businessName: z.string().trim().min(1).max(255).optional(),
+  tagline: z.string().trim().max(160).nullable().optional(),
+  description: z.string().trim().max(1000).nullable().optional(),
+  phone: z.string().trim().max(60).nullable().optional(),
+  websiteUrl: z.string().trim().max(2000).nullable().optional(),
+  publicEmail: z.union([z.email().max(320), z.literal(""), z.null()]).optional(),
+  coverPhotoUrl: z.string().trim().max(2000).nullable().optional(),
+  logoUrl: z.string().trim().max(2000).nullable().optional(),
+  openingHours: z.record(
+    z.string(),
+    z.union([
+      z.object({
+        open: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+        close: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+      }),
+      z.null(),
+    ]),
+  ).nullable().optional(),
+}).strict().superRefine((data, ctx) => {
+  if (data.openingHours) {
+    const days = new Set(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
+    for (const day of Object.keys(data.openingHours)) {
+      if (!days.has(day)) ctx.addIssue({ code: "custom", message: `Unknown opening-hours day: ${day}` });
+    }
+  }
+  for (const key of ["websiteUrl", "coverPhotoUrl", "logoUrl"] as const) {
+    const value = data[key];
+    if (!value) continue;
+    if (key !== "websiteUrl" && value.startsWith("/api/storage/objects/")) continue;
+    try {
+      if (!["http:", "https:"].includes(new URL(value).protocol)) throw new Error("Invalid protocol");
+    } catch {
+      ctx.addIssue({ code: "custom", message: `${key} must be an http(s) URL.` });
+    }
+  }
+});
+
+function isAdminManagedVenue(profile: typeof venueOwnerProfilesTable.$inferSelect): boolean {
+  return profile.applicationSource === "admin" &&
+    profile.ownerUid.startsWith("admin-managed:") &&
+    profile.applicationStatus === "approved" &&
+    profile.isApproved;
+}
+
+async function loadAdminManagedVenue(profileId: number) {
+  const [profile] = await db.select().from(venueOwnerProfilesTable)
+    .where(eq(venueOwnerProfilesTable.id, profileId)).limit(1);
+  return profile && isAdminManagedVenue(profile) ? profile : null;
+}
+
+function serializeAdminManagedVenue(profile: typeof venueOwnerProfilesTable.$inferSelect) {
+  const { id, placeId, placeName, businessName, tagline, description, phone, websiteUrl,
+    publicEmail, coverPhotoUrl, logoUrl, openingHours } = profile;
+  const qrUrl = profile.qrToken
+    ? `${process.env["APP_BASE_URL"] ?? "https://metapp.replit.app"}/v/${encodeURIComponent(placeId)}?t=${profile.qrToken}`
+    : null;
+  return { id, placeId, placeName, businessName, qrUrl, tagline, description, phone, websiteUrl,
+    publicEmail, coverPhotoUrl, logoUrl, openingHours };
+}
+
+/**
+ * GET /admin/venue-owner/places/search
+ * Protected Google Places search used by the admin quick-add flow.
+ */
+router.get(
+  "/admin/venue-owner/places/search",
+  requireAdminSession,
+  venueOwnerPlaceSearchLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const query = typeof req.query["query"] === "string" ? req.query["query"].trim() : "";
+    if (query.length < 2) {
+      res.status(400).json({ message: "Enter at least two characters to search." });
+      return;
+    }
+    try {
+      res.json({ places: await searchGoogleVenues(query) });
+    } catch (error) {
+      req.log?.warn({ error }, "Admin venue search failed");
+      res.status(503).json({ message: "Venue search is temporarily unavailable." });
+    }
+  },
+);
+
+/**
+ * POST /admin/venue-owner/venues
+ * Adds a Google venue directly to the map as approved+verified. An invited
+ * venue receives an owner setup link; an admin-managed venue receives none.
+ */
+router.post(
+  "/admin/venue-owner/venues",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = adminQuickAddVenueSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid venue details." });
+      return;
+    }
+    const data = parsed.data;
+    const adminManaged = data.managementMode === "admin";
+    const ownerUid = `${adminManaged ? "admin-managed" : "admin"}:${crypto.randomUUID()}`;
+    const now = new Date();
+
+    try {
+      const profile = await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(venueOwnerProfilesTable)
+          .values({
+            ownerUid,
+            placeId: data.placeId,
+            placeName: data.placeName,
+            businessName: data.businessName,
+            lat: String(data.lat),
+            lng: String(data.lng),
+            contactEmail: adminManaged ? null : data.contactEmail!.toLowerCase(),
+            contactName: adminManaged ? null : data.contactName!,
+            applicationSource: "admin",
+            applicationStatus: "approved",
+            submittedAt: now,
+            reviewedAt: now,
+            approvedAt: now,
+            isApproved: true,
+            isVerified: true,
+            qrToken: crypto.randomUUID(),
+          })
+          .returning();
+        if (!created) throw new Error("Failed to create venue profile");
+
+        await appendApplicationHistory({
+          venueOwnerProfileId: created.id,
+          eventType: "approved",
+          toStatus: "approved",
+          actorRole: "admin",
+          internalNote: "Venue added directly by an administrator.",
+          metadata: { quickAdd: true, managementMode: data.managementMode },
+        }, tx);
+
+        const [business] = await tx
+          .insert(venueBusinessesTable)
+          .values({
+            venueOwnerProfileId: created.id,
+            placeId: created.placeId,
+            legalName: created.businessName,
+            createdByUid: ownerUid,
+          })
+          .returning();
+        if (!business) throw new Error("Failed to create venue business");
+
+        if (!adminManaged) {
+          const [membership] = await tx
+            .insert(venueMembershipsTable)
+            .values({
+              businessId: business.id,
+              uid: ownerUid,
+              role: "owner",
+              status: "active",
+              acceptedAt: now,
+            })
+            .returning();
+          if (membership) {
+            await tx.insert(venueMembershipAuditTable).values({
+              businessId: business.id,
+              membershipId: membership.id,
+              eventType: "granted",
+              subjectUid: ownerUid,
+              toRole: "owner",
+              toStatus: "active",
+              metadata: JSON.stringify({ source: "admin_quick_add" }),
+            });
+          }
+        }
+        return created;
+      });
+
+      if (adminManaged) {
+        res.status(201).json({
+          profile: serializeApplicationProfile(profile),
+          emailSent: false,
+          emailError: null,
+        });
+        return;
+      }
+
+      const registrationLink = await createVenueManagerRegistrationUrl(profile.id);
+      let emailSent = false;
+      let emailError: "not_configured" | "gmail_connection_failed" | "delivery_failed" | null = null;
+      let outreachLogId: number | null = null;
+      if (!registrationLink) {
+        emailError = "not_configured";
+      } else {
+        try {
+          outreachLogId = await createVenueOutreachLog({
+            venueOwnerProfileId: profile.id,
+            registrationTokenId: registrationLink.tokenId,
+            businessName: data.businessName,
+            recipientEmail: data.contactEmail!,
+            template: "registration",
+            kind: "registration_invite",
+            actorUid: adminActorUid(req),
+          });
+          emailSent = await sendRegistrationLinkEmail({
+            to: data.contactEmail!,
+            businessName: data.businessName,
+            registrationUrl: registrationLink.url,
+            expiresAt: registrationLink.expiresAt,
+            registrationDeadline: registrationLink.expiresAt,
+          });
+          await finishVenueOutreachLog(outreachLogId, emailSent ? "sent" : "failed");
+          if (!emailSent) {
+            await db.update(venueManagerRegistrationTokensTable)
+              .set({ expiresAt: new Date() })
+              .where(eq(venueManagerRegistrationTokensTable.id, registrationLink.tokenId));
+          }
+        } catch (error) {
+          emailError = (error as { code?: string }).code === "GMAIL_AUTH"
+            ? "gmail_connection_failed"
+            : "delivery_failed";
+          if (outreachLogId !== null) {
+            await finishVenueOutreachLog(
+              outreachLogId,
+              emailError === "delivery_failed" ? "delivery_uncertain" : "failed",
+            );
+          }
+          req.log?.warn({ error, profileId: profile.id }, "Quick-add owner invitation failed");
+        }
+      }
+
+      if (emailSent) {
+        await recordVenueInvitation(profile.id);
+        await appendApplicationHistory({
+          venueOwnerProfileId: profile.id,
+          eventType: "email_sent",
+          actorRole: "admin",
+          internalNote: "Owner invitation sent from admin quick-add.",
+          metadata: {
+            registrationLink: true,
+            template: "registration",
+            sentTo: data.contactEmail,
+            ...(outreachLogId !== null ? { outreachLogId } : {}),
+          },
+        });
+      }
+
+      res.status(201).json({
+        profile: serializeApplicationProfile(profile),
+        emailSent,
+        emailError,
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        res.status(409).json({ message: "This venue is already on the map or has an active application." });
+        return;
+      }
+      throw error;
+    }
+  },
+);
+
+router.get(
+  "/admin/venue-owner/venues/:id/management",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const id = parseProfileId(req.params["id"]);
+    if (id === null) return void res.status(400).json({ message: "Invalid venue id." });
+    const profile = await loadAdminManagedVenue(id);
+    if (!profile) return void res.status(404).json({ message: "Admin-managed venue not found." });
+    res.json({ profile: serializeAdminManagedVenue(profile) });
+  },
+);
+
+router.patch(
+  "/admin/venue-owner/venues/:id/management",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const id = parseProfileId(req.params["id"]);
+    if (id === null) return void res.status(400).json({ message: "Invalid venue id." });
+    const profile = await loadAdminManagedVenue(id);
+    if (!profile) return void res.status(404).json({ message: "Admin-managed venue not found." });
+    const parsed = adminManagedVenueUpdateSchema.safeParse(req.body ?? {});
+    if (!parsed.success || !Object.keys(parsed.data).length) {
+      return void res.status(400).json({ message: parsed.error?.issues[0]?.message ?? "Provide venue details to update." });
+    }
+    const [updated] = await db.update(venueOwnerProfilesTable)
+      .set({ ...parsed.data, updatedAt: new Date() })
+      .where(and(
+        eq(venueOwnerProfilesTable.id, id),
+        eq(venueOwnerProfilesTable.ownerUid, profile.ownerUid),
+        eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+      ))
+      .returning();
+    if (!updated) return void res.status(404).json({ message: "Admin-managed venue not found." });
+    await appendApplicationHistory({
+      venueOwnerProfileId: id,
+      eventType: "review_note_added",
+      actorRole: "admin",
+      internalNote: "Admin updated the venue's public listing.",
+      metadata: { fields: Object.keys(parsed.data) },
+    });
+    res.json({ profile: serializeAdminManagedVenue(updated) });
+  },
+);
+
+// Content on admin-run venues uses the same rows as invited-owner content, but
+// never accepts a placeId or ownerUid from the caller. Manager sessions do not
+// grant access to these routes.
+const adminContentText = (max: number) => z.string().trim().min(1).max(max);
+const adminContentDate = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
+const adminContentImage = z.string().max(2000).refine((value) => {
+  if (value.startsWith("/api/storage/objects/")) return true;
+  try { return ["http:", "https:"].includes(new URL(value).protocol); }
+  catch { return false; }
+}, "Image must be an http(s) URL or an uploaded storage path.").nullable();
+const adminEventInput = z.object({
+  title: adminContentText(120),
+  startsAt: adminContentDate,
+  endsAt: adminContentDate.nullable().optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  imageUrl: adminContentImage.optional(),
+  capacityLimit: z.number().int().positive().nullable().optional(),
+  isPublished: z.boolean().optional(),
+}).strict();
+const adminRewardInput = z.object({
+  title: adminContentText(120),
+  prizeDescription: adminContentText(200),
+  description: z.string().trim().max(2000).nullable().optional(),
+  rewardType: z.enum(["free_drink", "discount", "experience", "custom"]).optional(),
+  status: z.enum(["draft", "active"]).optional(),
+  startDate: adminContentDate,
+  endDate: adminContentDate,
+  venueTimezone: adminContentText(100).optional(),
+}).strict();
+const adminAnnouncementInput = z.object({
+  title: adminContentText(120),
+  body: adminContentText(2000),
+  imageUrl: adminContentImage.optional(),
+  isPinned: z.boolean().optional(),
+  isHidden: z.boolean().optional(),
+}).strict();
+
+function adminContentId(value: unknown): number | null {
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return null;
+  const id = Number(value);
+  return Number.isSafeInteger(id) ? id : null;
+}
+
+async function adminContentVenue(req: Request, res: Response) {
+  const id = adminContentId(req.params["id"]);
+  if (id === null) {
+    res.status(400).json({ message: "Invalid venue id." });
+    return null;
+  }
+  const profile = await loadAdminManagedVenue(id);
+  if (!profile) res.status(404).json({ message: "Admin-managed venue not found." });
+  return profile;
+}
+
+function adminContentBody<T extends z.ZodType>(schema: T, req: Request, res: Response): z.output<T> | null {
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success || !Object.keys(parsed.data as object).length) {
+    res.status(400).json({ message: parsed.error?.issues[0]?.message ?? "Provide content to update." });
+    return null;
+  }
+  return parsed.data;
+}
+
+const adminContentBase = "/admin/venue-owner/venues/:id";
+const adminImageStorage = new ObjectStorageService();
+const ADMIN_IMAGE_TOKEN_TTL_MS = 30 * 60 * 1000;
+const adminImagePath = /^\/objects\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function adminImageSignature(path: string, venueId: number, session: AdminSession, expiry: number): string {
+  return crypto.createHmac("sha256", process.env["SESSION_SECRET"]!)
+    .update(`${path}:${venueId}:${session.credentialId}:${session.sessionVersion}:${expiry}`)
+    .digest("hex");
+}
+
+router.post(`${adminContentBase}/images/upload`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const parsed = PrepareAdminManagedImageBody.safeParse(req.body);
+  if (!parsed.success) return void res.status(400).json({ message: "Only JPEG, PNG, WebP, or GIF images are allowed." });
+  const uploadURL = await adminImageStorage.getObjectEntityUploadURL(parsed.data.contentType);
+  const objectPath = adminImageStorage.normalizeObjectEntityPath(uploadURL);
+  const session = readAdminSession(req)!;
+  const expiry = Date.now() + ADMIN_IMAGE_TOKEN_TTL_MS;
+  res.json(PrepareAdminManagedImageResponse.parse({
+    uploadURL, objectPath,
+    confirmationToken: `${expiry}.${adminImageSignature(objectPath, profile.id, session, expiry)}`,
+  }));
+});
+
+router.post(`${adminContentBase}/images/confirm`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const parsed = ConfirmAdminManagedImageBody.safeParse(req.body);
+  if (!parsed.success || !adminImagePath.test(parsed.data.objectPath)) {
+    return void res.status(400).json({ message: "Invalid upload confirmation." });
+  }
+  const { objectPath, confirmationToken } = parsed.data;
+  const [expiryRaw, signature] = confirmationToken.split(".");
+  const expiry = Number(expiryRaw);
+  if (!Number.isSafeInteger(expiry) || expiry <= Date.now() || expiry > Date.now() + ADMIN_IMAGE_TOKEN_TTL_MS ||
+    !signature || !/^[0-9a-f]{64}$/.test(signature)) {
+    return void res.status(400).json({ message: "Upload confirmation expired or invalid. Please upload again." });
+  }
+  const expected = adminImageSignature(objectPath, profile.id, readAdminSession(req)!, expiry);
+  if (!crypto.timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expected, "hex"))) {
+    return void res.status(400).json({ message: "This upload does not belong to the selected venue." });
+  }
+  let file;
+  try {
+    file = await adminImageStorage.getObjectEntityFile(objectPath);
+  } catch {
+    return void res.status(404).json({ message: "Uploaded file not found. Please upload again." });
+  }
+  const bytes = await adminImageStorage.getObjectMagicBytes(file, 16);
+  if (!isAllowedImageMagicBytes(bytes)) {
+    await file.delete().catch(() => undefined);
+    return void res.status(422).json({ message: "File does not appear to be an image. Use JPEG, PNG, WebP, or GIF." });
+  }
+  res.json(ConfirmAdminManagedImageResponse.parse({ url: `/api/storage${objectPath}` }));
+});
+
+router.get(`${adminContentBase}/events`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const events = await db.select().from(venueEventsTable)
+    .where(and(eq(venueEventsTable.placeId, profile.placeId), eq(venueEventsTable.ownerUid, profile.ownerUid)))
+    .orderBy(desc(venueEventsTable.startsAt));
+  res.json({ events: events.map(({ ownerUid: _ownerUid, ...event }) => event) });
+});
+router.post(`${adminContentBase}/events`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const data = adminContentBody(adminEventInput, req, res);
+  if (!data) return;
+  if (data.endsAt && data.endsAt <= data.startsAt) return void res.status(400).json({ message: "Event must end after it starts." });
+  const [created] = await db.insert(venueEventsTable).values({
+    ...data, ownerUid: profile.ownerUid, placeId: profile.placeId,
+    endsAt: data.endsAt ?? null, isPublished: data.isPublished ?? false,
+  }).returning();
+  const { ownerUid: _ownerUid, ...event } = created!;
+  res.status(201).json({ event });
+});
+router.patch(`${adminContentBase}/events/:eventId`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const eventId = adminContentId(req.params["eventId"]);
+  if (!eventId) return void res.status(400).json({ message: "Invalid event id." });
+  const data = adminContentBody(adminEventInput.partial(), req, res);
+  if (!data) return;
+  const scope = and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, profile.placeId), eq(venueEventsTable.ownerUid, profile.ownerUid));
+  const [existing] = await db.select().from(venueEventsTable).where(scope).limit(1);
+  if (!existing) return void res.status(404).json({ message: "Event not found." });
+  if ((data.endsAt ?? existing.endsAt) && (data.endsAt ?? existing.endsAt)! <= (data.startsAt ?? existing.startsAt))
+    return void res.status(400).json({ message: "Event must end after it starts." });
+  const [updated] = await db.update(venueEventsTable).set({ ...data, updatedAt: new Date() }).where(scope).returning();
+  const { ownerUid: _ownerUid, ...event } = updated!;
+  res.json({ event });
+});
+router.delete(`${adminContentBase}/events/:eventId`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const eventId = adminContentId(req.params["eventId"]);
+  if (!eventId) return void res.status(400).json({ message: "Invalid event id." });
+  const deleted = await db.delete(venueEventsTable).where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, profile.placeId), eq(venueEventsTable.ownerUid, profile.ownerUid))).returning({ id: venueEventsTable.id });
+  if (!deleted.length) return void res.status(404).json({ message: "Event not found." });
+  res.status(204).end();
+});
+
+router.get(`${adminContentBase}/rewards`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const rewards = await db.select().from(venueRewardsTable)
+    .where(and(eq(venueRewardsTable.placeId, profile.placeId), eq(venueRewardsTable.ownerUid, profile.ownerUid)))
+    .orderBy(desc(venueRewardsTable.createdAt));
+  res.json({ rewards: rewards.map(({ ownerUid: _ownerUid, winnerUid: _winnerUid, ...reward }) => reward) });
+});
+router.post(`${adminContentBase}/rewards`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const data = adminContentBody(adminRewardInput, req, res);
+  if (!data) return;
+  if (data.endDate <= data.startDate) return void res.status(400).json({ message: "Reward must end after it starts." });
+  if (data.venueTimezone) {
+    try { new Intl.DateTimeFormat("en", { timeZone: data.venueTimezone }); }
+    catch { return void res.status(400).json({ message: "Use a valid venue timezone." }); }
+  }
+  const [created] = await db.insert(venueRewardsTable).values({
+    ...data, ownerUid: profile.ownerUid, placeId: profile.placeId,
+    status: data.status ?? "draft",
+  }).returning();
+  const { ownerUid: _ownerUid, winnerUid: _winnerUid, ...reward } = created!;
+  res.status(201).json({ reward });
+});
+router.patch(`${adminContentBase}/rewards/:rewardId`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const rewardId = adminContentId(req.params["rewardId"]);
+  if (!rewardId) return void res.status(400).json({ message: "Invalid reward id." });
+  const data = adminContentBody(adminRewardInput.partial().extend({ status: z.enum(["draft", "active", "cancelled"]).optional() }), req, res);
+  if (!data) return;
+  const scope = and(eq(venueRewardsTable.id, rewardId), eq(venueRewardsTable.placeId, profile.placeId), eq(venueRewardsTable.ownerUid, profile.ownerUid));
+  const [existing] = await db.select().from(venueRewardsTable).where(scope).limit(1);
+  if (!existing) return void res.status(404).json({ message: "Reward not found." });
+  if (existing.status === "completed" || existing.winnerUid) return void res.status(409).json({ message: "A completed reward cannot be changed." });
+  if ((data.endDate ?? existing.endDate) <= (data.startDate ?? existing.startDate))
+    return void res.status(400).json({ message: "Reward must end after it starts." });
+  if (data.venueTimezone) {
+    try { new Intl.DateTimeFormat("en", { timeZone: data.venueTimezone }); }
+    catch { return void res.status(400).json({ message: "Use a valid venue timezone." }); }
+  }
+  const [updated] = await db.update(venueRewardsTable).set({ ...data, updatedAt: new Date() }).where(scope).returning();
+  const { ownerUid: _ownerUid, winnerUid: _winnerUid, ...reward } = updated!;
+  res.json({ reward });
+});
+router.delete(`${adminContentBase}/rewards/:rewardId`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const rewardId = adminContentId(req.params["rewardId"]);
+  if (!rewardId) return void res.status(400).json({ message: "Invalid reward id." });
+  // Preserve winner history; a removed campaign is cancelled, not hard-deleted.
+  const [cancelled] = await db.update(venueRewardsTable).set({ status: "cancelled", updatedAt: new Date() })
+    .where(and(eq(venueRewardsTable.id, rewardId), eq(venueRewardsTable.placeId, profile.placeId), eq(venueRewardsTable.ownerUid, profile.ownerUid), ne(venueRewardsTable.status, "completed"), isNull(venueRewardsTable.winnerUid)))
+    .returning({ id: venueRewardsTable.id });
+  if (!cancelled) return void res.status(404).json({ message: "Reward not found or already completed." });
+  res.status(204).end();
+});
+
+router.get(`${adminContentBase}/announcements`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const announcements = await db.select().from(venueAnnouncementsTable)
+    .where(and(eq(venueAnnouncementsTable.placeId, profile.placeId), eq(venueAnnouncementsTable.ownerUid, profile.ownerUid)))
+    .orderBy(desc(venueAnnouncementsTable.isPinned), desc(venueAnnouncementsTable.createdAt));
+  res.json({ announcements: announcements.map(({ ownerUid: _ownerUid, ...announcement }) => announcement) });
+});
+router.post(`${adminContentBase}/announcements`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const data = adminContentBody(adminAnnouncementInput, req, res);
+  if (!data) return;
+  if (data.isPinned) await db.update(venueAnnouncementsTable).set({ isPinned: false, updatedAt: new Date() })
+    .where(and(eq(venueAnnouncementsTable.placeId, profile.placeId), eq(venueAnnouncementsTable.ownerUid, profile.ownerUid)));
+  const [created] = await db.insert(venueAnnouncementsTable).values({
+    ...data, ownerUid: profile.ownerUid, placeId: profile.placeId,
+    isHidden: data.isHidden ?? true,
+  }).returning();
+  const { ownerUid: _ownerUid, ...announcement } = created!;
+  res.status(201).json({ announcement });
+});
+router.patch(`${adminContentBase}/announcements/:announcementId`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const announcementId = adminContentId(req.params["announcementId"]);
+  if (!announcementId) return void res.status(400).json({ message: "Invalid announcement id." });
+  const data = adminContentBody(adminAnnouncementInput.partial(), req, res);
+  if (!data) return;
+  const scope = and(eq(venueAnnouncementsTable.id, announcementId), eq(venueAnnouncementsTable.placeId, profile.placeId), eq(venueAnnouncementsTable.ownerUid, profile.ownerUid));
+  const [existing] = await db.select({ id: venueAnnouncementsTable.id }).from(venueAnnouncementsTable).where(scope).limit(1);
+  if (!existing) return void res.status(404).json({ message: "Announcement not found." });
+  if (data.isPinned) await db.update(venueAnnouncementsTable).set({ isPinned: false, updatedAt: new Date() })
+    .where(and(eq(venueAnnouncementsTable.placeId, profile.placeId), eq(venueAnnouncementsTable.ownerUid, profile.ownerUid), ne(venueAnnouncementsTable.id, announcementId)));
+  const [updated] = await db.update(venueAnnouncementsTable).set({ ...data, updatedAt: new Date() }).where(scope).returning();
+  const { ownerUid: _ownerUid, ...announcement } = updated!;
+  res.json({ announcement });
+});
+router.delete(`${adminContentBase}/announcements/:announcementId`, requireAdminSession, async (req, res): Promise<void> => {
+  const profile = await adminContentVenue(req, res);
+  if (!profile) return;
+  const announcementId = adminContentId(req.params["announcementId"]);
+  if (!announcementId) return void res.status(400).json({ message: "Invalid announcement id." });
+  const deleted = await db.delete(venueAnnouncementsTable).where(and(eq(venueAnnouncementsTable.id, announcementId), eq(venueAnnouncementsTable.placeId, profile.placeId), eq(venueAnnouncementsTable.ownerUid, profile.ownerUid))).returning({ id: venueAnnouncementsTable.id });
+  if (!deleted.length) return void res.status(404).json({ message: "Announcement not found." });
+  res.status(204).end();
 });
 
 /**
@@ -3403,27 +4189,59 @@ router.post(
       // Fire-and-forget: registration URL generation and email sending are both
       // best-effort. Neither should ever block or fail the approve response.
       (async () => {
-        let registrationUrl: string | null = null;
+        let registrationLink: Awaited<
+          ReturnType<typeof createVenueManagerRegistrationUrl>
+        > = null;
+        let outreachLogId: number | null = null;
         try {
-          registrationUrl = await createVenueManagerRegistrationUrl(emailProfileId);
+          registrationLink = await createVenueManagerRegistrationUrl(emailProfileId);
         } catch (err) {
           logger.warn({ err, profileId: emailProfileId }, "Could not generate registration URL for approved email");
         }
         try {
-          await sendVenueApprovedEmail({ to: emailTo, businessName: emailBusinessName, registrationUrl });
+          if (!registrationLink) return;
+          outreachLogId = await createVenueOutreachLog({
+            venueOwnerProfileId: emailProfileId,
+            registrationTokenId: registrationLink.tokenId,
+            businessName: emailBusinessName,
+            recipientEmail: emailTo,
+            template: "registration",
+            kind: "registration_invite",
+            actorUid: "system:approval",
+          });
+          const emailSent = await sendRegistrationLinkEmail({
+            to: emailTo,
+            businessName: emailBusinessName,
+            registrationUrl: registrationLink.url,
+            expiresAt: registrationLink.expiresAt,
+            registrationDeadline: registrationLink.expiresAt,
+          });
+          if (!emailSent) {
+            await finishVenueOutreachLog(outreachLogId, "failed");
+            await db.update(venueManagerRegistrationTokensTable)
+              .set({ expiresAt: new Date() })
+              .where(eq(venueManagerRegistrationTokensTable.id, registrationLink.tokenId));
+            return;
+          }
+          await finishVenueOutreachLog(outreachLogId, "sent");
+          await recordVenueInvitation(emailProfileId);
           await appendApplicationHistory({
             venueOwnerProfileId: emailProfileId,
             eventType: "email_sent",
             actorRole: "system",
             metadata: {
               to: emailTo,
-              subject: `🎉 Your venue "${emailBusinessName}" has been approved`,
-              // Tag when the approval email included a registration URL so that
-              // the claim-link overdue alert cron can detect it as "link sent".
-              ...(registrationUrl ? { registrationLink: true } : {}),
+              subject: `Your venue "${emailBusinessName}" has been approved`,
+              registrationLink: true,
+              template: "registration",
+              sentTo: emailTo,
+              outreachLogId,
             },
           });
         } catch (err) {
+          if (outreachLogId !== null) {
+            await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
+          }
           logger.warn({ err, profileId: emailProfileId }, "Failed to send venue approved email");
         }
       })();
@@ -3434,10 +4252,441 @@ router.post(
 );
 
 /**
+ * Previews are built with the same renderer used to send the actual email.
+ */
+router.post(
+  "/admin/venue-owner/outreach/preview",
+  requireAdminSession,
+  (req: Request, res: Response): void => {
+    const parsed = z.object({ businessName: z.string().trim().min(2).max(150) }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Enter a venue name to preview templates." });
+      return;
+    }
+    res.json({
+      templates: OUTREACH_TEMPLATES.map((template) => ({
+        ...template,
+        ...buildVenueOutreachEmail({
+          businessName: parsed.data.businessName,
+          template: template.id,
+          ...(template.id === "preapproval_video_application"
+            ? {
+                applicationUrl: "https://example.com/venue-manager/apply#invite=PREVIEW_ONLY",
+                appIntroVideo: getMetAppIntroVideoAssets(),
+              }
+            : {}),
+        }),
+      })).map(({ html: _html, ...preview }) => preview),
+    });
+  },
+);
+
+/**
+ * Lists durable outreach records plus older venue email history that predates
+ * the send log. No token hashes or raw invitation URLs are returned.
+ */
+router.get(
+  "/admin/venue-owner/outreach/history",
+  requireAdminSession,
+  async (_req: Request, res: Response): Promise<void> => {
+    const loggedRows = await db
+      .select({
+        log: venueOutreachEmailLogsTable,
+        applicationInvite: venueApplicationInviteTokensTable,
+        registrationToken: venueManagerRegistrationTokensTable,
+      })
+      .from(venueOutreachEmailLogsTable)
+      .leftJoin(
+        venueApplicationInviteTokensTable,
+        eq(
+          venueOutreachEmailLogsTable.applicationInviteTokenId,
+          venueApplicationInviteTokensTable.id,
+        ),
+      )
+      .leftJoin(
+        venueManagerRegistrationTokensTable,
+        eq(
+          venueOutreachEmailLogsTable.registrationTokenId,
+          venueManagerRegistrationTokensTable.id,
+        ),
+      )
+      .orderBy(desc(venueOutreachEmailLogsTable.createdAt));
+
+    const loggedInviteIds = new Set(
+      loggedRows
+        .map((row) => row.applicationInvite?.id)
+        .filter((id): id is number => id !== undefined && id !== null),
+    );
+    const legacyInvites = await db
+      .select({
+        id: venueApplicationInviteTokensTable.id,
+        invitedEmail: venueApplicationInviteTokensTable.invitedEmail,
+        businessName: venueApplicationInviteTokensTable.businessName,
+        expiresAt: venueApplicationInviteTokensTable.expiresAt,
+        consumedAt: venueApplicationInviteTokensTable.consumedAt,
+        applicationId: venueApplicationInviteTokensTable.applicationId,
+        createdAt: venueApplicationInviteTokensTable.createdAt,
+      })
+      .from(venueApplicationInviteTokensTable)
+      .orderBy(desc(venueApplicationInviteTokensTable.createdAt));
+
+    const legacyHistory = await db
+      .select({
+        id: venueApplicationHistoryTable.id,
+        venueOwnerProfileId: venueApplicationHistoryTable.venueOwnerProfileId,
+        businessName: venueOwnerProfilesTable.businessName,
+        contactEmail: venueOwnerProfilesTable.contactEmail,
+        applicationStatus: venueOwnerProfilesTable.applicationStatus,
+        recipientEmail: sql<string>`COALESCE(
+          ${venueApplicationHistoryTable.metadata}->>'sentTo',
+          ${venueApplicationHistoryTable.metadata}->>'to',
+          ${venueOwnerProfilesTable.contactEmail},
+          ''
+        )`,
+        template: sql<string>`COALESCE(
+          ${venueApplicationHistoryTable.metadata}->>'template',
+          CASE WHEN ${venueApplicationHistoryTable.metadata}->>'registrationLink' = 'true'
+            THEN 'registration' ELSE 'contact_request' END
+        )`,
+        isRegistrationLink: sql<boolean>`COALESCE(
+          ${venueApplicationHistoryTable.metadata}->>'registrationLink',
+          'false'
+        ) = 'true'`,
+        createdAt: venueApplicationHistoryTable.createdAt,
+      })
+      .from(venueApplicationHistoryTable)
+      .innerJoin(
+        venueOwnerProfilesTable,
+        eq(
+          venueApplicationHistoryTable.venueOwnerProfileId,
+          venueOwnerProfilesTable.id,
+        ),
+      )
+      .where(and(
+        eq(venueApplicationHistoryTable.eventType, "email_sent"),
+        sql`${venueApplicationHistoryTable.metadata}->>'outreachLogId' IS NULL`,
+        or(
+          sql`${venueApplicationHistoryTable.metadata}->>'template' IN ('contact_request', 'registration', 'registration_with_video')`,
+          sql`${venueApplicationHistoryTable.metadata}->>'registrationLink' = 'true'`,
+        ),
+      ))
+      .orderBy(desc(venueApplicationHistoryTable.createdAt));
+
+    const allProfileIds = [
+      ...loggedRows.flatMap((row) => [
+        row.log.venueOwnerProfileId,
+        row.applicationInvite?.applicationId ?? null,
+      ]),
+      ...legacyInvites.map((invite) => invite.applicationId),
+    ].filter((id): id is number => id !== null && id !== undefined);
+    const uniqueProfileIds = [...new Set(allProfileIds)];
+    const profileStatusResult = uniqueProfileIds.length > 0
+      ? await db
+          .select({
+            id: venueOwnerProfilesTable.id,
+            applicationStatus: venueOwnerProfilesTable.applicationStatus,
+          })
+          .from(venueOwnerProfilesTable)
+          .where(inArray(venueOwnerProfilesTable.id, uniqueProfileIds))
+      : [];
+    const profileStatuses = Array.isArray(profileStatusResult)
+      ? profileStatusResult
+      : [];
+    const statusByProfileId = new Map(
+      profileStatuses.map((profile) => [profile.id, profile.applicationStatus]),
+    );
+
+    const now = Date.now();
+    const emails = [
+      ...loggedRows.map(({ log, applicationInvite, registrationToken }) => {
+        const profileId = log.venueOwnerProfileId ??
+          applicationInvite?.applicationId ??
+          null;
+        const expiry = applicationInvite?.expiresAt ??
+          registrationToken?.expiresAt ??
+          null;
+        let linkStatus: "none" | "active" | "expired" | "used" | "superseded" | "unknown" =
+          "none";
+        if (log.kind === "new_venue_outreach" && log.applicationInviteTokenId !== null) {
+          linkStatus = log.supersededAt
+            ? "superseded"
+            : applicationInvite?.consumedAt || applicationInvite?.applicationId
+              ? "used"
+              : expiry && expiry.getTime() <= now
+                ? "expired"
+                : applicationInvite
+                  ? "active"
+                  : "unknown";
+        } else if (log.kind === "registration_invite") {
+          linkStatus = log.supersededAt
+            ? "superseded"
+            : registrationToken?.consumedAt
+              ? "used"
+              : expiry && expiry.getTime() <= now
+                ? "expired"
+                : registrationToken
+                  ? "active"
+                  : "unknown";
+        }
+        return {
+          id: String(log.id),
+          kind: log.kind,
+          businessName: log.businessName,
+          recipientEmail: log.recipientEmail,
+          template: log.template,
+          deliveryStatus:
+            log.deliveryStatus === "sending" &&
+            log.createdAt.getTime() < Date.now() - STALE_OUTREACH_SEND_MS
+              ? "delivery_uncertain"
+              : log.deliveryStatus,
+          createdAt: log.createdAt.toISOString(),
+          sentAt: log.sentAt?.toISOString() ?? null,
+          venueOwnerProfileId: profileId,
+          applicationId: profileId,
+          applicationStatus: profileId
+            ? statusByProfileId.get(profileId) ?? null
+            : null,
+          expiresAt: expiry?.toISOString() ?? null,
+          linkStatus,
+        };
+      }),
+      ...legacyInvites
+        .filter((invite) => !loggedInviteIds.has(invite.id))
+        .map((invite) => {
+          const linkStatus = invite.consumedAt || invite.applicationId
+            ? "used" as const
+            : invite.expiresAt.getTime() <= now
+              ? "expired" as const
+              : "active" as const;
+          return {
+            id: `legacy-invite-${invite.id}`,
+            kind: "new_venue_outreach" as const,
+            businessName: invite.businessName,
+            recipientEmail: invite.invitedEmail,
+            template: "preapproval_video_application",
+            deliveryStatus: "delivery_uncertain" as const,
+            createdAt: invite.createdAt.toISOString(),
+            sentAt: null,
+            venueOwnerProfileId: invite.applicationId,
+            applicationId: invite.applicationId,
+            applicationStatus: invite.applicationId
+              ? statusByProfileId.get(invite.applicationId) ?? null
+              : null,
+            expiresAt: invite.expiresAt.toISOString(),
+            linkStatus,
+          };
+        }),
+      ...legacyHistory
+        .filter((entry) => entry.recipientEmail.includes("@"))
+        .map((entry) => {
+          const isRegistration = entry.isRegistrationLink ||
+            entry.template === "registration" ||
+            entry.template === "registration_with_video";
+          return {
+            id: `legacy-history-${entry.id}`,
+            kind: isRegistration
+              ? "registration_invite" as const
+              : "contact_request" as const,
+            businessName: entry.businessName,
+            recipientEmail: entry.recipientEmail,
+            template: entry.template,
+            deliveryStatus: "sent" as const,
+            createdAt: entry.createdAt.toISOString(),
+            sentAt: entry.createdAt.toISOString(),
+            venueOwnerProfileId: entry.venueOwnerProfileId,
+            applicationId: entry.venueOwnerProfileId,
+            applicationStatus: entry.applicationStatus,
+            expiresAt: null,
+            linkStatus: isRegistration ? "unknown" as const : "none" as const,
+          };
+        }),
+    ].sort((left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    );
+
+    res.json({ emails });
+  },
+);
+
+/**
+ * Email a venue that is not in Met yet. The pre-approval application template
+ * creates a short-lived, email-bound link; it does not approve the venue or
+ * grant manager access.
+ */
+router.post(
+  "/admin/venue-owner/outreach",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = z.object({
+      businessName: z.string().trim().min(2).max(150),
+      recipientEmail: z.string().trim().email().max(255),
+      template: z.enum(OUTREACH_TEMPLATE_IDS).default("contact_request"),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Enter a venue name and valid recipient email address." });
+      return;
+    }
+    const { businessName, template } = parsed.data;
+    const recipientEmail = parsed.data.recipientEmail.toLowerCase();
+    let applicationUrl: string | undefined;
+    let applicationExpiresAt: Date | undefined;
+    let applicationInviteTokenId: number | null = null;
+    if (template === "preapproval_video_application") {
+      const configuredBaseUrl = getVenueManagerBaseUrl();
+      let baseUrl: URL;
+      try {
+        if (!configuredBaseUrl) throw new Error("Venue Manager base URL is not configured.");
+        baseUrl = new URL(configuredBaseUrl);
+        if (baseUrl.protocol !== "https:" || baseUrl.username || baseUrl.password) {
+          throw new Error("Venue Manager base URL must use HTTPS.");
+        }
+      } catch {
+        res.status(503).json({ message: "Secure venue application invitations are not configured on this server." });
+        return;
+      }
+      const rawToken = crypto.randomBytes(32).toString("base64url");
+      const tokenHash = hashVenueApplicationInviteToken(rawToken);
+      applicationExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+      applicationUrl = `${baseUrl.href.replace(/\/$/, "")}/apply#invite=${rawToken}`;
+      const [applicationInvite] = await db
+        .insert(venueApplicationInviteTokensTable)
+        .values({
+          tokenHash,
+          invitedEmail: recipientEmail,
+          businessName,
+          expiresAt: applicationExpiresAt,
+        })
+        .returning({ id: venueApplicationInviteTokensTable.id });
+      if (!applicationInvite) {
+        res.status(500).json({ message: "Could not create the application invitation." });
+        return;
+      }
+      applicationInviteTokenId = applicationInvite.id;
+    }
+    const outreachLogId = await createVenueOutreachLog({
+      applicationInviteTokenId,
+      businessName,
+      recipientEmail,
+      template,
+      kind: "new_venue_outreach",
+      actorUid: adminActorUid(req),
+    });
+    try {
+      await sendNewVenueOutreachEmail({
+        to: recipientEmail,
+        businessName,
+        template,
+        ...(applicationUrl ? { applicationUrl, applicationExpiresAt } : {}),
+      });
+    } catch (err) {
+      await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
+      req.log?.warn({ err }, "Unable to confirm new venue outreach delivery");
+      res.status(503).json({ message: "Delivery could not be confirmed. Check the connected Gmail Sent folder before trying again." });
+      return;
+    }
+    await finishVenueOutreachLog(outreachLogId, "sent");
+    if (applicationInviteTokenId !== null) {
+      const previousInvites = await db
+        .select({ id: venueApplicationInviteTokensTable.id })
+        .from(venueApplicationInviteTokensTable)
+        .where(and(
+          eq(venueApplicationInviteTokensTable.invitedEmail, recipientEmail),
+          eq(venueApplicationInviteTokensTable.businessName, businessName),
+          ne(venueApplicationInviteTokensTable.id, applicationInviteTokenId),
+          isNull(venueApplicationInviteTokensTable.consumedAt),
+          gt(venueApplicationInviteTokensTable.expiresAt, new Date()),
+        ));
+      const previousInviteIds = previousInvites.map((invite) => invite.id);
+      if (previousInviteIds.length > 0) {
+        const supersededAt = new Date();
+        await db.update(venueOutreachEmailLogsTable)
+          .set({ supersededAt })
+          .where(inArray(
+            venueOutreachEmailLogsTable.applicationInviteTokenId,
+            previousInviteIds,
+          ));
+        await db.update(venueApplicationInviteTokensTable)
+          .set({ expiresAt: supersededAt })
+          .where(inArray(venueApplicationInviteTokensTable.id, previousInviteIds));
+      }
+    }
+    res.status(201).json({ emailSent: true, recipientEmail });
+  },
+);
+
+/**
+ * A first contact with a venue's public email is not a registration invitation:
+ * it creates no token and must not start the venue's 14-day deadline.
+ */
+router.post(
+  "/admin/venue-owner/applications/:id/contact-request",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const profileId = parseProfileId(req.params["id"]);
+    const parsed = z.object({ recipientEmail: z.string().trim().email().max(255) }).safeParse(req.body);
+    if (profileId === null || !parsed.success) {
+      res.status(400).json({ message: "Enter a valid recipient email address." });
+      return;
+    }
+    const [profile] = await db.select({
+      id: venueOwnerProfilesTable.id,
+      businessName: venueOwnerProfilesTable.businessName,
+      coverPhotoUrl: venueOwnerProfilesTable.coverPhotoUrl,
+      ownerUid: venueOwnerProfilesTable.ownerUid,
+    }).from(venueOwnerProfilesTable).where(and(
+      eq(venueOwnerProfilesTable.id, profileId),
+      eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+    )).limit(1);
+    if (!profile) {
+      res.status(404).json({ message: "Approved venue not found." });
+      return;
+    }
+    if (profile.ownerUid.startsWith("admin-managed:") || await checkHasClaimedVenueManager(profile.id)) {
+      res.status(409).json({ message: "This venue already has management access or is managed directly by the admin team." });
+      return;
+    }
+    const recipientEmail = parsed.data.recipientEmail.toLowerCase();
+    const outreachLogId = await createVenueOutreachLog({
+      venueOwnerProfileId: profile.id,
+      businessName: profile.businessName,
+      recipientEmail,
+      template: "contact_request",
+      kind: "contact_request",
+      actorUid: adminActorUid(req),
+    });
+    try {
+      await sendVenueContactRequestEmail({
+        to: recipientEmail,
+        businessName: profile.businessName,
+        coverPhotoUrl: profile.coverPhotoUrl,
+      });
+    } catch (err) {
+      await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
+      req.log?.warn({ err, profileId }, "Unable to confirm venue contact-request delivery");
+      res.status(503).json({ message: "Delivery could not be confirmed. Check the connected Gmail Sent folder before trying again." });
+      return;
+    }
+    await finishVenueOutreachLog(outreachLogId, "sent");
+    await appendApplicationHistory({
+      venueOwnerProfileId: profile.id,
+      eventType: "email_sent",
+      actorRole: "admin",
+      internalNote: "Asked for the venue management contact",
+      metadata: {
+        template: "contact_request",
+        sentTo: recipientEmail,
+        outreachLogId,
+      },
+    });
+    res.status(201).json({ emailSent: true, recipientEmail });
+  },
+);
+
+/**
  * POST /admin/venue-owner/applications/:id/registration-link
  * Generates a one-time owner registration token for an approved venue.
  * Pass `{ sendEmail: true }` in the body to also email the link directly
- * to the venue owner's contact address (requires SMTP + VENUE_MANAGER_BASE_URL).
+  * to the venue owner's contact address (requires connected Gmail + VENUE_MANAGER_BASE_URL).
  * Response includes `emailSent` (boolean) and `contactEmail` so the portal
  * can show confirmation or fall back to copy-paste.
  */
@@ -3445,6 +4694,15 @@ router.post(
   "/admin/venue-owner/applications/:id/registration-link",
   requireAdminSession,
   async (req: Request, res: Response): Promise<void> => {
+    const requestBody = z.object({
+      sendEmail: z.boolean().default(false),
+      recipientEmail: z.string().trim().email().max(255).optional(),
+      template: z.enum(["registration", "registration_with_video"]).default("registration"),
+    }).safeParse(req.body ?? {});
+    if (!requestBody.success) {
+      res.status(400).json({ message: "Enter a valid manager email and invitation template." });
+      return;
+    }
     const profileId = parseProfileId(req.params["id"]);
     if (profileId === null) {
       res.status(400).json({ message: "Invalid profile id" });
@@ -3455,6 +4713,8 @@ router.post(
         id: venueOwnerProfilesTable.id,
         businessName: venueOwnerProfilesTable.businessName,
         contactEmail: venueOwnerProfilesTable.contactEmail,
+        coverPhotoUrl: venueOwnerProfilesTable.coverPhotoUrl,
+        ownerUid: venueOwnerProfilesTable.ownerUid,
       })
       .from(venueOwnerProfilesTable)
       .where(
@@ -3468,6 +4728,26 @@ router.post(
       res.status(404).json({ message: "Approved application not found." });
       return;
     }
+    if (profile.ownerUid.startsWith("admin-managed:")) {
+      res.status(409).json({ message: "This venue is managed directly in Venue Admin and has no owner invitation." });
+      return;
+    }
+    if (await checkHasClaimedVenueManager(profile.id)) {
+      res.status(409).json({ message: "This venue already has a registered manager." });
+      return;
+    }
+    const recipient = requestBody.data.recipientEmail === undefined
+      ? profile.contactEmail
+      : requestBody.data.recipientEmail;
+    if (!recipient) {
+      res.status(400).json({ message: "Enter the email address of the manager who should register this venue." });
+      return;
+    }
+    const invitedEmail = recipient.toLowerCase();
+    if (requestBody.data.sendEmail && !process.env["VENUE_MANAGER_BASE_URL"]) {
+      res.status(503).json({ message: "Registration email delivery is not configured on this server." });
+      return;
+    }
     const [business] = await db
       .select({ id: venueBusinessesTable.id })
       .from(venueBusinessesTable)
@@ -3479,37 +4759,103 @@ router.post(
     }
     const rawToken = crypto.randomBytes(32).toString("base64url");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await db
+    const existingDeadline = await getRegistrationDeadline(profile.id);
+    if (existingDeadline && existingDeadline <= new Date()) {
+      res.status(409).json({ message: "The 14-day registration deadline has passed. Reinstate the venue before sending a new invitation." });
+      return;
+    }
+    const expiresAt = existingDeadline ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const [registrationToken] = await db
       .insert(venueManagerRegistrationTokensTable)
-      .values({ businessId: business.id, tokenHash, expiresAt });
+      .values({ businessId: business.id, tokenHash, invitedEmail, expiresAt })
+      .returning({ id: venueManagerRegistrationTokensTable.id });
+    if (!registrationToken) {
+      res.status(500).json({ message: "Could not create the registration invitation." });
+      return;
+    }
 
     // Optionally send the link by email when the caller requests it.
     let emailSent = false;
-    if (req.body?.sendEmail === true && profile.contactEmail) {
+    let emailError: "not_configured" | "auth_failed" | "gmail_connection_failed" | "delivery_failed" | null = null;
+    let outreachLogId: number | null = null;
+    if (requestBody.data.sendEmail) {
       const baseUrl = process.env["VENUE_MANAGER_BASE_URL"];
       if (baseUrl) {
         const registrationUrl = `${baseUrl.replace(/\/$/, "")}/register?token=${rawToken}`;
         try {
-          emailSent = await sendRegistrationLinkEmail({
-            to: profile.contactEmail,
+          outreachLogId = await createVenueOutreachLog({
+            venueOwnerProfileId: profile.id,
+            registrationTokenId: registrationToken.id,
             businessName: profile.businessName,
+            recipientEmail: invitedEmail,
+            template: requestBody.data.template,
+            kind: "registration_invite",
+            actorUid: adminActorUid(req),
+          });
+          emailSent = await sendRegistrationLinkEmail({
+            to: invitedEmail,
+            businessName: profile.businessName,
+            coverPhotoUrl: profile.coverPhotoUrl,
             registrationUrl,
             expiresAt,
+            registrationDeadline: existingDeadline ?? expiresAt,
+            includeAppIntro: requestBody.data.template === "registration_with_video",
           });
+          if (!emailSent) emailError = "not_configured";
+          await finishVenueOutreachLog(
+            outreachLogId,
+            emailSent ? "sent" : "failed",
+          );
         } catch (err) {
-          logger.warn({ err, to: profile.contactEmail }, "Failed to send registration link email");
+          const code = (err as { code?: string }).code;
+          emailError = code === "GMAIL_AUTH" ? "gmail_connection_failed"
+            : code === "EAUTH" ? "auth_failed" : "delivery_failed";
+          if (outreachLogId !== null) {
+            await finishVenueOutreachLog(
+              outreachLogId,
+              emailError === "delivery_failed" ? "delivery_uncertain" : "failed",
+            );
+          }
+          logger.warn({ err, to: invitedEmail }, "Failed to send registration link email");
         }
         if (emailSent) {
+          await recordVenueInvitation(profile.id);
           // Record so the claim-link overdue alert cron knows a link was sent.
           await appendApplicationHistory({
             venueOwnerProfileId: profile.id,
             eventType: "email_sent",
             actorRole: "admin",
             internalNote: "Registration link sent via admin portal",
-            metadata: { registrationLink: true, sentTo: profile.contactEmail },
+            metadata: {
+              registrationLink: true,
+              template: requestBody.data.template,
+              sentTo: invitedEmail,
+              ...(outreachLogId !== null ? { outreachLogId } : {}),
+            },
           });
+
+          // Keep previous one-time links usable until the replacement email is
+          // confirmed. The registration deadline remains unchanged on resends.
+          const previousTokens = await db
+            .select({ id: venueManagerRegistrationTokensTable.id })
+            .from(venueManagerRegistrationTokensTable)
+            .where(and(
+              eq(venueManagerRegistrationTokensTable.businessId, business.id),
+              ne(venueManagerRegistrationTokensTable.id, registrationToken.id),
+              isNull(venueManagerRegistrationTokensTable.consumedAt),
+              gt(venueManagerRegistrationTokensTable.expiresAt, new Date()),
+            ));
+          const previousTokenIds = previousTokens.map((token) => token.id);
+          if (previousTokenIds.length > 0) {
+            await db.update(venueOutreachEmailLogsTable)
+              .set({ supersededAt: new Date() })
+              .where(inArray(venueOutreachEmailLogsTable.registrationTokenId, previousTokenIds));
+            await db.delete(venueManagerRegistrationTokensTable)
+              .where(inArray(venueManagerRegistrationTokensTable.id, previousTokenIds));
+          }
         }
+      } else {
+        emailError = "not_configured";
       }
     }
 
@@ -3517,7 +4863,8 @@ router.post(
       token: rawToken,
       expiresAt: expiresAt.toISOString(),
       emailSent,
-      contactEmail: profile.contactEmail ?? null,
+      emailError,
+      contactEmail: invitedEmail,
     });
   },
 );
@@ -4578,27 +5925,39 @@ router.post(
       return;
     }
 
-    // Invalidate any previous unconsumed registration tokens for this business
-    // so re-sending the link leaves only the newest token valid and previous
-    // URLs cannot be used to claim the account.
-    await db
-      .delete(venueManagerRegistrationTokensTable)
-      .where(eq(venueManagerRegistrationTokensTable.businessId, business.id));
-
-    const rawToken = crypto.randomBytes(32).toString("base64url");
-    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await db
-      .insert(venueManagerRegistrationTokensTable)
-      .values({ businessId: business.id, tokenHash, expiresAt });
-
+    const existingDeadline = await getRegistrationDeadline(profile.id);
+    if (existingDeadline && existingDeadline <= new Date()) {
+      res.status(409).json({ message: "The 14-day registration deadline has passed. Contact an administrator." });
+      return;
+    }
     const baseUrl = process.env["VENUE_MANAGER_BASE_URL"];
     if (!baseUrl) {
       res.status(503).json({ message: "Email delivery is not configured on this server." });
       return;
     }
+    const rawToken = crypto.randomBytes(32).toString("base64url");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
+    const expiresAt = existingDeadline ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const [registrationToken] = await db
+      .insert(venueManagerRegistrationTokensTable)
+      .values({ businessId: business.id, tokenHash, invitedEmail: profile.contactEmail, expiresAt })
+      .returning({ id: venueManagerRegistrationTokensTable.id });
+    if (!registrationToken) {
+      res.status(500).json({ message: "Could not create the registration invitation." });
+      return;
+    }
 
     let emailSent = false;
+    let deliveryUncertain = false;
+    const outreachLogId = await createVenueOutreachLog({
+      venueOwnerProfileId: profile.id,
+      registrationTokenId: registrationToken.id,
+      businessName: profile.businessName,
+      recipientEmail: profile.contactEmail,
+      template: "registration",
+      kind: "registration_invite",
+      actorUid: `agent:${agentId}`,
+    });
     const registrationUrl = `${baseUrl.replace(/\/$/, "")}/register?token=${rawToken}`;
     try {
       emailSent = await sendRegistrationLinkEmail({
@@ -4606,22 +5965,30 @@ router.post(
         businessName: profile.businessName,
         registrationUrl,
         expiresAt,
+        registrationDeadline: existingDeadline ?? expiresAt,
       });
     } catch (err) {
+      deliveryUncertain = true;
       logger.warn({ err, to: profile.contactEmail }, "Failed to send registration link email");
+      await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
     }
 
     if (!emailSent) {
-      // Token generated but delivery failed — do not record as sent.
+      if (!deliveryUncertain) {
+        await finishVenueOutreachLog(outreachLogId, "failed");
+        await db.update(venueManagerRegistrationTokensTable)
+          .set({ expiresAt: new Date() })
+          .where(eq(venueManagerRegistrationTokensTable.id, registrationToken.id));
+      }
       res.status(200).json({
         emailSent: false,
         contactEmail: profile.contactEmail,
       });
       return;
     }
+    await finishVenueOutreachLog(outreachLogId, "sent");
+    await recordVenueInvitation(profile.id);
 
-    // Email delivered — record this as a registration-link send so the list
-    // endpoint can surface a reliable timestamp via the metadata tag.
     const sentAt = new Date();
     await appendApplicationHistory({
       venueOwnerProfileId: profile.id,
@@ -4629,8 +5996,31 @@ router.post(
       actorRole: "admin",
       actorUid: `agent:${agentId}`,
       internalNote: `Registration link sent by sales agent (ID: ${agentId})`,
-      metadata: { registrationLink: true, sentTo: profile.contactEmail },
+      metadata: {
+        registrationLink: true,
+        template: "registration",
+        sentTo: profile.contactEmail,
+        outreachLogId,
+      },
     });
+
+    const previousTokens = await db
+      .select({ id: venueManagerRegistrationTokensTable.id })
+      .from(venueManagerRegistrationTokensTable)
+      .where(and(
+        eq(venueManagerRegistrationTokensTable.businessId, business.id),
+        ne(venueManagerRegistrationTokensTable.id, registrationToken.id),
+        isNull(venueManagerRegistrationTokensTable.consumedAt),
+        gt(venueManagerRegistrationTokensTable.expiresAt, new Date()),
+      ));
+    const previousTokenIds = previousTokens.map((token) => token.id);
+    if (previousTokenIds.length > 0) {
+      await db.update(venueOutreachEmailLogsTable)
+        .set({ supersededAt: sentAt })
+        .where(inArray(venueOutreachEmailLogsTable.registrationTokenId, previousTokenIds));
+      await db.delete(venueManagerRegistrationTokensTable)
+        .where(inArray(venueManagerRegistrationTokensTable.id, previousTokenIds));
+    }
 
     res.status(201).json({
       emailSent: true,

@@ -17,6 +17,8 @@ process.env["SESSION_SECRET"] = "test-session-secret";
  * The spy calls through to the real implementation so nothing else breaks.
  */
 const eqSpy = vi.hoisted(() => vi.fn());
+const neSpy = vi.hoisted(() => vi.fn());
+const isNullSpy = vi.hoisted(() => vi.fn());
 vi.mock("drizzle-orm", async (importActual) => {
   const actual = await importActual<typeof import("drizzle-orm")>();
   return {
@@ -24,6 +26,14 @@ vi.mock("drizzle-orm", async (importActual) => {
     eq: (...args: Parameters<typeof actual.eq>) => {
       eqSpy(...args);
       return actual.eq(...args);
+    },
+    ne: (...args: Parameters<typeof actual.ne>) => {
+      neSpy(...args);
+      return actual.ne(...args);
+    },
+    isNull: (...args: Parameters<typeof actual.isNull>) => {
+      isNullSpy(...args);
+      return actual.isNull(...args);
     },
   };
 });
@@ -95,16 +105,24 @@ const dbMocks = vi.hoisted(() => {
     from: vi.fn(),
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn(),
+    leftJoin: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
     groupBy: vi.fn(),
     limit: vi.fn(),
     insert: vi.fn(),
     values: vi.fn().mockReturnThis(),
     update: vi.fn(),
+    delete: vi.fn(),
     set: vi.fn().mockReturnThis(),
     returning: vi.fn(),
     transaction: vi.fn(),
   };
-  return { chain, credChain, credState, credTable, bizChain, bizTable };
+  const contentTables = {
+    events: { id: "eventId", placeId: "eventPlaceId", ownerUid: "eventOwnerUid" },
+    rewards: { id: "rewardId", placeId: "rewardPlaceId", ownerUid: "rewardOwnerUid", status: "rewardStatus", winnerUid: "rewardWinnerUid" },
+    announcements: { id: "announcementId", placeId: "announcementPlaceId", ownerUid: "announcementOwnerUid", isPinned: "announcementIsPinned" },
+  };
+  return { chain, credChain, credState, credTable, bizChain, bizTable, contentTables };
 });
 
 vi.mock("@workspace/db", () => ({
@@ -113,6 +131,8 @@ vi.mock("@workspace/db", () => ({
     id: "id",
     ownerUid: "ownerUid",
     placeId: "placeId",
+    businessName: "businessName",
+    contactEmail: "contactEmail",
     applicationStatus: "applicationStatus",
     applicationSource: "applicationSource",
     submittedAt: "submittedAt",
@@ -131,14 +151,36 @@ vi.mock("@workspace/db", () => ({
     metadata: "metadata",
     createdAt: "createdAt",
   },
+  venueApplicationInviteTokensTable: {
+    id: "inviteTokenId",
+    tokenHash: "tokenHash",
+    invitedEmail: "invitedEmail",
+    businessName: "inviteBusinessName",
+    expiresAt: "inviteExpiresAt",
+    consumedAt: "inviteConsumedAt",
+    applicationId: "inviteApplicationId",
+    createdAt: "inviteCreatedAt",
+  },
+  venueManagerRegistrationTokensTable: {
+    id: "registrationTokenId",
+    consumedAt: "registrationConsumedAt",
+    expiresAt: "registrationExpiresAt",
+  },
+  venueOutreachEmailLogsTable: {
+    id: "outreachLogId",
+    venueOwnerProfileId: "outreachProfileId",
+    applicationInviteTokenId: "outreachInviteTokenId",
+    registrationTokenId: "outreachRegistrationTokenId",
+    createdAt: "outreachCreatedAt",
+  },
   venueAdminCredentialsTable: dbMocks.credTable,
   venueBusinessesTable: dbMocks.bizTable,
   venueMembershipsTable: dbMocks.bizTable,
   venueMembershipAuditTable: dbMocks.bizTable,
-  venueEventsTable: {},
+  venueEventsTable: dbMocks.contentTables.events,
   venueEventRsvpsTable: {},
-  venueRewardsTable: {},
-  venueAnnouncementsTable: {},
+  venueRewardsTable: dbMocks.contentTables.rewards,
+  venueAnnouncementsTable: dbMocks.contentTables.announcements,
   hubCheckinsTable: {},
   profilesTable: {},
 }));
@@ -157,6 +199,18 @@ vi.mock("../middlewares/rateLimit", () => ({
 
 const pushMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("../lib/push", () => ({ sendPush: (...args: unknown[]) => pushMock(...args) }));
+
+const imageStorage = vi.hoisted(() => {
+  const file = { delete: vi.fn().mockResolvedValue(undefined) };
+  return {
+    file,
+    getObjectEntityUploadURL: vi.fn().mockResolvedValue("https://storage.googleapis.com/bucket/private/uploads/123e4567-e89b-42d3-a456-426614174000"),
+    normalizeObjectEntityPath: vi.fn().mockReturnValue("/objects/uploads/123e4567-e89b-42d3-a456-426614174000"),
+    getObjectEntityFile: vi.fn().mockResolvedValue(file),
+    getObjectMagicBytes: vi.fn().mockResolvedValue(Buffer.from([0xff, 0xd8, 0xff, 0x00])),
+  };
+});
+vi.mock("../lib/objectStorage", () => ({ ObjectStorageService: vi.fn(function () { return imageStorage; }) }));
 
 import express from "express";
 import cookieParser from "cookie-parser";
@@ -244,6 +298,7 @@ beforeEach(() => {
   dbMocks.chain.update.mockImplementation((table: unknown) =>
     table === dbMocks.credTable ? dbMocks.credChain : dbMocks.chain,
   );
+  dbMocks.chain.delete.mockReturnValue(dbMocks.chain);
   dbMocks.chain.where.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
   dbMocks.chain.values.mockReturnThis();
@@ -258,6 +313,8 @@ beforeEach(() => {
 
 describe("admin session authorization", () => {
   const guarded: Array<[string, string]> = [
+    ["get", "/api/admin/venue-owner/places/search?query=cafe"],
+    ["post", "/api/admin/venue-owner/venues"],
     ["get", "/api/admin/venue-owner/applications"],
     ["get", "/api/admin/venue-owner/applications/7"],
     ["post", "/api/admin/venue-owner/applications/7/start-review"],
@@ -266,6 +323,15 @@ describe("admin session authorization", () => {
     ["post", "/api/admin/venue-owner/applications/7/request-changes"],
     ["post", "/api/admin/venue-owner/applications/7/withdraw"],
     ["post", "/api/admin/venue-owner/applications/7/notes"],
+    ["get", "/api/admin/venue-owner/outreach/history"],
+    ["get", "/api/admin/venue-owner/venues/7/events"],
+    ["post", "/api/admin/venue-owner/venues/7/events"],
+    ["get", "/api/admin/venue-owner/venues/7/rewards"],
+    ["post", "/api/admin/venue-owner/venues/7/rewards"],
+    ["get", "/api/admin/venue-owner/venues/7/announcements"],
+    ["post", "/api/admin/venue-owner/venues/7/announcements"],
+    ["post", "/api/admin/venue-owner/venues/7/images/upload"],
+    ["post", "/api/admin/venue-owner/venues/7/images/confirm"],
   ];
 
   it.each(guarded)("rejects %s %s without a session", async (method, path) => {

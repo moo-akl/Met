@@ -20,6 +20,15 @@ import {
   venueOwnerProfilesTable,
 } from "@workspace/db";
 
+const firebaseAuthStubs = vi.hoisted(() => ({
+  getUser: vi.fn(),
+  verifyIdToken: vi.fn(),
+}));
+vi.mock("../lib/firebaseAdmin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/firebaseAdmin")>();
+  return { ...actual, adminAuth: () => firebaseAuthStubs };
+});
+
 // ── Rate-limiting & requireUid are not under test here ───────────────────────
 vi.mock("../middlewares/rateLimit", () => ({
   createIpRateLimiter: () => (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -166,12 +175,40 @@ describe.skipIf(!hasDatabase)("venue image upload security (real database)", asy
 
   async function claimOwner(name: string) {
     const { profile, business } = await makeBusiness(name);
+    firebaseAuthStubs.getUser.mockResolvedValueOnce({
+      uid: profile.ownerUid,
+      email: email(name),
+      emailVerified: true,
+    });
     const agent = request.agent(app);
     const res = await agent.post("/api/venue-manager/claim")
       .set("x-test-uid", profile.ownerUid)
-      .send({ email: email(name), displayName: `Owner ${name}`, password: STRONG });
+      .send({
+        email: email(name),
+        displayName: `Owner ${name}`,
+        password: STRONG,
+        acceptedTermsVersion: "venue-2026-09",
+      });
     expect(res.status).toBe(200);
     return { agent, csrf: res.body.csrfToken as string, business };
+  }
+
+  async function acceptFirebaseInvitation(token: string, name: string, displayName: string) {
+    const uid = `${PREFIX}-firebase-${name}`;
+    const idToken = `${PREFIX}-id-token-${name}`;
+    firebaseAuthStubs.verifyIdToken.mockResolvedValueOnce({
+      uid,
+      email: email(name),
+      email_verified: true,
+    });
+    const agent = request.agent(app);
+    const accepted = await agent.post("/api/venue-manager/invitations/accept/firebase").send({
+      token,
+      idToken,
+      displayName,
+      acceptedTermsVersion: "venue-2026-09",
+    });
+    return { agent, accepted };
   }
 
   // ── /upload endpoint ────────────────────────────────────────────────────────
@@ -324,10 +361,11 @@ describe.skipIf(!hasDatabase)("venue image upload security (real database)", asy
       .send({ email: email("upload-editor"), role: "editor" });
     expect(invite.status).toBe(201);
 
-    const editorAgent = request.agent(app);
-    const accepted = await editorAgent
-      .post("/api/venue-manager/invitations/accept")
-      .send({ token: invite.body.invitationToken, displayName: "Ed", password: STRONG });
+    const { agent: editorAgent, accepted } = await acceptFirebaseInvitation(
+      invite.body.invitationToken,
+      "upload-editor",
+      "Ed",
+    );
     expect(accepted.status).toBe(200);
     const editorCsrf = accepted.body.csrfToken as string;
 
@@ -346,10 +384,11 @@ describe.skipIf(!hasDatabase)("venue image upload security (real database)", asy
       .send({ email: email("confirm-editor"), role: "editor" });
     expect(invite.status).toBe(201);
 
-    const editorAgent = request.agent(app);
-    const accepted = await editorAgent
-      .post("/api/venue-manager/invitations/accept")
-      .send({ token: invite.body.invitationToken, displayName: "Ed2", password: STRONG });
+    const { agent: editorAgent, accepted } = await acceptFirebaseInvitation(
+      invite.body.invitationToken,
+      "confirm-editor",
+      "Ed2",
+    );
     expect(accepted.status).toBe(200);
     const editorCsrf = accepted.body.csrfToken as string;
 

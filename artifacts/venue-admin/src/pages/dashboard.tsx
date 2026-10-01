@@ -8,6 +8,10 @@ import {
   getListVenueApplicationsQueryKey,
   useGetVenueApplicationForReview,
   getGetVenueApplicationForReviewQueryKey,
+  sendVenueContactRequest,
+  sendNewVenueOutreach,
+  previewNewVenueOutreach,
+  createVenueRegistrationLink,
   useStartVenueApplicationReview,
   useApproveVenueApplication,
   useRejectVenueApplication,
@@ -15,9 +19,11 @@ import {
   useWithdrawVenueApplicationAsAdmin,
   useAddVenueApplicationNote,
   VenueApplication,
+  ListVenueApplicationsParams,
   VenueApplicationQueueCounts,
   VenueApplicationReviewHistoryEntry
 } from "@workspace/api-client-react";
+import type { VenueOutreachInputTemplate, VenueOutreachTemplatePreview } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -50,9 +56,13 @@ import {
   Users,
   ArrowLeft,
   UserCheck,
-  Flag
+  Flag,
+  Plus,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import VenueInviteDialog from "@/components/VenueInviteDialog";
+import VenueOutreachHistoryPanel from "@/components/VenueOutreachHistoryPanel";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,12 +83,22 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import AgentsPanel from "@/components/AgentsPanel";
 import ContentReportsPanel from "@/components/ContentReportsPanel";
+import AdminManagedVenuePanel from "@/components/AdminManagedVenuePanel";
+import VenueActivationPolicyPanel from "@/components/VenueActivationPolicyPanel";
 
 function isApiError(error: unknown): error is Error & { status: number, data: unknown } {
   return error instanceof Error && 'status' in error;
 }
 
 type ListStatus = "queue" | "all" | "draft" | "submitted" | "under_review" | "changes_requested" | "rejected" | "resubmitted" | "approved" | "withdrawn" | "expired";
+type VenueSearchPlace = {
+  placeId: string;
+  placeName: string;
+  address: string | null;
+  category: string | null;
+  lat: number;
+  lng: number;
+};
 
 function StatusBadge({ status, label }: { status: string, label: string }) {
   const statusConfig: Record<string, { bg: string, text: string, border: string }> = {
@@ -129,7 +149,7 @@ export default function Dashboard() {
   
   const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<ListStatus>("queue");
-  const [filterSource, setFilterSource] = useState<"all" | "mobile" | "web" | "agent">("all");
+  const [filterSource, setFilterSource] = useState<"all" | "mobile" | "web" | "agent" | "admin">("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [search, setSearch] = useState("");
@@ -141,14 +161,79 @@ export default function Dashboard() {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [regLinkResult, setRegLinkResult] = useState<{ token: string; expiresAt: string; appId: number; emailSent: boolean; contactEmail: string | null } | null>(null);
+  const [regLinkResult, setRegLinkResult] = useState<{
+    token: string;
+    expiresAt: string;
+    appId: number;
+    emailSent: boolean;
+    emailRequested: boolean;
+    emailTemplate: "registration" | "registration_with_video";
+    emailError: "not_configured" | "auth_failed" | "gmail_connection_failed" | "delivery_failed" | null;
+    contactEmail: string | null;
+  } | null>(null);
   const [regLinkLoading, setRegLinkLoading] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteSending, setInviteSending] = useState(false);
+  const [outreachOpen, setOutreachOpen] = useState(false);
+  const [outreachName, setOutreachName] = useState("");
+  const [outreachEmail, setOutreachEmail] = useState("");
+  const [outreachTemplate, setOutreachTemplate] = useState<VenueOutreachInputTemplate>("contact_request");
+  const [outreachTemplates, setOutreachTemplates] = useState<VenueOutreachTemplatePreview[]>([]);
+  const [outreachPreviewName, setOutreachPreviewName] = useState("");
+  const [outreachPreviewError, setOutreachPreviewError] = useState("");
+  const [outreachSending, setOutreachSending] = useState(false);
+  const [outreachError, setOutreachError] = useState("");
+  const [inviteTarget, setInviteTarget] = useState<VenueApplication | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [venueQuery, setVenueQuery] = useState("");
+  const [venueResults, setVenueResults] = useState<VenueSearchPlace[]>([]);
+  const [selectedVenue, setSelectedVenue] = useState<VenueSearchPlace | null>(null);
+  const [quickBusinessName, setQuickBusinessName] = useState("");
+  const [quickOwnerName, setQuickOwnerName] = useState("");
+  const [quickOwnerEmail, setQuickOwnerEmail] = useState("");
+  const [quickManagementMode, setQuickManagementMode] = useState<"invite_owner" | "admin">("invite_owner");
+  const [quickAddStep, setQuickAddStep] = useState<1 | 2>(1);
+  const [venueSearching, setVenueSearching] = useState(false);
+  const [quickAdding, setQuickAdding] = useState(false);
+
+  useEffect(() => {
+    if (!outreachOpen) return;
+    const businessName = outreachName.trim() || "your venue";
+    let cancelled = false;
+    setOutreachPreviewError("");
+    const timeout = window.setTimeout(async () => {
+      try {
+        const result = await previewNewVenueOutreach({ businessName });
+        if (!cancelled) {
+          setOutreachTemplates(result.templates);
+          setOutreachPreviewName(businessName);
+        }
+      } catch {
+        if (!cancelled) {
+          setOutreachPreviewName("");
+          setOutreachPreviewError("Could not load the email preview. Please try again.");
+        }
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [outreachOpen, outreachName]);
+
+  const currentOutreachName = outreachName.trim() || "your venue";
+  const selectedOutreachPreview = outreachPreviewName === currentOutreachName
+    ? outreachTemplates.find((template) => template.id === outreachTemplate)
+    : undefined;
 
   // Sales-agent management
-  const [adminView, setAdminView] = useState<"applications" | "agents" | "content-reports">("applications");
+  const [adminView, setAdminView] = useState<
+    "applications" | "agents" | "content-reports" | "outreach-history"
+  >("applications");
+  const [outreachHistorySearch, setOutreachHistorySearch] = useState("");
   const [assignAgentOpen, setAssignAgentOpen] = useState(false);
   const [assignableAgents, setAssignableAgents] = useState<Array<{ id: number; displayName: string; email: string }>>([]);
   const [loadingAssignableAgents, setLoadingAssignableAgents] = useState(false);
@@ -181,6 +266,82 @@ export default function Dashboard() {
       toast({ variant: "destructive", title: "Error", description: error.message || fallbackMessage });
     } else {
       toast({ variant: "destructive", title: "Error", description: fallbackMessage });
+    }
+  };
+
+  const resetQuickAdd = () => {
+    setVenueQuery("");
+    setVenueResults([]);
+    setSelectedVenue(null);
+    setQuickBusinessName("");
+    setQuickOwnerName("");
+    setQuickOwnerEmail("");
+    setQuickManagementMode("invite_owner");
+    setQuickAddStep(1);
+  };
+
+  const searchVenues = async () => {
+    if (venueQuery.trim().length < 2) return;
+    setVenueSearching(true);
+    try {
+      const res = await fetch(`/api/admin/venue-owner/places/search?query=${encodeURIComponent(venueQuery.trim())}`, {
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({})) as { places?: VenueSearchPlace[]; message?: string };
+      if (!res.ok) throw new Error(data.message ?? "Venue search failed.");
+      setVenueResults(data.places ?? []);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Search failed", description: (error as Error).message });
+    } finally {
+      setVenueSearching(false);
+    }
+  };
+
+  const addVenue = async () => {
+    if (!selectedVenue) return;
+    const mode = quickManagementMode;
+    const inviteEmail = quickOwnerEmail.trim();
+    setQuickAdding(true);
+    try {
+      const res = await fetch("/api/admin/venue-owner/venues", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...selectedVenue,
+          businessName: quickBusinessName.trim(),
+          managementMode: mode,
+          ...(mode === "invite_owner" ? {
+            contactName: quickOwnerName.trim(),
+            contactEmail: inviteEmail,
+          } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({})) as {
+        message?: string;
+        emailSent?: boolean;
+        emailError?: string | null;
+        profile?: { id: number };
+      };
+      if (!res.ok) throw new Error(data.message ?? "Could not add this venue.");
+      await queryClient.invalidateQueries({ queryKey: getListVenueApplicationsQueryKey(listParams) });
+      setFilterStatus("approved");
+      if (data.profile?.id) setSelectedAppId(data.profile.id);
+      setQuickAddOpen(false);
+      resetQuickAdd();
+      toast({
+        title: "Venue added to the map",
+        description: mode === "admin"
+          ? "No owner was invited. Open this venue to manage its public listing in Venue Admin."
+          : data.emailSent
+            ? `Owner invitation sent to ${inviteEmail}.`
+            : "The venue is live, but the invitation could not be sent. Open the venue and retry the email.",
+        variant: mode === "admin" || data.emailSent ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Venue not added", description: (error as Error).message });
+    } finally {
+      setQuickAdding(false);
     }
   };
 
@@ -232,7 +393,7 @@ export default function Dashboard() {
 
   // Queries
   const listParams = useMemo(() => {
-    const params: { status?: string; from?: string; to?: string; search?: string; source?: string } = { status: filterStatus };
+    const params: ListVenueApplicationsParams = { status: filterStatus };
     if (fromDate) params.from = new Date(`${fromDate}T00:00:00`).toISOString();
     if (toDate) {
       const end = new Date(`${toDate}T00:00:00`);
@@ -279,6 +440,9 @@ export default function Dashboard() {
   );
 
   const selectedApp = detailData?.application;
+  const adminManaged = selectedApp?.applicationStatus === "approved" &&
+    selectedApp.ownerUid.startsWith("admin-managed:") &&
+    selectedApp.applicationSource === "admin";
   const history = detailData?.history ?? [];
 
   // Sync the locally-tracked assigned-agent whenever the selected application changes.
@@ -461,31 +625,88 @@ export default function Dashboard() {
     }
   }
 
-  async function generateRegistrationLink(appId: number, sendEmail = false) {
+  async function generateRegistrationLink(
+    appId: number,
+    sendEmail = false,
+    recipientEmail?: string,
+    emailTemplate: "registration" | "registration_with_video" = "registration",
+  ) {
     setRegLinkLoading(true);
     try {
       const res = await fetch(`/api/admin/venue-owner/applications/${appId}/registration-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ sendEmail }),
+        body: JSON.stringify({ sendEmail, template: emailTemplate, ...(recipientEmail ? { recipientEmail } : {}) }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { message?: string };
         toast({ title: "Error", description: err.message ?? "Failed to generate link.", variant: "destructive" });
         return;
       }
-      const data = await res.json() as { token: string; expiresAt: string; emailSent: boolean; contactEmail: string | null };
-      setRegLinkResult({ ...data, appId });
+      const data = await res.json() as {
+        token: string;
+        expiresAt: string;
+        emailSent: boolean;
+        emailError?: "not_configured" | "auth_failed" | "gmail_connection_failed" | "delivery_failed" | null;
+        contactEmail: string | null;
+      };
+      setRegLinkResult({ ...data, emailError: data.emailError ?? null, emailRequested: sendEmail, emailTemplate, appId });
       if (sendEmail && data.emailSent) {
         toast({ title: "Link sent", description: `Setup email sent to ${data.contactEmail}.` });
       } else if (sendEmail && !data.emailSent) {
-        toast({ title: "Link generated", description: "Email could not be sent — copy the link below and share it manually.", variant: "destructive" });
+        toast({
+          title: "Email not sent",
+          description: data.emailError === "gmail_connection_failed"
+            ? "Reconnect the sender Gmail account, then retry below."
+            : data.emailError === "auth_failed"
+            ? "The sender Gmail account rejected the login. Reconnect Gmail, then check Sent before retrying."
+            : "The email could not be sent. Check the connected Gmail account, then retry below.",
+          variant: "destructive",
+        });
       }
     } catch {
       toast({ title: "Error", description: "Failed to generate registration link.", variant: "destructive" });
     } finally {
       setRegLinkLoading(false);
+    }
+  }
+
+  async function sendVenueInvite(values: { recipientEmail: string; template: "contact_request" | "registration" | "registration_with_video" }) {
+    if (!inviteTarget) throw new Error("Select an approved venue before sending.");
+    const appId = inviteTarget.id;
+    setInviteSending(true);
+    try {
+      if (values.template === "contact_request") {
+        await sendVenueContactRequest(appId, { recipientEmail: values.recipientEmail });
+        toast({ title: "Introduction sent", description: `Asked ${values.recipientEmail} for the venue's management contact.` });
+      } else {
+        const emailTemplate = values.template === "registration_with_video"
+          ? "registration_with_video"
+          : "registration";
+        const result = await createVenueRegistrationLink(appId, {
+          recipientEmail: values.recipientEmail,
+          sendEmail: true,
+          template: emailTemplate,
+        });
+        setRegLinkResult({
+          token: result.token,
+          expiresAt: result.expiresAt,
+          emailSent: result.emailSent,
+          emailRequested: true,
+          emailTemplate,
+          emailError: result.emailError ?? null,
+          contactEmail: result.contactEmail,
+          appId,
+        });
+        if (!result.emailSent) {
+          throw new Error("Delivery could not be confirmed. Check the connected Gmail Sent folder before trying again. The link is available in Portal Access for manual sharing.");
+        }
+        toast({ title: "Invitation sent", description: `Registration link sent to ${result.contactEmail}.` });
+      }
+      await queryClient.invalidateQueries({ queryKey: getGetVenueApplicationForReviewQueryKey(appId) });
+    } finally {
+      setInviteSending(false);
     }
   }
 
@@ -631,40 +852,320 @@ export default function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog
+        open={quickAddOpen}
+        onOpenChange={(open) => {
+          if (quickAdding) return;
+          setQuickAddOpen(open);
+          if (!open) resetQuickAdd();
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-primary" />
+              {quickAddStep === 1 ? "Find the venue" : "Choose who manages this venue"}
+            </DialogTitle>
+            <DialogDescription>
+              {quickAddStep === 1
+                ? "Search Google Maps and choose the exact location to add."
+                : "Confirm the display name, then choose to invite an owner or manage it yourself in Venue Admin."}
+            </DialogDescription>
+          </DialogHeader>
+          {quickAddStep === 1 ? (
+            <div className="space-y-4 py-2">
+              <div className="flex gap-2">
+                <Input
+                  autoFocus
+                  value={venueQuery}
+                  onChange={(event) => setVenueQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void searchVenues();
+                  }}
+                  placeholder="Venue name and city"
+                />
+                <Button onClick={() => void searchVenues()} disabled={venueSearching || venueQuery.trim().length < 2}>
+                  {venueSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  <span className="sr-only">Search</span>
+                </Button>
+              </div>
+              <ScrollArea className="max-h-[320px]">
+                <div className="space-y-2 pr-3">
+                  {venueResults.map((venue) => (
+                    <button
+                      key={venue.placeId}
+                      type="button"
+                      onClick={() => {
+                        setSelectedVenue(venue);
+                        setQuickBusinessName(venue.placeName);
+                      }}
+                      className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                        selectedVenue?.placeId === venue.placeId
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="flex gap-3">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm">{venue.placeName}</p>
+                          {venue.address && <p className="text-xs text-muted-foreground mt-1">{venue.address}</p>}
+                          {venue.category && <p className="text-xs text-primary mt-1">{venue.category}</p>}
+                        </div>
+                        {selectedVenue?.placeId === venue.placeId && <Check className="ml-auto h-4 w-4 text-primary" />}
+                      </div>
+                    </button>
+                  ))}
+                  {!venueSearching && venueResults.length === 0 && venueQuery.trim().length >= 2 && (
+                    <p className="py-8 text-center text-sm text-muted-foreground">Search to see matching Google venues.</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-sm font-medium">{selectedVenue?.placeName}</p>
+                <p className="text-xs text-muted-foreground mt-1">{selectedVenue?.address}</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quick-business-name">Venue display name</Label>
+                <Input id="quick-business-name" value={quickBusinessName} onChange={(e) => setQuickBusinessName(e.target.value)} />
+              </div>
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">Who will manage this venue?</legend>
+                <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${quickManagementMode === "invite_owner" ? "border-primary bg-primary/5" : "border-border"}`}>
+                  <input type="radio" name="quick-management" checked={quickManagementMode === "invite_owner"} onChange={() => setQuickManagementMode("invite_owner")} className="mt-1" />
+                  <span><strong className="block text-sm">Invite an owner or manager</strong><span className="text-xs text-muted-foreground">Send a secure Venue Manager setup link by email.</span></span>
+                </label>
+                <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${quickManagementMode === "admin" ? "border-primary bg-primary/5" : "border-border"}`}>
+                  <input type="radio" name="quick-management" checked={quickManagementMode === "admin"} onChange={() => setQuickManagementMode("admin")} className="mt-1" />
+                  <span><strong className="block text-sm">I’ll manage it in Venue Admin</strong><span className="text-xs text-muted-foreground">Add it now without an owner, manager account, or invitation.</span></span>
+                </label>
+              </fieldset>
+              {quickManagementMode === "invite_owner" && <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="quick-owner-name">Owner or manager name</Label>
+                  <Input id="quick-owner-name" value={quickOwnerName} onChange={(e) => setQuickOwnerName(e.target.value)} placeholder="Full name" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quick-owner-email">Owner email</Label>
+                  <Input id="quick-owner-email" type="email" value={quickOwnerEmail} onChange={(e) => setQuickOwnerEmail(e.target.value)} placeholder="owner@example.com" />
+                  <p className="text-xs text-muted-foreground">We’ll email a secure setup link. Registration is due 14 days after the first email.</p>
+                </div>
+              </div>}
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            {quickAddStep === 2 && (
+              <Button variant="outline" onClick={() => setQuickAddStep(1)} disabled={quickAdding}>Back</Button>
+            )}
+            <Button
+              onClick={() => {
+                if (quickAddStep === 1) setQuickAddStep(2);
+                else void addVenue();
+              }}
+              disabled={
+                quickAdding ||
+                (quickAddStep === 1
+                  ? !selectedVenue
+                  : !quickBusinessName.trim() || (quickManagementMode === "invite_owner" && (!quickOwnerName.trim() || !quickOwnerEmail.trim())))
+              }
+            >
+              {quickAdding && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {quickAddStep === 1 ? "Continue" : quickAdding ? "Adding venue…" : quickManagementMode === "admin" ? "Add venue & manage" : "Add venue & send invite"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={outreachOpen} onOpenChange={(open) => {
+        if (outreachSending) return;
+        setOutreachOpen(open);
+        if (!open) {
+          setOutreachName("");
+          setOutreachEmail("");
+          setOutreachTemplate("contact_request");
+          setOutreachError("");
+        }
+      }}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[620px]">
+          <DialogHeader>
+            <DialogTitle>Email a new venue</DialogTitle>
+            <DialogDescription>
+              Choose a message to send before adding or approving this venue. Review it below before sending.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={async (event) => {
+            event.preventDefault();
+            if (outreachSending) return;
+            setOutreachError("");
+            setOutreachSending(true);
+            try {
+              const result = await sendNewVenueOutreach({
+                businessName: outreachName.trim(),
+                recipientEmail: outreachEmail.trim(),
+                template: outreachTemplate,
+              });
+              toast({
+                title: outreachTemplate === "preapproval_video_application" ? "Application invitation sent" : "Email sent",
+                description: `${selectedOutreachPreview?.label ?? "Message"} sent to ${result.recipientEmail}.`,
+              });
+              setOutreachOpen(false);
+              setOutreachName("");
+              setOutreachEmail("");
+              setOutreachTemplate("contact_request");
+            } catch (error) {
+              setOutreachError(
+                isApiError(error) && typeof (error.data as { message?: string } | null)?.message === "string"
+                  ? (error.data as { message: string }).message
+                  : "Delivery could not be confirmed. Check the connected Gmail Sent folder before trying again.",
+              );
+            } finally {
+              setOutreachSending(false);
+            }
+          }}>
+            <div className="space-y-2">
+              <Label htmlFor="outreach-venue-name">Venue name</Label>
+              <Input
+                id="outreach-venue-name"
+                value={outreachName}
+                onChange={(event) => setOutreachName(event.target.value)}
+                placeholder="Venue name"
+                minLength={2}
+                maxLength={150}
+                required
+                disabled={outreachSending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="outreach-recipient-email">Venue email</Label>
+              <Input
+                id="outreach-recipient-email"
+                type="email"
+                value={outreachEmail}
+                onChange={(event) => setOutreachEmail(event.target.value)}
+                placeholder="hello@venue.com"
+                maxLength={255}
+                required
+                disabled={outreachSending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="outreach-template">Email template</Label>
+              <Select value={outreachTemplate} onValueChange={(value) => setOutreachTemplate(value as VenueOutreachInputTemplate)} disabled={outreachSending}>
+                <SelectTrigger id="outreach-template">
+                  <SelectValue placeholder="Choose a template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {outreachTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>{template.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedOutreachPreview && (
+                <p className="text-xs text-muted-foreground">{selectedOutreachPreview.description}</p>
+              )}
+            </div>
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email preview</p>
+              {selectedOutreachPreview ? (
+                <>
+                  <p className="text-sm"><span className="font-medium">Subject:</span> {selectedOutreachPreview.subject}</p>
+                  <div className="max-h-52 overflow-y-auto whitespace-pre-wrap border-t pt-3 text-sm leading-relaxed">
+                    {selectedOutreachPreview.text}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">{outreachPreviewError || "Loading preview…"}</p>
+              )}
+            </div>
+            {outreachTemplate === "preapproval_video_application" ? (
+              <p className="text-sm text-muted-foreground">
+                This sends a one-time application link to {outreachEmail.trim() || "the invited email"}. The recipient must use that email, select a venue, and submit it for review. The link expires in 14 days; it does not approve the venue or grant account access.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                These emails invite a reply. They do not add a venue, grant account access, or start a registration deadline.
+              </p>
+            )}
+            {outreachError && <p role="alert" className="text-sm text-destructive">{outreachError}</p>}
+            <DialogFooter>
+              <Button type="submit" disabled={outreachSending || outreachName.trim().length < 2 || !outreachEmail.trim() || !selectedOutreachPreview}>
+                {outreachSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                {outreachSending ? "Sending…" : "Send email"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {inviteTarget && (
+        <VenueInviteDialog
+          key={inviteTarget.id}
+          open={inviteDialogOpen}
+          onOpenChange={(open) => {
+            setInviteDialogOpen(open);
+            if (!open) setInviteTarget(null);
+          }}
+          venueName={inviteTarget.businessName}
+          defaultEmail={inviteTarget.contactEmail ?? ""}
+          sending={inviteSending}
+          onSend={sendVenueInvite}
+        />
+      )}
 
       {/* Sidebar List */}
       <div className="w-full md:w-[400px] flex-shrink-0 border-r border-border bg-muted/20 flex flex-col h-full z-10 relative">
-        <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-card shrink-0">
-          <div className="flex items-center gap-2 font-bold tracking-tight text-lg">
-            <div className="w-8 h-8 bg-primary text-primary-foreground rounded flex items-center justify-center">
-              <Shield className="w-4 h-4" />
+        <div className="border-b border-border bg-card shrink-0">
+          <div className="h-14 px-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold tracking-tight text-lg">
+              <div className="w-8 h-8 bg-primary text-primary-foreground rounded flex items-center justify-center">
+                <Shield className="w-4 h-4" />
+              </div>
+              Venue T&S
             </div>
-            Venue T&S
+            <div className="flex items-center gap-1">
+              <Button variant={adminView === "content-reports" ? "secondary" : "ghost"} size="icon" onClick={() => setAdminView(v => v === "content-reports" ? "applications" : "content-reports")} title="Content Reports" aria-label="Content Reports">
+                <Flag className="w-4 h-4" />
+              </Button>
+              <Button variant={adminView === "outreach-history" ? "secondary" : "ghost"} size="icon" onClick={() => { setOutreachHistorySearch(""); setAdminView(v => v === "outreach-history" ? "applications" : "outreach-history"); }} title="Invitation history" aria-label="Invitation history" data-testid="button-open-invitation-history">
+                <History className="w-4 h-4" />
+              </Button>
+              <Button variant={adminView === "agents" ? "secondary" : "ghost"} size="icon" onClick={() => setAdminView(v => v === "agents" ? "applications" : "agents")} title="Manage Sales Agents" aria-label="Manage Sales Agents">
+                <Users className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setPasswordDialogOpen(true)} title="Change password" aria-label="Change password">
+                <KeyRound className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={handleLogout} title="Sign Out" aria-label="Sign Out">
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex gap-2 px-4 pb-3">
+            <Button size="sm" className="flex-1 gap-1.5" onClick={() => setQuickAddOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Add venue
+            </Button>
+            <Button size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => setOutreachOpen(true)} data-testid="button-invite-venue">
+              <Mail className="w-4 h-4" />
+              Invite venue
+            </Button>
+          </div>
+          <div className="px-4 pb-3">
             <Button
-              variant={adminView === "content-reports" ? "secondary" : "ghost"}
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => setAdminView(v => v === "content-reports" ? "applications" : "content-reports")}
-              title="Content Reports"
+              type="button"
+              size="sm"
+              variant={adminView === "outreach-history" ? "secondary" : "outline"}
+              className="h-9 w-full justify-start gap-2"
+              data-testid="button-open-invited-venues"
+              onClick={() => {
+                setOutreachHistorySearch("");
+                setAdminView("outreach-history");
+              }}
             >
-              <Flag className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={adminView === "agents" ? "secondary" : "ghost"}
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => setAdminView(v => v === "agents" ? "applications" : "agents")}
-              title="Manage Sales Agents"
-            >
-              <Users className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => setPasswordDialogOpen(true)} title="Change password">
-              <KeyRound className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={handleLogout} title="Sign Out">
-              <LogOut className="w-4 h-4" />
+              <History className="h-4 w-4" />
+              Invited venues
             </Button>
           </div>
         </div>
@@ -710,7 +1211,7 @@ export default function Dashboard() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Source</Label>
-                    <Select value={filterSource} onValueChange={(val) => { setFilterSource(val as "all" | "mobile" | "web" | "agent"); setSelectedAppId(null); }}>
+                    <Select value={filterSource} onValueChange={(val) => { setFilterSource(val as "all" | "mobile" | "web" | "agent" | "admin"); setSelectedAppId(null); }}>
                       <SelectTrigger className="w-full bg-background h-9 text-sm">
                         <SelectValue />
                       </SelectTrigger>
@@ -719,6 +1220,7 @@ export default function Dashboard() {
                         <SelectItem value="mobile">Mobile</SelectItem>
                         <SelectItem value="web">Web</SelectItem>
                         <SelectItem value="agent">Agent</SelectItem>
+                        <SelectItem value="admin">Admin added</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -965,6 +1467,13 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Left Column: Details */}
                   <div className="lg:col-span-2 space-y-6">
+                    {adminManaged && <AdminManagedVenuePanel key={selectedApp.id} profileId={selectedApp.id} />}
+                    {selectedApp.applicationStatus === "approved" && !adminManaged && (
+                      <VenueActivationPolicyPanel
+                        key={`${selectedApp.id}-${regLinkResult?.appId === selectedApp.id && regLinkResult.emailSent ? regLinkResult.token : "initial"}`}
+                        profileId={selectedApp.id}
+                      />
+                    )}
                     <Card className="shadow-sm">
                       <CardHeader className="pb-3 border-b border-border/50">
                         <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -1014,7 +1523,7 @@ export default function Dashboard() {
                       </CardContent>
                     </Card>
 
-                    <Card className="shadow-sm border-primary/20">
+                    {!adminManaged && <Card className="shadow-sm border-primary/20">
                       <CardHeader className="pb-3 border-b border-border/50 bg-primary/[0.02]">
                         <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                           <FileText className="w-4 h-4" />
@@ -1050,7 +1559,7 @@ export default function Dashboard() {
                           </div>
                         )}
                       </CardContent>
-                    </Card>
+                    </Card>}
                   </div>
 
                   {/* Right Column: Audit & Meta */}
@@ -1087,10 +1596,10 @@ export default function Dashboard() {
                           </div>
                         )}
                         <div>
-                          <span className="block text-xs font-medium text-muted-foreground mb-1">Owner UID</span>
-                          <span className="font-mono text-xs bg-muted px-2 py-1 rounded break-all select-all">
-                            {selectedApp.ownerUid}
-                          </span>
+                          <span className="block text-xs font-medium text-muted-foreground mb-1">{adminManaged ? "Management" : "Owner UID"}</span>
+                          {adminManaged
+                            ? <Badge variant="secondary">Managed in Venue Admin</Badge>
+                            : <span className="font-mono text-xs bg-muted px-2 py-1 rounded break-all select-all">{selectedApp.ownerUid}</span>}
                         </div>
                         <div>
                           <span className="block text-xs font-medium text-muted-foreground mb-1">Submitted At</span>
@@ -1101,7 +1610,7 @@ export default function Dashboard() {
                       </CardContent>
                     </Card>
 
-                    {selectedApp.applicationStatus === "approved" && (
+                    {selectedApp.applicationStatus === "approved" && !adminManaged && (
                       <Card className="shadow-sm">
                         <CardHeader className="pb-3 border-b border-border/50">
                           <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -1110,6 +1619,26 @@ export default function Dashboard() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-5 text-sm space-y-3">
+                          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                            <div>
+                              <p className="font-semibold text-foreground">Reach the right person</p>
+                              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                Have a general email from the venue's website? Ask for the manager contact first, or send a personal registration invitation directly.
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="w-full gap-2"
+                              onClick={() => {
+                                setInviteTarget(selectedApp);
+                                setInviteDialogOpen(true);
+                              }}
+                              data-testid="button-open-venue-invite"
+                            >
+                              <Mail className="h-4 w-4" />
+                              Choose an email template
+                            </Button>
+                          </div>
                           {/* ── Success: email was sent ── */}
                           {regLinkResult?.appId === selectedApp.id && regLinkResult.emailSent ? (
                             <div className="space-y-3">
@@ -1143,16 +1672,22 @@ export default function Dashboard() {
                                 variant="ghost"
                                 className="w-full text-muted-foreground"
                                 disabled={regLinkLoading}
-                                onClick={() => void generateRegistrationLink(selectedApp.id, true)}
+                                onClick={() => void generateRegistrationLink(selectedApp.id, true, regLinkResult.contactEmail ?? undefined, regLinkResult.emailTemplate)}
                               >
                                 {regLinkLoading ? "Sending…" : "Resend email"}
                               </Button>
                             </div>
                           ) : regLinkResult?.appId === selectedApp.id ? (
-                            /* ── Link generated but email not sent (SMTP not configured) ── */
+                             /* ── Link generated but not emailed, or email delivery failed ── */
                             <div className="space-y-2">
                               <p className="text-xs text-muted-foreground leading-relaxed">
-                                Email delivery is not configured. Copy this link and send it to the owner manually.
+                                 {regLinkResult.emailRequested
+                                   ? regLinkResult.emailError === "gmail_connection_failed"
+                                     ? "The sender Gmail connection cannot send email. Reconnect the account and retry, or share this link manually."
+                                     : regLinkResult.emailError === "auth_failed"
+                                      ? "The sender Gmail account rejected the login. Reconnect Gmail and check Sent before retrying, or share this link manually."
+                                     : "Email delivery failed. Check the connected Gmail account and retry, or share this link manually."
+                                   : "This link has not been emailed yet. Send it to the owner below, or copy and share it manually."}
                               </p>
                               <div className="font-mono text-[11px] break-all bg-muted p-2 rounded select-all leading-relaxed">
                                 {`${window.location.origin}/venue-manager/register?token=${regLinkResult.token}`}
@@ -1173,12 +1708,23 @@ export default function Dashboard() {
                               >
                                 Copy link
                               </Button>
+                               {regLinkResult.contactEmail && (
+                                 <Button
+                                   size="sm"
+                                   className="w-full"
+                                   disabled={regLinkLoading}
+                                    onClick={() => void generateRegistrationLink(selectedApp.id, true, regLinkResult.contactEmail ?? undefined, regLinkResult.emailTemplate)}
+                                 >
+                                   <Send className="w-3.5 h-3.5 mr-1.5" />
+                                   {regLinkLoading ? "Sending…" : regLinkResult.emailRequested ? "Retry sending email" : "Send by email"}
+                                 </Button>
+                               )}
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 className="w-full text-muted-foreground"
                                 disabled={regLinkLoading}
-                                onClick={() => void generateRegistrationLink(selectedApp.id, false)}
+                                onClick={() => void generateRegistrationLink(selectedApp.id, false, regLinkResult.contactEmail ?? undefined, regLinkResult.emailTemplate)}
                               >
                                 {regLinkLoading ? "Generating…" : "Generate a new link"}
                               </Button>
@@ -1188,7 +1734,7 @@ export default function Dashboard() {
                             <div className="space-y-2">
                               <p className="text-muted-foreground text-xs leading-relaxed">
                                 Send the venue owner a setup link so they can create their Venue Manager account.
-                                The email includes step-by-step instructions. Each link expires after 7 days.
+                                The email includes step-by-step instructions. Resending does not extend the original 14-day registration deadline.
                               </p>
                               {!(selectedApp as unknown as Record<string, unknown>).contactEmail && (
                                 <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2">
@@ -1208,7 +1754,7 @@ export default function Dashboard() {
                                 size="sm"
                                 variant="ghost"
                                 className="w-full text-muted-foreground"
-                                disabled={regLinkLoading}
+                                disabled={regLinkLoading || !(selectedApp as unknown as Record<string, unknown>).contactEmail}
                                 onClick={() => void generateRegistrationLink(selectedApp.id, false)}
                               >
                                 {regLinkLoading ? "Generating…" : "Generate link without emailing"}
@@ -1245,11 +1791,23 @@ export default function Dashboard() {
                     </Card>
 
                     <Card className="shadow-sm flex-1">
-                      <CardHeader className="pb-3 border-b border-border/50">
+                      <CardHeader className="flex-row items-center justify-between gap-2 pb-3 border-b border-border/50">
                         <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                           <History className="w-4 h-4" />
                           Audit Trail
                         </CardTitle>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          data-testid="button-view-venue-invitation-history"
+                          onClick={() => {
+                            setOutreachHistorySearch(selectedApp.businessName);
+                            setAdminView("outreach-history");
+                          }}
+                        >
+                          Invitation history
+                        </Button>
                       </CardHeader>
                       <CardContent className="p-0">
                         <div className="max-h-[400px] overflow-y-auto p-5">
@@ -1275,7 +1833,7 @@ export default function Dashboard() {
                                         </p>
                                         <p className="text-sm font-medium mt-0.5">
                                           {entry.eventType === "email_sent" ? (
-                                            <>Email sent to <span className="font-bold text-foreground">{String(entry.metadata?.to ?? "applicant")}</span></>
+                                            <>Email sent to <span className="font-bold text-foreground">{String(entry.metadata?.sentTo ?? entry.metadata?.to ?? "applicant")}</span></>
                                           ) : entry.toStatus ? (
                                             <>Changed status to <span className="font-bold text-foreground">{entry.toStatus}</span></>
                                           ) : (
@@ -1287,6 +1845,13 @@ export default function Dashboard() {
                                         {format(new Date(entry.createdAt), "MMM d, h:mm a")}
                                       </span>
                                     </div>
+
+                                    {entry.eventType === "email_sent" && entry.metadata?.template != null && (
+                                      <div className="rounded border border-indigo-100 bg-indigo-50 px-2 py-1.5 text-xs text-indigo-900 dark:border-indigo-900/30 dark:bg-indigo-900/10 dark:text-indigo-200" data-testid={`text-venue-email-template-${entry.id}`}>
+                                        <span className="mr-1.5 text-[10px] font-bold uppercase tracking-wider opacity-70">Template</span>
+                                        {String(entry.metadata.template).replace(/_/g, " ")}
+                                      </div>
+                                    )}
 
                                     {entry.eventType === "email_sent" && entry.metadata?.subject != null && (
                                       <div className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 rounded p-2 text-sm text-indigo-900 dark:text-indigo-200">
@@ -1540,6 +2105,15 @@ export default function Dashboard() {
           <div className="flex-1 overflow-hidden">
             <AgentsPanel />
           </div>
+        </div>
+      )}
+
+      {adminView === "outreach-history" && (
+        <div className="absolute inset-0 z-20 overflow-y-auto bg-background">
+          <VenueOutreachHistoryPanel
+            initialSearch={outreachHistorySearch}
+            onClose={() => setAdminView("applications")}
+          />
         </div>
       )}
     </div>

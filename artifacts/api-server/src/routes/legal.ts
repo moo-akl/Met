@@ -255,6 +255,72 @@ const privacyHtml = layout(
   `,
 );
 
+const venueManagerTermsHtml = layout(
+  "Venue Manager Terms",
+  `
+  <h1>Venue Manager Terms</h1>
+  <p class="muted">Review draft · Version venue-2026-09</p>
+  <div class="card">
+    <p><strong>Draft for review.</strong> These general terms are presented for product and legal review and are not a final legal agreement. They do not identify a legal entity or governing jurisdiction. Please contact us with questions at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p>
+  </div>
+
+  <h2>1. Using Venue Manager</h2>
+  <p>Venue Manager lets authorized venue owners and team members manage a venue's public listing and related content on Met. You are responsible for keeping your sign-in details private, limiting access to people you authorize, and activity carried out through your account.</p>
+
+  <h2>2. Approved venue activation</h2>
+  <p>After the first registration invitation is sent, the invited owner has 14 days to complete account registration. After registration, an approved venue is expected to receive at least 10 genuine guest check-ins verified by the venue's Met QR code within 30 days. A check-in counts only when it is QR-verified by the service; do not create or arrange false check-ins.</p>
+  <p>If these activation milestones are not met, Met may delist the venue from public discovery. Delisting is reversible: the venue owner may contact support to discuss restoring an eligible listing. These milestones support an accurate and useful guest experience and are not a guarantee of placement, traffic, or business results.</p>
+
+  <h2>3. Venue information and content</h2>
+  <p>You confirm that information and materials you submit are accurate to the best of your knowledge, that you have permission to use them, and that they do not violate another person's rights or applicable requirements. Keep public details, hours, offers, and event information current. Do not post misleading, unlawful, abusive, or unsafe content.</p>
+  <p>You retain your rights in submitted content. To operate and display a listing, you allow Met to host, format, reproduce, and show the materials you provide in the service and its guest-facing surfaces. You can update listing content through Venue Manager where those controls are available.</p>
+
+  <h2>4. Access, review, and availability</h2>
+  <p>Met may review, restrict, or remove content or a listing when reasonably needed to protect guests, maintain service integrity, address a report, or enforce these terms. Venue Manager and its features may change or be temporarily unavailable. Do not use the service to interfere with its operation or access data you are not authorized to view.</p>
+
+  <h2>5. Team members</h2>
+  <p>Owners are responsible for invitations and access levels they grant to team members. Remove access when it is no longer needed. Team members must use the service only for the venue and permissions assigned to them.</p>
+
+  <h2>6. Changes and contact</h2>
+  <p>We may update this draft and will identify a new version when terms change. Material changes should be reviewed before being treated as final. Contact <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> for support or questions about a listing.</p>
+  <p class="muted">This review draft describes proposed product rules and is not legal advice.</p>
+  `,
+);
+
+const venueManagerPrivacyHtml = layout(
+  "Venue Manager Privacy",
+  `
+  <h1>Venue Manager Privacy</h1>
+  <p class="muted">Review draft · Version venue-2026-09</p>
+  <div class="card">
+    <p><strong>Draft for review.</strong> This general overview is intended to help venue owners and team members understand information involved in Venue Manager. It is not a final privacy notice and does not identify a legal entity or governing jurisdiction. Contact <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> with questions.</p>
+  </div>
+
+  <h2>1. Information that may be used</h2>
+  <ul>
+    <li><strong>Account and access details</strong>, such as name, business email, password credentials, membership role, invitations, and account-security events.</li>
+    <li><strong>Venue listing information</strong>, such as venue name, contact and location details, description, images, opening hours, events, rewards, and announcements that you or your team provide.</li>
+    <li><strong>Service activity</strong>, such as listing changes, QR-verified check-in totals, and operational logs needed to provide, secure, and support the portal.</li>
+  </ul>
+
+  <h2>2. How information may be used</h2>
+  <p>Information is used to operate accounts and team access, display and manage venue listings and content, measure activation and service use, respond to support requests, protect the service, and meet applicable requirements. Public listing fields and published content may be visible to Met guests.</p>
+
+  <h2>3. Sharing and service providers</h2>
+  <p>Information may be handled by service providers that support hosting, authentication, email delivery, storage, and security. It may also be shared when needed to protect people or the service, respond to a valid request, or support a business transfer. Confirm provider details and applicable disclosures during legal review.</p>
+
+  <h2>4. Retention and security</h2>
+  <p>Information is retained for as long as needed to operate the listing, maintain account and security records, resolve issues, or meet applicable requirements. Access controls and other safeguards are used to protect information, but no online service can promise absolute security. Specific retention periods and safeguards should be confirmed before publication.</p>
+
+  <h2>5. Choices and requests</h2>
+  <p>Owners and team members can keep account and listing details current through available portal controls. For access, correction, deletion, or other privacy requests, email <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. We may need to verify a request before acting on it.</p>
+
+  <h2>6. Updates</h2>
+  <p>This notice may be revised as Venue Manager changes. A final notice should identify its version and effective date and explain any material changes.</p>
+  <p class="muted">This review draft is not a complete description of verified operational practices or legal advice.</p>
+  `,
+);
+
 // Android App Links verification file.
 // Google's Play Console verifies this JSON at:
 //   https://<domain>/.well-known/assetlinks.json
@@ -347,15 +413,15 @@ router.get("/.well-known/assetlinks.json", (_req: Request, res: Response) => {
 //      Met and deep-link directly to the check-in screen after install.
 router.get("/v/:placeId", async (req: Request, res: Response) => {
   const APP_STORE_URL =
-    "https://apps.apple.com/app/met-we-crossed-paths/id6502749585";
+    "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926";
   const PLAY_STORE_URL =
     "https://play.google.com/store/apps/details?id=app.met.founders";
 
   const { placeId } = req.params as { placeId: string };
   const token = typeof req.query["t"] === "string" ? req.query["t"] : "";
 
-  // Reconstruct the canonical deep-link URL so App Store / Play Store
-  // deferred deep links re-open the exact same URL after install.
+  // Keep the check-in URL available for devices that already have Met installed.
+  // A store install does not automatically restore this URL; guests can scan again.
   const host = req.get("host") ?? "metapp.replit.app";
   const proto = req.secure || process.env["NODE_ENV"] === "production" ? "https" : req.protocol;
   const deepLinkUrl = `${proto}://${host}/v/${encodeURIComponent(placeId)}${token ? `?t=${encodeURIComponent(token)}` : ""}`;
@@ -421,6 +487,19 @@ router.get("/v/:placeId", async (req: Request, res: Response) => {
     return;
   }
 
+  // Installed apps should intercept this Universal/App Link before the browser
+  // makes a request. For browsers without Met, go directly to the right store.
+  const userAgent = req.get("user-agent") ?? "";
+  const storeUrl = /iPhone|iPad|iPod|Macintosh.*Mobile/i.test(userAgent)
+    ? APP_STORE_URL
+    : /Android/i.test(userAgent)
+      ? PLAY_STORE_URL
+      : null;
+  if (storeUrl) {
+    res.set("Cache-Control", "no-store").redirect(302, storeUrl);
+    return;
+  }
+
   // Valid venue (token matches or no token provided). Show the branded page.
   const baseUrl = `${proto}://${host}`;
 
@@ -464,7 +543,7 @@ router.get("/v/:placeId", async (req: Request, res: Response) => {
 
     <div class="card">
       <h2 style="margin-top:0">Don't have Met yet?</h2>
-      <p>Download the app — your check-in link will fire automatically once you're set up.</p>
+       <p>Download the app, then scan this QR code again to check in.</p>
       ${storeButtons}
     </div>
     `,
@@ -484,6 +563,22 @@ router.get("/privacy", (_req: Request, res: Response) => {
   // 302 so search engines / Apple's crawler follow to the canonical
   // externally-hosted policy rather than indexing the inline copy.
   res.redirect(302, PRIVACY_POLICY_URL);
+});
+
+router.get("/venue-manager-terms", (_req: Request, res: Response) => {
+  res
+    .status(200)
+    .type("html")
+    .set("Cache-Control", "public, max-age=300")
+    .send(venueManagerTermsHtml);
+});
+
+router.get("/venue-manager-privacy", (_req: Request, res: Response) => {
+  res
+    .status(200)
+    .type("html")
+    .set("Cache-Control", "public, max-age=300")
+    .send(venueManagerPrivacyHtml);
 });
 
 export default router;

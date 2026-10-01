@@ -44,6 +44,7 @@ import { ALL_INTERESTS, MAX_INTERESTS } from "@/lib/interests";
 import { useT } from "@/lib/i18n";
 import { getVenueOwnerDestination } from "@/lib/venueOwnerLifecycle";
 import { useSubscription } from "@/lib/revenuecat";
+import { isStoreDemoEnabled } from "@/lib/storeDemo";
 import {
   getProfileSteps,
   getBannerScrollTarget,
@@ -68,6 +69,8 @@ type PhotoIntent = "main" | "extra";
 
 export default function ProfileScreen() {
   const colors = useColors();
+  const actionColor =
+    colors.primary === "#3DCC44" ? colors.secondaryForeground : colors.primary;
   const { isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -80,6 +83,7 @@ export default function ProfileScreen() {
   } = useVenueOwner();
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const { tier } = useSubscription();
+  const storeDemo = isStoreDemoEnabled();
 
   // Refs for scroll-to-first-incomplete-field behaviour.
   const scrollViewRef = useRef<any>(null);
@@ -513,6 +517,55 @@ export default function ProfileScreen() {
         bottomOffset={20}
         keyboardShouldPersistTaps="handled"
       >
+        {storeDemo ? (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              padding: 16,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+            }}
+          >
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.primary + "15",
+              }}
+            >
+              <Feather
+                name={isVisible ? "radio" : "slash"}
+                size={18}
+                color={colors.primary}
+              />
+            </View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
+                {t("settings.visibleOnRadar")}
+              </Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+                {t(isVisible ? "settings.visibleOnRadarOn" : "settings.visibleOnRadarOff")}
+              </Text>
+            </View>
+            <Switch
+              testID="demo-profile-visibility-toggle"
+              value={isVisible}
+              onValueChange={() => void toggleVisibility()}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#FFFFFF"
+              accessibilityRole="switch"
+              accessibilityLabel={t("settings.visibleOnRadar")}
+            />
+          </View>
+        ) : null}
+
         {profileIncomplete ? (() => {
           // step definitions: icon + done flag
           const steps: Array<{ icon: React.ComponentProps<typeof Feather>["name"]; done: boolean }> = [
@@ -612,7 +665,7 @@ export default function ProfileScreen() {
                 </Text>
                 <View
                   style={{
-                    backgroundColor: colors.primary,
+                    backgroundColor: actionColor,
                     borderRadius: 20,
                     paddingHorizontal: 9,
                     paddingVertical: 3,
@@ -792,7 +845,7 @@ export default function ProfileScreen() {
               <View
                 style={[
                   styles.editChip,
-                  { backgroundColor: colors.primary },
+                  { backgroundColor: actionColor },
                 ]}
               >
                 <Feather name="edit-2" size={12} color="#FFFFFF" />
@@ -849,25 +902,74 @@ export default function ProfileScreen() {
               {isPioneer && (
                 <Pressable
                   onPress={() => setPioneerModalVisible(true)}
-                  style={styles.pioneerBadge}
+                  style={[
+                    styles.pioneerBadge,
+                    !isDark && {
+                      backgroundColor: "#FFF8E1",
+                      borderColor: "#D4AF37",
+                    },
+                  ]}
                 >
-                  <Feather name="award" size={11} color="#D4AF37" />
-                  <Text style={styles.pioneerBadgeText}>MET PIONEER</Text>
+                  <Feather
+                    name="award"
+                    size={11}
+                    color={isDark ? "#D4AF37" : "#805B00"}
+                  />
+                  <Text
+                    style={[
+                      styles.pioneerBadgeText,
+                      !isDark && { color: "#805B00" },
+                    ]}
+                  >
+                    MET PIONEER
+                  </Text>
                 </Pressable>
               )}
               <Pressable
                 onPress={() => setPioneerDashboardVisible(true)}
-                style={styles.pioneerLeaderboardLink}
+                style={[
+                  styles.pioneerLeaderboardLink,
+                  !isDark && { opacity: 1 },
+                ]}
               >
-                <Feather name="users" size={11} color="#D4AF37" style={{ marginRight: 3 }} />
-                <Text style={styles.pioneerLeaderboardLinkText}>
+                <Feather
+                  name="users"
+                  size={11}
+                  color={isDark ? "#D4AF37" : "#805B00"}
+                  style={{ marginRight: 3 }}
+                />
+                <Text
+                  style={[
+                    styles.pioneerLeaderboardLinkText,
+                    !isDark && { color: "#805B00" },
+                  ]}
+                >
                   {t("pioneer.leaderboardBtn")}
                 </Text>
               </Pressable>
               {prizeEligible ? (
-                <View style={styles.prizeBadge}>
-                  <Feather name="gift" size={11} color="#FFD700" />
-                  <Text style={styles.prizeBadgeText}>Eligible for Pioneer Monthly Reward</Text>
+                <View
+                  style={[
+                    styles.prizeBadge,
+                    !isDark && {
+                      backgroundColor: "#FFF8E1",
+                      borderColor: "#D4AF37",
+                    },
+                  ]}
+                >
+                  <Feather
+                    name="gift"
+                    size={11}
+                    color={isDark ? "#FFD700" : "#805B00"}
+                  />
+                  <Text
+                    style={[
+                      styles.prizeBadgeText,
+                      !isDark && { color: "#805B00" },
+                    ]}
+                  >
+                    Eligible for Pioneer Monthly Reward
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -940,7 +1042,7 @@ export default function ProfileScreen() {
               <View
                 style={[
                   styles.photoTileBadge,
-                  { backgroundColor: colors.primary },
+                  { backgroundColor: actionColor },
                 ]}
               >
                 <Text style={styles.photoTileBadgeText}>{t("profile.photoMain")}</Text>
@@ -1154,7 +1256,7 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        {__DEV__ ? (
+        {__DEV__ && !storeDemo ? (
           <View style={{ gap: 8, marginTop: 8 }}>
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
               DEV: Tier override
@@ -1280,8 +1382,8 @@ export default function ProfileScreen() {
                     style={({ pressed }) => [
                       styles.interestChip,
                       {
-                        backgroundColor: colors.primary,
-                        borderColor: colors.primary,
+                        backgroundColor: actionColor,
+                        borderColor: actionColor,
                         opacity: isPlaceholder ? 0.3 : pressed ? 0.75 : 1,
                       },
                     ]}

@@ -89,8 +89,11 @@ export const venueManagersTable = pgTable(
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     email: text("email").notNull(),
+    firebaseUid: text("firebase_uid"),
     passwordHash: text("password_hash").notNull(),
     displayName: text("display_name").notNull(),
+    legalVersion: text("legal_version"),
+    legalAcceptedAt: timestamp("legal_accepted_at", { withTimezone: true }),
     sessionVersion: integer("session_version").notNull().default(1),
     failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
@@ -103,6 +106,7 @@ export const venueManagersTable = pgTable(
   },
   (t) => ({
     emailUniq: uniqueIndex("venue_managers_email_uniq").on(t.email),
+    firebaseUidUniq: uniqueIndex("venue_managers_firebase_uid_uniq").on(t.firebaseUid),
   }),
 );
 
@@ -158,10 +162,10 @@ export const venueManagerTokensTable = pgTable(
 
 /**
  * One-time owner registration tokens issued from the admin portal.
- * Unlike invitation tokens these don't pre-specify an email or role —
- * the venue owner supplies those when they claim the token on the
- * web portal.  There is no foreign key to venue_managers because the
- * manager record doesn't exist yet when the token is created.
+ * New invitations bind the recipient email to the one-time link; older
+ * tokens fall back to the venue's saved contact email during registration.
+ * There is no foreign key to venue_managers because the manager record
+ * doesn't exist yet when the token is created.
  */
 export const venueManagerRegistrationTokensTable = pgTable(
   "venue_manager_registration_tokens",
@@ -169,6 +173,7 @@ export const venueManagerRegistrationTokensTable = pgTable(
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     businessId: integer("business_id").notNull(),
     tokenHash: text("token_hash").notNull(),
+    invitedEmail: text("invited_email"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     consumedAt: timestamp("consumed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

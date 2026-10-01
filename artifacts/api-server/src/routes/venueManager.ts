@@ -1,9 +1,12 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { and, count, desc, eq, gte, gt, ilike, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, gt, ilike, inArray, isNull, lt, sql } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { isAllowedImageMagicBytes } from "../lib/imageMagic";
+export { isAllowedImageMagicBytes } from "../lib/imageMagic";
 import {
   db,
+  venueActivationPoliciesTable,
   venueApplicationHistoryTable,
   venueBusinessesTable,
   venueManagerRegistrationTokensTable,
@@ -23,8 +26,10 @@ import {
   venueQrVerificationsTable,
   type VenueMembershipRole,
 } from "@workspace/db";
+import { markVenueRegistered } from "../lib/venueActivation";
 import { createIpRateLimiter } from "../middlewares/rateLimit";
 import { adminAuth } from "../lib/firebaseAdmin";
+import { getVenueManagerFirebaseConfig } from "../lib/venueManagerFirebaseConfig";
 import { mirrorRevealRequest } from "../lib/firestoreMirror";
 import { sendPush } from "../lib/push";
 
@@ -33,6 +38,7 @@ const COOKIE = "met_venue_manager";
 const CSRF_HEADER = "x-csrf-token";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const VENUE_MANAGER_TERMS_VERSION = "venue-2026-09";
 const RECOVERY_TTL_MS = 30 * 60 * 1000;
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 5 * 60 * 1000;
@@ -157,19 +163,204 @@ declare global {
   }
 }
 
-async function issueSession(req: Request, res: Response, managerId: number): Promise<void> {
+async function issueSession(
+  req: Request,
+  res: Response,
+  managerId: number,
+  expectedFirebaseUid: string | null,
+): Promise<void> {
   const rawToken = randomToken();
   const csrfToken = randomToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  const [session] = await db.insert(venueManagerSessionsTable).values({
-    managerId,
-    tokenHash: hashOpaque(rawToken),
-    csrfTokenHash: hashOpaque(csrfToken),
-    expiresAt,
-  }).returning();
-  if (!session) throw new Error("Unable to create venue manager session");
+  const created = await db.transaction(async (tx) => {
+    // Serialize session creation against Firebase linking. If linking obtains
+    // the row lock first, stale legacy credentials cannot create a fresh
+    // post-revocation session; if this runs first, linking revokes it.
+    await tx.execute(sql`SELECT id FROM venue_managers WHERE id = ${managerId} FOR UPDATE`);
+    const [manager] = await tx.select({ firebaseUid: venueManagersTable.firebaseUid })
+      .from(venueManagersTable).where(eq(venueManagersTable.id, managerId)).limit(1);
+    if (!manager || manager.firebaseUid !== expectedFirebaseUid) return false;
+    const [session] = await tx.insert(venueManagerSessionsTable).values({
+      managerId,
+      tokenHash: hashOpaque(rawToken),
+      csrfTokenHash: hashOpaque(csrfToken),
+      expiresAt,
+    }).returning({ id: venueManagerSessionsTable.id });
+    if (!session) throw new Error("Unable to create venue manager session");
+    return true;
+  });
+  if (!created) {
+    res.status(409).json({
+      message: expectedFirebaseUid
+        ? "This Firebase identity is no longer linked to the venue manager account."
+        : "This account now signs in with Firebase. Use Continue with Firebase instead.",
+    });
+    return;
+  }
   res.cookie(COOKIE, rawToken, cookieOptions(req));
   res.json({ authenticated: true, csrfToken, expiresAt: expiresAt.toISOString() });
+}
+
+async function verifiedFirebaseIdentity(idToken: unknown): Promise<{ uid: string; email: string } | null> {
+  if (typeof idToken !== "string" || !idToken) return null;
+  try {
+    const decoded = await adminAuth().verifyIdToken(idToken);
+    if (typeof decoded.uid !== "string" || typeof decoded.email !== "string" ||
+        !decoded.email.trim() || decoded.email_verified !== true) return null;
+    return { uid: decoded.uid, email: normalizeEmail(decoded.email) };
+  } catch {
+    return null;
+  }
+}
+
+function isSyntheticAdminOwnerUid(uid: string): boolean {
+  return uid.startsWith("admin:") && !uid.startsWith("admin-managed:");
+}
+
+function isSyntheticWebOwnerUid(uid: string): boolean {
+  return uid.startsWith("web:");
+}
+
+type VenueManagerTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Bind the synthetic owner identity used for an admin-created venue to the
+ * verified Firebase UID. All affected rows are narrowly scoped to both the
+ * prior UID and the venue's place ID. Immutable business attribution,
+ * reward winners, guest history, and audit rows are intentionally untouched.
+ */
+async function bindSyntheticOwner(
+  tx: VenueManagerTransaction,
+  businessId: number,
+  managerId: number,
+  firebaseUid: string,
+): Promise<void> {
+  const [row] = await tx.select({
+    business: venueBusinessesTable,
+    profile: venueOwnerProfilesTable,
+  }).from(venueBusinessesTable)
+    .innerJoin(venueOwnerProfilesTable, eq(venueBusinessesTable.venueOwnerProfileId, venueOwnerProfilesTable.id))
+    .where(eq(venueBusinessesTable.id, businessId))
+    .limit(1);
+  if (!row) return;
+
+  // Public web applications keep a unique synthetic profile owner UID. Their
+  // approved business already has a placeholder owner membership for that UID.
+  // Convert only that exact branch membership after the email-bound,
+  // single-use registration token has been verified; do not rewrite the
+  // profile UID, which may not be globally unique for a manager with branches.
+  if (isSyntheticWebOwnerUid(row.profile.ownerUid)) {
+    const [placeholder] = await tx.select().from(venueMembershipsTable).where(and(
+      eq(venueMembershipsTable.businessId, businessId),
+      eq(venueMembershipsTable.role, "owner"),
+      eq(venueMembershipsTable.status, "active"),
+      eq(venueMembershipsTable.uid, row.profile.ownerUid),
+      isNull(venueMembershipsTable.managerId),
+    )).limit(1).for("update");
+    if (!placeholder) throw new Error("firebase_owner_membership_collision");
+
+    const [boundMembership] = await tx.update(venueMembershipsTable).set({
+      // The manager ID is the canonical link for web applications. Leaving
+      // uid null keeps the legacy UID-only owner app resolver from picking an
+      // arbitrary branch when this account manages several listings.
+      uid: null,
+      managerId,
+      acceptedAt: placeholder.acceptedAt ?? new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(venueMembershipsTable.id, placeholder.id),
+      eq(venueMembershipsTable.uid, row.profile.ownerUid),
+      isNull(venueMembershipsTable.managerId),
+    )).returning({ id: venueMembershipsTable.id });
+    if (!boundMembership) throw new Error("firebase_owner_membership_collision");
+    return;
+  }
+
+  if (!isSyntheticAdminOwnerUid(row.profile.ownerUid)) return;
+
+  const oldUid = row.profile.ownerUid;
+  const [firebaseProfile] = await tx.select({ id: venueOwnerProfilesTable.id })
+    .from(venueOwnerProfilesTable)
+    .where(eq(venueOwnerProfilesTable.ownerUid, firebaseUid))
+    .limit(1);
+  if (firebaseProfile && firebaseProfile.id !== row.profile.id) {
+    throw new Error("firebase_owner_uid_collision");
+  }
+
+  const [activeOwner] = await tx.select().from(venueMembershipsTable).where(and(
+    eq(venueMembershipsTable.businessId, businessId),
+    eq(venueMembershipsTable.role, "owner"),
+    eq(venueMembershipsTable.status, "active"),
+  )).limit(1);
+  if (activeOwner && activeOwner.managerId !== managerId && activeOwner.uid !== oldUid) {
+    throw new Error("firebase_owner_membership_collision");
+  }
+
+  const [boundProfile] = await tx.update(venueOwnerProfilesTable)
+    .set({ ownerUid: firebaseUid, updatedAt: new Date() })
+    .where(and(
+      eq(venueOwnerProfilesTable.id, row.profile.id),
+      eq(venueOwnerProfilesTable.ownerUid, oldUid),
+    ))
+    .returning({ id: venueOwnerProfilesTable.id });
+  if (!boundProfile) throw new Error("firebase_owner_uid_collision");
+
+  // Existing admin-created owner memberships are converted in place so the
+  // unique active-owner invariant remains authoritative.
+  const [legacyOwnerMembership] = await tx.select().from(venueMembershipsTable).where(and(
+    eq(venueMembershipsTable.businessId, businessId),
+    eq(venueMembershipsTable.role, "owner"),
+    eq(venueMembershipsTable.uid, oldUid),
+  )).limit(1);
+  if (legacyOwnerMembership) {
+    await tx.update(venueMembershipsTable).set({
+      uid: firebaseUid,
+      managerId,
+      status: "active",
+      acceptedAt: legacyOwnerMembership.acceptedAt ?? new Date(),
+      updatedAt: new Date(),
+    }).where(eq(venueMembershipsTable.id, legacyOwnerMembership.id));
+  } else if (!activeOwner) {
+    await tx.insert(venueMembershipsTable).values({
+      businessId, managerId, uid: firebaseUid, role: "owner", status: "active", acceptedAt: new Date(),
+    });
+  } else if (activeOwner.managerId === managerId) {
+    await tx.update(venueMembershipsTable).set({ uid: firebaseUid, updatedAt: new Date() })
+      .where(eq(venueMembershipsTable.id, activeOwner.id));
+  }
+
+  await tx.update(venueEventsTable).set({ ownerUid: firebaseUid, updatedAt: new Date() })
+    .where(and(eq(venueEventsTable.ownerUid, oldUid), eq(venueEventsTable.placeId, row.business.placeId)));
+  await tx.update(venueRewardsTable).set({ ownerUid: firebaseUid, updatedAt: new Date() })
+    .where(and(eq(venueRewardsTable.ownerUid, oldUid), eq(venueRewardsTable.placeId, row.business.placeId)));
+  await tx.update(venueAnnouncementsTable).set({ ownerUid: firebaseUid, updatedAt: new Date() })
+    .where(and(eq(venueAnnouncementsTable.ownerUid, oldUid), eq(venueAnnouncementsTable.placeId, row.business.placeId)));
+
+  await tx.insert(venueMembershipAuditTable).values({
+    businessId,
+    membershipId: legacyOwnerMembership?.id ?? activeOwner?.id ?? null,
+    eventType: "ownership_transferred",
+    actorUid: firebaseUid,
+    subjectUid: firebaseUid,
+    fromRole: "owner",
+    toRole: "owner",
+    fromStatus: legacyOwnerMembership?.status ?? activeOwner?.status ?? "active",
+    toStatus: "active",
+    metadata: JSON.stringify({ source: "firebase_identity_link", previousOwnerUid: oldUid }),
+  });
+}
+
+function sendIdentityConflict(res: Response, error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  if (message === "firebase_owner_uid_collision" || message === "firebase_owner_membership_collision") {
+    res.status(409).json({ code: "owner_uid_collision", message: "This Firebase account already owns a different venue. No venue data was changed." });
+    return true;
+  }
+  if ((error as { code?: string } | null)?.code === "23505") {
+    res.status(409).json({ code: "identity_collision", message: "This Firebase identity conflicts with an existing account or venue owner. No data was changed." });
+    return true;
+  }
+  return false;
 }
 
 async function activeMembership(managerId: number, businessId: number, permitted: readonly Role[]): Promise<{
@@ -261,6 +452,140 @@ function serializeBusiness(row: NonNullable<Awaited<ReturnType<typeof businessWi
   };
 }
 
+router.get("/venue-manager/firebase-config", (_req, res): void => {
+  const config = getVenueManagerFirebaseConfig();
+  if (!config) {
+    res.status(503).json({ message: "Venue Manager Firebase sign-in is not configured." });
+    return;
+  }
+  res.json(config);
+});
+
+router.post("/venue-manager/session/firebase", authLimit, async (req, res): Promise<void> => {
+  const identity = await verifiedFirebaseIdentity(req.body?.idToken);
+  if (!identity) {
+    res.status(401).json({ message: "A valid Firebase sign-in is required." });
+    return;
+  }
+  // Firebase UID is the only account lookup. Email is never an authorization
+  // key, including for this transition response.
+  const [manager] = await db.select().from(venueManagersTable)
+    .where(eq(venueManagersTable.firebaseUid, identity.uid)).limit(1);
+  if (!manager) {
+    const emailMatches = await db.select({ firebaseUid: venueManagersTable.firebaseUid })
+      .from(venueManagersTable)
+      .where(sql`lower(btrim(${venueManagersTable.email})) = ${identity.email}`)
+      .limit(2);
+    if (emailMatches.length > 1) {
+      res.status(409).json({ message: "Multiple venue manager accounts match this email. Contact support before signing in." });
+      return;
+    }
+    if (emailMatches[0] && !emailMatches[0].firebaseUid) {
+      res.status(409).json({ code: "link_required", message: "This existing venue manager account must be securely linked using its current password before Firebase sign-in." });
+      return;
+    }
+    res.status(404).json({ message: "No venue manager account is linked to this Firebase identity." });
+    return;
+  }
+  await db.update(venueManagersTable)
+    .set({ lastLoginAt: new Date(), updatedAt: new Date() })
+    .where(eq(venueManagersTable.id, manager.id));
+  await issueSession(req, res, manager.id, identity.uid);
+});
+
+router.post("/venue-manager/link/firebase", authLimit, async (req, res): Promise<void> => {
+  const identity = await verifiedFirebaseIdentity(req.body?.idToken);
+  const legacyPassword = typeof req.body?.legacyPassword === "string" ? req.body.legacyPassword : "";
+  if (!identity || !legacyPassword) {
+    res.status(400).json({ message: "A valid Firebase sign-in and current venue manager password are required." });
+    return;
+  }
+  const emailMatches = await db.select().from(venueManagersTable)
+    .where(sql`lower(btrim(${venueManagersTable.email})) = ${identity.email}`).limit(2);
+  if (emailMatches.length > 1) {
+    res.status(409).json({ message: "Multiple venue manager accounts match this email. Contact support before linking." });
+    return;
+  }
+  const manager = emailMatches[0];
+  if (!manager) {
+    res.status(404).json({ message: "No legacy venue manager account matches this verified email." });
+    return;
+  }
+  if (manager.firebaseUid) {
+    res.status(409).json({ message: "This venue manager account is already linked to Firebase." });
+    return;
+  }
+  const [uidOwner] = await db.select({ id: venueManagersTable.id }).from(venueManagersTable)
+    .where(eq(venueManagersTable.firebaseUid, identity.uid)).limit(1);
+  if (uidOwner) {
+    res.status(409).json({ message: "This Firebase identity is already linked to another venue manager account." });
+    return;
+  }
+  if (manager.lockedUntil && manager.lockedUntil > new Date()) {
+    res.set("Retry-After", String(Math.ceil((manager.lockedUntil.getTime() - Date.now()) / 1000)));
+    res.status(429).json({ message: "This account is temporarily locked." });
+    return;
+  }
+  if (!(await verifyPassword(legacyPassword, manager.passwordHash))) {
+    const lockoutUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
+    const [attempt] = await db.update(venueManagersTable).set({
+      failedLoginAttempts: sql`${venueManagersTable.failedLoginAttempts} + 1`,
+      lockedUntil: sql`CASE WHEN ${venueManagersTable.failedLoginAttempts} + 1 >= ${MAX_FAILED_LOGIN_ATTEMPTS} THEN ${lockoutUntil}::timestamptz ELSE NULL::timestamptz END`,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(venueManagersTable.id, manager.id),
+      isNull(venueManagersTable.firebaseUid),
+    )).returning({ lockedUntil: venueManagersTable.lockedUntil });
+    if (!attempt) {
+      res.status(409).json({ message: "This venue manager account has already been linked to a Firebase identity." });
+      return;
+    }
+    if (attempt.lockedUntil) res.set("Retry-After", String(Math.ceil((attempt.lockedUntil.getTime() - Date.now()) / 1000)));
+    res.status(attempt.lockedUntil ? 429 : 401).json({
+      message: attempt.lockedUntil ? "This account is temporarily locked." : "Invalid email or password.",
+    });
+    return;
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      const [bound] = await tx.update(venueManagersTable).set({
+        firebaseUid: identity.uid,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(venueManagersTable.id, manager.id),
+        isNull(venueManagersTable.firebaseUid),
+      )).returning({ id: venueManagersTable.id });
+      if (!bound) throw new Error("firebase_manager_link_race");
+      const owned = await tx.select({ businessId: venueMembershipsTable.businessId })
+        .from(venueMembershipsTable)
+        .where(and(
+          eq(venueMembershipsTable.managerId, manager.id),
+          eq(venueMembershipsTable.role, "owner"),
+          eq(venueMembershipsTable.status, "active"),
+        ));
+      for (const membership of owned) {
+        await bindSyntheticOwner(tx, membership.businessId, manager.id, identity.uid);
+      }
+      await tx.update(venueManagerSessionsTable).set({ revokedAt: new Date() })
+        .where(and(
+          eq(venueManagerSessionsTable.managerId, manager.id),
+          isNull(venueManagerSessionsTable.revokedAt),
+        ));
+    });
+  } catch (error) {
+    if (sendIdentityConflict(res, error)) return;
+    if (error instanceof Error && error.message === "firebase_manager_link_race") {
+      res.status(409).json({ message: "This venue manager account has already been linked to a Firebase identity." });
+      return;
+    }
+    throw error;
+  }
+  await issueSession(req, res, manager.id, identity.uid);
+});
+
 router.post("/venue-manager/session", authLimit, async (req, res): Promise<void> => {
   const email = typeof req.body?.email === "string" ? normalizeEmail(req.body.email) : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
@@ -268,7 +593,17 @@ router.post("/venue-manager/session", authLimit, async (req, res): Promise<void>
     res.status(400).json({ message: "Email and password are required." });
     return;
   }
-  const [manager] = await db.select().from(venueManagersTable).where(eq(venueManagersTable.email, email)).limit(1);
+  const emailMatches = await db.select().from(venueManagersTable)
+    .where(sql`lower(btrim(${venueManagersTable.email})) = ${email}`).limit(2);
+  if (emailMatches.length > 1) {
+    res.status(409).json({ message: "Multiple venue manager accounts match this email. Contact support." });
+    return;
+  }
+  const manager = emailMatches[0];
+  if (manager?.firebaseUid) {
+    res.status(409).json({ message: "This account now signs in with Firebase. Use Continue with Firebase instead of the venue manager password." });
+    return;
+  }
   if (!manager || (manager.lockedUntil && manager.lockedUntil > new Date())) {
     if (manager?.lockedUntil) res.set("Retry-After", String(Math.ceil((manager.lockedUntil.getTime() - Date.now()) / 1000)));
     res.status(manager?.lockedUntil ? 429 : 401).json({ message: manager?.lockedUntil ? "This account is temporarily locked." : "Invalid email or password." });
@@ -286,7 +621,7 @@ router.post("/venue-manager/session", authLimit, async (req, res): Promise<void>
   }
   await db.update(venueManagersTable).set({ failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date(), updatedAt: new Date() })
     .where(eq(venueManagersTable.id, manager.id));
-  await issueSession(req, res, manager.id);
+  await issueSession(req, res, manager.id, null);
 });
 
 // The CSRF token is never stored client-readable server-side (only its hash),
@@ -313,7 +648,10 @@ router.delete("/venue-manager/session", requireSession, requireCsrf, async (req,
 // before the manager tries to send a reveal and gets a 422.
 router.get("/venue-manager/me/met-profile", requireSession, async (req, res): Promise<void> => {
   const [managerRow] = await db
-    .select({ email: venueManagersTable.email })
+    .select({
+      email: venueManagersTable.email,
+      firebaseUid: venueManagersTable.firebaseUid,
+    })
     .from(venueManagersTable)
     .where(eq(venueManagersTable.id, req.venueManagerSession!.managerId))
     .limit(1);
@@ -322,8 +660,15 @@ router.get("/venue-manager/me/met-profile", requireSession, async (req, res): Pr
     return;
   }
   try {
-    await adminAuth().getUserByEmail(managerRow.email);
-    res.json({ linked: true, email: managerRow.email });
+    const firebaseUser = await adminAuth().getUserByEmail(managerRow.email);
+    res.json({
+      linked: true,
+      firebaseAccountLinked:
+        managerRow.firebaseUid === firebaseUser.uid &&
+        firebaseUser.emailVerified === true &&
+        normalizeEmail(firebaseUser.email ?? "") === normalizeEmail(managerRow.email),
+      email: managerRow.email,
+    });
   } catch (err: unknown) {
     // Only treat a confirmed "user not found" as unlinked.
     // All other errors (network, mis-configured credentials, transient
@@ -332,7 +677,7 @@ router.get("/venue-manager/me/met-profile", requireSession, async (req, res): Pr
     // instead of incorrectly presenting the "create a Met account" banner.
     const code = (err as { code?: string }).code;
     if (code === "auth/user-not-found") {
-      res.json({ linked: false, email: managerRow.email });
+      res.json({ linked: false, firebaseAccountLinked: false, email: managerRow.email });
     } else {
       res.status(503).json({ message: "Unable to verify Met account link right now. Please try again." });
     }
@@ -715,12 +1060,66 @@ router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, as
   });
 });
 
-router.post("/venue-manager/invitations/accept", authLimit, async (req, res): Promise<void> => {
+async function findOrCreateFirebaseManager(
+  tx: VenueManagerTransaction,
+  identity: { uid: string; email: string },
+  displayName: string,
+  placeholderPasswordHash: string,
+) {
+  const [byUid] = await tx.select().from(venueManagersTable)
+    .where(eq(venueManagersTable.firebaseUid, identity.uid)).limit(1);
+  if (byUid) {
+    if (normalizeEmail(byUid.email) !== identity.email) throw new Error("firebase_uid_email_mismatch");
+    return byUid;
+  }
+  const emailMatches = await tx.select().from(venueManagersTable)
+    .where(sql`lower(btrim(${venueManagersTable.email})) = ${identity.email}`).limit(2);
+  if (emailMatches.length > 1) throw new Error("firebase_email_ambiguous");
+  const byEmail = emailMatches[0];
+  if (byEmail) {
+    if (!byEmail.firebaseUid) throw new Error("firebase_email_link_required");
+    throw new Error("firebase_email_uid_mismatch");
+  }
+  const [manager] = await tx.insert(venueManagersTable).values({
+    email: identity.email,
+    firebaseUid: identity.uid,
+    displayName,
+    passwordHash: placeholderPasswordHash,
+    legalVersion: VENUE_MANAGER_TERMS_VERSION,
+    legalAcceptedAt: new Date(),
+  }).returning();
+  if (!manager) throw new Error("firebase_manager_create_failed");
+  return manager;
+}
+
+function sendFirebaseFlowError(res: Response, error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  if (sendIdentityConflict(res, error)) return true;
+  if (message === "firebase_email_link_required") {
+    res.status(409).json({ code: "link_required", message: "This existing manager account must be securely linked with its current password first." });
+    return true;
+  }
+  if (message === "firebase_uid_email_mismatch" || message === "firebase_email_uid_mismatch") {
+    res.status(409).json({ message: "This Firebase identity does not match the existing venue manager account." });
+    return true;
+  }
+  if (message === "firebase_email_ambiguous") {
+    res.status(409).json({ message: "Multiple venue manager accounts match this email. Contact support before accepting the invitation." });
+    return true;
+  }
+  if (message === "firebase_registration_token_race" || message === "firebase_invitation_token_race") {
+    res.status(400).json({ message: "This one-time link has already been used or has expired." });
+    return true;
+  }
+  return false;
+}
+
+router.post("/venue-manager/invitations/accept/firebase", authLimit, async (req, res): Promise<void> => {
   const token = typeof req.body?.token === "string" ? req.body.token : "";
-  const password = typeof req.body?.password === "string" ? req.body.password : "";
   const displayName = typeof req.body?.displayName === "string" ? req.body.displayName.trim().slice(0, 120) : "";
-  if (!token || !passwordIsStrong(password) || !displayName) {
-    res.status(400).json({ message: "Use a valid invitation, name, and strong password." });
+  const identity = await verifiedFirebaseIdentity(req.body?.idToken);
+  if (!token || !identity || !displayName || req.body?.acceptedTermsVersion !== VENUE_MANAGER_TERMS_VERSION) {
+    res.status(400).json({ message: "Use a valid invitation, Firebase sign-in, name, and accept the current Venue Manager Terms and Privacy notice." });
     return;
   }
   const [invite] = await db.select().from(venueManagerTokensTable).where(and(
@@ -733,151 +1132,164 @@ router.post("/venue-manager/invitations/accept", authLimit, async (req, res): Pr
     res.status(400).json({ message: "This invitation is invalid or has expired." });
     return;
   }
-  const [existing] = await db.select().from(venueManagersTable).where(eq(venueManagersTable.email, invite.email)).limit(1);
-  if (existing) {
-    res.status(409).json({ message: "This email already has a venue manager account." });
+  if (normalizeEmail(invite.email) !== identity.email) {
+    res.status(403).json({ message: "Sign in with the Firebase account invited to this venue." });
     return;
   }
-  const [manager] = await db.insert(venueManagersTable).values({
-    email: invite.email, displayName, passwordHash: await hashPassword(password),
-  }).returning();
-  if (!manager) throw new Error("Unable to create manager");
-  await db.transaction(async (tx) => {
-    await tx.insert(venueMembershipsTable).values({
-      businessId: invite.businessId, managerId: manager.id, role: invite.role, status: "active", acceptedAt: new Date(),
+  const placeholderPasswordHash = await hashPassword(randomToken());
+  let managerId: number;
+  try {
+    managerId = await db.transaction(async (tx) => {
+      const [consumed] = await tx.update(venueManagerTokensTable).set({ consumedAt: new Date() }).where(and(
+        eq(venueManagerTokensTable.id, invite.id),
+        isNull(venueManagerTokensTable.consumedAt),
+        gt(venueManagerTokensTable.expiresAt, new Date()),
+      )).returning({ id: venueManagerTokensTable.id });
+      if (!consumed) throw new Error("firebase_invitation_token_race");
+      const manager = await findOrCreateFirebaseManager(tx, identity, displayName, placeholderPasswordHash);
+      const [existingMembership] = await tx.select().from(venueMembershipsTable).where(and(
+        eq(venueMembershipsTable.businessId, invite.businessId),
+        eq(venueMembershipsTable.managerId, manager.id),
+      )).limit(1);
+      if (existingMembership?.status === "active") throw new Error("firebase_invitation_already_member");
+      if (existingMembership) {
+        await tx.update(venueMembershipsTable).set({
+          uid: identity.uid, role: invite.role, status: "active", acceptedAt: new Date(),
+          revokedAt: null, updatedAt: new Date(),
+        }).where(eq(venueMembershipsTable.id, existingMembership.id));
+      } else {
+        await tx.insert(venueMembershipsTable).values({
+          businessId: invite.businessId, managerId: manager.id, uid: identity.uid,
+          role: invite.role, status: "active", acceptedAt: new Date(),
+        });
+      }
+      await tx.update(venueManagerTokensTable).set({ managerId: manager.id })
+        .where(eq(venueManagerTokensTable.id, invite.id));
+      await tx.insert(venueMembershipAuditTable).values({
+        businessId: invite.businessId, eventType: "granted", subjectUid: identity.uid,
+        toRole: invite.role, toStatus: "active",
+        metadata: JSON.stringify({ source: "firebase_invitation_acceptance", managerId: manager.id }),
+      });
+      return manager.id;
     });
-    await tx.update(venueManagerTokensTable).set({ consumedAt: new Date(), managerId: manager.id })
-      .where(eq(venueManagerTokensTable.id, invite.id));
-    await tx.insert(venueMembershipAuditTable).values({
-      businessId: invite.businessId, eventType: "granted", subjectUid: invite.email,
-      toRole: invite.role, toStatus: "active", metadata: JSON.stringify({ managerId: manager.id }),
-    });
-  });
-  await issueSession(req, res, manager.id);
+  } catch (error) {
+    if (sendFirebaseFlowError(res, error)) return;
+    if (error instanceof Error && error.message === "firebase_invitation_already_member") {
+      res.status(409).json({ message: "This Firebase account already has access to the venue." });
+      return;
+    }
+    throw error;
+  }
+  await issueSession(req, res, managerId, identity.uid);
 });
 
-/**
- * POST /venue-manager/register
- * First-time owner registration using a token generated by the admin portal.
- * Creates a manager credential and an owner membership, then issues a session
- * so the owner lands directly in the portal.
- */
-router.post("/venue-manager/register", authLimit, async (req, res): Promise<void> => {
+router.post("/venue-manager/register/firebase", authLimit, async (req, res): Promise<void> => {
   const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
-  const email = typeof req.body?.email === "string" ? normalizeEmail(req.body.email) : "";
   const displayName = typeof req.body?.displayName === "string" ? req.body.displayName.trim().slice(0, 120) : "";
-  const password = typeof req.body?.password === "string" ? req.body.password : "";
-  if (!token || !email || !displayName || !passwordIsStrong(password)) {
-    res.status(400).json({ message: "Provide a registration token, email, name, and a strong password (8+ chars, upper, lower, number)." });
+  const identity = await verifiedFirebaseIdentity(req.body?.idToken);
+  if (!token || !identity || !displayName || req.body?.acceptedTermsVersion !== VENUE_MANAGER_TERMS_VERSION) {
+    res.status(400).json({ message: "Provide a valid registration token, Firebase sign-in, name, and accept the current Venue Manager Terms and Privacy notice." });
     return;
   }
-  const tokenHash = crypto.createHash("sha256").update(token).digest("base64url");
-  const [reg] = await db
-    .select()
-    .from(venueManagerRegistrationTokensTable)
-    .where(
-      and(
-        eq(venueManagerRegistrationTokensTable.tokenHash, tokenHash),
-        isNull(venueManagerRegistrationTokensTable.consumedAt),
-        gt(venueManagerRegistrationTokensTable.expiresAt, new Date()),
-      ),
-    )
-    .limit(1);
+  const [reg] = await db.select().from(venueManagerRegistrationTokensTable).where(and(
+    eq(venueManagerRegistrationTokensTable.tokenHash, hashOpaque(token)),
+    isNull(venueManagerRegistrationTokensTable.consumedAt),
+    gt(venueManagerRegistrationTokensTable.expiresAt, new Date()),
+  )).limit(1);
   if (!reg) {
     res.status(400).json({ message: "This registration link is invalid or has expired." });
     return;
   }
-  const [business] = await db
-    .select({
-      id: venueBusinessesTable.id,
-      isActive: venueBusinessesTable.isActive,
-      venueOwnerProfileId: venueBusinessesTable.venueOwnerProfileId,
-    })
-    .from(venueBusinessesTable)
-    .where(eq(venueBusinessesTable.id, reg.businessId))
-    .limit(1);
-  if (!business?.isActive) {
+  const [venue] = await db.select({
+    business: venueBusinessesTable,
+    profile: venueOwnerProfilesTable,
+  }).from(venueBusinessesTable)
+    .innerJoin(venueOwnerProfilesTable, eq(venueBusinessesTable.venueOwnerProfileId, venueOwnerProfilesTable.id))
+    .where(eq(venueBusinessesTable.id, reg.businessId)).limit(1);
+  if (!venue?.business.isActive) {
     res.status(409).json({ message: "This venue is no longer active." });
     return;
   }
-  const [existingManager] = await db
-    .select({ id: venueManagersTable.id })
-    .from(venueManagersTable)
-    .where(eq(venueManagersTable.email, email))
-    .limit(1);
-  if (existingManager) {
-    // Check whether this account is orphaned (created but the transaction
-    // that attached a membership failed). If it has no memberships it is
-    // safe to delete and let the registration proceed.
-    const [membership] = await db
-      .select({ id: venueMembershipsTable.id })
-      .from(venueMembershipsTable)
-      .where(eq(venueMembershipsTable.managerId, existingManager.id))
-      .limit(1);
-    if (membership) {
-      res.status(409).json({ message: "An account with this email already exists. Sign in instead." });
-      return;
-    }
-    // Orphaned account — remove it so the registration can proceed cleanly.
-    await db.delete(venueManagersTable).where(eq(venueManagersTable.id, existingManager.id));
+  if (normalizeEmail(reg.invitedEmail ?? venue.profile.contactEmail ?? "") !== identity.email) {
+    res.status(403).json({ message: "Sign in with the verified Met account matching the email this registration link was issued to." });
+    return;
   }
-  // Hash password before entering the transaction so a slow bcrypt round
-  // doesn't hold the DB connection open unnecessarily.
-  const passwordHash = await hashPassword(password);
-  // All writes are inside one transaction so a failure at any step rolls
-  // everything back atomically — no orphaned manager rows on retry.
-  const manager = await db.transaction(async (tx) => {
-    // Remove any stale active-owner memberships for this business whose
-    // manager account has been deleted or was never set (null). These
-    // accumulate when a prior registration attempt partially succeeded
-    // and would cause a unique-constraint violation on the insert below.
-    await tx.delete(venueMembershipsTable).where(
-      and(
-        eq(venueMembershipsTable.businessId, business.id),
+  const [activation] = await db.select().from(venueActivationPoliciesTable)
+    .where(eq(venueActivationPoliciesTable.profileId, venue.profile.id)).limit(1);
+  if (!venue.profile.isApproved || venue.profile.applicationStatus !== "approved" ||
+      activation?.unlistedAt ||
+      (activation?.registrationDeadline && activation.registrationDeadline <= new Date() &&
+       !activation.exempt)) {
+    res.status(409).json({ message: "This venue's registration deadline has passed. Contact the Met team for an extension." });
+    return;
+  }
+  const placeholderPasswordHash = await hashPassword(randomToken());
+  let managerId: number;
+  try {
+    managerId = await db.transaction(async (tx) => {
+      const [consumed] = await tx.update(venueManagerRegistrationTokensTable).set({ consumedAt: new Date() }).where(and(
+        eq(venueManagerRegistrationTokensTable.id, reg.id),
+        isNull(venueManagerRegistrationTokensTable.consumedAt),
+        gt(venueManagerRegistrationTokensTable.expiresAt, new Date()),
+      )).returning({ id: venueManagerRegistrationTokensTable.id });
+      if (!consumed) throw new Error("firebase_registration_token_race");
+      const manager = await findOrCreateFirebaseManager(tx, identity, displayName, placeholderPasswordHash);
+      await bindSyntheticOwner(tx, venue.business.id, manager.id, identity.uid);
+      const [membership] = await tx.select().from(venueMembershipsTable).where(and(
+        eq(venueMembershipsTable.businessId, venue.business.id),
         eq(venueMembershipsTable.role, "owner"),
         eq(venueMembershipsTable.status, "active"),
-        or(
-          isNull(venueMembershipsTable.managerId),
-          notInArray(
-            venueMembershipsTable.managerId,
-            tx.select({ id: venueManagersTable.id }).from(venueManagersTable),
-          ),
-        ),
-      ),
-    );
-    const [mgr] = await tx
-      .insert(venueManagersTable)
-      .values({ email, displayName, passwordHash })
-      .returning();
-    if (!mgr) throw new Error("Failed to create manager account");
-    await tx.insert(venueMembershipsTable).values({
-      businessId: business.id,
-      managerId: mgr.id,
-      role: "owner",
-      status: "active",
-      acceptedAt: new Date(),
+      )).limit(1);
+      if (membership && membership.managerId !== manager.id && membership.uid !== identity.uid) {
+        throw new Error("firebase_owner_membership_collision");
+      }
+      if (membership) {
+        await tx.update(venueMembershipsTable).set({
+          managerId: manager.id,
+          uid: isSyntheticWebOwnerUid(venue.profile.ownerUid) ? null : identity.uid,
+          role: "owner",
+          status: "active",
+          acceptedAt: membership.acceptedAt ?? new Date(), updatedAt: new Date(),
+        }).where(eq(venueMembershipsTable.id, membership.id));
+      } else {
+        await tx.insert(venueMembershipsTable).values({
+          businessId: venue.business.id,
+          managerId: manager.id,
+          uid: isSyntheticWebOwnerUid(venue.profile.ownerUid) ? null : identity.uid,
+          role: "owner", status: "active", acceptedAt: new Date(),
+        });
+        await tx.insert(venueMembershipAuditTable).values({
+          businessId: venue.business.id, eventType: "granted", subjectUid: identity.uid,
+          toRole: "owner", toStatus: "active",
+          metadata: JSON.stringify({ source: "firebase_portal_registration", managerId: manager.id }),
+        });
+      }
+      await markVenueRegistered(venue.profile.id, new Date(), tx);
+      return manager.id;
     });
-    await tx.insert(venueMembershipAuditTable).values({
-      businessId: business.id,
-      eventType: "granted",
-      subjectUid: email,
-      toRole: "owner",
-      toStatus: "active",
-      metadata: JSON.stringify({ source: "portal_registration", managerId: mgr.id }),
-    });
-    await tx
-      .update(venueManagerRegistrationTokensTable)
-      .set({ consumedAt: new Date() })
-      .where(eq(venueManagerRegistrationTokensTable.id, reg.id));
-    // Keep the venue owner profile's contact email in sync with the address
-    // the owner chose when creating their Venue Manager account.
-    await tx
-      .update(venueOwnerProfilesTable)
-      .set({ contactEmail: email, updatedAt: new Date() })
-      .where(eq(venueOwnerProfilesTable.id, business.venueOwnerProfileId));
-    return mgr;
+  } catch (error) {
+    if (sendFirebaseFlowError(res, error)) return;
+    throw error;
+  }
+  await issueSession(req, res, managerId, identity.uid);
+});
+
+router.post("/venue-manager/invitations/accept", authLimit, async (req, res): Promise<void> => {
+  res.status(410).json({
+    code: "firebase_required",
+    message: "Password-based invitation acceptance is no longer available. Use /venue-manager/invitations/accept/firebase.",
   });
-  await issueSession(req, res, manager.id);
+});
+
+/**
+ * POST /venue-manager/register
+ * Kept as a migration-friendly URL, but new account creation must use Firebase.
+ */
+router.post("/venue-manager/register", authLimit, async (req, res): Promise<void> => {
+  res.status(410).json({
+    code: "firebase_required",
+    message: "Password-based registration is no longer available. Use /venue-manager/register/firebase.",
+  });
 });
 
 router.post("/venue-manager/password/recover", authLimit, async (req, res): Promise<void> => {
@@ -893,6 +1305,12 @@ router.post("/venue-manager/password/recover", authLimit, async (req, res): Prom
   )).limit(1);
   if (!recovery?.managerId) {
     res.status(400).json({ message: "This recovery link is invalid or has expired." });
+    return;
+  }
+  const [recoveryManager] = await db.select({ firebaseUid: venueManagersTable.firebaseUid })
+    .from(venueManagersTable).where(eq(venueManagersTable.id, recovery.managerId)).limit(1);
+  if (recoveryManager?.firebaseUid) {
+    res.status(409).json({ message: "This account uses Firebase sign-in. Use Firebase account recovery instead." });
     return;
   }
   await db.transaction(async (tx) => {
@@ -919,6 +1337,10 @@ router.post("/venue-manager/password", requireSession, requireCsrf, async (req, 
     res.status(401).json({ message: "Your session has expired." });
     return;
   }
+  if (manager.firebaseUid) {
+    res.status(409).json({ message: "This account uses Firebase sign-in. Change your password through Firebase instead." });
+    return;
+  }
   if (!(await verifyPassword(currentPassword, manager.passwordHash))) {
     res.status(401).json({ message: "Current password is incorrect." });
     return;
@@ -927,7 +1349,7 @@ router.post("/venue-manager/password", requireSession, requireCsrf, async (req, 
     await tx.update(venueManagersTable).set({ passwordHash: await hashPassword(newPassword), sessionVersion: manager.sessionVersion + 1, passwordChangedAt: new Date(), updatedAt: new Date() }).where(eq(venueManagersTable.id, manager.id));
     await tx.update(venueManagerSessionsTable).set({ revokedAt: new Date() }).where(eq(venueManagerSessionsTable.managerId, manager.id));
   });
-  await issueSession(req, res, manager.id);
+  await issueSession(req, res, manager.id, null);
 });
 
 router.post("/venue-manager/businesses/:businessId/removal-request", requireSession, requireCsrf, async (req, res): Promise<void> => {
@@ -1052,21 +1474,6 @@ const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif
  * GIF:  47 49 46 38 (GIF8)
  * WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50 (RIFF????WEBP)
  */
-export function isAllowedImageMagicBytes(bytes: Buffer): boolean {
-  if (bytes.length < 4) return false;
-  // JPEG
-  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return true;
-  // PNG
-  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return true;
-  // GIF
-  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return true;
-  // WebP (RIFF????WEBP — needs 12 bytes)
-  if (bytes.length >= 12 &&
-    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
-    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return true;
-  return false;
-}
-
 router.post("/venue-manager/businesses/:businessId/images/upload", requireSession, requireCsrf, async (req, res): Promise<void> => {
   const membership = await requireBusinessRole(req, res, ["owner", "manager"]);
   if (!membership) return;
@@ -1110,18 +1517,35 @@ router.post("/venue-manager/businesses/:businessId/images/confirm", requireSessi
 });
 
 /**
- * Legacy approved owners authenticate with Firebase just once to claim their
- * business-only account. The consumer account remains intact and is never
- * mixed into the manager credential.
+ * An approved owner may claim their venue using their authenticated Firebase
+ * UID. This route never creates a password-only manager account: the submitted
+ * password is ignored for backward request compatibility and a random,
+ * unusable legacy hash is stored for the non-null legacy column.
  */
 export function createVenueManagerClaimRouter(requireUid: (req: Request, res: Response, next: NextFunction) => void): IRouter {
   const claimRouter: IRouter = Router();
   claimRouter.post("/venue-manager/claim", requireUid, async (req, res): Promise<void> => {
-    const password = typeof req.body?.password === "string" ? req.body.password : "";
-    const email = typeof req.body?.email === "string" ? normalizeEmail(req.body.email) : "";
+    const suppliedEmail = typeof req.body?.email === "string" ? normalizeEmail(req.body.email) : "";
     const displayName = typeof req.body?.displayName === "string" ? req.body.displayName.trim().slice(0, 120) : "";
-    if (!email || !displayName || !passwordIsStrong(password)) {
-      res.status(400).json({ message: "Use an email, name, and strong password." });
+    if (!req.uid || !suppliedEmail || !displayName ||
+        req.body?.acceptedTermsVersion !== VENUE_MANAGER_TERMS_VERSION) {
+      res.status(400).json({ message: "A signed-in Firebase owner, email, name, and acceptance of the current Venue Manager terms are required." });
+      return;
+    }
+    let email: string;
+    try {
+      const firebaseUser = await adminAuth().getUser(req.uid);
+      if (!firebaseUser.email || !firebaseUser.emailVerified) {
+        res.status(403).json({ message: "Verify your Firebase account email before claiming a venue." });
+        return;
+      }
+      email = normalizeEmail(firebaseUser.email);
+    } catch {
+      res.status(503).json({ message: "Unable to verify your Firebase account email right now. Please try again." });
+      return;
+    }
+    if (suppliedEmail !== email) {
+      res.status(403).json({ message: "The submitted email must match your verified Firebase account email." });
       return;
     }
     const [profile] = await db.select().from(venueOwnerProfilesTable).where(and(eq(venueOwnerProfilesTable.ownerUid, req.uid!), eq(venueOwnerProfilesTable.isApproved, true), eq(venueOwnerProfilesTable.applicationStatus, "approved"))).limit(1);
@@ -1134,29 +1558,126 @@ export function createVenueManagerClaimRouter(requireUid: (req: Request, res: Re
       res.status(409).json({ message: "This venue is still being prepared. Try again shortly." });
       return;
     }
-    const [exists] = await db.select({ id: venueManagersTable.id }).from(venueManagersTable).where(eq(venueManagersTable.email, email)).limit(1);
-    if (exists) {
-      // If the account has no memberships it was orphaned by a failed
-      // transaction — delete it so the owner can retry cleanly.
-      const [membership] = await db.select({ id: venueMembershipsTable.id }).from(venueMembershipsTable).where(eq(venueMembershipsTable.managerId, exists.id)).limit(1);
-      if (membership) {
-        res.status(409).json({ message: "This email already has a venue manager account." });
+    const placeholderPasswordHash = await hashPassword(randomToken());
+    let managerId: number;
+    try {
+      managerId = await db.transaction(async (tx) => {
+        const [byUid] = await tx.select().from(venueManagersTable)
+          .where(eq(venueManagersTable.firebaseUid, req.uid!)).limit(1);
+        let manager = byUid;
+        if (!manager) {
+          const emailMatches = await tx.select({ id: venueManagersTable.id })
+            .from(venueManagersTable)
+            .where(sql`lower(btrim(${venueManagersTable.email})) = ${email}`)
+            .limit(1);
+          if (emailMatches.length) throw new Error("firebase_claim_email_exists");
+        }
+
+        const existingMembershipRows = manager
+          ? await tx.select().from(venueMembershipsTable).where(and(
+            eq(venueMembershipsTable.businessId, business.id),
+            eq(venueMembershipsTable.managerId, manager.id),
+          )).limit(1).for("update")
+          : [];
+        const existingMembership = existingMembershipRows[0];
+        if (existingMembership?.status === "revoked") {
+          throw new Error("firebase_claim_revoked_membership");
+        }
+        const [revokedOwnerMembership] = await tx.select({ id: venueMembershipsTable.id })
+          .from(venueMembershipsTable).where(and(
+            eq(venueMembershipsTable.businessId, business.id),
+            eq(venueMembershipsTable.uid, req.uid!),
+            eq(venueMembershipsTable.role, "owner"),
+            eq(venueMembershipsTable.status, "revoked"),
+          )).limit(1).for("update");
+        if (revokedOwnerMembership) {
+          throw new Error("firebase_claim_revoked_membership");
+        }
+
+        const [activeOwner] = await tx.select().from(venueMembershipsTable).where(and(
+          eq(venueMembershipsTable.businessId, business.id),
+          eq(venueMembershipsTable.role, "owner"),
+          eq(venueMembershipsTable.status, "active"),
+        )).limit(1).for("update");
+        if (activeOwner && activeOwner.managerId !== null && activeOwner.managerId !== manager?.id) {
+          throw new Error("firebase_claim_owner_collision");
+        }
+        if (activeOwner && activeOwner.managerId === null && activeOwner.uid !== req.uid) {
+          throw new Error("firebase_claim_owner_collision");
+        }
+
+        if (!manager) {
+          const [created] = await tx.insert(venueManagersTable).values({
+            email,
+            firebaseUid: req.uid!,
+            displayName,
+            passwordHash: placeholderPasswordHash,
+            legalVersion: VENUE_MANAGER_TERMS_VERSION,
+            legalAcceptedAt: new Date(),
+          }).returning();
+          if (!created) throw new Error("Unable to create Firebase-linked venue manager");
+          manager = created;
+        } else {
+          await tx.update(venueManagersTable).set({
+            legalVersion: VENUE_MANAGER_TERMS_VERSION,
+            legalAcceptedAt: new Date(),
+            updatedAt: new Date(),
+          }).where(eq(venueManagersTable.id, manager.id));
+        }
+
+        if (existingMembership) {
+          await tx.update(venueMembershipsTable).set({
+            uid: req.uid!,
+            role: "owner",
+            status: "active",
+            acceptedAt: existingMembership.acceptedAt ?? new Date(),
+            revokedAt: null,
+            updatedAt: new Date(),
+          }).where(eq(venueMembershipsTable.id, existingMembership.id));
+        } else if (activeOwner?.uid === req.uid) {
+          await tx.update(venueMembershipsTable).set({ managerId: manager.id, updatedAt: new Date() })
+            .where(eq(venueMembershipsTable.id, activeOwner.id));
+        } else if (!activeOwner) {
+          await tx.insert(venueMembershipsTable).values({
+            businessId: business.id, managerId: manager.id, uid: req.uid!,
+            role: "owner", status: "active", acceptedAt: new Date(),
+          });
+        }
+        if (!existingMembership) {
+          await tx.insert(venueMembershipAuditTable).values({
+            businessId: business.id,
+            membershipId: activeOwner?.id ?? null,
+            eventType: "granted",
+            subjectUid: req.uid!,
+            toRole: "owner",
+            toStatus: "active",
+            metadata: JSON.stringify({ source: "firebase_owner_claim", firebaseUid: req.uid }),
+          });
+        }
+        await tx.update(venueOwnerProfilesTable).set({ contactEmail: email, updatedAt: new Date() })
+          .where(eq(venueOwnerProfilesTable.id, profile.id));
+        return manager.id;
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "firebase_claim_email_exists") {
+        res.status(409).json({ code: "link_required", message: "A manager account already uses this email. Link that account with its current password instead of claiming by email." });
         return;
       }
-      await db.delete(venueManagersTable).where(eq(venueManagersTable.id, exists.id));
+      if (error instanceof Error && error.message === "firebase_claim_owner_collision") {
+        res.status(409).json({ message: "This venue already has a different active owner." });
+        return;
+      }
+      if (error instanceof Error && error.message === "firebase_claim_revoked_membership") {
+        res.status(403).json({ message: "Your venue manager access to this venue was revoked and cannot be restored through owner claim." });
+        return;
+      }
+      if ((error as { code?: string } | null)?.code === "23505") {
+        res.status(409).json({ message: "This Firebase identity or venue membership is already linked to another account." });
+        return;
+      }
+      throw error;
     }
-    const passwordHash = await hashPassword(password);
-    const manager = await db.transaction(async (tx) => {
-      const [mgr] = await tx.insert(venueManagersTable).values({ email, displayName, passwordHash }).returning();
-      if (!mgr) throw new Error("Unable to create manager");
-      await tx.insert(venueMembershipsTable).values({ businessId: business.id, managerId: mgr.id, role: "owner", status: "active", acceptedAt: new Date() });
-      await tx.insert(venueMembershipAuditTable).values({ businessId: business.id, eventType: "granted", subjectUid: email, toRole: "owner", toStatus: "active", metadata: JSON.stringify({ source: "legacy_owner_claim", legacyUid: req.uid }) });
-      // Keep the venue owner profile's contact email in sync with the address
-      // the owner chose when creating their Venue Manager account.
-      await tx.update(venueOwnerProfilesTable).set({ contactEmail: email, updatedAt: new Date() }).where(eq(venueOwnerProfilesTable.id, profile.id));
-      return mgr;
-    });
-    await issueSession(req, res, manager.id);
+    await issueSession(req, res, managerId, req.uid);
   });
   return claimRouter;
 }

@@ -10,7 +10,7 @@ import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import {
   Stack,
-  useLocalSearchParams,
+  useGlobalSearchParams,
   usePathname,
   useRouter,
   useSegments,
@@ -397,7 +397,8 @@ function VenueOwnerLifecycleGate() {
   const { profile, isLoading, error, refetch } = useVenueOwner();
   const router = useRouter();
   const pathname = usePathname();
-  const { reapply } = useLocalSearchParams<{ reapply?: string }>();
+  // This root-level guard follows the active route, not its layout's local params.
+  const { reapply, branch } = useGlobalSearchParams<{ reapply?: string; branch?: string }>();
 
   // Track the last pathname for which we completed a fresh profile load before
   // making a routing decision. null means a refetch is required on next entry.
@@ -441,10 +442,10 @@ function VenueOwnerLifecycleGate() {
     if (isLoading) return;
 
     const target = getVenueOwnerDestination(profile);
-    if (!isVenueOwnerPathAllowed(pathname, target, reapply)) {
+    if (!isVenueOwnerPathAllowed(pathname, target, reapply, branch)) {
       router.replace(target);
     }
-  }, [authedUid, error, isLoading, pathname, profile, ready, reapply, router]);
+  }, [authedUid, branch, error, isLoading, pathname, profile, ready, reapply, router]);
 
   return null;
 }

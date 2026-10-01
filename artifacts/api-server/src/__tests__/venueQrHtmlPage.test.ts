@@ -145,6 +145,23 @@ describe("GET /v/:placeId — QR check-in HTML page", () => {
     expect(res.text).toContain(APPROVED_PROFILE.placeName);
   });
 
+  it.each([
+    ["iPhone", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"],
+    ["Android", "Mozilla/5.0 (Linux; Android 15; Pixel 8)", "https://play.google.com/store/apps/details?id=app.met.founders"],
+  ])("sends a valid QR scanned on %s directly to the correct store", async (_device, userAgent, storeUrl) => {
+    vi.resetModules();
+    applyCommonMocks([APPROVED_PROFILE]);
+    const app = (await import("../app")).default;
+
+    const res = await request(app)
+      .get(`/v/${APPROVED_PROFILE.placeId}`)
+      .query({ t: APPROVED_PROFILE.qrToken })
+      .set("User-Agent", userAgent);
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(storeUrl);
+  });
+
   // -------------------------------------------------------------------------
   // 400 — invalid token: error page shown, venue info not exposed
   // -------------------------------------------------------------------------

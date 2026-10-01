@@ -15,10 +15,10 @@
 //    overrides block and compares it to a hash in the lockfile. Subtle
 //    serialization differences between pnpm versions produce different
 //    hashes, so the frozen check rejects an otherwise-valid lockfile.
-//    FIX: strip the entire `overrides:` block on the EAS worker. EAS is
-//    macOS and actually wants the darwin binaries, so the overrides are
-//    pure deadweight there. With no overrides on either side, there's no
-//    hash to mismatch.
+//    FIX: strip the Replit-specific overrides on the EAS worker, keeping
+//    portable security pins. EAS is macOS and needs the darwin
+//    binaries. Regenerate the lockfile with the worker's pnpm version so
+//    the remaining overrides match its frozen-install hash.
 //
 // 2) `Command "expo" not found` during `pnpm expo prebuild`
 //    EAS runs `pnpm expo prebuild --no-install --platform ios` from the
@@ -77,24 +77,32 @@ function run(cmd, cwd) {
   execSync(cmd, { cwd, stdio: "inherit" });
 }
 
-// Strip the `overrides:` block from pnpm-workspace.yaml. The block starts
-// with a top-level `overrides:` line and continues until either a new
-// non-indented top-level key or EOF.
+// Remove only the native-binary tombstones used to save space on Replit.
+// Keep all other overrides (including scoped selectors and npm aliases):
+// dropping portable security pins would reintroduce vulnerabilities when
+// pnpm regenerates the EAS lockfile through Vite, tsx, or other workspace deps.
+// This operates before dependencies are installed, so it uses no YAML package.
 function stripOverridesBlock(yamlText) {
   const lines = yamlText.split("\n");
   const out = [];
-  let inOverrides = false;
-  for (const line of lines) {
-    if (!inOverrides) {
-      if (/^overrides\s*:\s*$/.test(line)) {
-        inOverrides = true;
-        continue;
-      }
-      out.push(line);
-    } else {
-      if (line.length === 0 || /^\s/.test(line)) continue;
-      inOverrides = false;
-      out.push(line);
+  const nativeExclusion = /^  ('[^']+'|"[^"]+"|[^'"\s][^:]*):\s*(?:'-'|"-")\s*(?:#.*)?$/;
+  const nativeSelector = /^(?:esbuild>@esbuild\/|rollup>@rollup\/rollup-|lightningcss>lightningcss-|@tailwindcss\/oxide>@tailwindcss\/oxide-|@expo\/ngrok-bin>@expo\/ngrok-bin-)[a-z0-9-]+$/;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^overrides\s*:\s*$/.test(lines[i])) {
+      out.push(lines[i]);
+      continue;
+    }
+    const header = lines[i];
+    const kept = [];
+    while (i + 1 < lines.length && !/^[^\s#]/.test(lines[i + 1])) {
+      const line = lines[++i];
+      const entry = line.match(nativeExclusion);
+      const selector = entry && entry[1].trim().replace(/^(['"])(.*)\1$/, "$2");
+      if (!selector || !nativeSelector.test(selector)) kept.push(line);
+    }
+    // Avoid leaving a null overrides value when the block held only exclusions.
+    if (kept.some((line) => line.trim() && !line.trim().startsWith("#"))) {
+      out.push(header, ...kept);
     }
   }
   return out.join("\n");
@@ -145,14 +153,14 @@ function main() {
     return;
   }
 
-  // 1. Strip overrides from pnpm-workspace.yaml.
+  // 1. Strip native-binary exclusions, preserving portable security overrides.
   const wsPath = path.join(root, "pnpm-workspace.yaml");
   const original = fs.readFileSync(wsPath, "utf8");
   const stripped = stripOverridesBlock(original);
   if (stripped !== original) {
     fs.writeFileSync(wsPath, stripped, "utf8");
     console.log(
-      "[eas-pre-install] Stripped `overrides:` block from pnpm-workspace.yaml.",
+      "[eas-pre-install] Removed native-binary exclusions; kept portable security overrides.",
     );
   }
 
@@ -186,11 +194,13 @@ function main() {
   }
 
   // 4. Regenerate the lockfile against the modified workspace state.
-  run("pnpm install --lockfile-only --no-strict-peer-dependencies", root);
+  run("pnpm install --lockfile-only --no-frozen-lockfile --no-strict-peer-dependencies", root);
 
   console.log(
     "[eas-pre-install] Done. EAS frozen install will place expo at workspace root.",
   );
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { stripOverridesBlock };

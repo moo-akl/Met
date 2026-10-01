@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenueManagerInvitationAcceptanceAcceptedTermsVersion } from "./venueManagerInvitationAcceptanceAcceptedTermsVersion";
 
 export interface VenueManagerInvitationAcceptance {
   /** @minLength 1 */
@@ -16,4 +17,5 @@ export interface VenueManagerInvitationAcceptance {
   displayName: string;
   /** @minLength 12 */
   password: string;
+  acceptedTermsVersion: VenueManagerInvitationAcceptanceAcceptedTermsVersion;
 }

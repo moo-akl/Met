@@ -5,7 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import * as zod from "zod";
+
 
 /**
  * Returns server health status
@@ -191,6 +191,7 @@ export const ListMyEncountersResponseItem = zod
       }),
     }),
   );
+
 export const ListMyEncountersResponse = zod.array(ListMyEncountersResponseItem);
 
 /**
@@ -204,9 +205,11 @@ both docs. Idempotent within the configured cooldown window.
  */
 
 export const recordEncounterBodyLocationLatMin = -90;
+
 export const recordEncounterBodyLocationLatMax = 90;
 
 export const recordEncounterBodyLocationLngMin = -180;
+
 export const recordEncounterBodyLocationLngMax = 180;
 
 export const RecordEncounterBody = zod.object({
@@ -237,9 +240,11 @@ export const RecordEncounterResponse = zod.object({
  * @summary Update the authenticated user's last known location
  */
 export const updatePresenceBodyLatMin = -90;
+
 export const updatePresenceBodyLatMax = 90;
 
 export const updatePresenceBodyLngMin = -180;
+
 export const updatePresenceBodyLngMax = 180;
 
 export const UpdatePresenceBody = zod.object({
@@ -357,6 +362,7 @@ export const ListInboundRevealsResponseItem = zod
       }),
     }),
   );
+
 export const ListInboundRevealsResponse = zod.array(
   ListInboundRevealsResponseItem,
 );
@@ -406,6 +412,7 @@ export const ListOutboundRevealsResponseItem = zod
       }),
     }),
   );
+
 export const ListOutboundRevealsResponse = zod.array(
   ListOutboundRevealsResponseItem,
 );
@@ -463,6 +470,7 @@ scanner to look up a UID after detecting a Met advertisement.
  * @summary Resolve BLE identity hashes to user profiles
  */
 export const bleResolveBodyHashesItemRegExp = new RegExp("^[0-9a-f]{16}$");
+
 export const bleResolveBodyHashesMax = 64;
 
 export const BleResolveBody = zod.object({
@@ -500,6 +508,7 @@ export const BleResolveResponseItem = zod.object({
     updatedAt: zod.coerce.date(),
   }),
 });
+
 export const BleResolveResponse = zod.array(BleResolveResponseItem);
 
 /**
@@ -507,9 +516,11 @@ export const BleResolveResponse = zod.array(BleResolveResponseItem);
  * @summary List Met users near a coordinate
  */
 export const nearbyPresenceQueryRadiusMDefault = 200;
+
 export const nearbyPresenceQueryRadiusMMax = 5000;
 
 export const nearbyPresenceQueryMaxAgeMinDefault = 15;
+
 export const nearbyPresenceQueryMaxAgeMinMax = 1440;
 
 export const NearbyPresenceQueryParams = zod.object({
@@ -532,6 +543,7 @@ export const NearbyPresenceResponseItem = zod.object({
   distanceM: zod.number(),
   updatedAt: zod.coerce.date(),
 });
+
 export const NearbyPresenceResponse = zod.array(NearbyPresenceResponseItem);
 
 /**
@@ -539,6 +551,7 @@ export const NearbyPresenceResponse = zod.array(NearbyPresenceResponseItem);
  * @summary Register your referral code
  */
 export const registerReferralCodeBodyCodeMin = 6;
+
 export const registerReferralCodeBodyCodeMax = 6;
 
 export const RegisterReferralCodeBody = zod.object({
@@ -557,6 +570,7 @@ export const RegisterReferralCodeResponse = zod.object({
  * @summary Redeem someone else's referral code
  */
 export const redeemReferralCodeBodyCodeMin = 6;
+
 export const redeemReferralCodeBodyCodeMax = 6;
 
 export const RedeemReferralCodeBody = zod.object({
@@ -591,6 +605,7 @@ export const GetReferralStatsResponse = zod.object({
  * @summary Look up a network by invite code (public preview)
  */
 export const getNetworkByCodePathCodeMin = 8;
+
 export const getNetworkByCodePathCodeMax = 8;
 
 export const GetNetworkByCodeParams = zod.object({
@@ -639,6 +654,7 @@ export const GetNetworkByCodeResponse = zod
  * @summary Join a network using its invite code
  */
 export const joinNetworkByCodePathCodeMin = 8;
+
 export const joinNetworkByCodePathCodeMax = 8;
 
 export const JoinNetworkByCodeParams = zod.object({
@@ -717,6 +733,7 @@ export const GetMyNetworksResponseItem = zod
         .nullish(),
     }),
   );
+
 export const GetMyNetworksResponse = zod.array(GetMyNetworksResponseItem);
 
 /**
@@ -724,12 +741,15 @@ export const GetMyNetworksResponse = zod.array(GetMyNetworksResponseItem);
  * @summary Create a new network
  */
 export const createNetworkBodyNameMin = 2;
+
 export const createNetworkBodyNameMax = 80;
 
 export const createNetworkBodyDescriptionMax = 300;
 
 export const createNetworkBodyIsPublicDefault = true;
+
 export const createNetworkBodyRequiresApprovalDefault = false;
+
 export const createNetworkBodyLocationRadiusKmDefault = 2;
 
 export const CreateNetworkBody = zod.object({
@@ -758,9 +778,11 @@ export const CreateNetworkBody = zod.object({
 export const listNetworksQueryQMax = 100;
 
 export const listNetworksQueryLimitDefault = 20;
+
 export const listNetworksQueryLimitMax = 100;
 
 export const listNetworksQueryOffsetDefault = 0;
+
 export const listNetworksQueryOffsetMin = 0;
 
 export const ListNetworksQueryParams = zod.object({
@@ -819,6 +841,7 @@ export const ListNetworksResponseItem = zod
         .nullish(),
     }),
   );
+
 export const ListNetworksResponse = zod.array(ListNetworksResponseItem);
 
 /**
@@ -871,6 +894,7 @@ export const UpdateNetworkParams = zod.object({
 });
 
 export const updateNetworkBodyNameMin = 2;
+
 export const updateNetworkBodyNameMax = 80;
 
 export const updateNetworkBodyDescriptionMax = 300;
@@ -1006,6 +1030,7 @@ export const ListNetworkMembersResponseItem = zod
       }),
     }),
   );
+
 export const ListNetworkMembersResponse = zod.array(
   ListNetworkMembersResponseItem,
 );
@@ -1053,6 +1078,7 @@ export const ListPendingMembersResponseItem = zod
       }),
     }),
   );
+
 export const ListPendingMembersResponse = zod.array(
   ListPendingMembersResponseItem,
 );
@@ -1159,6 +1185,7 @@ export const ListAnnouncementsResponseItem = zod.object({
     .nullish(),
   hasAnswered: zod.boolean().nullish(),
 });
+
 export const ListAnnouncementsResponse = zod.array(
   ListAnnouncementsResponseItem,
 );
@@ -1175,6 +1202,7 @@ export const createAnnouncementBodyBodyMax = 2000;
 export const createAnnouncementBodyOptionsItemMax = 120;
 
 export const createAnnouncementBodyOptionsMin = 2;
+
 export const createAnnouncementBodyOptionsMax = 6;
 
 export const createAnnouncementBodyQuestionsItemMax = 200;
@@ -1412,6 +1440,7 @@ export const GetAnnouncementAnswersResponseItem = zod.object({
     }),
   ),
 });
+
 export const GetAnnouncementAnswersResponse = zod.array(
   GetAnnouncementAnswersResponseItem,
 );
@@ -1690,6 +1719,7 @@ export const RemoveVenueManagerHeader = zod.object({
  */
 export const listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneOpenRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
+
 export const listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneCloseRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
 
@@ -1746,6 +1776,7 @@ export const GetVenueManagerBusinessParams = zod.object({
 
 export const getVenueManagerBusinessResponseOpeningHoursOneOpenRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
+
 export const getVenueManagerBusinessResponseOpeningHoursOneCloseRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
 
@@ -1810,6 +1841,7 @@ export const updateVenueManagerBusinessBodyPublicEmailMax = 320;
 
 export const updateVenueManagerBusinessBodyOpeningHoursOneOpenRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
+
 export const updateVenueManagerBusinessBodyOpeningHoursOneCloseRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
 
@@ -1857,6 +1889,7 @@ export const UpdateVenueManagerBusinessBody = zod.object({
 
 export const updateVenueManagerBusinessResponseOpeningHoursOneOpenRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
+
 export const updateVenueManagerBusinessResponseOpeningHoursOneCloseRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
 
@@ -2507,9 +2540,11 @@ export const submitVenueBranchApplicationBodyPlaceNameMax = 255;
 export const submitVenueBranchApplicationBodyBusinessNameMax = 255;
 
 export const submitVenueBranchApplicationBodyLatMin = -90;
+
 export const submitVenueBranchApplicationBodyLatMax = 90;
 
 export const submitVenueBranchApplicationBodyLngMin = -180;
+
 export const submitVenueBranchApplicationBodyLngMax = 180;
 
 export const submitVenueBranchApplicationBodyTaglineMax = 160;
@@ -3017,6 +3052,7 @@ export const RejectVenueApplicationParams = zod.object({
 });
 
 export const rejectVenueApplicationBodyReasonMin = 3;
+
 export const rejectVenueApplicationBodyReasonMax = 500;
 
 export const rejectVenueApplicationBodyInternalNoteMax = 1000;
@@ -3116,6 +3152,7 @@ export const RequestVenueApplicationChangesParams = zod.object({
 });
 
 export const requestVenueApplicationChangesBodyMessageMin = 3;
+
 export const requestVenueApplicationChangesBodyMessageMax = 500;
 
 export const requestVenueApplicationChangesBodyInternalNoteMax = 1000;
@@ -3213,6 +3250,7 @@ export const WithdrawVenueApplicationAsAdminParams = zod.object({
 });
 
 export const withdrawVenueApplicationAsAdminBodyReasonMin = 3;
+
 export const withdrawVenueApplicationAsAdminBodyReasonMax = 500;
 
 export const withdrawVenueApplicationAsAdminBodyInternalNoteMax = 1000;
@@ -3321,6 +3359,7 @@ export const AddVenueApplicationNoteBody = zod.object({
  * @summary Send a selected outreach template to a venue before it is added or approved
  */
 export const sendNewVenueOutreachBodyBusinessNameMin = 2;
+
 export const sendNewVenueOutreachBodyBusinessNameMax = 150;
 
 export const sendNewVenueOutreachBodyRecipientEmailMax = 255;
@@ -3420,9 +3459,11 @@ export const submitVenueOwnerApplicationBodyPlaceNameMax = 255;
 export const submitVenueOwnerApplicationBodyBusinessNameMax = 255;
 
 export const submitVenueOwnerApplicationBodyLatMin = -90;
+
 export const submitVenueOwnerApplicationBodyLatMax = 90;
 
 export const submitVenueOwnerApplicationBodyLngMin = -180;
+
 export const submitVenueOwnerApplicationBodyLngMax = 180;
 
 export const submitVenueOwnerApplicationBodyTaglineMax = 160;
@@ -3488,6 +3529,7 @@ export const SubmitVenueOwnerApplicationBody = zod.object({
  * @summary Preview the available pre-approval venue outreach email templates
  */
 export const previewNewVenueOutreachBodyBusinessNameMin = 2;
+
 export const previewNewVenueOutreachBodyBusinessNameMax = 150;
 
 export const PreviewNewVenueOutreachBody = zod.object({
@@ -3558,4 +3600,836 @@ export const CreateVenueRegistrationLinkBody = zod.object({
   template: zod
     .enum(["registration", "registration_with_video"])
     .default(createVenueRegistrationLinkBodyTemplateDefault),
+});
+/**
+ * @summary Public Firebase Web configuration for the same Met identity project
+ */
+
+export const GetVenueManagerFirebaseConfigResponse = zod.object({
+  apiKey: zod.string().min(1),
+  authDomain: zod.string().min(1),
+  projectId: zod.string().min(1),
+});
+
+/**
+ * @summary Exchange a verified Met ID token for a venue manager session
+ */
+
+export const CreateVenueManagerFirebaseSessionBody = zod.object({
+  idToken: zod.string().min(1),
+});
+
+export const CreateVenueManagerFirebaseSessionResponse = zod.object({
+  authenticated: zod.boolean(),
+  csrfToken: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Link a legacy business account after proving both identities
+ */
+
+export const LinkVenueManagerFirebaseAccountBody = zod.object({
+  idToken: zod.string().min(1),
+  legacyPassword: zod.string().min(1),
+});
+
+export const LinkVenueManagerFirebaseAccountResponse = zod.object({
+  authenticated: zod.boolean(),
+  csrfToken: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Accept a venue owner invitation with the signed-in Met account
+ */
+
+export const registerVenueManagerFirebaseOwnerBodyDisplayNameMax = 120;
+
+export const RegisterVenueManagerFirebaseOwnerBody = zod.object({
+  token: zod.string().min(1),
+  idToken: zod.string().min(1),
+  displayName: zod
+    .string()
+    .min(1)
+    .max(registerVenueManagerFirebaseOwnerBodyDisplayNameMax),
+  acceptedTermsVersion: zod.enum(["venue-2026-09"]),
+});
+
+export const RegisterVenueManagerFirebaseOwnerResponse = zod.object({
+  authenticated: zod.boolean(),
+  csrfToken: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Accept a staff invitation with the signed-in Met account
+ */
+
+export const acceptVenueManagerFirebaseInvitationBodyDisplayNameMax = 120;
+
+export const AcceptVenueManagerFirebaseInvitationBody = zod.object({
+  token: zod.string().min(1),
+  idToken: zod.string().min(1),
+  displayName: zod
+    .string()
+    .min(1)
+    .max(acceptVenueManagerFirebaseInvitationBodyDisplayNameMax),
+  acceptedTermsVersion: zod.enum(["venue-2026-09"]),
+});
+
+export const AcceptVenueManagerFirebaseInvitationResponse = zod.object({
+  authenticated: zod.boolean(),
+  csrfToken: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @deprecated
+ * @summary Retired password-only registration; use the Firebase route
+ */
+
+export const registerVenueManagerOwnerBodyDisplayNameMax = 120;
+
+export const registerVenueManagerOwnerBodyPasswordMin = 8;
+
+export const RegisterVenueManagerOwnerBody = zod.object({
+  token: zod.string().min(1),
+  email: zod.string().email(),
+  displayName: zod
+    .string()
+    .min(1)
+    .max(registerVenueManagerOwnerBodyDisplayNameMax),
+  password: zod.string().min(registerVenueManagerOwnerBodyPasswordMin),
+  acceptedTermsVersion: zod.enum(["venue-2026-09"]),
+});
+
+/**
+ * @summary Get the venue QR code
+ */
+
+export const GetVenueManagerQrCodeParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const GetVenueManagerQrCodeResponse = zod.object({
+  qrToken: zod.string(),
+  qrUrl: zod.string().url(),
+});
+
+/**
+ * @summary Invalidate the old venue QR code and create a new one
+ */
+
+export const RegenerateVenueManagerQrCodeParams = zod.object({
+  businessId: zod.coerce.number().min(1),
+});
+
+export const RegenerateVenueManagerQrCodeHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1),
+});
+
+export const RegenerateVenueManagerQrCodeResponse = zod.object({
+  qrToken: zod.string(),
+  qrUrl: zod.string().url(),
+});
+
+/**
+ * @summary Search Google Places while adding a venue
+ */
+export const searchAdminVenuePlacesQueryQueryMin = 2;
+
+export const SearchAdminVenuePlacesQueryParams = zod.object({
+  query: zod.coerce.string().min(searchAdminVenuePlacesQueryQueryMin),
+});
+
+export const SearchAdminVenuePlacesResponse = zod.object({
+  places: zod.array(
+    zod.object({
+      placeId: zod.string(),
+      placeName: zod.string(),
+      address: zod.string().nullish(),
+      category: zod.string().nullish(),
+      googleMapsUri: zod.string().url().nullish(),
+      lat: zod.number(),
+      lng: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Add an approved venue with either an owner invitation or direct admin management
+ */
+export const quickAddAdminVenueBodyPlaceIdMax = 255;
+
+export const quickAddAdminVenueBodyPlaceNameMax = 255;
+
+export const quickAddAdminVenueBodyBusinessNameMax = 255;
+
+export const quickAddAdminVenueBodyLatMin = -90;
+
+export const quickAddAdminVenueBodyLatMax = 90;
+
+export const quickAddAdminVenueBodyLngMin = -180;
+
+export const quickAddAdminVenueBodyLngMax = 180;
+
+export const quickAddAdminVenueBodyContactNameMax = 255;
+
+export const quickAddAdminVenueBodyContactEmailMax = 255;
+
+export const QuickAddAdminVenueBody = zod.object({
+  placeId: zod.string().max(quickAddAdminVenueBodyPlaceIdMax),
+  placeName: zod.string().max(quickAddAdminVenueBodyPlaceNameMax),
+  businessName: zod.string().max(quickAddAdminVenueBodyBusinessNameMax),
+  lat: zod
+    .number()
+    .min(quickAddAdminVenueBodyLatMin)
+    .max(quickAddAdminVenueBodyLatMax),
+  lng: zod
+    .number()
+    .min(quickAddAdminVenueBodyLngMin)
+    .max(quickAddAdminVenueBodyLngMax),
+  managementMode: zod.enum(["invite_owner", "admin"]),
+  contactName: zod
+    .string()
+    .max(quickAddAdminVenueBodyContactNameMax)
+    .optional(),
+  contactEmail: zod
+    .string()
+    .email()
+    .max(quickAddAdminVenueBodyContactEmailMax)
+    .optional(),
+});
+
+/**
+ * @summary Get the editable details of an admin-managed venue
+ */
+export const GetAdminManagedVenueParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetAdminManagedVenueResponse = zod.object({
+  profile: zod.object({
+    id: zod.number(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    qrUrl: zod.string().url().nullable(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    phone: zod.string().nullish(),
+    websiteUrl: zod.string().nullish(),
+    publicEmail: zod.string().nullish(),
+    coverPhotoUrl: zod.string().nullish(),
+    logoUrl: zod.string().nullish(),
+    openingHours: zod
+      .record(
+        zod.string(),
+        zod.union([
+          zod.object({
+            open: zod.string(),
+            close: zod.string(),
+          }),
+          zod.null(),
+        ]),
+      )
+      .nullish(),
+  }),
+});
+
+/**
+ * @summary Update the public listing of an admin-managed venue
+ */
+export const UpdateAdminManagedVenueParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updateAdminManagedVenueBodyBusinessNameMax = 255;
+
+export const updateAdminManagedVenueBodyTaglineMax = 160;
+
+export const updateAdminManagedVenueBodyDescriptionMax = 1000;
+
+export const updateAdminManagedVenueBodyPhoneMax = 60;
+
+export const updateAdminManagedVenueBodyWebsiteUrlMax = 2000;
+
+export const updateAdminManagedVenueBodyPublicEmailMax = 320;
+
+export const updateAdminManagedVenueBodyCoverPhotoUrlMax = 2000;
+
+export const updateAdminManagedVenueBodyLogoUrlMax = 2000;
+
+export const UpdateAdminManagedVenueBody = zod.object({
+  businessName: zod
+    .string()
+    .min(1)
+    .max(updateAdminManagedVenueBodyBusinessNameMax)
+    .optional(),
+  tagline: zod.string().max(updateAdminManagedVenueBodyTaglineMax).nullish(),
+  description: zod
+    .string()
+    .max(updateAdminManagedVenueBodyDescriptionMax)
+    .nullish(),
+  phone: zod.string().max(updateAdminManagedVenueBodyPhoneMax).nullish(),
+  websiteUrl: zod
+    .string()
+    .max(updateAdminManagedVenueBodyWebsiteUrlMax)
+    .nullish(),
+  publicEmail: zod
+    .string()
+    .email()
+    .max(updateAdminManagedVenueBodyPublicEmailMax)
+    .nullish(),
+  coverPhotoUrl: zod
+    .string()
+    .max(updateAdminManagedVenueBodyCoverPhotoUrlMax)
+    .nullish(),
+  logoUrl: zod.string().max(updateAdminManagedVenueBodyLogoUrlMax).nullish(),
+  openingHours: zod
+    .record(
+      zod.string(),
+      zod.union([
+        zod.object({
+          open: zod.string(),
+          close: zod.string(),
+        }),
+        zod.null(),
+      ]),
+    )
+    .nullish(),
+});
+
+export const UpdateAdminManagedVenueResponse = zod.object({
+  profile: zod.object({
+    id: zod.number(),
+    placeId: zod.string(),
+    placeName: zod.string(),
+    businessName: zod.string(),
+    qrUrl: zod.string().url().nullable(),
+    tagline: zod.string().nullish(),
+    description: zod.string().nullish(),
+    phone: zod.string().nullish(),
+    websiteUrl: zod.string().nullish(),
+    publicEmail: zod.string().nullish(),
+    coverPhotoUrl: zod.string().nullish(),
+    logoUrl: zod.string().nullish(),
+    openingHours: zod
+      .record(
+        zod.string(),
+        zod.union([
+          zod.object({
+            open: zod.string(),
+            close: zod.string(),
+          }),
+          zod.null(),
+        ]),
+      )
+      .nullish(),
+  }),
+});
+
+export const ListAdminManagedEventsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListAdminManagedEventsResponse = zod.object({
+  events: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      description: zod.string().nullish(),
+      imageUrl: zod.string().url().nullish(),
+      startsAt: zod.coerce.date(),
+      endsAt: zod.coerce.date().nullish(),
+      capacityLimit: zod.number().nullish(),
+      rsvpCount: zod.number().optional(),
+      isPublished: zod.boolean(),
+      createdAt: zod.coerce.date().optional(),
+      updatedAt: zod.coerce.date().optional(),
+    }),
+  ),
+});
+
+export const CreateAdminManagedEventParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createAdminManagedEventBodyTitleMax = 120;
+
+export const createAdminManagedEventBodyDescriptionMax = 2000;
+
+export const CreateAdminManagedEventBody = zod.object({
+  title: zod.string().min(1).max(createAdminManagedEventBodyTitleMax),
+  description: zod
+    .string()
+    .max(createAdminManagedEventBodyDescriptionMax)
+    .nullish(),
+  imageUrl: zod.string().url().nullish(),
+  startsAt: zod.coerce.date(),
+  endsAt: zod.coerce.date().nullish(),
+  capacityLimit: zod.number().min(1).nullish(),
+  isPublished: zod.boolean().optional(),
+});
+
+/**
+ * @summary Request a signed image upload URL for an admin-managed venue
+ */
+export const PrepareAdminManagedImageParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const PrepareAdminManagedImageBody = zod.object({
+  contentType: zod.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
+});
+
+export const PrepareAdminManagedImageResponse = zod.object({
+  uploadURL: zod.string().url(),
+  objectPath: zod.string(),
+  confirmationToken: zod.string(),
+});
+
+/**
+ * @summary Validate an uploaded image for an admin-managed venue
+ */
+export const ConfirmAdminManagedImageParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ConfirmAdminManagedImageBody = zod.object({
+  objectPath: zod.string(),
+  confirmationToken: zod.string(),
+});
+
+export const ConfirmAdminManagedImageResponse = zod.object({
+  url: zod.string(),
+});
+
+export const UpdateAdminManagedEventParams = zod.object({
+  id: zod.coerce.number(),
+  eventId: zod.coerce.number(),
+});
+
+export const updateAdminManagedEventBodyTitleMax = 120;
+
+export const updateAdminManagedEventBodyDescriptionMax = 2000;
+
+export const UpdateAdminManagedEventBody = zod.object({
+  title: zod
+    .string()
+    .min(1)
+    .max(updateAdminManagedEventBodyTitleMax)
+    .optional(),
+  description: zod
+    .string()
+    .max(updateAdminManagedEventBodyDescriptionMax)
+    .nullish(),
+  imageUrl: zod.string().url().nullish(),
+  startsAt: zod.coerce.date().optional(),
+  endsAt: zod.coerce.date().nullish(),
+  capacityLimit: zod.number().min(1).nullish(),
+  isPublished: zod.boolean().optional(),
+});
+
+export const UpdateAdminManagedEventResponse = zod.object({
+  event: zod.object({
+    id: zod.number(),
+    title: zod.string(),
+    description: zod.string().nullish(),
+    imageUrl: zod.string().url().nullish(),
+    startsAt: zod.coerce.date(),
+    endsAt: zod.coerce.date().nullish(),
+    capacityLimit: zod.number().nullish(),
+    rsvpCount: zod.number().optional(),
+    isPublished: zod.boolean(),
+    createdAt: zod.coerce.date().optional(),
+    updatedAt: zod.coerce.date().optional(),
+  }),
+});
+
+export const DeleteAdminManagedEventParams = zod.object({
+  id: zod.coerce.number(),
+  eventId: zod.coerce.number(),
+});
+
+export const ListAdminManagedRewardsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListAdminManagedRewardsResponse = zod.object({
+  rewards: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      description: zod.string().nullish(),
+      prizeDescription: zod.string(),
+      rewardType: zod.enum(["free_drink", "discount", "experience", "custom"]),
+      status: zod.enum(["draft", "active", "cancelled", "completed"]),
+      startDate: zod.coerce.date(),
+      endDate: zod.coerce.date(),
+      venueTimezone: zod.string(),
+      winnerSelectedAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date().optional(),
+      updatedAt: zod.coerce.date().optional(),
+    }),
+  ),
+});
+
+export const CreateAdminManagedRewardParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createAdminManagedRewardBodyTitleMax = 120;
+
+export const createAdminManagedRewardBodyDescriptionMax = 2000;
+
+export const createAdminManagedRewardBodyPrizeDescriptionMax = 200;
+
+export const CreateAdminManagedRewardBody = zod.object({
+  title: zod.string().min(1).max(createAdminManagedRewardBodyTitleMax),
+  description: zod
+    .string()
+    .max(createAdminManagedRewardBodyDescriptionMax)
+    .nullish(),
+  prizeDescription: zod
+    .string()
+    .min(1)
+    .max(createAdminManagedRewardBodyPrizeDescriptionMax),
+  rewardType: zod
+    .enum(["free_drink", "discount", "experience", "custom"])
+    .optional(),
+  status: zod.enum(["draft", "active"]).optional(),
+  startDate: zod.coerce.date(),
+  endDate: zod.coerce.date(),
+  venueTimezone: zod.string().optional(),
+});
+
+export const UpdateAdminManagedRewardParams = zod.object({
+  id: zod.coerce.number(),
+  rewardId: zod.coerce.number(),
+});
+
+export const updateAdminManagedRewardBodyTitleMax = 120;
+
+export const updateAdminManagedRewardBodyDescriptionMax = 2000;
+
+export const updateAdminManagedRewardBodyPrizeDescriptionMax = 200;
+
+export const UpdateAdminManagedRewardBody = zod.object({
+  title: zod
+    .string()
+    .min(1)
+    .max(updateAdminManagedRewardBodyTitleMax)
+    .optional(),
+  description: zod
+    .string()
+    .max(updateAdminManagedRewardBodyDescriptionMax)
+    .nullish(),
+  prizeDescription: zod
+    .string()
+    .min(1)
+    .max(updateAdminManagedRewardBodyPrizeDescriptionMax)
+    .optional(),
+  rewardType: zod
+    .enum(["free_drink", "discount", "experience", "custom"])
+    .optional(),
+  status: zod.enum(["draft", "active", "cancelled"]).optional(),
+  startDate: zod.coerce.date().optional(),
+  endDate: zod.coerce.date().optional(),
+  venueTimezone: zod.string().optional(),
+});
+
+export const UpdateAdminManagedRewardResponse = zod.object({
+  reward: zod.object({
+    id: zod.number(),
+    title: zod.string(),
+    description: zod.string().nullish(),
+    prizeDescription: zod.string(),
+    rewardType: zod.enum(["free_drink", "discount", "experience", "custom"]),
+    status: zod.enum(["draft", "active", "cancelled", "completed"]),
+    startDate: zod.coerce.date(),
+    endDate: zod.coerce.date(),
+    venueTimezone: zod.string(),
+    winnerSelectedAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date().optional(),
+    updatedAt: zod.coerce.date().optional(),
+  }),
+});
+
+export const DeleteAdminManagedRewardParams = zod.object({
+  id: zod.coerce.number(),
+  rewardId: zod.coerce.number(),
+});
+
+export const ListAdminManagedAnnouncementsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListAdminManagedAnnouncementsResponse = zod.object({
+  announcements: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      body: zod.string(),
+      imageUrl: zod.string().url().nullish(),
+      isPinned: zod.boolean(),
+      isHidden: zod.boolean(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+export const CreateAdminManagedAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createAdminManagedAnnouncementBodyTitleMax = 120;
+
+export const createAdminManagedAnnouncementBodyBodyMax = 2000;
+
+export const CreateAdminManagedAnnouncementBody = zod.object({
+  title: zod.string().min(1).max(createAdminManagedAnnouncementBodyTitleMax),
+  body: zod.string().min(1).max(createAdminManagedAnnouncementBodyBodyMax),
+  imageUrl: zod.string().url().nullish(),
+  isPinned: zod.boolean().optional(),
+  isHidden: zod.boolean().optional(),
+});
+
+export const UpdateAdminManagedAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
+  announcementId: zod.coerce.number(),
+});
+
+export const updateAdminManagedAnnouncementBodyTitleMax = 120;
+
+export const updateAdminManagedAnnouncementBodyBodyMax = 2000;
+
+export const UpdateAdminManagedAnnouncementBody = zod.object({
+  title: zod
+    .string()
+    .min(1)
+    .max(updateAdminManagedAnnouncementBodyTitleMax)
+    .optional(),
+  body: zod
+    .string()
+    .min(1)
+    .max(updateAdminManagedAnnouncementBodyBodyMax)
+    .optional(),
+  imageUrl: zod.string().url().nullish(),
+  isPinned: zod.boolean().optional(),
+  isHidden: zod.boolean().optional(),
+});
+
+export const UpdateAdminManagedAnnouncementResponse = zod.object({
+  announcement: zod.object({
+    id: zod.number(),
+    title: zod.string(),
+    body: zod.string(),
+    imageUrl: zod.string().url().nullish(),
+    isPinned: zod.boolean(),
+    isHidden: zod.boolean(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+});
+
+export const DeleteAdminManagedAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
+  announcementId: zod.coerce.number(),
+});
+
+/**
+ * @summary Get the activation policy and verified check-in count for an approved venue
+ */
+
+export const GetVenueOwnerActivationParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const getVenueOwnerActivationResponseActivationQrVerifiedCheckinsMin = 0;
+
+export const GetVenueOwnerActivationResponse = zod.object({
+  activation: zod.object({
+    firstInvitationSentAt: zod.coerce.date().nullable(),
+    registrationDeadline: zod.coerce.date().nullable(),
+    registeredAt: zod.coerce.date().nullable(),
+    qrDeadline: zod.coerce.date().nullable(),
+    qrVerifiedCheckins: zod
+      .number()
+      .min(getVenueOwnerActivationResponseActivationQrVerifiedCheckinsMin),
+    reminder5SentAt: zod.coerce.date().nullable(),
+    reminder10SentAt: zod.coerce.date().nullable(),
+    reminder5AttemptedAt: zod.coerce.date().nullable(),
+    reminder10AttemptedAt: zod.coerce.date().nullable(),
+    unlistedAt: zod.coerce.date().nullable(),
+    removalReason: zod
+      .union([
+        zod.literal("registration"),
+        zod.literal("qr_checkins"),
+        zod.literal(null),
+      ])
+      .nullable(),
+    exempt: zod.boolean(),
+  }),
+});
+
+/**
+ * @summary Manually send a registration reminder before the deadline without consuming scheduled reminders
+ */
+
+export const SendVenueOwnerActivationReminderParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const SendVenueOwnerActivationReminderBody = zod.object({});
+
+export const sendVenueOwnerActivationReminderResponseOneActivationQrVerifiedCheckinsMin = 0;
+
+export const SendVenueOwnerActivationReminderResponse = zod
+  .object({
+    activation: zod.object({
+      firstInvitationSentAt: zod.coerce.date().nullable(),
+      registrationDeadline: zod.coerce.date().nullable(),
+      registeredAt: zod.coerce.date().nullable(),
+      qrDeadline: zod.coerce.date().nullable(),
+      qrVerifiedCheckins: zod
+        .number()
+        .min(
+          sendVenueOwnerActivationReminderResponseOneActivationQrVerifiedCheckinsMin,
+        ),
+      reminder5SentAt: zod.coerce.date().nullable(),
+      reminder10SentAt: zod.coerce.date().nullable(),
+      reminder5AttemptedAt: zod.coerce.date().nullable(),
+      reminder10AttemptedAt: zod.coerce.date().nullable(),
+      unlistedAt: zod.coerce.date().nullable(),
+      removalReason: zod
+        .union([
+          zod.literal("registration"),
+          zod.literal("qr_checkins"),
+          zod.literal(null),
+        ])
+        .nullable(),
+      exempt: zod.boolean(),
+    }),
+  })
+  .and(
+    zod.object({
+      sent: zod.boolean(),
+    }),
+  );
+
+/**
+ * @summary Set or clear an activation-policy exemption with an audited reason
+ */
+
+export const UpdateVenueActivationExceptionParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const updateVenueActivationExceptionBodyReasonMax = 1000;
+
+export const UpdateVenueActivationExceptionBody = zod.object({
+  exempt: zod.boolean(),
+  reason: zod.string().min(1).max(updateVenueActivationExceptionBodyReasonMax),
+});
+
+export const updateVenueActivationExceptionResponseActivationQrVerifiedCheckinsMin = 0;
+
+export const UpdateVenueActivationExceptionResponse = zod.object({
+  activation: zod.object({
+    firstInvitationSentAt: zod.coerce.date().nullable(),
+    registrationDeadline: zod.coerce.date().nullable(),
+    registeredAt: zod.coerce.date().nullable(),
+    qrDeadline: zod.coerce.date().nullable(),
+    qrVerifiedCheckins: zod
+      .number()
+      .min(
+        updateVenueActivationExceptionResponseActivationQrVerifiedCheckinsMin,
+      ),
+    reminder5SentAt: zod.coerce.date().nullable(),
+    reminder10SentAt: zod.coerce.date().nullable(),
+    reminder5AttemptedAt: zod.coerce.date().nullable(),
+    reminder10AttemptedAt: zod.coerce.date().nullable(),
+    unlistedAt: zod.coerce.date().nullable(),
+    removalReason: zod
+      .union([
+        zod.literal("registration"),
+        zod.literal("qr_checkins"),
+        zod.literal(null),
+      ])
+      .nullable(),
+    exempt: zod.boolean(),
+  }),
+});
+
+/**
+ * @summary Explicitly restore a venue that was soft-unlisted by activation policy
+ */
+
+export const ReinstateVenueActivationParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const reinstateVenueActivationBodyReasonMax = 1000;
+
+export const ReinstateVenueActivationBody = zod.object({
+  reason: zod.string().min(1).max(reinstateVenueActivationBodyReasonMax),
+});
+
+export const reinstateVenueActivationResponseActivationQrVerifiedCheckinsMin = 0;
+
+export const ReinstateVenueActivationResponse = zod.object({
+  activation: zod.object({
+    firstInvitationSentAt: zod.coerce.date().nullable(),
+    registrationDeadline: zod.coerce.date().nullable(),
+    registeredAt: zod.coerce.date().nullable(),
+    qrDeadline: zod.coerce.date().nullable(),
+    qrVerifiedCheckins: zod
+      .number()
+      .min(reinstateVenueActivationResponseActivationQrVerifiedCheckinsMin),
+    reminder5SentAt: zod.coerce.date().nullable(),
+    reminder10SentAt: zod.coerce.date().nullable(),
+    reminder5AttemptedAt: zod.coerce.date().nullable(),
+    reminder10AttemptedAt: zod.coerce.date().nullable(),
+    unlistedAt: zod.coerce.date().nullable(),
+    removalReason: zod
+      .union([
+        zod.literal("registration"),
+        zod.literal("qr_checkins"),
+        zod.literal(null),
+      ])
+      .nullable(),
+    exempt: zod.boolean(),
+  }),
+});
+
+/**
+ * @summary Process due venue activation reminders and soft-delisting milestones
+ */
+
+export const ProcessVenueActivationHeader = zod.object({
+  "x-cron-secret": zod.string().min(1),
+});
+
+export const processVenueActivationResponseRemindersClaimedMin = 0;
+
+export const processVenueActivationResponseReminderSentMin = 0;
+
+export const processVenueActivationResponseUnlistedRegistrationMin = 0;
+
+export const processVenueActivationResponseUnlistedQrCheckinsMin = 0;
+
+export const ProcessVenueActivationResponse = zod.object({
+  remindersClaimed: zod
+    .number()
+    .min(processVenueActivationResponseRemindersClaimedMin),
+  reminderSent: zod.number().min(processVenueActivationResponseReminderSentMin),
+  unlistedRegistration: zod
+    .number()
+    .min(processVenueActivationResponseUnlistedRegistrationMin),
+  unlistedQrCheckins: zod
+    .number()
+    .min(processVenueActivationResponseUnlistedQrCheckinsMin),
 });

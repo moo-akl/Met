@@ -25,6 +25,7 @@ import {
   venueManagerRegistrationTokensTable,
   venueAdminCredentialsTable,
   venueMembershipsTable,
+  venueActivationPoliciesTable,
 } from "@workspace/db";
 import type { Express } from "express";
 
@@ -70,19 +71,31 @@ vi.mock("../lib/objectStorage", () => ({
 
 vi.mock("../lib/push", () => ({ sendPush: vi.fn() }));
 
+const firebaseAuthStubs = vi.hoisted(() => ({
+  verifyIdToken: vi.fn(),
+}));
 vi.mock("../lib/firebaseAdmin", () => ({
+  adminAuth: () => firebaseAuthStubs,
   adminStorage: vi.fn().mockReturnValue({}),
   getFirebaseAdmin: vi.fn().mockReturnValue({}),
 }));
 
 // Email helper — this is the central assertion target.
 const mockSendRegistrationLinkEmail = vi.fn().mockResolvedValue(true);
+const mockSendVenueContactRequestEmail = vi.fn().mockResolvedValue(undefined);
+const mockSendNewVenueOutreachEmail = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../lib/email.js", () => ({
   sendVenueApprovedEmail: vi.fn(),
   sendVenueRejectedEmail: vi.fn(),
   sendVenueChangesRequestedEmail: vi.fn(),
   sendRegistrationLinkEmail: mockSendRegistrationLinkEmail,
+  sendVenueContactRequestEmail: mockSendVenueContactRequestEmail,
+  sendNewVenueOutreachEmail: mockSendNewVenueOutreachEmail,
+  getMetAppIntroVideoAssets: vi.fn(() => ({
+    videoUrl: "https://manager.test.invalid/venue-admin/media/met-app-intro.mp4",
+    posterUrl: "https://manager.test.invalid/venue-admin/media/met-app-intro-poster.jpg",
+  })),
 }));
 
 // ---------------------------------------------------------------------------
@@ -142,6 +155,8 @@ let profileId = 0;
 let profileNoBizId = 0;
 let profileNoEmailId = 0;
 let profileNoEmailBusinessId = 0;
+let adminOutreachProfileId = 0;
+let adminOutreachBusinessId = 0;
 let businessId = 0;
 let profileForDeactivatedAgentId = 0;
 let businessForDeactivatedAgentId = 0;
@@ -278,6 +293,25 @@ async function seed() {
     .returning({ id: venueBusinessesTable.id });
   profileNoEmailBusinessId = profileNoEmailBusiness!.id;
 
+  const [outreachProfile] = await db.insert(venueOwnerProfilesTable).values({
+    ownerUid: `${TEST_OWNER_UID}-outreach`,
+    placeId: `${TEST_PLACE_ID}-outreach`,
+    placeName: "Outreach Test Venue",
+    businessName: "Outreach Test Venue",
+    applicationStatus: "approved",
+    isApproved: true,
+    contactEmail: null,
+  }).returning({ id: venueOwnerProfilesTable.id });
+  adminOutreachProfileId = outreachProfile!.id;
+  const [outreachBusiness] = await db.insert(venueBusinessesTable).values({
+    venueOwnerProfileId: adminOutreachProfileId,
+    placeId: `${TEST_PLACE_ID}-outreach`,
+    legalName: "Outreach Test Venue",
+    createdByUid: `${TEST_OWNER_UID}-outreach`,
+    isActive: true,
+  }).returning({ id: venueBusinessesTable.id });
+  adminOutreachBusinessId = outreachBusiness!.id;
+
   // An approved venue profile assigned to the deactivated agent — the session
   // middleware must reject the request before any venue lookup runs.
   const [profileForDeactivatedAgent] = await db
@@ -406,9 +440,10 @@ async function seed() {
 async function cleanup() {
   // Remove history rows, then tokens, then businesses, then profiles, then agents
   // (order matters so FK constraints are not violated)
-  await db
-    .delete(venueApplicationHistoryTable)
-    .where(eq(venueApplicationHistoryTable.venueOwnerProfileId, profileId));
+  for (const pid of [profileId, profileNoBizId, profileNoEmailId, adminOutreachProfileId, profileForDeactivatedAgentId]) {
+    if (pid) await db.delete(venueApplicationHistoryTable)
+      .where(eq(venueApplicationHistoryTable.venueOwnerProfileId, pid));
+  }
 
   if (businessId) {
     await db
@@ -433,6 +468,13 @@ async function cleanup() {
       .where(eq(venueBusinessesTable.id, profileNoEmailBusinessId));
   }
 
+  if (adminOutreachBusinessId) {
+    await db.delete(venueManagerRegistrationTokensTable)
+      .where(eq(venueManagerRegistrationTokensTable.businessId, adminOutreachBusinessId));
+    await db.delete(venueBusinessesTable)
+      .where(eq(venueBusinessesTable.id, adminOutreachBusinessId));
+  }
+
   if (businessForDeactivatedAgentId) {
     await db
       .delete(venueManagerRegistrationTokensTable)
@@ -447,7 +489,7 @@ async function cleanup() {
       .where(eq(venueBusinessesTable.id, businessForDeactivatedAgentId));
   }
 
-  for (const pid of [profileId, profileNoBizId, profileNoEmailId, profileForDeactivatedAgentId]) {
+  for (const pid of [profileId, profileNoBizId, profileNoEmailId, adminOutreachProfileId, profileForDeactivatedAgentId]) {
     if (pid) {
       await db
         .delete(venueOwnerProfilesTable)
@@ -596,6 +638,152 @@ describe.skipIf(!hasDatabase)(
           ),
         );
       expect(history.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("asks for a management contact without creating a link or starting the invitation deadline", async () => {
+      mockSendVenueContactRequestEmail.mockClear();
+      const to = `website-${TEST_CONTACT_EMAIL}`;
+      const result = await request(app)
+        .post(`/api/admin/venue-owner/applications/${adminOutreachProfileId}/contact-request`)
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ recipientEmail: to });
+      expect(result.status).toBe(201);
+      expect(result.body).toEqual({ emailSent: true, recipientEmail: to });
+      expect(mockSendVenueContactRequestEmail).toHaveBeenCalledWith(expect.objectContaining({ to }));
+      expect(await db.select().from(venueManagerRegistrationTokensTable)
+        .where(eq(venueManagerRegistrationTokensTable.businessId, adminOutreachBusinessId))).toHaveLength(0);
+      expect(await db.select().from(venueActivationPoliciesTable)
+        .where(eq(venueActivationPoliciesTable.profileId, adminOutreachProfileId))).toHaveLength(0);
+      const history = await db.select().from(venueApplicationHistoryTable)
+        .where(eq(venueApplicationHistoryTable.venueOwnerProfileId, adminOutreachProfileId));
+      expect(history.some((row) => row.eventType === "email_sent" && row.internalNote === "Asked for the venue management contact")).toBe(true);
+    });
+
+    it("emails a new venue before any application exists, without creating an account or token", async () => {
+      mockSendNewVenueOutreachEmail.mockClear();
+      const businessName = `New venue ${TEST_PREFIX}`;
+      const to = `hello-${TEST_CONTACT_EMAIL}`;
+      const result = await request(app)
+        .post("/api/admin/venue-owner/outreach")
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ businessName, recipientEmail: to.toUpperCase() });
+      expect(result.status).toBe(201);
+      expect(result.body).toEqual({ emailSent: true, recipientEmail: to });
+      expect(mockSendNewVenueOutreachEmail).toHaveBeenCalledWith({
+        to, businessName, template: "contact_request",
+      });
+      expect(await db.select({ id: venueOwnerProfilesTable.id })
+        .from(venueOwnerProfilesTable)
+        .where(eq(venueOwnerProfilesTable.businessName, businessName))).toHaveLength(0);
+    });
+
+    it("rejects invalid new-venue outreach and unauthenticated sends", async () => {
+      mockSendNewVenueOutreachEmail.mockClear();
+      const invalid = await request(app)
+        .post("/api/admin/venue-owner/outreach")
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ businessName: "X", recipientEmail: "not-an-email" });
+      expect(invalid.status).toBe(400);
+      const unauthenticated = await request(app)
+        .post("/api/admin/venue-owner/outreach")
+        .send({ businessName: "New Venue", recipientEmail: TEST_CONTACT_EMAIL });
+      expect(unauthenticated.status).toBe(401);
+      const invalidTemplate = await request(app)
+        .post("/api/admin/venue-owner/outreach")
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ businessName: "New Venue", recipientEmail: TEST_CONTACT_EMAIL, template: "registration" });
+      expect(invalidTemplate.status).toBe(400);
+      expect(mockSendNewVenueOutreachEmail).not.toHaveBeenCalled();
+    });
+
+    it("does not claim delivery when new-venue outreach fails", async () => {
+      mockSendNewVenueOutreachEmail.mockRejectedValueOnce(new Error("Gmail unavailable"));
+      const result = await request(app)
+        .post("/api/admin/venue-owner/outreach")
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ businessName: "New Venue", recipientEmail: TEST_CONTACT_EMAIL });
+      expect(result.status).toBe(503);
+      expect(result.body.message).toContain("Check the connected Gmail Sent folder");
+    });
+
+    it("previews the same allowed templates used for sending and accepts a chosen template", async () => {
+      mockSendNewVenueOutreachEmail.mockClear();
+      const preview = await request(app)
+        .post("/api/admin/venue-owner/outreach/preview")
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ businessName: "North & South" });
+      expect(preview.status).toBe(200);
+      expect(preview.body.templates).toHaveLength(9);
+      expect(preview.body.templates.map((template: { id: string }) => template.id)).toEqual([
+        "contact_request",
+        "met_launch_with_links",
+        "met_launch_without_links",
+        "preapproval_video_application",
+        "introduction",
+        "benefits",
+        "events",
+        "rewards",
+        "follow_up",
+      ]);
+      const eventsTemplate = preview.body.templates.find((template: { id: string }) => template.id === "events");
+      expect(eventsTemplate).toMatchObject({
+        subject: expect.stringContaining("North & South"),
+        text: expect.stringContaining("events"),
+      });
+      const send = await request(app)
+        .post("/api/admin/venue-owner/outreach")
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ businessName: "North & South", recipientEmail: TEST_CONTACT_EMAIL, template: "events" });
+      expect(send.status).toBe(201);
+      expect(mockSendNewVenueOutreachEmail).toHaveBeenCalledWith({
+        to: TEST_CONTACT_EMAIL, businessName: "North & South", template: "events",
+      });
+    });
+
+    it("binds a registration link to the chosen manager email, not the public contact email", async () => {
+      const to = `manager-${TEST_CONTACT_EMAIL}`;
+      mockSendRegistrationLinkEmail.mockClear();
+      const result = await request(app)
+        .post(`/api/admin/venue-owner/applications/${adminOutreachProfileId}/registration-link`)
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ recipientEmail: to, sendEmail: true });
+      expect(result.status).toBe(201);
+      expect(result.body.emailSent).toBe(true);
+      expect(result.body.contactEmail).toBe(to);
+      expect(mockSendRegistrationLinkEmail).toHaveBeenCalledWith(expect.objectContaining({ to }));
+      const tokens = await db.select().from(venueManagerRegistrationTokensTable)
+        .where(eq(venueManagerRegistrationTokensTable.businessId, adminOutreachBusinessId));
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]?.invitedEmail).toBe(to);
+      const [profile] = await db.select({ contactEmail: venueOwnerProfilesTable.contactEmail })
+        .from(venueOwnerProfilesTable).where(eq(venueOwnerProfilesTable.id, adminOutreachProfileId));
+      expect(profile?.contactEmail).toBeNull();
+      expect(await db.select().from(venueActivationPoliciesTable)
+        .where(eq(venueActivationPoliciesTable.profileId, adminOutreachProfileId))).toHaveLength(1);
+
+      const videoTo = `manager-video-${TEST_CONTACT_EMAIL}`;
+      const videoInvite = await request(app)
+        .post(`/api/admin/venue-owner/applications/${adminOutreachProfileId}/registration-link`)
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({ recipientEmail: videoTo, sendEmail: true, template: "registration_with_video" });
+      expect(videoInvite.status).toBe(201);
+      expect(videoInvite.body.emailSent).toBe(true);
+      expect(mockSendRegistrationLinkEmail).toHaveBeenCalledWith(expect.objectContaining({
+        to: videoTo,
+        includeAppIntro: true,
+      }));
+      const invitedTokens = await db.select().from(venueManagerRegistrationTokensTable)
+        .where(eq(venueManagerRegistrationTokensTable.businessId, adminOutreachBusinessId));
+      expect(invitedTokens.some((token) => token.invitedEmail === videoTo)).toBe(true);
+    });
+
+    it("does not send an introduction without an admin session", async () => {
+      mockSendVenueContactRequestEmail.mockClear();
+      const result = await request(app)
+        .post(`/api/admin/venue-owner/applications/${adminOutreachProfileId}/contact-request`)
+        .send({ recipientEmail: TEST_CONTACT_EMAIL });
+      expect(result.status).toBe(401);
+      expect(mockSendVenueContactRequestEmail).not.toHaveBeenCalled();
     });
 
     // -----------------------------------------------------------------------
@@ -796,13 +984,18 @@ describe.skipIf(!hasDatabase)(
 
       // 4. Attempting to use the token at the registration endpoint must be
       //    rejected because the token no longer exists.
+      firebaseAuthStubs.verifyIdToken.mockResolvedValueOnce({
+        uid: `${TEST_PREFIX}-deactivated-registration-test`,
+        email: TEST_CONTACT_EMAIL,
+        email_verified: true,
+      });
       const registerRes = await request(app)
-        .post("/api/venue-manager/register")
+        .post("/api/venue-manager/register/firebase")
         .send({
           token: rawToken,
-          email: `regtest-${Date.now()}@itest.invalid`,
+          idToken: "deactivated-agent-registration-test",
           displayName: "Test User",
-          password: "Str0ngP@ssword!",
+          acceptedTermsVersion: "venue-2026-09",
         });
       expect(registerRes.status).toBe(400);
       expect(registerRes.body.message).toMatch(/invalid or has expired/i);
@@ -959,13 +1152,18 @@ describe.skipIf(!hasDatabase)(
 
       // The first (now invalidated) token must be rejected at the
       // registration endpoint.
+      firebaseAuthStubs.verifyIdToken.mockResolvedValueOnce({
+        uid: `${TEST_PREFIX}-resend-registration-test`,
+        email: TEST_CONTACT_EMAIL,
+        email_verified: true,
+      });
       const registerRes = await request(app)
-        .post("/api/venue-manager/register")
+        .post("/api/venue-manager/register/firebase")
         .send({
           token: firstRawToken,
-          email: `resend-test-${Date.now()}@itest.invalid`,
+          idToken: "resend-registration-test",
           displayName: "Re-send Test User",
-          password: "Str0ngP@ssword!",
+          acceptedTermsVersion: "venue-2026-09",
         });
       expect(registerRes.status).toBe(400);
       expect(registerRes.body.message).toMatch(/invalid or has expired/i);
@@ -992,6 +1190,12 @@ describe.skipIf(!hasDatabase)(
             ),
           )
       ).length;
+      const tokenCountBefore = (
+        await db
+          .select()
+          .from(venueManagerRegistrationTokensTable)
+          .where(eq(venueManagerRegistrationTokensTable.businessId, businessId))
+      ).length;
 
       const res = await request(app)
         .post(`/api/admin/agent/applications/${profileId}/registration-link`)
@@ -1002,16 +1206,17 @@ describe.skipIf(!hasDatabase)(
       expect(res.body.emailSent).toBe(false);
       expect(res.body.contactEmail).toBe(TEST_CONTACT_EMAIL);
 
-      // A token row must still exist — the token was persisted before the send
-      // attempt (replacing any previous token) and must not be removed when
-      // delivery fails.  Re-sending always leaves exactly one token in the DB.
+      // The new token remains available because an email-helper failure leaves
+      // delivery uncertain, and previously sent links must remain valid too.
+      // A failed/uncertain resend therefore adds one token without deleting
+      // the prior successful token.
       const tokenCountAfter = (
         await db
           .select()
           .from(venueManagerRegistrationTokensTable)
           .where(eq(venueManagerRegistrationTokensTable.businessId, businessId))
       ).length;
-      expect(tokenCountAfter).toBe(1);
+      expect(tokenCountAfter).toBe(tokenCountBefore + 1);
 
       // No new history row must have been written (history only records a
       // successful send).

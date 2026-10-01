@@ -3,8 +3,8 @@ import { useMutation } from "@tanstack/react-query";
 
 type PlaceResult = {
   placeId: string;
-  name: string;
-  address: string;
+  placeName: string;
+  address: string | null;
   lat: number;
   lng: number;
 };
@@ -47,11 +47,13 @@ export default function VenueApply() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (search.length < 2) {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (search.length < 2 || search === form.place?.placeName) {
       setResults([]);
+      setSearching(false);
       return;
     }
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    let cancelled = false;
     searchTimerRef.current = setTimeout(async () => {
       setSearching(true);
       try {
@@ -60,18 +62,19 @@ export default function VenueApply() {
         );
         if (res.ok) {
           const json = (await res.json()) as { places: PlaceResult[] };
-          setResults(json.places);
+          if (!cancelled) setResults(json.places);
         }
       } catch {
         /* ignore search errors */
       } finally {
-        setSearching(false);
+        if (!cancelled) setSearching(false);
       }
     }, 400);
     return () => {
+      cancelled = true;
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
-  }, [search]);
+  }, [search, form.place?.placeName]);
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -82,8 +85,8 @@ export default function VenueApply() {
           contactEmail: form.contactEmail,
           contactName: form.contactName,
           placeId: form.place!.placeId,
-          placeName: form.place!.name,
-          businessName: form.place!.name,
+          placeName: form.place!.placeName,
+          businessName: form.place!.placeName,
           lat: form.place!.lat,
           lng: form.place!.lng,
           tagline: form.tagline || null,
@@ -247,20 +250,20 @@ export default function VenueApply() {
                     className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors"
                     onClick={() => {
                       setForm((d) => ({ ...d, place: p }));
-                      setSearch(p.name);
+                      setSearch(p.placeName);
                       setResults([]);
                     }}
                   >
-                    <p className="font-semibold text-gray-900 text-sm">{p.name}</p>
-                    <p className="text-xs text-gray-500">{p.address}</p>
+                    <p className="font-semibold text-gray-900 text-sm">{p.placeName}</p>
+                    <p className="text-xs text-gray-500">{p.address ?? "Address unavailable"}</p>
                   </button>
                 ))}
               </div>
             )}
             {form.place && (
               <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3">
-                <p className="text-sm font-semibold text-green-800">✓ {form.place.name}</p>
-                <p className="text-xs text-green-600">{form.place.address}</p>
+                <p className="text-sm font-semibold text-green-800">✓ {form.place.placeName}</p>
+                <p className="text-xs text-green-600">{form.place.address ?? "Address unavailable"}</p>
               </div>
             )}
             <Actions onBack={() => setStep(1)} disabled={!form.place} submitLabel="Next →" onSubmit={() => { setError(null); setStep(3); }} />
@@ -376,7 +379,7 @@ export default function VenueApply() {
             <div className="border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden">
               <ReviewRow label="Name" value={form.contactName} />
               <ReviewRow label="Email" value={form.contactEmail} />
-              <ReviewRow label="Venue" value={form.place?.name ?? ""} />
+              <ReviewRow label="Venue" value={form.place?.placeName ?? ""} />
               {form.tagline && <ReviewRow label="Tagline" value={form.tagline} />}
               <div className="px-4 py-3 flex items-start gap-3">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-0.5 w-20 shrink-0">Doc</span>

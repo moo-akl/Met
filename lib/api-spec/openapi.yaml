@@ -1721,7 +1721,7 @@ paths:
     get:
       operationId: getVenueManagerSession
       tags: [venue-manager]
-      summary: Check the current business-only manager session
+      summary: Check the current venue manager session
       responses:
         "200":
           description: Session state
@@ -1731,7 +1731,7 @@ paths:
     post:
       operationId: createVenueManagerSession
       tags: [venue-manager]
-      summary: Sign in to an individual business manager account
+      summary: Transitional sign-in for an existing unlinked business account
       requestBody:
         required: true
         content:
@@ -1750,21 +1750,133 @@ paths:
       responses:
         "204": { description: Signed out }
 
+  /venue-manager/firebase-config:
+    get:
+      operationId: getVenueManagerFirebaseConfig
+      tags: [venue-manager]
+      summary: Public Firebase Web configuration for the same Met identity project
+      responses:
+        "200":
+          description: Public Firebase client configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerFirebaseConfig" }
+        "503":
+          description: Firebase Web configuration unavailable
+
+  /venue-manager/session/firebase:
+    post:
+      operationId: createVenueManagerFirebaseSession
+      tags: [venue-manager]
+      summary: Exchange a verified Met ID token for a venue manager session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerFirebaseProof" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+        "404":
+          description: No venue manager account is linked to this Met identity
+        "409":
+          description: Legacy business account must be linked with its password first
+
+  /venue-manager/link/firebase:
+    post:
+      operationId: linkVenueManagerFirebaseAccount
+      tags: [venue-manager]
+      summary: Link a legacy business account after proving both identities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerFirebaseLink" }
+      responses:
+        "200":
+          description: Account linked and signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+        "401":
+          description: Invalid Met token or business password
+        "409":
+          description: Conflicting link or venue owner identity
+
+  /venue-manager/register/firebase:
+    post:
+      operationId: registerVenueManagerFirebaseOwner
+      tags: [venue-manager]
+      summary: Accept a venue owner invitation with the signed-in Met account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerFirebaseRegistration" }
+      responses:
+        "200":
+          description: Venue linked and signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+        "400":
+          description: Invalid token or legal acceptance
+        "409":
+          description: Expired invitation, identity mismatch, or owner conflict
+
+  /venue-manager/invitations/accept/firebase:
+    post:
+      operationId: acceptVenueManagerFirebaseInvitation
+      tags: [venue-manager]
+      summary: Accept a staff invitation with the signed-in Met account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerFirebaseRegistration" }
+      responses:
+        "200":
+          description: Membership added and signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+        "400":
+          description: Invalid token or legal acceptance
+        "409":
+          description: Invitation expired or identity mismatch
+
   /venue-manager/invitations/accept:
     post:
       operationId: acceptVenueManagerInvitation
       tags: [venue-manager]
+      deprecated: true
+      summary: Retired password-only invitation acceptance; use the Firebase route
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/VenueManagerInvitationAcceptance" }
       responses:
-        "200":
-          description: Account created and signed in
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/VenueManagerSession" }
+        "410":
+          description: Password-only business account creation is no longer available
+
+  /venue-manager/register:
+    post:
+      operationId: registerVenueManagerOwner
+      tags: [venue-manager]
+      deprecated: true
+      summary: Retired password-only registration; use the Firebase route
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerOwnerRegistration" }
+      responses:
+        "410":
+          description: Password-only business account creation is no longer available
 
   /venue-manager/password:
     post:
@@ -1800,6 +1912,7 @@ paths:
       operationId: claimVenueManagerAccount
       tags: [venue-manager]
       security: [{ MetUid: [] }]
+      summary: Create a manager membership for an already approved Firebase owner
       requestBody:
         required: true
         content:
@@ -1807,7 +1920,7 @@ paths:
             schema: { $ref: "#/components/schemas/VenueManagerClaim" }
       responses:
         "200":
-          description: Business-only owner account created
+          description: Firebase-linked owner account created
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VenueManagerSession" }
@@ -1921,6 +2034,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VenueManagerBusiness"
+
+  /venue-manager/businesses/{businessId}/qr-code:
+    get:
+      operationId: getVenueManagerQrCode
+      tags: [venue-manager]
+      summary: Get the venue QR code
+      parameters: [{ $ref: "#/components/parameters/VenueBusinessId" }]
+      responses:
+        "200":
+          description: Current QR token and deep link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerQrCode"
+        "401":
+          description: No active Venue Manager session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Manager does not have access to this venue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Venue not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /venue-manager/businesses/{businessId}/qr-code/regenerate:
+    post:
+      operationId: regenerateVenueManagerQrCode
+      tags: [venue-manager]
+      summary: Invalidate the old venue QR code and create a new one
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "200":
+          description: Regenerated QR token and deep link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerQrCode"
+        "401":
+          description: No active Venue Manager session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Only an active venue owner can regenerate the QR code
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Venue not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /venue-manager/businesses/{businessId}/dashboard:
     get:
@@ -2249,6 +2422,321 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /admin/venue-owner/places/search:
+    get:
+      operationId: searchAdminVenuePlaces
+      tags: [admin]
+      summary: Search Google Places while adding a venue
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        "200":
+          description: Matching Google venues
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [places]
+                properties:
+                  places:
+                    type: array
+                    items: { $ref: "#/components/schemas/AdminVenuePlace" }
+        "400":
+          description: Invalid search query
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/venue-owner/venues:
+    post:
+      operationId: quickAddAdminVenue
+      tags: [admin]
+      summary: Add an approved venue with either an owner invitation or direct admin management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminQuickAddVenueRequest" }
+      responses:
+        "201":
+          description: Venue added; invitation delivery status is included
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminQuickAddVenueResponse" }
+        "400":
+          description: Invalid venue or owner details for the selected management mode
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Venue already exists or has an active application
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/venue-owner/venues/{id}/management:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: getAdminManagedVenue
+      tags: [admin]
+      summary: Get the editable details of an admin-managed venue
+      responses:
+        "200":
+          description: Admin-managed venue details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminManagedVenueResponse" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Venue is not admin-managed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      operationId: updateAdminManagedVenue
+      tags: [admin]
+      summary: Update the public listing of an admin-managed venue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminManagedVenueUpdate" }
+      responses:
+        "200":
+          description: Updated venue details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminManagedVenueResponse" }
+        "400":
+          description: Invalid venue details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Venue is not admin-managed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/venue-owner/venues/{id}/events:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: listAdminManagedEvents
+      tags: [admin]
+      responses:
+        "200":
+          description: Events including drafts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerEventList" }
+    post:
+      operationId: createAdminManagedEvent
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerEventInput" }
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerEventResponse" }
+  /admin/venue-owner/venues/{id}/images/upload:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      operationId: prepareAdminManagedImage
+      tags: [admin]
+      summary: Request a signed image upload URL for an admin-managed venue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminManagedImageUploadInput" }
+      responses:
+        "200":
+          description: Signed upload details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminManagedImageUploadResponse" }
+        "400": { description: Unsupported image type }
+        "401": { description: No active admin session }
+        "404": { description: Venue is not admin-managed }
+  /admin/venue-owner/venues/{id}/images/confirm:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      operationId: confirmAdminManagedImage
+      tags: [admin]
+      summary: Validate an uploaded image for an admin-managed venue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminManagedImageConfirmInput" }
+      responses:
+        "200":
+          description: Image URL ready for the event or announcement form
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminManagedImageConfirmResponse" }
+        "400": { description: Invalid or expired upload confirmation }
+        "401": { description: No active admin session }
+        "404": { description: Venue or uploaded image not found }
+        "422": { description: Uploaded file is not an image }
+  /admin/venue-owner/venues/{id}/events/{eventId}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: eventId, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateAdminManagedEvent
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerEventUpdate" }
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerEventResponse" }
+    delete:
+      operationId: deleteAdminManagedEvent
+      tags: [admin]
+      responses:
+        "204": { description: Removed event }
+  /admin/venue-owner/venues/{id}/rewards:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: listAdminManagedRewards
+      tags: [admin]
+      responses:
+        "200":
+          description: Rewards including drafts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerRewardList" }
+    post:
+      operationId: createAdminManagedReward
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerRewardInput" }
+      responses:
+        "201":
+          description: Created reward
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerRewardResponse" }
+  /admin/venue-owner/venues/{id}/rewards/{rewardId}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: rewardId, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateAdminManagedReward
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerRewardUpdate" }
+      responses:
+        "200":
+          description: Updated reward
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerRewardResponse" }
+    delete:
+      operationId: deleteAdminManagedReward
+      tags: [admin]
+      responses:
+        "204": { description: Cancelled reward }
+  /admin/venue-owner/venues/{id}/announcements:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: listAdminManagedAnnouncements
+      tags: [admin]
+      responses:
+        "200":
+          description: Announcements including hidden ones
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerAnnouncementList" }
+    post:
+      operationId: createAdminManagedAnnouncement
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminManagedAnnouncementInput" }
+      responses:
+        "201":
+          description: Created announcement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerAnnouncementResponse" }
+  /admin/venue-owner/venues/{id}/announcements/{announcementId}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: announcementId, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateAdminManagedAnnouncement
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminManagedAnnouncementUpdate" }
+      responses:
+        "200":
+          description: Updated announcement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerAnnouncementResponse" }
+    delete:
+      operationId: deleteAdminManagedAnnouncement
+      tags: [admin]
+      responses:
+        "204": { description: Removed announcement }
+
   /admin/venue-owner/applications:
     get:
       operationId: listVenueApplications
@@ -2291,10 +2779,10 @@ paths:
         - name: source
           in: query
           required: false
-          description: "Filter by application source: `mobile`, `web`, or `agent`."
+          description: "Filter by application source: `mobile`, `web`, `agent`, or `admin`."
           schema:
             type: string
-            enum: [mobile, web, agent]
+            enum: [mobile, web, agent, admin]
       responses:
         "200":
           description: Matching applications plus lifecycle counts
@@ -2344,6 +2832,172 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+  /admin/venue-owner/outreach:
+    post:
+      operationId: sendNewVenueOutreach
+      tags: [admin]
+      summary: Send a selected outreach template to a venue before it is added or approved
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueOutreachInput" }
+      responses:
+        "201":
+          description: Outreach email accepted by the connected Gmail account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueContactRequestResult" }
+        "400":
+          description: Invalid venue name or email
+        "401":
+          description: No active admin session
+        "503":
+          description: Email delivery could not be confirmed
+
+  /admin/venue-owner/outreach/history:
+    get:
+      operationId: getVenueOutreachHistory
+      tags: [admin]
+      summary: List outreach emails and owner invitations sent to venues
+      responses:
+        "200":
+          description: Email history, including link and application state where available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOutreachHistoryResponse"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /venue-owner/application-invites/validate:
+    post:
+      operationId: validateVenueApplicationInvite
+      tags: [venue-owner]
+      summary: Check that a pre-approval application invitation is valid and unused
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueApplicationInviteValidationInput" }
+      responses:
+        "200":
+          description: Invitation details for the recipient
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueApplicationInviteValidationResult" }
+        "400":
+          description: Invalid invitation token
+        "404":
+          description: Invitation is invalid, expired, or already used
+
+  /venue-owner/apply:
+    post:
+      operationId: submitVenueOwnerApplication
+      tags: [venue-owner]
+      summary: Submit a venue application for Met review
+      description: An optional pre-approval invitation token is email-bound and consumed atomically with application creation. It never approves a venue or grants manager access.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueOwnerApplicationInput" }
+      responses:
+        "201":
+          description: Application submitted for review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueOwnerApplicationResult" }
+        "400":
+          description: Invalid application input
+        "403":
+          description: Application email does not match the invitation
+        "409":
+          description: Venue already has an active application, or invitation is unusable
+
+  /admin/venue-owner/outreach/preview:
+    post:
+      operationId: previewNewVenueOutreach
+      tags: [admin]
+      summary: Preview the available pre-approval venue outreach email templates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueOutreachPreviewInput" }
+      responses:
+        "200":
+          description: Subject and plain-text preview for every template
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [templates]
+                properties:
+                  templates:
+                    type: array
+                    items: { $ref: "#/components/schemas/VenueOutreachTemplatePreview" }
+        "400":
+          description: Invalid venue name
+        "401":
+          description: No active admin session
+
+  /admin/venue-owner/applications/{id}/contact-request:
+    post:
+      operationId: sendVenueContactRequest
+      tags: [admin]
+      summary: Ask a venue's public contact for the management email without creating an invitation
+      parameters:
+        - $ref: "#/components/parameters/VenueApplicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueContactRequestInput" }
+      responses:
+        "201":
+          description: Introduction email accepted by the connected Gmail account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueContactRequestResult" }
+        "400":
+          description: Invalid email
+        "401":
+          description: No active admin session
+        "409":
+          description: Venue already claimed or admin-managed
+        "503":
+          description: Email delivery could not be confirmed
+
+  /admin/venue-owner/applications/{id}/registration-link:
+    post:
+      operationId: createVenueRegistrationLink
+      tags: [admin]
+      summary: Issue an email-bound one-time invitation for an approved venue
+      parameters:
+        - $ref: "#/components/parameters/VenueApplicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueRegistrationLinkInput" }
+      responses:
+        "201":
+          description: Registration link created, with delivery status if email requested
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueRegistrationLinkResult" }
+        "400":
+          description: Invalid email
+        "401":
+          description: No active admin session
+        "409":
+          description: Venue is not eligible for an invitation
 
   /admin/venue-owner/applications/{id}/start-review:
     post:
@@ -2600,6 +3254,151 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /admin/venue-owner/applications/{id}/activation:
+    parameters:
+      - $ref: "#/components/parameters/VenueApplicationId"
+    get:
+      operationId: getVenueOwnerActivation
+      tags: [admin]
+      summary: Get the activation policy and verified check-in count for an approved venue
+      responses:
+        "200":
+          description: Activation policy status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueActivationResponse" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/venue-owner/applications/{id}/activation/reminder:
+    parameters:
+      - $ref: "#/components/parameters/VenueApplicationId"
+    post:
+      operationId: sendVenueOwnerActivationReminder
+      tags: [admin]
+      summary: Manually send a registration reminder before the deadline without consuming scheduled reminders
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueActivationReminderInput" }
+      responses:
+        "200":
+          description: Whether the reminder was delivered and current policy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueActivationReminderResponse" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Venue is not eligible for a reminder
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/venue-owner/applications/{id}/activation/exception:
+    parameters:
+      - $ref: "#/components/parameters/VenueApplicationId"
+    post:
+      operationId: updateVenueActivationException
+      tags: [admin]
+      summary: Set or clear an activation-policy exemption with an audited reason
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueActivationExceptionInput" }
+      responses:
+        "200":
+          description: Updated activation policy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueActivationResponse" }
+        "400":
+          description: Invalid exemption details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Venue has not opted into activation policy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/venue-owner/applications/{id}/activation/reinstate:
+    parameters:
+      - $ref: "#/components/parameters/VenueApplicationId"
+    post:
+      operationId: reinstateVenueActivation
+      tags: [admin]
+      summary: Explicitly restore a venue that was soft-unlisted by activation policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueActivationReinstateInput" }
+      responses:
+        "200":
+          description: Reinstated activation policy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueActivationResponse" }
+        "400":
+          description: Invalid reinstatement reason
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Venue is not currently activation-delisted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /venue-owner/process-activation:
+    post:
+      operationId: processVenueActivation
+      tags: [cron]
+      summary: Process due venue activation reminders and soft-delisting milestones
+      parameters:
+        - $ref: "#/components/parameters/CronSecret"
+      responses:
+        "200":
+          description: Activation policies processed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueActivationProcessResponse" }
+        "401":
+          description: Invalid cron secret
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Cron endpoints are not enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /admin/venue-owner/outreach:
     post:
       operationId: sendNewVenueOutreach
@@ -2805,6 +3604,11 @@ components:
       in: header
       required: true
       schema: { type: string, minLength: 1 }
+    CronSecret:
+      name: x-cron-secret
+      in: header
+      required: true
+      schema: { type: string, minLength: 1 }
   securitySchemes:
     MetUid:
       type: apiKey
@@ -2826,6 +3630,71 @@ components:
           type: string
       required:
         - message
+    VenueActivation:
+      type: object
+      required:
+        - firstInvitationSentAt
+        - registrationDeadline
+        - registeredAt
+        - qrDeadline
+        - qrVerifiedCheckins
+        - reminder5SentAt
+        - reminder10SentAt
+        - reminder5AttemptedAt
+        - reminder10AttemptedAt
+        - unlistedAt
+        - removalReason
+        - exempt
+      properties:
+        firstInvitationSentAt: { type: ["string", "null"], format: date-time }
+        registrationDeadline: { type: ["string", "null"], format: date-time }
+        registeredAt: { type: ["string", "null"], format: date-time }
+        qrDeadline: { type: ["string", "null"], format: date-time }
+        qrVerifiedCheckins: { type: integer, minimum: 0 }
+        reminder5SentAt: { type: ["string", "null"], format: date-time }
+        reminder10SentAt: { type: ["string", "null"], format: date-time }
+        reminder5AttemptedAt: { type: ["string", "null"], format: date-time }
+        reminder10AttemptedAt: { type: ["string", "null"], format: date-time }
+        unlistedAt: { type: ["string", "null"], format: date-time }
+        removalReason: { type: ["string", "null"], enum: [registration, qr_checkins, null] }
+        exempt: { type: boolean }
+    VenueActivationResponse:
+      type: object
+      required: [activation]
+      properties:
+        activation: { $ref: "#/components/schemas/VenueActivation" }
+    VenueActivationReminderResponse:
+      allOf:
+        - $ref: "#/components/schemas/VenueActivationResponse"
+        - type: object
+          required: [sent]
+          properties:
+            sent: { type: boolean }
+    VenueActivationReminderInput:
+      type: object
+      additionalProperties: false
+      properties: {}
+    VenueActivationExceptionInput:
+      type: object
+      additionalProperties: false
+      required: [exempt, reason]
+      properties:
+        exempt: { type: boolean }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+    VenueActivationReinstateInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+    VenueActivationProcessResponse:
+      type: object
+      required: [remindersClaimed, reminderSent, unlistedRegistration, unlistedQrCheckins]
+      properties:
+        remindersClaimed: { type: integer, minimum: 0 }
+        reminderSent: { type: integer, minimum: 0 }
+        unlistedRegistration: { type: integer, minimum: 0 }
+        unlistedQrCheckins: { type: integer, minimum: 0 }
     VenueAdminPassword:
       type: object
       required: [password]
@@ -2886,6 +3755,166 @@ components:
         authenticated: { type: boolean }
         csrfToken: { type: string }
         expiresAt: { type: string, format: date-time }
+    VenueManagerFirebaseConfig:
+      type: object
+      required: [apiKey, authDomain, projectId]
+      properties:
+        apiKey: { type: string, minLength: 1 }
+        authDomain: { type: string, minLength: 1 }
+        projectId: { type: string, minLength: 1 }
+    VenueManagerFirebaseProof:
+      type: object
+      required: [idToken]
+      properties:
+        idToken: { type: string, minLength: 1 }
+    VenueManagerFirebaseLink:
+      type: object
+      required: [idToken, legacyPassword]
+      properties:
+        idToken: { type: string, minLength: 1 }
+        legacyPassword: { type: string, minLength: 1 }
+    VenueContactRequestInput:
+      type: object
+      required: [recipientEmail]
+      properties:
+        recipientEmail: { type: string, format: email, maxLength: 255 }
+    VenueOutreachInput:
+      type: object
+      required: [businessName, recipientEmail]
+      properties:
+        businessName: { type: string, minLength: 2, maxLength: 150 }
+        recipientEmail: { type: string, format: email, maxLength: 255 }
+        template:
+          type: string
+          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up]
+          default: contact_request
+    VenueOutreachPreviewInput:
+      type: object
+      required: [businessName]
+      properties:
+        businessName: { type: string, minLength: 2, maxLength: 150 }
+    VenueOutreachTemplatePreview:
+      type: object
+      required: [id, label, description, subject, text]
+      properties:
+        id:
+          type: string
+          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up]
+        label: { type: string }
+        description: { type: string }
+        subject: { type: string }
+        text: { type: string }
+    VenueOutreachHistoryEntry:
+      type: object
+      required:
+        - id
+        - kind
+        - businessName
+        - recipientEmail
+        - template
+        - deliveryStatus
+        - createdAt
+        - sentAt
+        - venueOwnerProfileId
+        - applicationId
+        - applicationStatus
+        - expiresAt
+        - linkStatus
+      properties:
+        id: { type: string }
+        kind:
+          type: string
+          enum: [new_venue_outreach, contact_request, registration_invite]
+        businessName: { type: string }
+        recipientEmail: { type: string, format: email }
+        template: { type: string }
+        deliveryStatus:
+          type: string
+          enum: [sending, sent, delivery_uncertain, failed]
+        createdAt: { type: string, format: date-time }
+        sentAt: { type: ["string", "null"], format: date-time }
+        venueOwnerProfileId: { type: ["integer", "null"] }
+        applicationId: { type: ["integer", "null"] }
+        applicationStatus: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"], format: date-time }
+        linkStatus:
+          type: string
+          enum: [none, active, expired, used, superseded, unknown]
+    VenueOutreachHistoryResponse:
+      type: object
+      required: [emails]
+      properties:
+        emails:
+          type: array
+          items:
+            $ref: "#/components/schemas/VenueOutreachHistoryEntry"
+    VenueContactRequestResult:
+      type: object
+      required: [emailSent, recipientEmail]
+      properties:
+        emailSent: { type: boolean }
+        recipientEmail: { type: string, format: email }
+    VenueApplicationInviteValidationInput:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, minLength: 1, maxLength: 256 }
+    VenueApplicationInviteValidationResult:
+      type: object
+      required: [invitedEmail, businessName, expiresAt]
+      properties:
+        invitedEmail: { type: string, format: email }
+        businessName: { type: string }
+        expiresAt: { type: string, format: date-time }
+    VenueOwnerApplicationInput:
+      type: object
+      required: [contactEmail, contactName, placeId, placeName, businessName, lat, lng, verificationDocUrl]
+      properties:
+        contactEmail: { type: string, format: email, maxLength: 255 }
+        contactName: { type: string, minLength: 1, maxLength: 255 }
+        placeId: { type: string, minLength: 1, maxLength: 255 }
+        placeName: { type: string, minLength: 1, maxLength: 255 }
+        businessName: { type: string, minLength: 1, maxLength: 255 }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+        tagline: { type: ["string", "null"], maxLength: 160 }
+        description: { type: ["string", "null"], maxLength: 1000 }
+        verificationDocUrl: { type: string, format: uri, maxLength: 2000 }
+        registrationNotes: { type: ["string", "null"], maxLength: 500 }
+        applicationInviteToken: { type: string, minLength: 1, maxLength: 256 }
+    VenueOwnerApplicationResult:
+      type: object
+      required: [applicationId, status]
+      properties:
+        applicationId: { type: integer }
+        status: { type: string, enum: [submitted] }
+    VenueRegistrationLinkInput:
+      type: object
+      required: [sendEmail]
+      properties:
+        sendEmail: { type: boolean }
+        recipientEmail: { type: string, format: email, maxLength: 255 }
+        template:
+          type: string
+          enum: [registration, registration_with_video]
+          default: registration
+    VenueRegistrationLinkResult:
+      type: object
+      required: [token, expiresAt, emailSent, contactEmail]
+      properties:
+        token: { type: string }
+        expiresAt: { type: string, format: date-time }
+        emailSent: { type: boolean }
+        emailError: { type: ["string", "null"], enum: [not_configured, auth_failed, gmail_connection_failed, delivery_failed, null] }
+        contactEmail: { type: ["string", "null"] }
+    VenueManagerFirebaseRegistration:
+      type: object
+      required: [token, idToken, displayName, acceptedTermsVersion]
+      properties:
+        token: { type: string, minLength: 1 }
+        idToken: { type: string, minLength: 1 }
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        acceptedTermsVersion: { type: string, enum: ["venue-2026-09"] }
     VenueManagerSignIn:
       type: object
       required: [email, password]
@@ -2894,11 +3923,21 @@ components:
         password: { type: string, minLength: 12 }
     VenueManagerInvitationAcceptance:
       type: object
-      required: [token, displayName, password]
+      required: [token, displayName, password, acceptedTermsVersion]
       properties:
         token: { type: string, minLength: 1 }
         displayName: { type: string, minLength: 1, maxLength: 120 }
         password: { type: string, minLength: 12 }
+        acceptedTermsVersion: { type: string, enum: ["venue-2026-09"] }
+    VenueManagerOwnerRegistration:
+      type: object
+      required: [token, email, displayName, password, acceptedTermsVersion]
+      properties:
+        token: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        password: { type: string, minLength: 8 }
+        acceptedTermsVersion: { type: string, enum: ["venue-2026-09"] }
     VenueManagerPasswordChange:
       type: object
       required: [currentPassword, newPassword]
@@ -2913,11 +3952,11 @@ components:
         newPassword: { type: string, minLength: 12 }
     VenueManagerClaim:
       type: object
-      required: [email, displayName, password]
+      required: [email, displayName, acceptedTermsVersion]
       properties:
         email: { type: string, format: email }
         displayName: { type: string, minLength: 1, maxLength: 120 }
-        password: { type: string, minLength: 12 }
+        acceptedTermsVersion: { type: string, enum: ["venue-2026-09"] }
     VenueManagerInvitation:
       type: object
       required: [email, role]
@@ -2995,6 +4034,12 @@ components:
             oneOf:
               - $ref: "#/components/schemas/VenueManagerOpeningHoursDay"
               - type: "null"
+    VenueManagerQrCode:
+      type: object
+      required: [qrToken, qrUrl]
+      properties:
+        qrToken: { type: string }
+        qrUrl: { type: string, format: uri }
     VenueManagerRemovalRequest:
       type: object
       properties:
@@ -3004,6 +4049,29 @@ components:
       required: [message]
       properties:
         message: { type: string }
+    AdminManagedImageUploadInput:
+      type: object
+      required: [contentType]
+      properties:
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp, image/gif] }
+    AdminManagedImageUploadResponse:
+      type: object
+      required: [uploadURL, objectPath, confirmationToken]
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+        confirmationToken: { type: string }
+    AdminManagedImageConfirmInput:
+      type: object
+      required: [objectPath, confirmationToken]
+      properties:
+        objectPath: { type: string }
+        confirmationToken: { type: string }
+    AdminManagedImageConfirmResponse:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string }
     VenueManagerEvent:
       type: object
       required: [id, title, startsAt, isPublished]
@@ -3105,13 +4173,14 @@ components:
         venueTimezone: { type: string }
     VenueManagerAnnouncement:
       type: object
-      required: [id, title, body, isPinned, createdAt, updatedAt]
+      required: [id, title, body, isPinned, isHidden, createdAt, updatedAt]
       properties:
         id: { type: integer }
         title: { type: string }
         body: { type: string }
         imageUrl: { type: ["string", "null"], format: uri }
         isPinned: { type: boolean }
+        isHidden: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     VenueManagerAnnouncementList:
@@ -3134,6 +4203,23 @@ components:
         body: { type: string, minLength: 1, maxLength: 2000 }
         imageUrl: { type: ["string", "null"], format: uri }
         isPinned: { type: boolean }
+    AdminManagedAnnouncementInput:
+      type: object
+      required: [title, body]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        imageUrl: { type: ["string", "null"], format: uri }
+        isPinned: { type: boolean }
+        isHidden: { type: boolean }
+    AdminManagedAnnouncementUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        imageUrl: { type: ["string", "null"], format: uri }
+        isPinned: { type: boolean }
+        isHidden: { type: boolean }
     VenueManagerMember:
       type: object
       required: [managerId, email, displayName, role, status]
@@ -3174,9 +4260,23 @@ components:
         startsAt: { type: string, format: date-time }
         going: { type: integer }
         maybe: { type: integer }
+    VenueManagerRecentQrVerification:
+      type: object
+      required: [displayName, photoUrl, verifiedAt]
+      properties:
+        displayName: { type: string }
+        photoUrl: { type: ["string", "null"], format: uri }
+        verifiedAt: { type: string, format: date-time }
     VenueManagerDashboard:
       type: object
-      required: [checkInTrend, topVisitors, eventRsvpCounts, activeReward]
+      required:
+        - checkInTrend
+        - topVisitors
+        - eventRsvpCounts
+        - activeReward
+        - qrVerificationsToday
+        - qrVerificationsTrend
+        - recentQrVerifications
       properties:
         checkInTrend:
           type: array
@@ -3190,6 +4290,13 @@ components:
         activeReward:
           type: ["object", "null"]
           additionalProperties: true
+        qrVerificationsToday: { type: integer }
+        qrVerificationsTrend:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerCheckInBucket" }
+        recentQrVerifications:
+          type: array
+          items: { $ref: "#/components/schemas/VenueManagerRecentQrVerification" }
     VenueApplication:
       type: object
       required:
@@ -3217,7 +4324,7 @@ components:
         registrationNotes: { type: ["string", "null"] }
         contactEmail: { type: ["string", "null"] }
         contactName: { type: ["string", "null"] }
-        applicationSource: { type: ["string", "null"], description: "mobile | web | null for legacy rows" }
+        applicationSource: { type: ["string", "null"], description: "mobile | web | agent | admin | null for legacy rows" }
         isApproved: { type: boolean }
         isVerified: { type: boolean }
         rejectionReason: { type: ["string", "null"] }
@@ -3236,6 +4343,90 @@ components:
         expiredAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    AdminVenuePlace:
+      type: object
+      required: [placeId, placeName, lat, lng]
+      properties:
+        placeId: { type: string }
+        placeName: { type: string }
+        address: { type: ["string", "null"] }
+        category: { type: ["string", "null"] }
+        googleMapsUri: { type: ["string", "null"], format: uri }
+        lat: { type: number }
+        lng: { type: number }
+    AdminQuickAddVenueRequest:
+      type: object
+      required: [placeId, placeName, businessName, lat, lng, managementMode]
+      properties:
+        placeId: { type: string, maxLength: 255 }
+        placeName: { type: string, maxLength: 255 }
+        businessName: { type: string, maxLength: 255 }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+        managementMode: { type: string, enum: [invite_owner, admin] }
+        contactName: { type: string, maxLength: 255 }
+        contactEmail: { type: string, format: email, maxLength: 255 }
+    AdminQuickAddVenueResponse:
+      type: object
+      required: [profile, emailSent, emailError]
+      properties:
+        profile: { $ref: "#/components/schemas/VenueApplication" }
+        emailSent: { type: boolean }
+        emailError:
+          type: ["string", "null"]
+          enum: [not_configured, gmail_connection_failed, delivery_failed, null]
+    AdminManagedVenue:
+      type: object
+      required: [id, placeId, placeName, businessName, qrUrl]
+      properties:
+        id: { type: integer }
+        placeId: { type: string }
+        placeName: { type: string }
+        businessName: { type: string }
+        qrUrl: { type: ["string", "null"], format: uri }
+        tagline: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        websiteUrl: { type: ["string", "null"] }
+        publicEmail: { type: ["string", "null"] }
+        coverPhotoUrl: { type: ["string", "null"] }
+        logoUrl: { type: ["string", "null"] }
+        openingHours:
+          type: ["object", "null"]
+          additionalProperties:
+            oneOf:
+              - type: object
+                required: [open, close]
+                properties:
+                  open: { type: string }
+                  close: { type: string }
+              - type: "null"
+    AdminManagedVenueResponse:
+      type: object
+      required: [profile]
+      properties:
+        profile: { $ref: "#/components/schemas/AdminManagedVenue" }
+    AdminManagedVenueUpdate:
+      type: object
+      properties:
+        businessName: { type: string, minLength: 1, maxLength: 255 }
+        tagline: { type: ["string", "null"], maxLength: 160 }
+        description: { type: ["string", "null"], maxLength: 1000 }
+        phone: { type: ["string", "null"], maxLength: 60 }
+        websiteUrl: { type: ["string", "null"], maxLength: 2000 }
+        publicEmail: { type: ["string", "null"], format: email, maxLength: 320 }
+        coverPhotoUrl: { type: ["string", "null"], maxLength: 2000 }
+        logoUrl: { type: ["string", "null"], maxLength: 2000 }
+        openingHours:
+          type: ["object", "null"]
+          additionalProperties:
+            oneOf:
+              - type: object
+                required: [open, close]
+                properties:
+                  open: { type: string }
+                  close: { type: string }
+              - type: "null"
     VenueBusinessAuthorization:
       type: object
       description: |

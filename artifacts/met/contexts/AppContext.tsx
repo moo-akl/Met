@@ -18,7 +18,12 @@ import {
 import Purchases from "react-native-purchases";
 import { getLanguage } from "@/lib/i18n";
 import { clearReferrals, initReferrals } from "@/lib/referrals";
-import { buildSeedEncounters } from "@/lib/seed";
+import {
+  buildSeedEncounters,
+  buildStoreDemoEncounters,
+  buildStoreDemoProfile,
+} from "@/lib/seed";
+import { isStoreDemoEnabled } from "@/lib/storeDemo";
 import { api, ApiError, type RemoteRevealRequestWithProfile } from "@/lib/api/client";
 import {
   startProximity,
@@ -65,10 +70,10 @@ import {
   loadPreferences,
   loadProfile,
   saveDisclosureAccepted,
-  saveEncounters,
-  savePermissionsCompleted,
-  savePreferences,
-  saveProfile,
+  saveEncounters as saveEncountersToStorage,
+  savePermissionsCompleted as savePermissionsCompletedToStorage,
+  savePreferences as savePreferencesToStorage,
+  saveProfile as saveProfileToStorage,
   saveProfileBannerDismissed,
   type Preferences,
 } from "@/lib/storage";
@@ -114,6 +119,22 @@ type AppContextValue = {
   updatePreferences: (patch: Partial<Preferences>) => Promise<void>;
   markPhotoVerified: () => Promise<void>;
 };
+
+async function saveEncounters(encounters: Encounter[]): Promise<void> {
+  if (!isStoreDemoEnabled()) await saveEncountersToStorage(encounters);
+}
+
+async function saveProfile(profile: Profile): Promise<void> {
+  if (!isStoreDemoEnabled()) await saveProfileToStorage(profile);
+}
+
+async function savePreferences(preferences: Preferences): Promise<void> {
+  if (!isStoreDemoEnabled()) await savePreferencesToStorage(preferences);
+}
+
+async function savePermissionsCompleted(done: boolean): Promise<void> {
+  if (!isStoreDemoEnabled()) await savePermissionsCompletedToStorage(done);
+}
 
 // Sweep stale pending reveal requests back to "encounter". Outgoing requests
 // use `requestSentAt`; incoming use `lastSeenAt` (we don't track when the
@@ -228,7 +249,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const fabricatedFromMetPeopleRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    if (!isStoreDemoEnabled()) return;
+    // This is a capture-only sandbox. Disabling focus and pointer interaction
+    // also keeps existing controls from writing to a signed-in browser's
+    // Firebase session or local storage when viewing fictional sample data.
+    const root = document.getElementById("root");
+    root?.setAttribute("inert", "");
+    return () => root?.removeAttribute("inert");
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
+    if (isStoreDemoEnabled()) {
+      // Ignore any persisted profile/encounters in screenshot mode so the
+      // browser can never expose the tester's real account data.
+      setProfileState(buildStoreDemoProfile());
+      setAllEncounters(buildStoreDemoEncounters());
+      setPermissionsCompletedState(true);
+      setPreferencesState(DEFAULT_PREFERENCES);
+      authUidRef.current = null;
+      setVisibilityReconciledUid(null);
+      setAuthedUid(null);
+      setReady(true);
+      return () => {
+        mounted = false;
+      };
+    }
     (async () => {
       const [p, e, perms, prefs] = await Promise.all([
         loadProfile(),
@@ -478,6 +524,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetAll = useCallback(async () => {
+    if (isStoreDemoEnabled()) {
+      setProfileState(buildStoreDemoProfile());
+      setAllEncounters(buildStoreDemoEncounters());
+      setPermissionsCompletedState(true);
+      setPreferencesState(DEFAULT_PREFERENCES);
+      return;
+    }
     // Tear down the Firebase identity FIRST so the user truly starts
     // fresh on next onboarding. Best-effort: never throws.
     const previousUid = profileRef.current?.id ?? null;
@@ -510,6 +563,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // because everything user-specific lives on-device — leaving them in
   // place would leak the previous user's data to whoever signs in next.
   const signOutAndClear = useCallback(async () => {
+    if (isStoreDemoEnabled()) return;
     const previousUid = profileRef.current?.id ?? null;
     await Purchases.logOut().catch(() => {});
     await firebaseSignOut();
@@ -702,6 +756,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const upsertProximityRef = useRef(upsertEncounterFromProximity);
   upsertProximityRef.current = upsertEncounterFromProximity;
   useEffect(() => {
+    if (isStoreDemoEnabled()) {
+      setAuthedUid(null);
+      return;
+    }
     const unsub = subscribeToAuthState((uid) => {
       if (authUidRef.current !== uid) {
         authUidRef.current = uid;

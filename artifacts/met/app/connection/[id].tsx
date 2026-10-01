@@ -24,6 +24,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
+import { isStoreDemoEnabled } from "@/lib/storeDemo";
 import { type ReportReason, submitReport } from "@/lib/reports";
 import type { SocialPlatform } from "@/lib/types";
 
@@ -82,7 +83,7 @@ export default function ConnectionScreen() {
   // Fetch the peer's live profile so interests are always up-to-date,
   // even if the cached encounter pre-dates the peer adding interests.
   useEffect(() => {
-    if (!encounter || !profile?.id) return;
+    if (!encounter || !profile?.id || isStoreDemoEnabled()) return;
     const ctrl = new AbortController();
     api
       .getProfile({ uid: profile.id, signal: ctrl.signal }, encounter.id)
@@ -97,7 +98,7 @@ export default function ConnectionScreen() {
 
   // Fetch peer's pioneer/trust/subscriber standing for verification badge.
   useEffect(() => {
-    if (!encounter || !authedUid) return;
+    if (!encounter || !authedUid || isStoreDemoEnabled()) return;
     const ctrl = new AbortController();
     api
       .getCommunityStanding({ uid: authedUid, signal: ctrl.signal }, encounter.id)
@@ -114,7 +115,7 @@ export default function ConnectionScreen() {
 
   // Fetch mutual connections — people both the viewer and this user know.
   useEffect(() => {
-    if (!encounter || !authedUid) return;
+    if (!encounter || !authedUid || isStoreDemoEnabled()) return;
     const ctrl = new AbortController();
     api
       .getMutualConnections({ uid: authedUid, signal: ctrl.signal }, encounter.id)
@@ -128,7 +129,7 @@ export default function ConnectionScreen() {
 
   // Fetch this connection's review summary (community standing).
   useEffect(() => {
-    if (!encounter || !authedUid) return;
+    if (!encounter || !authedUid || isStoreDemoEnabled()) return;
     const ctrl = new AbortController();
     api
       .getReviewSummary({ uid: authedUid, signal: ctrl.signal }, encounter.id)
@@ -520,6 +521,8 @@ function NoteEditor({
   onSave: (next: string) => void;
 }) {
   const { t } = useT();
+  const actionColor =
+    colors.primary === "#3DCC44" ? colors.secondaryForeground : colors.primary;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -592,7 +595,7 @@ function NoteEditor({
               onPress={commit}
               style={({ pressed }) => [
                 styles.editorBtn,
-                { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+                { backgroundColor: actionColor, opacity: pressed ? 0.85 : 1 },
               ]}
             >
               <Text style={[styles.editorBtnText, { color: "#FFFFFF" }]}>
@@ -624,6 +627,8 @@ function TagsEditor({
   onChange: (next: string[]) => void;
 }) {
   const { t } = useT();
+  const actionColor =
+    colors.primary === "#3DCC44" ? colors.secondaryForeground : colors.primary;
   const [draft, setDraft] = useState("");
 
   const addTag = (raw: string) => {
@@ -652,7 +657,7 @@ function TagsEditor({
               accessibilityLabel={t("connection.removeTagA11y", { tag })}
               style={({ pressed }) => [
                 styles.tagChip,
-                { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+                { backgroundColor: actionColor, opacity: pressed ? 0.8 : 1 },
               ]}
             >
               <Text style={styles.tagChipText}>#{tag}</Text>

@@ -7,6 +7,7 @@
  * CSRF headers exactly as a browser would.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import crypto from "node:crypto";
 import request from "supertest";
 import { inArray, like, sql } from "drizzle-orm";
 import {
@@ -21,6 +22,15 @@ import {
   venueOwnerProfilesTable,
 } from "@workspace/db";
 
+const firebaseAuthStubs = vi.hoisted(() => ({
+  getUser: vi.fn(),
+  verifyIdToken: vi.fn(),
+}));
+vi.mock("../lib/firebaseAdmin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/firebaseAdmin")>();
+  return { ...actual, adminAuth: () => firebaseAuthStubs };
+});
+
 // Rate limiting is covered by its own middleware tests; disabling it here
 // keeps repeated failed-login scenarios deterministic.
 vi.mock("../middlewares/rateLimit", () => ({
@@ -28,8 +38,8 @@ vi.mock("../middlewares/rateLimit", () => ({
   createUserRateLimiter: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-// The claim route requires a Firebase-authenticated legacy owner. Tests
-// impersonate one via a header instead of a real Firebase ID token.
+// Tests supply a Firebase UID through a header while mocking Firebase Admin's
+// user and ID-token verification calls.
 vi.mock("../middlewares/requireUid", () => ({
   requireUid: (
     req: { uid?: string; header: (name: string) => string | undefined },
@@ -52,6 +62,23 @@ const hasDatabase = Boolean(process.env["DATABASE_URL"]);
 const PREFIX = `itest-vmgr-${process.pid}-${Date.now()}`;
 const email = (name: string) => `${PREFIX}-${name}@example.com`;
 const STRONG = "CorrectHorse99x";
+const verifiedFirebaseEmails = new Map<string, string>();
+const firebaseIdTokenIdentities = new Map<string, { uid: string; email: string }>();
+
+function legacyPasswordHash(password: string): string {
+  const salt = crypto.randomBytes(16).toString("base64url");
+  const hash = crypto.scryptSync(password, salt, 64, { N: 16_384, r: 8, p: 1 });
+  return `scrypt$${salt}$${hash.toString("base64url")}`;
+}
+
+async function createLegacyManager(name: string) {
+  const [manager] = await db.insert(venueManagersTable).values({
+    email: email(name),
+    displayName: `Legacy ${name}`,
+    passwordHash: legacyPasswordHash(STRONG),
+  }).returning();
+  return manager!;
+}
 
 async function cleanup() {
   const managers = await db.select({ id: venueManagersTable.id })
@@ -114,15 +141,46 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
   beforeAll(cleanup);
   afterAll(cleanup);
 
+  beforeAll(() => {
+    firebaseAuthStubs.getUser.mockImplementation(async (uid: string) => {
+      const userEmail = verifiedFirebaseEmails.get(uid);
+      if (!userEmail) throw new Error("Firebase user not found");
+      return { uid, email: userEmail, emailVerified: true };
+    });
+    firebaseAuthStubs.verifyIdToken.mockImplementation(async (token: string) => {
+      const identity = firebaseIdTokenIdentities.get(token);
+      if (!identity) throw new Error("Invalid Firebase ID token");
+      return { ...identity, email_verified: true };
+    });
+  });
+
   /** Claim an owner account for a fresh business; returns an authed agent. */
   async function claimOwner(name: string) {
     const { profile, business } = await makeBusiness(name);
+    verifiedFirebaseEmails.set(profile.ownerUid, email(name));
     const agent = request.agent(app);
     const res = await agent.post("/api/venue-manager/claim")
       .set("x-test-uid", profile.ownerUid)
-      .send({ email: email(name), displayName: `Owner ${name}`, password: STRONG });
+      .send({
+        email: email(name), displayName: `Owner ${name}`, password: STRONG,
+        acceptedTermsVersion: "venue-2026-09",
+      });
     expect(res.status).toBe(200);
     return { agent, csrf: res.body.csrfToken as string, business, profile };
+  }
+
+  async function acceptFirebaseInvitation(token: string, name: string, displayName: string) {
+    const uid = `${PREFIX}-firebase-${name}`;
+    const idToken = `${PREFIX}-id-token-${name}`;
+    firebaseIdTokenIdentities.set(idToken, { uid, email: email(name) });
+    const agent = request.agent(app);
+    const response = await agent.post("/api/venue-manager/invitations/accept/firebase").send({
+      token,
+      idToken,
+      displayName,
+      acceptedTermsVersion: "venue-2026-09",
+    });
+    return { agent, response, uid };
   }
 
   it("rejects invalid credentials and never reveals which field failed", async () => {
@@ -133,7 +191,7 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
   });
 
   it("locks the account after repeated failed logins", async () => {
-    await claimOwner("lockout");
+    await createLegacyManager("lockout");
     for (let i = 0; i < 5; i++) {
       await api().post("/api/venue-manager/session")
         .send({ email: email("lockout"), password: "WrongPassword1" });
@@ -195,14 +253,15 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
       .send({ email: email("invitee"), role: "manager" });
     const token = invite.body.invitationToken as string;
 
-    const invitee = request.agent(app);
-    const accepted = await invitee.post("/api/venue-manager/invitations/accept")
-      .send({ token, displayName: "New Manager", password: STRONG });
+    const { agent: invitee, response: accepted } = await acceptFirebaseInvitation(token, "invitee", "New Manager");
     expect(accepted.status).toBe(200);
 
     // One-time token: a second acceptance must fail.
-    const replay = await api().post("/api/venue-manager/invitations/accept")
-      .send({ token, displayName: "Imposter", password: STRONG });
+    const replay = await api().post("/api/venue-manager/invitations/accept/firebase")
+      .send({
+        token, idToken: `${PREFIX}-id-token-invitee`,
+        displayName: "Imposter", acceptedTermsVersion: "venue-2026-09",
+      });
     expect(replay.status).toBe(400);
 
     // The manager cannot act on an unrelated business.
@@ -219,7 +278,13 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
   });
 
   it("changing the password revokes every other session", async () => {
-    const { agent, csrf } = await claimOwner("pwchange");
+    await createLegacyManager("pwchange");
+    const agent = request.agent(app);
+    const initialLogin = await agent.post("/api/venue-manager/session")
+      .send({ email: email("pwchange"), password: STRONG });
+    expect(initialLogin.status).toBe(200);
+    const session = await agent.get("/api/venue-manager/session");
+    const csrf = session.body.csrfToken as string;
     const second = request.agent(app);
     const secondLogin = await second.post("/api/venue-manager/session")
       .send({ email: email("pwchange"), password: STRONG });
@@ -240,15 +305,16 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
 
   it("owner-issued recovery resets the password once, then the token dies", async () => {
     const { agent, csrf, business } = await claimOwner("recovery");
-    const invite = await agent.post(`/api/venue-manager/businesses/${business.id}/invitations`)
-      .set("x-csrf-token", csrf)
-      .send({ email: email("recoveree"), role: "editor" });
+    const recoveree = await createLegacyManager("recoveree");
+    await db.insert(venueMembershipsTable).values({
+      businessId: business.id, managerId: recoveree.id, role: "editor", status: "active",
+      acceptedAt: new Date(),
+    });
     const invitee = request.agent(app);
-    const accepted = await invitee.post("/api/venue-manager/invitations/accept")
-      .send({ token: invite.body.invitationToken, displayName: "Editor", password: STRONG });
-    expect(accepted.status).toBe(200);
-    const [managerRow] = await db.select({ id: venueManagersTable.id })
-      .from(venueManagersTable).where(like(venueManagersTable.email, email("recoveree")));
+    const initialLogin = await invitee.post("/api/venue-manager/session")
+      .send({ email: email("recoveree"), password: STRONG });
+    expect(initialLogin.status).toBe(200);
+    const managerRow = recoveree;
 
     const issued = await agent.post(`/api/venue-manager/businesses/${business.id}/recovery`)
       .set("x-csrf-token", csrf)
@@ -275,9 +341,10 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
     const invite = await agent.post(`/api/venue-manager/businesses/${business.id}/invitations`)
       .set("x-csrf-token", csrf)
       .send({ email: email("demotee"), role: "manager" });
-    const invitee = request.agent(app);
-    await invitee.post("/api/venue-manager/invitations/accept")
-      .send({ token: invite.body.invitationToken, displayName: "Demotee", password: STRONG });
+    const { agent: invitee, response: accepted } = await acceptFirebaseInvitation(
+      invite.body.invitationToken as string, "demotee", "Demotee",
+    );
+    expect(accepted.status).toBe(200);
     const [managerRow] = await db.select({ id: venueManagersTable.id })
       .from(venueManagersTable).where(like(venueManagersTable.email, email("demotee")));
 
@@ -295,7 +362,7 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
     expect((await invitee.get("/api/venue-manager/session")).status).toBe(401);
   });
 
-  it("staff-invite token generated by owner registers a new manager (hash algorithm round-trip)", async () => {
+  it("legacy password-only registration is disabled for staff-invite tokens", async () => {
     // Create an approved venue with a legacy mobile owner uid (no manager account yet).
     const { profile, business } = await makeBusiness("staff-invite");
 
@@ -309,50 +376,47 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
 
     const rawToken = inviteRes.body.token as string;
 
-    // A staff member opens the link and submits the registration form.
+    // Legacy password-only registration is rejected; Firebase enrollment is
+    // covered by venueManagerFirebase.test.ts.
     const registerRes = await api().post("/api/venue-manager/register").send({
       token: rawToken,
       email: email("staff-invite-member"),
       displayName: "New Staff Member",
       password: STRONG,
+      acceptedTermsVersion: "venue-2026-09",
     });
-    expect(registerRes.status).toBe(200);
-    expect(registerRes.body.authenticated).toBe(true);
-    expect(registerRes.body.csrfToken).toBeTruthy();
+    expect(registerRes.status).toBe(410);
 
-    // The new manager must be scoped to the correct business.
-    const agent = request.agent(app);
-    const loginRes = await agent.post("/api/venue-manager/session")
-      .send({ email: email("staff-invite-member"), password: STRONG });
-    expect(loginRes.status).toBe(200);
-
-    const businesses = await agent.get("/api/venue-manager/businesses");
-    expect(businesses.status).toBe(200);
-    const ids = (businesses.body.businesses as Array<{ businessId: number }>).map((b) => b.businessId);
-    expect(ids).toContain(business.id);
-
-    // The token must be single-use.
+    // The legacy token is not consumed by the disabled endpoint.
     const replayRes = await api().post("/api/venue-manager/register").send({
       token: rawToken,
       email: email("staff-invite-replay"),
       displayName: "Replay Attacker",
       password: STRONG,
     });
-    expect(replayRes.status).toBe(400);
+    expect(replayRes.status).toBe(410);
   });
 
-  it("legacy claim requires the approved owner and cannot be duplicated", async () => {
+  it("Firebase claim requires the approved owner and cannot be duplicated", async () => {
     const { profile } = await claimOwner("claimed");
 
+    const strangerUid = `${PREFIX}-uid-not-an-owner`;
+    verifiedFirebaseEmails.set(strangerUid, email("stranger"));
     const stranger = await api().post("/api/venue-manager/claim")
-      .set("x-test-uid", `${PREFIX}-uid-not-an-owner`)
-      .send({ email: email("stranger"), displayName: "Stranger", password: STRONG });
+      .set("x-test-uid", strangerUid)
+      .send({
+        email: email("stranger"), displayName: "Stranger", password: STRONG,
+        acceptedTermsVersion: "venue-2026-09",
+      });
     expect(stranger.status).toBe(403);
 
     const duplicate = await api().post("/api/venue-manager/claim")
       .set("x-test-uid", profile.ownerUid)
-      .send({ email: email("claimed"), displayName: "Owner again", password: STRONG });
-    expect(duplicate.status).toBe(409);
+      .send({
+        email: email("claimed"), displayName: "Owner again", password: STRONG,
+        acceptedTermsVersion: "venue-2026-09",
+      });
+    expect(duplicate.status).toBe(200);
   });
 
   it("manager cookies carry no consumer identity and consumer routes reject them", async () => {
@@ -422,16 +486,13 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
         .post(`/api/venue-manager/businesses/${business.id}/invitations`)
         .set("x-csrf-token", csrf)
         .send({ email: email("qr-mgr"), role: "manager" });
-      const mgr = request.agent(app);
-      const accepted = await mgr.post("/api/venue-manager/invitations/accept").send({
-        token: invite.body.invitationToken,
-        displayName: "Manager",
-        password: STRONG,
-      });
+      const { agent: firebaseMgr, response: accepted } = await acceptFirebaseInvitation(
+        invite.body.invitationToken as string, "qr-mgr", "Manager",
+      );
       expect(accepted.status).toBe(200);
       const mgrCsrf = accepted.body.csrfToken as string;
 
-      const res = await mgr
+      const res = await firebaseMgr
         .post(`/api/venue-manager/businesses/${business.id}/qr-code/regenerate`)
         .set("x-csrf-token", mgrCsrf);
       expect(res.status).toBe(403);
