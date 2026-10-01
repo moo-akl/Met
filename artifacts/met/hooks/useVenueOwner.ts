@@ -8,10 +8,15 @@
  *   - refetch: callable to manually refresh
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "@/contexts/AppContext";
 import {
   api,
+  getActiveVenueBusinessId,
+  setActiveVenueBusinessId,
   type VenueApplicationStatusResponse,
+  type VenueOwnerBranch,
+  type VenueOwnerBranchesResponse,
   type VenueOwnerProfile,
 } from "@/lib/api/client";
 export {
@@ -24,18 +29,37 @@ export { type VenueOwnerProfile };
 export interface UseVenueOwnerResult {
   profile: VenueOwnerProfile | null;
   history: VenueApplicationStatusResponse["history"];
+  branches: VenueOwnerBranch[];
+  branchApplications: VenueOwnerBranchesResponse["applications"];
+  activeBusinessId: number | null;
   isApproved: boolean;
   isLoading: boolean;
   error: string | null;
+  branchError: string | null;
   refetch: () => void;
+  selectBranch: (businessId: number) => Promise<void>;
+}
+
+const activeBusinessStorageKey = (uid: string) =>
+  `met:venue-owner:active-business:${uid}`;
+
+function parseBusinessId(value: string | null): number | null {
+  if (value === null || !/^(0|[1-9]\d{0,9})$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 export function useVenueOwner(): UseVenueOwnerResult {
   const { authedUid } = useApp();
   const [profile, setProfile] = useState<VenueOwnerProfile | null>(null);
   const [history, setHistory] = useState<VenueApplicationStatusResponse["history"]>([]);
+  const [branches, setBranches] = useState<VenueOwnerBranch[]>([]);
+  const [branchApplications, setBranchApplications] =
+    useState<VenueOwnerBranchesResponse["applications"]>([]);
+  const [activeBusinessId, setActiveBusinessId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [branchError, setBranchError] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const currentUidRef = useRef<string | null>(authedUid);
 
@@ -52,7 +76,12 @@ export function useVenueOwner(): UseVenueOwnerResult {
     // account is loading. This also clears cached reviewer messages on sign-out.
     setProfile(null);
     setHistory([]);
+    setBranches([]);
+    setBranchApplications([]);
+    setActiveBusinessId(null);
+    setActiveVenueBusinessId(null);
     setError(null);
+    setBranchError(null);
     setIsLoading(Boolean(authedUid));
   }, [authedUid]);
 
@@ -60,7 +89,12 @@ export function useVenueOwner(): UseVenueOwnerResult {
     if (!authedUid) {
       setProfile(null);
       setHistory([]);
+      setBranches([]);
+      setBranchApplications([]);
+      setActiveBusinessId(null);
+      setActiveVenueBusinessId(null);
       setError(null);
+      setBranchError(null);
       setIsLoading(false);
       return;
     }
@@ -68,24 +102,97 @@ export function useVenueOwner(): UseVenueOwnerResult {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await api.getMyVenueApplication({ uid: requestUid });
-      if (mountedRef.current && requestUid === currentUidRef.current) {
-        setProfile(data.application);
-        setHistory(data.history);
-      }
-    } catch (err: unknown) {
+      const [applicationResult, branchesResult] = await Promise.allSettled([
+        api.getMyVenueApplication({ uid: requestUid }),
+        api.getMyVenueBranches({ uid: requestUid }),
+      ]);
       if (!mountedRef.current || requestUid !== currentUidRef.current) return;
-      // 404 = not registered yet — that's not an error
-      if ((err as { status?: number })?.status === 404) {
-        setProfile(null);
-        setHistory([]);
+
+      const applicationData =
+        applicationResult.status === "fulfilled" ? applicationResult.value : null;
+      const branchData =
+        branchesResult.status === "fulfilled"
+          ? branchesResult.value
+          : { branches: [], applications: [] };
+      const validBranches = branchData.branches.filter(
+        (branch) =>
+          Number.isSafeInteger(branch.businessId) &&
+          branch.businessId >= 0 &&
+          (branch.role === "owner" || branch.role === "manager"),
+      );
+      const savedId = parseBusinessId(
+        await AsyncStorage.getItem(activeBusinessStorageKey(requestUid)).catch(() => null),
+      );
+      if (!mountedRef.current || requestUid !== currentUidRef.current) return;
+
+      const currentId = getActiveVenueBusinessId();
+      const containsId = (id: number | null) =>
+        id !== null && validBranches.some((branch) => branch.businessId === id);
+      const selectedId = containsId(currentId)
+        ? currentId
+        : containsId(savedId)
+          ? savedId
+          : validBranches[0]?.businessId ?? null;
+      const selectedBranch =
+        selectedId === null
+          ? null
+          : validBranches.find((branch) => branch.businessId === selectedId) ?? null;
+
+      setBranches(validBranches);
+      setBranchApplications(branchData.applications);
+      setActiveBusinessId(selectedId);
+      setActiveVenueBusinessId(selectedId);
+      setProfile(selectedBranch?.profile ?? applicationData?.application ?? null);
+      setHistory(applicationData?.history ?? []);
+
+      const applicationFailed = applicationResult.status === "rejected";
+      const branchesFailed = branchesResult.status === "rejected";
+      const applicationWasNotFound =
+        applicationFailed &&
+        (applicationResult.reason as { status?: number })?.status === 404;
+      const branchesWasNotFound =
+        branchesFailed &&
+        (branchesResult.reason as { status?: number })?.status === 404;
+      setBranchError(
+        branchesFailed && !branchesWasNotFound
+          ? "Failed to load venue branches"
+          : null,
+      );
+      setError(
+        applicationFailed &&
+          branchesFailed &&
+          !applicationWasNotFound &&
+          !branchesWasNotFound
+          ? "Failed to load venue profile"
+          : null,
+      );
+      if (selectedId !== null) {
+        await AsyncStorage.setItem(
+          activeBusinessStorageKey(requestUid),
+          String(selectedId),
+        ).catch(() => {});
       } else {
-        setError("Failed to load venue profile");
+        setActiveVenueBusinessId(null);
       }
     } finally {
       if (mountedRef.current && requestUid === currentUidRef.current) setIsLoading(false);
     }
   }, [authedUid]);
+
+  const selectBranch = useCallback(
+    async (businessId: number) => {
+      const selected = branches.find((branch) => branch.businessId === businessId);
+      if (!selected || !authedUid) return;
+      setActiveBusinessId(businessId);
+      setActiveVenueBusinessId(businessId);
+      setProfile(selected.profile);
+      await AsyncStorage.setItem(
+        activeBusinessStorageKey(authedUid),
+        String(businessId),
+      ).catch(() => {});
+    },
+    [authedUid, branches],
+  );
 
   useEffect(() => {
     void fetch();
@@ -94,9 +201,14 @@ export function useVenueOwner(): UseVenueOwnerResult {
   return {
     profile,
     history,
+    branches,
+    branchApplications,
+    activeBusinessId,
     isApproved: profile?.isApproved === true,
     isLoading,
     error,
+    branchError,
     refetch: () => { void fetch(); },
+    selectBranch,
   };
 }

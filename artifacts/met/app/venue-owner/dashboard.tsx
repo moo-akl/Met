@@ -32,6 +32,7 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { api, type VenueOwnerDashboard } from "@/lib/api/client";
+import { useT } from "@/lib/i18n";
 
 // ─── Nav sections ─────────────────────────────────────────────────────────────
 const SECTIONS = [
@@ -49,9 +50,15 @@ export default function VenueOwnerDashboardScreen() {
   const { authedUid } = useApp();
   const colors = useColors();
   const { isDark } = useTheme();
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { profile: application, isLoading } = useVenueOwner();
+  const {
+    profile: application,
+    branches,
+    branchApplications,
+    isLoading,
+  } = useVenueOwner();
 
   const [dashboard, setDashboard] = useState<VenueOwnerDashboard | null>(null);
   const [dashLoading, setDashLoading] = useState(true);
@@ -138,6 +145,15 @@ export default function VenueOwnerDashboardScreen() {
   const upcomingEvents = (dashboard?.eventRsvpCounts ?? []).filter((e) => new Date(e.startsAt) > new Date()).length;
   const hasActiveReward = dashboard?.activeReward != null;
   const activeRewardName = dashboard?.activeReward?.title ?? "Loyalty campaign";
+  const openBranchApplications = branchApplications.filter((item) =>
+    ["submitted", "under_review", "changes_requested", "resubmitted"].includes(
+      item.applicationStatus,
+    ),
+  ).length;
+  const branchesSummary = t("venueBranchesManageSummary", {
+    count: branches.length,
+    applications: openBranchApplications,
+  });
 
   const handleBack = () => router.replace("/(tabs)/profile" as never);
 
@@ -146,6 +162,9 @@ export default function VenueOwnerDashboardScreen() {
       {isDark
         ? <AuroraScreen
             venueName={venueName}
+            branchesTitle={t("venueBranchesTitle")}
+            branchesSummary={branchesSummary}
+            onManageBranches={() => router.push("/venue-owner/branches" as never)}
             insets={insets}
             totalCheckIns={totalCheckIns}
             upcomingEvents={upcomingEvents}
@@ -161,6 +180,9 @@ export default function VenueOwnerDashboardScreen() {
           />
         : <SignalScreen
             venueName={venueName}
+            branchesTitle={t("venueBranchesTitle")}
+            branchesSummary={branchesSummary}
+            onManageBranches={() => router.push("/venue-owner/branches" as never)}
             insets={insets}
             totalCheckIns={totalCheckIns}
             upcomingEvents={upcomingEvents}
@@ -195,6 +217,9 @@ export default function VenueOwnerDashboardScreen() {
 // ─────────────────────────────────────────────────────────────────────────────
 type SharedProps = {
   venueName: string;
+  branchesTitle: string;
+  branchesSummary: string;
+  onManageBranches: () => void;
   insets: { top: number; bottom: number };
   totalCheckIns: number;
   upcomingEvents: number;
@@ -209,7 +234,8 @@ type SharedProps = {
 };
 
 function AuroraScreen({
-  venueName, insets, totalCheckIns, upcomingEvents, hasActiveReward,
+  venueName, branchesTitle, branchesSummary, onManageBranches,
+  insets, totalCheckIns, upcomingEvents, hasActiveReward,
   activeRewardName, dashLoading, inviteLoading,
   onBack, onNav, onInviteStaff, onOpenQrKit, onViewPage,
 }: SharedProps & { activeRewardName: string }) {
@@ -358,12 +384,18 @@ function AuroraScreen({
 
           {/* Tools + view page */}
           {[
+            { icon: "map-pin", iconType: "feather" as const, label: branchesTitle, sub: branchesSummary, accent: "#34D399", onPress: onManageBranches },
             { icon: "👥", label: inviteLoading ? "Generating link…" : "Invite Staff", sub: "One-time registration link", accent: "#A78BFA", onPress: onInviteStaff },
             { icon: "🖨️", label: "QR Check-in Kit", sub: "Print a table tent for your venue", accent: "#34D399", onPress: onOpenQrKit },
             { icon: "👁",  label: "View public page", sub: "See how guests discover you", accent: "#60A5FA", onPress: onViewPage },
           ].map((item, i) => (
             <Pressable
               key={item.label}
+              testID={
+                "iconType" in item && item.iconType === "feather"
+                  ? "venue-branches-entry"
+                  : undefined
+              }
               onPress={item.onPress}
               style={({ pressed }) => ({
                 flexDirection: "row",
@@ -376,7 +408,11 @@ function AuroraScreen({
                 opacity: pressed ? 0.7 : 1,
               })}
             >
-              <Text style={{ fontSize: 20 }}>{item.icon}</Text>
+              {"iconType" in item && item.iconType === "feather" ? (
+                <Feather name="map-pin" size={20} color={item.accent} />
+              ) : (
+                <Text style={{ fontSize: 20 }}>{item.icon}</Text>
+              )}
               <View style={{ flex: 1 }}>
                 <Text style={{ color: "rgba(255,255,255,0.88)", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{item.label}</Text>
                 <Text style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 2 }}>{item.sub}</Text>
@@ -432,7 +468,8 @@ function GlassCard({ children }: { children: React.ReactNode }) {
 // SIGNAL — light / editorial theme
 // ─────────────────────────────────────────────────────────────────────────────
 function SignalScreen({
-  venueName, insets, totalCheckIns, upcomingEvents, hasActiveReward,
+  venueName, branchesTitle, branchesSummary, onManageBranches,
+  insets, totalCheckIns, upcomingEvents, hasActiveReward,
   dashLoading, inviteLoading,
   onBack, onNav, onInviteStaff, onOpenQrKit, onViewPage,
 }: SharedProps) {
@@ -527,6 +564,7 @@ function SignalScreen({
             Tools
           </Text>
           {[
+            { label: branchesTitle, sub: branchesSummary, onPress: onManageBranches, isGreen: true },
             { label: inviteLoading ? "Generating link…" : "Invite Staff", sub: "One-time registration link via WhatsApp or SMS", onPress: onInviteStaff, isGreen: false },
             { label: "QR Check-in Kit", sub: "Print a table tent with your venue's check-in QR code", onPress: onOpenQrKit, isGreen: false },
             { label: "View public page →", sub: "See exactly how guests discover you", onPress: onViewPage, isGreen: true },

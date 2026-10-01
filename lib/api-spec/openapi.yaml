@@ -2151,6 +2151,71 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /venue-owner/me/branches:
+    get:
+      operationId: getMyVenueBranches
+      tags: [venue-owner]
+      summary: List approved venues and separately reviewed branch applications
+      description: >
+        Venue-owner management requests may include X-Met-Venue-Business-Id to
+        select a branch. The server verifies that the authenticated Firebase
+        account has an active membership for that business.
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Approved branches and the caller's additional applications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOwnerBranchesResponse"
+        "401":
+          description: Firebase authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /venue-owner/me/branch-applications:
+    post:
+      operationId: submitVenueBranchApplication
+      tags: [venue-owner]
+      summary: Submit an additional venue for separate review
+      description: The applicant UID comes from the verified Firebase token, not the request body.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NativeBranchApplicationInput"
+      responses:
+        "201":
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NativeBranchApplicationSubmitted"
+        "400":
+          description: Invalid application input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: An active venue owner or manager membership is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: The venue already has a pending or active application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /venue-owner/me/application/withdraw:
     post:
       operationId: withdrawMyVenueApplication
@@ -3120,6 +3185,51 @@ components:
           enum: [draft, submitted, under_review, changes_requested, rejected, resubmitted, approved, withdrawn, expired, null]
         applicantMessage: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
+    VenueOwnerBranch:
+      type: object
+      required: [businessId, role, profile]
+      properties:
+        businessId:
+          type: integer
+          description: 0 identifies a legacy profile without a business membership row.
+        role:
+          type: string
+          enum: [owner, manager]
+        profile:
+          $ref: "#/components/schemas/VenueApplication"
+    VenueOwnerBranchesResponse:
+      type: object
+      required: [branches, applications]
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: "#/components/schemas/VenueOwnerBranch"
+        applications:
+          type: array
+          items:
+            $ref: "#/components/schemas/VenueApplication"
+    NativeBranchApplicationInput:
+      type: object
+      required: [placeId, placeName, businessName, lat, lng, verificationDocUrl]
+      properties:
+        placeId: { type: string, minLength: 1, maxLength: 255 }
+        placeName: { type: string, minLength: 1, maxLength: 255 }
+        businessName: { type: string, minLength: 1, maxLength: 255 }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+        tagline: { type: [string, "null"], maxLength: 160 }
+        description: { type: [string, "null"], maxLength: 1000 }
+        verificationDocUrl: { type: string, format: uri, maxLength: 2000 }
+        registrationNotes: { type: [string, "null"], maxLength: 500 }
+    NativeBranchApplicationSubmitted:
+      type: object
+      required: [applicationId, status]
+      properties:
+        applicationId: { type: integer }
+        status:
+          type: string
+          enum: [submitted]
     VenueApplicationStatusResponse:
       type: object
       required: [application, history]

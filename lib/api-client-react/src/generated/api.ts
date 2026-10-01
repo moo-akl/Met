@@ -42,6 +42,8 @@ import type {
   ListNetworksParams,
   ListVenueApplicationsParams,
   LogEncounter,
+  NativeBranchApplicationInput,
+  NativeBranchApplicationSubmitted,
   NearbyEntry,
   NearbyPresenceParams,
   NeighborhoodInfo,
@@ -115,6 +117,14 @@ import type {
   VenueManagerSession,
   VenueManagerSignIn,
   VenueManagerToken,
+  VenueOutreachHistoryResponse,
+  VenueOutreachInput,
+  VenueOutreachPreviewInput,
+  VenueOwnerApplicationInput,
+  VenueOwnerApplicationResult,
+  VenueOwnerBranchesResponse,
+  VenueRegistrationLinkInput,
+  VenueRegistrationLinkResult,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -7126,6 +7136,174 @@ export function useGetMyVenueApplication<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Venue-owner management requests may include X-Met-Venue-Business-Id to select a branch. The server verifies that the authenticated Firebase account has an active membership for that business.
+
+ * @summary List approved venues and separately reviewed branch applications
+ */
+export const getGetMyVenueBranchesUrl = () => {
+  return `/api/venue-owner/me/branches`;
+};
+
+export const getMyVenueBranches = async (
+  options?: RequestInit,
+): Promise<VenueOwnerBranchesResponse> => {
+  return customFetch<VenueOwnerBranchesResponse>(getGetMyVenueBranchesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyVenueBranchesQueryKey = () => {
+  return [`/api/venue-owner/me/branches`] as const;
+};
+
+export const getGetMyVenueBranchesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyVenueBranches>>,
+  TError = ErrorType<Error>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyVenueBranches>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyVenueBranchesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMyVenueBranches>>
+  > = ({ signal }) => getMyVenueBranches({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyVenueBranches>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyVenueBranchesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyVenueBranches>>
+>;
+export type GetMyVenueBranchesQueryError = ErrorType<Error>;
+
+/**
+ * @summary List approved venues and separately reviewed branch applications
+ */
+
+export function useGetMyVenueBranches<
+  TData = Awaited<ReturnType<typeof getMyVenueBranches>>,
+  TError = ErrorType<Error>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyVenueBranches>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyVenueBranchesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * The applicant UID comes from the verified Firebase token, not the request body.
+ * @summary Submit an additional venue for separate review
+ */
+export const getSubmitVenueBranchApplicationUrl = () => {
+  return `/api/venue-owner/me/branch-applications`;
+};
+
+export const submitVenueBranchApplication = async (
+  nativeBranchApplicationInput: NativeBranchApplicationInput,
+  options?: RequestInit,
+): Promise<NativeBranchApplicationSubmitted> => {
+  return customFetch<NativeBranchApplicationSubmitted>(
+    getSubmitVenueBranchApplicationUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(nativeBranchApplicationInput),
+    },
+  );
+};
+
+export const getSubmitVenueBranchApplicationMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitVenueBranchApplication>>,
+    TError,
+    { data: BodyType<NativeBranchApplicationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitVenueBranchApplication>>,
+  TError,
+  { data: BodyType<NativeBranchApplicationInput> },
+  TContext
+> => {
+  const mutationKey = ["submitVenueBranchApplication"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitVenueBranchApplication>>,
+    { data: BodyType<NativeBranchApplicationInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return submitVenueBranchApplication(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitVenueBranchApplicationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitVenueBranchApplication>>
+>;
+export type SubmitVenueBranchApplicationMutationBody =
+  BodyType<NativeBranchApplicationInput>;
+export type SubmitVenueBranchApplicationMutationError = ErrorType<Error>;
+
+/**
+ * @summary Submit an additional venue for separate review
+ */
+export const useSubmitVenueBranchApplication = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitVenueBranchApplication>>,
+    TError,
+    { data: BodyType<NativeBranchApplicationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitVenueBranchApplication>>,
+  TError,
+  { data: BodyType<NativeBranchApplicationInput> },
+  TContext
+> => {
+  return useMutation(getSubmitVenueBranchApplicationMutationOptions(options));
+};
 
 /**
  * @summary Withdraw my submitted venue application

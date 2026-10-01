@@ -2320,6 +2320,196 @@ export const GetMyVenueApplicationResponse = zod.object({
 });
 
 /**
+ * Venue-owner management requests may include X-Met-Venue-Business-Id to select a branch. The server verifies that the authenticated Firebase account has an active membership for that business.
+
+ * @summary List approved venues and separately reviewed branch applications
+ */
+export const GetMyVenueBranchesResponse = zod.object({
+  branches: zod.array(
+    zod.object({
+      businessId: zod
+        .number()
+        .describe(
+          "0 identifies a legacy profile without a business membership row.",
+        ),
+      role: zod.enum(["owner", "manager"]),
+      profile: zod.object({
+        id: zod.number(),
+        ownerUid: zod.string(),
+        placeId: zod.string(),
+        placeName: zod.string(),
+        businessName: zod.string(),
+        lat: zod.string().nullish(),
+        lng: zod.string().nullish(),
+        tagline: zod.string().nullish(),
+        description: zod.string().nullish(),
+        verificationDocUrl: zod.string().url().nullish(),
+        registrationNotes: zod.string().nullish(),
+        contactEmail: zod.string().nullish(),
+        contactName: zod.string().nullish(),
+        applicationSource: zod
+          .string()
+          .nullish()
+          .describe("mobile | web | agent | admin | null for legacy rows"),
+        isApproved: zod.boolean(),
+        isVerified: zod.boolean(),
+        rejectionReason: zod.string().nullish(),
+        applicationStatus: zod.enum([
+          "draft",
+          "submitted",
+          "under_review",
+          "changes_requested",
+          "rejected",
+          "resubmitted",
+          "approved",
+          "withdrawn",
+          "expired",
+        ]),
+        status: zod
+          .enum([
+            "draft",
+            "submitted",
+            "under_review",
+            "changes_requested",
+            "rejected",
+            "resubmitted",
+            "approved",
+            "withdrawn",
+            "expired",
+          ])
+          .optional(),
+        statusLabel: zod.string().optional(),
+        submittedAt: zod.coerce.date().nullish(),
+        reviewedAt: zod.coerce.date().nullish(),
+        approvedAt: zod.coerce.date().nullish(),
+        rejectedAt: zod.coerce.date().nullish(),
+        withdrawnAt: zod.coerce.date().nullish(),
+        expiredAt: zod.coerce.date().nullish(),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      }),
+    }),
+  ),
+  applications: zod.array(
+    zod.object({
+      id: zod.number(),
+      ownerUid: zod.string(),
+      placeId: zod.string(),
+      placeName: zod.string(),
+      businessName: zod.string(),
+      lat: zod.string().nullish(),
+      lng: zod.string().nullish(),
+      tagline: zod.string().nullish(),
+      description: zod.string().nullish(),
+      verificationDocUrl: zod.string().url().nullish(),
+      registrationNotes: zod.string().nullish(),
+      contactEmail: zod.string().nullish(),
+      contactName: zod.string().nullish(),
+      applicationSource: zod
+        .string()
+        .nullish()
+        .describe("mobile | web | agent | admin | null for legacy rows"),
+      isApproved: zod.boolean(),
+      isVerified: zod.boolean(),
+      rejectionReason: zod.string().nullish(),
+      applicationStatus: zod.enum([
+        "draft",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "rejected",
+        "resubmitted",
+        "approved",
+        "withdrawn",
+        "expired",
+      ]),
+      status: zod
+        .enum([
+          "draft",
+          "submitted",
+          "under_review",
+          "changes_requested",
+          "rejected",
+          "resubmitted",
+          "approved",
+          "withdrawn",
+          "expired",
+        ])
+        .optional(),
+      statusLabel: zod.string().optional(),
+      submittedAt: zod.coerce.date().nullish(),
+      reviewedAt: zod.coerce.date().nullish(),
+      approvedAt: zod.coerce.date().nullish(),
+      rejectedAt: zod.coerce.date().nullish(),
+      withdrawnAt: zod.coerce.date().nullish(),
+      expiredAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * The applicant UID comes from the verified Firebase token, not the request body.
+ * @summary Submit an additional venue for separate review
+ */
+export const submitVenueBranchApplicationBodyPlaceIdMax = 255;
+
+export const submitVenueBranchApplicationBodyPlaceNameMax = 255;
+
+export const submitVenueBranchApplicationBodyBusinessNameMax = 255;
+
+export const submitVenueBranchApplicationBodyLatMin = -90;
+export const submitVenueBranchApplicationBodyLatMax = 90;
+
+export const submitVenueBranchApplicationBodyLngMin = -180;
+export const submitVenueBranchApplicationBodyLngMax = 180;
+
+export const submitVenueBranchApplicationBodyTaglineMax = 160;
+
+export const submitVenueBranchApplicationBodyDescriptionMax = 1000;
+
+export const submitVenueBranchApplicationBodyVerificationDocUrlMax = 2000;
+
+export const submitVenueBranchApplicationBodyRegistrationNotesMax = 500;
+
+export const SubmitVenueBranchApplicationBody = zod.object({
+  placeId: zod.string().min(1).max(submitVenueBranchApplicationBodyPlaceIdMax),
+  placeName: zod
+    .string()
+    .min(1)
+    .max(submitVenueBranchApplicationBodyPlaceNameMax),
+  businessName: zod
+    .string()
+    .min(1)
+    .max(submitVenueBranchApplicationBodyBusinessNameMax),
+  lat: zod
+    .number()
+    .min(submitVenueBranchApplicationBodyLatMin)
+    .max(submitVenueBranchApplicationBodyLatMax),
+  lng: zod
+    .number()
+    .min(submitVenueBranchApplicationBodyLngMin)
+    .max(submitVenueBranchApplicationBodyLngMax),
+  tagline: zod
+    .string()
+    .max(submitVenueBranchApplicationBodyTaglineMax)
+    .nullish(),
+  description: zod
+    .string()
+    .max(submitVenueBranchApplicationBodyDescriptionMax)
+    .nullish(),
+  verificationDocUrl: zod
+    .string()
+    .url()
+    .max(submitVenueBranchApplicationBodyVerificationDocUrlMax),
+  registrationNotes: zod
+    .string()
+    .max(submitVenueBranchApplicationBodyRegistrationNotesMax)
+    .nullish(),
+});
+
+/**
  * @summary Withdraw my submitted venue application
  */
 export const WithdrawMyVenueApplicationResponse = zod.object({

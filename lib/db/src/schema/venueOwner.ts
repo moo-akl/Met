@@ -81,6 +81,11 @@ export const venueOwnerProfilesTable = pgTable(
     contactEmail: text("contact_email"),
     /** Contact name supplied by web-portal applicants. */
     contactName: text("contact_name"),
+    /**
+     * Verified Firebase account that submitted a native additional-venue
+     * application. `ownerUid` stays unique and synthetic for each profile.
+     */
+    applicationApplicantUid: text("application_applicant_uid"),
     /** Publicly displayed phone number for the venue. */
     phone: text("phone"),
     /** Publicly displayed venue website URL. */
@@ -143,6 +148,7 @@ export const venueOwnerProfilesTable = pgTable(
     applicationStatusIdx: index("venue_owner_profiles_application_status_idx").on(
       t.applicationStatus,
     ),
+    applicantUidIdx: index("venue_owner_profiles_applicant_uid_idx").on(t.applicationApplicantUid),
     createdAtIdx: index("venue_owner_profiles_created_at_idx").on(t.createdAt),
   }),
 );

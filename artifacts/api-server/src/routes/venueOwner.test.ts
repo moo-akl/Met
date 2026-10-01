@@ -5,6 +5,8 @@ const dbMocks = vi.hoisted(() => {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
+    for: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue([]),
     insert: vi.fn().mockReturnThis(),
@@ -23,8 +25,12 @@ vi.mock("@workspace/db", () => ({
     id: "id",
     ownerUid: "ownerUid",
     placeId: "placeId",
+    placeName: "placeName",
+    businessName: "businessName",
+    applicationApplicantUid: "applicationApplicantUid",
     contactEmail: "contactEmail",
     applicationStatus: "applicationStatus",
+    createdAt: "createdAt",
     isApproved: "isApproved",
     isVerified: "isVerified",
     submittedAt: "submittedAt",
@@ -49,8 +55,18 @@ vi.mock("@workspace/db", () => ({
   hubCheckinsTable: {},
   profilesTable: {},
   venueAdminCredentialsTable: {},
-  venueBusinessesTable: {},
-  venueMembershipsTable: {},
+  venueBusinessesTable: {
+    id: "id",
+    venueOwnerProfileId: "venueOwnerProfileId",
+    placeId: "placeId",
+    isActive: "isActive",
+  },
+  venueMembershipsTable: {
+    businessId: "businessId",
+    uid: "uid",
+    role: "role",
+    status: "status",
+  },
   venueMembershipAuditTable: {},
 }));
 
@@ -115,6 +131,8 @@ beforeEach(() => {
   dbMocks.chain.select.mockReturnThis();
   dbMocks.chain.from.mockReturnThis();
   dbMocks.chain.where.mockReturnThis();
+  dbMocks.chain.innerJoin.mockReturnThis();
+  dbMocks.chain.for.mockReturnThis();
   dbMocks.chain.orderBy.mockReturnThis();
   dbMocks.chain.limit.mockResolvedValue([]);
   dbMocks.chain.insert.mockReturnThis();
@@ -909,5 +927,146 @@ describe("venue profile update — PUT /venue-owner/me", () => {
     expect(dbMocks.chain.set).toHaveBeenCalledWith(
       expect.objectContaining({ tagline: null, coverPhotoUrl: null }),
     );
+  });
+
+  it("allows profile updates when the selected business matches the active membership", async () => {
+    mockActiveProfileAccess({ businessName: "Selected branch" });
+
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .set("X-Met-Venue-Business-Id", "1")
+      .send(validProfilePatch);
+
+    expect(response.status).toBe(200);
+    expect(dbMocks.chain.update).toHaveBeenCalled();
+  });
+
+  it("blocks profile updates when the selected business differs from the active membership", async () => {
+    mockActiveProfileAccess();
+
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .set("X-Met-Venue-Business-Id", "2")
+      .send(validProfilePatch);
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed selected business ID before querying the database", async () => {
+    const response = await request(app)
+      .put("/api/venue-owner/me")
+      .set("X-Met-Venue-Business-Id", "1,2")
+      .send(validProfilePatch);
+
+    expect(response.status).toBe(400);
+    expect(dbMocks.chain.select).not.toHaveBeenCalled();
+  });
+});
+
+describe("native venue branches", () => {
+  const approvedProfile = {
+    ...submittedProfile,
+    id: 99,
+    ownerUid: "legacy-owner-profile-uid",
+    placeId: "approved-place",
+    placeName: "First Place",
+    businessName: "First Business",
+    isApproved: true,
+    applicationStatus: "approved",
+  };
+
+  it("returns active branches and the caller's separate applications", async () => {
+    const pendingApplication = {
+      ...submittedProfile,
+      id: 100,
+      ownerUid: "native:synthetic-id",
+      applicationApplicantUid: "venue-owner-uid",
+      placeId: "second-place",
+      placeName: "Second Place",
+      businessName: "Second Business",
+      applicationStatus: "under_review",
+    };
+    dbMocks.chain.orderBy
+      .mockResolvedValueOnce([
+        {
+          membership: { role: "owner" },
+          business: { id: 15 },
+          profile: approvedProfile,
+        },
+      ])
+      .mockResolvedValueOnce([pendingApplication]);
+    dbMocks.chain.limit.mockResolvedValueOnce([]);
+
+    const response = await request(app).get("/api/venue-owner/me/branches");
+
+    expect(response.status).toBe(200);
+    expect(response.body.branches).toHaveLength(1);
+    expect(response.body.branches[0]).toMatchObject({
+      businessId: 15,
+      role: "owner",
+      profile: { id: 99, applicationStatus: "approved" },
+    });
+    expect(response.body.applications).toHaveLength(1);
+    expect(response.body.applications[0]).toMatchObject({
+      id: 100,
+      applicationStatus: "under_review",
+    });
+  });
+
+  it("binds a new branch application to the authenticated UID, not a supplied UID", async () => {
+    dbMocks.chain.where.mockResolvedValueOnce([
+      { uid: "venue-owner-uid", status: "active", role: "owner", businessId: 15 },
+    ]);
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([
+        { id: 15, placeId: "approved-place", isActive: true, venueOwnerProfileId: 99 },
+      ])
+      .mockResolvedValueOnce([approvedProfile])
+      .mockResolvedValueOnce([]);
+    dbMocks.chain.values.mockReturnThis();
+    dbMocks.chain.returning.mockReset();
+    dbMocks.chain.returning.mockResolvedValueOnce([{ id: 120 }]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/branch-applications")
+      .send({
+        ...validApplication,
+        applicationApplicantUid: "attacker-controlled-uid",
+        ownerUid: "attacker-controlled-owner",
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toEqual({ applicationId: 120, status: "submitted" });
+    const applicationValues = dbMocks.chain.values.mock.calls[0]?.[0] as
+      | Record<string, unknown>
+      | undefined;
+    expect(applicationValues).toMatchObject({
+      applicationApplicantUid: "venue-owner-uid",
+      applicationSource: "mobile",
+      applicationStatus: "submitted",
+      isApproved: false,
+    });
+    expect(applicationValues?.ownerUid).toMatch(/^native:/);
+    expect(applicationValues?.ownerUid).not.toBe("venue-owner-uid");
+    const historyValues = dbMocks.chain.values.mock.calls[1]?.[0] as
+      | Record<string, unknown>
+      | undefined;
+    expect(historyValues).toMatchObject({
+      actorRole: "applicant",
+      actorUid: "venue-owner-uid",
+      eventType: "submitted",
+    });
+  });
+
+  it("requires an existing active venue membership before accepting a branch application", async () => {
+    dbMocks.chain.where.mockResolvedValueOnce([]);
+
+    const response = await request(app)
+      .post("/api/venue-owner/me/branch-applications")
+      .send(validApplication);
+
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
   });
 });

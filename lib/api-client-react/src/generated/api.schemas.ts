@@ -823,6 +823,83 @@ export interface VenueApplicationHistoryEntry {
   createdAt: string;
 }
 
+export type VenueOwnerBranchRole =
+  (typeof VenueOwnerBranchRole)[keyof typeof VenueOwnerBranchRole];
+
+export const VenueOwnerBranchRole = {
+  owner: "owner",
+  manager: "manager",
+} as const;
+
+export interface VenueOwnerBranch {
+  /** 0 identifies a legacy profile without a business membership row. */
+  businessId: number;
+  role: VenueOwnerBranchRole;
+  profile: VenueApplication;
+}
+
+export interface VenueOwnerBranchesResponse {
+  branches: VenueOwnerBranch[];
+  applications: VenueApplication[];
+}
+
+export interface NativeBranchApplicationInput {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  placeId: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  placeName: string;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  businessName: string;
+  /**
+   * @minimum -90
+   * @maximum 90
+   */
+  lat: number;
+  /**
+   * @minimum -180
+   * @maximum 180
+   */
+  lng: number;
+  /**
+   * @maxLength 160
+   * @nullable
+   */
+  tagline?: string | null;
+  /**
+   * @maxLength 1000
+   * @nullable
+   */
+  description?: string | null;
+  /** @maxLength 2000 */
+  verificationDocUrl: string;
+  /**
+   * @maxLength 500
+   * @nullable
+   */
+  registrationNotes?: string | null;
+}
+
+export type NativeBranchApplicationSubmittedStatus =
+  (typeof NativeBranchApplicationSubmittedStatus)[keyof typeof NativeBranchApplicationSubmittedStatus];
+
+export const NativeBranchApplicationSubmittedStatus = {
+  submitted: "submitted",
+} as const;
+
+export interface NativeBranchApplicationSubmitted {
+  applicationId: number;
+  status: NativeBranchApplicationSubmittedStatus;
+}
+
 export interface VenueApplicationStatusResponse {
   application: VenueApplication;
   history: VenueApplicationHistoryEntry[];

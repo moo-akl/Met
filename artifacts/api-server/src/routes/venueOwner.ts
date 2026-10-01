@@ -143,6 +143,10 @@ const venueApplicationInputSchema = z.object({
   contactEmail: z.string().trim().email().max(255).optional().nullable(),
 });
 
+const nativeBranchApplicationInputSchema = venueApplicationInputSchema.omit({
+  contactEmail: true,
+});
+
 type VenueApplicationInput = z.infer<typeof venueApplicationInputSchema>;
 
 const router: IRouter = Router();
@@ -389,6 +393,7 @@ const ACTIVE_VENUE_APPLICATION_STATUS = "approved";
 async function loadVenueAccess(
   uid: string,
   allowedRoles: readonly VenueAccess["role"][],
+  selectedBusinessId?: number,
 ): Promise<VenueAccess | null> {
   const memberships = await db
     .select()
@@ -401,6 +406,10 @@ async function loadVenueAccess(
     );
 
   for (const membership of memberships) {
+    if (selectedBusinessId === 0 || (
+      selectedBusinessId !== undefined &&
+      membership.businessId !== selectedBusinessId
+    )) continue;
     if (!allowedRoles.includes(membership.role)) continue;
     const [business] = await db
       .select()
@@ -432,6 +441,7 @@ async function loadVenueAccess(
 
   // Compatibility only. This must be removed once backfill reconciliation
   // reports no missing approved owner memberships.
+  if (selectedBusinessId !== undefined && selectedBusinessId !== 0) return null;
   if (!allowedRoles.includes("owner")) return null;
   const [profile] = await db
     .select()
@@ -461,7 +471,20 @@ async function requireVenueAccess(
   allowedRoles: readonly VenueAccess["role"][],
   message = "An active venue membership is required",
 ): Promise<VenueAccess | null> {
-  const access = await loadVenueAccess(req.uid!, allowedRoles);
+  const rawBusinessId = req.header("x-met-venue-business-id");
+  let selectedBusinessId: number | undefined;
+  if (rawBusinessId !== undefined) {
+    if (!/^(0|[1-9]\d{0,9})$/.test(rawBusinessId)) {
+      res.status(400).json({ message: "Invalid selected venue" });
+      return null;
+    }
+    selectedBusinessId = Number(rawBusinessId);
+    if (!Number.isSafeInteger(selectedBusinessId)) {
+      res.status(400).json({ message: "Invalid selected venue" });
+      return null;
+    }
+  }
+  const access = await loadVenueAccess(req.uid!, allowedRoles, selectedBusinessId);
   if (!access) {
     res.status(403).json({ message });
     return null;
@@ -525,6 +548,7 @@ async function ensureBusinessForApprovedProfile(
   profile: typeof venueOwnerProfilesTable.$inferSelect,
 ): Promise<void> {
   if (!profile.isApproved || profile.applicationStatus !== ACTIVE_VENUE_APPLICATION_STATUS) return;
+  const membershipUid = profile.applicationApplicantUid ?? profile.ownerUid;
   await db.transaction(async (tx) => {
     const [createdBusiness] = await tx
       .insert(venueBusinessesTable)
@@ -549,7 +573,7 @@ async function ensureBusinessForApprovedProfile(
       .insert(venueMembershipsTable)
       .values({
         businessId: business.id,
-        uid: profile.ownerUid,
+        uid: membershipUid,
         role: "owner",
         status: "active",
         acceptedAt: profile.approvedAt ?? new Date(),
@@ -561,7 +585,7 @@ async function ensureBusinessForApprovedProfile(
         businessId: business.id,
         membershipId: membership.id,
         eventType: "backfilled",
-        subjectUid: profile.ownerUid,
+        subjectUid: membershipUid,
         toRole: "owner",
         toStatus: "active",
         metadata: JSON.stringify({ source: "venue_application_approval" }),
@@ -1020,6 +1044,155 @@ router.get(
       application: { ...serializeApplicationProfile(profile), hasClaimedVenueManager },
       history,
     });
+  },
+);
+
+/**
+ * GET /venue-owner/me/branches
+ * Lists active businesses the Firebase account can manage and its separately
+ * reviewed native branch applications.
+ */
+router.get(
+  "/venue-owner/me/branches",
+  requireUid,
+  venueOwnerReadLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const uid = req.uid!;
+    const rows = await db
+      .select({
+        membership: venueMembershipsTable,
+        business: venueBusinessesTable,
+        profile: venueOwnerProfilesTable,
+      })
+      .from(venueMembershipsTable)
+      .innerJoin(
+        venueBusinessesTable,
+        eq(venueMembershipsTable.businessId, venueBusinessesTable.id),
+      )
+      .innerJoin(
+        venueOwnerProfilesTable,
+        eq(venueBusinessesTable.venueOwnerProfileId, venueOwnerProfilesTable.id),
+      )
+      .where(and(
+        eq(venueMembershipsTable.uid, uid),
+        eq(venueMembershipsTable.status, "active"),
+        inArray(venueMembershipsTable.role, ["owner", "manager"]),
+        eq(venueBusinessesTable.isActive, true),
+        eq(venueOwnerProfilesTable.isApproved, true),
+        eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
+      ))
+      .orderBy(venueOwnerProfilesTable.placeName);
+
+    const branches = rows.map((row) => ({
+      businessId: row.business.id,
+      role: row.membership.role,
+      profile: serializeApplicationProfile(row.profile),
+    }));
+
+    // Preserve access for approved legacy owners whose membership backfill
+    // has not completed. ID 0 is an explicit legacy selection, never a real ID.
+    const [legacyProfile] = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(and(
+        eq(venueOwnerProfilesTable.ownerUid, uid),
+        eq(venueOwnerProfilesTable.isApproved, true),
+        eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
+      ))
+      .limit(1);
+    if (legacyProfile && !branches.some((branch) => branch.profile.id === legacyProfile.id)) {
+      branches.unshift({
+        businessId: 0,
+        role: "owner" as const,
+        profile: serializeApplicationProfile(legacyProfile),
+      });
+    }
+
+    const applications = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(and(
+        eq(venueOwnerProfilesTable.applicationApplicantUid, uid),
+        ne(venueOwnerProfilesTable.applicationStatus, "approved"),
+      ))
+      .orderBy(desc(venueOwnerProfilesTable.createdAt));
+
+    res.json({
+      branches,
+      applications: applications.map(serializeApplicationProfile),
+    });
+  },
+);
+
+/**
+ * POST /venue-owner/me/branch-applications
+ * Creates an application tied to the verified Firebase account while keeping
+ * the profile's globally unique ownerUid synthetic.
+ */
+router.post(
+  "/venue-owner/me/branch-applications",
+  requireUid,
+  venueOwnerWriteLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const uid = req.uid!;
+    const access = await loadVenueAccess(uid, ["owner", "manager"]);
+    if (!access) {
+      res.status(403).json({ message: "An active venue membership is required to add another venue." });
+      return;
+    }
+
+    const parsed = nativeBranchApplicationInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input", errors: parsed.error.issues });
+      return;
+    }
+    const data = parsed.data;
+    const ownerUid = `native:${crypto.randomUUID()}`;
+    if (await placeIsClaimedByAnotherOwner(data.placeId, ownerUid)) {
+      res.status(409).json({ message: "This venue already has a pending or active application." });
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const [profile] = await db
+        .insert(venueOwnerProfilesTable)
+        .values({
+          ownerUid,
+          applicationApplicantUid: uid,
+          placeId: data.placeId,
+          placeName: data.placeName,
+          businessName: data.businessName,
+          lat: String(data.lat),
+          lng: String(data.lng),
+          tagline: data.tagline ?? null,
+          description: data.description ?? null,
+          verificationDocUrl: data.verificationDocUrl,
+          registrationNotes: data.registrationNotes ?? null,
+          applicationSource: "mobile",
+          applicationStatus: "submitted",
+          submittedAt: now,
+          isApproved: false,
+          isVerified: false,
+        })
+        .returning();
+      if (!profile) throw new Error("application_insert_failed");
+      await appendApplicationHistory({
+        venueOwnerProfileId: profile.id,
+        eventType: "submitted",
+        toStatus: "submitted",
+        actorRole: "applicant",
+        actorUid: uid,
+        applicantMessage: "Additional venue application submitted from Met.",
+      });
+      res.status(201).json({ applicationId: profile.id, status: "submitted" });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        res.status(409).json({ message: "This venue already has a pending or active application." });
+        return;
+      }
+      throw error;
+    }
   },
 );
 
@@ -2943,7 +3116,7 @@ async function notifyApplicant(
   payload: { title: string; body: string; type: string },
 ): Promise<void> {
   try {
-    await sendPush(profile.ownerUid, {
+    await sendPush(profile.applicationApplicantUid ?? profile.ownerUid, {
       title: payload.title,
       body: payload.body,
       data: { type: payload.type, placeId: profile.placeId },

@@ -7,7 +7,7 @@ Met is a proximity-based social networking application for discovering and conne
 - **Run Dev**: `npx expo start`
 - **Run API Server**: `pnpm --filter @workspace/api-server run start`
 - **Build API Codegen**: `pnpm --filter @workspace/api-spec run codegen`
-- **DB Push**: `pnpm --filter @workspace/api-server run db:push`
+- **DB Push**: `pnpm --filter @workspace/db run push-force`
 - **Verify Firebase Key Restrictions**: `pnpm --filter @workspace/scripts run check-firebase-keys`
 - **Apply Firebase Key Restrictions**: `tsx scripts/src/check-firebase-key-restrictions.ts --apply --sha1=<upload-SHA1> --sha1=<debug-SHA1>`
 - **Required Env Vars**:

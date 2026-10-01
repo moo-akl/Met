@@ -34,16 +34,19 @@ import {
 } from "@/lib/venueOwnerDraft";
 import { clearVenueOwnerIntent } from "@/lib/venueOwnerIntent";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+import { useT } from "@/lib/i18n";
 
 type Step = 1 | 2 | 3;
 
 export default function VenueOwnerSetupScreen() {
   const { authedUid } = useApp();
+  const { t } = useT();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { reapply } = useLocalSearchParams<{ reapply?: string }>();
+  const { reapply, branch } = useLocalSearchParams<{ reapply?: string; branch?: string }>();
   const isReapply = reapply === "true";
+  const isBranchApplication = branch === "true" || branch === "1";
   const {
     profile: existingApplication,
     isLoading: loadingApplication,
@@ -95,7 +98,9 @@ export default function VenueOwnerSetupScreen() {
         3: "Provide updated proof of ownership",
       }
     : {
-        1: "Search for your venue on Google, or enter its Place ID manually",
+        1: isBranchApplication
+          ? t("venueBranchApplySubtitle")
+          : "Search for your venue on Google, or enter its Place ID manually",
         2: "Tell us about your business",
         3: "Submit proof of ownership for review",
       };
@@ -154,7 +159,7 @@ export default function VenueOwnerSetupScreen() {
   }, [existingApplication, prefilled, reapplyEligible]);
 
   useEffect(() => {
-    if (!authedUid || isReapply) {
+    if (!authedUid || isReapply || isBranchApplication) {
       setDraftRestored(true);
       return;
     }
@@ -181,10 +186,10 @@ export default function VenueOwnerSetupScreen() {
     return () => {
       active = false;
     };
-  }, [authedUid, isReapply]);
+  }, [authedUid, isBranchApplication, isReapply]);
 
   useEffect(() => {
-    if (!authedUid || isReapply || !draftRestored || submitting) return;
+    if (!authedUid || isReapply || isBranchApplication || !draftRestored || submitting) return;
     const timer = setTimeout(() => {
       saveVenueOwnerDraft(authedUid, {
         step,
@@ -207,6 +212,7 @@ export default function VenueOwnerSetupScreen() {
     description,
     draftRestored,
     isReapply,
+    isBranchApplication,
     lat,
     lng,
     placeId,
@@ -313,13 +319,32 @@ export default function VenueOwnerSetupScreen() {
         // admin has an address to send the Venue Manager registration link to.
         contactEmail: auth().currentUser?.email ?? undefined,
       };
-      if (reapplyEligible) {
+      if (isBranchApplication) {
+        await api.submitVenueBranchApplication({ uid: authedUid }, {
+          placeId: body.placeId,
+          placeName: body.placeName,
+          businessName: body.businessName,
+          lat: body.lat === undefined ? undefined : Number(body.lat),
+          lng: body.lng === undefined ? undefined : Number(body.lng),
+          tagline: body.tagline,
+          description: body.description,
+          verificationDocUrl: body.verificationDocUrl ?? "",
+          registrationNotes: body.registrationNotes,
+        });
+      } else if (reapplyEligible) {
         await api.reapplyVenueOwner({ uid: authedUid }, body);
       } else {
-        await api.registerVenueOwner({ uid: authedUid }, body);
+        await api.registerVenueOwner(
+          { uid: authedUid },
+          {
+            ...body,
+            lat: body.lat === undefined ? undefined : Number(body.lat),
+            lng: body.lng === undefined ? undefined : Number(body.lng),
+          },
+        );
       }
-      await clearVenueOwnerDraft(authedUid);
-      router.replace("/venue-owner/pending");
+      if (!isBranchApplication) await clearVenueOwnerDraft(authedUid);
+      router.replace(isBranchApplication ? "/venue-owner/branches" : "/venue-owner/pending");
     } catch (err) {
       const msg =
         err instanceof ApiError
@@ -337,7 +362,7 @@ export default function VenueOwnerSetupScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <VenueOwnerHeader
-        title="Venue Owner Portal"
+        title={isBranchApplication ? t("venueBranchApplyTitle") : "Venue Owner Portal"}
         onBack={step > 1 ? () => setStep((s) => (s - 1) as Step) : undefined}
       />
       <View style={styles.stepIndicatorWrap}>

@@ -324,6 +324,375 @@ describe("admin session authorization", () => {
   });
 });
 
+describe("venue outreach history", () => {
+  it("returns tracked email details without exposing invitation tokens", async () => {
+    const createdAt = new Date("2026-09-30T10:00:00.000Z");
+    dbMocks.chain.orderBy
+      .mockResolvedValueOnce([
+        {
+          log: {
+            id: 12,
+            venueOwnerProfileId: null,
+            applicationInviteTokenId: null,
+            registrationTokenId: null,
+            businessName: "Corner Social",
+            recipientEmail: "owner@example.com",
+            template: "introduction",
+            kind: "new_venue_outreach",
+            deliveryStatus: "sent",
+            createdAt,
+            sentAt: createdAt,
+            supersededAt: null,
+          },
+          applicationInvite: null,
+          registrationToken: null,
+        },
+        {
+          log: {
+            id: 13,
+            venueOwnerProfileId: null,
+            applicationInviteTokenId: null,
+            registrationTokenId: null,
+            businessName: "Northside Cafe",
+            recipientEmail: "owner@northside.example",
+            template: "contact_request",
+            kind: "contact_request",
+            deliveryStatus: "sending",
+            createdAt: new Date(Date.now() - 10 * 60_000),
+            sentAt: null,
+            supersededAt: null,
+          },
+          applicationInvite: null,
+          registrationToken: null,
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const agent = await signedInAgent();
+    const response = await agent.get("/api/admin/venue-owner/outreach/history");
+
+    expect(response.status).toBe(200);
+    expect(response.body.emails).toEqual([expect.objectContaining({
+      id: "13",
+      deliveryStatus: "delivery_uncertain",
+    }), expect.objectContaining({
+      id: "12",
+      kind: "new_venue_outreach",
+      businessName: "Corner Social",
+      recipientEmail: "owner@example.com",
+      template: "introduction",
+      deliveryStatus: "sent",
+      linkStatus: "none",
+    })]);
+    expect(JSON.stringify(response.body)).not.toContain("tokenHash");
+  });
+});
+
+describe("admin-managed venue content boundaries", () => {
+  const adminVenue = (id: number) => ({
+    ...application({ id, applicationStatus: "approved", applicationSource: "admin" }),
+    isApproved: true,
+    ownerUid: `admin-managed:venue-${id}`,
+  });
+
+  it("only issues upload URLs for approved admin-managed venues and supported image types", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.limit.mockResolvedValueOnce([{ ...adminVenue(7), ownerUid: "invited-owner" }]);
+    expect((await agent.post("/api/admin/venue-owner/venues/7/images/upload").send({ contentType: "image/png" })).status).toBe(404);
+    expect(imageStorage.getObjectEntityUploadURL).not.toHaveBeenCalled();
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]);
+    expect((await agent.post("/api/admin/venue-owner/venues/7/images/upload").send({ contentType: "text/html" })).status).toBe(400);
+    expect(imageStorage.getObjectEntityUploadURL).not.toHaveBeenCalled();
+  });
+
+  it("confirms only images uploaded for the same venue and admin session", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]);
+    const prepared = await agent.post("/api/admin/venue-owner/venues/7/images/upload").send({ contentType: "image/jpeg" });
+    expect(prepared.status).toBe(200);
+    const { objectPath, confirmationToken } = prepared.body;
+    expect(imageStorage.getObjectEntityUploadURL).toHaveBeenCalledWith("image/jpeg");
+
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(8)]);
+    const otherVenue = await agent.post("/api/admin/venue-owner/venues/8/images/confirm").send({ objectPath, confirmationToken });
+    expect(otherVenue.status).toBe(400);
+    expect(imageStorage.getObjectEntityFile).not.toHaveBeenCalled();
+
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]);
+    const success = await agent.post("/api/admin/venue-owner/venues/7/images/confirm").send({ objectPath, confirmationToken });
+    expect(success.status).toBe(200);
+    expect(success.body).toEqual({ url: `/api/storage${objectPath}` });
+  });
+
+  it("rejects forged paths and files without image bytes", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]);
+    const prepared = await agent.post("/api/admin/venue-owner/venues/7/images/upload").send({ contentType: "image/png" });
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]);
+    expect((await agent.post("/api/admin/venue-owner/venues/7/images/confirm").send({
+      objectPath: "/objects/uploads/../../another", confirmationToken: prepared.body.confirmationToken,
+    })).status).toBe(400);
+    imageStorage.getObjectMagicBytes.mockResolvedValueOnce(Buffer.from("not-an-image"));
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]);
+    expect((await agent.post("/api/admin/venue-owner/venues/7/images/confirm").send({
+      objectPath: prepared.body.objectPath, confirmationToken: prepared.body.confirmationToken,
+    })).status).toBe(422);
+    expect(imageStorage.file.delete).toHaveBeenCalled();
+  });
+
+  it("accepts a real GIF upload for an admin-managed venue", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]);
+    const prepared = await agent.post("/api/admin/venue-owner/venues/7/images/upload").send({ contentType: "image/gif" });
+    expect(prepared.status).toBe(200);
+    imageStorage.getObjectMagicBytes.mockResolvedValueOnce(Buffer.from("GIF89a"));
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]);
+    const confirmed = await agent.post("/api/admin/venue-owner/venues/7/images/confirm").send({
+      objectPath: prepared.body.objectPath, confirmationToken: prepared.body.confirmationToken,
+    });
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body.url).toBe(`/api/storage${prepared.body.objectPath}`);
+    expect(imageStorage.file.delete).not.toHaveBeenCalled();
+  });
+
+  it.each(["events", "rewards", "announcements"])("does not expose %s of an invited-owner venue", async (kind) => {
+    const agent = await signedInAgent();
+    dbMocks.chain.insert.mockClear();
+    dbMocks.chain.limit.mockResolvedValueOnce([{
+      ...application({ applicationStatus: "approved", applicationSource: "admin" }),
+      isApproved: true,
+      ownerUid: "invited-owner",
+    }]);
+    const result = await agent.get(`/api/admin/venue-owner/venues/7/${kind}`);
+    expect(result.status).toBe(404);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("derives event ownership from the approved admin venue, not the submitted body", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.insert.mockClear();
+    dbMocks.chain.limit.mockResolvedValueOnce([{
+      ...application({ applicationStatus: "approved", applicationSource: "admin" }),
+      isApproved: true,
+      ownerUid: "admin-managed:venue-7",
+    }]);
+    dbMocks.chain.returning.mockResolvedValueOnce([{
+      id: 31, ownerUid: "admin-managed:venue-7", placeId: "google-place-1",
+      title: "Friday", startsAt: new Date("2026-11-01T18:00:00Z"), isPublished: false,
+    }]);
+    const result = await agent.post("/api/admin/venue-owner/venues/7/events").send({
+      title: "Friday", startsAt: "2026-11-01T18:00:00Z",
+      ownerUid: "someone-else", placeId: "someone-else",
+    });
+    expect(result.status).toBe(400); // server-owned fields are rejected
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+
+    dbMocks.chain.limit.mockResolvedValueOnce([{
+      ...application({ applicationStatus: "approved", applicationSource: "admin" }),
+      isApproved: true,
+      ownerUid: "admin-managed:venue-7",
+    }]);
+    const created = await agent.post("/api/admin/venue-owner/venues/7/events").send({
+      title: "Friday", startsAt: "2026-11-01T18:00:00Z",
+    });
+    expect(created.status).toBe(201);
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(expect.objectContaining({
+      ownerUid: "admin-managed:venue-7",
+      placeId: "google-place-1",
+      isPublished: false,
+    }));
+  });
+
+  const contentCases = [
+    { kind: "events", id: 31, body: { title: "Changed event" }, notFound: "Event not found." },
+    { kind: "rewards", id: 32, body: { title: "Changed reward" }, notFound: "Reward not found." },
+    { kind: "announcements", id: 33, body: { title: "Changed announcement", isPinned: true }, notFound: "Announcement not found." },
+  ] as const;
+
+  it.each([
+    { kind: "events", id: 31, body: { title: "Changed event" }, responseKey: "event" },
+    { kind: "rewards", id: 32, body: { title: "Changed reward" }, responseKey: "reward" },
+    { kind: "announcements", id: 33, body: { title: "Changed announcement" }, responseKey: "announcement" },
+  ] as const)("updates an in-venue $kind item", async ({ kind, id, body, responseKey }) => {
+    const agent = await signedInAgent();
+    const venue = adminVenue(7);
+    const table = dbMocks.contentTables[kind];
+    const existing = {
+      id, placeId: venue.placeId, ownerUid: venue.ownerUid,
+      startsAt: new Date("2026-11-01T18:00:00Z"), endsAt: null,
+      startDate: new Date("2026-10-01"), endDate: new Date("2026-10-31"),
+      status: "draft", winnerUid: null,
+    };
+    dbMocks.chain.limit.mockResolvedValueOnce([venue]).mockResolvedValueOnce([existing]);
+    dbMocks.chain.returning.mockResolvedValueOnce([{ ...existing, ...body }]);
+    eqSpy.mockClear();
+
+    const result = await agent.patch(`/api/admin/venue-owner/venues/7/${kind}/${id}`).send(body);
+
+    expect(result.status).toBe(200);
+    expect(result.body[responseKey]).toEqual(expect.objectContaining({ id, ...body, placeId: venue.placeId }));
+    expect(result.body[responseKey]).not.toHaveProperty("ownerUid");
+    if (kind === "rewards") expect(result.body.reward).not.toHaveProperty("winnerUid");
+    expect(dbMocks.chain.update).toHaveBeenCalledWith(table);
+    expect(dbMocks.chain.set).toHaveBeenCalledWith(expect.objectContaining(body));
+    expect(eqSpy).toHaveBeenCalledWith(table.id, id);
+    expect(eqSpy).toHaveBeenCalledWith(table.placeId, venue.placeId);
+    expect(eqSpy).toHaveBeenCalledWith(table.ownerUid, venue.ownerUid);
+    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { kind: "events", id: 31 },
+    { kind: "rewards", id: 32 },
+    { kind: "announcements", id: 33 },
+  ] as const)("removes an in-venue $kind item", async ({ kind, id }) => {
+    const agent = await signedInAgent();
+    const venue = adminVenue(7);
+    const table = dbMocks.contentTables[kind];
+    dbMocks.chain.limit.mockResolvedValueOnce([venue]);
+    dbMocks.chain.returning.mockResolvedValueOnce([{ id }]);
+    eqSpy.mockClear();
+
+    const result = await agent.delete(`/api/admin/venue-owner/venues/7/${kind}/${id}`);
+
+    expect(result.status).toBe(204);
+    expect(result.text).toBe("");
+    expect(eqSpy).toHaveBeenCalledWith(table.id, id);
+    expect(eqSpy).toHaveBeenCalledWith(table.placeId, venue.placeId);
+    expect(eqSpy).toHaveBeenCalledWith(table.ownerUid, venue.ownerUid);
+    if (kind === "rewards") {
+      expect(dbMocks.chain.update).toHaveBeenCalledWith(table);
+      expect(dbMocks.chain.set).toHaveBeenCalledWith(expect.objectContaining({ status: "cancelled" }));
+      expect(neSpy).toHaveBeenCalledWith(dbMocks.contentTables.rewards.status, "completed");
+      expect(isNullSpy).toHaveBeenCalledWith(dbMocks.contentTables.rewards.winnerUid);
+      expect(dbMocks.chain.delete).not.toHaveBeenCalled();
+    } else {
+      expect(dbMocks.chain.delete).toHaveBeenCalledWith(table);
+      expect(dbMocks.chain.update).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each(contentCases.flatMap((entry) => (["placeId", "ownerUid"] as const).flatMap((foreignField) =>
+    (["patch", "delete"] as const).map((method) => ({ ...entry, foreignField, method })),
+  )))("rejects $method of $kind whose $foreignField belongs to another venue", async ({ kind, id, body, notFound, foreignField, method }) => {
+    const agent = await signedInAgent();
+    const table = dbMocks.contentTables[kind];
+    const venue = adminVenue(7);
+    const foreignItem = {
+      id, placeId: venue.placeId, ownerUid: venue.ownerUid,
+      [foreignField]: foreignField === "placeId" ? "other-place" : "other-owner",
+    };
+    let scopeMatches = false;
+    let predicateCursor = 0;
+    dbMocks.chain.where.mockImplementation(() => {
+      const predicates = eqSpy.mock.calls.slice(predicateCursor);
+      predicateCursor = eqSpy.mock.calls.length;
+      scopeMatches = ([
+        [table.id, foreignItem.id],
+        [table.placeId, foreignItem.placeId],
+        [table.ownerUid, foreignItem.ownerUid],
+      ] as Array<[string, string | number]>).every(([column, expected]) =>
+        !predicates.some(([actualColumn, value]) => actualColumn === column && value !== expected));
+      return dbMocks.chain;
+    });
+    dbMocks.chain.limit.mockResolvedValueOnce([venue]); // The requested venue is valid.
+    if (method === "patch") {
+      dbMocks.chain.limit.mockImplementation(async () => scopeMatches ? [foreignItem] : []);
+    } else {
+      dbMocks.chain.returning.mockImplementation(async () => scopeMatches ? [{ id }] : []);
+    }
+    eqSpy.mockClear();
+    const path = `/api/admin/venue-owner/venues/7/${kind}/${id}`;
+    const result = method === "patch"
+      ? await agent.patch(path).send(body)
+      : await agent.delete(path);
+    expect(result.status).toBe(404);
+    expect(result.body.message).toBe(method === "delete" && kind === "rewards"
+      ? "Reward not found or already completed."
+      : notFound);
+    expect(eqSpy).toHaveBeenCalledWith(table.id, id);
+    expect(eqSpy).toHaveBeenCalledWith(table.placeId, venue.placeId);
+    expect(eqSpy).toHaveBeenCalledWith(table.ownerUid, venue.ownerUid);
+    if (method === "patch") {
+      expect(dbMocks.chain.set).not.toHaveBeenCalled();
+      expect(dbMocks.chain.update).not.toHaveBeenCalled();
+    } else if (kind === "rewards") {
+      expect(dbMocks.chain.set).toHaveBeenCalledWith(expect.objectContaining({ status: "cancelled" }));
+      expect(dbMocks.chain.returning).toHaveBeenCalled();
+    } else {
+      expect(dbMocks.chain.set).not.toHaveBeenCalled();
+      expect(dbMocks.chain.delete).toHaveBeenCalledWith(table);
+    }
+  });
+
+  it("does not edit or cancel completed rewards or rewards with a winner", async () => {
+    const agent = await signedInAgent();
+    for (const reward of [
+      { status: "completed", winnerUid: null },
+      { status: "active", winnerUid: "winner-uid" },
+    ]) {
+      dbMocks.chain.update.mockClear();
+      dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]).mockResolvedValueOnce([{
+        id: 32, placeId: "google-place-1", ownerUid: "admin-managed:venue-7",
+        startDate: new Date("2026-10-01"), endDate: new Date("2026-10-31"), ...reward,
+      }]);
+      const result = await agent.patch("/api/admin/venue-owner/venues/7/rewards/32").send({ status: "cancelled" });
+      expect(result.status).toBe(409);
+      expect(dbMocks.chain.update).not.toHaveBeenCalled();
+
+      // Simulate an existing reward: the conditional UPDATE must exclude
+      // completed rows as well as rows that already have a winner.
+      dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]);
+      neSpy.mockClear();
+      isNullSpy.mockClear();
+      dbMocks.chain.returning.mockImplementationOnce(async () =>
+        neSpy.mock.calls.some(([column, value]) => column === dbMocks.contentTables.rewards.status && value === "completed") &&
+        isNullSpy.mock.calls.some(([column]) => column === dbMocks.contentTables.rewards.winnerUid)
+          ? [] : [{ id: 32 }]);
+      const cancelled = await agent.delete("/api/admin/venue-owner/venues/7/rewards/32");
+      expect(cancelled.status).toBe(404);
+      expect(dbMocks.chain.set).toHaveBeenCalledWith(expect.objectContaining({ status: "cancelled" }));
+      expect(neSpy).toHaveBeenCalledWith(dbMocks.contentTables.rewards.status, "completed");
+      expect(isNullSpy).toHaveBeenCalledWith(dbMocks.contentTables.rewards.winnerUid);
+    }
+    expect(eqSpy).toHaveBeenCalledWith(dbMocks.contentTables.rewards.placeId, "google-place-1");
+    expect(eqSpy).toHaveBeenCalledWith(dbMocks.contentTables.rewards.ownerUid, "admin-managed:venue-7");
+    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
+  });
+
+  it("unpins only other announcements of the same venue before pinning the selected one", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.limit.mockResolvedValueOnce([adminVenue(7)]).mockResolvedValueOnce([{ id: 33 }]);
+    dbMocks.chain.returning.mockResolvedValueOnce([{
+      id: 33, placeId: "google-place-1", ownerUid: "admin-managed:venue-7", isPinned: true,
+    }]);
+    eqSpy.mockClear();
+    const predicatesByWhere: Array<Array<[unknown, unknown]>> = [];
+    let cursor = 0;
+    dbMocks.chain.where.mockImplementation(() => {
+      predicatesByWhere.push(eqSpy.mock.calls.slice(cursor).map(([column, value]) => [column, value]));
+      cursor = eqSpy.mock.calls.length;
+      return dbMocks.chain;
+    });
+    const result = await agent.patch("/api/admin/venue-owner/venues/7/announcements/33").send({ isPinned: true });
+    expect(result.status).toBe(200);
+    expect(dbMocks.chain.set).toHaveBeenNthCalledWith(1, expect.objectContaining({ isPinned: false }));
+    expect(dbMocks.chain.set).toHaveBeenNthCalledWith(2, expect.objectContaining({ isPinned: true }));
+    // Venue load, existence check, unpin, then target update.
+    expect(predicatesByWhere).toHaveLength(4);
+    for (const predicates of predicatesByWhere.slice(1, 3)) {
+      expect(predicates).toContainEqual([dbMocks.contentTables.announcements.placeId, "google-place-1"]);
+      expect(predicates).toContainEqual([dbMocks.contentTables.announcements.ownerUid, "admin-managed:venue-7"]);
+    }
+    expect(predicatesByWhere[1]).toContainEqual([dbMocks.contentTables.announcements.id, 33]);
+    // The final UPDATE reuses the scoped predicate from the existence check.
+    expect(dbMocks.chain.where.mock.calls[3]?.[0]).toBe(dbMocks.chain.where.mock.calls[1]?.[0]);
+    expect(neSpy).toHaveBeenCalledWith(dbMocks.contentTables.announcements.id, 33);
+    expect(dbMocks.chain.update).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("password lifecycle", () => {
   it("rejects weak passwords during setup", async () => {
     const res = await request(app).post("/api/admin/venue-owner/setup").send({

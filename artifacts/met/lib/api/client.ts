@@ -34,6 +34,17 @@ function resolveBaseUrl(): string {
 
 const BASE_URL = resolveBaseUrl();
 
+let activeVenueBusinessId: number | null = null;
+
+/** Sets the branch context for venue-owner API requests; the server validates membership. */
+export function setActiveVenueBusinessId(businessId: number | null): void {
+  activeVenueBusinessId = businessId;
+}
+
+export function getActiveVenueBusinessId(): number | null {
+  return activeVenueBusinessId;
+}
+
 // Cache the auth-module dynamic import. We never import it statically
 // because on web / Expo Go the native bridge isn't linked and the
 // import would crash the bundle.
@@ -96,6 +107,17 @@ export interface ApiOptions {
    */
   uid: string;
   signal?: AbortSignal;
+}
+
+export interface VenueOwnerBranch {
+  businessId: number;
+  role: "owner" | "manager";
+  profile: VenueOwnerProfile;
+}
+
+export interface VenueOwnerBranchesResponse {
+  branches: VenueOwnerBranch[];
+  applications: VenueOwnerProfile[];
 }
 
 // ---------------------------------------------------------------------------
@@ -324,6 +346,9 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${idToken}`;
   } else {
     headers["X-Met-Uid"] = opts.uid;
+  }
+  if (activeVenueBusinessId !== null) {
+    headers["X-Met-Venue-Business-Id"] = String(activeVenueBusinessId);
   }
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
@@ -1154,8 +1179,8 @@ export const api = {
       placeId: string;
       placeName: string;
       businessName: string;
-      lat?: string;
-      lng?: string;
+      lat?: number;
+      lng?: number;
       tagline?: string;
       description?: string;
       verificationDocUrl?: string;
@@ -1179,6 +1204,36 @@ export const api = {
       "GET",
       "/api/venue-owner/me/application",
       opts,
+    ),
+
+  /** Lists approved branches and this Firebase account's pending branch applications. */
+  getMyVenueBranches: (opts: ApiOptions) =>
+    request<VenueOwnerBranchesResponse>(
+      "GET",
+      "/api/venue-owner/me/branches",
+      opts,
+    ),
+
+  /** Submits an additional venue for separate admin review. */
+  submitVenueBranchApplication: (
+    opts: ApiOptions,
+    body: {
+      placeId: string;
+      placeName: string;
+      businessName: string;
+      lat?: number;
+      lng?: number;
+      tagline?: string;
+      description?: string;
+      verificationDocUrl: string;
+      registrationNotes?: string;
+    },
+  ) =>
+    request<{ applicationId: number; status: VenueApplicationStatus }>(
+      "POST",
+      "/api/venue-owner/me/branch-applications",
+      opts,
+      body,
     ),
 
   /**
