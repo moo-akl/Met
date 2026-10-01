@@ -109,6 +109,37 @@ beforeEach(() => {
 });
 
 describe("useVisibility", () => {
+  it.each(["unavailable", "rejected"])(
+    "can opt in through the server when phone-side Firestore suppression is %s",
+    async (failure) => {
+      if (failure === "unavailable") {
+        (suppressFirestorePresence as jest.Mock).mockResolvedValue(false);
+      } else {
+        (suppressFirestorePresence as jest.Mock).mockRejectedValue(
+          new Error("Firestore permission denied"),
+        );
+      }
+      const renderer = await renderConsumer();
+      await act(async () => {
+        await capturedToggle?.();
+      });
+      expect(api.upsertMyProfile).toHaveBeenCalledWith(
+        { uid: "firebase-user" },
+        expect.objectContaining({
+          isVisible: true,
+          expectedVisibilityVersion: "version-1",
+        }),
+      );
+      expect(setProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ isVisible: true }),
+      );
+      expect(suppressFirestorePresence).not.toHaveBeenCalled();
+      await act(async () => {
+        renderer.unmount();
+      });
+    },
+  );
+
   it("keeps the local user hidden when the remote hide request fails", async () => {
     (api.upsertMyProfile as jest.Mock).mockRejectedValue(
       new Error("network unavailable"),

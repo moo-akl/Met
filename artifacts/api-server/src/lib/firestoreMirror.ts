@@ -19,6 +19,8 @@ import { logger } from "./logger";
 export type ProfileMirrorFields = {
   uid: string;
   isVisible: boolean;
+  /** Explicit opt-ins require a fresh location, unlike ordinary profile sync. */
+  clearPresence?: boolean;
 };
 
 /**
@@ -43,6 +45,13 @@ export async function mirrorProfileToFirestore(
         socials: FieldValue.delete(),
         interests: FieldValue.delete(),
         pushToken: FieldValue.delete(),
+        ...(fields.clearPresence
+          ? {
+              location: FieldValue.delete(),
+              geohash: FieldValue.delete(),
+              lastActive: FieldValue.delete(),
+            }
+          : {}),
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },

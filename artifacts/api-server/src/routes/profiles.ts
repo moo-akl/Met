@@ -255,6 +255,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
       const mirror = await mirrorProfileToFirestore({
         uid,
         isVisible: true,
+        ...(body.isVisible === true ? { clearPresence: true } : {}),
       });
       if (mirror.ok) return { status: 200 as const, row: committed.row };
 

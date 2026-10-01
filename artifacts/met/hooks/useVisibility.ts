@@ -123,13 +123,9 @@ export function useVisibility() {
         ) {
           throw new Error("Server profile is missing visibilityVersion");
         }
-        // Remove any stale geohash before either server mirror can expose
-        // the user's document again. The visible presence loop publishes a
-        // fresh fix only after the accepted opt-in updates local state.
-        const wasSuppressed = await suppressFirestorePresence(uid);
-        if (!wasSuppressed) {
-          throw new Error("Could not confirm Firestore presence suppression");
-        }
+        // The server atomically clears stale location while acknowledging
+        // this explicit opt-in. A phone-side Firestore write must not gate
+        // the authoritative update (native SDK/rules/connectivity may differ).
         const acknowledged = await api.upsertMyProfile(
           { uid },
           {

@@ -105,6 +105,35 @@ beforeEach(() => {
 });
 
 describe("mirrorProfileToFirestore", () => {
+  it("atomically clears stale location when publishing an explicit visible opt-in", async () => {
+    expect(await mirrorProfileToFirestore({
+      uid: "alice",
+      isVisible: true,
+      clearPresence: true,
+    })).toEqual({ ok: true });
+    const rootRef = createdRefs.find((entry) => entry.path === "users/alice")
+      ?.ref as { set: ReturnType<typeof vi.fn> };
+    expect(rootRef.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isVisible: true,
+        location: "__deleted__",
+        geohash: "__deleted__",
+        lastActive: "__deleted__",
+      }),
+      { merge: true },
+    );
+  });
+
+  it("preserves live presence during an ordinary visible profile sync", async () => {
+    await mirrorProfileToFirestore({ uid: "alice", isVisible: true });
+    const rootRef = createdRefs.find((entry) => entry.path === "users/alice")
+      ?.ref as { set: ReturnType<typeof vi.fn> };
+    const written = rootRef.set.mock.calls[0]![0];
+    expect(written).not.toHaveProperty("location");
+    expect(written).not.toHaveProperty("geohash");
+    expect(written).not.toHaveProperty("lastActive");
+  });
+
   it("keeps profile details and BLE hashes out of broadly readable user documents", async () => {
     await mirrorProfileToFirestore({
       uid: "alice",

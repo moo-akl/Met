@@ -486,6 +486,7 @@ describe("PUT /api/profiles/me", () => {
     expect(mirrorProfileToFirestore).toHaveBeenCalledWith({
       uid: "alice",
       isVisible: true,
+      clearPresence: true,
     });
     expect(hideProfileFromFirestore).not.toHaveBeenCalled();
   });
@@ -519,6 +520,7 @@ describe("PUT /api/profiles/me", () => {
     expect(mirrorProfileToFirestore).toHaveBeenNthCalledWith(1, {
       uid: "alice",
       isVisible: true,
+      clearPresence: true,
     });
     expect(mirrorProfileToFirestore).toHaveBeenNthCalledWith(2, {
       uid: "alice",
