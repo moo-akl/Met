@@ -10,6 +10,7 @@ const STAGE_MARKERS = new Map([
   ["RUN_EXPO_DOCTOR", "Build stage: checking project configuration."],
   ["INSTALL_PODS", "Build stage: installing iOS dependencies."],
   ["INSTALL_COCOAPODS", "Build stage: installing iOS dependencies."],
+  ["RUN_GRADLEW", "Build stage: compiling the Android app."],
   ["BUNDLE_JS", "Build stage: bundling JavaScript."],
   ["EXPO_EXPORT", "Build stage: exporting the app."],
   ["XCODE_BUILD", "Build stage: compiling the iOS app."],
@@ -45,11 +46,6 @@ function sanitizeLine(line) {
     return null;
   }
 
-  const marker = line.match(/^\s*\[([A-Z0-9_]+)\]/);
-  if (marker && STAGE_MARKERS.has(marker[1])) {
-    return STAGE_MARKERS.get(marker[1]);
-  }
-
   if (/^\s*[✔✓]\s*(?:build setup complete|build completed|build successful)\b/i.test(line)) {
     return "Build stage: build process completed.";
   }
@@ -70,13 +66,14 @@ function sanitizeLine(line) {
 
   const nativeError =
     /^\s*error:\s*/i.test(line) ||
-    /:\d+:\d+:\s*error:\s*/i.test(line);
+    /:\d+:\d+:\s*error:\s*/i.test(line) ||
+    /^\s*(?:\[[A-Z0-9_]+\]\s*)?e:\s*(?:file:\/\/|\/)/i.test(line);
   if (nativeError) {
     const diagnostic = line.replace(/^.*?\berror:\s*/i, "");
     if (/no such module/i.test(diagnostic)) {
       return "Native compile error: missing module dependency.";
     }
-    if (/cannot find .* in scope|use of unresolved identifier/i.test(diagnostic)) {
+    if (/cannot find .* in scope|use of unresolved identifier|unresolved reference/i.test(diagnostic)) {
       return "Native compile error: unresolved symbol.";
     }
     if (/does not conform to protocol/i.test(diagnostic)) {
@@ -89,6 +86,11 @@ function sanitizeLine(line) {
       return "Native compile error: missing build input.";
     }
     return "Native compile error.";
+  }
+
+  const marker = line.match(/^\s*\[([A-Z0-9_]+)\]/);
+  if (marker && STAGE_MARKERS.has(marker[1])) {
+    return STAGE_MARKERS.get(marker[1]);
   }
 
   return null;

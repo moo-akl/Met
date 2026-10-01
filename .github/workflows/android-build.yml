@@ -86,6 +86,13 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check application types before signing
+        run: pnpm run typecheck:libs && pnpm --filter @workspace/met run typecheck
+
+      - name: Check native build integrity and safe logging
+        working-directory: artifacts/met
+        run: node --test scripts/native-build-integrity.test.cjs scripts/sanitize-ios-build-log.test.cjs
+
       - name: Install EAS CLI
         run: npm install -g eas-cli@18.9.1
 
@@ -123,12 +130,13 @@ jobs:
       - name: Build .${{ steps.profile.outputs.ext }} locally (no EAS credits)
         working-directory: artifacts/met
         run: |
+          set -o pipefail
           eas build \
             --platform android \
             --profile "${{ steps.profile.outputs.name }}" \
             --local \
             --output "$(pwd)/met-android.${{ steps.profile.outputs.ext }}" \
-            --non-interactive
+            --non-interactive 2>&1 | node scripts/sanitize-ios-build-log.cjs
 
       - name: Verify output
         run: |

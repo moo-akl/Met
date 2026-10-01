@@ -48,3 +48,18 @@ test("suppresses private keys, encoded credentials, environment output, JSON, an
     assert.equal(sanitizeLine(line), null, "credential-like input must be suppressed");
   }
 });
+
+test("reports Android stages and compiler failures without paths or symbol details", () => {
+  assert.equal(
+    sanitizeLine("[RUN_GRADLEW] Running Gradle with private-job-details"),
+    "Build stage: compiling the Android app.",
+  );
+  assert.equal(
+    sanitizeLine("e: file:///private/MetBleModule.kt:42:9 Unresolved reference 'privateSymbol'"),
+    "Native compile error: unresolved symbol.",
+  );
+  assert.equal(
+    sanitizeLine("[RUN_GRADLEW] e: file:///private/MetBleModule.kt:42:9 Unresolved reference 'privateSymbol'"),
+    "Native compile error: unresolved symbol.",
+  );
+});
