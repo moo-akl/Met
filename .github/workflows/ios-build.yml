@@ -24,12 +24,31 @@ on:
         default: "preview:device"
         type: choice
         options:
-          - preview:device
           - preview
+          - preview:device
           - production
-          - development
       submit:
         description: "Auto-upload to TestFlight after build (production profile only)"
+        required: false
+        default: false
+        type: boolean
+      signing_profile_action:
+        description: "Signing profile: none, read-only inspection/diagnostics, or targeted Ad Hoc replacement"
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - inspect
+          - diagnose
+          - repair
+      confirm_signing_repair:
+        description: "Approve a replacement Ad Hoc profile, preserving certificate and devices"
+        required: false
+        default: false
+        type: boolean
+      reuse_repair_profile:
+        description: "Reuse one fresh, fully validated profile from a previous repair attempt"
         required: false
         default: false
         type: boolean
@@ -38,7 +57,7 @@ on:
       - "ios-build-*"
 
 concurrency:
-  group: ios-build-${{ github.ref }}
+  group: met-ios-signing-app-met-founders
   cancel-in-progress: false
 
 jobs:
@@ -57,6 +76,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Require explicit signing repair approval
+        if: ${{ github.event.inputs.signing_profile_action == 'repair' }}
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CONFIRMED: ${{ github.event.inputs.confirm_signing_repair }}
+        run: |
+          if [ "$EVENT_NAME" != "workflow_dispatch" ] || [ "$CONFIRMED" != "true" ]; then
+            echo "::error::Signing repair requires explicit manual confirmation."
+            exit 1
+          fi
+
+      - name: Validate profile reuse input
+        if: ${{ github.event.inputs.reuse_repair_profile == 'true' }}
+        env:
+          SIGNING_ACTION: ${{ github.event.inputs.signing_profile_action }}
+        run: |
+          if [ "$SIGNING_ACTION" != "repair" ]; then
+            echo "::error::Profile reuse requires the explicitly approved repair action."
+            exit 1
+          fi
 
       - name: Select latest Xcode with installed iOS SDK
         run: |
@@ -90,6 +130,7 @@ jobs:
           ruby --version
           which pod || gem install cocoapods --no-document
           pod --version
+          python3 --version
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -105,10 +146,19 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check application types before signing
+        run: pnpm run typecheck:libs && pnpm --filter @workspace/met run typecheck
+
+      - name: Check iOS build integrity
+        working-directory: artifacts/met
+        run: node --test scripts/native-build-integrity.test.cjs scripts/sanitize-ios-build-log.test.cjs scripts/repair-ios-signing-profile.test.cjs scripts/metro-expo-observer-adapter.test.cjs scripts/ios-profile-plist.test.cjs scripts/ios-profile-cms.test.cjs
+
       - name: Install EAS CLI
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         run: npm install -g eas-cli@18.9.1
 
       - name: Restore App Store Connect API key
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' }}
         run: |
           mkdir -p artifacts/met/.secrets
           KEY_PATH="$(pwd)/artifacts/met/.secrets/AuthKey_${EXPO_ASC_KEY_ID}.p8"
@@ -122,41 +172,82 @@ jobs:
         run: |
           PROFILE="${{ github.event.inputs.profile }}"
           if [ -z "$PROFILE" ]; then PROFILE="preview:device"; fi
+          case "$PROFILE" in
+            preview)
+              OUTPUT="met-ios-simulator.tar.gz"
+              ;;
+            preview:device|production)
+              OUTPUT="met-ios.ipa"
+              ;;
+            *)
+              echo "::error::Unsupported iOS build profile."
+              exit 1
+              ;;
+          esac
           echo "name=${PROFILE}" >> "$GITHUB_OUTPUT"
+          echo "output=${OUTPUT}" >> "$GITHUB_OUTPUT"
           echo "Selected EAS profile: ${PROFILE}"
 
-      - name: Build .ipa locally (no EAS credits)
+      - name: Inspect or repair Ad Hoc signing profile
+        if: ${{ github.event.inputs.signing_profile_action == 'inspect' || github.event.inputs.signing_profile_action == 'diagnose' || github.event.inputs.signing_profile_action == 'repair' }}
+        working-directory: artifacts/met
+        env:
+          SIGNING_ACTION: ${{ github.event.inputs.signing_profile_action }}
+          BUILD_PROFILE: ${{ steps.profile.outputs.name }}
+          REUSE_REPAIR_PROFILE: ${{ github.event.inputs.reuse_repair_profile }}
+        run: |
+          if [ "$SIGNING_ACTION" = "repair" ]; then
+            if [ "$BUILD_PROFILE" != "preview:device" ]; then
+              echo "::error::Ad Hoc repair requires the preview:device profile."
+              exit 1
+            fi
+            ARGS=(--apply)
+            if [ "$REUSE_REPAIR_PROFILE" = "true" ]; then
+              ARGS+=(--reuse-repair-profile)
+            fi
+            node scripts/repair-ios-signing-profile.cjs "${ARGS[@]}"
+          elif [ "$SIGNING_ACTION" = "diagnose" ]; then
+            node scripts/repair-ios-signing-profile.cjs --diagnose
+          else
+            node scripts/repair-ios-signing-profile.cjs
+          fi
+
+      - name: Build iOS locally (no EAS credits)
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         working-directory: artifacts/met
         run: |
+          set -o pipefail
           eas build \
             --platform ios \
             --profile "${{ steps.profile.outputs.name }}" \
             --local \
-            --output "$(pwd)/met-ios.ipa" \
-            --non-interactive
+            --output "$(pwd)/${{ steps.profile.outputs.output }}" \
+            --non-interactive 2>&1 | node scripts/sanitize-ios-build-log.cjs
 
       - name: Verify output
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         run: |
-          ls -lh artifacts/met/met-ios.ipa
-          file artifacts/met/met-ios.ipa
+          ls -lh "artifacts/met/${{ steps.profile.outputs.output }}"
+          file "artifacts/met/${{ steps.profile.outputs.output }}"
 
-      - name: Upload .ipa artifact
+      - name: Upload iOS build artifact
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' }}
         uses: actions/upload-artifact@v4
         with:
           name: met-ios-build-${{ github.run_number }}
-          path: artifacts/met/met-ios.ipa
+          path: artifacts/met/${{ steps.profile.outputs.output }}
           retention-days: 30
           if-no-files-found: error
 
       - name: Submit to TestFlight
-        if: ${{ github.event.inputs.submit == 'true' && steps.profile.outputs.name == 'production' }}
+        if: ${{ github.event.inputs.signing_profile_action != 'inspect' && github.event.inputs.signing_profile_action != 'diagnose' && github.event.inputs.submit == 'true' && steps.profile.outputs.name == 'production' }}
         working-directory: artifacts/met
         run: |
           echo "Uploading met-ios.ipa to App Store Connect (TestFlight)..."
           eas submit \
             --platform ios \
             --profile production \
-            --path "$(pwd)/met-ios.ipa" \
+            --path "$(pwd)/${{ steps.profile.outputs.output }}" \
             --non-interactive
           echo "✅ Upload complete. Build will appear in App Store Connect → TestFlight → iOS Builds within ~5–10 minutes (status: Processing → Ready to Test)."
 
@@ -164,3 +255,7 @@ jobs:
         if: ${{ github.event.inputs.submit == 'true' && steps.profile.outputs.name != 'production' }}
         run: |
           echo "::warning::Submit was requested but profile is '${{ steps.profile.outputs.name }}', not 'production'. TestFlight only accepts App Store-signed builds. Re-run with profile=production to auto-submit."
+
+      - name: Remove temporary signing key
+        if: ${{ always() }}
+        run: rm -f artifacts/met/.secrets/AuthKey_*.p8

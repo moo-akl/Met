@@ -50,6 +50,7 @@ import type {
   NetworkListEntry,
   NetworkMemberWithProfile,
   PresenceRecord,
+  PreviewNewVenueOutreach200,
   Profile,
   RecordEncounter,
   RecordEncounterResult,
@@ -79,6 +80,8 @@ import type {
   VenueApplicationChangeRequest,
   VenueApplicationConflict,
   VenueApplicationDecision,
+  VenueApplicationInviteValidationInput,
+  VenueApplicationInviteValidationResult,
   VenueApplicationNote,
   VenueApplicationNoteOnly,
   VenueApplicationQueue,
@@ -88,6 +91,8 @@ import type {
   VenueApplicationStatusMutationResponse,
   VenueApplicationStatusResponse,
   VenueApplicationWithdrawal,
+  VenueContactRequestInput,
+  VenueContactRequestResult,
   VenueManagerAnnouncementInput,
   VenueManagerAnnouncementList,
   VenueManagerAnnouncementResponse,
@@ -8294,4 +8299,622 @@ export const useAddVenueApplicationNote = <
   TContext
 > => {
   return useMutation(getAddVenueApplicationNoteMutationOptions(options));
+};
+
+/**
+ * @summary Send a selected outreach template to a venue before it is added or approved
+ */
+export const getSendNewVenueOutreachUrl = () => {
+  return `/api/admin/venue-owner/outreach`;
+};
+
+export const sendNewVenueOutreach = async (
+  venueOutreachInput: VenueOutreachInput,
+  options?: RequestInit,
+): Promise<VenueContactRequestResult> => {
+  return customFetch<VenueContactRequestResult>(getSendNewVenueOutreachUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(venueOutreachInput),
+  });
+};
+
+export const getSendNewVenueOutreachMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendNewVenueOutreach>>,
+    TError,
+    { data: BodyType<VenueOutreachInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendNewVenueOutreach>>,
+  TError,
+  { data: BodyType<VenueOutreachInput> },
+  TContext
+> => {
+  const mutationKey = ["sendNewVenueOutreach"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendNewVenueOutreach>>,
+    { data: BodyType<VenueOutreachInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendNewVenueOutreach(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendNewVenueOutreachMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendNewVenueOutreach>>
+>;
+export type SendNewVenueOutreachMutationBody = BodyType<VenueOutreachInput>;
+export type SendNewVenueOutreachMutationError = ErrorType<void>;
+
+/**
+ * @summary Send a selected outreach template to a venue before it is added or approved
+ */
+export const useSendNewVenueOutreach = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendNewVenueOutreach>>,
+    TError,
+    { data: BodyType<VenueOutreachInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendNewVenueOutreach>>,
+  TError,
+  { data: BodyType<VenueOutreachInput> },
+  TContext
+> => {
+  return useMutation(getSendNewVenueOutreachMutationOptions(options));
+};
+
+/**
+ * @summary List outreach emails and owner invitations sent to venues
+ */
+export const getGetVenueOutreachHistoryUrl = () => {
+  return `/api/admin/venue-owner/outreach/history`;
+};
+
+export const getVenueOutreachHistory = async (
+  options?: RequestInit,
+): Promise<VenueOutreachHistoryResponse> => {
+  return customFetch<VenueOutreachHistoryResponse>(
+    getGetVenueOutreachHistoryUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetVenueOutreachHistoryQueryKey = () => {
+  return [`/api/admin/venue-owner/outreach/history`] as const;
+};
+
+export const getGetVenueOutreachHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVenueOutreachHistory>>,
+  TError = ErrorType<Error>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueOutreachHistory>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetVenueOutreachHistoryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getVenueOutreachHistory>>
+  > = ({ signal }) => getVenueOutreachHistory({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueOutreachHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVenueOutreachHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVenueOutreachHistory>>
+>;
+export type GetVenueOutreachHistoryQueryError = ErrorType<Error>;
+
+/**
+ * @summary List outreach emails and owner invitations sent to venues
+ */
+
+export function useGetVenueOutreachHistory<
+  TData = Awaited<ReturnType<typeof getVenueOutreachHistory>>,
+  TError = ErrorType<Error>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getVenueOutreachHistory>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVenueOutreachHistoryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Check that a pre-approval application invitation is valid and unused
+ */
+export const getValidateVenueApplicationInviteUrl = () => {
+  return `/api/venue-owner/application-invites/validate`;
+};
+
+export const validateVenueApplicationInvite = async (
+  venueApplicationInviteValidationInput: VenueApplicationInviteValidationInput,
+  options?: RequestInit,
+): Promise<VenueApplicationInviteValidationResult> => {
+  return customFetch<VenueApplicationInviteValidationResult>(
+    getValidateVenueApplicationInviteUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueApplicationInviteValidationInput),
+    },
+  );
+};
+
+export const getValidateVenueApplicationInviteMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof validateVenueApplicationInvite>>,
+    TError,
+    { data: BodyType<VenueApplicationInviteValidationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof validateVenueApplicationInvite>>,
+  TError,
+  { data: BodyType<VenueApplicationInviteValidationInput> },
+  TContext
+> => {
+  const mutationKey = ["validateVenueApplicationInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof validateVenueApplicationInvite>>,
+    { data: BodyType<VenueApplicationInviteValidationInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return validateVenueApplicationInvite(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ValidateVenueApplicationInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof validateVenueApplicationInvite>>
+>;
+export type ValidateVenueApplicationInviteMutationBody =
+  BodyType<VenueApplicationInviteValidationInput>;
+export type ValidateVenueApplicationInviteMutationError = ErrorType<void>;
+
+/**
+ * @summary Check that a pre-approval application invitation is valid and unused
+ */
+export const useValidateVenueApplicationInvite = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof validateVenueApplicationInvite>>,
+    TError,
+    { data: BodyType<VenueApplicationInviteValidationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof validateVenueApplicationInvite>>,
+  TError,
+  { data: BodyType<VenueApplicationInviteValidationInput> },
+  TContext
+> => {
+  return useMutation(getValidateVenueApplicationInviteMutationOptions(options));
+};
+
+/**
+ * An optional pre-approval invitation token is email-bound and consumed atomically with application creation. It never approves a venue or grants manager access.
+ * @summary Submit a venue application for Met review
+ */
+export const getSubmitVenueOwnerApplicationUrl = () => {
+  return `/api/venue-owner/apply`;
+};
+
+export const submitVenueOwnerApplication = async (
+  venueOwnerApplicationInput: VenueOwnerApplicationInput,
+  options?: RequestInit,
+): Promise<VenueOwnerApplicationResult> => {
+  return customFetch<VenueOwnerApplicationResult>(
+    getSubmitVenueOwnerApplicationUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueOwnerApplicationInput),
+    },
+  );
+};
+
+export const getSubmitVenueOwnerApplicationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitVenueOwnerApplication>>,
+    TError,
+    { data: BodyType<VenueOwnerApplicationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitVenueOwnerApplication>>,
+  TError,
+  { data: BodyType<VenueOwnerApplicationInput> },
+  TContext
+> => {
+  const mutationKey = ["submitVenueOwnerApplication"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitVenueOwnerApplication>>,
+    { data: BodyType<VenueOwnerApplicationInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return submitVenueOwnerApplication(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitVenueOwnerApplicationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitVenueOwnerApplication>>
+>;
+export type SubmitVenueOwnerApplicationMutationBody =
+  BodyType<VenueOwnerApplicationInput>;
+export type SubmitVenueOwnerApplicationMutationError = ErrorType<void>;
+
+/**
+ * @summary Submit a venue application for Met review
+ */
+export const useSubmitVenueOwnerApplication = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitVenueOwnerApplication>>,
+    TError,
+    { data: BodyType<VenueOwnerApplicationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitVenueOwnerApplication>>,
+  TError,
+  { data: BodyType<VenueOwnerApplicationInput> },
+  TContext
+> => {
+  return useMutation(getSubmitVenueOwnerApplicationMutationOptions(options));
+};
+
+/**
+ * @summary Preview the available pre-approval venue outreach email templates
+ */
+export const getPreviewNewVenueOutreachUrl = () => {
+  return `/api/admin/venue-owner/outreach/preview`;
+};
+
+export const previewNewVenueOutreach = async (
+  venueOutreachPreviewInput: VenueOutreachPreviewInput,
+  options?: RequestInit,
+): Promise<PreviewNewVenueOutreach200> => {
+  return customFetch<PreviewNewVenueOutreach200>(
+    getPreviewNewVenueOutreachUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueOutreachPreviewInput),
+    },
+  );
+};
+
+export const getPreviewNewVenueOutreachMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewNewVenueOutreach>>,
+    TError,
+    { data: BodyType<VenueOutreachPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewNewVenueOutreach>>,
+  TError,
+  { data: BodyType<VenueOutreachPreviewInput> },
+  TContext
+> => {
+  const mutationKey = ["previewNewVenueOutreach"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewNewVenueOutreach>>,
+    { data: BodyType<VenueOutreachPreviewInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return previewNewVenueOutreach(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewNewVenueOutreachMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewNewVenueOutreach>>
+>;
+export type PreviewNewVenueOutreachMutationBody =
+  BodyType<VenueOutreachPreviewInput>;
+export type PreviewNewVenueOutreachMutationError = ErrorType<void>;
+
+/**
+ * @summary Preview the available pre-approval venue outreach email templates
+ */
+export const usePreviewNewVenueOutreach = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewNewVenueOutreach>>,
+    TError,
+    { data: BodyType<VenueOutreachPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewNewVenueOutreach>>,
+  TError,
+  { data: BodyType<VenueOutreachPreviewInput> },
+  TContext
+> => {
+  return useMutation(getPreviewNewVenueOutreachMutationOptions(options));
+};
+
+/**
+ * @summary Ask a venue's public contact for the management email without creating an invitation
+ */
+export const getSendVenueContactRequestUrl = (id: number) => {
+  return `/api/admin/venue-owner/applications/${id}/contact-request`;
+};
+
+export const sendVenueContactRequest = async (
+  id: number,
+  venueContactRequestInput: VenueContactRequestInput,
+  options?: RequestInit,
+): Promise<VenueContactRequestResult> => {
+  return customFetch<VenueContactRequestResult>(
+    getSendVenueContactRequestUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueContactRequestInput),
+    },
+  );
+};
+
+export const getSendVenueContactRequestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendVenueContactRequest>>,
+    TError,
+    { id: number; data: BodyType<VenueContactRequestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendVenueContactRequest>>,
+  TError,
+  { id: number; data: BodyType<VenueContactRequestInput> },
+  TContext
+> => {
+  const mutationKey = ["sendVenueContactRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendVenueContactRequest>>,
+    { id: number; data: BodyType<VenueContactRequestInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return sendVenueContactRequest(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendVenueContactRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendVenueContactRequest>>
+>;
+export type SendVenueContactRequestMutationBody =
+  BodyType<VenueContactRequestInput>;
+export type SendVenueContactRequestMutationError = ErrorType<void>;
+
+/**
+ * @summary Ask a venue's public contact for the management email without creating an invitation
+ */
+export const useSendVenueContactRequest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendVenueContactRequest>>,
+    TError,
+    { id: number; data: BodyType<VenueContactRequestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendVenueContactRequest>>,
+  TError,
+  { id: number; data: BodyType<VenueContactRequestInput> },
+  TContext
+> => {
+  return useMutation(getSendVenueContactRequestMutationOptions(options));
+};
+
+/**
+ * @summary Issue an email-bound one-time invitation for an approved venue
+ */
+export const getCreateVenueRegistrationLinkUrl = (id: number) => {
+  return `/api/admin/venue-owner/applications/${id}/registration-link`;
+};
+
+export const createVenueRegistrationLink = async (
+  id: number,
+  venueRegistrationLinkInput: VenueRegistrationLinkInput,
+  options?: RequestInit,
+): Promise<VenueRegistrationLinkResult> => {
+  return customFetch<VenueRegistrationLinkResult>(
+    getCreateVenueRegistrationLinkUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(venueRegistrationLinkInput),
+    },
+  );
+};
+
+export const getCreateVenueRegistrationLinkMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueRegistrationLink>>,
+    TError,
+    { id: number; data: BodyType<VenueRegistrationLinkInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVenueRegistrationLink>>,
+  TError,
+  { id: number; data: BodyType<VenueRegistrationLinkInput> },
+  TContext
+> => {
+  const mutationKey = ["createVenueRegistrationLink"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVenueRegistrationLink>>,
+    { id: number; data: BodyType<VenueRegistrationLinkInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createVenueRegistrationLink(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVenueRegistrationLinkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVenueRegistrationLink>>
+>;
+export type CreateVenueRegistrationLinkMutationBody =
+  BodyType<VenueRegistrationLinkInput>;
+export type CreateVenueRegistrationLinkMutationError = ErrorType<void>;
+
+/**
+ * @summary Issue an email-bound one-time invitation for an approved venue
+ */
+export const useCreateVenueRegistrationLink = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVenueRegistrationLink>>,
+    TError,
+    { id: number; data: BodyType<VenueRegistrationLinkInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVenueRegistrationLink>>,
+  TError,
+  { id: number; data: BodyType<VenueRegistrationLinkInput> },
+  TContext
+> => {
+  return useMutation(getCreateVenueRegistrationLinkMutationOptions(options));
 };

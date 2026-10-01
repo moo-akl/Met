@@ -2588,6 +2588,172 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /admin/venue-owner/outreach:
+    post:
+      operationId: sendNewVenueOutreach
+      tags: [admin]
+      summary: Send a selected outreach template to a venue before it is added or approved
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueOutreachInput" }
+      responses:
+        "201":
+          description: Outreach email accepted by the connected Gmail account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueContactRequestResult" }
+        "400":
+          description: Invalid venue name or email
+        "401":
+          description: No active admin session
+        "503":
+          description: Email delivery could not be confirmed
+
+  /admin/venue-owner/outreach/history:
+    get:
+      operationId: getVenueOutreachHistory
+      tags: [admin]
+      summary: List outreach emails and owner invitations sent to venues
+      responses:
+        "200":
+          description: Email history, including link and application state where available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOutreachHistoryResponse"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /venue-owner/application-invites/validate:
+    post:
+      operationId: validateVenueApplicationInvite
+      tags: [venue-owner]
+      summary: Check that a pre-approval application invitation is valid and unused
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueApplicationInviteValidationInput" }
+      responses:
+        "200":
+          description: Invitation details for the recipient
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueApplicationInviteValidationResult" }
+        "400":
+          description: Invalid invitation token
+        "404":
+          description: Invitation is invalid, expired, or already used
+
+  /venue-owner/apply:
+    post:
+      operationId: submitVenueOwnerApplication
+      tags: [venue-owner]
+      summary: Submit a venue application for Met review
+      description: An optional pre-approval invitation token is email-bound and consumed atomically with application creation. It never approves a venue or grants manager access.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueOwnerApplicationInput" }
+      responses:
+        "201":
+          description: Application submitted for review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueOwnerApplicationResult" }
+        "400":
+          description: Invalid application input
+        "403":
+          description: Application email does not match the invitation
+        "409":
+          description: Venue already has an active application, or invitation is unusable
+
+  /admin/venue-owner/outreach/preview:
+    post:
+      operationId: previewNewVenueOutreach
+      tags: [admin]
+      summary: Preview the available pre-approval venue outreach email templates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueOutreachPreviewInput" }
+      responses:
+        "200":
+          description: Subject and plain-text preview for every template
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [templates]
+                properties:
+                  templates:
+                    type: array
+                    items: { $ref: "#/components/schemas/VenueOutreachTemplatePreview" }
+        "400":
+          description: Invalid venue name
+        "401":
+          description: No active admin session
+
+  /admin/venue-owner/applications/{id}/contact-request:
+    post:
+      operationId: sendVenueContactRequest
+      tags: [admin]
+      summary: Ask a venue's public contact for the management email without creating an invitation
+      parameters:
+        - $ref: "#/components/parameters/VenueApplicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueContactRequestInput" }
+      responses:
+        "201":
+          description: Introduction email accepted by the connected Gmail account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueContactRequestResult" }
+        "400":
+          description: Invalid email
+        "401":
+          description: No active admin session
+        "409":
+          description: Venue already claimed or admin-managed
+        "503":
+          description: Email delivery could not be confirmed
+
+  /admin/venue-owner/applications/{id}/registration-link:
+    post:
+      operationId: createVenueRegistrationLink
+      tags: [admin]
+      summary: Issue an email-bound one-time invitation for an approved venue
+      parameters:
+        - $ref: "#/components/parameters/VenueApplicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueRegistrationLinkInput" }
+      responses:
+        "201":
+          description: Registration link created, with delivery status if email requested
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueRegistrationLinkResult" }
+        "400":
+          description: Invalid email
+        "401":
+          description: No active admin session
+        "409":
+          description: Venue is not eligible for an invitation
+
 components:
   parameters:
     VenueApplicationId:
@@ -4027,3 +4193,150 @@ components:
                 type: string
                 minLength: 1
                 maxLength: 1000
+
+    VenueApplicationInviteValidationInput:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, minLength: 1, maxLength: 256 }
+
+    VenueApplicationInviteValidationResult:
+      type: object
+      required: [invitedEmail, businessName, expiresAt]
+      properties:
+        invitedEmail: { type: string, format: email }
+        businessName: { type: string }
+        expiresAt: { type: string, format: date-time }
+
+    VenueContactRequestInput:
+      type: object
+      required: [recipientEmail]
+      properties:
+        recipientEmail: { type: string, format: email, maxLength: 255 }
+
+    VenueContactRequestResult:
+      type: object
+      required: [emailSent, recipientEmail]
+      properties:
+        emailSent: { type: boolean }
+        recipientEmail: { type: string, format: email }
+
+    VenueOutreachHistoryEntry:
+      type: object
+      required:
+        - id
+        - kind
+        - businessName
+        - recipientEmail
+        - template
+        - deliveryStatus
+        - createdAt
+        - sentAt
+        - venueOwnerProfileId
+        - applicationId
+        - applicationStatus
+        - expiresAt
+        - linkStatus
+      properties:
+        id: { type: string }
+        kind:
+          type: string
+          enum: [new_venue_outreach, contact_request, registration_invite]
+        businessName: { type: string }
+        recipientEmail: { type: string, format: email }
+        template: { type: string }
+        deliveryStatus:
+          type: string
+          enum: [sending, sent, delivery_uncertain, failed]
+        createdAt: { type: string, format: date-time }
+        sentAt: { type: ["string", "null"], format: date-time }
+        venueOwnerProfileId: { type: ["integer", "null"] }
+        applicationId: { type: ["integer", "null"] }
+        applicationStatus: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"], format: date-time }
+        linkStatus:
+          type: string
+          enum: [none, active, expired, used, superseded, unknown]
+
+    VenueOutreachHistoryResponse:
+      type: object
+      required: [emails]
+      properties:
+        emails:
+          type: array
+          items:
+            $ref: "#/components/schemas/VenueOutreachHistoryEntry"
+
+    VenueOutreachInput:
+      type: object
+      required: [businessName, recipientEmail]
+      properties:
+        businessName: { type: string, minLength: 2, maxLength: 150 }
+        recipientEmail: { type: string, format: email, maxLength: 255 }
+        template:
+          type: string
+          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up]
+          default: contact_request
+
+    VenueOutreachPreviewInput:
+      type: object
+      required: [businessName]
+      properties:
+        businessName: { type: string, minLength: 2, maxLength: 150 }
+
+    VenueOutreachTemplatePreview:
+      type: object
+      required: [id, label, description, subject, text]
+      properties:
+        id:
+          type: string
+          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up]
+        label: { type: string }
+        description: { type: string }
+        subject: { type: string }
+        text: { type: string }
+
+    VenueOwnerApplicationInput:
+      type: object
+      required: [contactEmail, contactName, placeId, placeName, businessName, lat, lng, verificationDocUrl]
+      properties:
+        contactEmail: { type: string, format: email, maxLength: 255 }
+        contactName: { type: string, minLength: 1, maxLength: 255 }
+        placeId: { type: string, minLength: 1, maxLength: 255 }
+        placeName: { type: string, minLength: 1, maxLength: 255 }
+        businessName: { type: string, minLength: 1, maxLength: 255 }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+        tagline: { type: ["string", "null"], maxLength: 160 }
+        description: { type: ["string", "null"], maxLength: 1000 }
+        verificationDocUrl: { type: string, format: uri, maxLength: 2000 }
+        registrationNotes: { type: ["string", "null"], maxLength: 500 }
+        applicationInviteToken: { type: string, minLength: 1, maxLength: 256 }
+
+    VenueOwnerApplicationResult:
+      type: object
+      required: [applicationId, status]
+      properties:
+        applicationId: { type: integer }
+        status: { type: string, enum: [submitted] }
+
+    VenueRegistrationLinkInput:
+      type: object
+      required: [sendEmail]
+      properties:
+        sendEmail: { type: boolean }
+        recipientEmail: { type: string, format: email, maxLength: 255 }
+        template:
+          type: string
+          enum: [registration, registration_with_video]
+          default: registration
+
+    VenueRegistrationLinkResult:
+      type: object
+      required: [token, expiresAt, emailSent, contactEmail]
+      properties:
+        token: { type: string }
+        expiresAt: { type: string, format: date-time }
+        emailSent: { type: boolean }
+        emailError: { type: ["string", "null"], enum: [not_configured, auth_failed, gmail_connection_failed, delivery_failed, null] }
+        contactEmail: { type: ["string", "null"] }
