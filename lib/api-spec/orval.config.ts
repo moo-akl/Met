@@ -33,6 +33,10 @@ export default defineConfig({
         fetch: {
           includeHttpResponseReturnType: false,
         },
+        query: {
+          // Do not auto-detect from api-spec: the client package owns this runtime.
+          version: 5,
+        },
         mutator: {
           path: path.resolve(apiClientReactSrc, "custom-fetch.ts"),
           name: "customFetch",
@@ -57,6 +61,8 @@ export default defineConfig({
       prettier: true,
       override: {
         zod: {
+          // Orval itself depends on Zod 4; our generated schemas must use Zod 3.
+          version: 3,
           coerce: {
             query: ['boolean', 'number', 'string'],
             param: ['boolean', 'number', 'string'],
