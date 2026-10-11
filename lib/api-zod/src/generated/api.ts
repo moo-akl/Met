@@ -1727,6 +1727,7 @@ export const listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneClos
 export const ListVenueManagerBusinessesResponse = zod.object({
   businesses: zod.array(
     zod.object({
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
       businessId: zod.number(),
       placeId: zod.string(),
       legalName: zod.string(),
@@ -1782,6 +1783,7 @@ export const getVenueManagerBusinessResponseOpeningHoursOneCloseRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
 
 export const GetVenueManagerBusinessResponse = zod.object({
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
   businessId: zod.number(),
   placeId: zod.string(),
   legalName: zod.string(),
@@ -1847,6 +1849,7 @@ export const updateVenueManagerBusinessBodyOpeningHoursOneCloseRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
 
 export const UpdateVenueManagerBusinessBody = zod.object({
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
   businessName: zod
     .string()
     .min(1)
@@ -1895,6 +1898,7 @@ export const updateVenueManagerBusinessResponseOpeningHoursOneCloseRegExp =
   new RegExp("^\\d{2}:\\d{2}$");
 
 export const UpdateVenueManagerBusinessResponse = zod.object({
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
   businessId: zod.number(),
   placeId: zod.string(),
   legalName: zod.string(),
@@ -3747,6 +3751,7 @@ export const SearchAdminVenuePlacesQueryParams = zod.object({
 export const SearchAdminVenuePlacesResponse = zod.object({
   places: zod.array(
     zod.object({
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
       placeId: zod.string(),
       placeName: zod.string(),
       address: zod.string().nullish(),
@@ -3812,6 +3817,7 @@ export const GetAdminManagedVenueParams = zod.object({
 
 export const GetAdminManagedVenueResponse = zod.object({
   profile: zod.object({
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
     id: zod.number(),
     placeId: zod.string(),
     placeName: zod.string(),
@@ -3863,6 +3869,7 @@ export const updateAdminManagedVenueBodyCoverPhotoUrlMax = 2000;
 export const updateAdminManagedVenueBodyLogoUrlMax = 2000;
 
 export const UpdateAdminManagedVenueBody = zod.object({
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
   businessName: zod
     .string()
     .min(1)
@@ -3904,6 +3911,7 @@ export const UpdateAdminManagedVenueBody = zod.object({
 
 export const UpdateAdminManagedVenueResponse = zod.object({
   profile: zod.object({
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
     id: zod.number(),
     placeId: zod.string(),
     placeName: zod.string(),
@@ -4434,3 +4442,18 @@ export const ProcessVenueActivationResponse = zod.object({
     .number()
     .min(processVenueActivationResponseUnlistedQrCheckinsMin),
 });
+
+export const GetVenueOwnerMapPointsResponse = zod.object({
+  "venues": zod.array(zod.object({
+  "placeId": zod.string(),
+  "placeName": zod.string(),
+  "businessName": zod.string(),
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']),
+  "tagline": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "hasActiveReward": zod.boolean(),
+  "hasUpcomingEvent": zod.boolean()
+}))
+})

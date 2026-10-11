@@ -54,6 +54,21 @@ export const venueApplicationHistoryEventTypes = [
 export type VenueApplicationHistoryEventType =
   (typeof venueApplicationHistoryEventTypes)[number];
 
+export const venueCategories = [
+  "restaurant",
+  "cafe",
+  "bar",
+  "shopping",
+  "outdoors",
+  "culture",
+  "fitness",
+  "education",
+  "transit",
+  "lodging",
+  "other",
+] as const;
+export type VenueCategory = (typeof venueCategories)[number];
+
 export const venueOwnerProfilesTable = pgTable(
   "venue_owner_profiles",
   {
@@ -63,6 +78,8 @@ export const venueOwnerProfilesTable = pgTable(
     placeName: text("place_name").notNull(),
     /** Business display name shown on the public profile. */
     businessName: text("business_name").notNull(),
+    venueType: text("venue_type").$type<VenueCategory>().notNull().default("other"),
+    venueTypeSource: text("venue_type_source").$type<"unclassified" | "google" | "manual">().notNull().default("unclassified"),
     tagline: text("tagline"),
     description: text("description"),
     /** URL of the venue's cover/hero photo in Firebase Storage. */

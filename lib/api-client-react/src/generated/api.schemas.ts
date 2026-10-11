@@ -584,6 +584,7 @@ export interface VenueManagerBusiness {
   openingHours?: VenueManagerBusinessOpeningHours;
   role: VenueManagerBusinessRole;
   isActive: boolean;
+  venueType?: VenueCategory;
 }
 
 export interface VenueManagerBusinessList {
@@ -634,6 +635,7 @@ export interface VenueManagerBusinessUpdate {
   publicEmail?: string | null;
   /** @nullable */
   openingHours?: VenueManagerBusinessUpdateOpeningHours;
+  venueType?: VenueCategory;
 }
 
 export interface VenueManagerQrCode {
@@ -1118,6 +1120,7 @@ export interface AdminVenuePlace {
   googleMapsUri?: string | null;
   lat: number;
   lng: number;
+  venueType?: VenueCategory;
 }
 
 export type AdminQuickAddVenueRequestManagementMode =
@@ -1205,6 +1208,7 @@ export interface AdminManagedVenue {
   logoUrl?: string | null;
   /** @nullable */
   openingHours?: AdminManagedVenueOpeningHours;
+  venueType?: VenueCategory;
 }
 
 export interface AdminManagedVenueResponse {
@@ -1264,6 +1268,7 @@ export interface AdminManagedVenueUpdate {
   logoUrl?: string | null;
   /** @nullable */
   openingHours?: AdminManagedVenueUpdateOpeningHours;
+  venueType?: VenueCategory;
 }
 
 export type VenueBusinessAuthorizationRole =
@@ -2212,4 +2217,39 @@ export const ListVenueApplicationsSource = {
 
 export type PreviewNewVenueOutreach200 = {
   templates: VenueOutreachTemplatePreview[];
+};
+
+export type VenueCategory = typeof VenueCategory[keyof typeof VenueCategory];
+
+export const VenueCategory = {
+  restaurant: 'restaurant',
+  cafe: 'cafe',
+  bar: 'bar',
+  shopping: 'shopping',
+  outdoors: 'outdoors',
+  culture: 'culture',
+  fitness: 'fitness',
+  education: 'education',
+  transit: 'transit',
+  lodging: 'lodging',
+  other: 'other',
+} as const;
+
+export interface VenueOwnerMapPoint {
+  placeId: string;
+  placeName: string;
+  businessName: string;
+  venueType: VenueCategory;
+  /** @nullable */
+  tagline?: string | null;
+  /** @nullable */
+  logoUrl?: string | null;
+  lat: number;
+  lng: number;
+  hasActiveReward: boolean;
+  hasUpcomingEvent: boolean;
+}
+
+export type GetVenueOwnerMapPoints200 = {
+  venues: VenueOwnerMapPoint[];
 };

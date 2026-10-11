@@ -44,4 +44,7 @@ export interface VenueManagerBusinessUpdate {
   publicEmail?: string | null;
   /** @nullable */
   openingHours?: VenueManagerBusinessUpdateOpeningHours;
+  venueType?: VenueCategory;
 }
+
+import type { VenueCategory } from './venueCategory';

@@ -1,5 +1,6 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import crypto from "node:crypto";
+import { venueCategories } from "@workspace/db/schema";
 import { and, count, desc, eq, gte, gt, ilike, inArray, isNull, lt, sql } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { isAllowedImageMagicBytes } from "../lib/imageMagic";
@@ -439,6 +440,7 @@ function serializeBusiness(row: NonNullable<Awaited<ReturnType<typeof businessWi
     legalName: row.business.legalName,
     placeName: row.profile.placeName,
     businessName: row.profile.businessName,
+    venueType: row.profile.venueType,
     tagline: row.profile.tagline,
     description: row.profile.description,
     coverPhotoUrl: row.profile.coverPhotoUrl,
@@ -722,6 +724,11 @@ router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsr
   }
   const businessName = optionalText(req.body?.businessName, 255);
   const tagline = optionalText(req.body?.tagline, 160);
+  const venueType = req.body?.venueType;
+  if (venueType !== undefined && !(venueCategories as readonly unknown[]).includes(venueType)) {
+    res.status(400).json({ message: "Choose a valid venue type." });
+    return;
+  }
   const description = optionalText(req.body?.description, 1000);
   const coverPhotoUrl = optionalText(req.body?.coverPhotoUrl, 2000);
   const logoUrl = optionalText(req.body?.logoUrl, 2000);
@@ -770,7 +777,7 @@ router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsr
       openingHours = validated;
     }
   }
-  const patch = Object.fromEntries(Object.entries({ businessName, tagline, description, coverPhotoUrl, logoUrl, phone, websiteUrl, publicEmail, openingHours })
+  const patch = Object.fromEntries(Object.entries({ businessName, venueType, ...(venueType !== undefined ? { venueTypeSource: "manual" } : {}), tagline, description, coverPhotoUrl, logoUrl, phone, websiteUrl, publicEmail, openingHours })
     .filter(([, value]) => value !== undefined));
   if (!Object.keys(patch).length) {
     res.status(400).json({ message: "Provide at least one business detail to update." });

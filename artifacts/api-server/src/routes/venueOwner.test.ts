@@ -434,6 +434,7 @@ describe("venue search and expiry safeguards", () => {
             id: "place-applicant",
             displayName: { text: "Corner Social" },
             formattedAddress: "42 Main Street, London",
+            primaryType: "cafe",
             location: { latitude: 51.5, longitude: -0.12 },
           },
           {
@@ -458,6 +459,7 @@ describe("venue search and expiry safeguards", () => {
             placeName: "Corner Social",
             address: "42 Main Street, London",
             category: null,
+            venueType: "cafe",
             googleMapsUri: null,
             lat: 51.5,
             lng: -0.12,
@@ -467,6 +469,7 @@ describe("venue search and expiry safeguards", () => {
             placeName: "New Venue",
             address: null,
             category: null,
+            venueType: "other",
             googleMapsUri: null,
             lat: 51.6,
             lng: -0.13,
@@ -603,6 +606,8 @@ describe("map layer — GET /api/hubs/venue-owners", () => {
     placeId: "place-123",
     placeName: "The Corner Bar",
     businessName: "Corner Social",
+    venueType: "bar",
+    venueTypeSource: "manual",
     tagline: "Come as you are",
     logoUrl: null,
     lat: "40.7128",
@@ -632,6 +637,7 @@ describe("map layer — GET /api/hubs/venue-owners", () => {
     expect(response.body.venues[0]).toMatchObject({
       placeId: "place-123",
       placeName: "The Corner Bar",
+      venueType: "bar",
       lat: 40.7128,
       lng: -74.006,
       hasActiveReward: false,
@@ -992,6 +998,22 @@ describe("venue profile update — PUT /venue-owner/me", () => {
     dbMocks.chain.where.mockResolvedValueOnce([]); // no active memberships
     // legacy fallback: where() → chain (default), limit() → [] (default)
   }
+
+  it("saves a category correction as manual so Google cannot replace it", async () => {
+    mockActiveProfileAccess({ venueType: "cafe", venueTypeSource: "manual" });
+    const response = await request(app).put("/api/venue-owner/me").send({ venueType: "cafe" });
+    expect(response.status).toBe(200);
+    expect(response.body.profile.venueType).toBe("cafe");
+    expect(dbMocks.chain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ venueType: "cafe", venueTypeSource: "manual" }),
+    );
+  });
+
+  it("rejects unknown category values without writing the profile", async () => {
+    const response = await request(app).put("/api/venue-owner/me").send({ venueType: "made-up" });
+    expect(response.status).toBe(400);
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
 
   it("blocks profile update when the caller has a revoked membership", async () => {
     mockRevokedProfileAccess();

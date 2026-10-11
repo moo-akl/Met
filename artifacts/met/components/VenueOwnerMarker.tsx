@@ -1,17 +1,21 @@
 /**
  * VenueOwnerMarker
  *
- * Gold/branded map pin for approved venue owners.
+ * Category-specific map pin for approved venue owners.
  * Shows a small badge indicator when the venue has an active reward or upcoming event.
  */
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Marker } from "react-native-maps";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useFonts } from "expo-font";
+import { getVenueCategoryVisual } from "@/lib/venueCategories";
 
 export interface VenueOwnerPoint {
   placeId: string;
   placeName: string;
   businessName: string;
+  venueType?: string | null;
   tagline?: string | null;
   logoUrl?: string | null;
   lat: number;
@@ -27,6 +31,17 @@ interface Props {
 
 export function VenueOwnerMarker({ venue, onPress }: Props) {
   const hasBadge = venue.hasActiveReward || venue.hasUpcomingEvent;
+  const visual = getVenueCategoryVisual(venue.venueType);
+  const [fontsLoaded] = useFonts(MaterialCommunityIcons.font);
+  const [tracking, setTracking] = React.useState(true);
+  React.useEffect(() => {
+    setTracking(true);
+    if (!fontsLoaded) return;
+    // Let both native map implementations capture the loaded icon and badges,
+    // then stop continuous snapshots to keep map scrolling inexpensive.
+    const timer = setTimeout(() => setTracking(false), 250);
+    return () => clearTimeout(timer);
+  }, [fontsLoaded, visual.icon, venue.hasActiveReward, venue.hasUpcomingEvent]);
 
   return (
     <Marker
@@ -34,7 +49,8 @@ export function VenueOwnerMarker({ venue, onPress }: Props) {
       coordinate={{ latitude: venue.lat, longitude: venue.lng }}
       anchor={{ x: 0.5, y: 1 }}
       onPress={() => onPress?.(venue.placeId)}
-      tracksViewChanges={false}
+      tracksViewChanges={tracking}
+      accessibilityLabel={`${venue.businessName}, ${visual.label}`}
     >
       <View style={styles.container}>
         {/* Badge: reward 🎁, event 📅, or both */}
@@ -46,20 +62,17 @@ export function VenueOwnerMarker({ venue, onPress }: Props) {
           </View>
         )}
 
-        {/* Gold pin body */}
-        <View style={styles.pin}>
-          <Text style={styles.pinIcon}>⭐</Text>
+        {/* Category pin body */}
+        <View style={[styles.pin, { backgroundColor: visual.color, borderColor: "white", shadowColor: visual.color }]}>
+          <MaterialCommunityIcons name={visual.icon} size={20} color="white" />
         </View>
 
         {/* Pin tail */}
-        <View style={styles.tail} />
+        <View style={[styles.tail, { borderTopColor: visual.color }]} />
       </View>
     </Marker>
   );
 }
-
-const GOLD = "#FFD700";
-const GOLD_DARK = "#B8860B";
 
 const styles = StyleSheet.create({
   container: {
@@ -86,19 +99,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: GOLD,
     borderWidth: 2.5,
-    borderColor: GOLD_DARK,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: GOLD,
     shadowOpacity: 0.6,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 5,
-  },
-  pinIcon: {
-    fontSize: 18,
   },
   tail: {
     width: 0,
@@ -108,7 +115,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 10,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: GOLD_DARK,
     marginTop: -1,
   },
 });

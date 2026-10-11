@@ -31,6 +31,8 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+import { VenueCategoryPicker } from "@/components/VenueCategoryPicker";
+import type { VenueCategory } from "@/lib/venueCategories";
 
 const GREEN = "#00E87A";
 
@@ -68,6 +70,8 @@ export default function VenueOwnerProfileEditScreen() {
   const { profile: application, isLoading: ownerLoading } = useVenueOwner();
 
   const [businessName, setBusinessName] = useState("");
+  const [venueType, setVenueType] = useState<VenueCategory>("other");
+  const [venueTypeEdited, setVenueTypeEdited] = useState(false);
   const [tagline, setTagline] = useState("");
   const [description, setDescription] = useState("");
   const [coverPhotoUrl, setCoverPhotoUrl] = useState("");
@@ -111,6 +115,7 @@ export default function VenueOwnerProfileEditScreen() {
   useEffect(() => {
     if (!ownerLoading && application && !initialized) {
       setBusinessName(application.businessName ?? "");
+      setVenueType(application.venueType ?? "other");
       setTagline(application.tagline ?? "");
       setDescription(application.description ?? "");
       setCoverPhotoUrl(application.coverPhotoUrl ?? "");
@@ -211,6 +216,7 @@ export default function VenueOwnerProfileEditScreen() {
     try {
       await api.updateMyVenueOwnerProfile({ uid: authedUid }, {
         businessName: businessName.trim(),
+        ...(venueTypeEdited ? { venueType } : {}),
         tagline: tagline.trim() || null,
         description: description.trim() || null,
         coverPhotoUrl: coverPhotoUrl.trim() || null,
@@ -318,6 +324,8 @@ export default function VenueOwnerProfileEditScreen() {
         <Field label="Business Name *" value={businessName} onChangeText={setBusinessName}
           placeholder="The Fox & Hound"
           vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
+
+        <VenueCategoryPicker value={venueType} onChange={(value) => { setVenueType(value); setVenueTypeEdited(true); }} />
 
         {/* Tagline */}
         <Field label="Tagline" value={tagline} onChangeText={setTagline}

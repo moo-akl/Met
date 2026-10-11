@@ -142,6 +142,7 @@ export interface VenueOwnerProfile {
   placeId: string;
   placeName: string;
   businessName: string;
+  venueType?: import("../venueCategories").VenueCategory;
   tagline: string | null;
   description: string | null;
   coverPhotoUrl: string | null;
@@ -197,6 +198,7 @@ export interface VenueSearchPlace {
   placeName: string;
   address: string | null;
   category: string | null;
+  venueType?: import("../venueCategories").VenueCategory;
   googleMapsUri: string | null;
   lat: number;
   lng: number;
@@ -253,6 +255,7 @@ export interface VenueOwnerMapPoint {
   placeId: string;
   placeName: string;
   businessName: string;
+  venueType?: import("../venueCategories").VenueCategory;
   tagline: string | null;
   logoUrl: string | null;
   lat: number;
@@ -1285,6 +1288,7 @@ export const api = {
     opts: ApiOptions,
     body: {
       businessName?: string;
+      venueType?: import("../venueCategories").VenueCategory;
       tagline?: string | null;
       description?: string | null;
       coverPhotoUrl?: string | null;

@@ -277,10 +277,10 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
       void fetchActive();
     }, POLL_MS);
 
-    // Venue owner map points refresh every 5 minutes (they change infrequently)
+    // Refresh saved category suggestions and owner corrections without reopening.
     const voPollId = setInterval(() => {
       void fetchVenueOwners();
-    }, 5 * POLL_MS);
+    }, POLL_MS);
 
     return () => {
       cancelled = true;
@@ -339,7 +339,7 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
     [activeVenues],
   );
 
-  // Layer 3 — approved venue owner branded pins (gold stars, top layer)
+  // Layer 3 — approved venue owner category pins (top layer)
   const venueOwnerMarkers = useMemo(
     () =>
       venueOwnerPoints

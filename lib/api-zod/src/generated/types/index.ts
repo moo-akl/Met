@@ -227,3 +227,9 @@ export * from "./venueRegistrationLinkInput";
 export * from "./venueRegistrationLinkInputTemplate";
 export * from "./venueRegistrationLinkResult";
 export * from "./venueRegistrationLinkResultEmailError";
+
+export * from './getVenueOwnerMapPoints200';
+
+export * from './venueCategory';
+
+export * from './venueOwnerMapPoint';

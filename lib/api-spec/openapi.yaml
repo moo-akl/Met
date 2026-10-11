@@ -2315,6 +2315,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/VenueManagerMemberList"
 
+  /hubs/venue-owners:
+    get:
+      operationId: getVenueOwnerMapPoints
+      tags: [venue-owner]
+      summary: Approved venue markers with category icons and event/reward flags
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Venue map points. Unclassified venues use other until a saved Google suggestion or manual correction is available.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [venues]
+                properties:
+                  venues:
+                    type: array
+                    items: { $ref: "#/components/schemas/VenueOwnerMapPoint" }
+
   /venue-owner/me/application:
     get:
       operationId: getMyVenueApplication
@@ -3995,6 +4015,7 @@ components:
         legalName: { type: string }
         placeName: { type: string }
         businessName: { type: string }
+        venueType: { $ref: "#/components/schemas/VenueCategory" }
         tagline: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         coverPhotoUrl: { type: ["string", "null"], format: uri }
@@ -4021,6 +4042,7 @@ components:
       type: object
       properties:
         businessName: { type: string, minLength: 1, maxLength: 255 }
+        venueType: { $ref: "#/components/schemas/VenueCategory" }
         tagline: { type: ["string", "null"], maxLength: 160 }
         description: { type: ["string", "null"], maxLength: 1000 }
         coverPhotoUrl: { type: ["string", "null"], format: uri }
@@ -4343,6 +4365,23 @@ components:
         expiredAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    VenueCategory:
+      type: string
+      enum: [restaurant, cafe, bar, shopping, outdoors, culture, fitness, education, transit, lodging, other]
+    VenueOwnerMapPoint:
+      type: object
+      required: [placeId, placeName, businessName, venueType, lat, lng, hasActiveReward, hasUpcomingEvent]
+      properties:
+        placeId: { type: string }
+        placeName: { type: string }
+        businessName: { type: string }
+        venueType: { $ref: "#/components/schemas/VenueCategory" }
+        tagline: { type: ["string", "null"] }
+        logoUrl: { type: ["string", "null"] }
+        lat: { type: number }
+        lng: { type: number }
+        hasActiveReward: { type: boolean }
+        hasUpcomingEvent: { type: boolean }
     AdminVenuePlace:
       type: object
       required: [placeId, placeName, lat, lng]
@@ -4351,6 +4390,7 @@ components:
         placeName: { type: string }
         address: { type: ["string", "null"] }
         category: { type: ["string", "null"] }
+        venueType: { $ref: "#/components/schemas/VenueCategory" }
         googleMapsUri: { type: ["string", "null"], format: uri }
         lat: { type: number }
         lng: { type: number }
@@ -4383,6 +4423,7 @@ components:
         placeId: { type: string }
         placeName: { type: string }
         businessName: { type: string }
+        venueType: { $ref: "#/components/schemas/VenueCategory" }
         qrUrl: { type: ["string", "null"], format: uri }
         tagline: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
@@ -4410,6 +4451,7 @@ components:
       type: object
       properties:
         businessName: { type: string, minLength: 1, maxLength: 255 }
+        venueType: { $ref: "#/components/schemas/VenueCategory" }
         tagline: { type: ["string", "null"], maxLength: 160 }
         description: { type: ["string", "null"], maxLength: 1000 }
         phone: { type: ["string", "null"], maxLength: 60 }

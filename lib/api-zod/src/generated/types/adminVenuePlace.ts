@@ -17,4 +17,7 @@ export interface AdminVenuePlace {
   googleMapsUri?: string | null;
   lat: number;
   lng: number;
+  venueType?: VenueCategory;
 }
+
+import type { VenueCategory } from './venueCategory';

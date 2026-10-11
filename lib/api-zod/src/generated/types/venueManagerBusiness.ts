@@ -32,4 +32,7 @@ export interface VenueManagerBusiness {
   openingHours?: VenueManagerBusinessOpeningHours;
   role: VenueManagerBusinessRole;
   isActive: boolean;
+  venueType?: VenueCategory;
 }
+
+import type { VenueCategory } from './venueCategory';

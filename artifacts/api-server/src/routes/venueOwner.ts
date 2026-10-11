@@ -36,6 +36,8 @@
  */
 
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { normalizeGoogleVenueType, lookupGoogleVenueType } from "../lib/venueCategory";
+import { venueCategories } from "@workspace/db/schema";
 import {
   eq,
   and,
@@ -355,6 +357,7 @@ function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$in
     placeId: profile.placeId,
     placeName: profile.placeName,
     businessName: profile.businessName,
+    venueType: profile.venueType,
     tagline: profile.tagline,
     description: profile.description,
     coverPhotoUrl: resolveStorageUrl(baseUrl, profile.coverPhotoUrl),
@@ -728,6 +731,7 @@ interface VenueSearchPlace {
   placeName: string;
   address: string | null;
   category: string | null;
+  venueType: (typeof venueCategories)[number];
   googleMapsUri: string | null;
   lat: number;
   lng: number;
@@ -752,7 +756,7 @@ async function searchGoogleVenues(
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.primaryTypeDisplayName,places.googleMapsUri,places.location",
+      "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.primaryType,places.primaryTypeDisplayName,places.googleMapsUri,places.location",
     },
     body: JSON.stringify(body),
   });
@@ -766,6 +770,7 @@ async function searchGoogleVenues(
       displayName?: { text?: string };
       formattedAddress?: string;
       primaryTypeDisplayName?: { text?: string };
+      primaryType?: string;
       googleMapsUri?: string;
       location?: { latitude?: number; longitude?: number };
     }>;
@@ -777,6 +782,7 @@ async function searchGoogleVenues(
       placeName: place.displayName!.text!,
       address: place.formattedAddress ?? null,
       category: place.primaryTypeDisplayName?.text ?? null,
+      venueType: normalizeGoogleVenueType(place.primaryType),
       googleMapsUri: place.googleMapsUri ?? null,
       lat: place.location!.latitude!,
       lng: place.location!.longitude!,
@@ -1564,6 +1570,7 @@ router.put(
       .nullable();
     const schema = z.object({
       businessName: z.string().min(1).optional(),
+      venueType: z.enum(venueCategories).optional(),
       tagline: z.string().max(160).optional().nullable(),
       description: z.string().max(1000).optional().nullable(),
       coverPhotoUrl: z.string().url().optional().nullable(),
@@ -1587,7 +1594,7 @@ router.put(
 
     const [updated] = await db
       .update(venueOwnerProfilesTable)
-      .set({ ...parsed.data, updatedAt: new Date() })
+      .set({ ...parsed.data, ...(parsed.data.venueType ? { venueTypeSource: "manual" as const } : {}), updatedAt: new Date() })
       .where(eq(venueOwnerProfilesTable.id, access.profileId))
       .returning();
 
@@ -2454,6 +2461,17 @@ router.get(
 
     const points = await Promise.all(
       profiles.map(async (p) => {
+        const venueType = p.venueType ?? "other";
+        if (p.venueTypeSource === "unclassified") {
+          // Keep the first map load fast. The regular map poll picks up the
+          // persisted suggestion; the conditional update protects manual edits.
+          void lookupGoogleVenueType(p.placeId).then(async (suggested) => {
+            if (suggested === null) return;
+            await db.update(venueOwnerProfilesTable)
+              .set({ venueType: suggested, venueTypeSource: "google" })
+              .where(and(eq(venueOwnerProfilesTable.id, p.id), eq(venueOwnerProfilesTable.venueTypeSource, "unclassified")));
+          }).catch((error) => logger.warn({ error, placeId: p.placeId }, "Venue category suggestion could not be saved"));
+        }
         // Check for active reward
         const activeRewards = await db
           .select({ id: venueRewardsTable.id })
@@ -2485,6 +2503,7 @@ router.get(
           placeId: p.placeId,
           placeName: p.placeName,
           businessName: p.businessName,
+          venueType,
           tagline: p.tagline,
           logoUrl: p.logoUrl,
           lat: p.lat ? parseFloat(p.lat) : null,
@@ -3376,6 +3395,7 @@ const adminQuickAddVenueSchema = z.object({
 
 const adminManagedVenueUpdateSchema = z.object({
   businessName: z.string().trim().min(1).max(255).optional(),
+  venueType: z.enum(venueCategories).optional(),
   tagline: z.string().trim().max(160).nullable().optional(),
   description: z.string().trim().max(1000).nullable().optional(),
   phone: z.string().trim().max(60).nullable().optional(),
@@ -3431,7 +3451,7 @@ function serializeAdminManagedVenue(profile: typeof venueOwnerProfilesTable.$inf
   const qrUrl = profile.qrToken
     ? `${process.env["APP_BASE_URL"] ?? "https://metapp.replit.app"}/v/${encodeURIComponent(placeId)}?t=${profile.qrToken}`
     : null;
-  return { id, placeId, placeName, businessName, qrUrl, tagline, description, phone, websiteUrl,
+  return { id, placeId, placeName, businessName, venueType: profile.venueType, qrUrl, tagline, description, phone, websiteUrl,
     publicEmail, coverPhotoUrl, logoUrl, openingHours };
 }
 
@@ -3657,7 +3677,7 @@ router.patch(
       return void res.status(400).json({ message: parsed.error?.issues[0]?.message ?? "Provide venue details to update." });
     }
     const [updated] = await db.update(venueOwnerProfilesTable)
-      .set({ ...parsed.data, updatedAt: new Date() })
+      .set({ ...parsed.data, ...(parsed.data.venueType ? { venueTypeSource: "manual" as const } : {}), updatedAt: new Date() })
       .where(and(
         eq(venueOwnerProfilesTable.id, id),
         eq(venueOwnerProfilesTable.ownerUid, profile.ownerUid),

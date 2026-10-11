@@ -30,4 +30,7 @@ export interface AdminManagedVenue {
   logoUrl?: string | null;
   /** @nullable */
   openingHours?: AdminManagedVenueOpeningHours;
+  venueType?: VenueCategory;
 }
+
+import type { VenueCategory } from './venueCategory';

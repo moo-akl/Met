@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetAdminManagedVenue,
+  VenueCategory,
   useUpdateAdminManagedVenue,
   getGetAdminManagedVenueQueryKey,
   getGetVenueApplicationForReviewQueryKey,
@@ -22,6 +23,7 @@ type Hours = Record<string, { open: string; close: string } | null>;
 
 const blankDetails = {
   businessName: "",
+  venueType: "other",
   tagline: "",
   description: "",
   phone: "",
@@ -45,6 +47,7 @@ export default function AdminManagedVenuePanel({ profileId }: { profileId: numbe
     if (!profile) return;
     setDetails({
       businessName: profile.businessName,
+      venueType: profile.venueType ?? "other",
       tagline: profile.tagline ?? "",
       description: profile.description ?? "",
       phone: profile.phone ?? "",
@@ -87,6 +90,7 @@ export default function AdminManagedVenuePanel({ profileId }: { profileId: numbe
     event.preventDefault();
     const input: AdminManagedVenueUpdate = {
       businessName: details.businessName.trim(),
+      ...(details.venueType !== (profile.venueType ?? "other") ? { venueType: details.venueType as AdminManagedVenueUpdate["venueType"] } : {}),
       tagline: details.tagline.trim() || null,
       description: details.description.trim() || null,
       phone: details.phone.trim() || null,
@@ -122,6 +126,13 @@ export default function AdminManagedVenuePanel({ profileId }: { profileId: numbe
           </div>
         )}
         <form onSubmit={submit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="managed-type">Venue type</Label>
+            <select id="managed-type" className="w-full rounded-md border bg-background p-2" value={details.venueType} onChange={(e) => setField("venueType", e.target.value)}>
+              {Object.values(VenueCategory).map((type) => <option key={type} value={type}>{type === "cafe" ? "Café" : type === "bar" ? "Bar & nightlife" : type === "culture" ? "Arts & culture" : type === "outdoors" ? "Park & outdoors" : type[0].toUpperCase() + type.slice(1)}</option>)}
+            </select>
+            <p className="text-xs text-muted-foreground">This category controls the venue's heat-map icon.</p>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="managed-name">Venue display name</Label>
             <Input id="managed-name" maxLength={255} required value={details.businessName} onChange={(e) => setField("businessName", e.target.value)} />

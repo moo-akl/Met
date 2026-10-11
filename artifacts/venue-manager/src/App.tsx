@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient
 import { Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
   createVenueManagerAnnouncement,
+  VenueCategory,
   createVenueManagerEvent,
   createVenueManagerInvitation,
   createVenueManagerReward,
@@ -1214,6 +1215,7 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
           setWebsiteUrlError("");
           update.mutate({
             businessName: form.get("businessName"),
+            ...(form.get("venueType") !== (venue.venueType ?? "other") ? { venueType: form.get("venueType") } : {}),
             tagline: form.get("tagline") || null,
             description: form.get("description") || null,
             coverPhotoUrl: coverPhotoUrl || null,
@@ -1227,6 +1229,9 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
           {message && <div className={`vm-notice ${update.isSuccess || removal.isSuccess ? "success" : "error"} full`}>{message}</div>}
 
           <label>Public business name<input name="businessName" required defaultValue={venue.businessName} /></label>
+          <label>Venue type<select name="venueType" defaultValue={venue.venueType ?? "other"}>
+            {Object.values(VenueCategory).map((type) => <option key={type} value={type}>{type === "cafe" ? "Café" : type === "bar" ? "Bar & nightlife" : type === "culture" ? "Arts & culture" : type === "outdoors" ? "Park & outdoors" : type[0].toUpperCase() + type.slice(1)}</option>)}
+          </select><small>Choose the category used for your heat-map icon.</small></label>
           <label>Short tagline<input name="tagline" defaultValue={venue.tagline ?? ""} placeholder="The neighborhood's favorite…" /></label>
           <label className="full">About your venue<textarea name="description" defaultValue={venue.description ?? ""} rows={5} /></label>
 
