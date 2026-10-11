@@ -1,11 +1,9 @@
 #!/bin/bash
-set -e
-pnpm install --frozen-lockfile
-pnpm --filter db push
+set -euo pipefail
 
-echo "Pushing to GitHub..."
-if git push --force github main; then
-  echo "GitHub sync complete."
-else
-  echo "WARNING: GitHub push failed (remote unreachable or rejected). Sync manually if needed."
-fi
+# Keep setup reproducible: dependency changes must include their lockfile.
+pnpm install --frozen-lockfile
+pnpm run typecheck:libs
+
+# Publishing and database schema changes require separate, reviewed actions.
+echo "Post-merge dependency setup and shared-library build complete."

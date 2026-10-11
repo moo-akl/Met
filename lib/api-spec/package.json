@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "codegen": "orval --config ./orval.config.ts && pnpm -w run typecheck:libs",
+    "test": "node --test ./scripts/codegen-safety.test.cjs",
     "verify-codegen": "node ./scripts/verify-codegen.cjs"
   },
   "devDependencies": {
-    "orval": "8.38.0"
+    "orval": "8.38.0",
+    "yaml": "^2.9.1"
   }
 }

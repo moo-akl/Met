@@ -12,6 +12,21 @@ package's Zod 3. Orval's own Zod dependency is not the schema runtime. Keep thes
 targets explicit when upgrading the generator. The client TypeScript config also
 needs `dom.iterable` for generated `Headers.entries()` calls.
 
+The config validates `openapi.yaml` before Orval can clean either output
+directory. Malformed YAML and duplicate mapping keys (even identical duplicates)
+fail with file/line diagnostics and leave existing generated files untouched.
+This protection applies to both `codegen` and direct Orval invocations using the
+config. It is a YAML preflight, not a transactional guarantee for later generator
+or compiler failures.
+
+Run the safety regression tests with:
+
+```sh
+pnpm --filter @workspace/api-spec test
+```
+
+They run the real generator in temporary fixtures, never against working outputs.
+
 Do not splice generated endpoint blocks or manually restore private helpers.
 Regenerate both outputs from the destination checkout's complete specification,
 including their imported models and private helper dependencies.

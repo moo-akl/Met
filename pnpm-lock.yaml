@@ -1636,6 +1636,9 @@ importers:
       orval:
         specifier: 8.38.0
         version: 8.38.0(@tanstack/react-query@5.90.21(react@19.1.0))(prettier@3.8.1)(typescript@5.9.3)(zod@4.6.5)
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
 
   lib/api-zod:
     dependencies:
