@@ -56,6 +56,8 @@ const adminStorageMock = vi.hoisted(() =>
 );
 
 vi.mock("@workspace/db", () => ({
+  venueGuestbookTable: { _name: "venue_guestbook" },
+  venueGuestbookBlocksTable: { _name: "venue_guestbook_blocks" },
   db: dbMock,
   profilesTable: { _name: "profiles" },
   encountersTable: { _name: "encounters" },
@@ -128,6 +130,13 @@ beforeEach(() => {
 });
 
 describe("deleteUserData — Postgres cleanup", () => {
+  it("removes guestbook memories and both directions of guestbook blocks", async () => {
+    const { tables } = captureDeletedTables();
+    const { venueGuestbookTable, venueGuestbookBlocksTable } = await import("@workspace/db");
+    await deleteUserData("uid-guestbook");
+    expect(tables).toContain(venueGuestbookTable);
+    expect(tables).toContain(venueGuestbookBlocksTable);
+  });
   it("deletes the user's RSVPs to other venues' events (attendee cleanup)", async () => {
     const { tables } = captureDeletedTables();
     const { venueEventRsvpsTable } = await import("@workspace/db");
@@ -176,6 +185,17 @@ describe("deleteUserData — Postgres cleanup", () => {
 });
 
 describe("deleteUserData — Storage cleanup failure recording", () => {
+  it("removes visit photos by their exact account prefix, even if profile listing fails", async () => {
+    const remove = vi.fn().mockResolvedValue(undefined);
+    bucketMock.getFiles.mockImplementation(async ({ prefix }: { prefix: string }) => {
+      if (prefix.startsWith("profile-photos/")) throw new Error("Profile list unavailable");
+      return [[{ name: "venue-guestbook/uid-visit/photo.jpg", delete: remove }]];
+    });
+    await deleteUserData("uid-visit");
+    expect(bucketMock.getFiles).toHaveBeenCalledWith({ prefix: "venue-guestbook/uid-visit/" });
+    expect(remove).toHaveBeenCalledOnce();
+    expect(fsSetSpy).toHaveBeenCalled(); // failed profile prefix remains retryable
+  });
   it("does not write a failure record when Storage deletion succeeds", async () => {
     const deleteFn = vi.fn().mockResolvedValue(undefined);
     bucketMock.getFiles.mockResolvedValue([

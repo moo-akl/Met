@@ -486,6 +486,31 @@ export interface RemoteRevealRequestWithProfile extends RemoteRevealRequest {
   profile: RemoteProfile;
 }
 
+// ----- Venue guestbook -----
+export interface VenueGuestbookEntry {
+  id: number;
+  authorUid: string;
+  displayName: string;
+  avatarUrl: string | null;
+  note: string;
+  photoUrl: string | null;
+  createdAt: string;
+}
+
+export interface VenueGuestbookPage {
+  entries: VenueGuestbookEntry[];
+  nextCursor: number | null;
+  canPost: boolean;
+  eligibility: "profile" | "checkin" | null;
+}
+
+export type VenueGuestbookReportReason =
+  | "inappropriate"
+  | "offensive_image"
+  | "spam"
+  | "harassment"
+  | "other";
+
 export const api = {
   baseUrl: BASE_URL,
   isConfigured: () => BASE_URL.length > 0,
@@ -1590,4 +1615,32 @@ export const api = {
       reason: "inappropriate" | "harassment" | "spam" | "offensive_image" | "other";
     },
   ) => request<{ id: string | null }>("POST", "/api/venue-content-reports", opts, body),
+  getVenueGuestbook: (opts: ApiOptions, placeId: string, before?: number | null) =>
+    request<VenueGuestbookPage>(
+      "GET",
+      `/api/hubs/${encodeURIComponent(placeId)}/guestbook${before != null ? `?before=${before}` : ""}`,
+      opts,
+    ),
+  createVenueGuestbookEntry: (
+    opts: ApiOptions,
+    placeId: string,
+    body: { note: string; photoBase64?: string; clientId: string },
+  ) =>
+    request<{ entry: VenueGuestbookEntry }>(
+      "POST", `/api/hubs/${encodeURIComponent(placeId)}/guestbook`, opts, body,
+    ),
+  deleteVenueGuestbookEntry: (opts: ApiOptions, placeId: string, entryId: number) =>
+    request<{ ok: true }>(
+      "DELETE", `/api/hubs/${encodeURIComponent(placeId)}/guestbook/${entryId}`, opts,
+    ),
+  reportVenueGuestbookEntry: (
+    opts: ApiOptions, placeId: string, entryId: number, reason: VenueGuestbookReportReason,
+  ) =>
+    request<{ ok: true }>(
+      "POST", `/api/hubs/${encodeURIComponent(placeId)}/guestbook/${entryId}/report`, opts, { reason },
+    ),
+  blockVenueGuestbookAuthor: (opts: ApiOptions, placeId: string, entryId: number) =>
+    request<{ ok: true }>(
+      "POST", `/api/hubs/${encodeURIComponent(placeId)}/guestbook/${entryId}/block`, opts, {},
+    ),
 };

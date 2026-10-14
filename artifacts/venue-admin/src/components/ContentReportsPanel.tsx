@@ -16,12 +16,13 @@ import { formatDistanceToNow } from "date-fns";
 interface ContentReport {
   id: number;
   reporterUid: string;
-  entityType: "event" | "announcement" | "venue";
+  entityType: "event" | "announcement" | "venue" | "guestbook";
   entityId: number;
   placeId: string;
   reason: string;
   status: "open" | "actioned" | "dismissed";
   contentTitle: string | null;
+  contentPhotoUrl?: string | null;
   contentIsHidden: boolean | null;
   createdAt: string;
 }
@@ -39,6 +40,7 @@ const ENTITY_ICONS: Record<string, React.ReactNode> = {
   event: <Calendar className="w-3.5 h-3.5" />,
   announcement: <MessageSquare className="w-3.5 h-3.5" />,
   venue: <Building2 className="w-3.5 h-3.5" />,
+  guestbook: <MessageSquare className="w-3.5 h-3.5" />,
 };
 
 const REASON_LABELS: Record<string, string> = {
@@ -62,7 +64,7 @@ export default function ContentReportsPanel() {
   const [actioning, setActioning] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<"open" | "actioned" | "dismissed" | "all">("open");
-  const [entityFilter, setEntityFilter] = useState<"all" | "event" | "announcement" | "venue">("all");
+  const [entityFilter, setEntityFilter] = useState<"all" | "event" | "announcement" | "venue" | "guestbook">("all");
 
   const selectedReport = reports.find((r) => r.id === selectedId) ?? null;
 
@@ -133,6 +135,7 @@ export default function ContentReportsPanel() {
                 <SelectItem value="event">Events</SelectItem>
                 <SelectItem value="announcement">Announcements</SelectItem>
                 <SelectItem value="venue">Venues</SelectItem>
+                <SelectItem value="guestbook">Guestbook memories</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => void load()} title="Refresh">
@@ -217,6 +220,12 @@ export default function ContentReportsPanel() {
               <h2 className="text-lg font-bold text-foreground">
                 {selectedReport.contentTitle ?? `Venue: ${selectedReport.placeId}`}
               </h2>
+              {selectedReport.contentPhotoUrl && (
+                <a href={selectedReport.contentPhotoUrl} target="_blank" rel="noreferrer">
+                  <img src={selectedReport.contentPhotoUrl} alt="Reported visit photo"
+                    className="mt-3 max-h-72 w-full rounded-lg object-contain bg-muted" />
+                </a>
+              )}
               <p className="text-sm text-muted-foreground mt-1">
                 Reported{" "}
                 {formatDistanceToNow(new Date(selectedReport.createdAt), { addSuffix: true })}
@@ -249,7 +258,7 @@ export default function ContentReportsPanel() {
             )}
 
             {/* Action buttons */}
-            {selectedReport.status === "open" && (
+            {(selectedReport.status === "open" || selectedReport.contentIsHidden === true) && (
               <div className="flex flex-col gap-2">
                 {selectedReport.entityType !== "venue" && !selectedReport.contentIsHidden && (
                   <Button
@@ -273,7 +282,7 @@ export default function ContentReportsPanel() {
                     {actioning === selectedReport.id ? "Restoring…" : "Restore content (false report)"}
                   </Button>
                 )}
-                <Button
+                {selectedReport.status === "open" && <Button
                   className="w-full"
                   variant="outline"
                   disabled={actioning === selectedReport.id}
@@ -281,13 +290,13 @@ export default function ContentReportsPanel() {
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />
                   {actioning === selectedReport.id ? "Dismissing…" : "Dismiss — no action needed"}
-                </Button>
+                </Button>}
               </div>
             )}
 
             {selectedReport.status !== "open" && (
               <p className="text-sm text-muted-foreground italic">
-                This report has already been {selectedReport.status}. Use the filters to find open reports.
+                This report has already been {selectedReport.status}.
               </p>
             )}
           </div>

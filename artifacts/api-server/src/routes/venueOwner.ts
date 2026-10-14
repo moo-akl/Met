@@ -112,6 +112,7 @@ import {
 import { OUTREACH_TEMPLATE_IDS, OUTREACH_TEMPLATES, buildVenueOutreachEmail } from "../lib/venueOutreachEmail.js";
 import { createVenueManagerUpdatePosterPack } from "../lib/venueManagerUpdatePosters.js";
 import { z } from "zod/v4";
+import { venueGuestbookTable } from "@workspace/db";
 import crypto from "node:crypto";
 
 const venueApplicationStatuses = [
@@ -6962,8 +6963,9 @@ router.get(
     const announcementIds = reports
       .filter((r) => r.entityType === "announcement" && r.entityId > 0)
       .map((r) => r.entityId);
+    const guestbookIds = reports.filter(r => r.entityType === "guestbook").map(r => r.entityId);
 
-    const [hiddenEvents, hiddenAnnouncements] = await Promise.all([
+    const [hiddenEvents, hiddenAnnouncements, guestbookEntries] = await Promise.all([
       eventIds.length
         ? db.select({ id: venueEventsTable.id, isHidden: venueEventsTable.isHidden, title: venueEventsTable.title })
             .from(venueEventsTable).where(inArray(venueEventsTable.id, eventIds))
@@ -6972,25 +6974,32 @@ router.get(
         ? db.select({ id: venueAnnouncementsTable.id, isHidden: venueAnnouncementsTable.isHidden, title: venueAnnouncementsTable.title })
             .from(venueAnnouncementsTable).where(inArray(venueAnnouncementsTable.id, announcementIds))
         : Promise.resolve([]),
+      guestbookIds.length
+        ? db.select({ id: venueGuestbookTable.id, isHidden: venueGuestbookTable.isHidden, title: venueGuestbookTable.note,
+            photoUrl: venueGuestbookTable.photoUrl })
+            .from(venueGuestbookTable).where(inArray(venueGuestbookTable.id, guestbookIds))
+        : Promise.resolve([]),
     ]);
 
     const eventMap = Object.fromEntries(hiddenEvents.map((e) => [e.id, e]));
     const announcementMap = Object.fromEntries(hiddenAnnouncements.map((a) => [a.id, a]));
+    const guestbookMap = Object.fromEntries(guestbookEntries.map(e => [e.id, e]));
 
     const enriched = reports.map((r) => ({
       ...r,
+      contentPhotoUrl: r.entityType === "guestbook" ? (guestbookMap[r.entityId]?.photoUrl ?? null) : null,
       contentTitle:
         r.entityType === "event"
           ? (eventMap[r.entityId]?.title ?? null)
           : r.entityType === "announcement"
             ? (announcementMap[r.entityId]?.title ?? null)
-            : null,
+            : r.entityType === "guestbook" ? (guestbookMap[r.entityId]?.title ?? null) : null,
       contentIsHidden:
         r.entityType === "event"
           ? (eventMap[r.entityId]?.isHidden ?? null)
           : r.entityType === "announcement"
             ? (announcementMap[r.entityId]?.isHidden ?? null)
-            : null,
+            : r.entityType === "guestbook" ? (guestbookMap[r.entityId]?.isHidden ?? null) : null,
     }));
 
     res.json({ reports: enriched, total: enriched.length });
@@ -7047,6 +7056,9 @@ router.patch(
           .update(venueAnnouncementsTable)
           .set({ isHidden: hidden })
           .where(eq(venueAnnouncementsTable.id, report.entityId));
+      } else if (report.entityType === "guestbook" && report.entityId > 0) {
+        await db.update(venueGuestbookTable).set({ isHidden: hidden })
+          .where(eq(venueGuestbookTable.id, report.entityId));
       }
       // venue-level reports have entityId=0; no content row to hide
     }

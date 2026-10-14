@@ -52,11 +52,13 @@ async function getAccessToken(): Promise<string> {
  */
 export async function moderateImage(
   base64: string,
+  options: { failClosed?: boolean } = {},
 ): Promise<ModerationResult> {
   let accessToken: string;
   try {
     accessToken = await getAccessToken();
   } catch (err) {
+    if (options.failClosed) throw err;
     logger.error(
       { err },
       "content-moderation: failed to get access token — skipping check",
@@ -80,6 +82,7 @@ export async function moderateImage(
   try {
     resp = await fetch(VISION_API_URL, {
       method: "POST",
+      ...(options.failClosed ? { signal: AbortSignal.timeout(15_000) } : {}),
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
@@ -87,6 +90,7 @@ export async function moderateImage(
       body: JSON.stringify(body),
     });
   } catch (err) {
+    if (options.failClosed) throw err;
     logger.error(
       { err },
       "content-moderation: Vision API request failed — skipping check",
@@ -95,6 +99,7 @@ export async function moderateImage(
   }
 
   if (!resp.ok) {
+    if (options.failClosed) throw new Error(`Image moderation unavailable (${resp.status})`);
     const text = await resp.text().catch(() => "");
     logger.error(
       { status: resp.status, body: text.slice(0, 500) },
@@ -107,6 +112,7 @@ export async function moderateImage(
   try {
     data = await resp.json();
   } catch (err) {
+    if (options.failClosed) throw err;
     logger.error(
       { err },
       "content-moderation: failed to parse Vision API response — skipping check",
@@ -131,12 +137,16 @@ export async function moderateImage(
   const faceCount = response?.faceAnnotations?.length ?? 0;
 
   if (!annotation) {
+    if (options.failClosed) throw new Error("Image moderation returned no safety result");
     return { safe: true, faceCount };
   }
 
   const adult = LIKELIHOOD_RANK[annotation.adult ?? "UNKNOWN"] ?? 0;
   const violence = LIKELIHOOD_RANK[annotation.violence ?? "UNKNOWN"] ?? 0;
   const racy = LIKELIHOOD_RANK[annotation.racy ?? "UNKNOWN"] ?? 0;
+  if (options.failClosed && (!adult || !violence || !racy)) {
+    throw new Error("Image moderation returned incomplete safety classifications");
+  }
 
   if (adult >= ADULT_THRESHOLD) {
     return {

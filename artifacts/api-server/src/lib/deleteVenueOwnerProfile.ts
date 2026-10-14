@@ -210,7 +210,11 @@ export async function deleteVenueOwnerProfile(
     await tx.delete(venueQrVerificationsTable).where(eq(venueQrVerificationsTable.placeId, placeId));
     await tx.delete(venueReviewsTable).where(eq(venueReviewsTable.placeId, placeId));
     await tx.delete(monthlyChampionsTable).where(eq(monthlyChampionsTable.placeId, placeId));
-    await tx.delete(venueContentReportsTable).where(eq(venueContentReportsTable.placeId, placeId));
+    // Visitor memories belong to the place, not its current business owner.
+    // Preserve their safety reports if the business listing is removed.
+    await tx.delete(venueContentReportsTable).where(and(
+      eq(venueContentReportsTable.placeId, placeId), ne(venueContentReportsTable.entityType, "guestbook"),
+    ));
     await tx.update(userStatsTable).set({
       hubStreaks: sql`${userStatsTable.hubStreaks} - ${placeId}`,
       updatedAt: new Date(),

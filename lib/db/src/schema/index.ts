@@ -9,4 +9,5 @@ export * from "./trophies";
 export * from "./venueOwner";
 export * from "./venueBusiness";
 export * from "./venueOutreach";
+export * from "./venueGuestbook";
 

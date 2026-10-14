@@ -22,6 +22,7 @@ import { requireUid } from "../middlewares/requireUid";
 import deepLinkCheckRouter from "./deepLinkCheck";
 import venueReviewsRouter from "./venueReviews";
 import venueActivationRouter from "./venueActivation";
+import venueGuestbookRouter from "./venueGuestbook";
 
 const router: IRouter = Router();
 
@@ -46,6 +47,7 @@ router.use(venueOwnerRouter);
 router.use(venueManagerRouter);
 router.use(createVenueManagerClaimRouter(requireUid));
 router.use(venueReviewsRouter);
+router.use(venueGuestbookRouter);
 router.use(venueActivationRouter);
 router.use(deepLinkCheckRouter);
 

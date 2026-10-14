@@ -42,6 +42,7 @@ import {
 } from "@/lib/api/client";
 import { SheetHandle } from "@/components/SheetHandle";
 import { VenueEventCard } from "@/components/VenueEventCard";
+import { VenueGuestbook } from "@/components/VenueGuestbook";
 import {
   getQrVerified,
   markQrVerified,
@@ -1224,6 +1225,16 @@ export default function VenueProfileScreen() {
               )}
             </View>
           )}
+
+          {/* ── Guestbook ─────────────────────────────────────────────── */}
+          <View style={styles.section}>
+            <VenueGuestbook
+              placeId={placeId ?? ""}
+              placeName={profile.businessName}
+              isDemo={isScreenshotDemoVenue}
+              qrVerified={isQrVerified}
+            />
+          </View>
 
           {/* ── Info & Contact ─────────────────────────────────────────── */}
           {(profile.phone || profile.websiteUrl || profile.publicEmail || todayLabel) && (

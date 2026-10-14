@@ -24,6 +24,7 @@ import {
 } from "@workspace/db";
 import { eq, or } from "drizzle-orm";
 import { adminAuth, adminDb, adminStorage } from "./firebaseAdmin";
+import { venueGuestbookTable, venueGuestbookBlocksTable } from "@workspace/db";
 import { logger } from "./logger";
 
 /**
@@ -43,6 +44,10 @@ export async function deleteUserData(uid: string): Promise<void> {
 
 async function deletePostgresUserData(uid: string): Promise<void> {
   await db.transaction(async (tx) => {
+    await tx.delete(venueGuestbookTable).where(eq(venueGuestbookTable.authorUid, uid));
+    await tx.delete(venueGuestbookBlocksTable).where(or(
+      eq(venueGuestbookBlocksTable.blockerUid, uid), eq(venueGuestbookBlocksTable.blockedUid, uid),
+    ));
     // Engagement / activity tables
     await tx
       .delete(hubCheckinsTable)
@@ -178,7 +183,16 @@ async function deleteStorageAssets(uid: string): Promise<void> {
   try {
     const bucket = adminStorage().bucket();
     // Profile photos are stored as profile-photos/{uid}.{ext}
-    const [files] = await bucket.getFiles({ prefix: `profile-photos/${uid}.` });
+    const results = await Promise.allSettled([
+      bucket.getFiles({ prefix: `profile-photos/${uid}.` }),
+      bucket.getFiles({ prefix: `venue-guestbook/${uid}/` }),
+    ]);
+    const byName = new Map<string, { name: string; delete: () => Promise<unknown> }>();
+    for (const result of results) {
+      if (result.status === "rejected") { listFailed = true; continue; }
+      for (const file of result.value[0]) byName.set(file.name, file);
+    }
+    const files = [...byName.values()];
 
     await Promise.all(
       files.map(async (f) => {
