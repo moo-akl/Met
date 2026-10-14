@@ -8,13 +8,16 @@ const mocks = vi.hoisted(() => {
     select: vi.fn().mockReturnThis(), from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(), limit,
   };
-  return { chain, verify: vi.fn() };
+  return { chain, verify: vi.fn(), initialize: vi.fn() };
 });
 vi.mock("@workspace/db", () => ({
   db: mocks.chain, profilesTable: { uid: "uid", displayName: "name", photoUrl: "photo" },
 }));
 vi.mock("../lib/firebaseAdmin", () => ({
-  adminAuth: () => ({ verifyIdToken: mocks.verify }),
+  adminAuth: () => {
+    mocks.initialize();
+    return { verifyIdToken: mocks.verify };
+  },
 }));
 import { requireUid } from "./requireUid";
 
@@ -25,11 +28,40 @@ app.use((req, res) => { res.json({ uid: req.uid }); });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.initialize.mockReset();
   mocks.chain.limit.mockResolvedValue([{ displayName: "Met visitor", photoUrl: null }]);
   mocks.verify.mockResolvedValue({ uid: "visitor" });
 });
 
 describe("authenticated private visitor enforcement", () => {
+  it.each([
+    ["get", "/profiles/me"],
+    ["post", "/profiles/me/photo"],
+    ["post", "/hubs/qr-verify"],
+  ] as const)("reports unavailable server auth without blaming a valid session: %s %s", async (method, path) => {
+    mocks.initialize.mockImplementation(() => {
+      throw new Error("private server configuration diagnostic");
+    });
+    const res = await request(app)[method](path)
+      .set("Authorization", "Bearer test-token")
+      .set("x-met-uid", "unverified-visitor");
+    expect(res.status).toBe(503);
+    expect(res.headers["retry-after"]).toBe("30");
+    expect(res.body.code).toBe("AUTH_SERVICE_UNAVAILABLE");
+    expect(JSON.stringify(res.body)).not.toContain("private server configuration");
+    expect(mocks.verify).not.toHaveBeenCalled();
+    expect(mocks.chain.select).not.toHaveBeenCalled();
+    expect(res.body.uid).toBeUndefined();
+  });
+  it("continues rejecting invalid ID tokens as unauthorized", async () => {
+    mocks.verify.mockRejectedValueOnce(new Error("invalid token"));
+    const res = await request(app).get("/profiles/me")
+      .set("Authorization", "Bearer invalid-token")
+      .set("x-met-uid", "unverified-visitor");
+    expect(res.status).toBe(401);
+    expect(res.body.code).not.toBe("AUTH_SERVICE_UNAVAILABLE");
+    expect(mocks.chain.select).not.toHaveBeenCalled();
+  });
   it("denies social access even with a valid Firebase token", async () => {
     const res = await request(app).post("/reveals").set("Authorization", "Bearer test-token");
     expect(res.status).toBe(403);

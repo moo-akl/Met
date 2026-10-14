@@ -46,8 +46,25 @@ export async function requireUid(
   const idToken = match?.[1]?.trim();
 
   if (idToken) {
+    let verifier: ReturnType<typeof adminAuth>;
     try {
-      const decoded = await adminAuth().verifyIdToken(idToken);
+      verifier = adminAuth();
+    } catch {
+      // Server configuration failures are not evidence that the caller's
+      // Firebase session is invalid. Never fall back to an unverified UID.
+      req.log?.error(
+        { code: "AUTH_SERVICE_UNAVAILABLE" },
+        "Firebase authentication service could not initialize",
+      );
+      res.setHeader("Retry-After", "30");
+      res.status(503).json({
+        code: "AUTH_SERVICE_UNAVAILABLE",
+        message: "Sign-in service is temporarily unavailable. Please try again shortly.",
+      });
+      return;
+    }
+    try {
+      const decoded = await verifier.verifyIdToken(idToken);
       req.uid = decoded.uid;
     } catch (err) {
       req.log?.warn(

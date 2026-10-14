@@ -39,15 +39,22 @@ function init(): App {
   let parsed: { project_id?: string; client_email?: string; private_key?: string };
   try {
     parsed = JSON.parse(raw) as typeof parsed;
-  } catch (err) {
+  } catch {
     initError = new Error(
-      "Firebase service account JSON is not valid: " +
-        (err as Error).message,
+      "FIREBASE_SERVICE_ACCOUNT_JSON must contain the complete, valid JSON object " +
+        "from a Firebase Admin SDK service account file.",
     );
     throw initError;
   }
 
-  if (!parsed.project_id || !parsed.client_email || !parsed.private_key) {
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed) ||
+    typeof parsed.project_id !== "string" || !parsed.project_id.trim() ||
+    typeof parsed.client_email !== "string" || !parsed.client_email.trim() ||
+    typeof parsed.private_key !== "string" || !parsed.private_key.trim()
+  ) {
     initError = new Error(
       "FIREBASE_SERVICE_ACCOUNT_JSON is missing required fields " +
         "(project_id, client_email, private_key).",
