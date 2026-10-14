@@ -114,6 +114,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
         .select({
           isVisible: profilesTable.isVisible,
           updatedAt: profilesTable.updatedAt,
+          photoUrl: profilesTable.photoUrl,
         })
         .from(profilesTable)
         .where(eq(profilesTable.uid, uid))
@@ -144,6 +145,16 @@ router.put("/profiles/me", requireUid, async (req, res) => {
       // preserves its current state.
       const targetIsVisible =
         body.isVisible ?? existingProfile?.isVisible ?? false;
+
+      // A private check-in account must never become discoverable until the
+      // normal photo/profile setup is complete, including on an old client.
+      const effectivePhoto = body.photoUrl === undefined ? existingProfile?.photoUrl : body.photoUrl;
+      if (targetIsVisible && (!effectivePhoto?.trim() || !body.displayName.trim())) {
+        return {
+          status: 403 as const,
+          message: "Complete your profile and add a photo before becoming visible.",
+        };
+      }
 
       // Hide Firestore before committing Hidden. Visible is never mirrored
       // until after the canonical Postgres transaction has committed.
@@ -224,7 +235,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
       const updateValues: Partial<typeof profilesTable.$inferInsert> = {
         uidHash,
         displayName: body.displayName,
-        photoUrl: body.photoUrl ?? null,
+        ...(body.photoUrl !== undefined ? { photoUrl: body.photoUrl } : {}),
         bio: body.bio ?? null,
         socials: body.socials ?? {},
         // Using a database-side monotonic clock gives the existing updatedAt
@@ -255,6 +266,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
       const mirror = await mirrorProfileToFirestore({
         uid,
         isVisible: true,
+        socialEligible: true,
         ...(body.isVisible === true ? { clearPresence: true } : {}),
       });
       if (mirror.ok) return { status: 200 as const, row: committed.row };
@@ -310,7 +322,11 @@ router.put("/profiles/me", requireUid, async (req, res) => {
       };
     }
 
-    const mirror = await mirrorProfileToFirestore({ uid, isVisible: false });
+    const mirror = await mirrorProfileToFirestore({
+      uid,
+      isVisible: false,
+      socialEligible: Boolean(committed.row.photoUrl?.trim() && committed.row.displayName.trim()),
+    });
     let postgresCleanupOk = true;
     try {
       await sessionDb.transaction((tx) => clearPostgresDiscoveryData(tx, uid));
@@ -646,19 +662,17 @@ router.delete("/profiles/me", requireUid, async (req, res) => {
       .limit(1);
 
     if (ownerProfile) {
-      // Full 13-table cascade: business, manager accounts, memberships, events,
-      // RSVPs, rewards, announcements, application history, and the profile row.
-      // deleteVenueOwnerProfile returns event image URLs collected before deletion.
-      let eventImageUrls: string[] = [];
+      // Delete only this venue's records and exclusively referenced files.
+      let venueFileUrls: string[] = [];
       await db.transaction(async (tx) => {
-        eventImageUrls = await deleteVenueOwnerProfile(tx, ownerProfile);
+        venueFileUrls = await deleteVenueOwnerProfile(tx, ownerProfile);
       });
 
       // Best-effort: delete Storage files for venue cover photo, logo, and event
       // images. Only URLs that target the configured default bucket and begin
       // with a known venue-generated prefix are acted on; others are skipped.
       await deleteVenueStorageFiles(
-        [ownerProfile.coverPhotoUrl, ownerProfile.logoUrl, ...eventImageUrls],
+        venueFileUrls,
         { uid },
       );
     }

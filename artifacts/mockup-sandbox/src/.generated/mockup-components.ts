@@ -12,6 +12,8 @@ export const modules: ModuleMap = {
   "./components/mockups/home-designs/AuroraGlass.tsx": () => import("../components/mockups/home-designs/AuroraGlass.tsx"),
   "./components/mockups/home-designs/NoirLuxury.tsx": () => import("../components/mockups/home-designs/NoirLuxury.tsx"),
   "./components/mockups/home-designs/WarmEditorial.tsx": () => import("../components/mockups/home-designs/WarmEditorial.tsx"),
+  "./components/mockups/met-landing/Current.tsx": () => import("../components/mockups/met-landing/Current.tsx"),
+  "./components/mockups/met-landing/VenueFirst.tsx": () => import("../components/mockups/met-landing/VenueFirst.tsx"),
   "./components/mockups/met-screens/ChatShot.tsx": () => import("../components/mockups/met-screens/ChatShot.tsx"),
   "./components/mockups/met-screens/EncountersNew.tsx": () => import("../components/mockups/met-screens/EncountersNew.tsx"),
   "./components/mockups/met-screens/HeatmapShot.tsx": () => import("../components/mockups/met-screens/HeatmapShot.tsx"),
@@ -31,5 +33,7 @@ export const modules: ModuleMap = {
   "./components/mockups/venue-manager-mobile/Pulse.tsx": () => import("../components/mockups/venue-manager-mobile/Pulse.tsx"),
   "./components/mockups/venue-manager-redesign/Indigo.tsx": () => import("../components/mockups/venue-manager-redesign/Indigo.tsx"),
   "./components/mockups/venue-manager-redesign/Ivory.tsx": () => import("../components/mockups/venue-manager-redesign/Ivory.tsx"),
-  "./components/mockups/venue-manager-redesign/Obsidian.tsx": () => import("../components/mockups/venue-manager-redesign/Obsidian.tsx")
+  "./components/mockups/venue-manager-redesign/Obsidian.tsx": () => import("../components/mockups/venue-manager-redesign/Obsidian.tsx"),
+  "./components/mockups/met-landing/components/AppScreensCarousel.tsx": () => import("../components/mockups/met-landing/components/AppScreensCarousel.tsx"),
+  "./components/mockups/met-landing/components/HeroPhone.tsx": () => import("../components/mockups/met-landing/components/HeroPhone.tsx")
 };

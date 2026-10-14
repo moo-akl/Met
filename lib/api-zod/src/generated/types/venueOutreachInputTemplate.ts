@@ -19,4 +19,6 @@ export const VenueOutreachInputTemplate = {
   events: 'events',
   rewards: 'rewards',
   follow_up: 'follow_up',
+  latest_updates: 'latest_updates',
+  latest_updates_prospect: 'latest_updates_prospect',
 } as const;

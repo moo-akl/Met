@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { adminAuth } from "../lib/firebaseAdmin";
+import { needsSocialProfile } from "../lib/socialEligibility";
+import { canUseSocialFeatures } from "../lib/socialProfileAccess";
 
 declare global {
   namespace Express {
@@ -11,6 +13,19 @@ declare global {
 
 const UID_PATTERN = /^[A-Za-z0-9_-]+$/;
 const IS_PROD = process.env["NODE_ENV"] === "production";
+
+async function authorizeProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (needsSocialProfile(req.method, req.path)) {
+    if (!(await canUseSocialFeatures(req.uid!))) {
+      res.status(403).json({
+        code: "PROFILE_COMPLETION_REQUIRED",
+        message: "Complete your profile and add a photo before using social features. Private QR check-in is still available.",
+      });
+      return;
+    }
+  }
+  next();
+}
 
 /**
  * Verifies a Firebase ID token from the `Authorization: Bearer <token>`
@@ -34,8 +49,6 @@ export async function requireUid(
     try {
       const decoded = await adminAuth().verifyIdToken(idToken);
       req.uid = decoded.uid;
-      next();
-      return;
     } catch (err) {
       req.log?.warn(
         { err: (err as Error)?.message },
@@ -44,6 +57,8 @@ export async function requireUid(
       res.status(401).json({ message: "Invalid or expired ID token" });
       return;
     }
+    await authorizeProfile(req, res, next);
+    return;
   }
 
   if (!IS_PROD) {
@@ -55,7 +70,7 @@ export async function requireUid(
         return;
       }
       req.uid = uid;
-      next();
+      await authorizeProfile(req, res, next);
       return;
     }
   }

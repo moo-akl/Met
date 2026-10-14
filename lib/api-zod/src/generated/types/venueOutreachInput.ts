@@ -15,5 +15,7 @@ export interface VenueOutreachInput {
   businessName: string;
   /** @maxLength 255 */
   recipientEmail: string;
+  /** @maxLength 255 */
+  placeId?: string;
   template?: VenueOutreachInputTemplate;
 }

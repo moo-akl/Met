@@ -8,6 +8,7 @@
 import type { VenueCategory } from './venueCategory';
 import type { VenueManagerBusinessOpeningHours } from './venueManagerBusinessOpeningHours';
 import type { VenueManagerBusinessRole } from './venueManagerBusinessRole';
+import type { VenueQrPosterDesign } from './venueQrPosterDesign';
 
 export interface VenueManagerBusiness {
   businessId: number;
@@ -32,6 +33,7 @@ export interface VenueManagerBusiness {
   publicEmail?: string | null;
   /** @nullable */
   openingHours?: VenueManagerBusinessOpeningHours;
+  qrPosterDesign: VenueQrPosterDesign | null;
   role: VenueManagerBusinessRole;
   isActive: boolean;
 }

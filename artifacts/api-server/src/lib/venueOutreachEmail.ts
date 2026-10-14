@@ -138,6 +138,8 @@ export const OUTREACH_TEMPLATE_IDS = [
   "events",
   "rewards",
   "follow_up",
+  "latest_updates",
+  "latest_updates_prospect",
 ] as const;
 
 export type OutreachTemplateId = typeof OUTREACH_TEMPLATE_IDS[number];
@@ -152,15 +154,113 @@ export const OUTREACH_TEMPLATES: { id: OutreachTemplateId; label: string; descri
   { id: "events", label: "Events and announcements", description: "Focus on sharing upcoming happenings with local guests." },
   { id: "rewards", label: "Guest rewards", description: "Focus on ways to welcome and recognize returning guests." },
   { id: "follow_up", label: "Follow up", description: "Only use this after you have already contacted the venue." },
+  { id: "latest_updates", label: "Latest updates for venue managers", description: "Announce multi-venue management and printable, venue-branded Check In QR codes." },
+  { id: "latest_updates_prospect", label: "Invite contacted venues to join Met", description: "Share the latest updates with previously contacted venues that do not have an active manager account." },
 ];
 
 type MetAppIntroVideo = { videoUrl: string; posterUrl: string };
+
+function safeVenueManagerUrl(value: string | undefined): string {
+  const fallback = "https://met-app.org/venue-manager";
+  if (!value) return fallback;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:"
+      ? parsed.href.replace(/\/$/, "")
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function buildVenueManagerLatestUpdatesEmail(opts: {
+  venueManagerUrl?: string;
+  hasPosterAttachments?: boolean;
+}): VenueEmail {
+  const subject = "Great news for our venue managers.";
+  const venueManagerUrl = safeVenueManagerUrl(opts.venueManagerUrl);
+  const posterNote = opts.hasPosterAttachments
+    ? "Create a design-ready Check In QR code featuring your venue name, then print it directly from the Venue Manager website. We’ve attached an A4 PDF pack with both Garden and Midnight grid poster designs for each active venue."
+    : "Create a design-ready Check In QR code featuring your venue name, then print it directly from the Venue Manager website. Both Garden and Midnight grid poster designs are available from Venue Manager.";
+  const paragraphs = [
+    "Hello Venue Manager,",
+    "We’re excited to share two updates that make managing and promoting your venues easier:",
+  ];
+  const text = [
+    ...paragraphs,
+    "Add and manage multiple venues under your account through the Met app or your Venue Manager links.",
+    posterNote,
+    `Sign in to Venue Manager: ${venueManagerUrl}`,
+    "Regards,\nThe Met venues team",
+  ].join("\n\n");
+  const body = paragraphs.map((paragraph) =>
+    `<p style="margin:0 0 18px;color:#485b52;font-size:16px;line-height:1.75;">${escapeHtml(paragraph)}</p>`,
+  ).join("") +
+    `<ul style="margin:0 0 22px;padding-left:22px;color:#485b52;font-size:16px;line-height:1.75;">
+      <li style="margin:0 0 14px;"><strong style="color:#173f36;">Manage multiple venues:</strong> add and manage multiple venues under your account through the Met app or your Venue Manager links.</li>
+      <li><strong style="color:#173f36;">Your Check In QR posters:</strong> ${escapeHtml(posterNote)}</li>
+    </ul>
+    <p style="margin:0 0 16px;color:#485b52;font-size:16px;line-height:1.75;">Sign in to manage your venues and access your QR posters:</p>
+    <p style="margin:0 0 22px;"><a href="${escapeHtml(venueManagerUrl)}" style="display:inline-block;padding:12px 22px;border-radius:8px;background:#173f36;color:#fff;text-decoration:none;font-weight:700;">Open Venue Manager</a></p>
+    <p style="margin:0 0 18px;color:#485b52;font-size:14px;line-height:1.75;">Venue Manager link: <a href="${escapeHtml(venueManagerUrl)}" style="color:#11765e;overflow-wrap:anywhere;">${escapeHtml(venueManagerUrl)}</a></p>
+    <p style="margin:24px 0 0;color:#485b52;font-size:16px;line-height:1.75;">Regards,<br>The Met venues team</p>`;
+  return {
+    subject,
+    text,
+    html: brandedLayout({
+      businessName: "your venue",
+      eyebrow: "Latest updates",
+      headline: subject,
+      preheader: "Manage multiple venues and print a Check In QR code with your venue name.",
+      body,
+    }),
+  };
+}
+
+function buildVenueManagerProspectUpdateEmail(opts: {
+  businessName: string;
+  venueManagerUrl?: string;
+}): VenueEmail {
+  const venueManagerUrl = safeVenueManagerUrl(opts.venueManagerUrl);
+  const venueLabel = opts.businessName.trim() || "your venue";
+  const subject = `Invitation: ${venueLabel} on Met Venue Manager`;
+  const text = [
+    `Hello ${venueLabel} team,`,
+    "We’d like to invite you to explore Met Venue Manager. Venue managers can add and manage multiple venues and create design-ready Check In QR posters for guests.",
+    "The Garden and Midnight grid poster designs will be available once your venue is connected to an active manager account.",
+    `Sign in or create an account: ${venueManagerUrl}`,
+    "No account access or registration deadline is created by this message. If you need help connecting your venue, reply to this email and our team will help.",
+    "Regards,\nThe Met venues team",
+  ].join("\n\n");
+  const body = `
+    <p style="margin:0 0 18px;color:#485b52;font-size:16px;line-height:1.75;">Hello ${escapeHtml(venueLabel)} team,</p>
+    <p style="margin:0 0 18px;color:#485b52;font-size:16px;line-height:1.75;">We’d like to invite you to explore Met Venue Manager. Venue managers can add and manage multiple venues and create design-ready Check In QR posters for guests.</p>
+    <p style="margin:0 0 18px;color:#485b52;font-size:16px;line-height:1.75;">The Garden and Midnight grid poster designs will be available once your venue is connected to an active manager account.</p>
+    <p style="margin:0 0 16px;color:#485b52;font-size:16px;line-height:1.75;">Sign in or create an account to get started:</p>
+    <p style="margin:0 0 22px;"><a href="${escapeHtml(venueManagerUrl)}" style="display:inline-block;padding:12px 22px;border-radius:8px;background:#173f36;color:#fff;text-decoration:none;font-weight:700;">Explore Venue Manager</a></p>
+    <p style="margin:0 0 18px;color:#485b52;font-size:14px;line-height:1.75;">Venue Manager link: <a href="${escapeHtml(venueManagerUrl)}" style="color:#11765e;overflow-wrap:anywhere;">${escapeHtml(venueManagerUrl)}</a></p>
+    <p style="margin:0;color:#485b52;font-size:15px;line-height:1.75;">No account access or registration deadline is created by this message. If you need help connecting your venue, reply to this email and our team will help.</p>
+    <p style="margin:24px 0 0;color:#485b52;font-size:16px;line-height:1.75;">Regards,<br>The Met venues team</p>`;
+  return {
+    subject,
+    text,
+    html: brandedLayout({
+      businessName: venueLabel,
+      eyebrow: "An invitation from Met",
+      headline: subject,
+      preheader: "Explore Met Venue Manager and manage your venue on Met.",
+      body,
+    }),
+  };
+}
 
 export function buildVenueOutreachEmail(opts: VenueEmailBase & {
   template: OutreachTemplateId;
   applicationUrl?: string;
   applicationExpiresAt?: Date;
   appIntroVideo?: MetAppIntroVideo;
+  venueManagerUrl?: string;
+  hasPosterAttachments?: boolean;
 }): VenueEmail {
   if (opts.template === "contact_request") return buildVenueContactRequestEmail(opts);
   if (opts.template === "met_launch_with_links") return buildMetLaunchInviteEmail(opts, true);
@@ -168,9 +268,21 @@ export function buildVenueOutreachEmail(opts: VenueEmailBase & {
   if (opts.template === "preapproval_video_application") {
     return buildVenuePreApprovalApplicationEmail(opts);
   }
+  if (opts.template === "latest_updates") {
+    return buildVenueManagerLatestUpdatesEmail({
+      venueManagerUrl: opts.venueManagerUrl,
+      hasPosterAttachments: opts.hasPosterAttachments,
+    });
+  }
+  if (opts.template === "latest_updates_prospect") {
+    return buildVenueManagerProspectUpdateEmail({
+      businessName: opts.businessName,
+      venueManagerUrl: opts.venueManagerUrl,
+    });
+  }
 
   const name = opts.businessName.trim();
-  const templates: Record<Exclude<OutreachTemplateId, "contact_request" | "met_launch_with_links" | "met_launch_without_links" | "preapproval_video_application">, {
+  const templates: Record<Exclude<OutreachTemplateId, "contact_request" | "met_launch_with_links" | "met_launch_without_links" | "preapproval_video_application" | "latest_updates" | "latest_updates_prospect">, {
     subject: string;
     headline: string;
     paragraphs: string[];

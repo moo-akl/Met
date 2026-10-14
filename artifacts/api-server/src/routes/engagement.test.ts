@@ -46,6 +46,8 @@ const dbMocks = vi.hoisted(() => {
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
   hubCheckinsTable: {},
+  venueOwnerProfilesTable: {},
+  venueQrVerificationsTable: {},
   // Provide column stubs for userStatsTable so that assertions on
   // onConflictDoUpdate({ target, set, where }) can verify the target is the
   // primary key and the set includes the dedup stamp.
@@ -173,6 +175,46 @@ vi.mock("../middlewares/requireUid", () => ({
 // ---------------------------------------------------------------------------
 // Tests: POST /api/reviews — Firestore encounter guard
 // ---------------------------------------------------------------------------
+
+describe("QR-first private visits", () => {
+  const token = "d4669f47-98ce-4120-89da-1316fc251952";
+  it("records a private visit without publishing a leaderboard check-in", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([{ id: 1, qrToken: token }])
+      .mockResolvedValueOnce([{ displayName: "Met visitor", photoUrl: null }]);
+    const response = await request(app).post("/api/hubs/qr-verify")
+      .set("Authorization", AUTH_HEADER)
+      .send({ placeId: "test-hotspot", token });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ verified: true, streak: 0, privateOnly: true });
+    expect(dbMocks.chain.insert).toHaveBeenCalledTimes(1);
+    expect(dbMocks.chain.values).toHaveBeenCalledWith({ userUid: "alice", placeId: "test-hotspot" });
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+  it("never confirms an invalid QR or writes a private visit for it", async () => {
+    dbMocks.chain.limit.mockResolvedValueOnce([{ id: 1, qrToken: "different-token" }]);
+    const response = await request(app).post("/api/hubs/qr-verify")
+      .set("Authorization", AUTH_HEADER)
+      .send({ placeId: "test-hotspot", token });
+    expect(response.status).toBe(403);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+  it("preserves the public check-in path for completed profiles", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([{ id: 1, qrToken: token }])
+      .mockResolvedValueOnce([{ displayName: "Alice", photoUrl: "https://example.com/photo.jpg" }])
+      .mockResolvedValueOnce([]);
+    const response = await request(app).post("/api/hubs/qr-verify")
+      .set("Authorization", AUTH_HEADER)
+      .send({ placeId: "test-hotspot", token });
+    expect(response.status).toBe(200);
+    expect(response.body.verified).toBe(true);
+    expect(response.body.privateOnly).not.toBe(true);
+    expect(dbMocks.chain.values).toHaveBeenCalledWith({
+      userUid: "alice", placeId: "test-hotspot", source: "qr_verified",
+    });
+  });
+});
 
 describe("POST /api/reviews — Firestore encounter guard", () => {
   it("returns 400 when receiverUid is missing", async () => {

@@ -6,9 +6,14 @@
 #
 # Requires:
 #   - FIREBASE_SERVICE_ACCOUNT_JSON env var (a Replit secret in this repo)
-#   - npx (bundled with node)
+#   - Firebase CLI (firebase-tools)
 
 set -euo pipefail
+
+if ! command -v firebase >/dev/null 2>&1; then
+  echo "Firebase CLI is not installed" >&2
+  exit 1
+fi
 
 if [ -z "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
   echo "FIREBASE_SERVICE_ACCOUNT_JSON is not set" >&2
@@ -21,7 +26,7 @@ trap 'rm -f "$TMP_KEY"' EXIT
 printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$TMP_KEY"
 
 GOOGLE_APPLICATION_CREDENTIALS="$TMP_KEY" \
-  npx --yes firebase-tools@13 deploy \
+  firebase deploy \
   --only firestore:rules \
   --project metapp-b4642 \
   --non-interactive

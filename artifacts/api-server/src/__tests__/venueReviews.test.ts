@@ -108,7 +108,7 @@ async function seed() {
   for (const u of [USER_UID, USER2_UID, UNVERIFIED_UID]) {
     await db
       .insert(profilesTable)
-      .values({ uid: u, displayName: `Test ${u}` })
+      .values({ uid: u, displayName: `Test ${u}`, photoUrl: "https://example.com/test-profile.jpg" })
       .onConflictDoNothing();
   }
 

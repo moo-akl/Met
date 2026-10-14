@@ -541,28 +541,30 @@ export default function VenueProfileScreen() {
     if (!authedUid || !placeId) return;
     setLoading(true);
     setError(false);
+    const opts = { uid: authedUid };
+    // Secondary sections start immediately and fill in progressively; they
+    // never hold the page behind the loading state.
+    api.getVenueEvents(opts, placeId).then((d) => setEvents(d.events)).catch(() => {});
+    api.getVenueRewards(opts, placeId).then((d) => setRewards(d.rewards)).catch(() => {});
+    api
+      .getVenueAnnouncements(opts, placeId)
+      .then((d) => setAnnouncements(d.announcements))
+      .catch(() => {});
+    api
+      .getLeaderboard(opts, placeId, "current_month")
+      .then((leaderboardData) => {
+        const myEntry = leaderboardData.find(
+          (e: { uid: string; rank: number; checkinCount: number }) => e.uid === authedUid,
+        );
+        setMyLeaderboardEntry(myEntry ? { rank: myEntry.rank, checkinCount: myEntry.checkinCount } : null);
+        setTopVisitors(leaderboardData.slice(0, 3));
+      })
+      .catch(() => {});
+    // Primary: the page renders as soon as the venue profile resolves.
+    // (Reviews are loaded by the dedicated reviews effect below.)
     try {
-      const [profileData, eventsData, rewardsData, announcementsData, leaderboardData, reviewsData] =
-        await Promise.all([
-          api.getVenueOwnerProfile({ uid: authedUid }, placeId),
-          api.getVenueEvents({ uid: authedUid }, placeId).catch(() => ({ events: [] })),
-          api.getVenueRewards({ uid: authedUid }, placeId).catch(() => ({ rewards: [] })),
-          api.getVenueAnnouncements({ uid: authedUid }, placeId).catch(() => ({ announcements: [] })),
-          api.getLeaderboard({ uid: authedUid }, placeId, "current_month").catch(() => []),
-          api.getVenueReviews({ uid: authedUid }, placeId).catch(() => ({ reviews: [], averageRating: null, total: 0 })),
-        ]);
+      const profileData = await api.getVenueOwnerProfile(opts, placeId);
       setProfile(profileData.profile);
-      setEvents(eventsData.events);
-      setRewards(rewardsData.rewards);
-      setAnnouncements(announcementsData.announcements);
-      const myEntry = leaderboardData.find((e: { uid: string; rank: number; checkinCount: number }) => e.uid === authedUid);
-      setMyLeaderboardEntry(myEntry ? { rank: myEntry.rank, checkinCount: myEntry.checkinCount } : null);
-      setTopVisitors(leaderboardData.slice(0, 3));
-      // Guest reviews
-      setVenueReviews(reviewsData.reviews.slice(0, 20));
-      setAverageRating(reviewsData.averageRating);
-      setTotalReviewCount(reviewsData.total);
-      // Derive registered venue status from the profile.
       setIsRegisteredVenue(profileData.profile?.isApproved ?? false);
     } catch {
       setError(true);
@@ -635,6 +637,12 @@ export default function VenueProfileScreen() {
       });
   }, [qrToken, placeId, authedUid, isScreenshotDemoVenue]);
 
+  // Back with a Home fallback: QR / deep-link entries may have no history.
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)");
+  };
+
   const now = new Date();
   // Active / Upcoming shown by default; Ended hidden behind a toggle.
   const endedRewards = rewards.filter((r) => getRewardStatus(r, now) === "Ended");
@@ -661,6 +669,9 @@ export default function VenueProfileScreen() {
     return (
       <View style={[styles.center, { backgroundColor: BG }]}>
         <ActivityIndicator color={CORAL} />
+        <Pressable onPress={goBack} style={{ marginTop: 16 }} accessibilityRole="button">
+          <Text style={[styles.errorBack, { color: CORAL }]}>Back</Text>
+        </Pressable>
       </View>
     );
   }
@@ -668,7 +679,10 @@ export default function VenueProfileScreen() {
     return (
       <View style={[styles.center, { backgroundColor: BG }]}>
         <Text style={styles.errorText}>Venue not found</Text>
-        <Pressable onPress={() => router.back()} style={{ marginTop: 12 }}>
+        <Pressable onPress={() => void fetchAll()} style={{ marginTop: 12 }} accessibilityRole="button">
+          <Text style={[styles.errorBack, { color: CORAL }]}>Try again</Text>
+        </Pressable>
+        <Pressable onPress={goBack} style={{ marginTop: 12 }}>
           <Text style={[styles.errorBack, { color: CORAL }]}>← Go back</Text>
         </Pressable>
       </View>
@@ -769,7 +783,7 @@ export default function VenueProfileScreen() {
 
           {/* Back button */}
           <Pressable
-            onPress={() => router.back()}
+            onPress={goBack}
             style={[styles.backBtn, { top: insets.top + 12 }]}
             hitSlop={10}
             accessibilityRole="button"

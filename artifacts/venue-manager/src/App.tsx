@@ -43,10 +43,12 @@ import {
   type VenueManagerRecentQrVerification,
 } from "@workspace/api-client-react";
 import QRCode from "react-qr-code";
-import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, QrCode, RefreshCw, Settings2, ShieldCheck, Trophy, Users, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Printer, QrCode, RefreshCw, ScanLine, Search, Settings2, ShieldCheck, Trophy, Users, X } from "lucide-react";
 import { normalizeVenuePlaceSearchResult, type PlaceResult, type VenuePlaceSearchItem } from "./lib/venuePlaceSearch";
+import { createPosterExportBlob, downloadBlob } from "./lib/posterExport";
+import { VenueQrPosterEditor, type VenueQrPosterDesign as PosterDesign } from "./components/VenueQrPosterEditor";
 import { applyWebsiteUrlBlur, validateWebsiteUrl } from "./lib/websiteUrl";
-import { metAuthError, metChangePassword, metPasswordCreate, metPasswordSignIn, metRefreshVerification, metResetPassword, metSendVerification, metSignOut, metSocialSignIn } from "./lib/firebaseAuth";
+import { metAuthError, metChangePassword, metPasswordCreate, metPasswordEnroll, metPasswordSignIn, metRefreshVerification, metResetPassword, metSendVerification, metSignOut, metSocialSignIn } from "./lib/firebaseAuth";
 import type { User } from "firebase/auth";
 import "./index.css";
 
@@ -260,7 +262,7 @@ function LoginPage({ sessionExpired = false, onSignedIn }: { sessionExpired?: bo
   </AuthFrame>;
 }
 
-function EnrollmentPage({ invitation }: { invitation: boolean }) {
+export function EnrollmentPage({ invitation }: { invitation: boolean }) {
   const [, navigate] = useLocation();
   const tokenFromUrl = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("token") ?? "";
   const [message, setMessage] = useState("");
@@ -298,15 +300,16 @@ function EnrollmentPage({ invitation }: { invitation: boolean }) {
     const password = String(form.get("password") ?? "");
     setPending(true); setMessage("");
     try {
-      const user = method === "password"
-        ? existing ? await metPasswordSignIn(email, password) : await metPasswordCreate(email, password)
-        : await metSocialSignIn(method);
+      const enrollment = method === "password"
+        ? existing ? { user: await metPasswordSignIn(email, password), created: false } : await metPasswordEnroll(email, password)
+        : { user: await metSocialSignIn(method), created: false };
+      const { user } = enrollment;
       if (!user.email || user.email.toLowerCase() !== email.toLowerCase()) {
         setMessage("The Met account email must match the email on this registration or invitation. Choose the matching account and try again.");
         return;
       }
       const details = { user, token: String(form.get("token")).trim(), displayName: String(form.get("displayName")).trim() };
-      if ((method === "password" && !existing) || (!user.emailVerified && !(await metRefreshVerification(user)))) {
+      if (enrollment.created || (!user.emailVerified && !(await metRefreshVerification(user)))) {
         setVerification(details);
         const passwordInput = formEl.elements.namedItem("password") as HTMLInputElement | null;
         if (passwordInput) passwordInput.value = "";
@@ -315,7 +318,14 @@ function EnrollmentPage({ invitation }: { invitation: boolean }) {
         return;
       }
       await complete(details);
-    } catch (error) { setMessage(metAuthError(error)); }
+    } catch (error) {
+      if ((error as { code?: string })?.code === "auth/existing-account-password-required") {
+        setExisting(true);
+        const passwordInput = formEl.elements.namedItem("password") as HTMLInputElement | null;
+        if (passwordInput) passwordInput.value = "";
+      }
+      setMessage(metAuthError(error));
+    }
     finally { setPending(false); }
   };
   return <AuthFrame title={invitation ? "Join your venue." : "Set up your venue account."} subtitle="Connect your venue access to the Met account you use in the mobile app.">
@@ -333,6 +343,16 @@ function EnrollmentPage({ invitation }: { invitation: boolean }) {
       <button data-testid="button-enroll-email" className="vm-primary" disabled={pending}>{pending ? "Connecting…" : existing ? "Continue with Met account" : "Create Met account and continue"}</button>
     </form>
     {!verification && <><button data-testid="button-toggle-existing-met" type="button" className="vm-auth-inline" style={{ marginTop: 15 }} onClick={() => setExisting(!existing)}>{existing ? "Create a new Met account instead" : "I already have a Met account"}</button>
+      {existing && <button data-testid="button-enrollment-reset-password" type="button" className="vm-auth-inline" disabled={pending} onClick={async () => {
+        const emailField = formRef.current?.elements.namedItem("email") as HTMLInputElement | null;
+        if (!emailField?.reportValidity() || !emailField.value.trim()) return;
+        setPending(true); setMessage("");
+        try {
+          await metResetPassword(emailField.value.trim());
+          setMessage("If this email has a Met password account, a reset link is on its way. Keep this page open, reset your password, then continue with the same registration code.");
+        } catch (error) { setMessage(metAuthError(error)); }
+        finally { setPending(false); }
+      }}>Reset my Met password</button>}
       <div className="vm-auth-divider">or use your Met account</div>
       <div className="vm-social-actions"><button data-testid="button-enroll-google" type="button" disabled={pending} onClick={() => void enroll("google")}>Google</button><button data-testid="button-enroll-apple" type="button" disabled={pending} onClick={() => void enroll("apple")}>Apple</button></div></>}
     <p className="vm-auth-hint">Email verification is required before venue access is granted. You may also need to finish Met mobile onboarding before all features are available.</p>
@@ -983,6 +1003,23 @@ async function uploadVenueImage(
   return url;
 }
 
+async function discardVenueImage(businessId: number, csrfToken: string, url: string, keepalive = false): Promise<void> {
+  const prefix = "/api/storage/objects/uploads/";
+  if (!url.startsWith(prefix)) return;
+  const objectPath = url.slice("/api/storage".length);
+  const res = await fetch(`/api/venue-manager/businesses/${businessId}/images/discard`, {
+    method: "POST",
+    credentials: "include",
+    keepalive,
+    headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+    body: JSON.stringify({ objectPath }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string };
+    throw new Error(err.message ?? "Failed to discard the unused image.");
+  }
+}
+
 type ImageUploadFieldProps = {
   label: string;
   value: string;
@@ -1067,8 +1104,51 @@ function VenueQrCodePanel({ business, csrfToken }: { business: VenueManagerBusin
   const [regenerating, setRegenerating] = useState(false);
   const [qrMsg, setQrMsg] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showPoster, setShowPoster] = useState(false);
 
   const data = qr.data;
+
+  const savedPosterDesign: PosterDesign = business.qrPosterDesign ?? {
+    heading: "Welcome to",
+    subheading: `Check in at ${business.placeName}`,
+    footer: "Meet your community, one check-in at a time.",
+    fontFamily: "serif",
+    titleFontSize: 36,
+    bodyFontSize: 16,
+    textColor: "#183c2f",
+    accentColor: "#26735a",
+    backgroundColor: "#f8f7ef",
+    qrForegroundColor: "#111111",
+    logoUrl: null,
+    imageUrl: null,
+  };
+
+  async function savePosterDesign(next: PosterDesign) {
+    await updateVenueManagerBusiness(business.businessId, { qrPosterDesign: next }, csrf(csrfToken));
+    await client.invalidateQueries({
+      predicate: (query) => typeof query.queryKey[0] === "string" &&
+        query.queryKey[0].startsWith("/api/venue-manager/"),
+    });
+  }
+
+  async function uploadPosterImage(file: File) {
+    return uploadVenueImage(business.businessId, csrfToken, file, () => undefined);
+  }
+
+  async function discardPosterImage(url: string, keepalive = false) {
+    await discardVenueImage(business.businessId, csrfToken, url, keepalive);
+  }
+
+  async function exportPoster(format: "jpg" | "png" | "pdf" | "print", poster: HTMLElement) {
+    if (format === "print") {
+      window.print();
+      return;
+    }
+    const safeVenueName = business.placeName.normalize("NFKC")
+      .replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").toLocaleLowerCase() || "venue";
+    const blob = await createPosterExportBlob(poster, format);
+    downloadBlob(blob, `${safeVenueName}-check-in.${format}`);
+  }
 
   function downloadQr() {
     if (!data) return;
@@ -1130,6 +1210,7 @@ function VenueQrCodePanel({ business, csrfToken }: { business: VenueManagerBusin
             <p className="vm-qr-url">{data.qrUrl}</p>
             <div className="vm-qr-actions">
               <button type="button" className="vm-secondary" onClick={downloadQr}><Download size={14} />Download PNG</button>
+              <button type="button" className="vm-secondary" data-testid="button-print-venue-poster" onClick={() => setShowPoster(true)}><Printer size={14} />Design & print poster</button>
               {business.role === "owner" && (
                 <button type="button" className="vm-secondary danger-text" onClick={() => { setQrMsg(""); setShowConfirm(true); }}><RefreshCw size={14} />Regenerate code</button>
               )}
@@ -1147,6 +1228,19 @@ function VenueQrCodePanel({ business, csrfToken }: { business: VenueManagerBusin
               <button type="button" className="vm-danger-btn" disabled={regenerating} onClick={() => void doRegenerate()}>{regenerating ? "Regenerating…" : "Yes, regenerate"}</button>
             </div>
           </div>
+        </Modal>
+      )}
+      {showPoster && data && (
+        <Modal title="Design your check-in poster" className="vm-print-modal" onClose={() => setShowPoster(false)}>
+          <VenueQrPosterEditor
+            businessName={business.placeName}
+            qrUrl={data.qrUrl}
+            design={savedPosterDesign}
+            onSave={savePosterDesign}
+            onUploadImage={uploadPosterImage}
+            onDiscardImage={discardPosterImage}
+            onExport={exportPoster}
+          />
         </Modal>
       )}
     </section>
@@ -1719,7 +1813,7 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
   </>;
 }
 
-function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) { return <div className="vm-modal-backdrop" role="presentation"><section className="vm-modal" role="dialog" aria-modal="true"><header><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Close"><X /></button></header>{children}</section></div>; }
+function Modal({ title, children, onClose, className }: { title: string; children: ReactNode; onClose: () => void; className?: string }) { return <div className={`vm-modal-backdrop${className ? ` ${className}-backdrop` : ""}`} role="presentation"><section className={`vm-modal${className ? ` ${className}` : ""}`} role="dialog" aria-modal="true"><header><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Close"><X /></button></header>{children}</section></div>; }
 function Empty({ text }: { text: string }) { return <div className="vm-empty">{text}</div>; }
 function SectionLoading() { return <div className="vm-section-loading"><div className="vm-spinner" /></div>; }
 

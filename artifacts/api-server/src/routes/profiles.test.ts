@@ -111,7 +111,7 @@ const profileFixture = {
   uid: "alice",
   uidHash: "hash-alice",
   displayName: "Alice Wonderland",
-  photoUrl: null,
+  photoUrl: "https://example.com/alice.jpg",
   bio: null,
   socials: {},
   interests: [],
@@ -312,6 +312,7 @@ describe("PUT /api/profiles/me", () => {
     expect(mirrorProfileToFirestore).toHaveBeenCalledWith({
       uid: "alice",
       isVisible: false,
+      socialEligible: true,
     });
     expect(hideProfileFromFirestore).toHaveBeenCalledWith("alice");
   });
@@ -442,7 +443,7 @@ describe("PUT /api/profiles/me", () => {
 
   it("requires a visibility version when opting in", async () => {
     dbMocks.chain.limit.mockResolvedValueOnce([
-      { isVisible: false, updatedAt: profileFixture.updatedAt },
+      { isVisible: false, updatedAt: profileFixture.updatedAt, photoUrl: profileFixture.photoUrl },
     ]);
 
     const res = await request(app)
@@ -463,7 +464,7 @@ describe("PUT /api/profiles/me", () => {
       updatedAt: nextUpdatedAt,
     };
     dbMocks.chain.limit.mockResolvedValueOnce([
-      { isVisible: false, updatedAt: profileFixture.updatedAt },
+      { isVisible: false, updatedAt: profileFixture.updatedAt, photoUrl: profileFixture.photoUrl },
     ]);
     dbMocks.chain.returning.mockResolvedValueOnce([visibleFixture]);
 
@@ -486,6 +487,7 @@ describe("PUT /api/profiles/me", () => {
     expect(mirrorProfileToFirestore).toHaveBeenCalledWith({
       uid: "alice",
       isVisible: true,
+      socialEligible: true,
       clearPresence: true,
     });
     expect(hideProfileFromFirestore).not.toHaveBeenCalled();
@@ -494,7 +496,7 @@ describe("PUT /api/profiles/me", () => {
   it("compensates to canonical Hidden when the Visible Firestore mirror fails", async () => {
     const currentVersion = profileFixture.updatedAt.toISOString();
     dbMocks.chain.limit.mockResolvedValueOnce([
-      { isVisible: false, updatedAt: profileFixture.updatedAt },
+      { isVisible: false, updatedAt: profileFixture.updatedAt, photoUrl: profileFixture.photoUrl },
     ]);
     dbMocks.chain.returning
       .mockResolvedValueOnce([{ ...profileFixture, isVisible: true }])
@@ -520,6 +522,7 @@ describe("PUT /api/profiles/me", () => {
     expect(mirrorProfileToFirestore).toHaveBeenNthCalledWith(1, {
       uid: "alice",
       isVisible: true,
+      socialEligible: true,
       clearPresence: true,
     });
     expect(mirrorProfileToFirestore).toHaveBeenNthCalledWith(2, {
@@ -532,7 +535,7 @@ describe("PUT /api/profiles/me", () => {
 
   it("does not publish Visible when the profile transaction commit fails", async () => {
     dbMocks.chain.limit.mockResolvedValueOnce([
-      { isVisible: false, updatedAt: profileFixture.updatedAt },
+      { isVisible: false, updatedAt: profileFixture.updatedAt, photoUrl: profileFixture.photoUrl },
     ]);
     dbMocks.chain.returning.mockResolvedValueOnce([
       { ...profileFixture, isVisible: true },
@@ -563,7 +566,7 @@ describe("PUT /api/profiles/me", () => {
       updatedAt: new Date(profileFixture.updatedAt.getTime() + 1),
     };
     dbMocks.chain.limit.mockResolvedValueOnce([
-      { isVisible: false, updatedAt: profileFixture.updatedAt },
+      { isVisible: false, updatedAt: profileFixture.updatedAt, photoUrl: profileFixture.photoUrl },
     ]);
     dbMocks.chain.returning.mockResolvedValueOnce([visibleProfile]);
 
@@ -632,7 +635,7 @@ describe("PUT /api/profiles/me", () => {
       updatedAt: new Date(profileFixture.updatedAt.getTime() + 3),
     };
     dbMocks.chain.limit
-      .mockResolvedValueOnce([{ isVisible: false, updatedAt: profileFixture.updatedAt }])
+      .mockResolvedValueOnce([{ isVisible: false, updatedAt: profileFixture.updatedAt, photoUrl: profileFixture.photoUrl }])
       .mockResolvedValueOnce([{ isVisible: false, updatedAt: compensatedVersion }]);
     dbMocks.chain.returning
       .mockResolvedValueOnce([{ ...profileFixture, isVisible: true }])
@@ -1030,8 +1033,8 @@ describe("DELETE /api/profiles/me", () => {
     };
     dbMocks.chain.limit.mockResolvedValueOnce([profileWithPhotos]);
 
-    // deleteVenueOwnerProfile returns the event image URLs it found before deleting.
-    (deleteVenueOwnerProfile as ReturnType<typeof vi.fn>).mockResolvedValueOnce([eventImageUrl]);
+    // The cascade returns only URLs not reused by another venue.
+    (deleteVenueOwnerProfile as ReturnType<typeof vi.fn>).mockResolvedValueOnce([coverPhotoUrl, logoUrl, eventImageUrl]);
 
     const res = await request(app)
       .delete("/api/profiles/me")

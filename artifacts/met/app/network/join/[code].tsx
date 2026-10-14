@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -20,7 +21,7 @@ import {
 
 type Category = "university" | "work" | "neighborhood" | "custom";
 
-export default function JoinByCodeScreen() {
+function JoinByCodeScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -410,3 +411,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 });
+
+export default withSocialGate(JoinByCodeScreen, { showBack: true });

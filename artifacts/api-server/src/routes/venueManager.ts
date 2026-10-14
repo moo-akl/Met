@@ -1,7 +1,7 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import crypto from "node:crypto";
 import { venueCategories } from "@workspace/db/schema";
-import { and, count, desc, eq, gte, gt, ilike, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { isAllowedImageMagicBytes } from "../lib/imageMagic";
 export { isAllowedImageMagicBytes } from "../lib/imageMagic";
@@ -26,6 +26,7 @@ import {
   revealRequestsTable,
   venueQrVerificationsTable,
   type VenueMembershipRole,
+  type VenueQrPosterDesign,
 } from "@workspace/db";
 import { markVenueRegistered } from "../lib/venueActivation";
 import { createIpRateLimiter } from "../middlewares/rateLimit";
@@ -422,6 +423,107 @@ function optionalText(value: unknown, max: number): string | null | undefined {
   return value.trim().slice(0, max) || null;
 }
 
+function validPosterDesign(value: unknown): value is VenueQrPosterDesign {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const design = value as Record<string, unknown>;
+  const hex = /^#[0-9a-f]{6}$/i;
+  const imageUrl = (url: unknown) => url === null || (
+    typeof url === "string" && url.length <= 2000 &&
+    (
+      /^\/api\/storage\/objects\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(url) ||
+      (() => { try { return ["https:", "http:"].includes(new URL(url).protocol); } catch { return false; } })()
+    )
+  );
+  const validImagePosition = (position: unknown) => {
+    if (!position || typeof position !== "object" || Array.isArray(position)) return false;
+    const { x, y, width, height } = position as Record<string, unknown>;
+    return typeof x === "number" && Number.isFinite(x) && x >= 3 && x <= 97 &&
+      typeof y === "number" && Number.isFinite(y) && y >= 3 && y <= 97 &&
+      typeof width === "number" && Number.isFinite(width) && width >= 5 && width <= 80 &&
+      typeof height === "number" && Number.isFinite(height) && height >= 5 && height <= 80 &&
+      x - width / 2 >= 0 && x + width / 2 <= 100 &&
+      y - height / 2 >= 0 && y + height / 2 <= 100 &&
+      !(x - width / 2 < 80 && x + width / 2 > 20 &&
+        y - height / 2 < 90 && y + height / 2 > 50);
+  };
+  if (
+    typeof design.heading !== "string" || design.heading.length > 100 ||
+    typeof design.subheading !== "string" || design.subheading.length > 180 ||
+    typeof design.footer !== "string" || design.footer.length > 140 ||
+    !["sans", "serif"].includes(String(design.fontFamily)) ||
+    !Number.isInteger(design.titleFontSize) || Number(design.titleFontSize) < 24 || Number(design.titleFontSize) > 72 ||
+    !Number.isInteger(design.bodyFontSize) || Number(design.bodyFontSize) < 12 || Number(design.bodyFontSize) > 36 ||
+    !hex.test(String(design.textColor)) || !hex.test(String(design.accentColor)) ||
+    !hex.test(String(design.backgroundColor)) || !hex.test(String(design.qrForegroundColor)) ||
+    !imageUrl(design.logoUrl) || !imageUrl(design.imageUrl)
+  ) return false;
+  const decorativeImages = design.decorativeImages;
+  if (decorativeImages !== undefined) {
+    if (!Array.isArray(decorativeImages) || decorativeImages.length > 12) return false;
+    const ids = new Set<string>();
+    for (const item of decorativeImages) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+      const image = item as Record<string, unknown>;
+      if (
+        typeof image.id !== "string" || !/^[a-zA-Z0-9_-]{1,36}$/.test(image.id) || ids.has(image.id) ||
+        !imageUrl(image.url) || image.url === null ||
+        !validImagePosition(image.position)
+      ) return false;
+      ids.add(image.id);
+    }
+  }
+  const validPosition = (position: unknown) => {
+    if (!position || typeof position !== "object" || Array.isArray(position)) return false;
+    const { x, y, fontSize, width } = position as Record<string, unknown>;
+    return typeof x === "number" && Number.isFinite(x) && x >= 3 && x <= 97 &&
+      typeof y === "number" && Number.isFinite(y) && y >= 3 && y <= 97 &&
+      !(x >= 20 && x <= 80 && y >= 50 && y <= 90) &&
+      (fontSize === undefined || (typeof fontSize === "number" && Number.isFinite(fontSize) && fontSize >= 8 && fontSize <= 96)) &&
+      (width === undefined || (typeof width === "number" && Number.isFinite(width) && width >= 8 && width <= 90));
+  };
+  const positions = design.textPositions;
+  if (positions !== undefined) {
+    if (!positions || typeof positions !== "object" || Array.isArray(positions)) return false;
+    const allowed = new Set(["brandMark", "brandLabel", "kicker", "venueName", "heading", "subheading", "scanNote", "footer"]);
+    if (Object.entries(positions).some(([key, position]) => !allowed.has(key) || !validPosition(position))) return false;
+  }
+  const imagePositions = design.imagePositions;
+  if (imagePositions !== undefined) {
+    if (!imagePositions || typeof imagePositions !== "object" || Array.isArray(imagePositions)) return false;
+    const allowed = new Set(["logo", "decoration"]);
+    if (Object.entries(imagePositions).some(([key, position]) => !allowed.has(key) || !validImagePosition(position))) return false;
+  }
+  const textContent = design.textContent;
+  if (textContent !== undefined) {
+    if (!textContent || typeof textContent !== "object" || Array.isArray(textContent)) return false;
+    const lengths: Record<string, number> = { brandMark: 4, brandLabel: 48, kicker: 80, venueName: 80, heading: 100, subheading: 180, scanNote: 100, footer: 140 };
+    if (Object.entries(textContent).some(([key, text]) => !(key in lengths) || typeof text !== "string" || text.length > lengths[key]!)) return false;
+  }
+  const boxes = design.textBoxes;
+  if (boxes !== undefined) {
+    if (!Array.isArray(boxes) || boxes.length > 16) return false;
+    const ids = new Set<string>();
+    for (const item of boxes) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+      const box = item as Record<string, unknown>;
+      if (
+        typeof box.id !== "string" || !/^[a-zA-Z0-9_-]{1,36}$/.test(box.id) || ids.has(box.id) ||
+        typeof box.text !== "string" || box.text.length > 140 ||
+        !validPosition(box) ||
+        !Number.isInteger(box.fontSize) || Number(box.fontSize) < 8 || Number(box.fontSize) > 96 ||
+        (box.width !== undefined && (typeof box.width !== "number" || !Number.isFinite(box.width) || box.width < 8 || box.width > 90)) ||
+        !hex.test(String(box.color)) ||
+        !["left", "center", "right"].includes(String(box.align))
+      ) return false;
+      ids.add(box.id);
+    }
+  }
+  const channels = String(design.qrForegroundColor).slice(1).match(/.{2}/g)!.map((part) => parseInt(part, 16) / 255);
+  const luminance = channels.map((c) => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+    .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i]!, 0);
+  return 1.05 / (luminance + 0.05) >= 4.5;
+}
+
 async function businessWithProfile(businessId: number) {
   const [row] = await db.select({
     business: venueBusinessesTable,
@@ -449,6 +551,7 @@ function serializeBusiness(row: NonNullable<Awaited<ReturnType<typeof businessWi
     websiteUrl: row.profile.websiteUrl,
     publicEmail: row.profile.publicEmail,
     openingHours: row.profile.openingHours,
+    qrPosterDesign: row.business.qrPosterDesign ?? null,
     role,
     isActive: row.business.isActive,
   };
@@ -715,7 +818,7 @@ router.get("/venue-manager/businesses/:businessId", requireSession, async (req, 
 });
 
 router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsrf, async (req, res): Promise<void> => {
-  const membership = await requireBusinessRole(req, res, ["owner", "manager"]);
+  const membership = await requireBusinessRole(req, res, contentRoles);
   if (!membership) return;
   const current = await businessWithProfile(membership.businessId);
   if (!current) {
@@ -748,6 +851,17 @@ router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsr
     }
   }
   const publicEmail = optionalText(req.body?.publicEmail, 320);
+  let qrPosterDesign: VenueQrPosterDesign | null | undefined;
+  if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "qrPosterDesign")) {
+    if (req.body.qrPosterDesign === null) {
+      qrPosterDesign = null;
+    } else if (!validPosterDesign(req.body.qrPosterDesign)) {
+      res.status(400).json({ message: "The poster design is invalid. Check its text, colors, image URLs, and QR contrast." });
+      return;
+    } else {
+      qrPosterDesign = req.body.qrPosterDesign;
+    }
+  }
   let openingHours: Record<string, { open: string; close: string } | null> | undefined;
   if (req.body?.openingHours !== undefined) {
     if (req.body.openingHours === null) {
@@ -777,15 +891,44 @@ router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsr
       openingHours = validated;
     }
   }
-  const patch = Object.fromEntries(Object.entries({ businessName, venueType, ...(venueType !== undefined ? { venueTypeSource: "manual" } : {}), tagline, description, coverPhotoUrl, logoUrl, phone, websiteUrl, publicEmail, openingHours })
+  const profilePatch = Object.fromEntries(Object.entries({ businessName, venueType, ...(venueType !== undefined ? { venueTypeSource: "manual" } : {}), tagline, description, coverPhotoUrl, logoUrl, phone, websiteUrl, publicEmail, openingHours })
     .filter(([, value]) => value !== undefined));
-  if (!Object.keys(patch).length) {
+  if (membership.role === "editor" && Object.keys(profilePatch).length) {
+    res.status(403).json({ message: "Editors can customize the poster but cannot change venue profile details." });
+    return;
+  }
+  if (!Object.keys(profilePatch).length && qrPosterDesign === undefined) {
     res.status(400).json({ message: "Provide at least one business detail to update." });
     return;
   }
-  const [profile] = await db.update(venueOwnerProfilesTable).set({ ...patch, updatedAt: new Date() })
-    .where(eq(venueOwnerProfilesTable.id, current.profile.id)).returning();
-  res.json(serializeBusiness({ business: current.business, profile: profile! }, membership.role));
+  let business = current.business;
+  let profile = current.profile;
+  let previousPosterDesign: VenueQrPosterDesign | null | undefined;
+  let posterSaveSucceeded = false;
+  if (qrPosterDesign !== undefined) {
+    previousPosterDesign = current.business.qrPosterDesign;
+    const [updatedBusiness] = await db.update(venueBusinessesTable).set({
+      qrPosterDesign,
+      updatedAt: new Date(),
+    }).where(eq(venueBusinessesTable.id, current.business.id)).returning();
+    if (updatedBusiness) {
+      business = updatedBusiness;
+      posterSaveSucceeded = true;
+    }
+  }
+  if (Object.keys(profilePatch).length) {
+    const [updatedProfile] = await db.update(venueOwnerProfilesTable).set({ ...profilePatch, updatedAt: new Date() })
+      .where(eq(venueOwnerProfilesTable.id, current.profile.id)).returning();
+    if (updatedProfile) profile = updatedProfile;
+  }
+  if (posterSaveSucceeded && qrPosterDesign !== undefined) {
+    await cleanupUnusedPosterImages(
+      previousPosterDesign,
+      business.qrPosterDesign,
+      (err) => req.log?.warn({ err, businessId: current.business.id }, "Unable to clean up an unused venue poster image."),
+    );
+  }
+  res.json(serializeBusiness({ business, profile }, membership.role));
 });
 
 router.get("/venue-manager/businesses/:businessId/events", requireSession, async (req, res): Promise<void> => {
@@ -1074,13 +1217,13 @@ async function findOrCreateFirebaseManager(
   placeholderPasswordHash: string,
 ) {
   const [byUid] = await tx.select().from(venueManagersTable)
-    .where(eq(venueManagersTable.firebaseUid, identity.uid)).limit(1);
+    .where(eq(venueManagersTable.firebaseUid, identity.uid)).limit(1).for("update");
   if (byUid) {
     if (normalizeEmail(byUid.email) !== identity.email) throw new Error("firebase_uid_email_mismatch");
     return byUid;
   }
   const emailMatches = await tx.select().from(venueManagersTable)
-    .where(sql`lower(btrim(${venueManagersTable.email})) = ${identity.email}`).limit(2);
+    .where(sql`lower(btrim(${venueManagersTable.email})) = ${identity.email}`).limit(2).for("update");
   if (emailMatches.length > 1) throw new Error("firebase_email_ambiguous");
   const byEmail = emailMatches[0];
   if (byEmail) {
@@ -1116,6 +1259,10 @@ function sendFirebaseFlowError(res: Response, error: unknown): boolean {
   }
   if (message === "firebase_registration_token_race" || message === "firebase_invitation_token_race") {
     res.status(400).json({ message: "This one-time link has already been used or has expired." });
+    return true;
+  }
+  if (message === "firebase_registration_venue_removed") {
+    res.status(409).json({ message: "This venue was deleted or is no longer active. Ask the Met team for a new registration link." });
     return true;
   }
   return false;
@@ -1234,6 +1381,13 @@ router.post("/venue-manager/register/firebase", authLimit, async (req, res): Pro
   let managerId: number;
   try {
     managerId = await db.transaction(async (tx) => {
+      // Deletion locks the same business. Recheck after acquiring that lock so
+      // a registration cannot recreate memberships for a deleted venue.
+      const [currentBusiness] = await tx.select({ id: venueBusinessesTable.id })
+        .from(venueBusinessesTable)
+        .where(and(eq(venueBusinessesTable.id, reg.businessId), eq(venueBusinessesTable.isActive, true)))
+        .limit(1).for("update");
+      if (!currentBusiness) throw new Error("firebase_registration_venue_removed");
       const [consumed] = await tx.update(venueManagerRegistrationTokensTable).set({ consumedAt: new Date() }).where(and(
         eq(venueManagerRegistrationTokensTable.id, reg.id),
         isNull(venueManagerRegistrationTokensTable.consumedAt),
@@ -1472,6 +1626,68 @@ router.delete("/venue-manager/businesses/:businessId/memberships/:managerId", re
 
 const objectStorageService = new ObjectStorageService();
 
+const posterObjectEntityPath = (url: string): string | null => {
+  const match = /^\/api\/storage(\/objects\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(url);
+  return match?.[1] ?? null;
+};
+
+const discardableImagePath = (path: string): boolean =>
+  /^\/objects\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path);
+
+async function isVenueImageReferenced(url: string): Promise<boolean> {
+  const [profileRef, posterRef, eventRef, announcementRef] = await Promise.all([
+    db.select({ id: venueOwnerProfilesTable.id }).from(venueOwnerProfilesTable).where(or(
+      eq(venueOwnerProfilesTable.coverPhotoUrl, url),
+      eq(venueOwnerProfilesTable.logoUrl, url),
+      eq(venueOwnerProfilesTable.verificationDocUrl, url),
+    )).limit(1),
+    db.select({ id: venueBusinessesTable.id }).from(venueBusinessesTable).where(sql`
+      (${venueBusinessesTable.qrPosterDesign} ->> 'logoUrl') = ${url}
+      OR (${venueBusinessesTable.qrPosterDesign} ->> 'imageUrl') = ${url}
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(${venueBusinessesTable.qrPosterDesign} -> 'decorativeImages') = 'array'
+              THEN ${venueBusinessesTable.qrPosterDesign} -> 'decorativeImages'
+            ELSE '[]'::jsonb
+          END
+        ) AS decorative_image
+        WHERE decorative_image ->> 'url' = ${url}
+      )
+    `).limit(1),
+    db.select({ id: venueEventsTable.id }).from(venueEventsTable)
+      .where(eq(venueEventsTable.imageUrl, url)).limit(1),
+    db.select({ id: venueAnnouncementsTable.id }).from(venueAnnouncementsTable)
+      .where(eq(venueAnnouncementsTable.imageUrl, url)).limit(1),
+  ]);
+  return Boolean(profileRef.length || posterRef.length || eventRef.length || announcementRef.length);
+}
+
+async function cleanupUnusedPosterImages(
+  previous: VenueQrPosterDesign | null | undefined,
+  next: VenueQrPosterDesign | null,
+  onError: (error: unknown) => void,
+): Promise<void> {
+  const nextUrls = new Set([
+    next?.logoUrl, next?.imageUrl, ...(next?.decorativeImages ?? []).map((image) => image.url),
+  ].filter((url): url is string => Boolean(url)));
+  const previousUrls = new Set([
+    previous?.logoUrl, previous?.imageUrl, ...(previous?.decorativeImages ?? []).map((image) => image.url),
+  ].filter((url): url is string => Boolean(url)));
+  for (const url of previousUrls) {
+    if (nextUrls.has(url)) continue;
+    const objectPath = posterObjectEntityPath(url);
+    if (!objectPath) continue;
+    try {
+      if (await isVenueImageReferenced(url)) continue;
+      await objectStorageService.deleteObjectEntityFile(objectPath);
+    } catch (error) {
+      onError(error);
+    }
+  }
+}
+
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 
 /**
@@ -1482,7 +1698,7 @@ const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif
  * WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50 (RIFF????WEBP)
  */
 router.post("/venue-manager/businesses/:businessId/images/upload", requireSession, requireCsrf, async (req, res): Promise<void> => {
-  const membership = await requireBusinessRole(req, res, ["owner", "manager"]);
+  const membership = await requireBusinessRole(req, res, rewardRoles);
   if (!membership) return;
   const contentType = typeof req.body?.contentType === "string" ? req.body.contentType : "";
   if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(contentType)) {
@@ -1496,7 +1712,7 @@ router.post("/venue-manager/businesses/:businessId/images/upload", requireSessio
 });
 
 router.post("/venue-manager/businesses/:businessId/images/confirm", requireSession, requireCsrf, async (req, res): Promise<void> => {
-  const membership = await requireBusinessRole(req, res, ["owner", "manager"]);
+  const membership = await requireBusinessRole(req, res, rewardRoles);
   if (!membership) return;
   const objectPath = typeof req.body?.objectPath === "string" ? req.body.objectPath : "";
   // objectPath must be a normalized path returned by the upload endpoint: /objects/uploads/<uuid>
@@ -1521,6 +1737,28 @@ router.post("/venue-manager/businesses/:businessId/images/confirm", requireSessi
     return;
   }
   res.json({ url: `/api/storage${objectPath}` });
+});
+
+router.post("/venue-manager/businesses/:businessId/images/discard", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const objectPath = typeof req.body?.objectPath === "string" ? req.body.objectPath : "";
+  if (!discardableImagePath(objectPath)) {
+    res.status(400).json({ message: "Invalid object path." });
+    return;
+  }
+  const url = `/api/storage${objectPath}`;
+  if (await isVenueImageReferenced(url)) {
+    res.json({ deleted: false, referenced: true });
+    return;
+  }
+  try {
+    await objectStorageService.deleteObjectEntityFile(objectPath);
+    res.json({ deleted: true, referenced: false });
+  } catch (err) {
+    req.log?.warn({ err, businessId: membership.businessId }, "Unable to discard an unused venue image.");
+    res.status(500).json({ message: "Could not discard the unused image. Please try again." });
+  }
 });
 
 /**

@@ -113,6 +113,7 @@ const dbMocks = vi.hoisted(() => {
     values: vi.fn().mockReturnThis(),
     update: vi.fn(),
     delete: vi.fn(),
+    onConflictDoUpdate: vi.fn(),
     set: vi.fn().mockReturnThis(),
     returning: vi.fn(),
     transaction: vi.fn(),
@@ -137,6 +138,7 @@ vi.mock("@workspace/db", () => ({
     applicationSource: "applicationSource",
     submittedAt: "submittedAt",
     createdAt: "createdAt",
+    assignedAgentId: "assignedAgentId",
   },
   venueApplicationHistoryTable: {
     id: "id",
@@ -173,6 +175,13 @@ vi.mock("@workspace/db", () => ({
     registrationTokenId: "outreachRegistrationTokenId",
     createdAt: "outreachCreatedAt",
   },
+  venueOutreachFollowUpsTable: {
+    venueKey: "followUpVenueKey",
+    nextActionNote: "nextActionNote",
+    nextActionDueDate: "nextActionDueDate",
+    updatedAt: "followUpUpdatedAt",
+  },
+  salesAgentsTable: { id: "salesAgentId", displayName: "salesAgentDisplayName" },
   venueAdminCredentialsTable: dbMocks.credTable,
   venueBusinessesTable: dbMocks.bizTable,
   venueMembershipsTable: dbMocks.bizTable,
@@ -302,6 +311,7 @@ beforeEach(() => {
   dbMocks.chain.where.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
   dbMocks.chain.values.mockReturnThis();
+  dbMocks.chain.onConflictDoUpdate.mockReturnThis();
   dbMocks.chain.orderBy.mockResolvedValue([]);
   dbMocks.chain.groupBy.mockResolvedValue([]);
   dbMocks.chain.limit.mockResolvedValue([]);
@@ -324,6 +334,7 @@ describe("admin session authorization", () => {
     ["post", "/api/admin/venue-owner/applications/7/withdraw"],
     ["post", "/api/admin/venue-owner/applications/7/notes"],
     ["get", "/api/admin/venue-owner/outreach/history"],
+    ["put", "/api/admin/venue-owner/outreach/history/12/place"],
     ["get", "/api/admin/venue-owner/venues/7/events"],
     ["post", "/api/admin/venue-owner/venues/7/events"],
     ["get", "/api/admin/venue-owner/venues/7/rewards"],
@@ -337,9 +348,23 @@ describe("admin session authorization", () => {
   it.each(guarded)("rejects %s %s without a session", async (method, path) => {
     const res = await (method === "get"
       ? request(app).get(path)
-      : request(app).post(path).send({ reason: "not ok", message: "fix it", internalNote: "x" }));
+      : method === "put"
+        ? request(app).put(path).send({ placeId: "maps-place-1" })
+        : request(app).post(path).send({ reason: "not ok", message: "fix it", internalNote: "x" }));
     expect(res.status).toBe(401);
     expect(dbMocks.chain.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects follow-up saves without an admin session", async () => {
+    const res = await request(app)
+      .put("/api/admin/venue-owner/outreach/follow-ups")
+      .send({
+        venueKey: "prospect:corner social|owner@example.com",
+        nextActionNote: "Call next week",
+        nextActionDueDate: "2026-10-20",
+      });
+    expect(res.status).toBe(401);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
   });
 
   it("reports first-time setup before a password exists", async () => {
@@ -390,6 +415,56 @@ describe("admin session authorization", () => {
   });
 });
 
+describe("admin venue Places search", () => {
+  it("keeps same-name branches individually identifiable by Google Place ID", async () => {
+    const agent = await signedInAgent();
+    vi.stubEnv("GOOGLE_API_KEY", "test-google-key");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        places: [
+          {
+            id: "corner-north",
+            displayName: { text: "Corner Social" },
+            formattedAddress: "10 North Street, London",
+            location: { latitude: 51.51, longitude: -0.12 },
+          },
+          {
+            id: "corner-south",
+            displayName: { text: "Corner Social" },
+            formattedAddress: "80 South Street, London",
+            location: { latitude: 51.49, longitude: -0.11 },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const response = await agent
+        .get("/api/admin/venue-owner/places/search")
+        .query({ query: "Corner Social London" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.places).toEqual([
+        expect.objectContaining({
+          placeId: "corner-north",
+          placeName: "Corner Social",
+          address: "10 North Street, London",
+        }),
+        expect.objectContaining({
+          placeId: "corner-south",
+          placeName: "Corner Social",
+          address: "80 South Street, London",
+        }),
+      ]);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("venue outreach history", () => {
   it("returns tracked email details without exposing invitation tokens", async () => {
     const createdAt = new Date("2026-09-30T10:00:00.000Z");
@@ -398,7 +473,7 @@ describe("venue outreach history", () => {
         {
           log: {
             id: 12,
-            venueOwnerProfileId: null,
+            venueOwnerProfileId: 71,
             applicationInviteTokenId: null,
             registrationTokenId: null,
             businessName: "Corner Social",
@@ -433,7 +508,20 @@ describe("venue outreach history", () => {
         },
       ])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 71,
+        applicationStatus: "approved",
+        placeId: "place-corner-social",
+        assignedAgentId: 8,
+        assignedAgentName: "Jordan Lee",
+      }])
+      .mockResolvedValueOnce([{
+        venueKey: "prospect:corner social|owner@example.com",
+        nextActionNote: "Call the owner about opening week",
+        nextActionDueDate: "2026-10-20",
+        updatedAt: new Date("2026-10-01T00:00:00.000Z"),
+      }]);
 
     const agent = await signedInAgent();
     const response = await agent.get("/api/admin/venue-owner/outreach/history");
@@ -450,8 +538,96 @@ describe("venue outreach history", () => {
       template: "introduction",
       deliveryStatus: "sent",
       linkStatus: "none",
+      venueOwnerProfileId: 71,
+      venueKey: "place:place-corner-social",
+      assignedAgentId: 8,
+      assignedAgentName: "Jordan Lee",
+      nextActionNote: "Call the owner about opening week",
+      nextActionDueDate: "2026-10-20",
     })]);
     expect(JSON.stringify(response.body)).not.toContain("tokenHash");
+  });
+
+  it("saves and updates a durable next-contact plan", async () => {
+    const agent = await signedInAgent();
+    const response = await agent
+      .put("/api/admin/venue-owner/outreach/follow-ups")
+      .send({
+        venueKey: "profile:71",
+        nextActionNote: "Confirm the registration link arrived",
+        nextActionDueDate: "2026-10-22",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      venueKey: "profile:71",
+      nextActionNote: "Confirm the registration link arrived",
+      nextActionDueDate: "2026-10-22",
+    });
+    expect(dbMocks.chain.insert).toHaveBeenCalled();
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(expect.objectContaining({
+      venueKey: "profile:71",
+      nextActionNote: "Confirm the registration link arrived",
+      nextActionDueDate: "2026-10-22",
+    }));
+    expect(dbMocks.chain.onConflictDoUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      set: expect.objectContaining({
+        nextActionNote: "Confirm the registration link arrived",
+        nextActionDueDate: "2026-10-22",
+      }),
+    }));
+  });
+
+  it("assigns or clears a Google Place ID on an existing outreach send", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.returning.mockResolvedValueOnce([{ id: 12, placeId: "maps-branch-12" }]);
+    const updated = await agent
+      .put("/api/admin/venue-owner/outreach/history/12/place")
+      .send({ placeId: " maps-branch-12 " });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body).toEqual({ id: 12, placeId: "maps-branch-12" });
+    expect(dbMocks.chain.update).toHaveBeenCalled();
+    expect(dbMocks.chain.set).toHaveBeenCalledWith({ placeId: "maps-branch-12" });
+
+    dbMocks.chain.returning.mockResolvedValueOnce([{ id: 12, placeId: null }]);
+    const cleared = await agent
+      .put("/api/admin/venue-owner/outreach/history/12/place")
+      .send({ placeId: null });
+
+    expect(cleared.status).toBe(200);
+    expect(cleared.body).toEqual({ id: 12, placeId: null });
+    expect(dbMocks.chain.set).toHaveBeenLastCalledWith({ placeId: null });
+  });
+
+  it("rejects invalid Place IDs and reports missing outreach sends", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.returning.mockResolvedValueOnce([]);
+
+    const invalid = await agent
+      .put("/api/admin/venue-owner/outreach/history/12/place")
+      .send({ placeId: " " });
+    expect(invalid.status).toBe(400);
+
+    const missing = await agent
+      .put("/api/admin/venue-owner/outreach/history/12/place")
+      .send({ placeId: "maps-branch-12" });
+    expect(missing.status).toBe(404);
+  });
+
+  it("rejects an impossible follow-up due date without saving it", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.insert.mockClear();
+    const response = await agent
+      .put("/api/admin/venue-owner/outreach/follow-ups")
+      .send({
+        venueKey: "profile:71",
+        nextActionNote: "Call",
+        nextActionDueDate: "2026-02-30",
+      });
+
+    expect(response.status).toBe(400);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
   });
 });
 

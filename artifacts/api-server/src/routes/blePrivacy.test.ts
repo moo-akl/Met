@@ -1,5 +1,9 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
+vi.mock("../lib/socialProfileAccess", () => ({
+  canUseSocialFeatures: async () => true,
+}));
+
 const dbMocks = vi.hoisted(() => {
   const chain = {
     select: vi.fn().mockReturnThis(),

@@ -19,6 +19,8 @@ import { logger } from "./logger";
 export type ProfileMirrorFields = {
   uid: string;
   isVisible: boolean;
+  /** Server-owned access flag; never writable by mobile clients. */
+  socialEligible?: boolean;
   /** Explicit opt-ins require a fresh location, unlike ordinary profile sync. */
   clearPresence?: boolean;
 };
@@ -38,6 +40,7 @@ export async function mirrorProfileToFirestore(
       {
         uid: fields.uid,
         isVisible: fields.isVisible,
+        ...(fields.socialEligible !== undefined ? { socialEligible: fields.socialEligible } : {}),
         uidHash: FieldValue.delete(),
         displayName: FieldValue.delete(),
         photoUrl: FieldValue.delete(),

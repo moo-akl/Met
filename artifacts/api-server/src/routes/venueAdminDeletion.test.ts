@@ -158,6 +158,7 @@ const dbMocks = vi.hoisted(() => {
     membershipsSelectChain,
     eventsSelectChain,
     deletedTables,
+    cascade: vi.fn(),
   };
 });
 
@@ -198,6 +199,10 @@ vi.mock("../middlewares/requireUid", () => ({
     req.uid = "venue-owner-uid";
     next();
   },
+}));
+
+vi.mock("../lib/deleteVenueOwnerProfile", () => ({
+  deleteVenueOwnerProfile: dbMocks.cascade,
 }));
 
 vi.mock("../middlewares/rateLimit", () => ({
@@ -310,6 +315,7 @@ beforeEach(() => {
   dbMocks.bizSelectChain.limit.mockReset().mockResolvedValue([]);
   dbMocks.membershipsSelectChain.where.mockReset().mockResolvedValue([]);
   dbMocks.eventsSelectChain.where.mockReset().mockResolvedValue([]);
+  dbMocks.cascade.mockReset().mockResolvedValue([]);
 
   // Wire up the main chain.
   dbMocks.chain.select.mockReturnThis();
@@ -398,33 +404,7 @@ describe("DELETE /admin/venue-owner/venues/:id — full cascade deletion", () =>
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/deleted successfully/i);
 
-    // ── assert: every related table was targeted by a delete call ─────────────
-    // The 13 delete operations expected (order-independent check):
-    const { chain } = dbMocks;
-    expect(chain.delete).toHaveBeenCalledTimes(13);
-
-    const { venueManagerSessionsTable, venueManagerTokensTable, venueManagerRegistrationTokensTable,
-            venueMembershipAuditTable, venueMembershipsTable, venueManagersTable, venueBusinessesTable,
-            venueEventRsvpsTable, venueEventsTable, venueRewardsTable, venueAnnouncementsTable,
-            venueApplicationHistoryTable, venueOwnerProfilesTable } = await import("@workspace/db");
-
-    for (const table of [
-      venueManagerSessionsTable,
-      venueManagerTokensTable,
-      venueManagerRegistrationTokensTable,
-      venueMembershipAuditTable,
-      venueMembershipsTable,
-      venueManagersTable,
-      venueBusinessesTable,
-      venueEventRsvpsTable,
-      venueEventsTable,
-      venueRewardsTable,
-      venueAnnouncementsTable,
-      venueApplicationHistoryTable,
-      venueOwnerProfilesTable,
-    ]) {
-      expect(chain.delete).toHaveBeenCalledWith(table);
-    }
+    expect(dbMocks.cascade).toHaveBeenCalledWith(dbMocks.chain, fullProfile);
   });
 
   it("still deletes all rows when the venue has no business record (pre-approval profile)", async () => {
@@ -438,19 +418,7 @@ describe("DELETE /admin/venue-owner/venues/:id — full cascade deletion", () =>
     const res = await agent.delete(`/api/admin/venue-owner/venues/${PROFILE_ID}`);
 
     expect(res.status).toBe(200);
-    // Without a business, the manager-related tables are not touched.
-    const { venueOwnerProfilesTable, venueApplicationHistoryTable,
-            venueEventsTable, venueRewardsTable, venueAnnouncementsTable } = await import("@workspace/db");
-    for (const table of [venueOwnerProfilesTable, venueApplicationHistoryTable, venueEventsTable, venueRewardsTable, venueAnnouncementsTable]) {
-      expect(dbMocks.chain.delete).toHaveBeenCalledWith(table);
-    }
-    // Manager-scoped tables must NOT have been deleted.
-    const { venueManagerSessionsTable, venueManagerTokensTable, venueManagerRegistrationTokensTable,
-            venueMembershipAuditTable, venueMembershipsTable, venueManagersTable, venueBusinessesTable } = await import("@workspace/db");
-    for (const table of [venueManagerSessionsTable, venueManagerTokensTable, venueManagerRegistrationTokensTable,
-                         venueMembershipAuditTable, venueMembershipsTable, venueManagersTable, venueBusinessesTable]) {
-      expect(dbMocks.chain.delete).not.toHaveBeenCalledWith(table);
-    }
+    expect(dbMocks.cascade).toHaveBeenCalledWith(dbMocks.chain, pendingProfile);
   });
 
   it("skips RSVPs when the venue has no events", async () => {
@@ -467,12 +435,7 @@ describe("DELETE /admin/venue-owner/venues/:id — full cascade deletion", () =>
     const res = await agent.delete(`/api/admin/venue-owner/venues/${PROFILE_ID}`);
 
     expect(res.status).toBe(200);
-    // RSVPs must not have been deleted (no events to source event IDs from).
-    const { venueEventRsvpsTable } = await import("@workspace/db");
-    expect(dbMocks.chain.delete).not.toHaveBeenCalledWith(venueEventRsvpsTable);
-    // Events table itself still gets a delete (WHERE ownerUid = ...).
-    const { venueEventsTable } = await import("@workspace/db");
-    expect(dbMocks.chain.delete).toHaveBeenCalledWith(venueEventsTable);
+    expect(dbMocks.cascade).toHaveBeenCalledWith(dbMocks.chain, fullProfile);
   });
 });
 
@@ -557,6 +520,7 @@ describe("DELETE /admin/venue-owner/venues/:id — Storage cleanup", () => {
     const spy = deleteVenueStorageFiles as ReturnType<typeof vi.fn>;
 
     dbMocks.profileChain.limit.mockResolvedValueOnce([profileWithPhotos]);
+    dbMocks.cascade.mockResolvedValueOnce([COVER_URL, LOGO_URL, EVENT_IMG_URL]);
     dbMocks.bizSelectChain.limit.mockResolvedValueOnce([fullBusiness]);
     dbMocks.membershipsSelectChain.where
       .mockResolvedValueOnce([{ managerId: MANAGER_ID }])
@@ -573,7 +537,8 @@ describe("DELETE /admin/venue-owner/venues/:id — Storage cleanup", () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith(
       [COVER_URL, LOGO_URL, EVENT_IMG_URL],
-      expect.objectContaining({ profileId: PROFILE_ID }),
+      { profileId: PROFILE_ID },
+      { requireComplete: true },
     );
   });
 
@@ -582,6 +547,7 @@ describe("DELETE /admin/venue-owner/venues/:id — Storage cleanup", () => {
 
     // fullProfile has null coverPhotoUrl and logoUrl; no events with images.
     dbMocks.profileChain.limit.mockResolvedValueOnce([fullProfile]);
+    dbMocks.cascade.mockResolvedValueOnce([]);
     dbMocks.bizSelectChain.limit.mockResolvedValueOnce([fullBusiness]);
     dbMocks.membershipsSelectChain.where
       .mockResolvedValueOnce([{ managerId: MANAGER_ID }])
@@ -595,8 +561,9 @@ describe("DELETE /admin/venue-owner/venues/:id — Storage cleanup", () => {
     // The helper is always called — it handles null/empty entries internally.
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith(
-      [null, null],
-      expect.objectContaining({ profileId: PROFILE_ID }),
+      [],
+      { profileId: PROFILE_ID },
+      { requireComplete: true },
     );
   });
 });

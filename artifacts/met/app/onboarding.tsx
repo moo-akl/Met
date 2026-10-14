@@ -59,6 +59,8 @@ import {
   loadVenueOwnerIntent,
   saveVenueOwnerIntent,
 } from "@/lib/venueOwnerIntent";
+import { loadQrIntent, qrIntentHref, type QrIntent } from "@/lib/qrIntent";
+import { ensureMinimalProfile } from "@/lib/qrCheckin";
 import {
   tiktokIdentify,
   tiktokTrackRegistration,
@@ -139,18 +141,27 @@ export default function OnboardingScreen() {
   const colors = useColors();
   const slides = getSlides(colors.primary, colors.border);
   const router = useRouter();
-  const { setProfile, setPermissionsCompleted, permissionsCompleted } = useApp();
+  const { setProfile, setPermissionsCompleted, permissionsCompleted, profile: currentProfile } = useApp();
   const insets = useSafeAreaInsets();
   const { t, lang } = useT();
   // When opened from the home-page permissions banner with
   // `?startAt=permissions`, we skip the full signup flow and land
   // directly on the activateBeacon step so the user can grant
   // permissions without re-doing onboarding.
-  const { startAt, venueOwner } = useLocalSearchParams<{
+  const { startAt, venueOwner, qr, completeProfile } = useLocalSearchParams<{
     startAt?: string;
     venueOwner?: string;
+    qr?: string;
+    completeProfile?: string;
   }>();
   const permissionsOnly = startAt === "permissions";
+  // Existing account finishing a QR-first private profile: start directly
+  // at the photo step (name prefilled) and skip auth/resume logic.
+  const completeProfileMode = completeProfile === "1";
+  // QR-first arrival: skip language + intro and go straight to auth using
+  // the current/device language. A stored pending intent (cold start after
+  // force-quit) also counts.
+  const qrIntentRef = useRef<QrIntent | null>(null);
   // The registration form needs a Firebase account, but venue applicants
   // should not be forced through the optional personal-profile setup first.
   // This intent survives authentication and email verification, and is
@@ -177,14 +188,50 @@ export default function OnboardingScreen() {
   }, []);
 
   const [phase, setPhase] = useState<Phase>(
-    permissionsOnly ? "invite" : "language",
+    permissionsOnly
+      ? "invite"
+      : completeProfileMode
+        ? "photo"
+        : qr === "1"
+          ? "auth"
+          : "language",
   );
+
+  useEffect(() => {
+    if (permissionsOnly || completeProfileMode) return;
+    let cancelled = false;
+    loadQrIntent(null).then((intent) => {
+      if (cancelled || !intent) return;
+      qrIntentRef.current = intent;
+      setPhase((p) =>
+        p === "language" || p === "valueTour" || p === "intro" ? "auth" : p,
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Pending QR intent bound to the signed-in account (or unbound). Reloaded
+  // after auth so a stale/other-account intent is discarded.
+  const resolvePendingQr = async (): Promise<QrIntent | null> => {
+    if (permissionsOnly || completeProfileMode) return null;
+    const uid = await getCurrentUserId();
+    const intent = await loadQrIntent(uid);
+    qrIntentRef.current = intent;
+    return intent;
+  };
   const [selectedLang, setSelectedLang] = useState<LangCode>(getLanguage());
   const [slide, setSlide] = useState(0);
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(() =>
+    completeProfileMode && currentProfile?.name && currentProfile.name !== "Met visitor"
+      ? currentProfile.name
+      : "",
+  );
   const [bio, setBio] = useState("");
   // True when the name was provided directly by Apple Sign-In.
   // In that case we skip the info (name/bio) step so users aren't asked
@@ -358,6 +405,7 @@ export default function OnboardingScreen() {
       // the server returns an empty array (e.g. column just added, first sync
       // after migration). Server interests win when non-empty.
       const local = await loadProfile();
+      const remoteIncomplete = !remote.photoUrl || !resolvedName;
       const restored: Profile = {
         id: remote.uid,
         name: resolvedName,
@@ -368,10 +416,11 @@ export default function OnboardingScreen() {
           remote.interests && remote.interests.length > 0
             ? (remote.interests as string[])
             : (local?.interests ?? []),
-        verified: true,
+        verified: !remoteIncomplete,
         isVisible: remote.isVisible ?? false,
-        photoVerifiedAt: Date.now(),
+        photoVerifiedAt: remoteIncomplete ? undefined : Date.now(),
         extraPhotos: [],
+        incomplete: remoteIncomplete || undefined,
       };
       // Do NOT gate on photoUri — the photo upload in handleFinish is
       // best-effort and can silently fail. A profile that exists on the
@@ -379,9 +428,14 @@ export default function OnboardingScreen() {
       // The user can update their photo from Profile settings if it is
       // missing; forcing them through full re-onboarding wipes everything.
       await setProfile(restored);
-      await setPermissionsCompleted(true);
+      // A private QR visitor profile (no photo) has not gone through the
+      // permission flow; never mark it completed just to pass a gate.
+      if (!remoteIncomplete) await setPermissionsCompleted(true);
       await ensureMyCode();
-      if (venueOwnerIntent) {
+      const pendingQr = await resolvePendingQr();
+      if (pendingQr) {
+        router.replace(qrIntentHref(pendingQr) as never);
+      } else if (venueOwnerIntent) {
         void clearVenueOwnerIntent();
         try {
           await api.getMyVenueOwnerProfile({ uid });
@@ -407,7 +461,19 @@ export default function OnboardingScreen() {
     if (!restored) {
       // New user — registration is complete (they passed auth).
       tiktokTrackRegistration(method);
-      if (venueOwnerIntent) {
+      const pendingQr = await resolvePendingQr();
+      const uid = pendingQr ? await getCurrentUserId() : null;
+      if (pendingQr && uid) {
+        // Resume the check-in with a hidden minimal profile; full profile
+        // setup is offered afterwards at /onboarding?completeProfile=1.
+        try {
+          const minimal = await ensureMinimalProfile(uid, null);
+          await setProfile(minimal);
+        } catch {
+          // The /v screen retries provisioning and shows a retry state.
+        }
+        router.replace(qrIntentHref(pendingQr) as never);
+      } else if (venueOwnerIntent) {
         void clearVenueOwnerIntent();
         router.replace("/venue-owner/setup");
       } else {
@@ -725,11 +791,22 @@ export default function OnboardingScreen() {
         photoVerifiedAt: Date.now(),
         extraPhotos: [],
       };
-      await setProfile(newProfile);
-      if (api.isConfigured() && !/^local-/.test(userId)) {
+      // Server-first: the photo must pass upload/moderation and the profile
+      // must be saved on the server BEFORE a verified, social-ready profile
+      // is published locally. Publishing first would unlock social UI (and
+      // let the AppContext sync effect push an unmoderated local file).
+      const isLocalDevId = /^local-/.test(userId);
+      if (isLocalDevId) {
+        // Web preview "Skip sign-in" only — no server identity exists.
+        await setProfile(newProfile);
+      } else {
+        if (!api.isConfigured()) {
+          Alert.alert(t("common.error"), t("common.tryAgain"));
+          return;
+        }
+        let remotePhotoUrl: string;
         try {
-          let remotePhotoUrl: string | null = null;
-          if (photoUri && !/^https?:\/\//i.test(photoUri)) {
+          if (!/^https?:\/\//i.test(photoUri)) {
             const FileSystem = await import("expo-file-system/legacy");
             const base64 = await FileSystem.readAsStringAsync(photoUri, {
               encoding: FileSystem.EncodingType.Base64,
@@ -745,10 +822,26 @@ export default function OnboardingScreen() {
               { base64, contentType },
             );
             remotePhotoUrl = uploaded.photoUrl;
-            await setProfile({ ...newProfile, photoUri: remotePhotoUrl });
           } else {
             remotePhotoUrl = photoUri;
           }
+        } catch (err) {
+          const status = err instanceof ApiError ? err.status : 0;
+          if (status === 400 || status === 413 || status === 422) {
+            // Moderation / validation rejection: pick another photo.
+            setPhotoUri(null);
+            setPhase("photo");
+            Alert.alert(
+              t("onboarding.missingPhotoTitle"),
+              ((err as ApiError).body as { message?: string } | null)?.message ??
+                t("onboarding.missingPhotoBody"),
+            );
+          } else {
+            Alert.alert(t("common.error"), t("common.tryAgain"));
+          }
+          return;
+        }
+        try {
           await api.upsertMyProfile(
             { uid: userId },
             {
@@ -762,8 +855,12 @@ export default function OnboardingScreen() {
             },
           );
         } catch {
-          // Best-effort — the background effect in AppContext will retry.
+          // Stay on this step; the user can retry Finish. Nothing local
+          // has been unlocked yet.
+          Alert.alert(t("common.error"), t("common.tryAgain"));
+          return;
         }
+        await setProfile({ ...newProfile, photoUri: remotePhotoUrl });
       }
       // Navigate directly to the correct screen rather than relying on
       // ProfileGate to redirect — avoids the race where ProfileGate and
@@ -794,7 +891,7 @@ export default function OnboardingScreen() {
     // When opened voluntarily from the home banner (?startAt=permissions),
     // the user is already set up — skip the auto-restore that would redirect
     // them straight back to tabs.
-    if (permissionsOnly) return;
+    if (permissionsOnly || completeProfileMode) return;
     if (resumedRef.current) return;
     let cancelled = false;
     (async () => {
@@ -1273,7 +1370,15 @@ export default function OnboardingScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.stepHeader}>
-          {phase === "photo" ? (
+          {phase === "photo" && completeProfileMode ? (
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}
+              hitSlop={12}
+              accessibilityRole="button"
+            >
+              <Feather name="chevron-left" size={24} color={colors.foreground} />
+            </Pressable>
+          ) : phase === "photo" ? (
             // Sign-in is committed by this point; hide back to avoid
             // confusing re-entry into the auth screen.
             <View style={{ width: 24 }} />
@@ -1333,6 +1438,11 @@ export default function OnboardingScreen() {
             <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
               {t("onboarding.signInSub")}
             </Text>
+            {qr === "1" || qrIntentRef.current ? (
+              <Text style={[styles.stepSub, { color: colors.foreground }]} testID="qr-auth-hint">
+                {t("qrCheckin.authHint")}
+              </Text>
+            ) : null}
 
             {/* EULA acceptance — required by App Store Guideline 1.2 and
                 Play Store policy for apps with user-generated content. The
@@ -1805,11 +1915,33 @@ export default function OnboardingScreen() {
               </Text>
             </View>
 
-            <PrimaryButton
-              label={t("common.continue")}
-              onPress={() => setPhase("socials")}
-              disabled={!name.trim()}
-            />
+            {completeProfileMode ? (
+              <>
+                {/* Required profile = verified photo + name. Socials,
+                    interests and invite stay optional for this path. */}
+                <PrimaryButton
+                  label={t("profileGate.finishRequired")}
+                  onPress={handleFinish}
+                  loading={saving}
+                  disabled={!name.trim() || !photoUri || saving}
+                />
+                <Text style={[styles.stepSub, { color: colors.mutedForeground, marginTop: 10 }]}>
+                  {t("profileGate.finishRequiredHint")}
+                </Text>
+                <PrimaryButton
+                  label={t("common.continue")}
+                  variant="ghost"
+                  onPress={() => setPhase("socials")}
+                  disabled={!name.trim() || saving}
+                />
+              </>
+            ) : (
+              <PrimaryButton
+                label={t("common.continue")}
+                onPress={() => setPhase("socials")}
+                disabled={!name.trim()}
+              />
+            )}
           </View>
         ) : null}
 

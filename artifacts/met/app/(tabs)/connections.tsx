@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -92,7 +93,7 @@ const SORT_KEY: Record<ConnectionsSort, string> = {
   name: "connections.sortNameAZ",
 };
 
-export default function ConnectionsScreen() {
+function ConnectionsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -1132,3 +1133,5 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 });
+
+export default withSocialGate(ConnectionsScreen);

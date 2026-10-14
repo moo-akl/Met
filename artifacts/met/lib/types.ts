@@ -31,6 +31,9 @@ export type Profile = {
   // Pioneer status — true for the first 500 users. Grants gold shimmer
   // border, 1.5× check-in multiplier, and radar priority.
   isPioneer?: boolean;
+  // True for a QR-first private visitor profile (no photo, hidden). Blocks
+  // social surfaces until onboarding is completed.
+  incomplete?: boolean;
 };
 
 export type EncounterStatus =

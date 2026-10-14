@@ -1,5 +1,11 @@
 import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
+// Social eligibility is covered by requireUid.test.ts. Route fixtures below
+// model completed accounts and keep their own sequential query expectations.
+vi.mock("../lib/socialProfileAccess", () => ({
+  canUseSocialFeatures: async () => true,
+}));
+
 // ---------------------------------------------------------------------------
 // Hoisted mock handles — defined before vi.mock() factory runs.
 // ---------------------------------------------------------------------------

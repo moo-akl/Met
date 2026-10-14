@@ -76,6 +76,7 @@ import {
   venueManagerTokensTable,
   venueApplicationInviteTokensTable,
   venueOutreachEmailLogsTable,
+  venueOutreachFollowUpsTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
@@ -83,7 +84,7 @@ import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
 import { getRegistrationDeadline, recordVenueInvitation } from "../lib/venueActivation";
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
-import { adminStorage } from "../lib/firebaseAdmin";
+import { adminAuth, adminStorage } from "../lib/firebaseAdmin";
 import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { isAllowedImageMagicBytes } from "../lib/imageMagic";
@@ -92,6 +93,11 @@ import {
   PrepareAdminManagedImageResponse,
   ConfirmAdminManagedImageBody,
   ConfirmAdminManagedImageResponse,
+  UpdateVenueOutreachPlaceIdParams,
+  UpdateVenueOutreachPlaceIdBody,
+  UpdateVenueOutreachPlaceIdResponse,
+  UpdateVenueOutreachFollowUpBody,
+  UpdateVenueOutreachFollowUpResponse,
 } from "@workspace/api-zod";
 import {
   sendVenueRejectedEmail,
@@ -104,6 +110,7 @@ import {
   getVenueManagerBaseUrl,
 } from "../lib/email.js";
 import { OUTREACH_TEMPLATE_IDS, OUTREACH_TEMPLATES, buildVenueOutreachEmail } from "../lib/venueOutreachEmail.js";
+import { createVenueManagerUpdatePosterPack } from "../lib/venueManagerUpdatePosters.js";
 import { z } from "zod/v4";
 import crypto from "node:crypto";
 
@@ -566,7 +573,8 @@ async function appendApplicationHistory(
 type VenueOutreachLogKind =
   | "new_venue_outreach"
   | "contact_request"
-  | "registration_invite";
+  | "registration_invite"
+  | "manager_announcement";
 type VenueOutreachDeliveryStatus =
   | "sending"
   | "sent"
@@ -578,6 +586,7 @@ async function createVenueOutreachLog(input: {
   venueOwnerProfileId?: number | null;
   applicationInviteTokenId?: number | null;
   registrationTokenId?: number | null;
+  placeId?: string | null;
   businessName: string;
   recipientEmail: string;
   template: string;
@@ -607,6 +616,263 @@ async function finishVenueOutreachLog(
       ...(deliveryStatus === "sent" ? { sentAt: new Date() } : {}),
     })
     .where(eq(venueOutreachEmailLogsTable.id, id));
+}
+
+type VenueManagerUpdateVenue = {
+  venueOwnerProfileId: number;
+  placeName: string;
+  placeId: string;
+  qrToken: string | null;
+};
+
+type VenueManagerUpdateRecipient = {
+  email: string;
+  venues: VenueManagerUpdateVenue[];
+};
+
+type VenueManagerUpdateProspect = {
+  email: string;
+  businessName: string;
+};
+
+type VenueManagerUpdateAudience = {
+  registeredManagers: VenueManagerUpdateRecipient[];
+  contactedProspects: VenueManagerUpdateProspect[];
+};
+
+function isRealManagerUid(uid: string): boolean {
+  return !uid.startsWith("admin:") &&
+    !uid.startsWith("admin-managed:") &&
+    !uid.startsWith("web:");
+}
+
+async function getVenueManagerUpdateRecipients(options?: {
+  excludeRecentlyContacted?: boolean;
+}): Promise<VenueManagerUpdateAudience> {
+  const memberships = await db
+    .select({
+      uid: venueMembershipsTable.uid,
+      managerId: venueMembershipsTable.managerId,
+      managerEmail: venueManagersTable.email,
+      venueOwnerProfileId: venueOwnerProfilesTable.id,
+      placeName: venueOwnerProfilesTable.placeName,
+      placeId: venueBusinessesTable.placeId,
+      qrToken: venueOwnerProfilesTable.qrToken,
+    })
+    .from(venueMembershipsTable)
+    .innerJoin(
+      venueBusinessesTable,
+      eq(venueMembershipsTable.businessId, venueBusinessesTable.id),
+    )
+    .innerJoin(
+      venueOwnerProfilesTable,
+      eq(venueBusinessesTable.venueOwnerProfileId, venueOwnerProfilesTable.id),
+    )
+    .leftJoin(
+      venueManagersTable,
+      eq(venueMembershipsTable.managerId, venueManagersTable.id),
+    )
+    .where(and(
+      eq(venueMembershipsTable.status, "active"),
+      inArray(venueMembershipsTable.role, ["owner", "manager"]),
+      eq(venueBusinessesTable.isActive, true),
+      eq(venueOwnerProfilesTable.isApproved, true),
+      eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
+    ));
+
+  // Include legacy owners whose active profile still authorizes access without
+  // a backfilled membership row. A stale or revoked membership must prevent
+  // this legacy fallback from adding the former owner back to the audience.
+  const activeProfiles = await db
+    .select({
+      ownerUid: venueOwnerProfilesTable.ownerUid,
+      venueOwnerProfileId: venueOwnerProfilesTable.id,
+      placeName: venueOwnerProfilesTable.placeName,
+      placeId: venueOwnerProfilesTable.placeId,
+      qrToken: venueOwnerProfilesTable.qrToken,
+    })
+    .from(venueOwnerProfilesTable)
+    .where(and(
+      eq(venueOwnerProfilesTable.isApproved, true),
+      eq(venueOwnerProfilesTable.applicationStatus, ACTIVE_VENUE_APPLICATION_STATUS),
+    ));
+
+  const legacyOwnerUids = [...new Set(
+    activeProfiles
+      .map((profile) => profile.ownerUid)
+      .filter((uid) => isRealManagerUid(uid)),
+  )];
+  const existingOwnerMemberships = legacyOwnerUids.length > 0
+    ? await db
+        .select({ uid: venueMembershipsTable.uid })
+        .from(venueMembershipsTable)
+        .where(inArray(venueMembershipsTable.uid, legacyOwnerUids))
+    : [];
+  const ownerUidsWithMembership = new Set(
+    existingOwnerMemberships.map((membership) => membership.uid).filter((uid): uid is string => uid !== null),
+  );
+
+  const recipientByEmail = new Map<string, VenueManagerUpdateRecipient>();
+  const managerContextByUid = new Map<string, Map<number, VenueManagerUpdateVenue>>();
+  const addVenueToUid = (uid: string, venue: VenueManagerUpdateVenue) => {
+    const venues = managerContextByUid.get(uid) ?? new Map<number, VenueManagerUpdateVenue>();
+    venues.set(venue.venueOwnerProfileId, venue);
+    managerContextByUid.set(uid, venues);
+  };
+  const addRecipient = (
+    rawEmail: string | null | undefined,
+    venue: VenueManagerUpdateVenue,
+  ) => {
+    if (!rawEmail) return;
+    const parsedEmail = z.string().trim().email().max(255).safeParse(rawEmail);
+    if (!parsedEmail.success) return;
+    const email = parsedEmail.data.toLowerCase();
+    const recipient = recipientByEmail.get(email) ?? { email, venues: [] };
+    if (!recipient.venues.some((existing) => existing.venueOwnerProfileId === venue.venueOwnerProfileId)) {
+      recipient.venues.push(venue);
+    }
+    recipientByEmail.set(email, recipient);
+  };
+
+  for (const membership of memberships) {
+    const venue: VenueManagerUpdateVenue = {
+      venueOwnerProfileId: membership.venueOwnerProfileId,
+      placeName: membership.placeName,
+      placeId: membership.placeId,
+      qrToken: membership.qrToken,
+    };
+    if (membership.managerId !== null) addRecipient(membership.managerEmail, venue);
+    if (membership.uid && isRealManagerUid(membership.uid)) {
+      addVenueToUid(membership.uid, venue);
+    }
+  }
+
+  for (const profile of activeProfiles) {
+    const uid = profile.ownerUid;
+    if (
+      isRealManagerUid(uid) &&
+      !ownerUidsWithMembership.has(uid)
+    ) {
+      addVenueToUid(uid, {
+        venueOwnerProfileId: profile.venueOwnerProfileId,
+        placeName: profile.placeName,
+        placeId: profile.placeId,
+        qrToken: profile.qrToken,
+      });
+    }
+  }
+
+  const managerUids = [...managerContextByUid.keys()];
+  if (managerUids.length > 0) {
+    const auth = adminAuth();
+    for (let offset = 0; offset < managerUids.length; offset += 100) {
+      const chunk = managerUids.slice(offset, offset + 100);
+      const result = await auth.getUsers(chunk.map((uid) => ({ uid })));
+      for (const user of result.users) {
+        if (!user.email || user.disabled) continue;
+        const venues = managerContextByUid.get(user.uid);
+        if (venues) {
+          for (const venue of venues.values()) addRecipient(user.email, venue);
+        }
+      }
+    }
+  }
+
+  const registeredEmails = new Set(recipientByEmail.keys());
+  const contactedLogs = await db
+    .select({
+      recipientEmail: venueOutreachEmailLogsTable.recipientEmail,
+      businessName: venueOutreachEmailLogsTable.businessName,
+    })
+    .from(venueOutreachEmailLogsTable)
+    .where(and(
+      inArray(venueOutreachEmailLogsTable.kind, [
+        "new_venue_outreach",
+        "contact_request",
+        "registration_invite",
+      ]),
+      eq(venueOutreachEmailLogsTable.deliveryStatus, "sent"),
+    ))
+    .orderBy(desc(venueOutreachEmailLogsTable.createdAt));
+  const prospectByEmail = new Map<string, VenueManagerUpdateProspect>();
+  for (const log of contactedLogs) {
+    const parsedEmail = z.string().trim().email().max(255).safeParse(log.recipientEmail);
+    if (!parsedEmail.success) continue;
+    const email = parsedEmail.data.toLowerCase();
+    if (registeredEmails.has(email) || prospectByEmail.has(email)) continue;
+    prospectByEmail.set(email, { email, businessName: log.businessName });
+  }
+
+  const recentlyContacted = await db
+    .select({ recipientEmail: venueOutreachEmailLogsTable.recipientEmail })
+    .from(venueOutreachEmailLogsTable)
+    .where(and(
+      eq(venueOutreachEmailLogsTable.kind, "manager_announcement"),
+      inArray(venueOutreachEmailLogsTable.template, ["latest_updates", "latest_updates_prospect"]),
+      inArray(venueOutreachEmailLogsTable.deliveryStatus, ["sent", "sending", "delivery_uncertain"]),
+      gte(venueOutreachEmailLogsTable.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+    ));
+  const recentEmails = new Set(
+    recentlyContacted.map((row) => row.recipientEmail.trim().toLowerCase()),
+  );
+
+  const shouldExcludeRecent = options?.excludeRecentlyContacted !== false;
+  const registeredManagers = [...recipientByEmail.values()]
+    .filter((recipient) => !shouldExcludeRecent || !recentEmails.has(recipient.email))
+    .map((recipient) => ({
+      ...recipient,
+      venues: recipient.venues.sort((left, right) => left.placeName.localeCompare(right.placeName)),
+    }))
+    .sort((left, right) => left.email.localeCompare(right.email));
+  const contactedProspects = [...prospectByEmail.values()]
+    .filter((recipient) => !shouldExcludeRecent || !recentEmails.has(recipient.email))
+    .sort((left, right) => left.email.localeCompare(right.email));
+
+  return { registeredManagers, contactedProspects };
+}
+
+async function buildVenueManagerUpdatePosterAttachment(
+  recipient: VenueManagerUpdateRecipient,
+): Promise<{ filename: string; content: Buffer; contentType: string }> {
+  const qrVenues = [];
+  for (const venue of recipient.venues) {
+    let qrToken = venue.qrToken;
+    if (!qrToken) {
+      const candidate = crypto.randomUUID();
+      const [updated] = await db
+        .update(venueOwnerProfilesTable)
+        .set({ qrToken: candidate, updatedAt: new Date() })
+        .where(and(
+          eq(venueOwnerProfilesTable.id, venue.venueOwnerProfileId),
+          isNull(venueOwnerProfilesTable.qrToken),
+        ))
+        .returning({ qrToken: venueOwnerProfilesTable.qrToken });
+      if (updated?.qrToken) {
+        qrToken = updated.qrToken;
+      } else {
+        const [current] = await db
+          .select({ qrToken: venueOwnerProfilesTable.qrToken })
+          .from(venueOwnerProfilesTable)
+          .where(eq(venueOwnerProfilesTable.id, venue.venueOwnerProfileId))
+          .limit(1);
+        qrToken = current?.qrToken ?? null;
+      }
+    }
+    if (!qrToken) {
+      throw new Error(`Could not prepare a check-in QR token for venue profile ${venue.venueOwnerProfileId}.`);
+    }
+    const baseUrl = (process.env["APP_BASE_URL"] ?? "https://metapp.replit.app").replace(/\/$/, "");
+    qrVenues.push({
+      placeName: venue.placeName,
+      qrUrl: `${baseUrl}/v/${venue.placeId}?t=${encodeURIComponent(qrToken)}`,
+    });
+  }
+
+  return {
+    filename: "met-check-in-qr-posters.pdf",
+    content: await createVenueManagerUpdatePosterPack(qrVenues),
+    contentType: "application/pdf",
+  };
 }
 
 function adminActorUid(req: Request): string | null {
@@ -4289,6 +4555,7 @@ router.post(
         ...buildVenueOutreachEmail({
           businessName: parsed.data.businessName,
           template: template.id,
+          venueManagerUrl: getVenueManagerBaseUrl(),
           ...(template.id === "preapproval_video_application"
             ? {
                 applicationUrl: "https://example.com/venue-manager/apply#invite=PREVIEW_ONLY",
@@ -4301,14 +4568,180 @@ router.post(
   },
 );
 
+router.get(
+  "/admin/venue-owner/outreach/manager-updates/audience",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const audience = await getVenueManagerUpdateRecipients();
+      const registeredManagerCount = audience.registeredManagers.length;
+      const contactedProspectCount = audience.contactedProspects.length;
+      res.json({
+        recipientCount: registeredManagerCount + contactedProspectCount,
+        registeredManagerCount,
+        contactedProspectCount,
+      });
+    } catch (err) {
+      req.log?.warn({ err }, "Unable to resolve venue manager update audience");
+      res.status(503).json({ message: "The venue manager audience could not be loaded. Please try again." });
+    }
+  },
+);
+
+router.post(
+  "/admin/venue-owner/outreach/manager-updates/send",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = z.object({
+      template: z.literal("latest_updates"),
+      expectedRecipientCount: z.number().int().min(1).max(10_000),
+      expectedRegisteredManagerCount: z.number().int().min(0).max(10_000),
+      expectedContactedProspectCount: z.number().int().min(0).max(10_000),
+      confirm: z.literal(true),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Review the manager audience and confirm before sending." });
+      return;
+    }
+
+    let audience: VenueManagerUpdateAudience;
+    try {
+      audience = await getVenueManagerUpdateRecipients();
+    } catch (err) {
+      req.log?.warn({ err }, "Unable to resolve venue manager update audience before send");
+      res.status(503).json({ message: "The venue manager audience could not be loaded. No emails were sent." });
+      return;
+    }
+    const registeredManagerCount = audience.registeredManagers.length;
+    const contactedProspectCount = audience.contactedProspects.length;
+    const recipientCount = registeredManagerCount + contactedProspectCount;
+    if (recipientCount === 0) {
+      res.status(409).json({ message: "There are no eligible registered managers or previously contacted prospects to receive this update." });
+      return;
+    }
+    if (
+      recipientCount !== parsed.data.expectedRecipientCount ||
+      registeredManagerCount !== parsed.data.expectedRegisteredManagerCount ||
+      contactedProspectCount !== parsed.data.expectedContactedProspectCount
+    ) {
+      res.status(409).json({ message: "The email audience changed since you reviewed it. Refresh the counts and confirm again." });
+      return;
+    }
+
+    const recipients = [
+      ...audience.registeredManagers.map((recipient) => ({
+        audience: "registered_manager" as const,
+        recipient,
+      })),
+      ...audience.contactedProspects.map((recipient) => ({
+        audience: "contacted_prospect" as const,
+        recipient,
+      })),
+    ];
+    let sentCount = 0;
+    let deliveryUncertainCount = 0;
+    let notAttemptedCount = 0;
+    let stoppedReason: "delivery_uncertain" | "audit_log_failed" | "preparation_failed" | null = null;
+
+    for (let index = 0; index < recipients.length; index += 1) {
+      const entry = recipients[index]!;
+      const template = entry.audience === "registered_manager"
+        ? "latest_updates"
+        : "latest_updates_prospect";
+      const businessName = entry.audience === "registered_manager"
+        ? entry.recipient.venues[0]?.placeName ?? "your venue"
+        : entry.recipient.businessName;
+      let attachments: Awaited<ReturnType<typeof buildVenueManagerUpdatePosterAttachment>>[] = [];
+      if (entry.audience === "registered_manager") {
+        try {
+          attachments = [await buildVenueManagerUpdatePosterAttachment(entry.recipient)];
+        } catch (err) {
+          req.log?.error({ err, recipientIndex: index }, "Unable to prepare venue QR poster attachment");
+          stoppedReason = "preparation_failed";
+          notAttemptedCount = recipients.length - index;
+          break;
+        }
+      }
+      let outreachLogId: number;
+      try {
+        outreachLogId = await createVenueOutreachLog({
+          venueOwnerProfileId: entry.audience === "registered_manager"
+            ? entry.recipient.venues[0]?.venueOwnerProfileId ?? null
+            : null,
+          businessName,
+          recipientEmail: entry.recipient.email,
+          template,
+          kind: "manager_announcement",
+          actorUid: adminActorUid(req),
+        });
+      } catch (err) {
+        req.log?.error({ err, recipientIndex: index }, "Unable to create manager update audit record");
+        stoppedReason = "audit_log_failed";
+        notAttemptedCount = recipients.length - index;
+        break;
+      }
+
+      try {
+        await sendNewVenueOutreachEmail({
+          to: entry.recipient.email,
+          businessName,
+          template,
+          ...(attachments.length > 0 ? { attachments } : {}),
+        });
+        await finishVenueOutreachLog(outreachLogId, "sent");
+        sentCount += 1;
+      } catch (err) {
+        try {
+          await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
+        } catch (logErr) {
+          req.log?.error({ err: logErr, recipientIndex: index }, "Unable to update manager announcement delivery status");
+        }
+        req.log?.warn({ err, recipientIndex: index }, "Manager update delivery is uncertain; stopping the batch");
+        deliveryUncertainCount = 1;
+        notAttemptedCount = recipients.length - index - 1;
+        stoppedReason = "delivery_uncertain";
+        break;
+      }
+    }
+
+    res.json({
+      recipientCount,
+      registeredManagerCount,
+      contactedProspectCount,
+      sentCount,
+      deliveryUncertainCount,
+      notAttemptedCount,
+      stoppedReason,
+    });
+  },
+);
+
 /**
  * Lists durable outreach records plus older venue email history that predates
  * the send log. No token hashes or raw invitation URLs are returned.
  */
+function getVenueOutreachKey(
+  profileId: number | null,
+  placeId: string | null,
+  businessName: string,
+  recipientEmail: string,
+  eventId: string,
+): string {
+  const normalizedPlaceId = placeId?.trim();
+  if (normalizedPlaceId) return `place:${normalizedPlaceId}`;
+  if (profileId != null) return `profile:${profileId}`;
+  const normalizedBusinessName = businessName.trim().toLowerCase().replace(/\s+/g, " ");
+  const normalizedEmail = recipientEmail.trim().toLowerCase();
+  if (normalizedBusinessName && normalizedEmail.includes("@")) {
+    return `prospect:${normalizedBusinessName}|${normalizedEmail}`;
+  }
+  return `event:${eventId}`;
+}
+
 router.get(
   "/admin/venue-owner/outreach/history",
   requireAdminSession,
-  async (_req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const loggedRows = await db
       .select({
         log: venueOutreachEmailLogsTable,
@@ -4355,6 +4788,7 @@ router.get(
         id: venueApplicationHistoryTable.id,
         venueOwnerProfileId: venueApplicationHistoryTable.venueOwnerProfileId,
         businessName: venueOwnerProfilesTable.businessName,
+        placeId: venueOwnerProfilesTable.placeId,
         contactEmail: venueOwnerProfilesTable.contactEmail,
         applicationStatus: venueOwnerProfilesTable.applicationStatus,
         recipientEmail: sql<string>`COALESCE(
@@ -4398,6 +4832,7 @@ router.get(
         row.applicationInvite?.applicationId ?? null,
       ]),
       ...legacyInvites.map((invite) => invite.applicationId),
+      ...legacyHistory.map((entry) => entry.venueOwnerProfileId),
     ].filter((id): id is number => id !== null && id !== undefined);
     const uniqueProfileIds = [...new Set(allProfileIds)];
     const profileStatusResult = uniqueProfileIds.length > 0
@@ -4405,15 +4840,23 @@ router.get(
           .select({
             id: venueOwnerProfilesTable.id,
             applicationStatus: venueOwnerProfilesTable.applicationStatus,
+            placeId: venueOwnerProfilesTable.placeId,
+            assignedAgentId: venueOwnerProfilesTable.assignedAgentId,
+            assignedAgentName: salesAgentsTable.displayName,
           })
           .from(venueOwnerProfilesTable)
+          .leftJoin(
+            salesAgentsTable,
+            eq(venueOwnerProfilesTable.assignedAgentId, salesAgentsTable.id),
+          )
           .where(inArray(venueOwnerProfilesTable.id, uniqueProfileIds))
+          .orderBy(venueOwnerProfilesTable.id)
       : [];
     const profileStatuses = Array.isArray(profileStatusResult)
       ? profileStatusResult
       : [];
-    const statusByProfileId = new Map(
-      profileStatuses.map((profile) => [profile.id, profile.applicationStatus]),
+    const profileById = new Map(
+      profileStatuses.map((profile) => [profile.id, profile]),
     );
 
     const now = Date.now();
@@ -4464,8 +4907,9 @@ router.get(
           venueOwnerProfileId: profileId,
           applicationId: profileId,
           applicationStatus: profileId
-            ? statusByProfileId.get(profileId) ?? null
+            ? profileById.get(profileId)?.applicationStatus ?? null
             : null,
+          placeId: log.placeId ?? (profileId ? profileById.get(profileId)?.placeId ?? null : null),
           expiresAt: expiry?.toISOString() ?? null,
           linkStatus,
         };
@@ -4490,7 +4934,10 @@ router.get(
             venueOwnerProfileId: invite.applicationId,
             applicationId: invite.applicationId,
             applicationStatus: invite.applicationId
-              ? statusByProfileId.get(invite.applicationId) ?? null
+              ? profileById.get(invite.applicationId)?.applicationStatus ?? null
+              : null,
+            placeId: invite.applicationId
+              ? profileById.get(invite.applicationId)?.placeId ?? null
               : null,
             expiresAt: invite.expiresAt.toISOString(),
             linkStatus,
@@ -4516,6 +4963,7 @@ router.get(
             venueOwnerProfileId: entry.venueOwnerProfileId,
             applicationId: entry.venueOwnerProfileId,
             applicationStatus: entry.applicationStatus,
+            placeId: entry.placeId,
             expiresAt: null,
             linkStatus: isRegistration ? "unknown" as const : "none" as const,
           };
@@ -4524,7 +4972,140 @@ router.get(
       new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
     );
 
-    res.json({ emails });
+    const followUpKeysByEntry = new Map<string, string[]>();
+    for (const entry of emails) {
+      const primaryKey = getVenueOutreachKey(
+        entry.venueOwnerProfileId,
+        entry.placeId,
+        entry.businessName,
+        entry.recipientEmail,
+        entry.id,
+      );
+      const prospectAlias = getVenueOutreachKey(
+        null,
+        null,
+        entry.businessName,
+        entry.recipientEmail,
+        entry.id,
+      );
+      const lookupKeys = prospectAlias !== primaryKey
+        ? [primaryKey, prospectAlias]
+        : [primaryKey];
+      followUpKeysByEntry.set(entry.id, lookupKeys);
+    }
+    const venueKeys = [...new Set([...followUpKeysByEntry.values()].flat())];
+    const followUpRows = venueKeys.length > 0
+      ? await db
+          .select()
+          .from(venueOutreachFollowUpsTable)
+          .where(inArray(venueOutreachFollowUpsTable.venueKey, venueKeys))
+          .orderBy(venueOutreachFollowUpsTable.venueKey)
+      : [];
+    const followUpsByKey = new Map(
+      (Array.isArray(followUpRows) ? followUpRows : [])
+        .map((followUp) => [followUp.venueKey, followUp]),
+    );
+
+    const historyEntries = emails.map((entry) => {
+      const venueKey = getVenueOutreachKey(
+        entry.venueOwnerProfileId,
+        entry.placeId,
+        entry.businessName,
+        entry.recipientEmail,
+        entry.id,
+      );
+      const profile = entry.venueOwnerProfileId == null
+        ? undefined
+        : profileById.get(entry.venueOwnerProfileId);
+      const followUpKeys = followUpKeysByEntry.get(entry.id) ?? [venueKey];
+      const followUp = followUpKeys
+        .map((key) => followUpsByKey.get(key))
+        .find((candidate) => candidate !== undefined);
+      return {
+        ...entry,
+        venueKey,
+        assignedAgentId: profile?.assignedAgentId ?? null,
+        assignedAgentName: profile?.assignedAgentName ?? null,
+        nextActionNote: followUp?.nextActionNote ?? null,
+        nextActionDueDate: followUp?.nextActionDueDate ?? null,
+      };
+    });
+
+    res.json({ emails: historyEntries });
+  },
+);
+
+router.put(
+  "/admin/venue-owner/outreach/history/:id/place",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const params = UpdateVenueOutreachPlaceIdParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = UpdateVenueOutreachPlaceIdBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    if (parsed.data.placeId !== null && !parsed.data.placeId.trim()) {
+      res.status(400).json({ error: "Place ID cannot be blank." });
+      return;
+    }
+
+    const placeId = parsed.data.placeId?.trim() || null;
+    const [updated] = await db
+      .update(venueOutreachEmailLogsTable)
+      .set({ placeId })
+      .where(eq(venueOutreachEmailLogsTable.id, params.data.id))
+      .returning({
+        id: venueOutreachEmailLogsTable.id,
+        placeId: venueOutreachEmailLogsTable.placeId,
+      });
+    if (!updated) {
+      res.status(404).json({ error: "Outreach email not found." });
+      return;
+    }
+    res.json(UpdateVenueOutreachPlaceIdResponse.parse({
+      id: updated.id,
+      placeId: updated.placeId,
+    }));
+  },
+);
+
+router.put(
+  "/admin/venue-owner/outreach/follow-ups",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = UpdateVenueOutreachFollowUpBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const { venueKey, nextActionNote, nextActionDueDate } = parsed.data;
+    if (
+      nextActionDueDate !== null &&
+      (!Number.isFinite(new Date(`${nextActionDueDate}T00:00:00.000Z`).getTime()) ||
+        new Date(`${nextActionDueDate}T00:00:00.000Z`).toISOString().slice(0, 10) !== nextActionDueDate)
+    ) {
+      res.status(400).json({ error: "The follow-up due date is invalid." });
+      return;
+    }
+    const updatedAt = new Date();
+    await db
+      .insert(venueOutreachFollowUpsTable)
+      .values({ venueKey, nextActionNote, nextActionDueDate, updatedAt })
+      .onConflictDoUpdate({
+        target: venueOutreachFollowUpsTable.venueKey,
+        set: { nextActionNote, nextActionDueDate, updatedAt },
+      });
+    res.json(UpdateVenueOutreachFollowUpResponse.parse({
+      venueKey,
+      nextActionNote,
+      nextActionDueDate,
+      updatedAt,
+    }));
   },
 );
 
@@ -4540,6 +5121,7 @@ router.post(
     const parsed = z.object({
       businessName: z.string().trim().min(2).max(150),
       recipientEmail: z.string().trim().email().max(255),
+      placeId: z.string().trim().min(1).max(255).optional(),
       template: z.enum(OUTREACH_TEMPLATE_IDS).default("contact_request"),
     }).safeParse(req.body);
     if (!parsed.success) {
@@ -4583,12 +5165,42 @@ router.post(
       }
       applicationInviteTokenId = applicationInvite.id;
     }
+    let posterAttachments: Awaited<ReturnType<typeof buildVenueManagerUpdatePosterAttachment>>[] = [];
+    if (template === "latest_updates") {
+      let registeredManager: VenueManagerUpdateRecipient | undefined;
+      try {
+        const audience = await getVenueManagerUpdateRecipients({ excludeRecentlyContacted: false });
+        registeredManager = audience.registeredManagers.find(
+          (recipient) => recipient.email === recipientEmail,
+        );
+      } catch (err) {
+        req.log?.warn({ err }, "Unable to prepare a venue QR poster for the individual update email");
+        res.status(503).json({ message: "The venue QR posters could not be prepared. No email was sent." });
+        return;
+      }
+      if (!registeredManager) {
+        res.status(409).json({
+          message: "This address is not linked to an active Venue Manager account, so no email was sent. Use the invitation template for a prospect or send the manager update to an active account.",
+        });
+        return;
+      }
+      try {
+        posterAttachments = [await buildVenueManagerUpdatePosterAttachment(registeredManager)];
+      } catch (err) {
+        req.log?.warn({ err }, "Unable to prepare a venue QR poster for the individual update email");
+        res.status(503).json({ message: "The venue QR posters could not be prepared. No email was sent." });
+        return;
+      }
+    }
     const outreachLogId = await createVenueOutreachLog({
       applicationInviteTokenId,
+      placeId: parsed.data.placeId ?? null,
       businessName,
       recipientEmail,
       template,
-      kind: "new_venue_outreach",
+      kind: template === "latest_updates" || template === "latest_updates_prospect"
+        ? "manager_announcement"
+        : "new_venue_outreach",
       actorUid: adminActorUid(req),
     });
     try {
@@ -4597,6 +5209,7 @@ router.post(
         businessName,
         template,
         ...(applicationUrl ? { applicationUrl, applicationExpiresAt } : {}),
+        ...(posterAttachments.length > 0 ? { attachments: posterAttachments } : {}),
       });
     } catch (err) {
       await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
@@ -5183,18 +5796,20 @@ router.delete(
       return;
     }
 
-    let eventImageUrls: string[] = [];
-    await db.transaction(async (tx) => {
-      eventImageUrls = await deleteVenueOwnerProfile(tx, profile);
-    });
-
-    // Best-effort: remove Storage files for venue cover photo, logo, and event
-    // images. Only URLs targeting the configured default bucket with known
-    // venue prefixes are acted on; others are silently skipped.
-    await deleteVenueStorageFiles(
-      [profile.coverPhotoUrl, profile.logoUrl, ...eventImageUrls],
-      { profileId },
-    );
+    try {
+      await db.transaction(async (tx) => {
+        const venueFileUrls = await deleteVenueOwnerProfile(tx, profile);
+        // Retain the DB references for a retry if owned file cleanup fails.
+        // Already-removed files are safe to retry (ignoreNotFound).
+        await deleteVenueStorageFiles(venueFileUrls, { profileId }, { requireComplete: true });
+      });
+    } catch (err) {
+      req.log.error({ err, profileId }, "Admin venue deletion could not finish");
+      res.status(503).json({
+        message: "Venue deletion could not finish. The venue records were kept so you can retry. Some files may already have been removed.",
+      });
+      return;
+    }
 
     logger.info(
       { profileId, businessName: profile.businessName, placeId: profile.placeId },

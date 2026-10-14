@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -29,7 +30,7 @@ const WEEK_MS = 7 * DAY_MS;
 // ignored so direct tab navigation always shows the unfiltered feed.
 type WeeklyFilter = "new" | "repeats" | null;
 
-export default function RecentScreen() {
+function RecentScreen() {
   const colors = useColors();
   const actionColor =
     colors.primary === "#3DCC44" ? colors.secondaryForeground : colors.primary;
@@ -479,3 +480,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+export default withSocialGate(RecentScreen);

@@ -16,8 +16,44 @@ vi.mock("./firebaseAdmin", () => ({
 vi.mock("./logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
+const objectFileDelete = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const getObjectFile = vi.hoisted(() => vi.fn().mockResolvedValue({ delete: objectFileDelete }));
+vi.mock("./objectStorage", () => ({
+  ObjectStorageService: class { getObjectEntityFile = getObjectFile; },
+  ObjectNotFoundError: class extends Error {},
+}));
 
 const BUCKET = "my-project.firebasestorage.app";
+
+describe("additional venue file cleanup", () => {
+  it("reports cleanup failure when admin deletion requires completion", async () => {
+    objectFileDelete.mockRejectedValueOnce(new Error("temporary storage failure"));
+    await expect(deleteVenueStorageFiles(
+      ["/api/storage/objects/uploads/5c2a6b71-f6b8-42ee-832c-562c73f13798"],
+      {}, { requireComplete: true },
+    )).rejects.toThrow("Venue file cleanup could not finish");
+  });
+  it("removes exclusively referenced App Storage images", async () => {
+    getObjectFile.mockClear(); objectFileDelete.mockClear();
+    const path = "/objects/uploads/5c2a6b71-f6b8-42ee-832c-562c73f13798";
+    await deleteVenueStorageFiles([`/api/storage${path}`, `/api/storage${path}`]);
+    expect(getObjectFile).toHaveBeenCalledExactlyOnceWith(path);
+    expect(objectFileDelete).toHaveBeenCalledExactlyOnceWith({ ignoreNotFound: true });
+  });
+  it("does not resolve traversal, malformed paths, or external hosts into private uploads", async () => {
+    getObjectFile.mockClear();
+    await deleteVenueStorageFiles([
+      "/api/storage/objects/uploads/../../personal-file",
+      "/api/storage/objects/uploads/not-a-uuid",
+      "https://untrusted.example/api/storage/objects/uploads/5c2a6b71-f6b8-42ee-832c-562c73f13798",
+    ]);
+    expect(getObjectFile).not.toHaveBeenCalled();
+  });
+  it.each(["venue-announcement-images/", "venue-verification-docs/"])("recognizes %s in the configured Firebase bucket only", (prefix) => {
+    expect(resolveVenueStoragePath(`https://storage.googleapis.com/${BUCKET}/${prefix}uid/file.jpg`, BUCKET)).toBe(`${prefix}uid/file.jpg`);
+    expect(resolveVenueStoragePath(`https://storage.googleapis.com/another-bucket/${prefix}uid/file.jpg`, BUCKET)).toBeNull();
+  });
+});
 
 describe("resolveVenueStoragePath — GCS URL form", () => {
   it("resolves a valid cover photo URL to its object path", () => {

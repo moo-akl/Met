@@ -13,4 +13,5 @@ export const VenueOutreachHistoryEntryKind = {
   new_venue_outreach: 'new_venue_outreach',
   contact_request: 'contact_request',
   registration_invite: 'registration_invite',
+  manager_announcement: 'manager_announcement',
 } as const;

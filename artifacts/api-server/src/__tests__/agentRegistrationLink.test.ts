@@ -25,6 +25,8 @@ import {
   venueManagerRegistrationTokensTable,
   venueAdminCredentialsTable,
   venueMembershipsTable,
+  venueManagersTable,
+  venueOutreachEmailLogsTable,
   venueActivationPoliciesTable,
 } from "@workspace/db";
 import type { Express } from "express";
@@ -73,6 +75,7 @@ vi.mock("../lib/push", () => ({ sendPush: vi.fn() }));
 
 const firebaseAuthStubs = vi.hoisted(() => ({
   verifyIdToken: vi.fn(),
+  getUsers: vi.fn().mockResolvedValue({ users: [], notFound: [] }),
 }));
 vi.mock("../lib/firebaseAdmin", () => ({
   adminAuth: () => firebaseAuthStubs,
@@ -96,6 +99,7 @@ vi.mock("../lib/email.js", () => ({
     videoUrl: "https://manager.test.invalid/venue-admin/media/met-app-intro.mp4",
     posterUrl: "https://manager.test.invalid/venue-admin/media/met-app-intro-poster.jpg",
   })),
+  getVenueManagerBaseUrl: vi.fn(() => "https://manager.test.invalid/venue-manager"),
 }));
 
 // ---------------------------------------------------------------------------
@@ -109,6 +113,8 @@ const TEST_PLACE_ID = `${TEST_PREFIX}-place`;
 const TEST_OWNER_UID = `${TEST_PREFIX}-owner`;
 const TEST_AGENT_EMAIL = `${TEST_PREFIX}-agent@itest.invalid`;
 const TEST_CONTACT_EMAIL = `${TEST_PREFIX}-owner@itest.invalid`;
+const TEST_MANAGER_UPDATE_EMAIL = `${TEST_PREFIX}-manager-updates@itest.invalid`;
+const TEST_MANAGER_UPDATE_PROSPECT_EMAIL = `${TEST_PREFIX}-manager-update-prospect@itest.invalid`;
 
 /**
  * Replicates cookie-signature `sign(val, secret)`.
@@ -165,6 +171,8 @@ let businessForDeactivatedAgentId = 0;
 let profileAlreadyClaimedId = 0;
 let businessAlreadyClaimedId = 0;
 let membershipAlreadyClaimedId = 0;
+let managerUpdateTestManagerId = 0;
+let managerUpdateTestMembershipId = 0;
 
 // For the deactivation-cleanup test: an agent that starts active then gets
 // deactivated via the PATCH endpoint during the test.
@@ -311,6 +319,19 @@ async function seed() {
     isActive: true,
   }).returning({ id: venueBusinessesTable.id });
   adminOutreachBusinessId = outreachBusiness!.id;
+  const [managerUpdateTestManager] = await db.insert(venueManagersTable).values({
+    email: TEST_MANAGER_UPDATE_EMAIL,
+    displayName: "Integration Test Manager",
+    passwordHash: "scrypt$dummy$dummy",
+  }).returning({ id: venueManagersTable.id });
+  managerUpdateTestManagerId = managerUpdateTestManager!.id;
+  const [managerUpdateTestMembership] = await db.insert(venueMembershipsTable).values({
+    businessId: adminOutreachBusinessId,
+    managerId: managerUpdateTestManagerId,
+    role: "manager",
+    status: "active",
+  }).returning({ id: venueMembershipsTable.id });
+  managerUpdateTestMembershipId = managerUpdateTestMembership!.id;
 
   // An approved venue profile assigned to the deactivated agent — the session
   // middleware must reject the request before any venue lookup runs.
@@ -440,6 +461,23 @@ async function seed() {
 async function cleanup() {
   // Remove history rows, then tokens, then businesses, then profiles, then agents
   // (order matters so FK constraints are not violated)
+  await db.delete(venueOutreachEmailLogsTable).where(
+    eq(venueOutreachEmailLogsTable.recipientEmail, TEST_MANAGER_UPDATE_PROSPECT_EMAIL),
+  );
+  if (adminCredentialId) {
+    await db.delete(venueOutreachEmailLogsTable).where(and(
+      eq(venueOutreachEmailLogsTable.actorUid, `admin:${adminCredentialId}`),
+      eq(venueOutreachEmailLogsTable.kind, "manager_announcement"),
+    ));
+  }
+  if (managerUpdateTestMembershipId) {
+    await db.delete(venueMembershipsTable)
+      .where(eq(venueMembershipsTable.id, managerUpdateTestMembershipId));
+  }
+  if (managerUpdateTestManagerId) {
+    await db.delete(venueManagersTable)
+      .where(eq(venueManagersTable.id, managerUpdateTestManagerId));
+  }
   for (const pid of [profileId, profileNoBizId, profileNoEmailId, adminOutreachProfileId, profileForDeactivatedAgentId]) {
     if (pid) await db.delete(venueApplicationHistoryTable)
       .where(eq(venueApplicationHistoryTable.venueOwnerProfileId, pid));
@@ -713,7 +751,7 @@ describe.skipIf(!hasDatabase)(
         .set("Cookie", adminCookieHeader(adminCredentialId))
         .send({ businessName: "North & South" });
       expect(preview.status).toBe(200);
-      expect(preview.body.templates).toHaveLength(9);
+      expect(preview.body.templates).toHaveLength(11);
       expect(preview.body.templates.map((template: { id: string }) => template.id)).toEqual([
         "contact_request",
         "met_launch_with_links",
@@ -724,6 +762,8 @@ describe.skipIf(!hasDatabase)(
         "events",
         "rewards",
         "follow_up",
+        "latest_updates",
+        "latest_updates_prospect",
       ]);
       const eventsTemplate = preview.body.templates.find((template: { id: string }) => template.id === "events");
       expect(eventsTemplate).toMatchObject({
@@ -738,6 +778,113 @@ describe.skipIf(!hasDatabase)(
       expect(mockSendNewVenueOutreachEmail).toHaveBeenCalledWith({
         to: TEST_CONTACT_EMAIL, businessName: "North & South", template: "events",
       });
+
+      const updateSend = await request(app)
+        .post("/api/admin/venue-owner/outreach")
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({
+          businessName: "Venue managers",
+          recipientEmail: TEST_CONTACT_EMAIL,
+          template: "latest_updates_prospect",
+        });
+      expect(updateSend.status).toBe(201);
+      expect(mockSendNewVenueOutreachEmail).toHaveBeenCalledWith(expect.objectContaining({
+        to: TEST_CONTACT_EMAIL,
+        businessName: "Venue managers",
+        template: "latest_updates_prospect",
+      }));
+    });
+
+    it("shows a deduplicated manager audience and sends only after explicit confirmation", async () => {
+      await db.delete(venueOutreachEmailLogsTable).where(
+        eq(venueOutreachEmailLogsTable.recipientEmail, TEST_MANAGER_UPDATE_PROSPECT_EMAIL),
+      );
+      await db.insert(venueOutreachEmailLogsTable).values({
+        businessName: "Previously Contacted Test Venue",
+        recipientEmail: TEST_MANAGER_UPDATE_PROSPECT_EMAIL,
+        template: "introduction",
+        kind: "new_venue_outreach",
+        deliveryStatus: "sent",
+      });
+      firebaseAuthStubs.getUsers.mockImplementation(async (identifiers: Array<{ uid: string }>) => ({
+        users: identifiers
+          .filter(({ uid }) => uid === `${TEST_OWNER_UID}-outreach`)
+          .map(({ uid }) => ({
+            uid,
+            email: TEST_MANAGER_UPDATE_EMAIL,
+            disabled: false,
+          })),
+        notFound: [],
+      }));
+      mockSendNewVenueOutreachEmail.mockClear();
+
+      const unauthenticatedAudience = await request(app)
+        .get("/api/admin/venue-owner/outreach/manager-updates/audience");
+      expect(unauthenticatedAudience.status).toBe(401);
+
+      const audience = await request(app)
+        .get("/api/admin/venue-owner/outreach/manager-updates/audience")
+        .set("Cookie", adminCookieHeader(adminCredentialId));
+      expect(audience.status).toBe(200);
+      expect(audience.body.recipientCount).toBeGreaterThan(0);
+      expect(audience.body.registeredManagerCount).toBeGreaterThan(0);
+      expect(audience.body.contactedProspectCount).toBeGreaterThan(0);
+      expect(mockSendNewVenueOutreachEmail).not.toHaveBeenCalled();
+
+      const unconfirmed = await request(app)
+        .post("/api/admin/venue-owner/outreach/manager-updates/send")
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({
+          template: "latest_updates",
+          expectedRecipientCount: audience.body.recipientCount,
+          expectedRegisteredManagerCount: audience.body.registeredManagerCount,
+          expectedContactedProspectCount: audience.body.contactedProspectCount,
+          confirm: false,
+        });
+      expect(unconfirmed.status).toBe(400);
+      expect(mockSendNewVenueOutreachEmail).not.toHaveBeenCalled();
+
+      const sent = await request(app)
+        .post("/api/admin/venue-owner/outreach/manager-updates/send")
+        .set("Cookie", adminCookieHeader(adminCredentialId))
+        .send({
+          template: "latest_updates",
+          expectedRecipientCount: audience.body.recipientCount,
+          expectedRegisteredManagerCount: audience.body.registeredManagerCount,
+          expectedContactedProspectCount: audience.body.contactedProspectCount,
+          confirm: true,
+        });
+      expect(sent.status, JSON.stringify(sent.body)).toBe(200);
+      expect(sent.body).toMatchObject({
+        recipientCount: audience.body.recipientCount,
+        registeredManagerCount: audience.body.registeredManagerCount,
+        contactedProspectCount: audience.body.contactedProspectCount,
+        sentCount: audience.body.recipientCount,
+        deliveryUncertainCount: 0,
+        notAttemptedCount: 0,
+        stoppedReason: null,
+      });
+      const managerEmailCall = mockSendNewVenueOutreachEmail.mock.calls.find(
+        ([input]) => input.to === TEST_MANAGER_UPDATE_EMAIL,
+      );
+      expect(managerEmailCall?.[0]).toMatchObject({
+        to: TEST_MANAGER_UPDATE_EMAIL,
+        template: "latest_updates",
+        attachments: [{
+          filename: "met-check-in-qr-posters.pdf",
+          contentType: "application/pdf",
+          content: expect.any(Buffer),
+        }],
+      });
+      const prospectEmailCall = mockSendNewVenueOutreachEmail.mock.calls.find(
+        ([input]) => input.to === TEST_MANAGER_UPDATE_PROSPECT_EMAIL,
+      );
+      expect(prospectEmailCall?.[0]).toMatchObject({
+        to: TEST_MANAGER_UPDATE_PROSPECT_EMAIL,
+        businessName: "Previously Contacted Test Venue",
+        template: "latest_updates_prospect",
+      });
+      expect(prospectEmailCall?.[0]).not.toHaveProperty("attachments");
     });
 
     it("binds a registration link to the chosen manager email, not the public contact email", async () => {

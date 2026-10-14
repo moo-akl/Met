@@ -25,7 +25,24 @@ export interface VenueOutreachHistoryEntry {
   applicationId: number | null;
   /** @nullable */
   applicationStatus: string | null;
+  /**
+     * @maxLength 255
+     * @nullable
+     */
+  placeId: string | null;
   /** @nullable */
   expiresAt: Date | null;
   linkStatus: VenueOutreachHistoryEntryLinkStatus;
+  venueKey: string;
+  /** @nullable */
+  assignedAgentId: number | null;
+  /** @nullable */
+  assignedAgentName: string | null;
+  /** @nullable */
+  nextActionNote: string | null;
+  /**
+     * @nullable
+     * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+     */
+  nextActionDueDate: string | null;
 }

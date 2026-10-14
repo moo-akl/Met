@@ -1,3 +1,4 @@
+import { CompleteProfileBanner } from "@/components/ProfileCompletionGate";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -368,6 +369,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
+      <CompleteProfileBanner topInset={insets.top} />
       {/* ── Aurora ambient glow blobs (dark mode only) ──────────────── */}
       {isDark && (
         <>

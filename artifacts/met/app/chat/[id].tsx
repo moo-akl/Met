@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -687,7 +688,7 @@ function MessageActionMenu({
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
-export default function ChatScreen() {
+function ChatScreen() {
   const colors = useColors();
   const actionColor =
     colors.primary === "#3DCC44" ? colors.secondaryForeground : colors.primary;
@@ -2145,3 +2146,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+export default withSocialGate(ChatScreen, { showBack: true });

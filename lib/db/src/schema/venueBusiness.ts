@@ -2,12 +2,56 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+export type VenueQrPosterDesign = {
+  heading: string;
+  subheading: string;
+  footer: string;
+  fontFamily: "sans" | "serif";
+  titleFontSize: number;
+  bodyFontSize: number;
+  textColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  qrForegroundColor: string;
+  logoUrl: string | null;
+  imageUrl: string | null;
+  /** Ordered back-to-front; later images are rendered above earlier images. */
+  decorativeImages?: Array<{
+    id: string;
+    url: string;
+    position: { x: number; y: number; width: number; height: number };
+  }>;
+  imagePositions?: Partial<Record<
+    "logo" | "decoration",
+    { x: number; y: number; width: number; height: number }
+  >>;
+  textPositions?: Partial<Record<
+    "brandMark" | "brandLabel" | "kicker" | "venueName" | "heading" | "subheading" | "scanNote" | "footer",
+    { x: number; y: number; fontSize?: number; width?: number }
+  >>;
+  textContent?: Partial<Record<
+    "brandMark" | "brandLabel" | "kicker" | "venueName" | "heading" | "subheading" | "scanNote" | "footer",
+    string
+  >>;
+  textBoxes?: Array<{
+    id: string;
+    text: string;
+    x: number;
+    y: number;
+    fontSize: number;
+    color: string;
+    align: "left" | "center" | "right";
+    width?: number;
+  }>;
+};
 
 /**
  * The durable business aggregate for an approved venue. It deliberately has no
@@ -23,6 +67,7 @@ export const venueBusinessesTable = pgTable(
     legalName: text("legal_name").notNull(),
     createdByUid: text("created_by_uid").notNull(),
     isActive: boolean("is_active").notNull().default(true),
+    qrPosterDesign: jsonb("qr_poster_design").$type<VenueQrPosterDesign | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

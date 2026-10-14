@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -219,7 +220,7 @@ function JoinByCodeModal({
   );
 }
 
-export default function NetworksScreen() {
+function NetworksScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -591,3 +592,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 });
+
+export default withSocialGate(NetworksScreen);

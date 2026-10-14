@@ -23,6 +23,39 @@ tags:
   - name: networks
     description: Community networks (university, work, neighborhood, custom)
 paths:
+  /hubs/qr-verify:
+    post:
+      operationId: verifyVenueQr
+      tags: [profiles]
+      summary: Record a venue QR visit for the authenticated account
+      description: >
+        Photo-less accounts record a private visit only, without public
+        leaderboard or reward credit. This does not enable social visibility
+        and a static QR token is not independent proof of GPS presence.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueQrInput"
+      responses:
+        "200":
+          description: The visit was recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueQrResult"
+        "400":
+          description: Invalid request
+        "401":
+          description: Sign-in required
+        "403":
+          description: QR token does not match
+        "404":
+          description: Venue not found or not approved
+
   /healthz:
     get:
       operationId: healthCheck
@@ -2876,6 +2909,48 @@ paths:
         "503":
           description: Email delivery could not be confirmed
 
+  /admin/venue-owner/outreach/manager-updates/audience:
+    get:
+      operationId: getVenueManagerUpdateAudience
+      tags: [admin]
+      summary: Count registered managers and previously contacted prospects eligible for the latest-updates email
+      description: Counts distinct active manager addresses and previously contacted venue prospects without active manager accounts. Addresses sent or held as uncertain within the past 24 hours are excluded.
+      responses:
+        "200":
+          description: Counts for the registered-manager and contacted-prospect audiences
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerUpdateAudience" }
+        "401":
+          description: No active admin session
+        "503":
+          description: Manager audience could not be resolved
+
+  /admin/venue-owner/outreach/manager-updates/send:
+    post:
+      operationId: sendVenueManagerUpdates
+      tags: [admin]
+      summary: Send manager updates to active managers and an invitation version to contacted prospects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManagerUpdateBroadcastInput" }
+      responses:
+        "200":
+          description: Delivery summary; an uncertain result or poster preparation failure stops the remaining sends
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueManagerUpdateBroadcastResult" }
+        "400":
+          description: Confirmation or template is invalid
+        "401":
+          description: No active admin session
+        "409":
+          description: Audience changed since the admin reviewed it, or no recipients are eligible
+        "503":
+          description: Manager audience could not be resolved
+
   /admin/venue-owner/outreach/history:
     get:
       operationId: getVenueOutreachHistory
@@ -2888,6 +2963,77 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VenueOutreachHistoryResponse"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/history/{id}/place:
+    put:
+      operationId: updateVenueOutreachPlaceId
+      tags: [admin]
+      summary: Assign or correct the Google Maps location for an outreach email
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueOutreachPlaceIdInput"
+      responses:
+        "200":
+          description: Updated outreach location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOutreachPlaceIdResult"
+        "400":
+          description: Place ID is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Outreach email was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/follow-ups:
+    put:
+      operationId: updateVenueOutreachFollowUp
+      tags: [admin]
+      summary: Save a venue's next outreach action and due date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueOutreachFollowUpInput"
+      responses:
+        "200":
+          description: Saved next outreach action
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOutreachFollowUp"
+        "400":
+          description: Follow-up details are invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           description: No active admin session
           content:
@@ -3420,6 +3566,7 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
 
 components:
+  # QR visits use the same authenticated identity as the rest of Met.
   parameters:
     VenueApplicationId:
       name: id
@@ -3470,6 +3617,28 @@ components:
       name: X-Met-Uid
       description: Firebase UID of the requesting user (MVP — replace with verified ID token later)
   schemas:
+    VenueQrInput:
+      type: object
+      required: [placeId, token]
+      properties:
+        placeId:
+          type: string
+          minLength: 1
+        token:
+          type: string
+          format: uuid
+    VenueQrResult:
+      type: object
+      required: [verified, streak]
+      properties:
+        verified:
+          type: boolean
+        streak:
+          type: integer
+          minimum: 0
+        privateOnly:
+          type: boolean
+          description: True when no public leaderboard or reward check-in was created.
     HealthStatus:
       type: object
       properties:
@@ -3638,9 +3807,10 @@ components:
       properties:
         businessName: { type: string, minLength: 2, maxLength: 150 }
         recipientEmail: { type: string, format: email, maxLength: 255 }
+        placeId: { type: string, maxLength: 255 }
         template:
           type: string
-          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up]
+          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up, latest_updates, latest_updates_prospect]
           default: contact_request
     VenueOutreachPreviewInput:
       type: object
@@ -3653,7 +3823,7 @@ components:
       properties:
         id:
           type: string
-          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up]
+          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up, latest_updates, latest_updates_prospect]
         label: { type: string }
         description: { type: string }
         subject: { type: string }
@@ -3672,13 +3842,19 @@ components:
         - venueOwnerProfileId
         - applicationId
         - applicationStatus
+        - placeId
         - expiresAt
         - linkStatus
+        - venueKey
+        - assignedAgentId
+        - assignedAgentName
+        - nextActionNote
+        - nextActionDueDate
       properties:
         id: { type: string }
         kind:
           type: string
-          enum: [new_venue_outreach, contact_request, registration_invite]
+          enum: [new_venue_outreach, contact_request, registration_invite, manager_announcement]
         businessName: { type: string }
         recipientEmail: { type: string, format: email }
         template: { type: string }
@@ -3690,10 +3866,81 @@ components:
         venueOwnerProfileId: { type: ["integer", "null"] }
         applicationId: { type: ["integer", "null"] }
         applicationStatus: { type: ["string", "null"] }
+        placeId: { type: ["string", "null"], maxLength: 255 }
         expiresAt: { type: ["string", "null"], format: date-time }
         linkStatus:
           type: string
           enum: [none, active, expired, used, superseded, unknown]
+        venueKey: { type: string }
+        assignedAgentId: { type: ["integer", "null"] }
+        assignedAgentName: { type: ["string", "null"] }
+        nextActionNote: { type: ["string", "null"] }
+        nextActionDueDate:
+          type: ["string", "null"]
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    VenueOutreachFollowUpInput:
+      type: object
+      required: [venueKey, nextActionNote, nextActionDueDate]
+      properties:
+        venueKey: { type: string, minLength: 1, maxLength: 512 }
+        nextActionNote: { type: ["string", "null"], maxLength: 1000 }
+        nextActionDueDate:
+          type: ["string", "null"]
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    VenueOutreachFollowUp:
+      type: object
+      required: [venueKey, nextActionNote, nextActionDueDate, updatedAt]
+      properties:
+        venueKey: { type: string }
+        nextActionNote: { type: ["string", "null"] }
+        nextActionDueDate:
+          type: ["string", "null"]
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        updatedAt: { type: string, format: date-time }
+    VenueOutreachPlaceIdInput:
+      type: object
+      required: [placeId]
+      properties:
+        placeId: { type: ["string", "null"], minLength: 1, maxLength: 255 }
+    VenueOutreachPlaceIdResult:
+      type: object
+      required: [id, placeId]
+      properties:
+        id: { type: integer }
+        placeId: { type: ["string", "null"], maxLength: 255 }
+    VenueManagerUpdateAudience:
+      type: object
+      required: [recipientCount, registeredManagerCount, contactedProspectCount]
+      properties:
+        recipientCount: { type: integer, minimum: 0 }
+        registeredManagerCount: { type: integer, minimum: 0 }
+        contactedProspectCount: { type: integer, minimum: 0 }
+    VenueManagerUpdateBroadcastInput:
+      type: object
+      required: [template, expectedRecipientCount, expectedRegisteredManagerCount, expectedContactedProspectCount, confirm]
+      properties:
+        template:
+          type: string
+          enum: [latest_updates]
+        expectedRecipientCount: { type: integer, minimum: 1 }
+        expectedRegisteredManagerCount: { type: integer, minimum: 0 }
+        expectedContactedProspectCount: { type: integer, minimum: 0 }
+        confirm:
+          type: boolean
+          enum: [true]
+    VenueManagerUpdateBroadcastResult:
+      type: object
+      required: [recipientCount, registeredManagerCount, contactedProspectCount, sentCount, deliveryUncertainCount, notAttemptedCount, stoppedReason]
+      properties:
+        recipientCount: { type: integer, minimum: 0 }
+        registeredManagerCount: { type: integer, minimum: 0 }
+        contactedProspectCount: { type: integer, minimum: 0 }
+        sentCount: { type: integer, minimum: 0 }
+        deliveryUncertainCount: { type: integer, minimum: 0 }
+        notAttemptedCount: { type: integer, minimum: 0 }
+        stoppedReason:
+          type: ["string", "null"]
+          enum: [delivery_uncertain, audit_log_failed, preparation_failed, null]
     VenueOutreachHistoryResponse:
       type: object
       required: [emails]
@@ -3842,7 +4089,7 @@ components:
         close: { type: string, pattern: "^\\d{2}:\\d{2}$", description: "24-hour time, e.g. 23:00" }
     VenueManagerBusiness:
       type: object
-      required: [businessId, placeId, legalName, placeName, businessName, role, isActive]
+      required: [businessId, placeId, legalName, placeName, businessName, qrPosterDesign, role, isActive]
       properties:
         businessId: { type: integer }
         placeId: { type: string }
@@ -3863,6 +4110,7 @@ components:
             oneOf:
               - $ref: "#/components/schemas/VenueManagerOpeningHoursDay"
               - type: "null"
+        qrPosterDesign: { $ref: "#/components/schemas/VenueQrPosterDesign" }
         role: { type: string, enum: [owner, manager, editor] }
         isActive: { type: boolean }
     VenueManagerBusinessList:
@@ -3890,6 +4138,96 @@ components:
             oneOf:
               - $ref: "#/components/schemas/VenueManagerOpeningHoursDay"
               - type: "null"
+        qrPosterDesign: { $ref: "#/components/schemas/VenueQrPosterDesign" }
+    VenueQrPosterDesign:
+      type: ["object", "null"]
+      required: [heading, subheading, footer, fontFamily, titleFontSize, bodyFontSize, textColor, accentColor, backgroundColor, qrForegroundColor, logoUrl, imageUrl]
+      properties:
+        heading: { type: string, maxLength: 100 }
+        subheading: { type: string, maxLength: 180 }
+        footer: { type: string, maxLength: 140 }
+        fontFamily: { type: string, enum: [sans, serif] }
+        titleFontSize: { type: integer, minimum: 20, maximum: 72 }
+        bodyFontSize: { type: integer, minimum: 11, maximum: 36 }
+        textColor: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        accentColor: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        backgroundColor: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        qrForegroundColor: { type: string, pattern: "^#[0-9A-Fa-f]{6}$", description: "Must have a 4.5:1 contrast ratio against white." }
+        logoUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
+        imageUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
+        decorativeImages:
+          type: array
+          maxItems: 12
+          items: { $ref: "#/components/schemas/VenuePosterDecorativeImage" }
+        imagePositions:
+          type: object
+          additionalProperties: false
+          properties:
+            logo: { $ref: "#/components/schemas/VenuePosterImagePosition" }
+            decoration: { $ref: "#/components/schemas/VenuePosterImagePosition" }
+        textPositions:
+          type: object
+          additionalProperties: false
+          properties:
+            brandMark: { $ref: "#/components/schemas/VenuePosterTextPosition" }
+            brandLabel: { $ref: "#/components/schemas/VenuePosterTextPosition" }
+            kicker: { $ref: "#/components/schemas/VenuePosterTextPosition" }
+            venueName: { $ref: "#/components/schemas/VenuePosterTextPosition" }
+            heading: { $ref: "#/components/schemas/VenuePosterTextPosition" }
+            subheading: { $ref: "#/components/schemas/VenuePosterTextPosition" }
+            scanNote: { $ref: "#/components/schemas/VenuePosterTextPosition" }
+            footer: { $ref: "#/components/schemas/VenuePosterTextPosition" }
+        textContent:
+          type: object
+          additionalProperties: false
+          properties:
+            brandMark: { type: string, maxLength: 4 }
+            brandLabel: { type: string, maxLength: 48 }
+            kicker: { type: string, maxLength: 80 }
+            venueName: { type: string, maxLength: 80 }
+            heading: { type: string, maxLength: 100 }
+            subheading: { type: string, maxLength: 180 }
+            scanNote: { type: string, maxLength: 100 }
+            footer: { type: string, maxLength: 140 }
+        textBoxes:
+          type: array
+          maxItems: 16
+          items: { $ref: "#/components/schemas/VenuePosterTextBox" }
+    VenuePosterTextPosition:
+      type: object
+      required: [x, y]
+      properties:
+        x: { type: number, minimum: 3, maximum: 97 }
+        y: { type: number, minimum: 3, maximum: 97 }
+        fontSize: { type: number, minimum: 8, maximum: 96 }
+        width: { type: number, minimum: 8, maximum: 90 }
+    VenuePosterImagePosition:
+      type: object
+      required: [x, y, width, height]
+      properties:
+        x: { type: number, minimum: 3, maximum: 97 }
+        y: { type: number, minimum: 3, maximum: 97 }
+        width: { type: number, minimum: 5, maximum: 80 }
+        height: { type: number, minimum: 5, maximum: 80 }
+    VenuePosterDecorativeImage:
+      type: object
+      required: [id, url, position]
+      properties:
+        id: { type: string, pattern: "^[a-zA-Z0-9_-]{1,36}$" }
+        url: { type: string, maxLength: 2000, format: uri }
+        position: { $ref: "#/components/schemas/VenuePosterImagePosition" }
+    VenuePosterTextBox:
+      type: object
+      required: [id, text, x, y, fontSize, color, align]
+      properties:
+        id: { type: string, pattern: "^[a-zA-Z0-9_-]{1,36}$" }
+        text: { type: string, maxLength: 140 }
+        x: { type: number, minimum: 3, maximum: 97 }
+        y: { type: number, minimum: 3, maximum: 97 }
+        fontSize: { type: integer, minimum: 10, maximum: 72 }
+        color: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        align: { type: string, enum: [left, center, right] }
+        width: { type: number, minimum: 8, maximum: 90 }
     VenueManagerQrCode:
       type: object
       required: [qrToken, qrUrl]
@@ -5281,4 +5619,3 @@ components:
                 type: string
                 minLength: 1
                 maxLength: 1000
-

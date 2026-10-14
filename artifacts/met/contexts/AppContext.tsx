@@ -78,6 +78,7 @@ import {
   type Preferences,
 } from "@/lib/storage";
 import { clearVenueOwnerIntent } from "@/lib/venueOwnerIntent";
+import { clearQrIntent } from "@/lib/qrIntent";
 import type { Encounter, EncounterStatus, Profile } from "@/lib/types";
 
 type AppContextValue = {
@@ -543,6 +544,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (previousUid) await saveProfileBannerDismissed(previousUid, false);
     await savePermissionsCompleted(false);
     await clearVenueOwnerIntent();
+    // Never let a pending venue check-in follow a logout to another account.
+    await clearQrIntent();
     await clearDragHintDismissed();
     await saveDisclosureAccepted("location", false);
     await saveDisclosureAccepted("bluetooth", false);
@@ -575,6 +578,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (previousUid) await saveProfileBannerDismissed(previousUid, false);
     await savePermissionsCompleted(false);
     await clearVenueOwnerIntent();
+    // Never let a pending venue check-in follow a logout to another account.
+    await clearQrIntent();
     await clearDragHintDismissed();
     await saveDisclosureAccepted("location", false);
     await saveDisclosureAccepted("bluetooth", false);

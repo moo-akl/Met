@@ -5,9 +5,11 @@ export default defineConfig({
     environment: "node",
     pool: "forks",
     include: ["src/**/*.test.ts"],
-    // Generous timeouts: completion-validation runs this suite in parallel
-    // with typechecks and other suites, so CPU contention can make otherwise
-    // fast tests exceed the 5s default and flake.
+    // Integration tests share database state, and some endpoints compare a
+    // reviewed audience against a fresh query before sending. Running test
+    // files concurrently makes unrelated fixtures change those counts.
+    fileParallelism: false,
+    // Generous timeouts also cover completion-validation CPU contention.
     testTimeout: 120_000,
     hookTimeout: 120_000,
   },

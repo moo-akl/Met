@@ -9,7 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import crypto from "node:crypto";
 import request from "supertest";
-import { inArray, like, sql } from "drizzle-orm";
+import { eq, inArray, like, sql } from "drizzle-orm";
 import {
   db,
   venueBusinessesTable,
@@ -26,6 +26,18 @@ const firebaseAuthStubs = vi.hoisted(() => ({
   getUser: vi.fn(),
   verifyIdToken: vi.fn(),
 }));
+const objectStorageStubs = vi.hoisted(() => ({
+  deleteObjectEntityFile: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../lib/objectStorage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/objectStorage")>();
+  return {
+    ...actual,
+    ObjectStorageService: class extends actual.ObjectStorageService {
+      deleteObjectEntityFile = objectStorageStubs.deleteObjectEntityFile;
+    },
+  };
+});
 vi.mock("../lib/firebaseAdmin", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/firebaseAdmin")>();
   return { ...actual, adminAuth: () => firebaseAuthStubs };
@@ -496,6 +508,294 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
         .post(`/api/venue-manager/businesses/${business.id}/qr-code/regenerate`)
         .set("x-csrf-token", mgrCsrf);
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe("QR poster design settings", () => {
+    const design = {
+      heading: "Check in here",
+      subheading: "Meet your next favorite person",
+      footer: "Scan to check in",
+      fontFamily: "serif" as const,
+      titleFontSize: 42,
+      bodyFontSize: 20,
+      textColor: "#183c2f",
+      accentColor: "#26735a",
+      backgroundColor: "#f8f7ef",
+      qrForegroundColor: "#183c2f",
+      logoUrl: null,
+      imageUrl: "https://example.com/poster-image.jpg",
+      decorativeImages: [
+        {
+          id: "corner-flower",
+          url: "https://example.com/corner-flower.png",
+          position: { x: 10.5, y: 74, width: 15, height: 18 },
+        },
+        {
+          id: "corner-leaf",
+          url: "https://example.com/corner-leaf.png",
+          position: { x: 89.5, y: 74, width: 15, height: 18 },
+        },
+      ],
+      imagePositions: {
+        logo: { x: 43, y: 7, width: 25, height: 6 },
+        decoration: { x: 10.5, y: 74, width: 15, height: 18 },
+      },
+      textPositions: {
+        brandMark: { x: 43, y: 7 },
+        brandLabel: { x: 56, y: 7, fontSize: 12, width: 42 },
+        venueName: { x: 50, y: 27 },
+        heading: { x: 50, y: 36 },
+        subheading: { x: 50, y: 44 },
+        footer: { x: 50, y: 95 },
+      },
+      textContent: { brandLabel: "CEDAR HOUSE SOCIAL", venueName: "Cedar House" },
+      textBoxes: [{
+        id: "custom-welcome",
+        text: "Find your people",
+        x: 50,
+        y: 47,
+        fontSize: 20,
+        color: "#26735a",
+        align: "center" as const,
+        width: 44,
+      }],
+    };
+
+    it("saves valid settings across reloads without changing the venue check-in URL", async () => {
+      objectStorageStubs.deleteObjectEntityFile.mockClear().mockResolvedValue(undefined);
+      const { agent, csrf, business } = await claimOwner("poster-save");
+      const beforeQr = await agent.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
+      expect(beforeQr.status).toBe(200);
+
+      const saved = await agent.patch(`/api/venue-manager/businesses/${business.id}`)
+        .set("x-csrf-token", csrf)
+        .send({ qrPosterDesign: design });
+      expect(saved.status).toBe(200);
+      expect(saved.body.qrPosterDesign).toEqual(design);
+
+      // A fresh detail request represents the editor loading after a reload.
+      const reloaded = await agent.get(`/api/venue-manager/businesses/${business.id}`);
+      expect(reloaded.status).toBe(200);
+      expect(reloaded.body.qrPosterDesign).toEqual(design);
+
+      const afterQr = await agent.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
+      expect(afterQr.status).toBe(200);
+      expect(afterQr.body.qrToken).toBe(beforeQr.body.qrToken);
+      expect(afterQr.body.qrUrl).toBe(beforeQr.body.qrUrl);
+    });
+
+    it("keeps a replaced poster image when a venue profile still references it", async () => {
+      objectStorageStubs.deleteObjectEntityFile.mockClear().mockResolvedValue(undefined);
+      const { agent, csrf, business, profile } = await claimOwner("poster-shared-image");
+      const oldPosterImage = `/api/storage/objects/uploads/5c2a6b71-f6b8-42ee-832c-${String(business.id).padStart(12, "0")}`;
+      const oldDesign = { ...design, logoUrl: oldPosterImage };
+      await db.update(venueBusinessesTable).set({ qrPosterDesign: oldDesign })
+        .where(eq(venueBusinessesTable.id, business.id));
+      await db.update(venueOwnerProfilesTable).set({ coverPhotoUrl: oldPosterImage })
+        .where(eq(venueOwnerProfilesTable.id, profile.id));
+
+      const saved = await agent.patch(`/api/venue-manager/businesses/${business.id}`)
+        .set("x-csrf-token", csrf)
+        .send({
+          qrPosterDesign: {
+            ...oldDesign,
+            logoUrl: null,
+            decorativeImages: [{
+              id: "shared-decoration",
+              url: oldPosterImage,
+              position: { x: 10.5, y: 74, width: 15, height: 18 },
+            }],
+          },
+        });
+
+      expect(saved.status).toBe(200);
+      expect(objectStorageStubs.deleteObjectEntityFile).not.toHaveBeenCalled();
+    });
+
+    it("deletes an unreferenced poster image after a successful save", async () => {
+      objectStorageStubs.deleteObjectEntityFile.mockReset().mockResolvedValue(undefined);
+      const { agent, csrf, business } = await claimOwner("poster-cleanup-success");
+      const oldPosterImage = `/api/storage/objects/uploads/5c2a6b71-f6b8-42ee-832c-${String(business.id).padStart(12, "0")}`;
+      const oldDesign = { ...design, logoUrl: oldPosterImage };
+      await db.update(venueBusinessesTable).set({ qrPosterDesign: oldDesign })
+        .where(eq(venueBusinessesTable.id, business.id));
+
+      const saved = await agent.patch(`/api/venue-manager/businesses/${business.id}`)
+        .set("x-csrf-token", csrf)
+        .send({ qrPosterDesign: { ...oldDesign, logoUrl: null } });
+
+      expect(saved.status).toBe(200);
+      expect(objectStorageStubs.deleteObjectEntityFile).toHaveBeenCalledExactlyOnceWith(
+        oldPosterImage.replace("/api/storage", ""),
+      );
+    });
+
+    it("discards an unreferenced uploaded image", async () => {
+      objectStorageStubs.deleteObjectEntityFile.mockReset().mockResolvedValue(undefined);
+      const { agent, csrf, business } = await claimOwner("poster-discard-unused");
+      const objectPath = "/objects/uploads/f02fd82c-6379-4d86-bf4f-5821fe7bb2a2";
+
+      const discarded = await agent.post(`/api/venue-manager/businesses/${business.id}/images/discard`)
+        .set("x-csrf-token", csrf)
+        .send({ objectPath });
+
+      expect(discarded.status).toBe(200);
+      expect(discarded.body).toEqual({ deleted: true, referenced: false });
+      expect(objectStorageStubs.deleteObjectEntityFile).toHaveBeenCalledExactlyOnceWith(objectPath);
+    });
+
+    it("does not discard an uploaded image that has become a venue profile reference", async () => {
+      objectStorageStubs.deleteObjectEntityFile.mockReset().mockResolvedValue(undefined);
+      const { agent, csrf, business, profile } = await claimOwner("poster-discard-shared");
+      const objectPath = "/objects/uploads/f02fd82c-6379-4d86-bf4f-5821fe7bb2a2";
+      const imageUrl = `/api/storage${objectPath}`;
+      await db.update(venueOwnerProfilesTable).set({ logoUrl: imageUrl })
+        .where(eq(venueOwnerProfilesTable.id, profile.id));
+
+      const discarded = await agent.post(`/api/venue-manager/businesses/${business.id}/images/discard`)
+        .set("x-csrf-token", csrf)
+        .send({ objectPath });
+
+      expect(discarded.status).toBe(200);
+      expect(discarded.body).toEqual({ deleted: false, referenced: true });
+      expect(objectStorageStubs.deleteObjectEntityFile).not.toHaveBeenCalled();
+    });
+
+    it("does not discard an image referenced by another venue poster", async () => {
+      objectStorageStubs.deleteObjectEntityFile.mockReset().mockResolvedValue(undefined);
+      const { agent, csrf, business } = await claimOwner("poster-discard-other-poster");
+      const { business: otherBusiness } = await makeBusiness("poster-discard-other-poster-ref");
+      const objectPath = "/objects/uploads/f02fd82c-6379-4d86-bf4f-5821fe7bb2a2";
+      const imageUrl = `/api/storage${objectPath}`;
+      await db.update(venueBusinessesTable).set({
+        qrPosterDesign: {
+          ...design,
+          imageUrl: null,
+          decorativeImages: [{
+            id: "other-venue-decoration",
+            url: imageUrl,
+            position: { x: 10.5, y: 74, width: 15, height: 18 },
+          }],
+        },
+      }).where(eq(venueBusinessesTable.id, otherBusiness.id));
+
+      const discarded = await agent.post(`/api/venue-manager/businesses/${business.id}/images/discard`)
+        .set("x-csrf-token", csrf)
+        .send({ objectPath });
+
+      expect(discarded.status).toBe(200);
+      expect(discarded.body).toEqual({ deleted: false, referenced: true });
+      expect(objectStorageStubs.deleteObjectEntityFile).not.toHaveBeenCalled();
+    });
+
+    it("rejects discard paths outside uploaded image objects", async () => {
+      const { agent, csrf, business } = await claimOwner("poster-discard-invalid");
+      const discarded = await agent.post(`/api/venue-manager/businesses/${business.id}/images/discard`)
+        .set("x-csrf-token", csrf)
+        .send({ objectPath: "/objects/uploads/../../other/object" });
+
+      expect(discarded.status).toBe(400);
+      expect(objectStorageStubs.deleteObjectEntityFile).not.toHaveBeenCalled();
+    });
+
+    it("keeps a successful poster save when deleting an unused old image fails", async () => {
+      objectStorageStubs.deleteObjectEntityFile.mockReset().mockRejectedValueOnce(new Error("storage unavailable"));
+      const { agent, csrf, business } = await claimOwner("poster-cleanup-failure");
+      const oldPosterImage = `/api/storage/objects/uploads/5c2a6b71-f6b8-42ee-832c-${String(business.id).padStart(12, "0")}`;
+      const oldDesign = { ...design, logoUrl: oldPosterImage };
+      await db.update(venueBusinessesTable).set({ qrPosterDesign: oldDesign })
+        .where(eq(venueBusinessesTable.id, business.id));
+
+      const saved = await agent.patch(`/api/venue-manager/businesses/${business.id}`)
+        .set("x-csrf-token", csrf)
+        .send({ qrPosterDesign: { ...oldDesign, logoUrl: null } });
+
+      expect(saved.status).toBe(200);
+      expect(saved.body.qrPosterDesign.logoUrl).toBeNull();
+      const reloaded = await agent.get(`/api/venue-manager/businesses/${business.id}`);
+      expect(reloaded.body.qrPosterDesign.logoUrl).toBeNull();
+      expect(objectStorageStubs.deleteObjectEntityFile).toHaveBeenCalledExactlyOnceWith(
+        oldPosterImage.replace("/api/storage", ""),
+      );
+    });
+
+    it.each([
+      ["text beyond the allowed length", { heading: "x".repeat(101) }],
+      ["an unsupported font", { fontFamily: "comic" }],
+      ["a low-contrast QR color", { qrForegroundColor: "#eeeeee" }],
+      ["an unsafe image URL", { imageUrl: "javascript:alert(1)" }],
+      ["an out-of-range title size", { titleFontSize: 100 }],
+      ["an invalid custom text layer", { textBoxes: [{ id: "bad", text: "Hello", x: 500, y: 50, fontSize: 18, color: "#183c2f", align: "center" }] }],
+      ["text inside the protected QR area", { textBoxes: [{ id: "over-code", text: "Hello", x: 50, y: 70, fontSize: 18, color: "#183c2f", align: "center" }] }],
+      ["an image inside the protected QR area", { imagePositions: { logo: { x: 50, y: 70, width: 20, height: 10 } } }],
+      ["an image extending beyond the poster edge", { imagePositions: { decoration: { x: 98, y: 30, width: 15, height: 18 } } }],
+      ["a decorative image inside the protected QR area", { decorativeImages: [{ id: "unsafe-zone", url: "https://example.com/image.png", position: { x: 50, y: 70, width: 10, height: 10 } }] }],
+      ["a decorative image extending beyond the poster edge", { decorativeImages: [{ id: "unsafe-edge", url: "https://example.com/image.png", position: { x: 95, y: 70, width: 20, height: 10 } }] }],
+      ["duplicate decorative image identifiers", { decorativeImages: [
+        { id: "same", url: "https://example.com/one.png", position: { x: 10.5, y: 74, width: 15, height: 18 } },
+        { id: "same", url: "https://example.com/two.png", position: { x: 89.5, y: 74, width: 15, height: 18 } },
+      ] }],
+    ])("rejects invalid poster designs containing %s", async (_reason, override) => {
+      const { agent, csrf, business } = await claimOwner(`poster-invalid-${String(_reason).replaceAll(" ", "-")}`);
+      const invalid = { ...design, ...override };
+
+      const response = await agent.patch(`/api/venue-manager/businesses/${business.id}`)
+        .set("x-csrf-token", csrf)
+        .send({ qrPosterDesign: invalid });
+
+      expect(response.status).toBe(400);
+      const reloaded = await agent.get(`/api/venue-manager/businesses/${business.id}`);
+      expect(reloaded.status).toBe(200);
+      expect(reloaded.body.qrPosterDesign).toBeNull();
+    });
+
+    it("keeps poster settings isolated between venues", async () => {
+      const firstVenue = await claimOwner("poster-isolation-first");
+      const secondVenue = await claimOwner("poster-isolation-second");
+
+      const saved = await firstVenue.agent.patch(`/api/venue-manager/businesses/${firstVenue.business.id}`)
+        .set("x-csrf-token", firstVenue.csrf)
+        .send({ qrPosterDesign: design });
+      expect(saved.status).toBe(200);
+
+      const firstReload = await firstVenue.agent.get(`/api/venue-manager/businesses/${firstVenue.business.id}`);
+      const secondReload = await secondVenue.agent.get(`/api/venue-manager/businesses/${secondVenue.business.id}`);
+      expect(firstReload.body.qrPosterDesign).toEqual(design);
+      expect(secondReload.body.qrPosterDesign).toBeNull();
+    });
+
+    it("lets an editor save poster settings but blocks business profile changes", async () => {
+      const { agent: owner, csrf, business } = await claimOwner("poster-editor");
+      const invitation = await owner.post(`/api/venue-manager/businesses/${business.id}/invitations`)
+        .set("x-csrf-token", csrf)
+        .send({ email: email("poster-editor-member"), role: "editor" });
+      expect(invitation.status).toBe(201);
+
+      const { agent: editor, response: accepted } = await acceptFirebaseInvitation(
+        invitation.body.invitationToken as string, "poster-editor-member", "Poster Editor",
+      );
+      expect(accepted.status).toBe(200);
+      const editorCsrf = accepted.body.csrfToken as string;
+
+      const beforeQr = await editor.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
+      const save = await editor.patch(`/api/venue-manager/businesses/${business.id}`)
+        .set("x-csrf-token", editorCsrf)
+        .send({ qrPosterDesign: design });
+      expect(save.status).toBe(200);
+      expect(save.body.qrPosterDesign).toEqual(design);
+
+      const profileChange = await editor.patch(`/api/venue-manager/businesses/${business.id}`)
+        .set("x-csrf-token", editorCsrf)
+        .send({ businessName: "Unauthorized change" });
+      expect(profileChange.status).toBe(403);
+
+      const reloaded = await editor.get(`/api/venue-manager/businesses/${business.id}`);
+      expect(reloaded.body.businessName).toBe(`Business poster-editor`);
+      expect(reloaded.body.qrPosterDesign).toEqual(design);
+      const afterQr = await editor.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
+      expect(afterQr.body.qrToken).toBe(beforeQr.body.qrToken);
+      expect(afterQr.body.qrUrl).toBe(beforeQr.body.qrUrl);
     });
   });
 });

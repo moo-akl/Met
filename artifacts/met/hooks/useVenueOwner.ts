@@ -159,10 +159,7 @@ export function useVenueOwner(): UseVenueOwnerResult {
           : null,
       );
       setError(
-        applicationFailed &&
-          branchesFailed &&
-          !applicationWasNotFound &&
-          !branchesWasNotFound
+        applicationFailed && !applicationWasNotFound
           ? "Failed to load venue profile"
           : null,
       );

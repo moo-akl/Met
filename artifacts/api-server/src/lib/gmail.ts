@@ -1,5 +1,5 @@
 import { ReplitConnectors } from "@replit/connectors-sdk";
-import nodemailer from "nodemailer";
+import nodemailer, { type SendMailOptions } from "nodemailer";
 
 function validEmailAddress(address: string): boolean {
   return /^[^\s<>@]+@[^\s<>@]+$/.test(address);
@@ -17,6 +17,7 @@ export async function sendGmailHtmlEmail(opts: {
   subject: string;
   html: string;
   text?: string;
+  attachments?: SendMailOptions["attachments"];
 }): Promise<void> {
   if (!validEmailAddress(opts.to)) throw new Error("Invalid recipient email address");
 
@@ -34,6 +35,7 @@ export async function sendGmailHtmlEmail(opts: {
     subject: opts.subject,
     html: opts.html,
     text: opts.text,
+    attachments: opts.attachments,
   });
   const raw = (mail as { message?: Buffer }).message;
   if (!Buffer.isBuffer(raw)) throw new Error("Could not prepare Gmail message");

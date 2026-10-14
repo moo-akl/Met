@@ -808,7 +808,7 @@ export const api = {
     opts: ApiOptions,
     input: { placeId: string; token: string },
   ) =>
-    request<{ verified: boolean; streak: number }>(
+    request<{ verified: boolean; streak: number; privateOnly?: boolean }>(
       "POST",
       "/api/hubs/qr-verify",
       opts,

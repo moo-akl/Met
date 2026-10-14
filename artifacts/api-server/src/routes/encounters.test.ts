@@ -1,5 +1,9 @@
 import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
+vi.mock("../lib/socialProfileAccess", () => ({
+  canUseSocialFeatures: async () => true,
+}));
+
 // ---------------------------------------------------------------------------
 // Hoisted mock handles — defined before vi.mock() factory runs.
 // ---------------------------------------------------------------------------

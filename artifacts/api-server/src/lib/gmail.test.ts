@@ -40,6 +40,35 @@ describe("sendGmailHtmlEmail", () => {
     expect(mime).toContain("Subject: Your venue setup link");
   });
 
+  it("preserves a Check In poster PDF attachment in the Gmail MIME message", async () => {
+    mocks.proxy
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ emailAddress: "sender@example.com" }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+    const pdfBytes = Buffer.from("%PDF-1.7\nposter-pack-test");
+
+    await sendGmailHtmlEmail({
+      to: "owner@example.com",
+      subject: "Great news for our venue managers.",
+      html: '<a href="https://met-app.org/venue-manager">Open Venue Manager</a>',
+      text: "Sign in to Venue Manager: https://met-app.org/venue-manager",
+      attachments: [{
+        filename: "met-check-in-qr-posters.pdf",
+        content: pdfBytes,
+        contentType: "application/pdf",
+      }],
+    });
+
+    const [, , options] = mocks.proxy.mock.calls[1]!;
+    const mime = Buffer.from(options.body.raw, "base64url").toString("latin1");
+    expect(mime).toContain("Content-Type: application/pdf; name=met-check-in-qr-posters.pdf");
+    expect(mime).toContain("Content-Disposition: attachment; filename=met-check-in-qr-posters.pdf");
+    expect(mime).toContain(pdfBytes.toString("base64"));
+    expect(mime).toContain("https://met-app.org/venue-manager");
+  });
+
   it("reports a disconnected Gmail account instead of claiming delivery", async () => {
     mocks.proxy.mockResolvedValueOnce({ ok: false, status: 401 });
     await expect(sendGmailHtmlEmail({

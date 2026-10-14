@@ -19,6 +19,8 @@ import {
   networkPollVotesTable,
   networkQuestionnaireAnswersTable,
   venueEventRsvpsTable,
+  venueQrVerificationsTable,
+  venueReviewsTable,
 } from "@workspace/db";
 import { eq, or } from "drizzle-orm";
 import { adminAuth, adminDb, adminStorage } from "./firebaseAdmin";
@@ -45,6 +47,14 @@ async function deletePostgresUserData(uid: string): Promise<void> {
     await tx
       .delete(hubCheckinsTable)
       .where(eq(hubCheckinsTable.userUid, uid));
+    // Private QR visits intentionally have no public hub_checkins row.
+    // Account deletion must erase those visits as well.
+    await tx
+      .delete(venueQrVerificationsTable)
+      .where(eq(venueQrVerificationsTable.userUid, uid));
+    await tx
+      .delete(venueReviewsTable)
+      .where(eq(venueReviewsTable.userUid, uid));
     // Remove RSVPs where this user attended another venue's event.
     // (RSVPs for this user's own events are handled by the venue delete block
     // in profiles.ts before deleteUserData is called.)

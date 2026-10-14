@@ -39,6 +39,26 @@ export async function metPasswordCreate(email: string, password: string): Promis
   return (await createUserWithEmailAndPassword(await getMetAuth(), email, password)).user;
 }
 
+/** Re-enrollment must prove the existing password, never grant access by email. */
+export async function metPasswordEnroll(email: string, password: string): Promise<{ user: User; created: boolean }> {
+  try {
+    return { user: await metPasswordCreate(email, password), created: true };
+  } catch (error) {
+    if ((error as { code?: string })?.code !== "auth/email-already-in-use") throw error;
+    try {
+      return { user: await metPasswordSignIn(email, password), created: false };
+    } catch (signInError) {
+      const code = (signInError as { code?: string })?.code;
+      if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+        throw Object.assign(new Error("Use your existing Met password or reset it to register this venue."), {
+          code: "auth/existing-account-password-required",
+        });
+      }
+      throw signInError;
+    }
+  }
+}
+
 export async function metSendVerification(user: User): Promise<void> {
   await sendEmailVerification(user);
 }
@@ -78,6 +98,7 @@ export function metAuthError(error: unknown): string {
   if (code === "auth/operation-not-allowed") return "This sign-in method is not available for your Met account.";
   if (code === "auth/account-exists-with-different-credential") return "This email uses another Met sign-in method. Choose that method instead.";
   if (code === "auth/email-already-in-use") return "This email already has a Met account. Choose “I already have a Met account” below.";
+  if (code === "auth/existing-account-password-required") return "This email can register the venue using its existing Met login. Enter your current Met password, use Google or Apple if that is how you signed up, or reset your password below.";
   if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Email or password not recognized. Try another Met sign-in method or reset your password.";
   if (code === "auth/weak-password") return "Choose a stronger password for your Met account.";
   if (code === "auth/unauthorized-domain") return "This domain is not authorized for Met sign-in. Contact support.";

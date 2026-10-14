@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -40,7 +41,7 @@ const CATEGORIES: Array<{ key: Category; icon: string; labelKey: string }> = [
   { key: "custom", icon: "users", labelKey: "networks.categoryCustom" },
 ];
 
-export default function EditNetworkScreen() {
+function EditNetworkScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const networkId = Number(id);
   const colors = useColors();
@@ -732,3 +733,5 @@ const styles = StyleSheet.create({
   },
   pickerHint: { fontSize: 13, fontFamily: "Inter_400Regular" },
 });
+
+export default withSocialGate(EditNetworkScreen, { showBack: true });

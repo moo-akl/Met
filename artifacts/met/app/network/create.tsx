@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
@@ -40,7 +41,7 @@ const CATEGORIES: Array<{ key: Category; icon: string; labelKey: string }> = [
   { key: "custom", icon: "users", labelKey: "networks.categoryCustom" },
 ];
 
-export default function CreateNetworkScreen() {
+function CreateNetworkScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -425,3 +426,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
+export default withSocialGate(CreateNetworkScreen, { showBack: true });

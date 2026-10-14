@@ -21,6 +21,29 @@ const dimensions = {
   height: icon.readUInt32BE(20),
 };
 
+test("Babel presets are explicit app dependencies and resolve after a frozen install", () => {
+  const manifest = require(path.join(appRoot, "package.json"));
+  const config = require(path.join(appRoot, "babel.config.js"))({ cache() {} });
+  for (const preset of config.presets) {
+    const name = Array.isArray(preset) ? preset[0] : preset;
+    assert.ok(
+      manifest.dependencies?.[name] || manifest.devDependencies?.[name],
+      `${name} must be declared by the app, not only by a transitive dependency`,
+    );
+    assert.ok(require.resolve(name, { paths: [appRoot] }));
+  }
+});
+
+test("publishing allows bounded cold builds for both sequential platforms", () => {
+  const {
+    NETWORK_DOWNLOAD_TIMEOUT_MS, BUNDLE_BUILD_TIMEOUT_MS, ALL_PLATFORMS_TIMEOUT_MS,
+  } = require("./build-timeouts.cjs");
+  assert.equal(NETWORK_DOWNLOAD_TIMEOUT_MS, 5 * 60_000);
+  assert.equal(BUNDLE_BUILD_TIMEOUT_MS, 15 * 60_000);
+  assert.ok(ALL_PLATFORMS_TIMEOUT_MS > 2 * BUNDLE_BUILD_TIMEOUT_MS + NETWORK_DOWNLOAD_TIMEOUT_MS);
+  assert.ok(Number.isFinite(ALL_PLATFORMS_TIMEOUT_MS));
+});
+
 test("Expo resolves the security-fixed Metro patch release", () => {
   assert.equal(metroRequire("metro/package.json").version, "0.83.8");
   assert.throws(() => metroRequire.resolve("image-size"), { code: "MODULE_NOT_FOUND" });

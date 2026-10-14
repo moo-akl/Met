@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
@@ -71,7 +72,7 @@ async function saveSet(key: string, set: Set<string>): Promise<void> {
   }
 }
 
-export default function InboxScreen() {
+function InboxScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -489,3 +490,5 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+export default withSocialGate(InboxScreen, { showBack: true });

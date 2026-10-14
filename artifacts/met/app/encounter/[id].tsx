@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "@/components/MetImage";
 import { LinearGradient } from "@/components/MetGradient";
@@ -48,7 +49,7 @@ function formatDate(ts: number, lang: string) {
   });
 }
 
-export default function EncounterDetail() {
+function EncounterDetail() {
   const colors = useColors();
   const actionColor =
     colors.primary === "#3DCC44" ? colors.secondaryForeground : colors.primary;
@@ -1218,3 +1219,5 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
+
+export default withSocialGate(EncounterDetail, { showBack: true });

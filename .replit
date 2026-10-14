@@ -128,7 +128,7 @@ integrations = ["revenuecat:1.0.0"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 60000
+timeoutMs = 120000
 
 [[ports]]
 localPort = 8080
@@ -196,7 +196,7 @@ externalPort = 3002
 
 [nix]
 channel = "stable-25_05"
-packages = ["firebase-tools"]
+packages = ["firebase-tools", "jdk21_headless"]
 
 [userenv]
 
@@ -215,6 +215,8 @@ EXPO_PUBLIC_TIKTOK_DEBUG = "true"
 VENUE_MANAGER_BASE_URL = "https://met-app.org/venue-manager"
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = "587"
+
+[userenv.development]
 
 [objectStorage]
 defaultBucketID = "replit-objstore-3f5a3678-bbc7-4130-96c9-2817016deec6"

@@ -166,15 +166,25 @@ export async function sendNewVenueOutreachEmail(opts: {
   template: OutreachTemplateId;
   applicationUrl?: string;
   applicationExpiresAt?: Date;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+  }>;
 }): Promise<void> {
   const email = buildVenueOutreachEmail({
     ...opts,
+    venueManagerUrl: getVenueManagerBaseUrl(),
+    hasPosterAttachments: Boolean(opts.attachments?.length),
     ...(opts.template === "preapproval_video_application"
       ? { appIntroVideo: getMetAppIntroVideoAssets() }
       : {}),
   });
-  await sendGmailHtmlEmail({ to: opts.to, ...email });
-  logger.info({ businessName: opts.businessName, template: opts.template }, "Sent new venue outreach");
+  await sendGmailHtmlEmail({ to: opts.to, ...email, attachments: opts.attachments });
+  logger.info(
+    { template: opts.template, ...(opts.template === "latest_updates" ? {} : { businessName: opts.businessName }) },
+    opts.template === "latest_updates" ? "Sent venue manager update" : "Sent new venue outreach",
+  );
 }
 
 /**

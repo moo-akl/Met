@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "@/components/MetImage";
 
@@ -28,7 +29,7 @@ import { isStoreDemoEnabled } from "@/lib/storeDemo";
 import { type ReportReason, submitReport } from "@/lib/reports";
 import type { SocialPlatform } from "@/lib/types";
 
-export default function ConnectionScreen() {
+function ConnectionScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -899,3 +900,5 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 });
+
+export default withSocialGate(ConnectionScreen, { showBack: true });

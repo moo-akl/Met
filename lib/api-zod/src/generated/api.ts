@@ -9,6 +9,29 @@ import * as zod from 'zod';
 
 
 /**
+ * Photo-less accounts record a private visit only, without public leaderboard or reward credit. This does not enable social visibility and a static QR token is not independent proof of GPS presence.
+ * @summary Record a venue QR visit for the authenticated account
+ */
+
+
+
+export const VerifyVenueQrBody = zod.object({
+  "placeId": zod.string().min(1),
+  "token": zod.string().uuid()
+})
+
+export const verifyVenueQrResponseStreakMin = 0;
+
+
+
+export const VerifyVenueQrResponse = zod.object({
+  "verified": zod.boolean(),
+  "streak": zod.number().int().min(verifyVenueQrResponseStreakMin),
+  "privateOnly": zod.boolean().optional().describe('True when no public leaderboard or reward check-in was created.')
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -1721,6 +1744,197 @@ export const RemoveVenueManagerResponse = zod.void()
  */
 export const listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneOpenRegExp = new RegExp('^\\d{2}:\\d{2}$');
 export const listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneCloseRegExp = new RegExp('^\\d{2}:\\d{2}$');
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignHeadingMax = 100;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignSubheadingMax = 180;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignFooterMax = 140;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTitleFontSizeMin = 20;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTitleFontSizeMax = 72;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignBodyFontSizeMin = 11;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignBodyFontSizeMax = 36;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignAccentColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignQrForegroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignLogoUrlMax = 2000;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImageUrlMax = 2000;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemIdRegExp = new RegExp('^[a-zA-Z0-9_-]{1,36}$');
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemUrlMax = 2000;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionWidthMin = 5;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionWidthMax = 80;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionHeightMin = 5;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionHeightMax = 80;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesMax = 12;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoWidthMin = 5;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoWidthMax = 80;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoHeightMin = 5;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoHeightMax = 80;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationWidthMin = 5;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationWidthMax = 80;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationHeightMin = 5;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationHeightMax = 80;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkFontSizeMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkFontSizeMax = 96;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkWidthMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkWidthMax = 90;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelFontSizeMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelFontSizeMax = 96;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelWidthMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelWidthMax = 90;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerFontSizeMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerFontSizeMax = 96;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerWidthMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerWidthMax = 90;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameFontSizeMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameFontSizeMax = 96;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameWidthMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameWidthMax = 90;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingFontSizeMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingFontSizeMax = 96;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingWidthMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingWidthMax = 90;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingFontSizeMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingFontSizeMax = 96;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingWidthMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingWidthMax = 90;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteFontSizeMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteFontSizeMax = 96;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteWidthMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteWidthMax = 90;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterFontSizeMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterFontSizeMax = 96;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterWidthMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterWidthMax = 90;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentBrandMarkMax = 4;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentBrandLabelMax = 48;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentKickerMax = 80;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentVenueNameMax = 80;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentHeadingMax = 100;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentSubheadingMax = 180;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentScanNoteMax = 100;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentFooterMax = 140;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemIdRegExp = new RegExp('^[a-zA-Z0-9_-]{1,36}$');
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemTextMax = 140;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemXMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemXMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemYMin = 3;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemYMax = 97;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemFontSizeMin = 10;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemFontSizeMax = 72;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemWidthMin = 8;
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemWidthMax = 90;
+
+export const listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesMax = 16;
+
 
 
 export const ListVenueManagerBusinessesResponse = zod.object({
@@ -1742,6 +1956,114 @@ export const ListVenueManagerBusinessesResponse = zod.object({
   "open": zod.string().regex(listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneOpenRegExp).describe('24-hour time, e.g. 09:00'),
   "close": zod.string().regex(listVenueManagerBusinessesResponseBusinessesItemOpeningHoursOneCloseRegExp).describe('24-hour time, e.g. 23:00')
 }),zod.null()])).nullish(),
+  "qrPosterDesign": zod.object({
+  "heading": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignHeadingMax),
+  "subheading": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignSubheadingMax),
+  "footer": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignFooterMax),
+  "fontFamily": zod.enum(['sans', 'serif']),
+  "titleFontSize": zod.number().int().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTitleFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTitleFontSizeMax),
+  "bodyFontSize": zod.number().int().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignBodyFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignBodyFontSizeMax),
+  "textColor": zod.string().regex(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextColorRegExp),
+  "accentColor": zod.string().regex(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignAccentColorRegExp),
+  "backgroundColor": zod.string().regex(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignBackgroundColorRegExp),
+  "qrForegroundColor": zod.string().regex(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignQrForegroundColorRegExp).describe('Must have a 4.5:1 contrast ratio against white.'),
+  "logoUrl": zod.string().url().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignLogoUrlMax).nullable(),
+  "imageUrl": zod.string().url().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImageUrlMax).nullable(),
+  "decorativeImages": zod.array(zod.object({
+  "id": zod.string().regex(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemIdRegExp),
+  "url": zod.string().url().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemUrlMax),
+  "position": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionYMax),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionWidthMax),
+  "height": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionHeightMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesItemPositionHeightMax)
+})
+})).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignDecorativeImagesMax).optional(),
+  "imagePositions": zod.object({
+  "logo": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoYMax),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoWidthMax),
+  "height": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoHeightMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsLogoHeightMax)
+}).optional(),
+  "decoration": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationYMax),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationWidthMax),
+  "height": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationHeightMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignImagePositionsDecorationHeightMax)
+}).optional()
+}).optional(),
+  "textPositions": zod.object({
+  "brandMark": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkYMax),
+  "fontSize": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkFontSizeMax).optional(),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandMarkWidthMax).optional()
+}).optional(),
+  "brandLabel": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelYMax),
+  "fontSize": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelFontSizeMax).optional(),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsBrandLabelWidthMax).optional()
+}).optional(),
+  "kicker": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerYMax),
+  "fontSize": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerFontSizeMax).optional(),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsKickerWidthMax).optional()
+}).optional(),
+  "venueName": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameYMax),
+  "fontSize": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameFontSizeMax).optional(),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsVenueNameWidthMax).optional()
+}).optional(),
+  "heading": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingYMax),
+  "fontSize": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingFontSizeMax).optional(),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsHeadingWidthMax).optional()
+}).optional(),
+  "subheading": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingYMax),
+  "fontSize": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingFontSizeMax).optional(),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsSubheadingWidthMax).optional()
+}).optional(),
+  "scanNote": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteYMax),
+  "fontSize": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteFontSizeMax).optional(),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsScanNoteWidthMax).optional()
+}).optional(),
+  "footer": zod.object({
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterYMax),
+  "fontSize": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterFontSizeMax).optional(),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextPositionsFooterWidthMax).optional()
+}).optional()
+}).optional(),
+  "textContent": zod.object({
+  "brandMark": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentBrandMarkMax).optional(),
+  "brandLabel": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentBrandLabelMax).optional(),
+  "kicker": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentKickerMax).optional(),
+  "venueName": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentVenueNameMax).optional(),
+  "heading": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentHeadingMax).optional(),
+  "subheading": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentSubheadingMax).optional(),
+  "scanNote": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentScanNoteMax).optional(),
+  "footer": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextContentFooterMax).optional()
+}).optional(),
+  "textBoxes": zod.array(zod.object({
+  "id": zod.string().regex(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemIdRegExp),
+  "text": zod.string().max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemTextMax),
+  "x": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemXMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemXMax),
+  "y": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemYMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemYMax),
+  "fontSize": zod.number().int().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemFontSizeMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemFontSizeMax),
+  "color": zod.string().regex(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemColorRegExp),
+  "align": zod.enum(['left', 'center', 'right']),
+  "width": zod.number().min(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemWidthMin).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesItemWidthMax).optional()
+})).max(listVenueManagerBusinessesResponseBusinessesItemQrPosterDesignTextBoxesMax).optional()
+}).nullable(),
   "role": zod.enum(['owner', 'manager', 'editor']),
   "isActive": zod.boolean()
 }))
@@ -1760,6 +2082,197 @@ export const GetVenueManagerBusinessParams = zod.object({
 
 export const getVenueManagerBusinessResponseOpeningHoursOneOpenRegExp = new RegExp('^\\d{2}:\\d{2}$');
 export const getVenueManagerBusinessResponseOpeningHoursOneCloseRegExp = new RegExp('^\\d{2}:\\d{2}$');
+export const getVenueManagerBusinessResponseQrPosterDesignHeadingMax = 100;
+
+export const getVenueManagerBusinessResponseQrPosterDesignSubheadingMax = 180;
+
+export const getVenueManagerBusinessResponseQrPosterDesignFooterMax = 140;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTitleFontSizeMin = 20;
+export const getVenueManagerBusinessResponseQrPosterDesignTitleFontSizeMax = 72;
+
+export const getVenueManagerBusinessResponseQrPosterDesignBodyFontSizeMin = 11;
+export const getVenueManagerBusinessResponseQrPosterDesignBodyFontSizeMax = 36;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getVenueManagerBusinessResponseQrPosterDesignAccentColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getVenueManagerBusinessResponseQrPosterDesignBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getVenueManagerBusinessResponseQrPosterDesignQrForegroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getVenueManagerBusinessResponseQrPosterDesignLogoUrlMax = 2000;
+
+export const getVenueManagerBusinessResponseQrPosterDesignImageUrlMax = 2000;
+
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemIdRegExp = new RegExp('^[a-zA-Z0-9_-]{1,36}$');
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemUrlMax = 2000;
+
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionWidthMin = 5;
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionWidthMax = 80;
+
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionHeightMin = 5;
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionHeightMax = 80;
+
+export const getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesMax = 12;
+
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoWidthMin = 5;
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoWidthMax = 80;
+
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoHeightMin = 5;
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoHeightMax = 80;
+
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationWidthMin = 5;
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationWidthMax = 80;
+
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationHeightMin = 5;
+export const getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationHeightMax = 80;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkFontSizeMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkFontSizeMax = 96;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkWidthMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkWidthMax = 90;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelFontSizeMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelFontSizeMax = 96;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelWidthMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelWidthMax = 90;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerFontSizeMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerFontSizeMax = 96;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerWidthMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerWidthMax = 90;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameFontSizeMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameFontSizeMax = 96;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameWidthMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameWidthMax = 90;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingFontSizeMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingFontSizeMax = 96;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingWidthMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingWidthMax = 90;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingFontSizeMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingFontSizeMax = 96;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingWidthMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingWidthMax = 90;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteFontSizeMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteFontSizeMax = 96;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteWidthMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteWidthMax = 90;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterFontSizeMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterFontSizeMax = 96;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterWidthMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterWidthMax = 90;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextContentBrandMarkMax = 4;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextContentBrandLabelMax = 48;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextContentKickerMax = 80;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextContentVenueNameMax = 80;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextContentHeadingMax = 100;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextContentSubheadingMax = 180;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextContentScanNoteMax = 100;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextContentFooterMax = 140;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemIdRegExp = new RegExp('^[a-zA-Z0-9_-]{1,36}$');
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemTextMax = 140;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemXMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemXMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemYMin = 3;
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemYMax = 97;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemFontSizeMin = 10;
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemFontSizeMax = 72;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemWidthMin = 8;
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemWidthMax = 90;
+
+export const getVenueManagerBusinessResponseQrPosterDesignTextBoxesMax = 16;
+
 
 
 export const GetVenueManagerBusinessResponse = zod.object({
@@ -1780,6 +2293,114 @@ export const GetVenueManagerBusinessResponse = zod.object({
   "open": zod.string().regex(getVenueManagerBusinessResponseOpeningHoursOneOpenRegExp).describe('24-hour time, e.g. 09:00'),
   "close": zod.string().regex(getVenueManagerBusinessResponseOpeningHoursOneCloseRegExp).describe('24-hour time, e.g. 23:00')
 }),zod.null()])).nullish(),
+  "qrPosterDesign": zod.object({
+  "heading": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignHeadingMax),
+  "subheading": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignSubheadingMax),
+  "footer": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignFooterMax),
+  "fontFamily": zod.enum(['sans', 'serif']),
+  "titleFontSize": zod.number().int().min(getVenueManagerBusinessResponseQrPosterDesignTitleFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTitleFontSizeMax),
+  "bodyFontSize": zod.number().int().min(getVenueManagerBusinessResponseQrPosterDesignBodyFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignBodyFontSizeMax),
+  "textColor": zod.string().regex(getVenueManagerBusinessResponseQrPosterDesignTextColorRegExp),
+  "accentColor": zod.string().regex(getVenueManagerBusinessResponseQrPosterDesignAccentColorRegExp),
+  "backgroundColor": zod.string().regex(getVenueManagerBusinessResponseQrPosterDesignBackgroundColorRegExp),
+  "qrForegroundColor": zod.string().regex(getVenueManagerBusinessResponseQrPosterDesignQrForegroundColorRegExp).describe('Must have a 4.5:1 contrast ratio against white.'),
+  "logoUrl": zod.string().url().max(getVenueManagerBusinessResponseQrPosterDesignLogoUrlMax).nullable(),
+  "imageUrl": zod.string().url().max(getVenueManagerBusinessResponseQrPosterDesignImageUrlMax).nullable(),
+  "decorativeImages": zod.array(zod.object({
+  "id": zod.string().regex(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemIdRegExp),
+  "url": zod.string().url().max(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemUrlMax),
+  "position": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionXMin).max(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionYMin).max(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionYMax),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionWidthMax),
+  "height": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionHeightMin).max(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionHeightMax)
+})
+})).max(getVenueManagerBusinessResponseQrPosterDesignDecorativeImagesMax).optional(),
+  "imagePositions": zod.object({
+  "logo": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoXMin).max(getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoYMin).max(getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoYMax),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoWidthMax),
+  "height": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoHeightMin).max(getVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoHeightMax)
+}).optional(),
+  "decoration": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationXMin).max(getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationYMin).max(getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationYMax),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationWidthMax),
+  "height": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationHeightMin).max(getVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationHeightMax)
+}).optional()
+}).optional(),
+  "textPositions": zod.object({
+  "brandMark": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkXMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkYMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkYMax),
+  "fontSize": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkFontSizeMax).optional(),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkWidthMax).optional()
+}).optional(),
+  "brandLabel": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelXMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelYMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelYMax),
+  "fontSize": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelFontSizeMax).optional(),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelWidthMax).optional()
+}).optional(),
+  "kicker": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerXMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerYMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerYMax),
+  "fontSize": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerFontSizeMax).optional(),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerWidthMax).optional()
+}).optional(),
+  "venueName": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameXMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameYMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameYMax),
+  "fontSize": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameFontSizeMax).optional(),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameWidthMax).optional()
+}).optional(),
+  "heading": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingXMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingYMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingYMax),
+  "fontSize": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingFontSizeMax).optional(),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingWidthMax).optional()
+}).optional(),
+  "subheading": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingXMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingYMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingYMax),
+  "fontSize": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingFontSizeMax).optional(),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingWidthMax).optional()
+}).optional(),
+  "scanNote": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteXMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteYMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteYMax),
+  "fontSize": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteFontSizeMax).optional(),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteWidthMax).optional()
+}).optional(),
+  "footer": zod.object({
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterXMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterYMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterYMax),
+  "fontSize": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterFontSizeMax).optional(),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterWidthMax).optional()
+}).optional()
+}).optional(),
+  "textContent": zod.object({
+  "brandMark": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignTextContentBrandMarkMax).optional(),
+  "brandLabel": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignTextContentBrandLabelMax).optional(),
+  "kicker": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignTextContentKickerMax).optional(),
+  "venueName": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignTextContentVenueNameMax).optional(),
+  "heading": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignTextContentHeadingMax).optional(),
+  "subheading": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignTextContentSubheadingMax).optional(),
+  "scanNote": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignTextContentScanNoteMax).optional(),
+  "footer": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignTextContentFooterMax).optional()
+}).optional(),
+  "textBoxes": zod.array(zod.object({
+  "id": zod.string().regex(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemIdRegExp),
+  "text": zod.string().max(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemTextMax),
+  "x": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemXMin).max(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemXMax),
+  "y": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemYMin).max(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemYMax),
+  "fontSize": zod.number().int().min(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemFontSizeMin).max(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemFontSizeMax),
+  "color": zod.string().regex(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemColorRegExp),
+  "align": zod.enum(['left', 'center', 'right']),
+  "width": zod.number().min(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemWidthMin).max(getVenueManagerBusinessResponseQrPosterDesignTextBoxesItemWidthMax).optional()
+})).max(getVenueManagerBusinessResponseQrPosterDesignTextBoxesMax).optional()
+}).nullable(),
   "role": zod.enum(['owner', 'manager', 'editor']),
   "isActive": zod.boolean()
 })
@@ -1816,6 +2437,197 @@ export const updateVenueManagerBusinessBodyPublicEmailMax = 320;
 
 export const updateVenueManagerBusinessBodyOpeningHoursOneOpenRegExp = new RegExp('^\\d{2}:\\d{2}$');
 export const updateVenueManagerBusinessBodyOpeningHoursOneCloseRegExp = new RegExp('^\\d{2}:\\d{2}$');
+export const updateVenueManagerBusinessBodyQrPosterDesignHeadingMax = 100;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignSubheadingMax = 180;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignFooterMax = 140;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTitleFontSizeMin = 20;
+export const updateVenueManagerBusinessBodyQrPosterDesignTitleFontSizeMax = 72;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignBodyFontSizeMin = 11;
+export const updateVenueManagerBusinessBodyQrPosterDesignBodyFontSizeMax = 36;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessBodyQrPosterDesignAccentColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessBodyQrPosterDesignBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessBodyQrPosterDesignQrForegroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessBodyQrPosterDesignLogoUrlMax = 2000;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignImageUrlMax = 2000;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemIdRegExp = new RegExp('^[a-zA-Z0-9_-]{1,36}$');
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemUrlMax = 2000;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionWidthMin = 5;
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionWidthMax = 80;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionHeightMin = 5;
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionHeightMax = 80;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesMax = 12;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoWidthMin = 5;
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoWidthMax = 80;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoHeightMin = 5;
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoHeightMax = 80;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationWidthMin = 5;
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationWidthMax = 80;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationHeightMin = 5;
+export const updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationHeightMax = 80;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkFontSizeMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkFontSizeMax = 96;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkWidthMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkWidthMax = 90;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelFontSizeMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelFontSizeMax = 96;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelWidthMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelWidthMax = 90;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerFontSizeMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerFontSizeMax = 96;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerWidthMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerWidthMax = 90;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameFontSizeMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameFontSizeMax = 96;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameWidthMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameWidthMax = 90;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingFontSizeMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingFontSizeMax = 96;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingWidthMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingWidthMax = 90;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingFontSizeMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingFontSizeMax = 96;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingWidthMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingWidthMax = 90;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteFontSizeMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteFontSizeMax = 96;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteWidthMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteWidthMax = 90;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterFontSizeMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterFontSizeMax = 96;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterWidthMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterWidthMax = 90;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextContentBrandMarkMax = 4;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextContentBrandLabelMax = 48;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextContentKickerMax = 80;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextContentVenueNameMax = 80;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextContentHeadingMax = 100;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextContentSubheadingMax = 180;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextContentScanNoteMax = 100;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextContentFooterMax = 140;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemIdRegExp = new RegExp('^[a-zA-Z0-9_-]{1,36}$');
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemTextMax = 140;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemXMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemXMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemYMin = 3;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemYMax = 97;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemFontSizeMin = 10;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemFontSizeMax = 72;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemWidthMin = 8;
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemWidthMax = 90;
+
+export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesMax = 16;
+
 
 
 export const UpdateVenueManagerBusinessBody = zod.object({
@@ -1831,11 +2643,310 @@ export const UpdateVenueManagerBusinessBody = zod.object({
   "openingHours": zod.record(zod.string(), zod.union([zod.object({
   "open": zod.string().regex(updateVenueManagerBusinessBodyOpeningHoursOneOpenRegExp).describe('24-hour time, e.g. 09:00'),
   "close": zod.string().regex(updateVenueManagerBusinessBodyOpeningHoursOneCloseRegExp).describe('24-hour time, e.g. 23:00')
-}),zod.null()])).nullish()
+}),zod.null()])).nullish(),
+  "qrPosterDesign": zod.object({
+  "heading": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignHeadingMax),
+  "subheading": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignSubheadingMax),
+  "footer": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignFooterMax),
+  "fontFamily": zod.enum(['sans', 'serif']),
+  "titleFontSize": zod.number().int().min(updateVenueManagerBusinessBodyQrPosterDesignTitleFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTitleFontSizeMax),
+  "bodyFontSize": zod.number().int().min(updateVenueManagerBusinessBodyQrPosterDesignBodyFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignBodyFontSizeMax),
+  "textColor": zod.string().regex(updateVenueManagerBusinessBodyQrPosterDesignTextColorRegExp),
+  "accentColor": zod.string().regex(updateVenueManagerBusinessBodyQrPosterDesignAccentColorRegExp),
+  "backgroundColor": zod.string().regex(updateVenueManagerBusinessBodyQrPosterDesignBackgroundColorRegExp),
+  "qrForegroundColor": zod.string().regex(updateVenueManagerBusinessBodyQrPosterDesignQrForegroundColorRegExp).describe('Must have a 4.5:1 contrast ratio against white.'),
+  "logoUrl": zod.string().url().max(updateVenueManagerBusinessBodyQrPosterDesignLogoUrlMax).nullable(),
+  "imageUrl": zod.string().url().max(updateVenueManagerBusinessBodyQrPosterDesignImageUrlMax).nullable(),
+  "decorativeImages": zod.array(zod.object({
+  "id": zod.string().regex(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemIdRegExp),
+  "url": zod.string().url().max(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemUrlMax),
+  "position": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionXMin).max(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionYMin).max(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionYMax),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionWidthMax),
+  "height": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionHeightMin).max(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesItemPositionHeightMax)
+})
+})).max(updateVenueManagerBusinessBodyQrPosterDesignDecorativeImagesMax).optional(),
+  "imagePositions": zod.object({
+  "logo": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoXMin).max(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoYMin).max(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoYMax),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoWidthMax),
+  "height": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoHeightMin).max(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsLogoHeightMax)
+}).optional(),
+  "decoration": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationXMin).max(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationYMin).max(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationYMax),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationWidthMax),
+  "height": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationHeightMin).max(updateVenueManagerBusinessBodyQrPosterDesignImagePositionsDecorationHeightMax)
+}).optional()
+}).optional(),
+  "textPositions": zod.object({
+  "brandMark": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkXMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkYMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandMarkWidthMax).optional()
+}).optional(),
+  "brandLabel": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelXMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelYMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsBrandLabelWidthMax).optional()
+}).optional(),
+  "kicker": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerXMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerYMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsKickerWidthMax).optional()
+}).optional(),
+  "venueName": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameXMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameYMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsVenueNameWidthMax).optional()
+}).optional(),
+  "heading": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingXMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingYMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsHeadingWidthMax).optional()
+}).optional(),
+  "subheading": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingXMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingYMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsSubheadingWidthMax).optional()
+}).optional(),
+  "scanNote": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteXMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteYMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsScanNoteWidthMax).optional()
+}).optional(),
+  "footer": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterXMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterYMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextPositionsFooterWidthMax).optional()
+}).optional()
+}).optional(),
+  "textContent": zod.object({
+  "brandMark": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignTextContentBrandMarkMax).optional(),
+  "brandLabel": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignTextContentBrandLabelMax).optional(),
+  "kicker": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignTextContentKickerMax).optional(),
+  "venueName": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignTextContentVenueNameMax).optional(),
+  "heading": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignTextContentHeadingMax).optional(),
+  "subheading": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignTextContentSubheadingMax).optional(),
+  "scanNote": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignTextContentScanNoteMax).optional(),
+  "footer": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignTextContentFooterMax).optional()
+}).optional(),
+  "textBoxes": zod.array(zod.object({
+  "id": zod.string().regex(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemIdRegExp),
+  "text": zod.string().max(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemTextMax),
+  "x": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemXMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemXMax),
+  "y": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemYMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemYMax),
+  "fontSize": zod.number().int().min(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemFontSizeMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemFontSizeMax),
+  "color": zod.string().regex(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemColorRegExp),
+  "align": zod.enum(['left', 'center', 'right']),
+  "width": zod.number().min(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemWidthMin).max(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesItemWidthMax).optional()
+})).max(updateVenueManagerBusinessBodyQrPosterDesignTextBoxesMax).optional()
+}).nullish()
 })
 
 export const updateVenueManagerBusinessResponseOpeningHoursOneOpenRegExp = new RegExp('^\\d{2}:\\d{2}$');
 export const updateVenueManagerBusinessResponseOpeningHoursOneCloseRegExp = new RegExp('^\\d{2}:\\d{2}$');
+export const updateVenueManagerBusinessResponseQrPosterDesignHeadingMax = 100;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignSubheadingMax = 180;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignFooterMax = 140;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTitleFontSizeMin = 20;
+export const updateVenueManagerBusinessResponseQrPosterDesignTitleFontSizeMax = 72;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignBodyFontSizeMin = 11;
+export const updateVenueManagerBusinessResponseQrPosterDesignBodyFontSizeMax = 36;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessResponseQrPosterDesignAccentColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessResponseQrPosterDesignBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessResponseQrPosterDesignQrForegroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessResponseQrPosterDesignLogoUrlMax = 2000;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignImageUrlMax = 2000;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemIdRegExp = new RegExp('^[a-zA-Z0-9_-]{1,36}$');
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemUrlMax = 2000;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionWidthMin = 5;
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionWidthMax = 80;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionHeightMin = 5;
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionHeightMax = 80;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesMax = 12;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoWidthMin = 5;
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoWidthMax = 80;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoHeightMin = 5;
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoHeightMax = 80;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationWidthMin = 5;
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationWidthMax = 80;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationHeightMin = 5;
+export const updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationHeightMax = 80;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkFontSizeMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkFontSizeMax = 96;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkWidthMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkWidthMax = 90;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelFontSizeMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelFontSizeMax = 96;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelWidthMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelWidthMax = 90;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerFontSizeMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerFontSizeMax = 96;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerWidthMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerWidthMax = 90;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameFontSizeMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameFontSizeMax = 96;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameWidthMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameWidthMax = 90;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingFontSizeMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingFontSizeMax = 96;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingWidthMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingWidthMax = 90;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingFontSizeMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingFontSizeMax = 96;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingWidthMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingWidthMax = 90;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteFontSizeMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteFontSizeMax = 96;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteWidthMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteWidthMax = 90;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterFontSizeMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterFontSizeMax = 96;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterWidthMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterWidthMax = 90;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextContentBrandMarkMax = 4;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextContentBrandLabelMax = 48;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextContentKickerMax = 80;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextContentVenueNameMax = 80;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextContentHeadingMax = 100;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextContentSubheadingMax = 180;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextContentScanNoteMax = 100;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextContentFooterMax = 140;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemIdRegExp = new RegExp('^[a-zA-Z0-9_-]{1,36}$');
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemTextMax = 140;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemXMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemXMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemYMin = 3;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemYMax = 97;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemFontSizeMin = 10;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemFontSizeMax = 72;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemWidthMin = 8;
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemWidthMax = 90;
+
+export const updateVenueManagerBusinessResponseQrPosterDesignTextBoxesMax = 16;
+
 
 
 export const UpdateVenueManagerBusinessResponse = zod.object({
@@ -1856,6 +2967,114 @@ export const UpdateVenueManagerBusinessResponse = zod.object({
   "open": zod.string().regex(updateVenueManagerBusinessResponseOpeningHoursOneOpenRegExp).describe('24-hour time, e.g. 09:00'),
   "close": zod.string().regex(updateVenueManagerBusinessResponseOpeningHoursOneCloseRegExp).describe('24-hour time, e.g. 23:00')
 }),zod.null()])).nullish(),
+  "qrPosterDesign": zod.object({
+  "heading": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignHeadingMax),
+  "subheading": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignSubheadingMax),
+  "footer": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignFooterMax),
+  "fontFamily": zod.enum(['sans', 'serif']),
+  "titleFontSize": zod.number().int().min(updateVenueManagerBusinessResponseQrPosterDesignTitleFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTitleFontSizeMax),
+  "bodyFontSize": zod.number().int().min(updateVenueManagerBusinessResponseQrPosterDesignBodyFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignBodyFontSizeMax),
+  "textColor": zod.string().regex(updateVenueManagerBusinessResponseQrPosterDesignTextColorRegExp),
+  "accentColor": zod.string().regex(updateVenueManagerBusinessResponseQrPosterDesignAccentColorRegExp),
+  "backgroundColor": zod.string().regex(updateVenueManagerBusinessResponseQrPosterDesignBackgroundColorRegExp),
+  "qrForegroundColor": zod.string().regex(updateVenueManagerBusinessResponseQrPosterDesignQrForegroundColorRegExp).describe('Must have a 4.5:1 contrast ratio against white.'),
+  "logoUrl": zod.string().url().max(updateVenueManagerBusinessResponseQrPosterDesignLogoUrlMax).nullable(),
+  "imageUrl": zod.string().url().max(updateVenueManagerBusinessResponseQrPosterDesignImageUrlMax).nullable(),
+  "decorativeImages": zod.array(zod.object({
+  "id": zod.string().regex(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemIdRegExp),
+  "url": zod.string().url().max(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemUrlMax),
+  "position": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionXMin).max(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionYMin).max(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionYMax),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionWidthMax),
+  "height": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionHeightMin).max(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesItemPositionHeightMax)
+})
+})).max(updateVenueManagerBusinessResponseQrPosterDesignDecorativeImagesMax).optional(),
+  "imagePositions": zod.object({
+  "logo": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoXMin).max(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoYMin).max(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoYMax),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoWidthMax),
+  "height": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoHeightMin).max(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsLogoHeightMax)
+}).optional(),
+  "decoration": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationXMin).max(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationYMin).max(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationYMax),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationWidthMax),
+  "height": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationHeightMin).max(updateVenueManagerBusinessResponseQrPosterDesignImagePositionsDecorationHeightMax)
+}).optional()
+}).optional(),
+  "textPositions": zod.object({
+  "brandMark": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkXMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkYMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandMarkWidthMax).optional()
+}).optional(),
+  "brandLabel": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelXMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelYMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsBrandLabelWidthMax).optional()
+}).optional(),
+  "kicker": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerXMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerYMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsKickerWidthMax).optional()
+}).optional(),
+  "venueName": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameXMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameYMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsVenueNameWidthMax).optional()
+}).optional(),
+  "heading": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingXMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingYMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsHeadingWidthMax).optional()
+}).optional(),
+  "subheading": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingXMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingYMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsSubheadingWidthMax).optional()
+}).optional(),
+  "scanNote": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteXMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteYMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsScanNoteWidthMax).optional()
+}).optional(),
+  "footer": zod.object({
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterXMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterYMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterYMax),
+  "fontSize": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterFontSizeMax).optional(),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextPositionsFooterWidthMax).optional()
+}).optional()
+}).optional(),
+  "textContent": zod.object({
+  "brandMark": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignTextContentBrandMarkMax).optional(),
+  "brandLabel": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignTextContentBrandLabelMax).optional(),
+  "kicker": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignTextContentKickerMax).optional(),
+  "venueName": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignTextContentVenueNameMax).optional(),
+  "heading": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignTextContentHeadingMax).optional(),
+  "subheading": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignTextContentSubheadingMax).optional(),
+  "scanNote": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignTextContentScanNoteMax).optional(),
+  "footer": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignTextContentFooterMax).optional()
+}).optional(),
+  "textBoxes": zod.array(zod.object({
+  "id": zod.string().regex(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemIdRegExp),
+  "text": zod.string().max(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemTextMax),
+  "x": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemXMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemXMax),
+  "y": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemYMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemYMax),
+  "fontSize": zod.number().int().min(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemFontSizeMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemFontSizeMax),
+  "color": zod.string().regex(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemColorRegExp),
+  "align": zod.enum(['left', 'center', 'right']),
+  "width": zod.number().min(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemWidthMin).max(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesItemWidthMax).optional()
+})).max(updateVenueManagerBusinessResponseQrPosterDesignTextBoxesMax).optional()
+}).nullable(),
   "role": zod.enum(['owner', 'manager', 'editor']),
   "isActive": zod.boolean()
 })
@@ -3245,12 +4464,15 @@ export const sendNewVenueOutreachBodyBusinessNameMax = 150;
 
 export const sendNewVenueOutreachBodyRecipientEmailMax = 255;
 
+export const sendNewVenueOutreachBodyPlaceIdMax = 255;
+
 export const sendNewVenueOutreachBodyTemplateDefault = `contact_request`;
 
 export const SendNewVenueOutreachBody = zod.object({
   "businessName": zod.string().min(sendNewVenueOutreachBodyBusinessNameMin).max(sendNewVenueOutreachBodyBusinessNameMax),
   "recipientEmail": zod.string().email().max(sendNewVenueOutreachBodyRecipientEmailMax),
-  "template": zod.enum(['contact_request', 'met_launch_with_links', 'met_launch_without_links', 'preapproval_video_application', 'introduction', 'benefits', 'events', 'rewards', 'follow_up']).default(sendNewVenueOutreachBodyTemplateDefault)
+  "placeId": zod.string().max(sendNewVenueOutreachBodyPlaceIdMax).optional(),
+  "template": zod.enum(['contact_request', 'met_launch_with_links', 'met_launch_without_links', 'preapproval_video_application', 'introduction', 'benefits', 'events', 'rewards', 'follow_up', 'latest_updates', 'latest_updates_prospect']).default(sendNewVenueOutreachBodyTemplateDefault)
 })
 
 export const SendNewVenueOutreachResponse = zod.object({
@@ -3260,12 +4482,79 @@ export const SendNewVenueOutreachResponse = zod.object({
 
 
 /**
+ * Counts distinct active manager addresses and previously contacted venue prospects without active manager accounts. Addresses sent or held as uncertain within the past 24 hours are excluded.
+ * @summary Count registered managers and previously contacted prospects eligible for the latest-updates email
+ */
+export const getVenueManagerUpdateAudienceResponseRecipientCountMin = 0;
+
+export const getVenueManagerUpdateAudienceResponseRegisteredManagerCountMin = 0;
+
+export const getVenueManagerUpdateAudienceResponseContactedProspectCountMin = 0;
+
+
+
+export const GetVenueManagerUpdateAudienceResponse = zod.object({
+  "recipientCount": zod.number().int().min(getVenueManagerUpdateAudienceResponseRecipientCountMin),
+  "registeredManagerCount": zod.number().int().min(getVenueManagerUpdateAudienceResponseRegisteredManagerCountMin),
+  "contactedProspectCount": zod.number().int().min(getVenueManagerUpdateAudienceResponseContactedProspectCountMin)
+})
+
+
+/**
+ * @summary Send manager updates to active managers and an invitation version to contacted prospects
+ */
+
+export const sendVenueManagerUpdatesBodyExpectedRegisteredManagerCountMin = 0;
+
+export const sendVenueManagerUpdatesBodyExpectedContactedProspectCountMin = 0;
+
+
+
+export const SendVenueManagerUpdatesBody = zod.object({
+  "template": zod.enum(['latest_updates']),
+  "expectedRecipientCount": zod.number().int().min(1),
+  "expectedRegisteredManagerCount": zod.number().int().min(sendVenueManagerUpdatesBodyExpectedRegisteredManagerCountMin),
+  "expectedContactedProspectCount": zod.number().int().min(sendVenueManagerUpdatesBodyExpectedContactedProspectCountMin),
+  "confirm": zod.literal(true)
+})
+
+export const sendVenueManagerUpdatesResponseRecipientCountMin = 0;
+
+export const sendVenueManagerUpdatesResponseRegisteredManagerCountMin = 0;
+
+export const sendVenueManagerUpdatesResponseContactedProspectCountMin = 0;
+
+export const sendVenueManagerUpdatesResponseSentCountMin = 0;
+
+export const sendVenueManagerUpdatesResponseDeliveryUncertainCountMin = 0;
+
+export const sendVenueManagerUpdatesResponseNotAttemptedCountMin = 0;
+
+
+
+export const SendVenueManagerUpdatesResponse = zod.object({
+  "recipientCount": zod.number().int().min(sendVenueManagerUpdatesResponseRecipientCountMin),
+  "registeredManagerCount": zod.number().int().min(sendVenueManagerUpdatesResponseRegisteredManagerCountMin),
+  "contactedProspectCount": zod.number().int().min(sendVenueManagerUpdatesResponseContactedProspectCountMin),
+  "sentCount": zod.number().int().min(sendVenueManagerUpdatesResponseSentCountMin),
+  "deliveryUncertainCount": zod.number().int().min(sendVenueManagerUpdatesResponseDeliveryUncertainCountMin),
+  "notAttemptedCount": zod.number().int().min(sendVenueManagerUpdatesResponseNotAttemptedCountMin),
+  "stoppedReason": zod.union([zod.literal('delivery_uncertain'),zod.literal('audit_log_failed'),zod.literal('preparation_failed'),zod.literal(null)]).nullable()
+})
+
+
+/**
  * @summary List outreach emails and owner invitations sent to venues
  */
+export const getVenueOutreachHistoryResponseEmailsItemPlaceIdMax = 255;
+
+export const getVenueOutreachHistoryResponseEmailsItemNextActionDueDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
 export const GetVenueOutreachHistoryResponse = zod.object({
   "emails": zod.array(zod.object({
   "id": zod.string(),
-  "kind": zod.enum(['new_venue_outreach', 'contact_request', 'registration_invite']),
+  "kind": zod.enum(['new_venue_outreach', 'contact_request', 'registration_invite', 'manager_announcement']),
   "businessName": zod.string(),
   "recipientEmail": zod.string().email(),
   "template": zod.string(),
@@ -3275,9 +4564,70 @@ export const GetVenueOutreachHistoryResponse = zod.object({
   "venueOwnerProfileId": zod.number().int().nullable(),
   "applicationId": zod.number().int().nullable(),
   "applicationStatus": zod.string().nullable(),
+  "placeId": zod.string().max(getVenueOutreachHistoryResponseEmailsItemPlaceIdMax).nullable(),
   "expiresAt": zod.coerce.date().nullable(),
-  "linkStatus": zod.enum(['none', 'active', 'expired', 'used', 'superseded', 'unknown'])
+  "linkStatus": zod.enum(['none', 'active', 'expired', 'used', 'superseded', 'unknown']),
+  "venueKey": zod.string(),
+  "assignedAgentId": zod.number().int().nullable(),
+  "assignedAgentName": zod.string().nullable(),
+  "nextActionNote": zod.string().nullable(),
+  "nextActionDueDate": zod.string().regex(getVenueOutreachHistoryResponseEmailsItemNextActionDueDateRegExp).nullable()
 }))
+})
+
+
+/**
+ * @summary Assign or correct the Google Maps location for an outreach email
+ */
+
+
+
+export const UpdateVenueOutreachPlaceIdParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateVenueOutreachPlaceIdBodyPlaceIdMax = 255;
+
+
+
+export const UpdateVenueOutreachPlaceIdBody = zod.object({
+  "placeId": zod.string().min(1).max(updateVenueOutreachPlaceIdBodyPlaceIdMax).nullable()
+})
+
+export const updateVenueOutreachPlaceIdResponsePlaceIdMax = 255;
+
+
+
+export const UpdateVenueOutreachPlaceIdResponse = zod.object({
+  "id": zod.number().int(),
+  "placeId": zod.string().max(updateVenueOutreachPlaceIdResponsePlaceIdMax).nullable()
+})
+
+
+/**
+ * @summary Save a venue's next outreach action and due date
+ */
+export const updateVenueOutreachFollowUpBodyVenueKeyMax = 512;
+
+export const updateVenueOutreachFollowUpBodyNextActionNoteMax = 1000;
+
+export const updateVenueOutreachFollowUpBodyNextActionDueDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
+export const UpdateVenueOutreachFollowUpBody = zod.object({
+  "venueKey": zod.string().min(1).max(updateVenueOutreachFollowUpBodyVenueKeyMax),
+  "nextActionNote": zod.string().max(updateVenueOutreachFollowUpBodyNextActionNoteMax).nullable(),
+  "nextActionDueDate": zod.string().regex(updateVenueOutreachFollowUpBodyNextActionDueDateRegExp).nullable()
+})
+
+export const updateVenueOutreachFollowUpResponseNextActionDueDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
+export const UpdateVenueOutreachFollowUpResponse = zod.object({
+  "venueKey": zod.string(),
+  "nextActionNote": zod.string().nullable(),
+  "nextActionDueDate": zod.string().regex(updateVenueOutreachFollowUpResponseNextActionDueDateRegExp).nullable(),
+  "updatedAt": zod.coerce.date()
 })
 
 
@@ -3366,7 +4716,7 @@ export const PreviewNewVenueOutreachBody = zod.object({
 
 export const PreviewNewVenueOutreachResponse = zod.object({
   "templates": zod.array(zod.object({
-  "id": zod.enum(['contact_request', 'met_launch_with_links', 'met_launch_without_links', 'preapproval_video_application', 'introduction', 'benefits', 'events', 'rewards', 'follow_up']),
+  "id": zod.enum(['contact_request', 'met_launch_with_links', 'met_launch_without_links', 'preapproval_video_application', 'introduction', 'benefits', 'events', 'rewards', 'follow_up', 'latest_updates', 'latest_updates_prospect']),
   "label": zod.string(),
   "description": zod.string(),
   "subject": zod.string(),

@@ -16,6 +16,7 @@ import {
   venueOwnerProfilesTable,
   venueRewardsTable,
 } from "@workspace/db";
+import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 
 const verifyIdToken = vi.hoisted(() => vi.fn());
 const getUser = vi.hoisted(() => vi.fn());
@@ -222,6 +223,54 @@ describe.skipIf(!hasFirebaseUidColumn)("venue manager Firebase identity", () => 
     const result = await request(app).post("/api/venue-manager/link/firebase")
       .send({ idToken: mismatchToken, legacyPassword: LEGACY_PASSWORD });
     expect(result.status).toBe(409);
+  });
+
+  it("re-registers the same verified Met identity after deleting and recreating a venue", async () => {
+    const email = `${PREFIX}-recreated@example.com`;
+    const uid = `${UID}-recreated`;
+    const placeId = `${PREFIX}-recreated-place`;
+    const oldToken = `${PREFIX}-old-registration`;
+    const newToken = `${PREFIX}-new-registration`;
+    const idToken = `${ID_TOKEN}-recreated`;
+    verifyIdToken.mockImplementation(async (token: string) => {
+      if (token !== idToken) throw new Error("bad token");
+      return { uid, email, email_verified: true };
+    });
+    getUser.mockResolvedValue({ uid, email, emailVerified: true, disabled: false });
+    const createVenue = async (token: string) => {
+      const [p] = await db.insert(venueOwnerProfilesTable).values({
+        ownerUid: `admin:${PREFIX}-${token}`, placeId, placeName: "Recreated Venue",
+        businessName: "Recreated Venue", contactEmail: email,
+        isApproved: true, applicationStatus: "approved",
+      }).returning();
+      const [b] = await db.insert(venueBusinessesTable).values({
+        venueOwnerProfileId: p!.id, placeId, legalName: p!.businessName, createdByUid: p!.ownerUid,
+      }).returning();
+      await db.insert(venueManagerRegistrationTokensTable).values({
+        businessId: b!.id, invitedEmail: email,
+        tokenHash: crypto.createHash("sha256").update(token).digest("base64url"),
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      return p!;
+    };
+    const enroll = (token: string) => request(app).post("/api/venue-manager/register/firebase").send({
+      idToken, token, displayName: "Returning Manager", acceptedTermsVersion: "venue-2026-09",
+    });
+    const old = await createVenue(oldToken);
+    expect((await enroll(oldToken)).status).toBe(200);
+    const [oldManager] = await db.select().from(venueManagersTable).where(eq(venueManagersTable.firebaseUid, uid));
+    expect(oldManager).toBeDefined();
+    const [boundProfile] = await db.select().from(venueOwnerProfilesTable).where(eq(venueOwnerProfilesTable.id, old.id));
+    await db.transaction((tx) => deleteVenueOwnerProfile(tx, boundProfile!));
+    expect(await db.select().from(venueManagersTable).where(eq(venueManagersTable.firebaseUid, uid))).toHaveLength(0);
+    expect(await db.select().from(venueManagerSessionsTable).where(eq(venueManagerSessionsTable.managerId, oldManager!.id))).toHaveLength(0);
+    expect((await enroll(oldToken)).status).toBe(400);
+    await createVenue(newToken);
+    const response = await enroll(newToken);
+    expect(response.status).toBe(200);
+    const [newManager] = await db.select().from(venueManagersTable).where(eq(venueManagersTable.firebaseUid, uid));
+    expect(newManager?.email).toBe(email);
+    expect(newManager?.id).not.toBe(oldManager?.id);
   });
 
   it("registers the invited Firebase identity once and binds its synthetic owner venue", async () => {

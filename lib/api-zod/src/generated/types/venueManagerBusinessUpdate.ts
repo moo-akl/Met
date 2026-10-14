@@ -7,6 +7,7 @@
  */
 import type { VenueCategory } from './venueCategory';
 import type { VenueManagerBusinessUpdateOpeningHours } from './venueManagerBusinessUpdateOpeningHours';
+import type { VenueQrPosterDesign } from './venueQrPosterDesign';
 
 export interface VenueManagerBusinessUpdate {
   /**
@@ -46,4 +47,5 @@ export interface VenueManagerBusinessUpdate {
   publicEmail?: string | null;
   /** @nullable */
   openingHours?: VenueManagerBusinessUpdateOpeningHours;
+  qrPosterDesign?: VenueQrPosterDesign | null;
 }

@@ -14,6 +14,21 @@
 // _layout.tsx imports many native modules — mock them all so the module can be
 // loaded in jest-expo without a native runtime.
 
+jest.mock("@react-native-async-storage/async-storage", () => {
+  const store: Record<string, string> = {};
+  return {
+    __esModule: true,
+    default: {
+      getItem: jest.fn(async (k: string) => store[k] ?? null),
+      setItem: jest.fn(async (k: string, v: string) => {
+        store[k] = v;
+      }),
+      removeItem: jest.fn(async (k: string) => {
+        delete store[k];
+      }),
+    },
+  };
+});
 jest.mock("expo-linking", () => ({
   getInitialURL: jest.fn().mockResolvedValue(null),
   addEventListener: jest.fn(() => ({ remove: jest.fn() })),
@@ -404,5 +419,23 @@ describe("routeDeepLink — screen routing", () => {
       await flushTimers();
       expect(router.push).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("routeDeepLink — venue QR links", () => {
+  it("saves the QR intent and never pushes a second navigation", async () => {
+    const AsyncStorage = jest.requireMock("@react-native-async-storage/async-storage").default;
+    const router = { push: jest.fn() };
+    routeDeepLink("met:///v/PLACE1?t=tok123", router, 0);
+    await flushTimers();
+    expect(router.push).not.toHaveBeenCalled();
+    const raw = await AsyncStorage.getItem("met:pending-qr-intent:v1");
+    expect(JSON.parse(raw)).toMatchObject({ placeId: "PLACE1", token: "tok123" });
+  });
+  it("ignores /v links on unrelated hosts", async () => {
+    const router = { push: jest.fn() };
+    routeDeepLink("https://evil.example/v/PLACE2?t=x", router, 0);
+    await flushTimers();
+    expect(router.push).not.toHaveBeenCalled();
   });
 });

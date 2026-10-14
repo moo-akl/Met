@@ -169,7 +169,7 @@ async function seed() {
   for (const u of [GUEST_UID, GUEST2_UID, OWNER_UID]) {
     await db
       .insert(profilesTable)
-      .values({ uid: u, displayName: `Test ${u}` })
+      .values({ uid: u, displayName: `Test ${u}`, photoUrl: "https://example.com/test-profile.jpg" })
       .onConflictDoNothing();
   }
 }

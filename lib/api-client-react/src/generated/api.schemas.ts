@@ -5,6 +5,20 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface VenueQrInput {
+  /** @minLength 1 */
+  placeId: string;
+  token: string;
+}
+
+export interface VenueQrResult {
+  verified: boolean;
+  /** @minimum 0 */
+  streak: number;
+  /** True when no public leaderboard or reward check-in was created. */
+  privateOnly?: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -168,6 +182,8 @@ export const VenueOutreachInputTemplate = {
   events: 'events',
   rewards: 'rewards',
   follow_up: 'follow_up',
+  latest_updates: 'latest_updates',
+  latest_updates_prospect: 'latest_updates_prospect',
 } as const;
 
 export interface VenueOutreachInput {
@@ -178,6 +194,8 @@ export interface VenueOutreachInput {
   businessName: string;
   /** @maxLength 255 */
   recipientEmail: string;
+  /** @maxLength 255 */
+  placeId?: string;
   template?: VenueOutreachInputTemplate;
 }
 
@@ -202,6 +220,8 @@ export const VenueOutreachTemplatePreviewId = {
   events: 'events',
   rewards: 'rewards',
   follow_up: 'follow_up',
+  latest_updates: 'latest_updates',
+  latest_updates_prospect: 'latest_updates_prospect',
 } as const;
 
 export interface VenueOutreachTemplatePreview {
@@ -219,6 +239,7 @@ export const VenueOutreachHistoryEntryKind = {
   new_venue_outreach: 'new_venue_outreach',
   contact_request: 'contact_request',
   registration_invite: 'registration_invite',
+  manager_announcement: 'manager_announcement',
 } as const;
 
 export type VenueOutreachHistoryEntryDeliveryStatus = typeof VenueOutreachHistoryEntryDeliveryStatus[keyof typeof VenueOutreachHistoryEntryDeliveryStatus];
@@ -259,9 +280,130 @@ export interface VenueOutreachHistoryEntry {
   applicationId: number | null;
   /** @nullable */
   applicationStatus: string | null;
+  /**
+     * @maxLength 255
+     * @nullable
+     */
+  placeId: string | null;
   /** @nullable */
   expiresAt: string | null;
   linkStatus: VenueOutreachHistoryEntryLinkStatus;
+  venueKey: string;
+  /** @nullable */
+  assignedAgentId: number | null;
+  /** @nullable */
+  assignedAgentName: string | null;
+  /** @nullable */
+  nextActionNote: string | null;
+  /**
+     * @nullable
+     * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+     */
+  nextActionDueDate: string | null;
+}
+
+export interface VenueOutreachFollowUpInput {
+  /**
+     * @minLength 1
+     * @maxLength 512
+     */
+  venueKey: string;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  nextActionNote: string | null;
+  /**
+     * @nullable
+     * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+     */
+  nextActionDueDate: string | null;
+}
+
+export interface VenueOutreachFollowUp {
+  venueKey: string;
+  /** @nullable */
+  nextActionNote: string | null;
+  /**
+     * @nullable
+     * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+     */
+  nextActionDueDate: string | null;
+  updatedAt: string;
+}
+
+export interface VenueOutreachPlaceIdInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     * @nullable
+     */
+  placeId: string | null;
+}
+
+export interface VenueOutreachPlaceIdResult {
+  id: number;
+  /**
+     * @maxLength 255
+     * @nullable
+     */
+  placeId: string | null;
+}
+
+export interface VenueManagerUpdateAudience {
+  /** @minimum 0 */
+  recipientCount: number;
+  /** @minimum 0 */
+  registeredManagerCount: number;
+  /** @minimum 0 */
+  contactedProspectCount: number;
+}
+
+export type VenueManagerUpdateBroadcastInputTemplate = typeof VenueManagerUpdateBroadcastInputTemplate[keyof typeof VenueManagerUpdateBroadcastInputTemplate];
+
+
+export const VenueManagerUpdateBroadcastInputTemplate = {
+  latest_updates: 'latest_updates',
+} as const;
+
+export interface VenueManagerUpdateBroadcastInput {
+  template: VenueManagerUpdateBroadcastInputTemplate;
+  /** @minimum 1 */
+  expectedRecipientCount: number;
+  /** @minimum 0 */
+  expectedRegisteredManagerCount: number;
+  /** @minimum 0 */
+  expectedContactedProspectCount: number;
+  confirm: true;
+}
+
+/**
+ * @nullable
+ */
+export type VenueManagerUpdateBroadcastResultStoppedReason = typeof VenueManagerUpdateBroadcastResultStoppedReason[keyof typeof VenueManagerUpdateBroadcastResultStoppedReason] | null;
+
+
+export const VenueManagerUpdateBroadcastResultStoppedReason = {
+  delivery_uncertain: 'delivery_uncertain',
+  audit_log_failed: 'audit_log_failed',
+  preparation_failed: 'preparation_failed',
+} as const;
+
+export interface VenueManagerUpdateBroadcastResult {
+  /** @minimum 0 */
+  recipientCount: number;
+  /** @minimum 0 */
+  registeredManagerCount: number;
+  /** @minimum 0 */
+  contactedProspectCount: number;
+  /** @minimum 0 */
+  sentCount: number;
+  /** @minimum 0 */
+  deliveryUncertainCount: number;
+  /** @minimum 0 */
+  notAttemptedCount: number;
+  /** @nullable */
+  stoppedReason: VenueManagerUpdateBroadcastResultStoppedReason;
 }
 
 export interface VenueOutreachHistoryResponse {
@@ -571,6 +713,193 @@ export const VenueCategory = {
   other: 'other',
 } as const;
 
+export type VenueQrPosterDesignFontFamily = typeof VenueQrPosterDesignFontFamily[keyof typeof VenueQrPosterDesignFontFamily];
+
+
+export const VenueQrPosterDesignFontFamily = {
+  sans: 'sans',
+  serif: 'serif',
+} as const;
+
+export interface VenuePosterImagePosition {
+  /**
+     * @minimum 3
+     * @maximum 97
+     */
+  x: number;
+  /**
+     * @minimum 3
+     * @maximum 97
+     */
+  y: number;
+  /**
+     * @minimum 5
+     * @maximum 80
+     */
+  width: number;
+  /**
+     * @minimum 5
+     * @maximum 80
+     */
+  height: number;
+}
+
+export interface VenuePosterDecorativeImage {
+  /** @pattern ^[a-zA-Z0-9_-]{1,36}$ */
+  id: string;
+  /** @maxLength 2000 */
+  url: string;
+  position: VenuePosterImagePosition;
+}
+
+export interface VenuePosterTextPosition {
+  /**
+     * @minimum 3
+     * @maximum 97
+     */
+  x: number;
+  /**
+     * @minimum 3
+     * @maximum 97
+     */
+  y: number;
+  /**
+     * @minimum 8
+     * @maximum 96
+     */
+  fontSize?: number;
+  /**
+     * @minimum 8
+     * @maximum 90
+     */
+  width?: number;
+}
+
+export type VenuePosterTextBoxAlign = typeof VenuePosterTextBoxAlign[keyof typeof VenuePosterTextBoxAlign];
+
+
+export const VenuePosterTextBoxAlign = {
+  left: 'left',
+  center: 'center',
+  right: 'right',
+} as const;
+
+export interface VenuePosterTextBox {
+  /** @pattern ^[a-zA-Z0-9_-]{1,36}$ */
+  id: string;
+  /** @maxLength 140 */
+  text: string;
+  /**
+     * @minimum 3
+     * @maximum 97
+     */
+  x: number;
+  /**
+     * @minimum 3
+     * @maximum 97
+     */
+  y: number;
+  /**
+     * @minimum 10
+     * @maximum 72
+     */
+  fontSize: number;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  color: string;
+  align: VenuePosterTextBoxAlign;
+  /**
+     * @minimum 8
+     * @maximum 90
+     */
+  width?: number;
+}
+
+export type VenueQrPosterDesignImagePositions = {
+  logo?: VenuePosterImagePosition;
+  decoration?: VenuePosterImagePosition;
+};
+
+export type VenueQrPosterDesignTextPositions = {
+  brandMark?: VenuePosterTextPosition;
+  brandLabel?: VenuePosterTextPosition;
+  kicker?: VenuePosterTextPosition;
+  venueName?: VenuePosterTextPosition;
+  heading?: VenuePosterTextPosition;
+  subheading?: VenuePosterTextPosition;
+  scanNote?: VenuePosterTextPosition;
+  footer?: VenuePosterTextPosition;
+};
+
+export type VenueQrPosterDesignTextContent = {
+  /** @maxLength 4 */
+  brandMark?: string;
+  /** @maxLength 48 */
+  brandLabel?: string;
+  /** @maxLength 80 */
+  kicker?: string;
+  /** @maxLength 80 */
+  venueName?: string;
+  /** @maxLength 100 */
+  heading?: string;
+  /** @maxLength 180 */
+  subheading?: string;
+  /** @maxLength 100 */
+  scanNote?: string;
+  /** @maxLength 140 */
+  footer?: string;
+};
+
+/**
+ * @nullable
+ */
+export type VenueQrPosterDesign = {
+  /** @maxLength 100 */
+  heading: string;
+  /** @maxLength 180 */
+  subheading: string;
+  /** @maxLength 140 */
+  footer: string;
+  fontFamily: VenueQrPosterDesignFontFamily;
+  /**
+     * @minimum 20
+     * @maximum 72
+     */
+  titleFontSize: number;
+  /**
+     * @minimum 11
+     * @maximum 36
+     */
+  bodyFontSize: number;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  textColor: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  accentColor: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  backgroundColor: string;
+  /**
+     * Must have a 4.5:1 contrast ratio against white.
+     * @pattern ^#[0-9A-Fa-f]{6}$
+     */
+  qrForegroundColor: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  logoUrl: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  imageUrl: string | null;
+  /** @maxItems 12 */
+  decorativeImages?: VenuePosterDecorativeImage[];
+  imagePositions?: VenueQrPosterDesignImagePositions;
+  textPositions?: VenueQrPosterDesignTextPositions;
+  textContent?: VenueQrPosterDesignTextContent;
+  /** @maxItems 16 */
+  textBoxes?: VenuePosterTextBox[];
+} | null;
+
 export interface VenueManagerBusiness {
   businessId: number;
   placeId: string;
@@ -594,6 +923,7 @@ export interface VenueManagerBusiness {
   publicEmail?: string | null;
   /** @nullable */
   openingHours?: VenueManagerBusinessOpeningHours;
+  qrPosterDesign: VenueQrPosterDesign | null;
   role: VenueManagerBusinessRole;
   isActive: boolean;
 }
@@ -645,6 +975,7 @@ export interface VenueManagerBusinessUpdate {
   publicEmail?: string | null;
   /** @nullable */
   openingHours?: VenueManagerBusinessUpdateOpeningHours;
+  qrPosterDesign?: VenueQrPosterDesign | null;
 }
 
 export interface VenueManagerQrCode {

@@ -177,12 +177,29 @@ export default function Dashboard() {
   const [outreachOpen, setOutreachOpen] = useState(false);
   const [outreachName, setOutreachName] = useState("");
   const [outreachEmail, setOutreachEmail] = useState("");
+  const [outreachPlaceQuery, setOutreachPlaceQuery] = useState("");
+  const [outreachPlaceResults, setOutreachPlaceResults] = useState<VenueSearchPlace[]>([]);
+  const [outreachSelectedPlace, setOutreachSelectedPlace] = useState<VenueSearchPlace | null>(null);
+  const [outreachPlaceSearching, setOutreachPlaceSearching] = useState(false);
+  const [outreachPlaceSearchError, setOutreachPlaceSearchError] = useState("");
   const [outreachTemplate, setOutreachTemplate] = useState<VenueOutreachInputTemplate>("contact_request");
   const [outreachTemplates, setOutreachTemplates] = useState<VenueOutreachTemplatePreview[]>([]);
   const [outreachPreviewName, setOutreachPreviewName] = useState("");
   const [outreachPreviewError, setOutreachPreviewError] = useState("");
   const [outreachSending, setOutreachSending] = useState(false);
   const [outreachError, setOutreachError] = useState("");
+  const [managerUpdatesOpen, setManagerUpdatesOpen] = useState(false);
+  const [managerUpdateAudienceCount, setManagerUpdateAudienceCount] = useState<number | null>(null);
+  const [managerUpdateRegisteredManagerCount, setManagerUpdateRegisteredManagerCount] = useState<number | null>(null);
+  const [managerUpdateContactedProspectCount, setManagerUpdateContactedProspectCount] = useState<number | null>(null);
+  const [managerUpdateAudienceLoading, setManagerUpdateAudienceLoading] = useState(false);
+  const [managerUpdateAudienceError, setManagerUpdateAudienceError] = useState("");
+  const [managerUpdatePreview, setManagerUpdatePreview] = useState<VenueOutreachTemplatePreview | null>(null);
+  const [managerProspectUpdatePreview, setManagerProspectUpdatePreview] = useState<VenueOutreachTemplatePreview | null>(null);
+  const [managerUpdateRefreshKey, setManagerUpdateRefreshKey] = useState(0);
+  const [managerUpdateConfirmed, setManagerUpdateConfirmed] = useState(false);
+  const [managerUpdateSending, setManagerUpdateSending] = useState(false);
+  const [managerUpdateSendError, setManagerUpdateSendError] = useState("");
   const [inviteTarget, setInviteTarget] = useState<VenueApplication | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
@@ -223,6 +240,65 @@ export default function Dashboard() {
       window.clearTimeout(timeout);
     };
   }, [outreachOpen, outreachName]);
+
+  useEffect(() => {
+    if (!managerUpdatesOpen) return;
+    let cancelled = false;
+    setManagerUpdateAudienceLoading(true);
+    setManagerUpdateAudienceCount(null);
+    setManagerUpdateRegisteredManagerCount(null);
+    setManagerUpdateContactedProspectCount(null);
+    setManagerUpdateAudienceError("");
+    setManagerUpdatePreview(null);
+    setManagerProspectUpdatePreview(null);
+    setManagerUpdateConfirmed(false);
+    setManagerUpdateSendError("");
+
+    void Promise.all([
+      fetch("/api/admin/venue-owner/outreach/manager-updates/audience", { credentials: "include" }),
+      previewNewVenueOutreach({ businessName: "your venue" }),
+    ]).then(async ([audienceResponse, preview]) => {
+      const audience = await audienceResponse.json().catch(() => ({})) as {
+        recipientCount?: number;
+        registeredManagerCount?: number;
+        contactedProspectCount?: number;
+        message?: string;
+      };
+      if (!audienceResponse.ok) {
+        throw new Error(audience.message ?? "Could not load the active venue manager audience.");
+      }
+      if (
+        typeof audience.recipientCount !== "number" ||
+        typeof audience.registeredManagerCount !== "number" ||
+        typeof audience.contactedProspectCount !== "number"
+      ) {
+        throw new Error("The server returned an invalid audience count.");
+      }
+      if (cancelled) return;
+      setManagerUpdateAudienceCount(audience.recipientCount);
+      setManagerUpdateRegisteredManagerCount(audience.registeredManagerCount);
+      setManagerUpdateContactedProspectCount(audience.contactedProspectCount);
+      const latestUpdatesPreview = preview.templates.find((template) => template.id === "latest_updates");
+      const prospectPreview = preview.templates.find((template) => template.id === "latest_updates_prospect");
+      if (!latestUpdatesPreview || !prospectPreview) {
+        throw new Error("One of the latest-updates email templates is unavailable.");
+      }
+      setManagerUpdatePreview(latestUpdatesPreview);
+      setManagerProspectUpdatePreview(prospectPreview);
+    }).catch((error: unknown) => {
+      if (!cancelled) {
+        setManagerUpdateAudienceError(
+          error instanceof Error ? error.message : "Could not load the latest-updates email.",
+        );
+      }
+    }).finally(() => {
+      if (!cancelled) setManagerUpdateAudienceLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [managerUpdatesOpen, managerUpdateRefreshKey]);
 
   const currentOutreachName = outreachName.trim() || "your venue";
   const selectedOutreachPreview = outreachPreviewName === currentOutreachName
@@ -278,6 +354,39 @@ export default function Dashboard() {
     setQuickOwnerEmail("");
     setQuickManagementMode("invite_owner");
     setQuickAddStep(1);
+  };
+
+  const resetOutreachPlaceSearch = () => {
+    setOutreachPlaceQuery("");
+    setOutreachPlaceResults([]);
+    setOutreachSelectedPlace(null);
+    setOutreachPlaceSearchError("");
+  };
+
+  const searchOutreachPlaces = async () => {
+    const query = outreachPlaceQuery.trim();
+    if (query.length < 2 || outreachPlaceSearching) return;
+    setOutreachPlaceSearching(true);
+    setOutreachPlaceSearchError("");
+    setOutreachPlaceResults([]);
+    try {
+      const response = await fetch(
+        `/api/admin/venue-owner/places/search?query=${encodeURIComponent(query)}`,
+        { credentials: "include" },
+      );
+      const data = await response.json().catch(() => ({})) as {
+        places?: VenueSearchPlace[];
+        message?: string;
+      };
+      if (!response.ok) throw new Error(data.message ?? "Venue search failed.");
+      setOutreachPlaceResults(data.places ?? []);
+    } catch (error) {
+      setOutreachPlaceSearchError(
+        error instanceof Error ? error.message : "Venue search failed. Please try again.",
+      );
+    } finally {
+      setOutreachPlaceSearching(false);
+    }
   };
 
   const searchVenues = async () => {
@@ -710,6 +819,74 @@ export default function Dashboard() {
     }
   }
 
+  async function sendManagerUpdates() {
+    if (
+      managerUpdateSending ||
+      !managerUpdateConfirmed ||
+      managerUpdateAudienceCount === null ||
+      managerUpdateRegisteredManagerCount === null ||
+      managerUpdateContactedProspectCount === null ||
+      managerUpdateAudienceCount < 1
+    ) return;
+
+    setManagerUpdateSending(true);
+    setManagerUpdateSendError("");
+    try {
+      const response = await fetch("/api/admin/venue-owner/outreach/manager-updates/send", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          template: "latest_updates",
+          expectedRecipientCount: managerUpdateAudienceCount,
+          expectedRegisteredManagerCount: managerUpdateRegisteredManagerCount,
+          expectedContactedProspectCount: managerUpdateContactedProspectCount,
+          confirm: true,
+        }),
+      });
+      const result = await response.json().catch(() => ({})) as {
+        message?: string;
+        recipientCount?: number;
+        registeredManagerCount?: number;
+        contactedProspectCount?: number;
+        sentCount?: number;
+        deliveryUncertainCount?: number;
+        notAttemptedCount?: number;
+        stoppedReason?: "delivery_uncertain" | "audit_log_failed" | "preparation_failed" | null;
+      };
+      if (!response.ok) {
+        setManagerUpdateConfirmed(false);
+        setManagerUpdateSendError(
+          result.message ?? "The announcement could not be sent. Refresh the audience before trying again.",
+        );
+        return;
+      }
+      if (result.stoppedReason) {
+        const stopMessage = result.stoppedReason === "delivery_uncertain"
+          ? "One email’s delivery could not be confirmed. Check Gmail Sent before retrying."
+          : result.stoppedReason === "preparation_failed"
+            ? "A personalized QR poster pack could not be prepared. No email was sent to that recipient."
+            : "Sending stopped because the system could not record the next email in its audit history.";
+        setManagerUpdateConfirmed(false);
+        setManagerUpdateSendError(
+          `${stopMessage} Confirmed sent: ${result.sentCount ?? 0} of ${result.recipientCount ?? managerUpdateAudienceCount}. Not attempted: ${result.notAttemptedCount ?? 0}.`,
+        );
+        return;
+      }
+      toast({
+        title: "Latest updates sent",
+        description: `Sent ${result.sentCount ?? 0} email${result.sentCount === 1 ? "" : "s"}: ${result.registeredManagerCount ?? managerUpdateRegisteredManagerCount ?? 0} active managers and ${result.contactedProspectCount ?? managerUpdateContactedProspectCount ?? 0} previously contacted prospects.`,
+      });
+      setManagerUpdatesOpen(false);
+      setManagerUpdateConfirmed(false);
+    } catch {
+      setManagerUpdateConfirmed(false);
+      setManagerUpdateSendError("Delivery could not be confirmed. Check Gmail Sent before trying again.");
+    } finally {
+      setManagerUpdateSending(false);
+    }
+  }
+
   const isMessageRequired = decisionDialog === "reject" || decisionDialog === "changes" || decisionDialog === "withdraw";
   const isInternalNoteRequired = decisionDialog === "note";
   
@@ -985,15 +1162,20 @@ export default function Dashboard() {
         if (!open) {
           setOutreachName("");
           setOutreachEmail("");
+          resetOutreachPlaceSearch();
           setOutreachTemplate("contact_request");
           setOutreachError("");
         }
       }}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[620px]">
           <DialogHeader>
-            <DialogTitle>Email a new venue</DialogTitle>
+            <DialogTitle>
+              {outreachTemplate === "latest_updates" ? "Email a venue manager" : "Email a new venue"}
+            </DialogTitle>
             <DialogDescription>
-              Choose a message to send before adding or approving this venue. Review it below before sending.
+              {outreachTemplate === "latest_updates"
+                ? "Send the latest product updates to one manager at the email address you enter."
+                : "Choose a message to send before adding or approving this venue. Review it below before sending."}
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={async (event) => {
@@ -1003,17 +1185,25 @@ export default function Dashboard() {
             setOutreachSending(true);
             try {
               const result = await sendNewVenueOutreach({
-                businessName: outreachName.trim(),
+                businessName: outreachTemplate === "latest_updates" ? "Venue managers" : outreachName.trim(),
                 recipientEmail: outreachEmail.trim(),
+                ...(outreachTemplate !== "latest_updates" && outreachSelectedPlace
+                  ? { placeId: outreachSelectedPlace.placeId }
+                  : {}),
                 template: outreachTemplate,
               });
               toast({
-                title: outreachTemplate === "preapproval_video_application" ? "Application invitation sent" : "Email sent",
+                title: outreachTemplate === "preapproval_video_application"
+                  ? "Application invitation sent"
+                  : outreachTemplate === "latest_updates"
+                    ? "Manager update sent"
+                    : "Email sent",
                 description: `${selectedOutreachPreview?.label ?? "Message"} sent to ${result.recipientEmail}.`,
               });
               setOutreachOpen(false);
               setOutreachName("");
               setOutreachEmail("");
+              resetOutreachPlaceSearch();
               setOutreachTemplate("contact_request");
             } catch (error) {
               setOutreachError(
@@ -1025,21 +1215,131 @@ export default function Dashboard() {
               setOutreachSending(false);
             }
           }}>
+            {outreachTemplate !== "latest_updates" && (
+              <div className="space-y-2">
+                <Label htmlFor="outreach-venue-name">Venue name</Label>
+                <Input
+                  id="outreach-venue-name"
+                  value={outreachName}
+                  onChange={(event) => setOutreachName(event.target.value)}
+                  placeholder="Venue name"
+                  minLength={2}
+                  maxLength={150}
+                  required
+                  disabled={outreachSending}
+                />
+              </div>
+            )}
+            {outreachTemplate !== "latest_updates" && (
+              <div className="space-y-2">
+                <Label htmlFor="outreach-place-search">Find the venue on Google Maps (optional)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="outreach-place-search"
+                    data-testid="input-outreach-place-search"
+                    value={outreachPlaceQuery}
+                    onChange={(event) => {
+                      setOutreachPlaceQuery(event.target.value);
+                      setOutreachPlaceResults([]);
+                      setOutreachSelectedPlace(null);
+                      setOutreachPlaceSearchError("");
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void searchOutreachPlaces();
+                      }
+                    }}
+                    placeholder="Venue name and city"
+                    maxLength={150}
+                    disabled={outreachSending || outreachPlaceSearching}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="button-search-outreach-venue"
+                    onClick={() => void searchOutreachPlaces()}
+                    disabled={outreachSending || outreachPlaceSearching || outreachPlaceQuery.trim().length < 2}
+                  >
+                    {outreachPlaceSearching
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Search className="h-4 w-4" />}
+                    <span className="ml-2">{outreachPlaceSearching ? "Searching…" : "Search"}</span>
+                  </Button>
+                </div>
+                {outreachSelectedPlace && (
+                  <div
+                    className="rounded-md border border-primary/40 bg-primary/5 p-3"
+                    data-testid="selected-outreach-venue"
+                  >
+                    <p className="text-sm font-medium">Selected: {outreachSelectedPlace.placeName}</p>
+                    {outreachSelectedPlace.address && (
+                      <p className="mt-1 text-xs text-muted-foreground">{outreachSelectedPlace.address}</p>
+                    )}
+                    <p className="mt-1 break-all text-xs text-muted-foreground">
+                      Google Place ID: {outreachSelectedPlace.placeId}
+                    </p>
+                  </div>
+                )}
+                {outreachPlaceSearchError && (
+                  <p role="alert" className="text-sm text-destructive" data-testid="error-outreach-place-search">
+                    {outreachPlaceSearchError}
+                  </p>
+                )}
+                {outreachPlaceResults.length > 0 && (
+                  <ScrollArea className="max-h-56 rounded-md border">
+                    <div className="space-y-2 p-2">
+                      {outreachPlaceResults.map((place) => (
+                        <button
+                          key={place.placeId}
+                          type="button"
+                          data-testid={`button-select-outreach-venue-${place.placeId}`}
+                          aria-pressed={outreachSelectedPlace?.placeId === place.placeId}
+                          onClick={() => setOutreachSelectedPlace(place)}
+                          disabled={outreachSending}
+                          className={`w-full rounded-md border p-3 text-left transition-colors ${
+                            outreachSelectedPlace?.placeId === place.placeId
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:bg-muted/40"
+                          }`}
+                        >
+                          <span className="flex items-start gap-2">
+                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-medium">{place.placeName}</span>
+                              {place.address && (
+                                <span className="mt-1 block text-xs text-muted-foreground">{place.address}</span>
+                              )}
+                              <span className="mt-1 block break-all text-[11px] text-muted-foreground">
+                                Place ID: {place.placeId}
+                              </span>
+                            </span>
+                            {outreachSelectedPlace?.placeId === place.placeId && (
+                              <Check className="h-4 w-4 shrink-0 text-primary" />
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+                {!outreachPlaceSearching &&
+                  !outreachPlaceSearchError &&
+                  outreachPlaceQuery.trim().length >= 2 &&
+                  outreachPlaceResults.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Search Google Maps and select the matching location. Place ID is optional.
+                    </p>
+                  )}
+                <p className="text-xs text-muted-foreground">
+                  Keeps outreach for this branch together if its contact email changes.
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
-              <Label htmlFor="outreach-venue-name">Venue name</Label>
-              <Input
-                id="outreach-venue-name"
-                value={outreachName}
-                onChange={(event) => setOutreachName(event.target.value)}
-                placeholder="Venue name"
-                minLength={2}
-                maxLength={150}
-                required
-                disabled={outreachSending}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="outreach-recipient-email">Venue email</Label>
+              <Label htmlFor="outreach-recipient-email">
+                {outreachTemplate === "latest_updates" ? "Manager email" : "Venue email"}
+              </Label>
               <Input
                 id="outreach-recipient-email"
                 type="email"
@@ -1080,7 +1380,11 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">{outreachPreviewError || "Loading preview…"}</p>
               )}
             </div>
-            {outreachTemplate === "preapproval_video_application" ? (
+            {outreachTemplate === "latest_updates" ? (
+              <p className="text-sm text-muted-foreground">
+                This sends one copy to an email linked to an active Venue Manager account and includes its Check In poster PDF. If the address is not linked to an active account, no email will be sent. To reach the full audience, use “Email latest updates to managers and contacted venues.”
+              </p>
+            ) : outreachTemplate === "preapproval_video_application" ? (
               <p className="text-sm text-muted-foreground">
                 This sends a one-time application link to {outreachEmail.trim() || "the invited email"}. The recipient must use that email, select a venue, and submit it for review. The link expires in 14 days; it does not approve the venue or grant account access.
               </p>
@@ -1091,12 +1395,157 @@ export default function Dashboard() {
             )}
             {outreachError && <p role="alert" className="text-sm text-destructive">{outreachError}</p>}
             <DialogFooter>
-              <Button type="submit" disabled={outreachSending || outreachName.trim().length < 2 || !outreachEmail.trim() || !selectedOutreachPreview}>
+              <Button
+                type="submit"
+                disabled={
+                  outreachSending ||
+                  (outreachTemplate !== "latest_updates" && outreachName.trim().length < 2) ||
+                  !outreachEmail.trim() ||
+                  !selectedOutreachPreview
+                }
+              >
                 {outreachSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
                 {outreachSending ? "Sending…" : "Send email"}
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={managerUpdatesOpen}
+        onOpenChange={(open) => {
+          if (managerUpdateSending) return;
+          setManagerUpdatesOpen(open);
+          if (!open) {
+            setManagerUpdateConfirmed(false);
+            setManagerUpdateSendError("");
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[620px]">
+          <DialogHeader>
+            <DialogTitle>Send latest updates to managers and contacted venues</DialogTitle>
+            <DialogDescription>
+              Review both email versions and the current audience before sending. Each recipient receives an individual email.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border bg-muted/20 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Eligible audience</p>
+                <p className="mt-1 text-sm font-medium">
+                  {managerUpdateAudienceLoading
+                    ? "Counting recipients…"
+                    : managerUpdateAudienceCount === null
+                      ? "Audience unavailable"
+                      : `${managerUpdateAudienceCount} unique email${managerUpdateAudienceCount === 1 ? "" : "s"}`}
+                </p>
+                {!managerUpdateAudienceLoading &&
+                  managerUpdateRegisteredManagerCount !== null &&
+                  managerUpdateContactedProspectCount !== null && (
+                    <p className="mt-1 text-sm" data-testid="text-manager-update-audience-breakdown">
+                      {managerUpdateRegisteredManagerCount} active manager{managerUpdateRegisteredManagerCount === 1 ? "" : "s"} ·{" "}
+                      {managerUpdateContactedProspectCount} previously contacted prospect{managerUpdateContactedProspectCount === 1 ? "" : "s"}
+                    </p>
+                  )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Active owners and managers on approved venues receive both poster designs for each active venue. Previously contacted addresses without an active manager account receive an invitation version with no personalized QR. Duplicate addresses and anyone sent these updates in the past 24 hours are excluded.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={managerUpdateAudienceLoading || managerUpdateSending}
+                onClick={() => {
+                  setManagerUpdateRefreshKey((key) => key + 1);
+                  setManagerUpdateConfirmed(false);
+                }}
+              >
+                Refresh
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email previews</p>
+            {managerUpdatePreview ? (
+              <div className="space-y-2 rounded-lg border bg-muted/20 p-4" data-testid="preview-registered-manager-update">
+                <p className="text-xs font-semibold text-muted-foreground">Active registered managers</p>
+                <p className="text-sm"><span className="font-medium">Subject:</span> {managerUpdatePreview.subject}</p>
+                <p className="text-xs text-muted-foreground">Attachment: one A4 PDF pack with Garden and Midnight grid pages for every active venue.</p>
+                <div className="max-h-44 overflow-y-auto whitespace-pre-wrap border-t pt-3 text-sm leading-relaxed">
+                  {managerUpdatePreview.text}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading manager email preview…</p>
+            )}
+            {managerProspectUpdatePreview ? (
+              <div className="space-y-2 rounded-lg border bg-muted/20 p-4" data-testid="preview-contacted-prospect-update">
+                <p className="text-xs font-semibold text-muted-foreground">Previously contacted prospects</p>
+                <p className="text-sm"><span className="font-medium">Subject:</span> {managerProspectUpdatePreview.subject}</p>
+                <p className="text-xs text-muted-foreground">Invitation-style message; no venue QR posters are attached.</p>
+                <div className="max-h-44 overflow-y-auto whitespace-pre-wrap border-t pt-3 text-sm leading-relaxed">
+                  {managerProspectUpdatePreview.text}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading prospect invitation preview…</p>
+            )}
+          </div>
+          {managerUpdateAudienceError && (
+            <p role="alert" className="text-sm text-destructive">{managerUpdateAudienceError}</p>
+          )}
+          <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={managerUpdateConfirmed}
+              onChange={(event) => setManagerUpdateConfirmed(event.target.checked)}
+              disabled={
+                managerUpdateSending ||
+                managerUpdateAudienceCount === null ||
+                managerUpdateRegisteredManagerCount === null ||
+                managerUpdateContactedProspectCount === null ||
+                managerUpdateAudienceCount < 1
+              }
+              className="mt-1"
+            />
+            <span>
+              I reviewed this email and confirm sending it to{" "}
+              <strong>{managerUpdateAudienceCount ?? "the current"}</strong> unique email addresses across both groups.
+            </span>
+          </label>
+          {managerUpdateSendError && (
+            <p role="alert" className="text-sm text-destructive">{managerUpdateSendError}</p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setManagerUpdatesOpen(false)}
+              disabled={managerUpdateSending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void sendManagerUpdates()}
+              disabled={
+                managerUpdateSending ||
+                managerUpdateAudienceLoading ||
+                managerUpdateAudienceCount === null ||
+                managerUpdateRegisteredManagerCount === null ||
+                managerUpdateContactedProspectCount === null ||
+                managerUpdateAudienceCount < 1 ||
+                !managerUpdateConfirmed ||
+                !managerUpdatePreview ||
+                !managerProspectUpdatePreview
+              }
+            >
+              {managerUpdateSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+              {managerUpdateSending ? "Sending…" : "Send to all recipients"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       {inviteTarget && (
@@ -1117,23 +1566,15 @@ export default function Dashboard() {
       {/* Sidebar List */}
       <div className="w-full md:w-[400px] flex-shrink-0 border-r border-border bg-muted/20 flex flex-col h-full z-10 relative">
         <div className="border-b border-border bg-card shrink-0">
-          <div className="h-14 px-4 flex items-center justify-between">
+          <div className="px-4 pt-3 pb-2 space-y-3">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 font-bold tracking-tight text-lg">
               <div className="w-8 h-8 bg-primary text-primary-foreground rounded flex items-center justify-center">
                 <Shield className="w-4 h-4" />
               </div>
-              Venue T&S
+              Venue Admin
             </div>
             <div className="flex items-center gap-1">
-              <Button variant={adminView === "content-reports" ? "secondary" : "ghost"} size="icon" onClick={() => setAdminView(v => v === "content-reports" ? "applications" : "content-reports")} title="Content Reports" aria-label="Content Reports">
-                <Flag className="w-4 h-4" />
-              </Button>
-              <Button variant={adminView === "outreach-history" ? "secondary" : "ghost"} size="icon" onClick={() => { setOutreachHistorySearch(""); setAdminView(v => v === "outreach-history" ? "applications" : "outreach-history"); }} title="Invitation history" aria-label="Invitation history" data-testid="button-open-invitation-history">
-                <History className="w-4 h-4" />
-              </Button>
-              <Button variant={adminView === "agents" ? "secondary" : "ghost"} size="icon" onClick={() => setAdminView(v => v === "agents" ? "applications" : "agents")} title="Manage Sales Agents" aria-label="Manage Sales Agents">
-                <Users className="w-4 h-4" />
-              </Button>
               <Button variant="ghost" size="icon" onClick={() => setPasswordDialogOpen(true)} title="Change password" aria-label="Change password">
                 <KeyRound className="w-4 h-4" />
               </Button>
@@ -1141,6 +1582,38 @@ export default function Dashboard() {
                 <LogOut className="w-4 h-4" />
               </Button>
             </div>
+          </div>
+            <nav aria-label="Venue Admin destinations" className="grid grid-cols-2 gap-1">
+              <Button variant={adminView === "applications" ? "secondary" : "ghost"} size="sm" onClick={() => setAdminView("applications")} data-testid="nav-applications" aria-current={adminView === "applications" ? "page" : undefined}>
+                <FileText className="mr-1.5 h-4 w-4" />Applications
+              </Button>
+              <Button variant={adminView === "outreach-history" ? "secondary" : "ghost"} size="sm" onClick={() => { setOutreachHistorySearch(""); setAdminView("outreach-history"); }} data-testid="nav-invited-venues" aria-current={adminView === "outreach-history" ? "page" : undefined}>
+                <History className="mr-1.5 h-4 w-4" />Invited Venues
+              </Button>
+              <Button
+                variant={adminView === "applications" && filterStatus === "approved" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setAdminView("applications");
+                  setFilterStatus("approved");
+                  setFilterSource("all");
+                  setFromDate("");
+                  setToDate("");
+                  setSearch("");
+                  setSelectedAppId(null);
+                }}
+                data-testid="nav-venue-directory"
+                aria-current={adminView === "applications" && filterStatus === "approved" ? "page" : undefined}
+              >
+                <Building2 className="mr-1.5 h-4 w-4" />Venue Directory
+              </Button>
+              <Button variant={adminView === "agents" ? "secondary" : "ghost"} size="sm" onClick={() => setAdminView("agents")} data-testid="nav-sales-agents" aria-current={adminView === "agents" ? "page" : undefined}>
+                <Users className="mr-1.5 h-4 w-4" />Sales Agents
+              </Button>
+              <Button variant={adminView === "content-reports" ? "secondary" : "ghost"} size="sm" onClick={() => setAdminView("content-reports")} data-testid="nav-content-reports" aria-current={adminView === "content-reports" ? "page" : undefined}>
+                <Flag className="mr-1.5 h-4 w-4" />Content Reports
+              </Button>
+            </nav>
           </div>
           <div className="flex gap-2 px-4 pb-3">
             <Button size="sm" className="flex-1 gap-1.5" onClick={() => setQuickAddOpen(true)}>
@@ -1152,22 +1625,18 @@ export default function Dashboard() {
               Invite venue
             </Button>
           </div>
-          <div className="px-4 pb-3">
-            <Button
-              type="button"
-              size="sm"
-              variant={adminView === "outreach-history" ? "secondary" : "outline"}
-              className="h-9 w-full justify-start gap-2"
-              data-testid="button-open-invited-venues"
-              onClick={() => {
-                setOutreachHistorySearch("");
-                setAdminView("outreach-history");
-              }}
-            >
-              <History className="h-4 w-4" />
-              Invited venues
-            </Button>
-          </div>
+            <div className="px-4 pb-3">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 w-full justify-start gap-2"
+                onClick={() => setManagerUpdatesOpen(true)}
+                data-testid="button-latest-venue-updates"
+              >
+                <Mail className="h-4 w-4" />
+                Email latest updates to managers and contacted venues
+              </Button>
+            </div>
         </div>
 
         <div className="p-3 border-b border-border bg-card/50 space-y-3 shrink-0">
@@ -1901,8 +2370,10 @@ export default function Dashboard() {
             </DialogTitle>
             <DialogDescription>
               This will permanently delete <strong>{selectedApp?.businessName}</strong> and all
-              associated data — events, rewards, announcements, manager accounts, and the full
-              application history. <strong>This cannot be undone.</strong>
+               venue-specific data — content, registration links, guest records, and application
+               history. Manager records used only by this venue are removed. Shared Met logins
+               and access to other venues are kept, so the same email can set up a new venue
+               using its existing Met login. <strong>This cannot be undone.</strong>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">

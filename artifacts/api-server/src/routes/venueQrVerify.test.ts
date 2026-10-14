@@ -158,6 +158,11 @@ function mockNextLimit(value: unknown[]) {
   (dbMocks.chain.limit as ReturnType<typeof vi.fn>).mockImplementationOnce(
     () => dbMocks.makeThenableResult(value),
   );
+  if (value.some((row) => row === VENUE_ROW)) {
+    (dbMocks.chain.limit as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => dbMocks.makeThenableResult([{ displayName: "Guest", photoUrl: "https://example.com/guest.jpg" }]),
+    );
+  }
 }
 
 function resetDbChain() {

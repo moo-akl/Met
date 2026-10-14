@@ -1,5 +1,5 @@
 import { createInsertSchema } from "drizzle-zod";
-import { index, integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { date, index, integer, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 import { venueManagerRegistrationTokensTable } from "./venueBusiness";
 import {
@@ -28,11 +28,12 @@ export const venueOutreachEmailLogsTable = pgTable(
       () => venueManagerRegistrationTokensTable.id,
       { onDelete: "set null" },
     ),
+    placeId: text("place_id"),
     businessName: text("business_name").notNull(),
     recipientEmail: text("recipient_email").notNull(),
     template: text("template").notNull(),
     kind: text("kind")
-      .$type<"new_venue_outreach" | "contact_request" | "registration_invite">()
+      .$type<"new_venue_outreach" | "contact_request" | "registration_invite" | "manager_announcement">()
       .notNull(),
     deliveryStatus: text("delivery_status")
       .$type<"sending" | "sent" | "delivery_uncertain" | "failed">()
@@ -71,3 +72,25 @@ export type InsertVenueOutreachEmailLog = z.infer<
 >;
 export type VenueOutreachEmailLog =
   typeof venueOutreachEmailLogsTable.$inferSelect;
+
+/**
+ * One durable next-contact plan per venue/prospect worklist group. This stays
+ * independent of email logs so resending an invitation cannot erase follow-up
+ * details, including for prospects that have not created a venue profile yet.
+ */
+export const venueOutreachFollowUpsTable = pgTable(
+  "venue_outreach_follow_ups",
+  {
+    id: serial("id").primaryKey(),
+    venueKey: text("venue_key").notNull(),
+    nextActionNote: text("next_action_note"),
+    nextActionDueDate: date("next_action_due_date", { mode: "string" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    venueKeyUniq: uniqueIndex("venue_outreach_follow_ups_venue_key_uniq").on(t.venueKey),
+    dueDateIdx: index("venue_outreach_follow_ups_due_date_idx").on(t.nextActionDueDate),
+  }),
+);
+
+export type VenueOutreachFollowUp = typeof venueOutreachFollowUpsTable.$inferSelect;

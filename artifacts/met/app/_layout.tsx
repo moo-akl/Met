@@ -52,6 +52,8 @@ import { api } from "@/lib/api/client";
 import { initTikTok, tiktokTrackLaunch } from "@/lib/tiktok";
 import { incrementSessionCount } from "@/lib/storage";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
+import { decideProfileGateRoute } from "@/lib/profileCompletion";
+import { parseQrIntentFromUrl, saveQrIntent } from "@/lib/qrIntent";
 import {
   getVenueOwnerDestination,
   isVenueOwnerPathAllowed,
@@ -194,6 +196,15 @@ export function routeDeepLink(
   router: MinimalRouter,
   delay = 50,
 ): void {
+  // Venue QR links: persist the intent immediately (before any gate can
+  // redirect). Expo Router itself navigates to /v/[placeId]; we never push
+  // a second navigation here, so competing routes can't double-verify.
+  const qr = parseQrIntentFromUrl(url);
+  if (qr) {
+    void saveQrIntent(qr.placeId, qr.token, null);
+    return;
+  }
+
   if (isVenueOwnerUrl(url)) {
     setTimeout(() => {
       try {
@@ -359,29 +370,16 @@ function ProfileGate() {
 
   useEffect(() => {
     if (!ready) return;
-    const root = segments[0];
-    const inOnboarding = root === "onboarding";
-    const inPermissions = root === "permissions";
-    const inVenueOwner = root === "venue-owner";
-
-    if (!profile) {
-      // Venue setup is an authenticated business-registration flow. It does
-      // not depend on an optional personal Met profile or device permissions.
-      if (authedUid && inVenueOwner) return;
-      if (!inOnboarding) router.replace("/onboarding");
-      return;
-    }
-    if (!permissionsCompleted) {
-      // Don't redirect while still on onboarding — handleFinish navigates to
-      // /permissions after the async photo-upload completes. If ProfileGate
-      // also fires (triggered by setProfile updating context), it would race
-      // with handleFinish and replace /permissions a second time, causing the
-      // permissions screen to visibly remount ("refresh") after a few seconds.
-      if (!inPermissions && !inOnboarding) router.replace("/permissions");
-      return;
-    }
-    // Fully set-up users may visit /permissions or /onboarding voluntarily
-    // (e.g. from the home-page banner). Don't redirect them away.
+    // Centralized decision (see lib/profileCompletion): /v owns its own
+    // auth branching, incomplete private profiles may browse without the
+    // permissions redirect, complete profiles keep the existing flow.
+    const target = decideProfileGateRoute({
+      root: segments[0],
+      authedUid,
+      profile,
+      permissionsCompleted,
+    });
+    if (target) router.replace(target as never);
   }, [ready, profile, permissionsCompleted, authedUid, segments, router]);
 
   return null;
@@ -462,6 +460,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="permissions" />
+      <Stack.Screen name="v/[placeId]" options={{ animation: "fade" }} />
       <Stack.Screen name="venue-owner/index" />
       <Stack.Screen
         name="encounter/[id]"

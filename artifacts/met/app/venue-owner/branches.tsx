@@ -18,15 +18,15 @@ import { useT } from "@/lib/i18n";
 import type { VenueApplicationStatus } from "@/lib/api/client";
 
 const STATUS_TRANSLATIONS: Record<VenueApplicationStatus, string> = {
-  draft: "venueBranchesStatusDraft",
-  submitted: "venueBranchesStatusSubmitted",
-  under_review: "venueBranchesStatusUnderReview",
-  changes_requested: "venueBranchesStatusChangesRequested",
-  rejected: "venueBranchesStatusRejected",
-  resubmitted: "venueBranchesStatusResubmitted",
-  approved: "venueBranchesApproved",
-  withdrawn: "venueBranchesStatusWithdrawn",
-  expired: "venueBranchesStatusExpired",
+  draft: "settings.venueBranchesStatusDraft",
+  submitted: "settings.venueBranchesStatusSubmitted",
+  under_review: "settings.venueBranchesStatusUnderReview",
+  changes_requested: "settings.venueBranchesStatusChangesRequested",
+  rejected: "settings.venueBranchesStatusRejected",
+  resubmitted: "settings.venueBranchesStatusResubmitted",
+  approved: "settings.venueBranchesApproved",
+  withdrawn: "settings.venueBranchesStatusWithdrawn",
+  expired: "settings.venueBranchesStatusExpired",
 };
 
 export default function VenueOwnerBranchesScreen() {
@@ -77,10 +77,10 @@ export default function VenueOwnerBranchesScreen() {
         </Pressable>
         <View style={styles.headerText}>
           <Text style={[styles.title, { color: palette.text }]}>
-            {t("venueBranchesTitle")}
+            {t("settings.venueBranchesTitle")}
           </Text>
           <Text style={[styles.subtitle, { color: palette.muted }]}>
-            {t("venueBranchesSubtitle")}
+            {t("settings.venueBranchesSubtitle")}
           </Text>
         </View>
       </View>
@@ -117,7 +117,7 @@ export default function VenueOwnerBranchesScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Text style={[styles.sectionTitle, { color: palette.muted }]}>
-            {t("venueBranchesYourVenues")}
+            {t("settings.venueBranchesYourVenues")}
           </Text>
           {branches.length === 0 ? (
             <View
@@ -131,7 +131,7 @@ export default function VenueOwnerBranchesScreen() {
               ]}
             >
               <Text style={[styles.emptyText, { color: palette.muted }]}>
-                {t("venueBranchesEmpty")}
+                {t("settings.venueBranchesEmpty")}
               </Text>
             </View>
           ) : (
@@ -177,7 +177,7 @@ export default function VenueOwnerBranchesScreen() {
                     </View>
                     <View style={styles.branchTrailing}>
                       <Text style={[styles.approved, { color: palette.accent }]}>
-                        {t("venueBranchesApproved")}
+                        {t("settings.venueBranchesApproved")}
                       </Text>
                       {selected ? (
                         <Feather name="check-circle" size={19} color={palette.accent} />
@@ -193,7 +193,7 @@ export default function VenueOwnerBranchesScreen() {
 
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: palette.muted }]}>
-              {t("venueBranchesApplications")}
+              {t("settings.venueBranchesApplications")}
             </Text>
             {branchApplications.length > 0 && (
               <View style={[styles.countPill, { backgroundColor: palette.selected }]}>
@@ -215,7 +215,7 @@ export default function VenueOwnerBranchesScreen() {
               ]}
             >
               <Text style={[styles.emptyText, { color: palette.muted }]}>
-                {t("venueBranchesNoApplications")}
+                {t("settings.venueBranchesNoApplications")}
               </Text>
             </View>
           ) : (
@@ -285,7 +285,7 @@ export default function VenueOwnerBranchesScreen() {
             <Text
               style={[styles.addButtonText, { color: palette.buttonText }]}
             >
-              {t("venueBranchesAdd")}
+              {t("settings.venueBranchesAdd")}
             </Text>
           </Pressable>
         </ScrollView>

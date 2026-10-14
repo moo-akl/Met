@@ -31,6 +31,7 @@ import { logger } from "../lib/logger";
 import { getVerifiedTier } from "../lib/revenueCat";
 import { adminDb } from "../lib/firebaseAdmin";
 import { z } from "zod/v4";
+import { VerifyVenueQrBody } from "@workspace/api-zod";
 import { recalcUserRating } from "../lib/reviewRecalc";
 
 const router: IRouter = Router();
@@ -611,10 +612,7 @@ router.post(
 // Body: { placeId: string, token: string }
 // ---------------------------------------------------------------------------
 
-const QrVerifyBody = z.object({
-  placeId: z.string().min(1),
-  token: z.string().uuid(),
-});
+const QrVerifyBody = VerifyVenueQrBody;
 
 router.post(
   "/hubs/qr-verify",
@@ -661,6 +659,18 @@ router.post(
     });
 
     logger.info({ uid, placeId }, "venue QR verification recorded");
+
+    // Photo-less accounts record a private visit only. In particular, do not
+    // insert a public leaderboard/reward check-in or publish visitor identity.
+    const [visitor] = await db
+      .select({ photoUrl: profilesTable.photoUrl, displayName: profilesTable.displayName })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, uid))
+      .limit(1);
+    if (!visitor?.photoUrl?.trim() || !visitor.displayName.trim()) {
+      res.json({ verified: true, streak: 0, privateOnly: true });
+      return;
+    }
 
     // Ensure the user has a hub_checkins row for this visit.
     // For registered venues the GPS /hubs/checkin returns early (no row inserted)

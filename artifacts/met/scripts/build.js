@@ -3,6 +3,11 @@ const path = require("path");
 const { spawn } = require("child_process");
 const { Readable } = require("stream");
 const { pipeline } = require("stream/promises");
+const {
+  NETWORK_DOWNLOAD_TIMEOUT_MS,
+  BUNDLE_BUILD_TIMEOUT_MS,
+  ALL_PLATFORMS_TIMEOUT_MS,
+} = require("./build-timeouts.cjs");
 
 let metroProcess = null;
 
@@ -203,10 +208,9 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
   process.exit(1);
 }
 
-async function downloadFile(url, outputPath) {
+async function downloadFile(url, outputPath, timeoutMs = NETWORK_DOWNLOAD_TIMEOUT_MS) {
   const controller = new AbortController();
-  const fiveMinMS = 5 * 60 * 1_000;
-  const timeoutId = setTimeout(() => controller.abort(), fiveMinMS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     console.log(`Downloading: ${url}`);
@@ -231,7 +235,7 @@ async function downloadFile(url, outputPath) {
     }
 
     if (error.name === "AbortError") {
-      throw new Error(`Download timeout after 5m: ${url}`);
+      throw new Error(`Download timeout after ${timeoutMs / 60_000}m: ${url}`);
     }
     throw error;
   } finally {
@@ -260,13 +264,13 @@ async function downloadBundle(platform, timestamp) {
   );
 
   console.log(`Fetching ${platform} bundle...`);
-  await downloadFile(url.toString(), output);
+  await downloadFile(url.toString(), output, BUNDLE_BUILD_TIMEOUT_MS);
   console.log(`${platform} bundle ready`);
 }
 
 async function downloadManifest(platform) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300_000);
+  const timeoutId = setTimeout(() => controller.abort(), NETWORK_DOWNLOAD_TIMEOUT_MS);
 
   try {
     console.log(`Fetching ${platform} manifest...`);
@@ -532,7 +536,7 @@ async function main() {
 
   await startMetro(domain, expoPublicReplId);
 
-  const downloadTimeout = 600000;
+  const downloadTimeout = ALL_PLATFORMS_TIMEOUT_MS;
   const downloadPromise = downloadBundlesAndManifests(timestamp);
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {

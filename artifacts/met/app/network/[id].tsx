@@ -1,3 +1,4 @@
+import { withSocialGate } from "@/components/ProfileCompletionGate";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -131,7 +132,7 @@ function NetworkTabs({
   );
 }
 
-export default function NetworkDetailScreen() {
+function NetworkDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const networkId = Number(id);
   const colors = useColors();
@@ -1475,3 +1476,5 @@ const styles = StyleSheet.create({
   },
   regenerateBtnText: { fontFamily: "Inter_500Medium", fontSize: 13 },
 });
+
+export default withSocialGate(NetworkDetailScreen, { showBack: true });

@@ -7,7 +7,9 @@ import {
 } from "./venueOutreachEmail";
 
 describe("venue outreach templates", () => {
-  it.each(OUTREACH_TEMPLATE_IDS.filter((template) => template !== "preapproval_video_application"))("renders %s safely without claiming access was granted", (template) => {
+  it.each(OUTREACH_TEMPLATE_IDS.filter((template) =>
+    template !== "preapproval_video_application" && template !== "latest_updates",
+  ))("renders %s safely without claiming access was granted", (template) => {
     const email = buildVenueOutreachEmail({
       businessName: "North & <South>",
       template,
@@ -18,6 +20,47 @@ describe("venue outreach templates", () => {
     expect(email.html).not.toContain("/register?token=");
     expect(email.text).toContain("No account access or registration deadline");
     expect(email.text.toLowerCase()).toContain("reply");
+  });
+
+  it("announces multi-venue management and printable venue-branded Check In QR codes", () => {
+    const email = buildVenueOutreachEmail({
+      businessName: "Ignored venue name",
+      template: "latest_updates",
+      venueManagerUrl: "https://met-app.org/venue-manager",
+      hasPosterAttachments: true,
+    });
+
+    expect(email.subject).toBe("Great news for our venue managers.");
+    for (const message of [email.html, email.text]) {
+      const normalizedMessage = message.toLowerCase();
+      expect(normalizedMessage).toContain("add and manage multiple venues");
+      expect(normalizedMessage).toContain("met app");
+      expect(normalizedMessage).toContain("venue manager links");
+      expect(normalizedMessage).toContain("design-ready check in qr code");
+      expect(normalizedMessage).toContain("venue name");
+      expect(normalizedMessage).toContain("venue manager website");
+    }
+    expect(email.html).not.toContain("Ignored venue name");
+    expect(email.html).toContain('href="https://met-app.org/venue-manager"');
+    expect(email.html).toContain("Venue Manager link: <a");
+    expect(email.html).toContain("https://met-app.org/venue-manager</a>");
+    expect(email.text).toContain("Sign in to Venue Manager: https://met-app.org/venue-manager");
+    expect(email.text).toContain("attached an A4 PDF pack");
+  });
+
+  it("shows a visible, copyable Venue Manager URL in the prospect invitation", () => {
+    const email = buildVenueOutreachEmail({
+      businessName: "The Gallery",
+      template: "latest_updates_prospect",
+      venueManagerUrl: "https://met-app.org/venue-manager",
+    });
+
+    expect(email.html).toContain('href="https://met-app.org/venue-manager"');
+    expect(email.html).toContain("Venue Manager link: <a");
+    expect(email.html).toContain("https://met-app.org/venue-manager</a>");
+    expect(email.text).toContain("Sign in or create an account: https://met-app.org/venue-manager");
+    expect(email.html).not.toContain("A4 PDF pack");
+    expect(email.text).not.toContain("A4 PDF pack");
   });
 
   it("sends a video introduction with an email-bound one-time application link for review", () => {

@@ -65,6 +65,8 @@ vi.mock("@workspace/db", () => ({
   presenceTable: { _name: "presence" },
   pioneerReferralsTable: { _name: "pioneer_referrals" },
   hubCheckinsTable: { _name: "hub_checkins" },
+  venueQrVerificationsTable: { _name: "venue_qr_verifications" },
+  venueReviewsTable: { _name: "venue_reviews" },
   profileViewsTable: { _name: "profile_views" },
   reviewsTable: { _name: "reviews" },
   monthlyChampionsTable: { _name: "monthly_champions" },
@@ -151,6 +153,14 @@ describe("deleteUserData — Postgres cleanup", () => {
     await deleteUserData("uid-alice");
 
     expect(tables).toContain(hubCheckinsTable);
+  });
+
+  it("erases private QR visits and venue reviews on account deletion", async () => {
+    const { tables } = captureDeletedTables();
+    const { venueQrVerificationsTable, venueReviewsTable } = await import("@workspace/db");
+    await deleteUserData("uid-alice");
+    expect(tables).toContain(venueQrVerificationsTable);
+    expect(tables).toContain(venueReviewsTable);
   });
 
   it("deletes the profile row AFTER other tables (profile is last)", async () => {
