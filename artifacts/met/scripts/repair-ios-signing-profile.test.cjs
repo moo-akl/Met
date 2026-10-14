@@ -196,7 +196,10 @@ test("project config confirms the static bundle, project UUID, and internal prev
   assert.equal(CONFIG.bundleIdentifier, "app.met.founders");
   assert.equal(CONFIG.projectId, "f9d35bdb-e890-408f-b9d9-4ca36cbeae23");
   assert.equal(CONFIG.teamIdentifier, "AWHU9BTQQX");
-  assert.deepEqual(CONFIG.associatedDomains, ["applinks:metapp.replit.app"]);
+  assert.deepEqual(CONFIG.associatedDomains, [
+    "applinks:metapp.replit.app",
+    "applinks:met-app.org",
+  ]);
   assert.throws(
     () =>
       repair.validateProject(
@@ -692,6 +695,15 @@ test("embedded CMS plist validation requires push, app links, team, exact device
         "com.apple.developer.associated-domains": ["applinks:other.example"],
       },
     }),
+    ...CONFIG.associatedDomains.map((missingDomain) =>
+      embeddedProfile({
+        Entitlements: {
+          ...embeddedProfile().Entitlements,
+          "com.apple.developer.associated-domains":
+            CONFIG.associatedDomains.filter((domain) => domain !== missingDomain),
+        },
+      }),
+    ),
     embeddedProfile({
       Entitlements: {
         ...embeddedProfile().Entitlements,
