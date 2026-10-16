@@ -1487,7 +1487,19 @@ export default function VenueProfileScreen() {
 // ─── styles ──────────────────────────────────────────────────────────────────
 
 const canopyVenue = StyleSheet.create({
-  header: { paddingHorizontal: 12, paddingBottom: 5, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  // Keep the controls above the native sheet's scroll content and cover image.
+  header: {
+    flexShrink: 0,
+    position: "relative",
+    zIndex: 10,
+    elevation: 4,
+    backgroundColor: BG,
+    paddingHorizontal: 12,
+    paddingBottom: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   headerLabel: { color: MUTED, fontFamily: "Inter_600SemiBold", fontSize: 9, letterSpacing: 1.2 },
   iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingVertical: 11 },
