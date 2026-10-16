@@ -12,6 +12,7 @@ import Animated, {
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useHasUnreadChats } from "@/hooks/useHasUnreadChats";
 import { useSessionCount } from "@/hooks/useSessionCount";
 import { useT } from "@/lib/i18n";
@@ -98,22 +99,22 @@ function HomeTabIcon({ color }: { color: string }) {
 
 export default function TabLayout() {
   const colors = useColors();
+  const { isDark } = useTheme();
   const isWeb = Platform.OS === "web";
   const { t } = useT();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: isDark ? colors.primary : colors.brandPanel,
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarShowLabel: true,
         tabBarLabelStyle: {
-          fontFamily: "Inter_600SemiBold",
-          fontSize: 9,
+          fontFamily: "Inter_500Medium",
+          fontSize: 10,
           marginTop: 2,
-          letterSpacing: 1.4,
-          textTransform: "uppercase",
+          letterSpacing: 0,
         },
         tabBarStyle: {
           backgroundColor: colors.background,

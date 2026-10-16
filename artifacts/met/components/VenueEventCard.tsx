@@ -1,14 +1,15 @@
 /**
  * VenueEventCard
  *
- * Bright & Airy style — white card, coral accent, light date badge,
- * gradient overlay on image, RSVP button in coral. Used in:
+ * Canopy place card — paper surface, forest accent, light date badge,
+ * photographic cover and server-backed RSVP. Used in:
  *   - Public venue profile horizontal scroll
  *   - Home tab "Events Near Me" section
  */
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   StyleSheet,
@@ -17,14 +18,15 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useApp } from "@/contexts/AppContext";
-import { api, ApiError } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
+import themeColors from "@/constants/colors";
 
-const CORAL  = "#FF385C";
-const TEXT   = "#222222";
-const TEXT2  = "#484848";
-const MUTED  = "#9CA3AF";
-const CARD   = "#FFFFFF";
-const BORDER = "#F0F0F0";
+const CORAL = themeColors.light.brandPanel;
+const TEXT = themeColors.light.text;
+const TEXT2 = "#526557";
+const MUTED = themeColors.light.mutedForeground;
+const CARD = themeColors.light.card;
+const BORDER = themeColors.light.border;
 
 export interface VenueEventCardData {
   id: number;
@@ -43,6 +45,7 @@ interface Props {
   event: VenueEventCardData;
   onPress?: () => void;
   onRsvpChange?: (eventId: number, status: "going" | "maybe" | "not_going") => void;
+  readOnly?: boolean;
 }
 
 function formatEventDate(iso: string): { month: string; day: string; time: string } {
@@ -54,7 +57,7 @@ function formatEventDate(iso: string): { month: string; day: string; time: strin
   };
 }
 
-export function VenueEventCard({ event, onPress, onRsvpChange }: Props) {
+export function VenueEventCard({ event, onPress, onRsvpChange, readOnly = false }: Props) {
   const { authedUid } = useApp();
   const [myRsvp, setMyRsvp] = useState<"going" | "maybe" | "not_going" | null>(
     event.myRsvp ?? null,
@@ -64,7 +67,7 @@ export function VenueEventCard({ event, onPress, onRsvpChange }: Props) {
 
   const handleRsvp = useCallback(
     async (status: "going" | "maybe" | "not_going") => {
-      if (!authedUid || loading) return;
+      if (readOnly || !authedUid || loading) return;
       setLoading(true);
       try {
         await api.rsvpEvent({ uid: authedUid }, event.id, status);
@@ -74,15 +77,13 @@ export function VenueEventCard({ event, onPress, onRsvpChange }: Props) {
         if (wasGoing && !nowGoing) setRsvpCount((c) => Math.max(0, c - 1));
         setMyRsvp(status);
         onRsvpChange?.(event.id, status);
-      } catch (err) {
-        if (!(err instanceof ApiError)) {
-          // swallow silently
-        }
+      } catch {
+        Alert.alert("Couldn't update RSVP", "Please try again in a moment.");
       } finally {
         setLoading(false);
       }
     },
-    [authedUid, event.id, loading, myRsvp, onRsvpChange],
+    [authedUid, event.id, loading, myRsvp, onRsvpChange, readOnly],
   );
 
   const isGoing   = myRsvp === "going";
@@ -147,7 +148,7 @@ export function VenueEventCard({ event, onPress, onRsvpChange }: Props) {
               ? styles.rsvpBtnActive
               : styles.rsvpBtnIdle,
           ]}
-          disabled={loading}
+          disabled={loading || readOnly}
           accessibilityRole="button"
           accessibilityLabel={isGoing ? "Cancel RSVP" : "RSVP Going"}
         >

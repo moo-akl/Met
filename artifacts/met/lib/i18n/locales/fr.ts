@@ -101,6 +101,12 @@ export const fr: LocaleTree = {
     metListening:
       "Met écoute en silence. Toute personne croisée apparaîtra dans Récents.",
     invisibleHeadline: "Vous êtes invisible pour les autres",
+    canopyHeadline: "Un peu plus près\nde votre monde.",
+    canopyPrivacy: "Découvrez les alentours, à votre rythme.",
+    canopyCurrentPlace: "VOTRE LIEU ACTUEL",
+    canopyPlaces: "Un lieu pour commencer",
+    canopyPlacesRetry: "Impossible de charger les lieux. Touchez pour réessayer.",
+    canopyPlacesEmpty: "Explorez la carte ou signalez votre présence dans un lieu proche pour commencer.",
     invisibleSub:
       "Réactivez \u201CVisible sur le radar\u201D dans Réglages pour redécouvrir des gens.",
     peopleWantReveal_one: "{{count}} personne veut se révéler",

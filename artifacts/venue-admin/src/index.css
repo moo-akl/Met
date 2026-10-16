@@ -280,6 +280,20 @@
     pointer-events: none;
   }
 
+  .rich-email-template-editor {
+    overflow-wrap: anywhere;
+  }
+
+  .rich-email-template-editor table {
+    max-width: 100%;
+    border-collapse: collapse;
+  }
+
+  .rich-email-template-editor img {
+    max-width: 100%;
+    height: auto;
+  }
+
   /* .no-default-hover-elevate/no-default-active-elevate is an escape hatch so consumers of
    * buttons/badges can remove the automatic brightness adjustment on interactions
    * and program their own. */

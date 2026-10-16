@@ -23,6 +23,7 @@ import deepLinkCheckRouter from "./deepLinkCheck";
 import venueReviewsRouter from "./venueReviews";
 import venueActivationRouter from "./venueActivation";
 import venueGuestbookRouter from "./venueGuestbook";
+import savedPlacesRouter from "./savedPlaces";
 
 const router: IRouter = Router();
 
@@ -48,6 +49,7 @@ router.use(venueManagerRouter);
 router.use(createVenueManagerClaimRouter(requireUid));
 router.use(venueReviewsRouter);
 router.use(venueGuestbookRouter);
+router.use(savedPlacesRouter);
 router.use(venueActivationRouter);
 router.use(deepLinkCheckRouter);
 

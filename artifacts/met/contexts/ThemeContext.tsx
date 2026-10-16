@@ -14,13 +14,13 @@ type ThemeContextType = {
 const THEME_KEY = "met:theme";
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: "dark",
+  theme: "light",
   toggleTheme: () => {},
-  isDark: true,
+  isDark: false,
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<ThemeMode>("dark");
+  const [theme, setTheme] = useState<ThemeMode>("light");
   const screenshotLightTheme =
     __DEV__ &&
     Platform.OS === "web" &&

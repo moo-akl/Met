@@ -15,6 +15,8 @@ export interface VenueOutreachHistoryEntry {
   businessName: string;
   recipientEmail: string;
   template: string;
+  /** @nullable */
+  templateName?: string | null;
   deliveryStatus: VenueOutreachHistoryEntryDeliveryStatus;
   createdAt: Date;
   /** @nullable */

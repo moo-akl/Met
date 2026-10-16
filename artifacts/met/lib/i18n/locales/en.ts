@@ -102,6 +102,12 @@ export const en = {
     metListening:
       "Met is quietly listening. Anyone you cross paths with shows up under Recent.",
     invisibleHeadline: "You're invisible to others",
+    canopyHeadline: "A little closer\nto your world.",
+    canopyPrivacy: "Nearby discovery, on your terms.",
+    canopyCurrentPlace: "YOUR CURRENT PLACE",
+    canopyPlaces: "A place to begin",
+    canopyPlacesRetry: "Couldn't load places. Tap to retry.",
+    canopyPlacesEmpty: "Explore the map or check in at a nearby venue to get started.",
     invisibleSub:
       "Turn \u201CVisible on Radar\u201D back on in Settings to start discovering people again.",
     peopleWantReveal_one: "{{count}} person wants to reveal",

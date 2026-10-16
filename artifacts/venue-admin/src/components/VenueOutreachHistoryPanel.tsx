@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  createVenueRegistrationLink,
+  useListVenueEmailTemplates,
+  getListVenueEmailTemplatesQueryKey,
+  sendManualVenueEmail,
+  type VenueEmailTemplate,
   getGetVenueOutreachHistoryQueryKey,
-  sendNewVenueOutreach,
-  sendVenueContactRequest,
   useGetVenueOutreachHistory,
   useUpdateVenueOutreachPlaceId,
   useUpdateVenueOutreachFollowUp,
   type VenueOutreachHistoryEntry,
-  type VenueOutreachInputTemplate,
-  type VenueRegistrationLinkInputTemplate,
   type VenueOutreachPlaceIdInput,
 } from "@workspace/api-client-react";
 import {
@@ -35,34 +34,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { dedupeVenueHistory, isBulkEligible, sendVenueBatch, sortVenueGroups, type WorklistSort } from "@/components/venue-outreach-worklist";
+import { DEFAULT_WORKLIST_FILTERS, dedupeRecipientEmails, dedupeVenueHistory, filterVenueGroups, isFollowUpDue, lastSuccessfulEmail, sendVenueBatch, sortVenueGroups, venueApplication, type WorklistSort } from "@/components/venue-outreach-worklist";
+import VenueOutreachFilters, { emailTemplateLabel } from "@/components/VenueOutreachFilters";
+import VenueEmailTemplateManager, { templatePreview } from "@/components/VenueEmailTemplateManager";
 
 type Props = { onClose: () => void; initialSearch?: string };
-type StatusFilter = "all" | VenueOutreachHistoryEntry["deliveryStatus"];
-type KindFilter = "all" | VenueOutreachHistoryEntry["kind"];
-type FollowUpFilter = "all" | "scheduled" | "unscheduled";
-type TemplateValue = VenueOutreachInputTemplate | VenueRegistrationLinkInputTemplate;
+type TemplateValue = string;
 type FollowUpDraft = { note: string; dueDate: string };
-
-const outreachTemplates: Array<{ value: VenueOutreachInputTemplate; label: string }> = [
-  { value: "contact_request", label: "Contact request" },
-  { value: "met_launch_with_links", label: "Met launch with links" },
-  { value: "met_launch_without_links", label: "Met launch without links" },
-  { value: "preapproval_video_application", label: "Pre-approval video application" },
-  { value: "introduction", label: "Introduction" },
-  { value: "benefits", label: "Benefits" },
-  { value: "events", label: "Events" },
-  { value: "rewards", label: "Rewards" },
-  { value: "follow_up", label: "Follow-up" },
-];
-const managerUpdateTemplates: Array<{ value: VenueOutreachInputTemplate; label: string }> = [
-  { value: "latest_updates", label: "Latest venue manager updates" },
-];
-
-const registrationTemplates: Array<{ value: VenueRegistrationLinkInputTemplate; label: string }> = [
-  { value: "registration", label: "Registration link" },
-  { value: "registration_with_video", label: "Registration link with video" },
-];
 
 function prettify(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -79,23 +57,6 @@ function formatDate(value: string | null): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
-}
-
-function isRegistrationTemplate(value: string): value is VenueRegistrationLinkInputTemplate {
-  return value === "registration" || value === "registration_with_video";
-}
-
-function getTemplateOptions(kind: VenueOutreachHistoryEntry["kind"]) {
-  if (kind === "registration_invite") return registrationTemplates;
-  if (kind === "manager_announcement") return managerUpdateTemplates;
-  return outreachTemplates;
-}
-
-function getDefaultTemplate(entry: VenueOutreachHistoryEntry): TemplateValue {
-  const templates = getTemplateOptions(entry.kind);
-  return templates.some((option) => option.value === entry.template)
-    ? (entry.template as TemplateValue)
-    : templates[0].value;
 }
 
 function deliveryLabel(status: VenueOutreachHistoryEntry["deliveryStatus"]): string {
@@ -149,26 +110,26 @@ function ResendDialog({
   busy,
   onOpenChange,
   onResend,
+  templates,
 }: {
   entry: VenueOutreachHistoryEntry | null;
   open: boolean;
   busy: boolean;
   onOpenChange: (open: boolean) => void;
-  onResend: (entry: VenueOutreachHistoryEntry, recipientEmail: string, template: TemplateValue, checkedSent: boolean) => void;
+  onResend: (entry: VenueOutreachHistoryEntry, recipientEmail: string, template: TemplateValue) => void;
+  templates: VenueEmailTemplate[];
 }) {
   const [recipientEmail, setRecipientEmail] = useState("");
   const [template, setTemplate] = useState<TemplateValue>("contact_request");
-  const [checkedSent, setCheckedSent] = useState(false);
 
   const entryKey = entry?.id ?? "";
   const needsSentCheck = entry?.deliveryStatus === "delivery_uncertain";
-  const options = entry ? getTemplateOptions(entry.kind) : [];
+  const options = templates.map((template) => ({ value: template.id, label: template.name }));
 
   useEffect(() => {
     if (entry) {
       setRecipientEmail(entry.recipientEmail);
-      setTemplate(getDefaultTemplate(entry));
-      setCheckedSent(false);
+      setTemplate(templates.some((template) => template.id === entry.template) ? entry.template : "");
     }
   }, [entryKey]); // Deliberately reset only when a different row is opened.
 
@@ -178,8 +139,7 @@ function ResendDialog({
   const canSubmit =
     trimmedEmail.length > 3 &&
     trimmedEmail.includes("@") &&
-    Boolean(template) &&
-    (!needsSentCheck || checkedSent) &&
+    templates.some((option) => option.id === template) &&
     !busy;
 
   return (
@@ -231,6 +191,7 @@ function ResendDialog({
                   onChange={(event) => setTemplate(event.target.value as TemplateValue)}
                   className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-white px-3 pr-9 text-sm text-slate-800 outline-none transition focus:border-slate-600 focus:ring-2 focus:ring-slate-200"
                 >
+                  <option value="">Choose an email template</option>
                   {options.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
@@ -246,16 +207,6 @@ function ResendDialog({
               <p className="mt-1 text-xs leading-5 text-amber-900/80">
                 Delivery could not be confirmed. A second send may create a duplicate. Check the connected Gmail Sent folder first.
               </p>
-              <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm text-amber-950">
-                <input
-                  type="checkbox"
-                  data-testid="checkbox-gmail-sent-confirmation"
-                  checked={checkedSent}
-                  onChange={(event) => setCheckedSent(event.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-amber-700"
-                />
-                <span>I checked Gmail Sent and understand a duplicate may occur.</span>
-              </label>
             </div>
           )}
         </div>
@@ -267,7 +218,7 @@ function ResendDialog({
           <Button
             type="button"
             data-testid="button-confirm-resend"
-            onClick={() => onResend(entry, trimmedEmail, template, checkedSent)}
+            onClick={() => onResend(entry, trimmedEmail, template)}
             disabled={!canSubmit}
             className="bg-[#25324a] text-white hover:bg-[#1d283c]"
           >
@@ -475,22 +426,17 @@ function OutreachPlaceDialog({
 export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [search, setSearch] = useState(initialSearch);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [filters, setFilters] = useState({ ...DEFAULT_WORKLIST_FILTERS, search: initialSearch });
   const [selectedEntry, setSelectedEntry] = useState<VenueOutreachHistoryEntry | null>(null);
   const [placeIdEntry, setPlaceIdEntry] = useState<VenueOutreachHistoryEntry | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
-  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
-  const [linkFilter, setLinkFilter] = useState<"all" | VenueOutreachHistoryEntry["linkStatus"]>("all");
-  const [applicationFilter, setApplicationFilter] = useState<"all" | "linked" | "unlinked" | "approved">("all");
-  const [agentFilter, setAgentFilter] = useState<"all" | "assigned" | "unassigned">("all");
-  const [followUpFilter, setFollowUpFilter] = useState<FollowUpFilter>("all");
   const [sort, setSort] = useState<WorklistSort>("recent");
   const [followUpDrafts, setFollowUpDrafts] = useState<Record<string, FollowUpDraft>>({});
   const [savingFollowUpKey, setSavingFollowUpKey] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
-  const [bulkKind, setBulkKind] = useState<VenueOutreachHistoryEntry["kind"]>("new_venue_outreach");
   const [bulkTemplate, setBulkTemplate] = useState<TemplateValue>("contact_request");
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [onePerAddress, setOnePerAddress] = useState(true);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkSending, setBulkSending] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ completed: number; current: number; total: number } | null>(null);
@@ -499,104 +445,69 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
   const historyQuery = useGetVenueOutreachHistory({
     query: { queryKey: getGetVenueOutreachHistoryQueryKey() },
   });
+  const templatesQuery = useListVenueEmailTemplates({
+    query: { queryKey: getListVenueEmailTemplatesQueryKey(), staleTime: 0, refetchOnMount: "always" },
+  });
+  const emailTemplates = templatesQuery.data ?? [];
+  const selectedTemplate = emailTemplates.find((template) => template.id === bulkTemplate);
+  useEffect(() => {
+    if (templatesQuery.isSuccess && bulkTemplate && !selectedTemplate) {
+      setBulkTemplate("");
+      setBulkConfirmOpen(false);
+    }
+  }, [templatesQuery.data, bulkTemplate, templatesQuery.isSuccess]);
   const followUpMutation = useUpdateVenueOutreachFollowUp();
   const placeIdMutation = useUpdateVenueOutreachPlaceId();
   const entries = historyQuery.data?.emails ?? [];
+  const templateLabels = {
+    ...Object.fromEntries(entries.filter((entry) => entry.templateName).map((entry) => [entry.template, entry.templateName!])),
+    ...Object.fromEntries(emailTemplates.map((template) => [template.id, template.name])),
+  };
 
   const venueGroups = useMemo(() => dedupeVenueHistory(entries), [entries]);
-  const filteredGroups = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const filtered = venueGroups.filter((group) => {
-      const entry = group.latest;
-      return (statusFilter === "all" || entry.deliveryStatus === statusFilter) &&
-        (kindFilter === "all" || entry.kind === kindFilter) &&
-        (linkFilter === "all" || entry.linkStatus === linkFilter) &&
-        (applicationFilter === "all" ||
-          (applicationFilter === "linked" && entry.applicationId != null) ||
-          (applicationFilter === "unlinked" && entry.applicationId == null) ||
-          (applicationFilter === "approved" && entry.applicationStatus === "approved")) &&
-        (agentFilter === "all" ||
-          (agentFilter === "assigned" && entry.assignedAgentId != null) ||
-          (agentFilter === "unassigned" && entry.assignedAgentId == null)) &&
-        (followUpFilter === "all" ||
-          (followUpFilter === "scheduled" && Boolean(entry.nextActionNote?.trim() || entry.nextActionDueDate)) ||
-          (followUpFilter === "unscheduled" && !entry.nextActionNote?.trim() && !entry.nextActionDueDate)) &&
-        (() => {
-          if (!query) return true;
-          const followUpState = entry.nextActionNote?.trim() || entry.nextActionDueDate
-            ? "follow-up scheduled planned"
-            : "no follow-up unscheduled";
-          const agentText = entry.assignedAgentName ?? (entry.assignedAgentId == null ? "unassigned" : `agent ${entry.assignedAgentId}`);
-          const currentDetailsMatch = [
-            agentText,
-            entry.nextActionNote ?? "",
-            entry.nextActionDueDate ?? "",
-            followUpState,
-          ].join(" ").toLowerCase().includes(query);
-          return currentDetailsMatch || group.events.some((event) =>
-            [event.businessName, event.recipientEmail, event.template, event.applicationStatus ?? ""]
-              .join(" ").toLowerCase().includes(query),
-          );
-        })();
-    });
-    return sortVenueGroups(filtered, sort);
-  }, [venueGroups, kindFilter, search, statusFilter, linkFilter, applicationFilter, agentFilter, followUpFilter, sort]);
+  const filteredGroups = useMemo(
+    () => sortVenueGroups(filterVenueGroups(venueGroups, filters), sort),
+    [venueGroups, filters, sort],
+  );
+  const historyTemplates = useMemo(() => Array.from(new Set(entries.map((entry) => entry.template)))
+    .sort((a, b) => emailTemplateLabel(a).localeCompare(emailTemplateLabel(b))), [entries]);
 
   const selectedGroups = venueGroups.filter((group) => selectedKeys.includes(group.key));
-  const canBulkSend = (group: (typeof venueGroups)[number]) =>
-    isBulkEligible(group, bulkKind, String(bulkTemplate));
-  const eligibleSelected = selectedGroups.filter(canBulkSend);
-  const recipientsForBulk = eligibleSelected.slice(0, 25);
-  const eligibleVisible = filteredGroups.filter(canBulkSend);
+  const visibleKeys = new Set(filteredGroups.map((group) => group.key));
+  const hiddenSelectedCount = selectedGroups.filter((group) => !visibleKeys.has(group.key)).length;
+  const recipientsForBulk = onePerAddress ? dedupeRecipientEmails(selectedGroups) : selectedGroups;
+  const allVenuesSelected = venueGroups.length > 0 && venueGroups.every((group) => selectedKeys.includes(group.key));
   const selectVisible = () => setSelectedKeys((current) => {
-    const visible = eligibleVisible.map((group) => group.key);
+    const visible = filteredGroups.map((group) => group.key);
     const allVisibleSelected = visible.length > 0 && visible.every((key) => current.includes(key));
     if (allVisibleSelected) return current.filter((key) => !visible.includes(key));
-    const additions = visible.filter((key) => !current.includes(key)).slice(0, Math.max(0, 25 - current.length));
-    return Array.from(new Set([...current, ...additions]));
+    return Array.from(new Set([...current, ...visible]));
   });
   const toggleVenue = (key: string) => setSelectedKeys((current) => {
     if (current.includes(key)) return current.filter((value) => value !== key);
-    const group = venueGroups.find((candidate) => candidate.key === key);
-    if (!group || current.length >= 25 || !canBulkSend(group)) return current;
     return [...current, key];
   });
+  const selectAllVenues = () => {
+    setSelectedKeys(allVenuesSelected ? [] : venueGroups.map((group) => group.key));
+    setBulkResult(null);
+  };
 
-  const bulkTemplateOptions = bulkKind === "registration_invite"
-    ? registrationTemplates
-    : bulkKind === "contact_request"
-      ? [{ value: "contact_request" as const, label: "Contact request" }]
-      : outreachTemplates.filter((item) => item.value !== "preapproval_video_application");
+  const sendManual = async (entry: VenueOutreachHistoryEntry, recipientEmail: string, templateId: string) => {
+    const sent = await sendManualVenueEmail({
+      businessName: entry.businessName, recipientEmail, templateId,
+      ...(entry.placeId ? { placeId: entry.placeId } : {}),
+      ...(entry.venueOwnerProfileId != null ? { venueOwnerProfileId: entry.venueOwnerProfileId } : {}),
+    });
+    if (!sent.emailSent) throw new Error(`Delivery was not confirmed for ${recipientEmail}.`);
+  };
 
   const runBulkSend = async () => {
-    const recipients = eligibleSelected.slice(0, 25).map((group) => group.latest);
+    const recipients = recipientsForBulk.map((group) => group.latest);
     setBulkSending(true);
     setBulkProgress({ completed: 0, current: 1, total: recipients.length });
     try {
-      const result = await sendVenueBatch(recipients, async (entry) => {
-        if (entry.kind === "new_venue_outreach") {
-          const sent = await sendNewVenueOutreach({
-            businessName: entry.businessName,
-            recipientEmail: entry.recipientEmail,
-            template: bulkTemplate as VenueOutreachInputTemplate,
-          });
-          if (!sent.emailSent) throw new Error(`Delivery not confirmed for ${entry.recipientEmail}.`);
-        } else if (entry.kind === "contact_request") {
-          if (entry.venueOwnerProfileId == null) throw new Error("Contact request is missing a venue profile.");
-          const sent = await sendVenueContactRequest(entry.venueOwnerProfileId, { recipientEmail: entry.recipientEmail });
-          if (!sent.emailSent) throw new Error(`Delivery not confirmed for ${entry.recipientEmail}.`);
-        } else if (entry.kind === "registration_invite") {
-          if (entry.venueOwnerProfileId == null || entry.applicationStatus !== "approved") throw new Error("Registration links are only available for approved profiles.");
-          const sent = await createVenueRegistrationLink(entry.venueOwnerProfileId, {
-            sendEmail: true,
-            recipientEmail: entry.recipientEmail,
-            template: bulkTemplate as VenueRegistrationLinkInputTemplate,
-          });
-          if (!sent.emailSent) throw new Error(`Delivery could not be confirmed for ${entry.recipientEmail}; check Gmail Sent before retrying.`);
-        } else {
-          throw new Error("Manager announcements cannot be sent from this worklist.");
-        }
-      }, setBulkProgress);
+      const result = await sendVenueBatch(recipients,
+        (entry) => sendManual(entry, entry.recipientEmail, bulkTemplate), setBulkProgress);
       await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
       setBulkConfirmOpen(false);
       setBulkResult({
@@ -614,6 +525,7 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
 
   const counts = useMemo(() => ({
     total: venueGroups.length,
+    followup: venueGroups.filter((group) => isFollowUpDue(group)).length,
     attention: venueGroups.filter((group) =>
       group.latest.deliveryStatus === "delivery_uncertain" || group.latest.deliveryStatus === "failed",
     ).length,
@@ -623,59 +535,15 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
     entry: VenueOutreachHistoryEntry,
     recipientEmail: string,
     template: TemplateValue,
-    checkedSent: boolean,
   ) => {
-    if (entry.deliveryStatus === "delivery_uncertain" && !checkedSent) return;
-    if (
-      entry.kind !== "new_venue_outreach" &&
-      entry.kind !== "manager_announcement" &&
-      entry.venueOwnerProfileId == null
-    ) {
-      toast({
-        variant: "destructive",
-        title: "Cannot resend this record",
-        description: "This history entry does not include the venue owner profile needed to send it again.",
-      });
-      return;
-    }
-    if (
-      entry.linkStatus === "used" &&
-      (entry.kind === "new_venue_outreach" || entry.kind === "registration_invite")
-    ) {
-      toast({
-        variant: "destructive",
-        title: "Link already used",
-        description: "This invitation link has already been used and cannot be sent again.",
-      });
-      return;
-    }
-
     setResendingId(entry.id);
     try {
-      if (entry.kind === "new_venue_outreach" || entry.kind === "manager_announcement") {
-        const result = await sendNewVenueOutreach({
-          businessName: entry.businessName,
-          recipientEmail,
-          template: template as VenueOutreachInputTemplate,
-        });
-        if (!result.emailSent) throw new Error("The email service did not confirm delivery.");
-      } else if (entry.kind === "contact_request") {
-        const result = await sendVenueContactRequest(entry.venueOwnerProfileId as number, { recipientEmail });
-        if (!result.emailSent) throw new Error("The email service did not confirm delivery.");
-      } else {
-        const result = await createVenueRegistrationLink(entry.venueOwnerProfileId as number, {
-          sendEmail: true,
-          recipientEmail,
-          template: isRegistrationTemplate(template) ? template : "registration",
-        });
-        if (!result.emailSent) throw new Error("The registration email could not be confirmed. Check Gmail Sent before trying again.");
-      }
-
+      await sendManual(entry, recipientEmail, template);
       await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
       setSelectedEntry(null);
       toast({
         title: "Email sent",
-        description: `A new ${prettify(template)} email was sent to ${recipientEmail}.`,
+        description: `A new ${templateLabels[template] ?? emailTemplateLabel(template)} email was sent to ${recipientEmail}.`,
       });
     } catch (error) {
       await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
@@ -741,15 +609,7 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
     }
   };
 
-  const clearFilters = () => {
-    setSearch("");
-    setStatusFilter("all");
-    setKindFilter("all");
-    setLinkFilter("all");
-    setApplicationFilter("all");
-    setAgentFilter("all");
-    setFollowUpFilter("all");
-  };
+  const clearFilters = () => setFilters({ ...DEFAULT_WORKLIST_FILTERS });
 
   return (
     <div className="min-h-[100dvh] bg-[#e9e7e2] text-slate-950" data-testid="panel-venue-outreach-history">
@@ -817,118 +677,52 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
         </div>
 
         <section className="rounded-xl border border-slate-300 bg-[#f7f5f1] shadow-[0_12px_35px_rgba(37,50,74,0.07)]" data-testid="section-outreach-history">
-          <div className="flex flex-col gap-4 border-b border-slate-300/80 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative min-w-0 flex-1 lg:max-w-[460px]">
-              <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-              <Input
-                type="search"
-                data-testid="input-search-outreach-history"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search venue, recipient, or template"
-                className="h-10 border-slate-300 bg-white pl-10 text-sm"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <select
-                  data-testid="select-outreach-kind-filter"
-                  value={kindFilter}
-                  onChange={(event) => setKindFilter(event.target.value as KindFilter)}
-                  className="h-10 w-full appearance-none rounded-md border border-slate-300 bg-white px-3 pr-9 text-sm text-slate-700 outline-none focus:border-slate-600 sm:w-[190px]"
-                  aria-label="Filter by send type"
-                >
-                  <option value="all">All send types</option>
-                  <option value="new_venue_outreach">New venue outreach</option>
-                  <option value="contact_request">Contact requests</option>
-                  <option value="registration_invite">Registration invites</option>
-                  <option value="manager_announcement">Manager announcements</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-slate-500" />
-              </div>
-              <div className="relative">
-                <select
-                  data-testid="select-outreach-status-filter"
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-                  className="h-10 w-full appearance-none rounded-md border border-slate-300 bg-white px-3 pr-9 text-sm text-slate-700 outline-none focus:border-slate-600 sm:w-[160px]"
-                  aria-label="Filter by delivery status"
-                >
-                  <option value="all">All delivery states</option>
-                  <option value="sent">Sent</option>
-                  <option value="sending">Sending</option>
-                  <option value="delivery_uncertain">Check Sent</option>
-                  <option value="failed">Failed</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-slate-500" />
-              </div>
-              <select aria-label="Filter by link state" data-testid="select-outreach-link-filter" value={linkFilter} onChange={(event) => setLinkFilter(event.target.value as typeof linkFilter)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
-                <option value="all">All link states</option><option value="none">No link</option><option value="active">Active</option><option value="expired">Expired</option><option value="used">Used</option><option value="superseded">Superseded</option><option value="unknown">Unknown</option>
-              </select>
-              <select aria-label="Filter by application" data-testid="select-outreach-application-filter" value={applicationFilter} onChange={(event) => setApplicationFilter(event.target.value as typeof applicationFilter)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
-                <option value="all">All applications</option><option value="linked">Linked</option><option value="unlinked">Unlinked</option><option value="approved">Approved</option>
-              </select>
-              <select aria-label="Filter by assigned agent" data-testid="select-outreach-agent-filter" value={agentFilter} onChange={(event) => setAgentFilter(event.target.value as typeof agentFilter)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
-                <option value="all">All agents</option><option value="assigned">Assigned</option><option value="unassigned">Unassigned</option>
-              </select>
-              <select aria-label="Filter by follow-up plan" data-testid="select-outreach-follow-up-filter" value={followUpFilter} onChange={(event) => setFollowUpFilter(event.target.value as FollowUpFilter)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
-                <option value="all">All follow-ups</option><option value="scheduled">Plan recorded</option><option value="unscheduled">No plan</option>
-              </select>
-              <select aria-label="Sort venues" data-testid="select-outreach-sort" value={sort} onChange={(event) => setSort(event.target.value as WorklistSort)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
-                <option value="recent">Recent activity</option><option value="venue">Venue name</option><option value="status">Delivery status</option><option value="agent">Assigned agent</option><option value="followup">Next follow-up</option>
-              </select>
-              {(search || statusFilter !== "all" || kindFilter !== "all" || linkFilter !== "all" || applicationFilter !== "all" || agentFilter !== "all" || followUpFilter !== "all") && (
-                <Button type="button" variant="ghost" data-testid="button-clear-outreach-filters" onClick={clearFilters} className="h-10 text-slate-600">
-                  Clear
-                </Button>
-              )}
-            </div>
-          </div>
+          <VenueOutreachFilters filters={filters} onChange={setFilters} sort={sort} onSortChange={setSort}
+            templates={historyTemplates} templateLabels={templateLabels} counts={counts} resultCount={filteredGroups.length} />
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-300/80 bg-[#f1eee8] px-4 py-3 sm:px-5">
-            <div className="flex items-center gap-3 text-sm">
-              <button type="button" data-testid="button-select-visible-venues" onClick={selectVisible} disabled={eligibleVisible.length === 0} className="font-semibold text-[#25324a] underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50">
-                {eligibleVisible.length > 0 && eligibleVisible.every((group) => selectedKeys.includes(group.key)) ? "Clear visible" : "Select eligible visible"}
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <button type="button" data-testid="button-select-visible-venues" onClick={selectVisible} disabled={filteredGroups.length === 0 || bulkSending} className="font-semibold text-[#25324a] underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50">
+                {filteredGroups.length > 0 && filteredGroups.every((group) => selectedKeys.includes(group.key)) ? "Clear matching selection" : `Select all matching venues (${filteredGroups.length})`}
               </button>
-              <span className="text-slate-600" data-testid="text-selected-venue-count">{selectedKeys.length} selected</span>
+              <button
+                type="button"
+                data-testid="button-select-all-contacted-venues"
+                onClick={selectAllVenues}
+                disabled={venueGroups.length === 0 || bulkSending}
+                title="Select every venue across the full history without changing the email template."
+                className="font-semibold text-[#25324a] underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {allVenuesSelected
+                  ? "Clear all venues"
+                  : `Select all venues — entire history (${venueGroups.length})`}
+              </button>
+              <span className="text-slate-600" data-testid="text-selected-venue-count">{selectedKeys.length} selected{hiddenSelectedCount > 0 ? ` · ${hiddenSelectedCount} hidden by filters` : ""}</span>
               {selectedKeys.length > 0 && (
-                <button type="button" data-testid="button-clear-selected-venues" onClick={() => setSelectedKeys([])} className="font-medium text-slate-600 underline-offset-4 hover:underline">
+                <button type="button" data-testid="button-clear-selected-venues" onClick={() => setSelectedKeys([])} disabled={bulkSending} className="font-medium text-slate-600 underline-offset-4 hover:underline">
                   Clear selection
                 </button>
               )}
-              <span className="text-xs text-slate-500">Maximum batch: 25 · uncertain sends require individual review</span>
+              <span className="text-xs text-slate-500">Any template · any venue · no batch-size limit</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <select aria-label="Bulk send type" data-testid="select-bulk-send-kind" value={bulkKind} onChange={(event) => {
-                const value = event.target.value as VenueOutreachHistoryEntry["kind"];
-                setBulkKind(value);
-                setBulkTemplate(value === "registration_invite" ? "registration" : "contact_request");
-                setSelectedKeys([]);
-              }} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs">
-                <option value="new_venue_outreach">New venue outreach</option><option value="contact_request">Contact request</option><option value="registration_invite">Registration invite</option>
+              <Button type="button" variant="outline" onClick={() => setTemplateManagerOpen(true)} disabled={bulkSending || templatesQuery.isLoading || templatesQuery.isError} data-testid="button-manage-email-templates">Manage templates</Button>
+              <select aria-label="Shared bulk template" data-testid="select-bulk-template" value={bulkTemplate} disabled={bulkSending || templatesQuery.isLoading}
+                onChange={(event) => { setBulkTemplate(event.target.value); setBulkConfirmOpen(false); }}
+                className="h-9 max-w-[270px] rounded-md border border-slate-300 bg-white px-2 text-xs">
+                <option value="">Choose an email template</option>
+                {emailTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
               </select>
-              <select aria-label="Shared bulk template" data-testid="select-bulk-template" value={bulkTemplate} onChange={(event) => {
-                setBulkTemplate(event.target.value as TemplateValue);
-                setSelectedKeys([]);
-              }} className="h-9 max-w-[210px] rounded-md border border-slate-300 bg-white px-2 text-xs">
-                {bulkTemplateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                {bulkKind === "new_venue_outreach" && <option value="preapproval_video_application">Pre-approval video application</option>}
-              </select>
-              <Button type="button" data-testid="button-bulk-send-preview" disabled={eligibleSelected.length === 0 || eligibleSelected.length !== selectedGroups.length || bulkSending} onClick={() => { setBulkResult(null); setBulkConfirmOpen(true); }} className="h-9 gap-2 bg-[#25324a] text-white hover:bg-[#1d283c]">
+              <Button type="button" data-testid="button-bulk-send-preview" disabled={recipientsForBulk.length === 0 || !selectedTemplate || bulkSending || templatesQuery.isError} onClick={() => { setBulkResult(null); setBulkConfirmOpen(true); }} className="h-9 gap-2 bg-[#25324a] text-white hover:bg-[#1d283c]">
                 <Send className="h-3.5 w-3.5" /> Review send ({recipientsForBulk.length})
               </Button>
             </div>
           </div>
-          {selectedGroups.length > 0 && eligibleSelected.length !== selectedGroups.length && (
-            <p className="border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-900" role="status" data-testid="text-bulk-selection-restriction">
-              Bulk sending requires every selected venue to share the chosen send type and meet its safety checks. Review the disabled rows or clear the selection.
-            </p>
-          )}
-          {selectedKeys.length >= 25 && (
-            <p className="border-b border-slate-200 bg-white px-5 py-2 text-xs text-slate-600" role="status" data-testid="text-bulk-selection-limit">
-              The 25-venue limit is reached. Clear a selection before adding another venue.
-            </p>
-          )}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-5 py-2 text-xs text-slate-600">
+            <span>All application and delivery states can be selected. Selecting a template never clears your selection.</span>
+            <label className="flex items-center gap-2"><input type="checkbox" data-testid="checkbox-one-per-address" checked={onePerAddress} onChange={(event) => setOnePerAddress(event.target.checked)} disabled={bulkSending} />One email per address</label>
+          </div>
+          {templatesQuery.isError && <div role="alert" className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">Email templates could not be loaded. <button type="button" onClick={() => templatesQuery.refetch()} className="underline">Try again</button></div>}
 
           {historyQuery.isLoading ? (
             <div className="space-y-3 p-5" data-testid="state-outreach-history-loading">
@@ -976,31 +770,28 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
             <div className="overflow-x-auto" data-testid="list-outreach-history">
               <div className="min-w-[940px]">
                 <div className="grid grid-cols-[32px_1.25fr_1.45fr_1.2fr_1fr_1fr_106px] gap-4 border-b border-slate-200 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  <span className="sr-only">Select</span>
+                  <span><span className="sr-only">Select</span></span>
                   <span>Venue</span>
                   <span>Recipient</span>
-                  <span>Template / type</span>
-                  <span>Delivery</span>
-                  <span>Application</span>
+                  <span>Last emailed</span>
+                  <span>Next follow-up</span>
+                  <span>Latest delivery</span>
                   <span className="text-right">Action</span>
                 </div>
                 {filteredGroups.map((group) => {
                   const entry = group.latest;
-                  const eligible = canBulkSend(group);
-                  const cannotResend =
-                    entry.linkStatus === "used" &&
-                    (entry.kind === "new_venue_outreach" || entry.kind === "registration_invite");
-                  const profileMissing =
-                    entry.kind !== "new_venue_outreach" &&
-                    entry.kind !== "manager_announcement" &&
-                    entry.venueOwnerProfileId == null;
+                  const lastSent = lastSuccessfulEmail(group);
+                  const application = venueApplication(group);
                   return (
                     <div key={group.key} data-testid={`row-outreach-${entry.id}`} className="border-b border-slate-200/80 last:border-b-0">
                     <div className="grid grid-cols-[32px_1.25fr_1.45fr_1.2fr_1fr_1fr_106px] items-center gap-4 px-5 py-4 hover:bg-white/45">
-                      <input type="checkbox" aria-label={`Select ${entry.businessName}`} data-testid={`checkbox-select-venue-${entry.id}`} checked={selectedKeys.includes(group.key)} onChange={() => toggleVenue(group.key)} disabled={(!eligible && !selectedKeys.includes(group.key)) || (selectedKeys.length >= 25 && !selectedKeys.includes(group.key))} className="h-4 w-4 accent-[#25324a] disabled:opacity-30" />
+                      <input type="checkbox" aria-label={`Select ${entry.businessName}`} data-testid={`checkbox-select-venue-${entry.id}`} checked={selectedKeys.includes(group.key)} onChange={() => toggleVenue(group.key)} disabled={bulkSending} className="h-4 w-4 accent-[#25324a] disabled:opacity-30" />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-900" data-testid={`text-outreach-business-${entry.id}`}>{entry.businessName}</p>
-                        <p className="mt-1 text-[11px] text-slate-500">{prettify(entry.kind)} · {formatDate(entry.createdAt)}</p>
+                        <p className="mt-1 text-[11px] text-slate-500" data-testid={`status-outreach-application-${entry.id}`}>
+                          {application?.applicationStatus ? `Application: ${prettify(application.applicationStatus)}` : "No application"}
+                          {application?.applicationId != null ? ` · #${application.applicationId}` : ""}
+                        </p>
                         <p className="mt-1 truncate text-[11px] text-slate-600" data-testid={`text-outreach-agent-${entry.id}`}>
                           Agent: {entry.assignedAgentName ?? (entry.assignedAgentId == null ? "Unassigned" : `Agent #${entry.assignedAgentId}`)}
                         </p>
@@ -1019,50 +810,36 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm text-slate-700" data-testid={`text-outreach-recipient-${entry.id}`}>{entry.recipientEmail}</p>
-                        <p className="mt-1 truncate text-[11px] text-slate-500">
-                          {entry.sentAt ? `Sent ${formatDate(entry.sentAt)}` : "Send time not confirmed"}
-                        </p>
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm text-slate-700" data-testid={`text-outreach-template-${entry.id}`}>{prettify(entry.template)}</p>
-                        {entry.linkStatus !== "none" && (
-                          <p className={`mt-1 text-[11px] font-medium ${linkClasses(entry.linkStatus)}`} data-testid={`status-outreach-link-${entry.id}`}>
-                            {linkLabel(entry.linkStatus)}{entry.expiresAt ? ` · expires ${formatDate(entry.expiresAt)}` : ""}
-                          </p>
-                        )}
+                        <p className="text-sm text-slate-700">{lastSent ? formatDate(lastSent.sentAt ?? lastSent.createdAt) : "No successful email"}</p>
+                        <p className="mt-1 text-[11px] text-slate-500" data-testid={`text-outreach-template-${entry.id}`}>{lastSent ? templateLabels[lastSent.template] ?? emailTemplateLabel(lastSent.template) : "—"}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className={`text-sm ${isFollowUpDue(group) ? "font-semibold text-amber-800" : "text-slate-700"}`}>
+                          {entry.nextActionDueDate ?? (entry.nextActionNote?.trim() ? "No date set" : "No plan")}
+                        </p>
+                        {entry.nextActionNote && <p className="mt-1 truncate text-[11px] text-slate-500" title={entry.nextActionNote}>{entry.nextActionNote}</p>}
                       </div>
                       <div>
                         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${deliveryClasses(entry.deliveryStatus)}`} data-testid={`status-outreach-delivery-${entry.id}`}>
                           {entry.deliveryStatus === "sent" ? <CheckCircle2 className="h-3 w-3" /> : entry.deliveryStatus === "delivery_uncertain" ? <Clock3 className="h-3 w-3" /> : null}
                           {deliveryLabel(entry.deliveryStatus)}
                         </span>
-                      </div>
-                      <div className="min-w-0">
-                        {entry.applicationStatus ? (
-                          <p className="truncate text-sm text-slate-700" data-testid={`status-outreach-application-${entry.id}`}>{prettify(entry.applicationStatus)}</p>
-                        ) : (
-                          <p className="text-sm text-slate-400" data-testid={`status-outreach-application-${entry.id}`}>Not linked</p>
-                        )}
-                        {entry.applicationId != null && <p className="mt-1 text-[11px] text-slate-500">Application #{entry.applicationId}</p>}
+                        <p className="mt-1 text-[11px] text-slate-500">{formatDate(entry.createdAt)}</p>
                       </div>
                       <div className="flex justify-end">
-                        {cannotResend ? (
-                          <span className="pt-2 text-right text-[11px] leading-4 text-slate-500" data-testid={`text-outreach-used-${entry.id}`}>Already used</span>
-                        ) : profileMissing ? (
-                          <span className="pt-2 text-right text-[11px] leading-4 text-slate-500" data-testid={`text-outreach-unavailable-${entry.id}`}>Unavailable</span>
-                        ) : (
                           <Button
                             type="button"
                             variant="outline"
                             data-testid={`button-resend-outreach-${entry.id}`}
                             onClick={() => setSelectedEntry(entry)}
-                            disabled={entry.deliveryStatus === "sending" || resendingId === entry.id}
+                            disabled={bulkSending || resendingId === entry.id || templatesQuery.isLoading || templatesQuery.isError}
                             className="h-9 gap-1.5 border-slate-300 bg-[#fbfaf8] px-3 text-xs text-[#25324a] hover:bg-white"
                           >
                             <Send className="h-3.5 w-3.5" />
-                            Resend
+                            Email
                           </Button>
-                        )}
                       </div>
                     </div>
                     <details data-testid={`details-venue-history-${entry.id}`} className="group border-t border-slate-200/70 bg-white/35 px-5 py-2">
@@ -1072,7 +849,10 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
                       <ol className="ml-2 mt-2 space-y-2 border-l border-slate-300 pl-4 pb-2">
                         {group.events.map((event) => (
                           <li key={event.id} data-testid={`item-venue-history-${event.id}`} className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <div><span className="font-semibold text-slate-800">{prettify(event.kind)} · {prettify(event.template)}</span><span className="ml-2 text-slate-500">{event.recipientEmail} · {formatDate(event.createdAt)}</span></div>
+                            <div>
+                              <span className="font-semibold text-slate-800">{prettify(event.kind)} · {templateLabels[event.template] ?? emailTemplateLabel(event.template)}</span><span className="ml-2 text-slate-500">{event.recipientEmail} · {formatDate(event.createdAt)}</span>
+                              {event.linkStatus !== "none" && <p className={`mt-1 ${linkClasses(event.linkStatus)}`}>Invitation link: {linkLabel(event.linkStatus)}{event.expiresAt ? ` · expires ${formatDate(event.expiresAt)}` : ""}</p>}
+                            </div>
                             <div className="flex items-center gap-3">
                               <span className={`font-semibold ${event.deliveryStatus === "sent" ? "text-emerald-700" : event.deliveryStatus === "delivery_uncertain" ? "text-amber-800" : "text-slate-600"}`}>{deliveryLabel(event.deliveryStatus)}</span>
                               {canEditPlaceId(event) && (
@@ -1086,7 +866,7 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
                                   {event.placeId ? "Change location" : "Set location"}
                                 </Button>
                               )}
-                              <Button type="button" variant="ghost" data-testid={`button-resend-outreach-timeline-${event.id}`} onClick={() => setSelectedEntry(event)} disabled={event.deliveryStatus === "sending" || (event.linkStatus === "used" && (event.kind === "new_venue_outreach" || event.kind === "registration_invite"))} className="h-7 px-2 text-xs">Resend</Button>
+                              <Button type="button" variant="ghost" data-testid={`button-resend-outreach-timeline-${event.id}`} onClick={() => setSelectedEntry(event)} disabled={bulkSending || !!resendingId || templatesQuery.isError || templatesQuery.isLoading} className="h-7 px-2 text-xs">Email</Button>
                             </div>
                           </li>
                         ))}
@@ -1163,6 +943,7 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
       </main>
 
       <ResendDialog
+        templates={emailTemplates}
         entry={selectedEntry}
         open={Boolean(selectedEntry)}
         busy={Boolean(selectedEntry && resendingId === selectedEntry.id)}
@@ -1171,6 +952,12 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
         }}
         onResend={handleResend}
       />
+      <VenueEmailTemplateManager open={templateManagerOpen} onOpenChange={setTemplateManagerOpen} templates={emailTemplates}
+        onChanged={async (templateId) => {
+          setBulkConfirmOpen(false);
+          await queryClient.invalidateQueries({ queryKey: getListVenueEmailTemplatesQueryKey() });
+          if (templateId) setBulkTemplate(templateId);
+        }} />
       <OutreachPlaceDialog
         entry={placeIdEntry}
         open={Boolean(placeIdEntry)}
@@ -1181,22 +968,27 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
         onSave={(entry, placeId) => void savePlaceId(entry, placeId)}
       />
       <Dialog open={bulkConfirmOpen} onOpenChange={(open) => !bulkSending && setBulkConfirmOpen(open)}>
-        <DialogContent className="max-w-xl border-slate-200 bg-[#fbfaf8]">
+        <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto border-slate-200 bg-[#fbfaf8]">
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-[#25324a]">Confirm recipients before sending</DialogTitle>
-            <DialogDescription>One shared {prettify(bulkKind)} message using {prettify(String(bulkTemplate))}. Sends run one at a time and stop at the first failure or uncertain delivery.</DialogDescription>
+            <DialogDescription>One “{selectedTemplate?.name}” email will be sent to each recipient below. Sends run one at a time and stop at the first failure or uncertain delivery. Keep this page open until the batch finishes.</DialogDescription>
           </DialogHeader>
+          {selectedTemplate && <details className="rounded-md border border-slate-200 bg-white p-3">
+            <summary className="cursor-pointer text-sm font-semibold">Preview email · {selectedTemplate.subject}</summary>
+            <iframe title="Selected email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={templatePreview(selectedTemplate.body, selectedTemplate.format)} className="mt-3 h-72 w-full border-0" />
+          </details>}
           {bulkTemplate === "preapproval_video_application" && (
             <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
               This sends a one-time application link to each selected prospect. It does not approve a venue or grant manager access.
             </p>
           )}
-          {bulkKind === "registration_invite" && (
+          {["registration", "registration_with_video"].includes(bulkTemplate) && (
             <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-              Each message creates a one-time setup link for an approved venue. The original 14-day registration deadline is not extended by resending.
+              Manual account invitations direct recipients to Venue Manager or venue registration in the Met app. They do not grant access or change approvals. Personal access links remain available from the application's registration-link action.
             </p>
           )}
-          <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" data-testid="text-bulk-recipient-count">{recipientsForBulk.length} recipients</p>
+          {selectedGroups.some((group) => ["sending", "delivery_uncertain"].includes(group.latest.deliveryStatus)) && <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Some selected venues have sending or unconfirmed emails. You may still send, but check Gmail Sent first to avoid duplicates.</p>}
+          <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" data-testid="text-bulk-recipient-count">{recipientsForBulk.length} emails · {selectedGroups.length} venues selected{hiddenSelectedCount > 0 ? ` · ${hiddenSelectedCount} hidden by filters` : ""}</p>
           <div className="max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white p-3">
             <ol className="space-y-2 text-sm" data-testid="list-bulk-recipients">
               {recipientsForBulk.map((group, index) => (
@@ -1211,7 +1003,7 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
           )}
           <DialogFooter>
             <Button type="button" variant="outline" data-testid="button-cancel-bulk-send" onClick={() => setBulkConfirmOpen(false)} disabled={bulkSending}>Cancel</Button>
-            <Button type="button" data-testid="button-confirm-bulk-send" onClick={() => void runBulkSend()} disabled={bulkSending || recipientsForBulk.length === 0 || eligibleSelected.length !== selectedGroups.length} className="bg-[#25324a] text-white hover:bg-[#1d283c]">
+            <Button type="button" data-testid="button-confirm-bulk-send" onClick={() => void runBulkSend()} disabled={bulkSending || recipientsForBulk.length === 0 || !selectedTemplate} className="bg-[#25324a] text-white hover:bg-[#1d283c]">
               {bulkSending ? "Sending serially…" : `Send to ${recipientsForBulk.length} recipients`}
             </Button>
           </DialogFooter>

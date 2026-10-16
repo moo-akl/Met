@@ -221,25 +221,37 @@ function buildVenueManagerProspectUpdateEmail(opts: {
   businessName: string;
   venueManagerUrl?: string;
 }): VenueEmail {
-  const venueManagerUrl = safeVenueManagerUrl(opts.venueManagerUrl);
   const venueLabel = opts.businessName.trim() || "your venue";
-  const subject = `Invitation: ${venueLabel} on Met Venue Manager`;
+  const subject = "Announcement: Latest updates you need to know about";
   const text = [
     `Hello ${venueLabel} team,`,
-    "We’d like to invite you to explore Met Venue Manager. Venue managers can add and manage multiple venues and create design-ready Check In QR posters for guests.",
-    "The Garden and Midnight grid poster designs will be available once your venue is connected to an active manager account.",
-    `Sign in or create an account: ${venueManagerUrl}`,
-    "No account access or registration deadline is created by this message. If you need help connecting your venue, reply to this email and our team will help.",
+    "We’ve been improving how you can connect with guests and manage your venue through Met.",
+    "What’s new:",
+    "- Manage multiple venues through one Venue Manager account.",
+    "- Design venue-branded Check In QR posters for guests. Garden and Midnight designs are available once your venue is connected to an active manager account.",
+    "- Give visitors a place to share memories: guests can leave notes and photos from their visit on the venue page.",
+    "With Met, guests can discover places nearby and check in at participating venues.",
+    "Interested in joining? Download Met and register your venue from Settings:",
+    `App Store: ${MET_APP_STORE_URL}`,
+    `Google Play: ${MET_GOOGLE_PLAY_URL}`,
     "Regards,\nThe Met venues team",
   ].join("\n\n");
   const body = `
     <p style="margin:0 0 18px;color:#485b52;font-size:16px;line-height:1.75;">Hello ${escapeHtml(venueLabel)} team,</p>
-    <p style="margin:0 0 18px;color:#485b52;font-size:16px;line-height:1.75;">We’d like to invite you to explore Met Venue Manager. Venue managers can add and manage multiple venues and create design-ready Check In QR posters for guests.</p>
-    <p style="margin:0 0 18px;color:#485b52;font-size:16px;line-height:1.75;">The Garden and Midnight grid poster designs will be available once your venue is connected to an active manager account.</p>
-    <p style="margin:0 0 16px;color:#485b52;font-size:16px;line-height:1.75;">Sign in or create an account to get started:</p>
-    <p style="margin:0 0 22px;"><a href="${escapeHtml(venueManagerUrl)}" style="display:inline-block;padding:12px 22px;border-radius:8px;background:#173f36;color:#fff;text-decoration:none;font-weight:700;">Explore Venue Manager</a></p>
-    <p style="margin:0 0 18px;color:#485b52;font-size:14px;line-height:1.75;">Venue Manager link: <a href="${escapeHtml(venueManagerUrl)}" style="color:#11765e;overflow-wrap:anywhere;">${escapeHtml(venueManagerUrl)}</a></p>
-    <p style="margin:0;color:#485b52;font-size:15px;line-height:1.75;">No account access or registration deadline is created by this message. If you need help connecting your venue, reply to this email and our team will help.</p>
+    <p style="margin:0 0 18px;color:#485b52;font-size:16px;line-height:1.75;">We’ve been improving how you can connect with guests and manage your venue through Met.</p>
+    <p style="margin:0 0 10px;color:#173f36;font-size:16px;line-height:1.75;font-weight:700;">What’s new:</p>
+    <ul style="margin:0 0 20px;padding-left:22px;color:#485b52;font-size:16px;line-height:1.75;">
+      <li style="margin:0 0 12px;"><strong style="color:#173f36;">Manage multiple venues</strong> through one Venue Manager account.</li>
+      <li style="margin:0 0 12px;"><strong style="color:#173f36;">Design your own venue-branded Check In QR posters</strong> for guests. Garden and Midnight designs are available once your venue is connected to an active manager account.</li>
+      <li><strong style="color:#173f36;">Give visitors a place to share memories:</strong> guests can leave notes and photos from their visit on the venue page.</li>
+    </ul>
+    <p style="margin:0 0 20px;color:#485b52;font-size:16px;line-height:1.75;">With Met, guests can discover places nearby and check in at participating venues.</p>
+    <p style="margin:0 0 16px;color:#485b52;font-size:16px;line-height:1.75;"><strong style="color:#173f36;">Interested in joining?</strong><br>Download Met and register your venue from Settings:</p>
+    <p style="margin:0 0 22px;font-size:15px;line-height:1.9;">
+      <a href="${MET_APP_STORE_URL}" style="color:#11765e;font-weight:700;text-decoration:none;">Download on the App Store</a>
+      &nbsp;|&nbsp;
+      <a href="${MET_GOOGLE_PLAY_URL.replace(/&/g, "&amp;")}" style="color:#11765e;font-weight:700;text-decoration:none;">Get it on Google Play</a>
+    </p>
     <p style="margin:24px 0 0;color:#485b52;font-size:16px;line-height:1.75;">Regards,<br>The Met venues team</p>`;
   return {
     subject,
@@ -248,7 +260,7 @@ function buildVenueManagerProspectUpdateEmail(opts: {
       businessName: venueLabel,
       eyebrow: "An invitation from Met",
       headline: subject,
-      preheader: "Explore Met Venue Manager and manage your venue on Met.",
+      preheader: "Discover the latest Met updates for venues and guests.",
       body,
     }),
   };

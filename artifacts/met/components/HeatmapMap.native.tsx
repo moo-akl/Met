@@ -12,6 +12,7 @@ import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   api,
   type ActiveVenueResult,
@@ -147,6 +148,7 @@ function PulsingMarker({
 function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
   const { authedUid } = useApp();
   const colors = useColors();
+  const { isDark } = useTheme();
   const router = useRouter();
 
   const mapRef = useRef<MapView>(null);
@@ -366,6 +368,8 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
       provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
       style={[styles.map, style]}
       initialRegion={DEFAULT_REGION}
+      userInterfaceStyle={isDark ? "dark" : "light"}
+      customMapStyle={isDark ? undefined : CANOPY_MAP_STYLE}
       onMapReady={() => {
         mapReadyRef.current = true;
         const pending = pendingCenterRef.current;
@@ -389,6 +393,16 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
     </MapView>
   );
 }
+
+const CANOPY_MAP_STYLE = [
+  { elementType: "geometry", stylers: [{ color: "#E8F0E2" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#526C50" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#F5F9F0" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#FBFCF8" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#D3E0CE" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#BEDACC" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#C7DDBF" }] },
+];
 
 // React.memo prevents re-renders when the parent re-renders but props are
 // unchanged — critical for HeatmapMap because the Google Maps SDK incurs

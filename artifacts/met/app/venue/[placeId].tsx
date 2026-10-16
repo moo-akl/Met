@@ -1,8 +1,9 @@
 /**
  * Public Venue Profile Screen — /venue/[placeId]
  *
- * Design: "Bright & Airy" — Airbnb-style warm white, coral-red accent (#FF385C),
- * white cards with soft shadows, section labels in grey uppercase.
+ * Canopy × Apple: logo-green actions, warm paper, a photographic place header,
+ * and Today / Gather / Guestbook tabs. Existing verification and write guards
+ * remain authoritative; visual navigation never proves physical presence.
  *
  * Layout (top → bottom, single scroll):
  *   1. Immersive hero (warm gradient, identity overlaid, dark text)
@@ -27,6 +28,8 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
+import { Feather } from "@expo/vector-icons";
+import themeColors from "@/constants/colors";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -43,6 +46,7 @@ import {
 import { SheetHandle } from "@/components/SheetHandle";
 import { VenueEventCard } from "@/components/VenueEventCard";
 import { VenueGuestbook } from "@/components/VenueGuestbook";
+import { SavePlaceButton } from "@/components/SavePlaceButton";
 import {
   getQrVerified,
   markQrVerified,
@@ -61,14 +65,15 @@ import {
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-const CORAL  = "#FF385C";
-const BG     = "#FAFAF8";
-const TEXT   = "#222222";
-const TEXT2  = "#484848";
-const MUTED  = "#9CA3AF";
-const CARD   = "#FFFFFF";
-const BORDER = "#F0F0F0";
-const DIVIDER = "#F3F3F3";
+// Keep reward/review components on the same semantic palette as the place page.
+const CORAL = themeColors.light.brandPanel;
+const BG = themeColors.light.background;
+const TEXT = themeColors.light.text;
+const TEXT2 = "#526557";
+const MUTED = themeColors.light.mutedForeground;
+const CARD = themeColors.light.card;
+const BORDER = themeColors.light.border;
+const DIVIDER = themeColors.light.border;
 
 const DAYS = [
   "sunday","monday","tuesday","wednesday","thursday","friday","saturday",
@@ -387,6 +392,7 @@ export default function VenueProfileScreen() {
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
   const [showEndedRewards, setShowEndedRewards] = useState(false);
   const [myLeaderboardEntry, setMyLeaderboardEntry] = useState<{ rank: number; checkinCount: number } | null>(null);
+  const [activeTab, setActiveTab] = useState<"today" | "gather" | "guestbook">("today");
 
   // ── Content reporting (Apple §5.1.2) ────────────────────────────────────
   const showContentReportSheet = (
@@ -644,6 +650,35 @@ export default function VenueProfileScreen() {
     else router.replace("/(tabs)");
   };
 
+  const openCheckin = () => {
+    if (!profile || !placeId) return;
+    router.push({
+      pathname: "/qr-scan",
+      params: {
+        placeId,
+        placeName: profile.businessName,
+        ...(isScreenshotDemoVenue ? { demo: "1", storeDemo: "checkin" } : {}),
+      },
+    } as never);
+  };
+
+  const openDirections = async () => {
+    if (!profile) return;
+    if (isScreenshotDemoVenue) {
+      Alert.alert("Sample venue", "Directions are available for real venues. This is an illustrative sample.");
+      return;
+    }
+    const lat = Number(profile.lat);
+    const lng = Number(profile.lng);
+    const hasCoordinates = profile.lat != null && profile.lng != null && Number.isFinite(lat) && Number.isFinite(lng);
+    const destination = hasCoordinates ? `${lat},${lng}` : profile.placeName || profile.businessName;
+    try {
+      await Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&destination_place_id=${encodeURIComponent(placeId ?? "")}`);
+    } catch {
+      Alert.alert("Couldn't open directions", "Please try again or open your maps app.");
+    }
+  };
+
   const now = new Date();
   // Active / Upcoming shown by default; Ended hidden behind a toggle.
   const endedRewards = rewards.filter((r) => getRewardStatus(r, now) === "Ended");
@@ -692,9 +727,15 @@ export default function VenueProfileScreen() {
 
   // ── render ───────────────────────────────────────────────────────────────────
   return (
-    <View style={[styles.root, isBrightDemo && brightDemo.root]}>
+    <View style={styles.root}>
       {/* Drag handle — visible when presented as a bottom sheet (containedModal) */}
       <SheetHandle style={{ marginTop: 10, marginBottom: 4 }} />
+      <View style={[canopyVenue.header, { paddingTop: insets.top + 2 }]}>
+        <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Go back" style={canopyVenue.iconButton}><Feather name="arrow-left" size={22} color={TEXT} /></Pressable>
+        <Text style={canopyVenue.headerLabel}>{isScreenshotDemoVenue ? "SAMPLE PLACE" : "A PLACE TO CONNECT"}</Text>
+        <SavePlaceButton placeId={placeId} placeName={profile?.businessName} disabled={isScreenshotDemoVenue} />
+        <Pressable onPress={() => showContentReportSheet("venue", 0, placeId ?? "")} accessibilityRole="button" accessibilityLabel="Report this venue" style={canopyVenue.iconButton}><Feather name="more-horizontal" size={22} color={TEXT} /></Pressable>
+      </View>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
@@ -702,14 +743,14 @@ export default function VenueProfileScreen() {
       >
 
         {/* ── Hero ──────────────────────────────────────────────────────── */}
-        <View style={[styles.hero, isScreenshotDemoVenue && styles.demoHero, isBrightDemo && brightDemo.hero]}>
+        <View style={styles.hero}>
           {/* Warm gradient background */}
           {isScreenshotDemoVenue ? (
             <LinearGradient
               colors={isBrightDemo ? ["#D6E9D9", "#F5E5BC", "#DF9B78"] : ["#A8D8C8", "#E6D5A4", "#DE9A65"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.heroCover, styles.demoHeroCover]}
+              style={styles.heroCover}
             >
               <Svg
                 viewBox="0 0 360 286"
@@ -776,22 +817,11 @@ export default function VenueProfileScreen() {
 
           {/* Bottom fade to page background */}
           <LinearGradient
-            colors={isBrightDemo ? ["transparent", "rgba(248,245,239,0.65)", "#F8F5EF"] : ["transparent", "rgba(250,250,248,0.65)", BG]}
-            locations={[0.45, 0.75, 1]}
+            colors={["transparent", "rgba(20,40,24,0.3)", "rgba(20,40,24,0.86)"]}
+            locations={[0, 0.45, 1]}
             style={StyleSheet.absoluteFillObject}
             pointerEvents="none"
           />
-
-          {/* Back button */}
-          <Pressable
-            onPress={goBack}
-            style={[styles.backBtn, { top: insets.top + 12 }]}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <Text style={styles.backBtnText}>‹</Text>
-          </Pressable>
 
           {/* Identity — bottom of hero */}
           <View style={styles.heroIdentity}>
@@ -825,8 +855,8 @@ export default function VenueProfileScreen() {
               {/* Category + verified pills */}
               <View style={styles.heroPillRow}>
                 {isScreenshotDemoVenue && (
-                  <View style={[styles.verifiedPill, { backgroundColor: isBrightDemo ? "#EEE9F8" : "#EEF2FF" }]}>
-                    <Text style={[styles.verifiedPillText, { color: isBrightDemo ? "#6552AD" : "#5B5FC7" }]}>Sample venue</Text>
+                  <View style={styles.verifiedPill}>
+                    <Text style={styles.verifiedPillText}>Sample venue</Text>
                   </View>
                 )}
                 {profile.isVerified && (
@@ -835,7 +865,7 @@ export default function VenueProfileScreen() {
                   </View>
                 )}
               </View>
-              <Text numberOfLines={1} style={styles.heroName}>{profile.businessName}</Text>
+              <Text numberOfLines={2} style={styles.heroName}>{profile.businessName}</Text>
               {profile.tagline ? (
                 <Text numberOfLines={1} style={styles.heroTagline}>{profile.tagline}</Text>
               ) : null}
@@ -850,31 +880,54 @@ export default function VenueProfileScreen() {
         </View>
 
         {/* ── Body ──────────────────────────────────────────────────────── */}
-        <View style={[styles.body, isBrightDemo && brightDemo.body]}>
+        <View style={styles.body}>
+          <View style={canopyVenue.statusRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+              <Feather name="clock" size={13} color={CORAL} />
+              <Text style={canopyVenue.statusText}>{todayLabel ? (todayEntry ? `Today · ${todayLabel}` : "Closed today") : "A place in your community"}</Text>
+            </View>
+            {isQrVerified && <View style={canopyVenue.verified}><Feather name="check-circle" size={12} color={CORAL} /><Text style={canopyVenue.verifiedText}>Visit verified</Text></View>}
+          </View>
+          <View style={canopyVenue.actions}>
+            <Pressable testID="venue-checkin" accessibilityRole="button" onPress={openCheckin} style={({ pressed }) => [canopyVenue.primaryButton, pressed && { opacity: 0.8 }]}>
+              <Feather name="maximize" size={18} color={TEXT} /><Text style={canopyVenue.primaryButtonText}>Check in here</Text>
+            </Pressable>
+            <Pressable testID="venue-directions" accessibilityRole="button" onPress={() => void openDirections()} style={({ pressed }) => [canopyVenue.directionsButton, pressed && { opacity: 0.8 }]}>
+              <Feather name="navigation" size={17} color={TEXT} /><Text style={canopyVenue.directionsText}>Directions</Text>
+            </Pressable>
+          </View>
+          <View accessibilityRole="tablist" style={canopyVenue.tabs}>
+            {(["today", "gather", "guestbook"] as const).map((tab) => (
+              <Pressable key={tab} testID={`venue-tab-${tab}`} accessibilityRole="tab" accessibilityState={{ selected: activeTab === tab }} onPress={() => setActiveTab(tab)} style={[canopyVenue.tab, activeTab === tab && canopyVenue.tabActive]}>
+                <Text style={[canopyVenue.tabText, activeTab === tab && canopyVenue.tabTextActive]}>{tab === "today" ? "Today" : tab === "gather" ? "Gather" : "Guestbook"}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {activeTab === "gather" && displayEvents.length === 0 && <View style={canopyVenue.empty}><Feather name="calendar" size={25} color={MUTED} /><Text style={canopyVenue.emptyTitle}>No gatherings announced yet</Text><Text style={canopyVenue.emptyText}>Check back for events from this venue.</Text></View>}
 
           {/* ── Welcome Back Banner ── */}
-          {myLeaderboardEntry && myLeaderboardEntry.checkinCount > 0 && (
+          {activeTab === "today" && myLeaderboardEntry && myLeaderboardEntry.checkinCount > 0 && (
             <View style={[{
               marginBottom: 8,
               padding: 14,
               borderRadius: 12,
-              backgroundColor: "#FFF3E0",
+              backgroundColor: themeColors.light.brandPanel,
               borderWidth: 1,
-              borderColor: "#FFD0B0",
+              borderColor: themeColors.light.brandPanel,
               flexDirection: "row",
               alignItems: "center",
               gap: 10,
-            }, isBrightDemo && brightDemo.welcome]}>
-              <Text style={{ fontSize: 20 }}>🏠</Text>
+            }]}>
+              <Feather name="coffee" size={25} color={themeColors.light.brandPanelText} />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: "Inter_700Bold", fontSize: 14, color: "#9A4A10" }}>
+                <Text style={{ fontFamily: "Inter_700Bold", fontSize: 14, color: themeColors.light.brandPanelText }}>
                   {isScreenshotDemoVenue ? "Sample community preview" : "Welcome back!"}
                 </Text>
-                <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: "#9A4A10", marginTop: 2, lineHeight: 18 }}>
+                <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: themeColors.light.brandPanelText, opacity: 0.85, marginTop: 2, lineHeight: 18 }}>
                   {isScreenshotDemoVenue
                     ? `Example activity: ${myLeaderboardEntry.checkinCount} visits · #${myLeaderboardEntry.rank} in sample standings`
                     : myLeaderboardEntry.checkinCount === 1
-                    ? "Your first check-in here — you're on the board 🎉"
+                    ? "Your first check-in here — you're on the board"
                     : `You've checked in ${myLeaderboardEntry.checkinCount} times — you're #${myLeaderboardEntry.rank} here`}
                 </Text>
               </View>
@@ -882,7 +935,7 @@ export default function VenueProfileScreen() {
           )}
 
           {/* About */}
-          {profile.description ? (
+          {activeTab === "today" && profile.description ? (
             <View style={styles.section}>
               <SectionLabel title="About" />
               <Text style={styles.description}>{profile.description}</Text>
@@ -890,11 +943,11 @@ export default function VenueProfileScreen() {
           ) : null}
 
           {/* ── 1. Announcements ───────────────────────────────────────── */}
-          {announcements.length > 0 && (
+          {activeTab === "today" && announcements.length > 0 && (
             <View style={styles.section}>
               <SectionLabel title="Announcements" />
               {announcements.slice(0, 5).map((ann) => (
-                <View key={ann.id} style={[styles.annCard, cardShadow, isBrightDemo && brightDemo.card]}>
+                <View key={ann.id} style={[styles.annCard, cardShadow]}>
                   {"imageUrl" in ann && (ann as { imageUrl?: string | null }).imageUrl ? (
                     <Image
                       source={{ uri: (ann as { imageUrl: string }).imageUrl }}
@@ -929,7 +982,7 @@ export default function VenueProfileScreen() {
           )}
 
           {/* ── 2. Rewards ─────────────────────────────────────────────── */}
-          {displayRewards.length > 0 && (
+          {activeTab === "today" && displayRewards.length > 0 && (
             <View style={styles.section}>
               <SectionLabel title={displayRewards.length === 1 ? "Active Reward" : "Active Rewards"} />
               {displayRewards.map((reward) => {
@@ -951,7 +1004,7 @@ export default function VenueProfileScreen() {
                           style={[styles.rewardLockOverlay]}
                           pointerEvents="box-none"
                         >
-                          <Text style={styles.rewardLockIcon}>🔒</Text>
+                          <Feather name="lock" size={22} color={CORAL} />
                           <Text style={styles.rewardLockTitle}>
                             Scan QR to Unlock Reward
                           </Text>
@@ -960,19 +1013,11 @@ export default function VenueProfileScreen() {
                           </Text>
                           <Pressable
                             style={styles.rewardLockBtn}
-                            onPress={() =>
-                              router.push({
-                                pathname: "/qr-scan",
-                                params: {
-                                  placeId: placeId ?? "",
-                                  placeName: profile?.businessName ?? "",
-                                },
-                              } as never)
-                            }
+                            onPress={openCheckin}
                             accessibilityRole="button"
                             accessibilityLabel="Open QR scanner"
                           >
-                            <Text style={styles.rewardLockBtnText}>📷 Open Scanner</Text>
+                            <Text style={styles.rewardLockBtnText}>Open Scanner</Text>
                           </Pressable>
                         </View>
                       </View>
@@ -990,7 +1035,7 @@ export default function VenueProfileScreen() {
           )}
 
           {/* ── Ended rewards (collapsed by default) ──────────────────── */}
-          {endedRewards.length > 0 && (
+          {activeTab === "today" && endedRewards.length > 0 && (
             <View style={{ marginTop: displayRewards.length > 0 ? 0 : undefined }}>
               <Pressable
                 onPress={() => setShowEndedRewards((v) => !v)}
@@ -1019,7 +1064,7 @@ export default function VenueProfileScreen() {
 
           {/* ── 3. Events ──────────────────────────────────────────────── */}
           {displayEvents.length > 0 && (
-            <View style={styles.section}>
+            <View style={[styles.section, activeTab === "guestbook" && { display: "none" }]}>
               <SectionLabel title="Events" />
               <ScrollView
                 horizontal
@@ -1031,6 +1076,7 @@ export default function VenueProfileScreen() {
                   <VenueEventCard
                     key={event.id}
                     event={event}
+                    readOnly={isScreenshotDemoVenue}
                     onPress={() => setSelectedEvent(event)}
                   />
                 ))}
@@ -1039,7 +1085,7 @@ export default function VenueProfileScreen() {
           )}
 
           {/* ── 4. Leaderboards ────────────────────────────────────────── */}
-          {topVisitors.length > 0 && (
+          {activeTab === "today" && topVisitors.length > 0 && (
             <View style={styles.section}>
               <SectionLabel
                 title="Leaderboards"
@@ -1047,7 +1093,7 @@ export default function VenueProfileScreen() {
               />
               <View style={styles.lbGrid}>
                 {topVisitors.map((v, i) => (
-                  <View key={v.uid} style={[styles.lbCard, cardShadow, isBrightDemo && brightDemo.card]}>
+                  <View key={v.uid} style={[styles.lbCard, cardShadow]}>
                     <Text style={styles.lbMedal}>{["🥇","🥈","🥉"][i]}</Text>
                     {v.photoUrl ? (
                       <Image source={{ uri: v.photoUrl }} style={styles.lbAvatar} contentFit="cover" transition={150} />
@@ -1073,7 +1119,7 @@ export default function VenueProfileScreen() {
           )}
 
           {/* ── 5. Review ──────────────────────────────────────────────── */}
-          {isQrVerified && (
+          {activeTab === "guestbook" && isQrVerified && (
             <View style={styles.section}>
               <SectionLabel title="Rate This Venue" />
               <View style={[styles.reviewCard, cardShadow]}>
@@ -1120,7 +1166,7 @@ export default function VenueProfileScreen() {
           )}
 
           {/* ── 6. Guest Reviews ───────────────────────────────────────── */}
-          {(totalReviewCount > 0) && (
+          {activeTab === "guestbook" && (totalReviewCount > 0) && (
             <View style={styles.section}>
               {/* Aggregate headline — always venue-wide */}
               <View style={styles.reviewsHeader}>
@@ -1183,7 +1229,7 @@ export default function VenueProfileScreen() {
                   </Pressable>
                 </View>
               ) : venueReviews.length > 0 ? (
-                <View style={[styles.guestReviewsCard, cardShadow, isBrightDemo && brightDemo.card]}>
+                <View style={[styles.guestReviewsCard, cardShadow]}>
                   {[...venueReviews]
                     .sort((a, b) => {
                       if (reviewSort === "highest") return b.starRating - a.starRating;
@@ -1227,7 +1273,7 @@ export default function VenueProfileScreen() {
           )}
 
           {/* ── Guestbook ─────────────────────────────────────────────── */}
-          <View style={styles.section}>
+          <View style={[styles.section, activeTab !== "guestbook" && { display: "none" }]}>
             <VenueGuestbook
               placeId={placeId ?? ""}
               placeName={profile.businessName}
@@ -1240,7 +1286,7 @@ export default function VenueProfileScreen() {
           {(profile.phone || profile.websiteUrl || profile.publicEmail || todayLabel) && (
             <View style={styles.section}>
               <SectionLabel title="Info & Contact" />
-              <View style={[styles.infoCard, cardShadow, isBrightDemo && brightDemo.card]}>
+              <View style={[styles.infoCard, cardShadow]}>
                 {todayLabel && (
                   <View style={[styles.infoRow, { borderTopWidth: 0 }]}>
                     <Text style={styles.infoIcon}>🕐</Text>
@@ -1416,6 +1462,29 @@ export default function VenueProfileScreen() {
 
 // ─── styles ──────────────────────────────────────────────────────────────────
 
+const canopyVenue = StyleSheet.create({
+  header: { paddingHorizontal: 12, paddingBottom: 5, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerLabel: { color: MUTED, fontFamily: "Inter_600SemiBold", fontSize: 9, letterSpacing: 1.2 },
+  iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingVertical: 11 },
+  statusText: { flex: 1, color: TEXT2, fontFamily: "Inter_400Regular", fontSize: 11 },
+  verified: { flexDirection: "row", alignItems: "center", gap: 4 },
+  verifiedText: { color: CORAL, fontSize: 10, fontFamily: "Inter_500Medium" },
+  actions: { flexDirection: "row", gap: 8, marginBottom: 6 },
+  primaryButton: { flex: 1.2, minHeight: 50, paddingHorizontal: 12, borderRadius: 15, backgroundColor: themeColors.light.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  primaryButtonText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: TEXT },
+  directionsButton: { flex: 1, minHeight: 50, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: BORDER, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  directionsText: { fontFamily: "Inter_500Medium", fontSize: 12, color: TEXT },
+  tabs: { flexDirection: "row", gap: 24, borderBottomWidth: 1, borderBottomColor: BORDER, marginBottom: 16 },
+  tab: { minHeight: 48, paddingHorizontal: 2, justifyContent: "center", borderBottomWidth: 3, borderBottomColor: "transparent" },
+  tabActive: { borderBottomColor: themeColors.light.primary },
+  tabText: { color: MUTED, fontFamily: "Inter_500Medium", fontSize: 13 },
+  tabTextActive: { color: CORAL, fontFamily: "Inter_600SemiBold" },
+  empty: { alignItems: "center", paddingVertical: 30, gap: 10 },
+  emptyTitle: { fontFamily: "Inter_600SemiBold", color: TEXT, fontSize: 15 },
+  emptyText: { fontFamily: "Inter_400Regular", color: MUTED, fontSize: 13 },
+});
+
 const styles = StyleSheet.create({
   root:   { flex: 1, backgroundColor: BG },
   scroll: { flex: 1 },
@@ -1424,13 +1493,13 @@ const styles = StyleSheet.create({
   errorBack: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
   // ── Hero ──────────────────────────────────────────────────────────────────
-  hero: { width: "100%", height: 380, overflow: "hidden" },
+  hero: { height: 232, marginHorizontal: 16, borderRadius: 20, overflow: "hidden" },
   demoHero: { height: 286 },
-  heroCover: { width: "100%", height: 380 },
+  heroCover: { width: "100%", height: 232 },
   demoHeroCover: { height: 286 },
   illustrationBadge: {
     position: "absolute",
-    top: 58,
+    top: 12,
     right: 16,
     paddingHorizontal: 8,
     paddingVertical: 5,
@@ -1488,17 +1557,17 @@ const styles = StyleSheet.create({
   heroNameCol:  { flex: 1 },
   heroPillRow:  { flexDirection: "row", gap: 6, marginBottom: 5 },
   verifiedPill: {
-    backgroundColor: `${CORAL}18`,
+    backgroundColor: "rgba(232,245,229,0.18)",
     borderRadius: 6,
     paddingHorizontal: 8, paddingVertical: 3,
   },
-  verifiedPillText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: CORAL },
-  heroName:    { color: TEXT, fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.3 },
-  heroTagline: { color: TEXT2, fontSize: 14, fontFamily: "Inter_400Regular", marginTop: 3 },
+  verifiedPillText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#E8F5E5" },
+  heroName:    { color: "#FFFFFF", fontSize: 26, lineHeight: 30, fontFamily: "Inter_600SemiBold", letterSpacing: -1 },
+  heroTagline: { color: "#E8F5E5", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 5 },
 
   // ── Body ──────────────────────────────────────────────────────────────────
-  body:        { paddingHorizontal: 16, paddingTop: 8 },
-  section:     { marginBottom: 28 },
+  body:        { paddingHorizontal: 18, paddingTop: 2 },
+  section:     { marginBottom: 24 },
   sectionLabelRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1506,15 +1575,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionLabel: {
-    fontSize: 11, fontFamily: "Inter_700Bold",
-    color: MUTED, textTransform: "uppercase", letterSpacing: 1.4,
+    fontSize: 18, fontFamily: "Inter_600SemiBold",
+    color: TEXT, letterSpacing: -0.5,
   },
   seeAllLink: {
     fontSize: 13, fontFamily: "Inter_500Medium", color: CORAL,
   },
   description: {
-    fontSize: 15, fontFamily: "Inter_400Regular",
-    color: TEXT2, lineHeight: 23,
+    fontSize: 14, fontFamily: "Inter_400Regular",
+    color: TEXT2, lineHeight: 22,
   },
   hScroll:     { marginHorizontal: -16, paddingLeft: 16 },
 

@@ -161,6 +161,8 @@ async function deletePostgresUserData(uid: string): Promise<void> {
 
 async function deleteFirestoreUserData(uid: string): Promise<void> {
   const fsDb = adminDb();
+  // Bookmarks are private account data, not public visit history.
+  await fsDb.recursiveDelete(fsDb.collection("savedPlaces").doc(uid));
   const userRef = fsDb.collection("users").doc(uid);
 
   for (const subcollection of ["met_people", "requests"] as const) {

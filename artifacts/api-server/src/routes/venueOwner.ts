@@ -114,6 +114,7 @@ import { createVenueManagerUpdatePosterPack } from "../lib/venueManagerUpdatePos
 import { z } from "zod/v4";
 import { venueGuestbookTable } from "@workspace/db";
 import crypto from "node:crypto";
+import { createVenueEmailTemplatesRouter } from "./venueEmailTemplates.js";
 
 const venueApplicationStatuses = [
   "draft",
@@ -4898,6 +4899,7 @@ router.get(
           businessName: log.businessName,
           recipientEmail: log.recipientEmail,
           template: log.template,
+          templateName: log.templateName ?? null,
           deliveryStatus:
             log.deliveryStatus === "sending" &&
             log.createdAt.getTime() < Date.now() - STALE_OUTREACH_SEND_MS
@@ -7074,6 +7076,8 @@ router.patch(
     res.json({ report: updated });
   },
 );
+
+router.use(createVenueEmailTemplatesRouter(requireAdminSession, adminActorUid));
 
 export default router;
 

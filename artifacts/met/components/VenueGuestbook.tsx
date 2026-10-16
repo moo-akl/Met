@@ -36,17 +36,18 @@ import {
 } from "@/lib/api/client";
 import { isLegacyUserId } from "@/lib/auth";
 import { COMPLETE_PROFILE_HREF } from "@/lib/profileCompletion";
+import themeColors from "@/constants/colors";
 
-// ─── palette (matches venue page: warm white + coral) ────────────────────────
-const CORAL = "#FF385C";
+// ─── Canopy palette; retain the guestbook's handwritten paper treatment ──────
+const CORAL = themeColors.light.brandPanel;
 const INK = "#2B2A4C"; // blue-black fountain ink
 const INK_SOFT = "#5A5876";
 const PAPER = "#FFF9EE";
 const PAPER_ALT = "#FBF3E4";
 const RULE = "#EADFCB";
 const TAPE = "rgba(255, 214, 170, 0.78)";
-const TEXT = "#222222";
-const TEXT2 = "#484848";
+const TEXT = themeColors.light.text;
+const TEXT2 = themeColors.light.mutedForeground;
 const MUTED = "#9CA3AF";
 const CARD = "#FFFFFF";
 const BORDER = "#F0F0F0";

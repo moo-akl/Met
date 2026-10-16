@@ -101,6 +101,12 @@ export const nl: LocaleTree = {
     metListening:
       "Met luistert stilletjes. Iedereen die je tegenkomt verschijnt onder Recent.",
     invisibleHeadline: "Je bent onzichtbaar voor anderen",
+    canopyHeadline: "Een beetje dichter\nbij jouw wereld.",
+    canopyPrivacy: "Ontdek je omgeving, op jouw voorwaarden.",
+    canopyCurrentPlace: "JE HUIDIGE PLEK",
+    canopyPlaces: "Een plek om te beginnen",
+    canopyPlacesRetry: "Plekken konden niet worden geladen. Tik om opnieuw te proberen.",
+    canopyPlacesEmpty: "Verken de kaart of check in bij een plek in de buurt om te beginnen.",
     invisibleSub:
       "Zet \u201CZichtbaar op radar\u201D weer aan in Instellingen om mensen weer te ontdekken.",
     peopleWantReveal_one: "{{count}} persoon wil zich onthullen",

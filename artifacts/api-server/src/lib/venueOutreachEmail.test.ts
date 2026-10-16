@@ -8,7 +8,9 @@ import {
 
 describe("venue outreach templates", () => {
   it.each(OUTREACH_TEMPLATE_IDS.filter((template) =>
-    template !== "preapproval_video_application" && template !== "latest_updates",
+    template !== "preapproval_video_application" &&
+    template !== "latest_updates" &&
+    template !== "latest_updates_prospect",
   ))("renders %s safely without claiming access was granted", (template) => {
     const email = buildVenueOutreachEmail({
       businessName: "North & <South>",
@@ -48,17 +50,34 @@ describe("venue outreach templates", () => {
     expect(email.text).toContain("attached an A4 PDF pack");
   });
 
-  it("shows a visible, copyable Venue Manager URL in the prospect invitation", () => {
+  it("invites contacted venues with the latest updates and direct app-store links", () => {
     const email = buildVenueOutreachEmail({
       businessName: "The Gallery",
       template: "latest_updates_prospect",
       venueManagerUrl: "https://met-app.org/venue-manager",
     });
 
-    expect(email.html).toContain('href="https://met-app.org/venue-manager"');
-    expect(email.html).toContain("Venue Manager link: <a");
-    expect(email.html).toContain("https://met-app.org/venue-manager</a>");
-    expect(email.text).toContain("Sign in or create an account: https://met-app.org/venue-manager");
+    expect(email.subject).toBe("Announcement: Latest updates you need to know about");
+    for (const message of [email.html, email.text]) {
+      const normalizedMessage = message.toLowerCase();
+      expect(normalizedMessage).toContain("hello the gallery team");
+      expect(normalizedMessage).toContain("manage multiple venues");
+      expect(normalizedMessage).toContain("venue-branded check in qr posters");
+      expect(normalizedMessage).toContain("garden and midnight");
+      expect(normalizedMessage).toContain("guests can leave notes and photos");
+      expect(normalizedMessage).toContain("register your venue from settings");
+      expect(normalizedMessage).toContain("how you can connect with guests and manage your venue through met");
+    }
+    expect(email.html).toContain('href="https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"');
+    expect(email.html).toContain('href="https://play.google.com/store/apps/details?id=app.met.founders"');
+    expect(email.html).toContain("Download on the App Store");
+    expect(email.html).toContain("Get it on Google Play");
+    expect(email.text).toContain("App Store: https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926");
+    expect(email.text).toContain("Google Play: https://play.google.com/store/apps/details?id=app.met.founders");
+    expect(email.text).not.toContain("met-app.org/venue-manager");
+    expect(email.html).not.toContain("met-app.org/venue-manager");
+    expect(email.text).not.toContain("No account access or registration deadline");
+    expect(email.text).not.toContain("reply to this email");
     expect(email.html).not.toContain("A4 PDF pack");
     expect(email.text).not.toContain("A4 PDF pack");
   });

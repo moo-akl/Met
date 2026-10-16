@@ -32,6 +32,7 @@ export const venueOutreachEmailLogsTable = pgTable(
     businessName: text("business_name").notNull(),
     recipientEmail: text("recipient_email").notNull(),
     template: text("template").notNull(),
+    templateName: text("template_name"),
     kind: text("kind")
       .$type<"new_venue_outreach" | "contact_request" | "registration_invite" | "manager_announcement">()
       .notNull(),

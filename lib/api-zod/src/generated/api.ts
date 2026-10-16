@@ -9,6 +9,51 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary List the authenticated user's saved venues
+ */
+export const ListSavedPlacesResponseItem = zod.object({
+  "placeId": zod.string(),
+  "placeName": zod.string(),
+  "savedAt": zod.coerce.date(),
+  "available": zod.boolean().describe('Whether the venue currently has an approved public profile')
+})
+export const ListSavedPlacesResponse = zod.array(ListSavedPlacesResponseItem)
+
+
+/**
+ * @summary Save a real approved venue without recording a visit
+ */
+export const savePlacePathPlaceIdMax = 256;
+
+
+
+export const SavePlaceParams = zod.object({
+  "placeId": zod.coerce.string().min(1).max(savePlacePathPlaceIdMax)
+})
+
+export const SavePlaceResponse = zod.object({
+  "placeId": zod.string(),
+  "placeName": zod.string(),
+  "savedAt": zod.coerce.date(),
+  "available": zod.boolean().describe('Whether the venue currently has an approved public profile')
+})
+
+
+/**
+ * @summary Remove only the authenticated user's bookmark
+ */
+export const unsavePlacePathPlaceIdMax = 256;
+
+
+
+export const UnsavePlaceParams = zod.object({
+  "placeId": zod.coerce.string().min(1).max(unsavePlacePathPlaceIdMax)
+})
+
+export const UnsavePlaceResponse = zod.void()
+
+
+/**
  * Photo-less accounts record a private visit only, without public leaderboard or reward credit. This does not enable social visibility and a static QR token is not independent proof of GPS presence.
  * @summary Record a venue QR visit for the authenticated account
  */
@@ -4544,6 +4589,145 @@ export const SendVenueManagerUpdatesResponse = zod.object({
 
 
 /**
+ * @summary List available manual email templates, including edited built-ins
+ */
+export const listVenueEmailTemplatesResponseOneNameMax = 120;
+
+export const listVenueEmailTemplatesResponseOneSubjectMax = 998;
+
+export const listVenueEmailTemplatesResponseOneBodyMax = 200000;
+
+
+
+export const ListVenueEmailTemplatesResponseItem = zod.object({
+  "name": zod.string().min(1).max(listVenueEmailTemplatesResponseOneNameMax),
+  "subject": zod.string().min(1).max(listVenueEmailTemplatesResponseOneSubjectMax),
+  "body": zod.string().min(1).max(listVenueEmailTemplatesResponseOneBodyMax),
+  "format": zod.enum(['text', 'html'])
+}).and(zod.object({
+  "id": zod.string(),
+  "builtin": zod.boolean()
+}))
+export const ListVenueEmailTemplatesResponse = zod.array(ListVenueEmailTemplatesResponseItem)
+
+
+/**
+ * @summary Create a manual email template
+ */
+export const createVenueEmailTemplateBodyNameMax = 120;
+
+export const createVenueEmailTemplateBodySubjectMax = 998;
+
+export const createVenueEmailTemplateBodyBodyMax = 200000;
+
+
+
+export const CreateVenueEmailTemplateBody = zod.object({
+  "name": zod.string().min(1).max(createVenueEmailTemplateBodyNameMax),
+  "subject": zod.string().min(1).max(createVenueEmailTemplateBodySubjectMax),
+  "body": zod.string().min(1).max(createVenueEmailTemplateBodyBodyMax),
+  "format": zod.enum(['text', 'html'])
+})
+
+export const createVenueEmailTemplateResponseOneNameMax = 120;
+
+export const createVenueEmailTemplateResponseOneSubjectMax = 998;
+
+export const createVenueEmailTemplateResponseOneBodyMax = 200000;
+
+
+
+export const CreateVenueEmailTemplateResponse = zod.object({
+  "name": zod.string().min(1).max(createVenueEmailTemplateResponseOneNameMax),
+  "subject": zod.string().min(1).max(createVenueEmailTemplateResponseOneSubjectMax),
+  "body": zod.string().min(1).max(createVenueEmailTemplateResponseOneBodyMax),
+  "format": zod.enum(['text', 'html'])
+}).and(zod.object({
+  "id": zod.string(),
+  "builtin": zod.boolean()
+}))
+
+
+/**
+ * @summary Edit a built-in or custom manual email template
+ */
+export const UpdateVenueEmailTemplateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateVenueEmailTemplateBodyNameMax = 120;
+
+export const updateVenueEmailTemplateBodySubjectMax = 998;
+
+export const updateVenueEmailTemplateBodyBodyMax = 200000;
+
+
+
+export const UpdateVenueEmailTemplateBody = zod.object({
+  "name": zod.string().min(1).max(updateVenueEmailTemplateBodyNameMax),
+  "subject": zod.string().min(1).max(updateVenueEmailTemplateBodySubjectMax),
+  "body": zod.string().min(1).max(updateVenueEmailTemplateBodyBodyMax),
+  "format": zod.enum(['text', 'html'])
+})
+
+export const updateVenueEmailTemplateResponseOneNameMax = 120;
+
+export const updateVenueEmailTemplateResponseOneSubjectMax = 998;
+
+export const updateVenueEmailTemplateResponseOneBodyMax = 200000;
+
+
+
+export const UpdateVenueEmailTemplateResponse = zod.object({
+  "name": zod.string().min(1).max(updateVenueEmailTemplateResponseOneNameMax),
+  "subject": zod.string().min(1).max(updateVenueEmailTemplateResponseOneSubjectMax),
+  "body": zod.string().min(1).max(updateVenueEmailTemplateResponseOneBodyMax),
+  "format": zod.enum(['text', 'html'])
+}).and(zod.object({
+  "id": zod.string(),
+  "builtin": zod.boolean()
+}))
+
+
+/**
+ * @summary Remove a template from manual sending without deleting email history
+ */
+export const DeleteVenueEmailTemplateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteVenueEmailTemplateResponse = zod.void()
+
+
+/**
+ * @summary Send any available template to any venue regardless of application or previous delivery status
+ */
+export const sendManualVenueEmailBodyTemplateIdMax = 150;
+
+export const sendManualVenueEmailBodyBusinessNameMax = 255;
+
+export const sendManualVenueEmailBodyRecipientEmailMax = 255;
+
+export const sendManualVenueEmailBodyPlaceIdMax = 255;
+
+
+
+
+export const SendManualVenueEmailBody = zod.object({
+  "templateId": zod.string().min(1).max(sendManualVenueEmailBodyTemplateIdMax),
+  "businessName": zod.string().min(1).max(sendManualVenueEmailBodyBusinessNameMax),
+  "recipientEmail": zod.string().email().max(sendManualVenueEmailBodyRecipientEmailMax),
+  "placeId": zod.string().max(sendManualVenueEmailBodyPlaceIdMax).optional(),
+  "venueOwnerProfileId": zod.number().int().min(1).optional()
+})
+
+export const SendManualVenueEmailResponse = zod.object({
+  "emailSent": zod.boolean(),
+  "recipientEmail": zod.string().email()
+})
+
+
+/**
  * @summary List outreach emails and owner invitations sent to venues
  */
 export const getVenueOutreachHistoryResponseEmailsItemPlaceIdMax = 255;
@@ -4558,6 +4742,7 @@ export const GetVenueOutreachHistoryResponse = zod.object({
   "businessName": zod.string(),
   "recipientEmail": zod.string().email(),
   "template": zod.string(),
+  "templateName": zod.string().nullish(),
   "deliveryStatus": zod.enum(['sending', 'sent', 'delivery_uncertain', 'failed']),
   "createdAt": zod.coerce.date(),
   "sentAt": zod.coerce.date().nullable(),

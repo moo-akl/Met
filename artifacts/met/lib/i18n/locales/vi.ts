@@ -101,6 +101,12 @@ export const vi: LocaleTree = {
     metListening:
       "Met đang lặng lẽ lắng nghe. Bất kỳ ai bạn gặp sẽ xuất hiện trong Gần đây.",
     invisibleHeadline: "Bạn đang vô hình với người khác",
+    canopyHeadline: "Gần hơn một chút\nvới thế giới của bạn.",
+    canopyPrivacy: "Khám phá xung quanh theo cách của bạn.",
+    canopyCurrentPlace: "ĐỊA ĐIỂM HIỆN TẠI CỦA BẠN",
+    canopyPlaces: "Một nơi để bắt đầu",
+    canopyPlacesRetry: "Không thể tải địa điểm. Nhấn để thử lại.",
+    canopyPlacesEmpty: "Khám phá bản đồ hoặc check-in tại địa điểm gần bạn để bắt đầu.",
     invisibleSub:
       "Bật lại \u201CHiển thị trên radar\u201D trong Cài đặt để bắt đầu khám phá lại.",
     peopleWantReveal_one: "{{count}} người muốn lộ diện",

@@ -10,4 +10,5 @@ export * from "./venueOwner";
 export * from "./venueBusiness";
 export * from "./venueOutreach";
 export * from "./venueGuestbook";
+export * from "./venueEmailTemplates";
 

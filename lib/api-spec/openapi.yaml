@@ -23,6 +23,52 @@ tags:
   - name: networks
     description: Community networks (university, work, neighborhood, custom)
 paths:
+  /saved-places:
+    get:
+      operationId: listSavedPlaces
+      summary: List the authenticated user's saved venues
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Saved venues, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SavedPlace"
+  /saved-places/{placeId}:
+    parameters:
+      - in: path
+        name: placeId
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 256
+    put:
+      operationId: savePlace
+      summary: Save a real approved venue without recording a visit
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Venue saved (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedPlace"
+        "404":
+          description: No approved venue exists
+    delete:
+      operationId: unsavePlace
+      summary: Remove only the authenticated user's bookmark
+      security:
+        - MetUid: []
+      responses:
+        "204":
+          description: Bookmark removed (idempotent)
   /hubs/qr-verify:
     post:
       operationId: verifyVenueQr
@@ -2951,6 +2997,104 @@ paths:
         "503":
           description: Manager audience could not be resolved
 
+  /admin/venue-owner/email-templates:
+    get:
+      operationId: listVenueEmailTemplates
+      tags: [admin]
+      summary: List available manual email templates, including edited built-ins
+      responses:
+        "200":
+          description: Available templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VenueEmailTemplate" }
+        "401":
+          description: Admin sign-in required
+    post:
+      operationId: createVenueEmailTemplate
+      tags: [admin]
+      summary: Create a manual email template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueEmailTemplateInput" }
+      responses:
+        "201":
+          description: Created template
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueEmailTemplate" }
+        "400":
+          description: Invalid template
+        "401":
+          description: Admin sign-in required
+
+  /admin/venue-owner/email-templates/{id}:
+    put:
+      operationId: updateVenueEmailTemplate
+      tags: [admin]
+      summary: Edit a built-in or custom manual email template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueEmailTemplateInput" }
+      responses:
+        "200":
+          description: Updated template
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueEmailTemplate" }
+        "400":
+          description: Invalid template
+        "404":
+          description: Template not found
+    delete:
+      operationId: deleteVenueEmailTemplate
+      tags: [admin]
+      summary: Remove a template from manual sending without deleting email history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Template removed
+        "404":
+          description: Template not found
+
+  /admin/venue-owner/outreach/manual-send:
+    post:
+      operationId: sendManualVenueEmail
+      tags: [admin]
+      summary: Send any available template to any venue regardless of application or previous delivery status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueManualEmailInput" }
+      responses:
+        "201":
+          description: Email accepted by Gmail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueContactRequestResult" }
+        "400":
+          description: Invalid recipient or template
+        "401":
+          description: Admin sign-in required
+        "503":
+          description: Delivery could not be confirmed; no automatic retry
+
   /admin/venue-owner/outreach/history:
     get:
       operationId: getVenueOutreachHistory
@@ -3617,6 +3761,20 @@ components:
       name: X-Met-Uid
       description: Firebase UID of the requesting user (MVP — replace with verified ID token later)
   schemas:
+    SavedPlace:
+      type: object
+      required: [placeId, placeName, savedAt, available]
+      properties:
+        placeId:
+          type: string
+        placeName:
+          type: string
+        savedAt:
+          type: string
+          format: date-time
+        available:
+          type: boolean
+          description: Whether the venue currently has an approved public profile
     VenueQrInput:
       type: object
       required: [placeId, token]
@@ -3801,6 +3959,32 @@ components:
       required: [recipientEmail]
       properties:
         recipientEmail: { type: string, format: email, maxLength: 255 }
+    VenueEmailTemplateInput:
+      type: object
+      required: [name, subject, body, format]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        subject: { type: string, minLength: 1, maxLength: 998 }
+        body: { type: string, minLength: 1, maxLength: 200000 }
+        format: { type: string, enum: [text, html] }
+    VenueEmailTemplate:
+      allOf:
+        - $ref: "#/components/schemas/VenueEmailTemplateInput"
+        - type: object
+          required: [id, builtin]
+          properties:
+            id: { type: string }
+            builtin: { type: boolean }
+    VenueManualEmailInput:
+      type: object
+      required: [templateId, businessName, recipientEmail]
+      properties:
+        templateId: { type: string, minLength: 1, maxLength: 150 }
+        businessName: { type: string, minLength: 1, maxLength: 255 }
+        recipientEmail: { type: string, format: email, maxLength: 255 }
+        placeId: { type: string, maxLength: 255 }
+        venueOwnerProfileId: { type: integer, minimum: 1 }
+
     VenueOutreachInput:
       type: object
       required: [businessName, recipientEmail]
@@ -3858,6 +4042,7 @@ components:
         businessName: { type: string }
         recipientEmail: { type: string, format: email }
         template: { type: string }
+        templateName: { type: ["string", "null"] }
         deliveryStatus:
           type: string
           enum: [sending, sent, delivery_uncertain, failed]

@@ -458,6 +458,7 @@ function RootLayoutNav() {
       }}
     >
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="saved-places" />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="permissions" />
       <Stack.Screen name="v/[placeId]" options={{ animation: "fade" }} />

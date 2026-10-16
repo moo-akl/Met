@@ -99,6 +99,12 @@ export const es: LocaleTree = {
     metListening:
       "Met escucha en silencio. Quien se cruce contigo aparecerá en Recientes.",
     invisibleHeadline: "Eres invisible para los demás",
+    canopyHeadline: "Un poco más cerca\nde tu mundo.",
+    canopyPrivacy: "Descubre a tu alrededor, a tu manera.",
+    canopyCurrentPlace: "TU LUGAR ACTUAL",
+    canopyPlaces: "Un lugar para empezar",
+    canopyPlacesRetry: "No se pudieron cargar los lugares. Toca para reintentar.",
+    canopyPlacesEmpty: "Explora el mapa o regístrate en un lugar cercano para empezar.",
     invisibleSub:
       "Vuelve a activar \u201CVisible en el radar\u201D en Ajustes para descubrir gente otra vez.",
     peopleWantReveal_one: "{{count}} persona quiere revelarse",

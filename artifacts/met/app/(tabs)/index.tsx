@@ -1,6 +1,7 @@
 import { CompleteProfileBanner } from "@/components/ProfileCompletionGate";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Updates from "expo-updates";
@@ -8,11 +9,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   DevSettings,
-  Easing,
   InteractionManager,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -27,12 +25,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import Svg, { Circle, Path } from "react-native-svg";
 import { LinearGradient as LG } from "expo-linear-gradient";
-import { AppHeader } from "@/components/AppHeader";
 import { Avatar } from "@/components/Avatar";
 import { HeatmapMap } from "@/components/HeatmapMap";
-import { api, type VenueOwnerProfile } from "@/lib/api/client";
+import { CanopyHeader, CanopyMapCard, CanopyVisibility } from "@/components/CanopyChrome";
+import { api } from "@/lib/api/client";
 import { HubStatusBadge } from "@/components/HubStatusBadge";
-import { GridOverlay } from "@/components/GridOverlay";
 import { PermissionDisclosureDialog } from "@/components/PermissionDisclosureDialog";
 import { RequestsSheet } from "@/components/RequestsSheet";
 import { MyRankings } from "@/components/MyRankings";
@@ -53,6 +50,7 @@ import {
 } from "@/lib/i18n";
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
+import { SavePlaceButton } from "@/components/SavePlaceButton";
 import {
   isStoreScreenshotDemo,
   STORE_DEMO_PLACE_ID,
@@ -75,6 +73,7 @@ const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
 function StoreDemoHomeScreen() {
   const router = useRouter();
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const { isDark } = useTheme();
@@ -88,8 +87,8 @@ function StoreDemoHomeScreen() {
     } as never);
 
   return (
-    <View style={[storeDemoHomeStyles.page, light && storeDemoLightStyles.page]}>
-      <AppHeader title="Home" scanActive={false} actions={[]} />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <CanopyHeader onLanguage={() => Alert.alert("Sample preview", "Language preferences are available in the live app.")} onRequests={() => Alert.alert("Sample preview", "No live requests are shown here.")} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -99,28 +98,21 @@ function StoreDemoHomeScreen() {
           { paddingBottom: insets.bottom + 110 },
         ]}
       >
-        <View style={[storeDemoHomeStyles.intro, light && storeDemoLightStyles.intro, compact && storeDemoCompactStyles.intro]}>
+        <View style={[storeDemoHomeStyles.intro, { paddingHorizontal: 6 }]}>
           <View style={[storeDemoHomeStyles.sampleBadge, light && storeDemoLightStyles.sampleBadge, compact && storeDemoCompactStyles.sampleBadge]}>
             <Feather name="activity" size={11} color={light ? "#246B54" : "#A78BFA"} />
             <Text style={[storeDemoHomeStyles.sampleBadgeText, light && storeDemoLightStyles.sampleBadgeText]}>SAMPLE MET NETWORK</Text>
           </View>
-          <Text style={[storeDemoHomeStyles.title, light && storeDemoLightStyles.title, compact && storeDemoCompactStyles.title]}>A world connected through places.</Text>
-          <Text style={[storeDemoHomeStyles.subtitle, light && storeDemoLightStyles.subtitle, compact && storeDemoCompactStyles.subtitle]}>
-            Discover community energy through participating venues.
+          <Text style={[canopyHome.title, { color: colors.text }]}>A little closer{"\n"}to your world.</Text>
+          <Text style={[canopyHome.caption, { color: colors.mutedForeground }]}>
+            Illustrative venue activity · read-only sample
           </Text>
         </View>
 
-        <View style={[storeDemoHomeStyles.mapCard, light && storeDemoLightStyles.mapCard, compact && storeDemoCompactStyles.mapCard]}>
-          <View style={[storeDemoHomeStyles.mapHeader, light && storeDemoLightStyles.mapHeader, compact && storeDemoCompactStyles.mapHeader]}>
-            <View>
-              <Text style={[storeDemoHomeStyles.mapTitle, light && storeDemoLightStyles.mapTitle, compact && storeDemoCompactStyles.mapTitle]}>World heat map</Text>
-              <Text style={[storeDemoHomeStyles.mapCaption, light && storeDemoLightStyles.mapCaption, compact && storeDemoCompactStyles.mapCaption]}>
-                Aggregate activity across venue communities
-              </Text>
-            </View>
-            <Feather name="globe" size={20} color={light ? "#246B54" : "#A78BFA"} />
-          </View>
-          <View style={[storeDemoHomeStyles.map, light && storeDemoLightStyles.map, compact && storeDemoCompactStyles.map]}>
+        <View style={{ marginHorizontal: -14 }}>
+        <CanopyVisibility visible={false} onToggle={() => Alert.alert("Sample preview", "Visibility is not changed in this read-only sample.")} title="Your visibility is paused" subtitle="Nearby discovery, on your terms." />
+        <CanopyMapCard>
+          <View style={[storeDemoHomeStyles.map, light && storeDemoLightStyles.map, { flex: 1, height: undefined }]}>
             <Svg viewBox="0 0 360 165" preserveAspectRatio={compact ? "xMidYMid slice" : "xMidYMid meet"} style={storeDemoHomeStyles.worldMap}>
               <Path d="M37 40 51 27 72 19 91 23 101 17 116 25 124 38 118 47 106 48 104 59 95 63 90 77 80 89 73 82 68 72 55 69 49 61 39 58 31 48Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
               <Path d="m98 63 12 5 8 11 10 8-3 11 8 9-3 14-8 8-4 15-8 5-8-12-1-13-8-12 2-11-7-9 7-10Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
@@ -151,9 +143,7 @@ function StoreDemoHomeScreen() {
             <Text style={[storeDemoHomeStyles.region, light && storeDemoLightStyles.region, { left: "43%", top: "31%" }]}>EUROPE</Text>
             <Text style={[storeDemoHomeStyles.region, light && storeDemoLightStyles.region, { right: "9%", top: "40%" }]}>ASIA PACIFIC</Text>
           </View>
-          <Text style={[storeDemoHomeStyles.disclaimer, light && storeDemoLightStyles.disclaimer, compact && storeDemoCompactStyles.disclaimer]}>
-            Sample aggregate venue activity — no individual live locations.
-          </Text>
+        </CanopyMapCard>
         </View>
 
         <View style={[storeDemoHomeStyles.sectionHeading, light && storeDemoLightStyles.sectionHeading, compact && storeDemoCompactStyles.sectionHeading]}>
@@ -192,10 +182,10 @@ function StoreDemoHomeScreen() {
               params: { demo: "1", storeDemo: "checkin", placeId: STORE_DEMO_PLACE_ID, placeName: STORE_DEMO_PLACE_NAME },
             } as never)
           }
-          style={({ pressed }) => [storeDemoHomeStyles.checkinButton, light && storeDemoLightStyles.checkinButton, compact && storeDemoCompactStyles.checkinButton, pressed && { opacity: 0.8 }]}
+          style={({ pressed }) => [storeDemoHomeStyles.checkinButton, { backgroundColor: colors.primary }, pressed && { opacity: 0.8 }]}
         >
-          <Feather name="maximize" size={15} color={light ? "#F6F7F0" : "#07101A"} />
-          <Text style={[storeDemoHomeStyles.checkinButtonText, light && storeDemoLightStyles.checkinButtonText]}>Check in at a venue</Text>
+          <Feather name="maximize" size={15} color={colors.primaryForeground} />
+          <Text style={[storeDemoHomeStyles.checkinButtonText, { color: colors.primaryForeground }]}>Check in at a venue</Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -207,12 +197,11 @@ export default function HomeScreen() {
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
-  // Conditional palette — Aurora Glass in dark mode, theme tokens in light mode
-  const bg     = isDark ? AG_BG    : colors.background;
-  const card   = isDark ? AG_CARD  : colors.card;
-  const border = isDark ? AG_BORDER : "rgba(0,0,0,0.08)";
-  const text   = isDark ? AG_TEXT  : colors.text;
-  const muted  = isDark ? AG_MUTED : colors.mutedForeground;
+  const bg = colors.background;
+  const card = colors.card;
+  const border = colors.border;
+  const text = colors.text;
+  const muted = colors.mutedForeground;
   const router = useRouter();
   const { t } = useT();
   const [langPickerOpen, setLangPickerOpen] = useState(false);
@@ -255,6 +244,13 @@ export default function HomeScreen() {
   };
 
   const { encounters, preferences, authedUid } = useApp();
+  const featuredPlaces = useQuery({
+    queryKey: ["canopy-venue-points", authedUid],
+    queryFn: () => api.getVenueOwnerMapPoints({ uid: authedUid! }),
+    enabled: !!authedUid && !isStoreScreenshotDemo("home"),
+    staleTime: 60_000,
+    retry: 1,
+  });
 
   const { hubState, cooldownMinutes, pendingVenues, confirmVenue, cancelVenueSelection, attemptCheckin } =
     useHubCheckin();
@@ -342,19 +338,6 @@ export default function HomeScreen() {
 
   const animatedWithin = useCountUp(isVisible ? withinRange : 0, 700);
 
-  const livePulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (!isVisible) { livePulse.setValue(1); return; }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(livePulse, { toValue: 0.25, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(livePulse, { toValue: 1,    duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [isVisible, livePulse]);
-
   useFocusEffect(
     useCallback(() => {
       if (!authedUid) return;
@@ -362,7 +345,6 @@ export default function HomeScreen() {
     }, [authedUid]),
   );
 
-  const vibe = isVisible ? deriveVibe(withinRange) : null;
   const webBot = Platform.OS === "web" ? 34 : 0;
 
   if (isStoreScreenshotDemo("home")) return <StoreDemoHomeScreen />;
@@ -370,45 +352,42 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
       <CompleteProfileBanner topInset={insets.top} />
-      {/* ── Aurora ambient glow blobs (dark mode only) ──────────────── */}
-      {isDark && (
-        <>
-          <LinearGradient
-            colors={["rgba(168,85,247,0.28)", "rgba(168,85,247,0.08)", "transparent"]}
-            style={styles.auroraBlob1}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            pointerEvents="none"
-          />
-          <LinearGradient
-            colors={["rgba(6,182,212,0.2)", "rgba(6,182,212,0.06)", "transparent"]}
-            style={styles.auroraBlob2}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            pointerEvents="none"
-          />
-          <LinearGradient
-            colors={["rgba(99,102,241,0.18)", "rgba(99,102,241,0.04)", "transparent"]}
-            style={styles.auroraBlob3}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            pointerEvents="none"
-          />
-        </>
-      )}
-
-      <GridOverlay />
-      <AppHeader
-        title={t("appHeader.titleHome")}
-        scanActive={isVisible}
-        visibility={{ isVisible, onToggle: toggleVisibility }}
-        actions={[{ icon: "globe", onPress: () => setLangPickerOpen(true) }]}
+      <CanopyHeader
+        onLanguage={() => setLangPickerOpen(true)}
+        onRequests={() => setRequestsOpen(true)}
+        requestCount={incoming.length}
       />
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + webBot + 120 }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={canopyHome.intro}>
+          <View style={{ flex: 1 }}>
+            <Text style={[canopyHome.eyebrow, { color: muted }]}>{t("appHeader.titleHome").toUpperCase()}</Text>
+            <Text style={[canopyHome.title, { color: text }]}>{t("home.canopyHeadline")}</Text>
+          </View>
+          <View style={{ alignItems: "flex-end", maxWidth: 110 }}>
+            <Text style={[canopyHome.count, { color: text }]}>{isVisible ? animatedWithin : "—"}</Text>
+            <Text style={[canopyHome.caption, { color: muted }]}>{t("home.peopleWithinSuffix", { label: t(withinRange === 1 ? "home.person" : "home.people"), m: rangeM })}</Text>
+          </View>
+        </View>
+        <CanopyVisibility
+          visible={isVisible}
+          onToggle={toggleVisibility}
+          title={isVisible ? t("home.beaconActive") : t("home.beaconOff")}
+          subtitle={t("home.canopyPrivacy")}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open saved places"
+          onPress={() => router.push("/saved-places")}
+          style={[canopyHome.place, { backgroundColor: card, borderColor: border, minHeight: 52 }]}
+        >
+          <Feather name="bookmark" size={20} color={colors.primary} />
+          <Text style={[canopyHome.placeName, { color: text, flex: 1 }]}>Saved places</Text>
+          <Feather name="chevron-right" size={18} color={muted} />
+        </Pressable>
         {/* ── Permission warning banner ──────────────────────────────── */}
         {permsMissing ? (
           <Pressable
@@ -424,10 +403,10 @@ export default function HomeScreen() {
               <Feather name="alert-triangle" size={18} color="#F97316" />
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[styles.bannerTitle, { color: "#FED7AA" }]}>
+              <Text style={[styles.bannerTitle, { color: text }]}>
                 {!locationOk && !bluetoothOk ? "Location & Bluetooth off" : !locationOk ? "Location off" : "Bluetooth off"}
               </Text>
-              <Text style={[styles.bannerSub, { color: "rgba(253,186,116,0.8)" }]}>
+              <Text style={[styles.bannerSub, { color: muted }]}>
                 Met can't detect nearby people without{" "}
                 {!locationOk && !bluetoothOk ? "Location & Bluetooth" : !locationOk ? "Location" : "Bluetooth"}
                 . Tap to open Settings.
@@ -456,7 +435,7 @@ export default function HomeScreen() {
             )}
             style={({ pressed }) => [
               styles.banner,
-              { backgroundColor: card, borderColor: AG_PURPLE, opacity: pressed ? 0.85 : 1 },
+              { backgroundColor: card, borderColor: border, opacity: pressed ? 0.85 : 1 },
             ]}
           >
             <View style={styles.bannerAvatars}>
@@ -478,55 +457,45 @@ export default function HomeScreen() {
               </Text>
               <Text style={[styles.bannerSub, { color: muted }]}>{t("home.tapToReview")}</Text>
             </View>
-            <Feather name="chevron-right" size={20} color={AG_PURPLE} />
+            <Feather name="chevron-right" size={20} color={text} />
           </Pressable>
         ) : null}
 
-        {/* ── Beacon status pill ────────────────────────────────────── */}
-        <View style={styles.beaconPillRow}>
-          <View style={[styles.beaconPill, { backgroundColor: card, borderColor: isVisible ? "rgba(168,85,247,0.4)" : border }]}>
-            {isVisible ? (
-              <View style={styles.liveDotWrap}>
-                <Animated.View style={[styles.liveDotPing, { opacity: livePulse }]} />
-                <View style={styles.liveDotCore} />
-              </View>
-            ) : (
-              <View style={[styles.liveDotCore, { backgroundColor: isDark ? AG_MUTED_SOLID : colors.mutedForeground }]} />
-            )}
-            <Text style={[styles.beaconLabel, { color: isVisible ? "#D8B4FE" : muted }]}>
-              {isVisible ? t("home.beaconActive") : t("home.beaconOff")}
-            </Text>
+        <CanopyMapCard>
+          {mapReady
+            ? <HeatmapMap style={{ flex: 1 }} onVenuePress={(pid) => router.push({ pathname: "/venue/[placeId]", params: { placeId: pid } } as never)} />
+            : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.primary} /></View>}
+        </CanopyMapCard>
+
+        {hubState && !hubState.isMock && (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Open ${hubState.placeName}`} onPress={() => router.push(`/venue/${hubState.placeId}`)} style={[canopyHome.place, { backgroundColor: card, borderColor: border }]}>
+            <View style={[canopyHome.placeIcon, { backgroundColor: colors.primarySoft }]}><Feather name="coffee" size={23} color={text} /></View>
+            <View style={{ flex: 1 }}><Text style={[canopyHome.caption, { color: muted }]}>{t("home.canopyCurrentPlace")}</Text><Text style={[canopyHome.placeName, { color: text }]}>{hubState.placeName}</Text></View>
+            <Feather name="arrow-right" size={20} color={text} />
+          </Pressable>
+        )}
+        {!hubState && (
+          <View style={{ marginBottom: 12 }}>
+            <Text style={[canopyHome.placesLabel, { color: muted }]}>{t("home.canopyPlaces")}</Text>
+            {featuredPlaces.isLoading && <ActivityIndicator color={colors.primary} style={{ paddingVertical: 12 }} />}
+            {featuredPlaces.isError && <Pressable onPress={() => void featuredPlaces.refetch()} accessibilityRole="button" style={[canopyHome.place, { borderColor: border, backgroundColor: card }]}><Feather name="refresh-cw" size={17} color={text} /><Text style={[canopyHome.caption, { color: text }]}>{t("home.canopyPlacesRetry")}</Text></Pressable>}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+              {featuredPlaces.data?.venues.slice(0, 6).map((venue) => (
+                <View key={venue.placeId} style={{ width: 280 }}>
+                <Pressable accessibilityRole="button" onPress={() => router.push(`/venue/${venue.placeId}`)} style={[canopyHome.place, { width: 280, marginHorizontal: 0, marginBottom: 0, borderColor: border, backgroundColor: card }]}>
+                  {venue.logoUrl
+                    ? <Image source={{ uri: venue.logoUrl }} style={canopyHome.placeIcon} contentFit="cover" />
+                    : <View style={[canopyHome.placeIcon, { backgroundColor: colors.primarySoft }]}><Feather name="map-pin" size={22} color={text} /></View>}
+                  <View style={{ flex: 1 }}><Text numberOfLines={1} style={[canopyHome.placeName, { color: text }]}>{venue.businessName}</Text><Text numberOfLines={1} style={[canopyHome.caption, { color: muted }]}>{venue.tagline || venue.placeName}</Text></View>
+                  <Feather name="arrow-right" size={16} color={text} />
+                </Pressable>
+                <SavePlaceButton placeId={venue.placeId} placeName={venue.businessName} />
+                </View>
+              ))}
+            </ScrollView>
+            {featuredPlaces.isSuccess && featuredPlaces.data.venues.length === 0 && <Text style={[canopyHome.emptyPlaces, { color: muted }]}>{t("home.canopyPlacesEmpty")}</Text>}
           </View>
-        </View>
-
-        {/* ── Hero number ───────────────────────────────────────────── */}
-        <View style={styles.heroSection}>
-          {isVisible ? (
-            <>
-              <Text style={[styles.heroNumber, { color: isDark ? AG_PURPLE : colors.primary }]}>{animatedWithin}</Text>
-              <Text style={[styles.heroSub, { color: muted }]}>
-                {t("home.peopleWithinSuffix", {
-                  label: t(withinRange === 1 ? "home.person" : "home.people"),
-                  m: rangeM,
-                })}
-              </Text>
-            </>
-          ) : (
-            <Text style={[styles.heroOffline, { color: text }]}>{t("home.invisibleHeadline")}</Text>
-          )}
-
-          {vibe && isVisible ? (
-            <View style={[styles.vibePill, { backgroundColor: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)" }]}>
-              <Feather name={vibe.icon} size={12} color={AG_CYAN} />
-              <Text style={[styles.vibeText, { color: AG_CYAN }]}>{t(vibe.labelKey)}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* ── Live heatmap ──────────────────────────────────────────── */}
-        <View style={styles.heatmapSection}>
-          {mapReady && <HeatmapMap style={{ flex: 1 }} onVenuePress={(pid) => router.push({ pathname: "/venue/[placeId]", params: { placeId: pid } } as never)} />}
-        </View>
+        )}
 
         {/* ── Quick actions grid ────────────────────────────────────── */}
         <View style={styles.quickActionsRow}>
@@ -535,13 +504,11 @@ export default function HomeScreen() {
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.quickActionCard,
-              { backgroundColor: card, borderColor: border, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
+              { backgroundColor: colors.primary, borderColor: colors.primary, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
             ]}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: "rgba(6,182,212,0.15)" }]}>
-              <Feather name="map-pin" size={20} color={AG_CYAN} />
-            </View>
-            <Text style={[styles.quickActionLabel, { color: text }]}>{t("home.checkInCta")}</Text>
+            <Feather name="map-pin" size={20} color={colors.primaryForeground} />
+            <Text style={[styles.quickActionLabel, { color: colors.primaryForeground }]}>{t("home.checkInCta")}</Text>
           </Pressable>
 
           <Pressable
@@ -558,15 +525,21 @@ export default function HomeScreen() {
               { backgroundColor: card, borderColor: border, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
             ]}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: "rgba(168,85,247,0.15)" }]}>
-              <Feather name="award" size={20} color={AG_PURPLE} />
-            </View>
+            <Feather name="award" size={20} color={text} />
             <Text style={[styles.quickActionLabel, { color: text }]}>Leaderboard</Text>
           </Pressable>
         </View>
 
+        <HubStatusBadge
+          hubState={hubState}
+          cooldownMinutes={cooldownMinutes}
+          pendingVenues={pendingVenues}
+          confirmVenue={confirmVenue}
+          cancelVenueSelection={cancelVenueSelection}
+        />
+
         {/* ── This Week ────────────────────────────────────────────── */}
-        <View style={[styles.weeklyCard, { backgroundColor: card, borderColor: border }]}>
+        <View style={[styles.weeklyCard, { backgroundColor: colors.primarySoft, borderColor: border }]}>
           <Text style={[styles.sectionLabel, { color: muted }]}>{t("home.thisWeek")}</Text>
           <View style={styles.weeklyRow}>
             <Pressable
@@ -618,15 +591,6 @@ export default function HomeScreen() {
           onRetry={() => refetchRankings()}
         />
 
-        {/* ── Hub Status Badge ─────────────────────────────────────── */}
-        <HubStatusBadge
-          hubState={hubState}
-          cooldownMinutes={cooldownMinutes}
-          pendingVenues={pendingVenues}
-          confirmVenue={confirmVenue}
-          cancelVenueSelection={cancelVenueSelection}
-        />
-
         {/* ── Referral / Beacon setup CTA ───────────────────────────── */}
         {permsMissing ? (
           <Pressable
@@ -661,18 +625,18 @@ export default function HomeScreen() {
             ]}
           >
             <LinearGradient
-              colors={["rgba(168,85,247,0.35)", "rgba(6,182,212,0.25)"]}
+              colors={[colors.primarySoft, colors.primarySoft]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFillObject}
             />
-            <View style={[styles.referralIconWrap, { backgroundColor: "rgba(168,85,247,0.2)" }]}>
-              <Feather name="gift" size={16} color={AG_PURPLE} />
+            <View style={[styles.referralIconWrap, { backgroundColor: colors.primarySoft }]}>
+              <Feather name="gift" size={16} color={text} />
             </View>
             <Text style={[styles.referralTitle, { color: text, flex: 1 }]}>
               {t("home.referralCtaTitle")}
             </Text>
-            <Feather name="arrow-right" size={16} color={AG_PURPLE} />
+            <Feather name="arrow-right" size={16} color={text} />
           </Pressable>
         )}
       </ScrollView>
@@ -706,22 +670,22 @@ export default function HomeScreen() {
                     style={({ pressed }) => [
                       styles.langRow,
                       {
-                        backgroundColor: active ? "rgba(168,85,247,0.2)" : isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
-                        borderColor: active ? AG_PURPLE : border,
+                        backgroundColor: active ? colors.primarySoft : card,
+                        borderColor: active ? colors.primary : border,
                         opacity: pressed ? 0.8 : 1,
                       },
                     ]}
                   >
-                    <View style={[styles.langRowIcon, { backgroundColor: active ? "rgba(168,85,247,0.15)" : isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }]}>
-                      <Feather name="globe" size={16} color={active ? AG_PURPLE : muted} />
+                  <View style={[styles.langRowIcon, { backgroundColor: colors.primarySoft }]}>
+                      <Feather name="globe" size={16} color={text} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.langRowLabel, { color: active ? "#D8B4FE" : text }]}>{opt.native}</Text>
+                      <Text style={[styles.langRowLabel, { color: text }]}>{opt.native}</Text>
                       <Text style={[styles.langRowSub, { color: muted }]}>
                         {opt.label}{opt.rtl ? "  •  RTL" : ""}
                       </Text>
                     </View>
-                    {active && <Feather name="check" size={18} color={AG_PURPLE} />}
+                    {active && <Feather name="check" size={18} color={text} />}
                   </Pressable>
                 );
               })}
@@ -732,22 +696,6 @@ export default function HomeScreen() {
 
     </View>
   );
-}
-
-function deriveVibe(count: number): {
-  labelKey: string;
-  icon: React.ComponentProps<typeof Feather>["name"];
-  fg: string;
-  bg: string;
-  border: string;
-} {
-  if (count === 0) {
-    return { labelKey: "home.quietZone", icon: "moon",  fg: "#475569", bg: "#F1F5F9", border: "#CBD5E1" };
-  }
-  if (count <= 3) {
-    return { labelKey: "home.fewSouls",  icon: "user",  fg: "#1D4ED8", bg: "#DBEAFE", border: "#93C5FD" };
-  }
-  return     { labelKey: "home.livelyHere", icon: "zap", fg: "#B45309", bg: "#FEF3C7", border: "#FCD34D" };
 }
 
 const storeDemoHomeStyles = StyleSheet.create({
@@ -933,6 +881,19 @@ const storeDemoCompactStyles = StyleSheet.create({
   checkinButton: { minHeight: 37, borderRadius: 11, marginTop: 0 },
 });
 
+const canopyHome = StyleSheet.create({
+  intro: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 16 },
+  eyebrow: { fontFamily: "Inter_600SemiBold", fontSize: 10, letterSpacing: 1.5, marginBottom: 7 },
+  title: { fontFamily: "Inter_600SemiBold", fontSize: 31, lineHeight: 35, letterSpacing: -1.3 },
+  count: { fontFamily: "Inter_600SemiBold", fontSize: 31, letterSpacing: -1 },
+  caption: { fontFamily: "Inter_400Regular", fontSize: 10, lineHeight: 15 },
+  place: { marginHorizontal: 16, marginBottom: 8, borderWidth: 1, borderRadius: 18, padding: 12, flexDirection: "row", alignItems: "center", gap: 12 },
+  placeIcon: { width: 50, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  placeName: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginTop: 3 },
+  placesLabel: { marginHorizontal: 20, fontFamily: "Inter_600SemiBold", fontSize: 10, letterSpacing: 1.1, marginBottom: 8, textTransform: "uppercase" },
+  emptyPlaces: { marginHorizontal: 20, fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 18 },
+});
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: AG_BG },
 
@@ -1000,11 +961,11 @@ const styles = StyleSheet.create({
   },
 
   // ── Quick actions ─────────────────────────────────────────────────────────
-  quickActionsRow: { flexDirection: "row", marginHorizontal: 20, marginTop: 14, gap: 12 },
+  quickActionsRow: { flexDirection: "row", marginHorizontal: 16, marginTop: 0, gap: 9 },
   quickActionCard: {
     flex: 1, alignItems: "center", justifyContent: "center",
-    gap: 10, paddingVertical: 18,
-    borderRadius: 20, borderWidth: 1, borderColor: AG_BORDER,
+    gap: 8, paddingVertical: 15, flexDirection: "row",
+    borderRadius: 16, borderWidth: 1, borderColor: AG_BORDER,
     backgroundColor: AG_CARD,
   },
   quickActionIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
@@ -1016,7 +977,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase", color: AG_MUTED, marginBottom: 14,
   },
   weeklyCard: {
-    marginHorizontal: 20, marginTop: 14, padding: 18,
+    marginHorizontal: 16, marginTop: 12, padding: 16,
     borderRadius: 20, borderWidth: 1, borderColor: AG_BORDER,
     backgroundColor: AG_CARD,
   },
@@ -1027,7 +988,7 @@ const styles = StyleSheet.create({
   weeklyValue: { fontFamily: "Inter_700Bold", fontSize: 28, color: AG_TEXT },
   weeklyLabel: { fontFamily: "Inter_400Regular", fontSize: 12, color: AG_MUTED },
   weeklyHint: {
-    fontFamily: "Inter_400Regular", fontSize: 12, color: AG_MUTED, fontStyle: "italic",
+    fontFamily: "Inter_400Regular", fontSize: 12, color: AG_MUTED,
     marginTop: 14, paddingTop: 14,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: AG_BORDER,
   },

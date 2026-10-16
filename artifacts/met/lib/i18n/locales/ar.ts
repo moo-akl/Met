@@ -101,6 +101,12 @@ export const ar: LocaleTree = {
     metListening:
       "Met يستمع بهدوء. كل من تتقاطع دروبك معه سيظهر في «الأخيرة».",
     invisibleHeadline: "أنت غير مرئي للآخرين",
+    canopyHeadline: "أقرب قليلًا\nإلى عالمك.",
+    canopyPrivacy: "اكتشف من حولك، بشروطك.",
+    canopyCurrentPlace: "مكانك الحالي",
+    canopyPlaces: "مكان للبداية",
+    canopyPlacesRetry: "تعذّر تحميل الأماكن. اضغط للمحاولة مجددًا.",
+    canopyPlacesEmpty: "استكشف الخريطة أو سجّل حضورك في مكان قريب للبدء.",
     invisibleSub:
       "أعد تشغيل \u201Cالظهور على الرادار\u201D من الإعدادات لتكتشف الناس مرة أخرى.",
     peopleWantReveal_one: "شخص واحد يريد الكشف",

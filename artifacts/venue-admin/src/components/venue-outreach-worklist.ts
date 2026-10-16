@@ -33,18 +33,90 @@ export function dedupeVenueHistory(entries: VenueOutreachHistoryEntry[]): VenueG
   });
 }
 
-export type WorklistSort = "venue" | "recent" | "status" | "agent" | "followup";
+export function lastSuccessfulEmail(group: VenueGroup): VenueOutreachHistoryEntry | null {
+  return group.events.filter((event) => event.deliveryStatus === "sent")
+    .sort((a, b) => sentTime(b) - sentTime(a) || a.id.localeCompare(b.id))[0] ?? null;
+}
+
+function sentTime(event: VenueOutreachHistoryEntry | null): number {
+  if (!event) return 0;
+  return Date.parse(event.sentAt ?? event.createdAt) || Date.parse(event.createdAt) || 0;
+}
+
+export function venueApplication(group: VenueGroup): VenueOutreachHistoryEntry | null {
+  return group.events.find((event) => event.applicationId != null || event.applicationStatus != null) ?? null;
+}
+
+export function venueInvitation(group: VenueGroup): VenueOutreachHistoryEntry | null {
+  return group.events.find((event) => event.linkStatus !== "none") ?? null;
+}
+
+export function localToday(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+export function isFollowUpDue(group: VenueGroup, today = localToday()): boolean {
+  return !!group.latest.nextActionDueDate && group.latest.nextActionDueDate <= today;
+}
+
+export type WorklistFilters = {
+  search: string;
+  view: "all" | "followup" | "attention";
+  status: string;
+  kind: string;
+  link: string;
+  application: string;
+  agent: string;
+  followUp: string;
+  lastTemplate: string;
+};
+
+export const DEFAULT_WORKLIST_FILTERS: WorklistFilters = {
+  search: "", view: "all", status: "all", kind: "all", link: "all",
+  application: "all", agent: "all", followUp: "all", lastTemplate: "all",
+};
+
+export function filterVenueGroups(groups: VenueGroup[], filters: WorklistFilters, today = localToday()): VenueGroup[] {
+  const query = filters.search.trim().toLowerCase();
+  return groups.filter((group) => {
+    const entry = group.latest;
+    const sent = lastSuccessfulEmail(group);
+    const application = venueApplication(group);
+    const invitation = venueInvitation(group);
+    const hasPlan = !!(entry.nextActionNote?.trim() || entry.nextActionDueDate);
+    return (filters.view === "all" ||
+      (filters.view === "followup" && isFollowUpDue(group, today)) ||
+      (filters.view === "attention" && ["failed", "delivery_uncertain"].includes(entry.deliveryStatus))) &&
+      (filters.status === "all" || entry.deliveryStatus === filters.status) &&
+      (filters.kind === "all" || group.events.some((event) => event.kind === filters.kind)) &&
+      (filters.link === "all" || (invitation?.linkStatus ?? "none") === filters.link) &&
+      (filters.application === "all" ||
+        (filters.application === "linked" && application?.applicationId != null) ||
+        (filters.application === "unlinked" && application?.applicationId == null) ||
+        (filters.application === "approved" && application?.applicationStatus === "approved")) &&
+      (filters.agent === "all" ||
+        (filters.agent === "assigned" && entry.assignedAgentId != null) ||
+        (filters.agent === "unassigned" && entry.assignedAgentId == null)) &&
+      (filters.followUp === "all" ||
+        (filters.followUp === "scheduled" && hasPlan) ||
+        (filters.followUp === "unscheduled" && !hasPlan)) &&
+      (filters.lastTemplate === "all" ||
+        (filters.lastTemplate === "none" ? !sent : sent?.template === filters.lastTemplate)) &&
+      (!query || [
+        entry.assignedAgentName ?? (entry.assignedAgentId == null ? "unassigned" : `agent ${entry.assignedAgentId}`),
+        entry.nextActionNote ?? "", entry.nextActionDueDate ?? "",
+        ...group.events.flatMap((event) => [event.businessName, event.recipientEmail, event.template, event.applicationStatus ?? ""]),
+      ].join(" ").toLowerCase().includes(query));
+  });
+}
+
+export type WorklistSort = "venue" | "recent" | "followup";
 export function sortVenueGroups(groups: VenueGroup[], sort: WorklistSort): VenueGroup[] {
   return [...groups].sort((a, b) => {
     let primary = 0;
     if (sort === "venue") primary = a.latest.businessName.localeCompare(b.latest.businessName);
-    if (sort === "recent") primary = new Date(b.latest.createdAt).getTime() - new Date(a.latest.createdAt).getTime();
-    if (sort === "status") primary = a.latest.deliveryStatus.localeCompare(b.latest.deliveryStatus);
-    if (sort === "agent") {
-      primary = (a.latest.assignedAgentName ?? "Unassigned").localeCompare(
-        b.latest.assignedAgentName ?? "Unassigned",
-      );
-    }
+    if (sort === "recent") primary = sentTime(lastSuccessfulEmail(b)) - sentTime(lastSuccessfulEmail(a));
     if (sort === "followup") {
       const aDate = a.latest.nextActionDueDate;
       const bDate = b.latest.nextActionDueDate;
@@ -59,36 +131,24 @@ export function sortVenueGroups(groups: VenueGroup[], sort: WorklistSort): Venue
   });
 }
 
-export function isBulkEligible(
-  group: VenueGroup,
-  kind: VenueOutreachHistoryEntry["kind"],
-  template?: string,
-): boolean {
-  const entry = group.latest;
-  if (entry.kind !== kind || entry.deliveryStatus === "delivery_uncertain" || entry.deliveryStatus === "sending") return false;
-  if (entry.kind === "manager_announcement") return false;
-  if (entry.linkStatus === "used" && (entry.kind === "new_venue_outreach" || entry.kind === "registration_invite")) return false;
-  if (entry.kind === "registration_invite") {
-    return entry.venueOwnerProfileId != null &&
-      entry.applicationStatus === "approved" &&
-      (template == null || template === "registration" || template === "registration_with_video");
-  }
-  if (entry.kind === "contact_request") {
-    return entry.venueOwnerProfileId != null && (template == null || template === "contact_request");
-  }
-  if (template === "preapproval_video_application") {
-    return entry.venueOwnerProfileId == null && entry.applicationId == null;
-  }
-  return true;
+export function dedupeRecipientEmails(groups: VenueGroup[]): VenueGroup[] {
+  const seen = new Set<string>();
+  return groups.filter((group) => {
+    const email = group.latest.recipientEmail.trim().toLowerCase();
+    if (seen.has(email)) return false;
+    seen.add(email);
+    return true;
+  });
 }
 
 export async function sendVenueBatch<T>(
   recipients: T[],
   send: (recipient: T) => Promise<void>,
   onProgress?: (progress: { completed: number; current: number; total: number }) => void,
+  limit = Infinity,
 ): Promise<{ sentCount: number; failedCount: number; notAttemptedCount: number; error: unknown | null }> {
   let sentCount = 0;
-  const batch = recipients.slice(0, 25);
+  const batch = recipients.slice(0, limit);
   for (const [index, recipient] of batch.entries()) {
     onProgress?.({ completed: sentCount, current: index + 1, total: batch.length });
     try {

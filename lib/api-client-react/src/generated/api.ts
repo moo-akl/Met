@@ -84,6 +84,7 @@ import type {
   RespondToReveal,
   RevealRequest,
   RevealRequestWithProfile,
+  SavedPlace,
   SearchAdminVenuePlaces200,
   SearchAdminVenuePlacesParams,
   SubmitAnswersRequest,
@@ -120,6 +121,8 @@ import type {
   VenueApplicationWithdrawal,
   VenueContactRequestInput,
   VenueContactRequestResult,
+  VenueEmailTemplate,
+  VenueEmailTemplateInput,
   VenueManagerAnnouncementInput,
   VenueManagerAnnouncementList,
   VenueManagerAnnouncementResponse,
@@ -157,6 +160,7 @@ import type {
   VenueManagerUpdateAudience,
   VenueManagerUpdateBroadcastInput,
   VenueManagerUpdateBroadcastResult,
+  VenueManualEmailInput,
   VenueOutreachFollowUp,
   VenueOutreachFollowUpInput,
   VenueOutreachHistoryResponse,
@@ -199,6 +203,255 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getListSavedPlacesUrl = () => {
+
+
+
+
+  return `/api/saved-places`
+}
+
+/**
+ * @summary List the authenticated user's saved venues
+ */
+export const listSavedPlaces = async ( options?: Parameters<typeof customFetch>[1]): Promise<SavedPlace[]> => {
+
+  return customFetch<SavedPlace[]>(getListSavedPlacesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSavedPlacesQueryKey = () => {
+    return [
+    `/api/saved-places`
+    ] as const;
+    }
+
+
+export const getListSavedPlacesQueryOptions = <TData = Awaited<ReturnType<typeof listSavedPlaces>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSavedPlaces>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSavedPlacesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSavedPlaces>>> = ({ signal }) => listSavedPlaces({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSavedPlaces>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSavedPlacesQueryResult = NonNullable<Awaited<ReturnType<typeof listSavedPlaces>>>
+export type ListSavedPlacesQueryError = ErrorType<unknown>
+
+
+export function useListSavedPlaces<TData = Awaited<ReturnType<typeof listSavedPlaces>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSavedPlaces>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSavedPlaces>>,
+          TError,
+          Awaited<ReturnType<typeof listSavedPlaces>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSavedPlaces<TData = Awaited<ReturnType<typeof listSavedPlaces>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSavedPlaces>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSavedPlaces>>,
+          TError,
+          Awaited<ReturnType<typeof listSavedPlaces>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSavedPlaces<TData = Awaited<ReturnType<typeof listSavedPlaces>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSavedPlaces>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List the authenticated user's saved venues
+ */
+
+export function useListSavedPlaces<TData = Awaited<ReturnType<typeof listSavedPlaces>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSavedPlaces>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSavedPlacesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSavePlaceUrl = (placeId: string,) => {
+
+
+
+
+  return `/api/saved-places/${placeId}`
+}
+
+/**
+ * @summary Save a real approved venue without recording a visit
+ */
+export const savePlace = async (placeId: string, options?: Parameters<typeof customFetch>[1]): Promise<SavedPlace> => {
+
+  return customFetch<SavedPlace>(getSavePlaceUrl(placeId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getSavePlaceMutationKey = () => ['savePlace'] as const;
+
+export const getSavePlaceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePlace>>, TError,SavePlaceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof savePlace>>, TError,SavePlaceMutationVariables, TContext> => {
+
+const mutationKey = getSavePlaceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof savePlace>>, SavePlaceMutationVariables> = (props) => {
+          const {placeId} = props ?? {};
+
+          return  savePlace(placeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SavePlaceMutationResult = NonNullable<Awaited<ReturnType<typeof savePlace>>>
+
+    export type SavePlaceMutationError = ErrorType<void>
+    export type SavePlaceMutationVariables = {placeId: string}
+
+    /**
+ * @summary Save a real approved venue without recording a visit
+ */
+export const useSavePlace = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePlace>>, TError,SavePlaceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof savePlace>>,
+        TError,
+        SavePlaceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSavePlaceMutationOptions(options), queryClient);
+    }
+
+export const getUnsavePlaceUrl = (placeId: string,) => {
+
+
+
+
+  return `/api/saved-places/${placeId}`
+}
+
+/**
+ * @summary Remove only the authenticated user's bookmark
+ */
+export const unsavePlace = async (placeId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getUnsavePlaceUrl(placeId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnsavePlaceMutationKey = () => ['unsavePlace'] as const;
+
+export const getUnsavePlaceMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unsavePlace>>, TError,UnsavePlaceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unsavePlace>>, TError,UnsavePlaceMutationVariables, TContext> => {
+
+const mutationKey = getUnsavePlaceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unsavePlace>>, UnsavePlaceMutationVariables> = (props) => {
+          const {placeId} = props ?? {};
+
+          return  unsavePlace(placeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnsavePlaceMutationResult = NonNullable<Awaited<ReturnType<typeof unsavePlace>>>
+
+    export type UnsavePlaceMutationError = ErrorType<unknown>
+    export type UnsavePlaceMutationVariables = {placeId: string}
+
+    /**
+ * @summary Remove only the authenticated user's bookmark
+ */
+export const useUnsavePlace = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unsavePlace>>, TError,UnsavePlaceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof unsavePlace>>,
+        TError,
+        UnsavePlaceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUnsavePlaceMutationOptions(options), queryClient);
+    }
 
 export const getVerifyVenueQrUrl = () => {
 
@@ -10704,6 +10957,446 @@ export const useSendVenueManagerUpdates = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSendVenueManagerUpdatesMutationOptions(options), queryClient);
+    }
+
+export const getListVenueEmailTemplatesUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/email-templates`
+}
+
+/**
+ * @summary List available manual email templates, including edited built-ins
+ */
+export const listVenueEmailTemplates = async ( options?: Parameters<typeof customFetch>[1]): Promise<VenueEmailTemplate[]> => {
+
+  return customFetch<VenueEmailTemplate[]>(getListVenueEmailTemplatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVenueEmailTemplatesQueryKey = () => {
+    return [
+    `/api/admin/venue-owner/email-templates`
+    ] as const;
+    }
+
+
+export const getListVenueEmailTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVenueEmailTemplatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVenueEmailTemplates>>> = ({ signal }) => listVenueEmailTemplates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListVenueEmailTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof listVenueEmailTemplates>>>
+export type ListVenueEmailTemplatesQueryError = ErrorType<void>
+
+
+export function useListVenueEmailTemplates<TData = Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listVenueEmailTemplates>>,
+          TError,
+          Awaited<ReturnType<typeof listVenueEmailTemplates>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListVenueEmailTemplates<TData = Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listVenueEmailTemplates>>,
+          TError,
+          Awaited<ReturnType<typeof listVenueEmailTemplates>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListVenueEmailTemplates<TData = Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List available manual email templates, including edited built-ins
+ */
+
+export function useListVenueEmailTemplates<TData = Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVenueEmailTemplates>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListVenueEmailTemplatesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateVenueEmailTemplateUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/email-templates`
+}
+
+/**
+ * @summary Create a manual email template
+ */
+export const createVenueEmailTemplate = async (venueEmailTemplateInput: VenueEmailTemplateInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueEmailTemplate> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueEmailTemplate>(getCreateVenueEmailTemplateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(venueEmailTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateVenueEmailTemplateMutationKey = () => ['createVenueEmailTemplate'] as const;
+
+export const getCreateVenueEmailTemplateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueEmailTemplate>>, TError,CreateVenueEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVenueEmailTemplate>>, TError,CreateVenueEmailTemplateMutationVariables, TContext> => {
+
+const mutationKey = getCreateVenueEmailTemplateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVenueEmailTemplate>>, CreateVenueEmailTemplateMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createVenueEmailTemplate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVenueEmailTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof createVenueEmailTemplate>>>
+    export type CreateVenueEmailTemplateMutationBody = BodyType<VenueEmailTemplateInput>
+    export type CreateVenueEmailTemplateMutationError = ErrorType<void>
+    export type CreateVenueEmailTemplateMutationVariables = {data: BodyType<VenueEmailTemplateInput>}
+
+    /**
+ * @summary Create a manual email template
+ */
+export const useCreateVenueEmailTemplate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueEmailTemplate>>, TError,CreateVenueEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createVenueEmailTemplate>>,
+        TError,
+        CreateVenueEmailTemplateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateVenueEmailTemplateMutationOptions(options), queryClient);
+    }
+
+export const getUpdateVenueEmailTemplateUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/venue-owner/email-templates/${id}`
+}
+
+/**
+ * @summary Edit a built-in or custom manual email template
+ */
+export const updateVenueEmailTemplate = async (id: string,
+    venueEmailTemplateInput: VenueEmailTemplateInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueEmailTemplate> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueEmailTemplate>(getUpdateVenueEmailTemplateUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(venueEmailTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateVenueEmailTemplateMutationKey = () => ['updateVenueEmailTemplate'] as const;
+
+export const getUpdateVenueEmailTemplateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVenueEmailTemplate>>, TError,UpdateVenueEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateVenueEmailTemplate>>, TError,UpdateVenueEmailTemplateMutationVariables, TContext> => {
+
+const mutationKey = getUpdateVenueEmailTemplateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateVenueEmailTemplate>>, UpdateVenueEmailTemplateMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateVenueEmailTemplate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateVenueEmailTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof updateVenueEmailTemplate>>>
+    export type UpdateVenueEmailTemplateMutationBody = BodyType<VenueEmailTemplateInput>
+    export type UpdateVenueEmailTemplateMutationError = ErrorType<void>
+    export type UpdateVenueEmailTemplateMutationVariables = {id: string;data: BodyType<VenueEmailTemplateInput>}
+
+    /**
+ * @summary Edit a built-in or custom manual email template
+ */
+export const useUpdateVenueEmailTemplate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVenueEmailTemplate>>, TError,UpdateVenueEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateVenueEmailTemplate>>,
+        TError,
+        UpdateVenueEmailTemplateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateVenueEmailTemplateMutationOptions(options), queryClient);
+    }
+
+export const getDeleteVenueEmailTemplateUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/venue-owner/email-templates/${id}`
+}
+
+/**
+ * @summary Remove a template from manual sending without deleting email history
+ */
+export const deleteVenueEmailTemplate = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteVenueEmailTemplateUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteVenueEmailTemplateMutationKey = () => ['deleteVenueEmailTemplate'] as const;
+
+export const getDeleteVenueEmailTemplateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVenueEmailTemplate>>, TError,DeleteVenueEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteVenueEmailTemplate>>, TError,DeleteVenueEmailTemplateMutationVariables, TContext> => {
+
+const mutationKey = getDeleteVenueEmailTemplateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteVenueEmailTemplate>>, DeleteVenueEmailTemplateMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteVenueEmailTemplate(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteVenueEmailTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof deleteVenueEmailTemplate>>>
+
+    export type DeleteVenueEmailTemplateMutationError = ErrorType<void>
+    export type DeleteVenueEmailTemplateMutationVariables = {id: string}
+
+    /**
+ * @summary Remove a template from manual sending without deleting email history
+ */
+export const useDeleteVenueEmailTemplate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVenueEmailTemplate>>, TError,DeleteVenueEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteVenueEmailTemplate>>,
+        TError,
+        DeleteVenueEmailTemplateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteVenueEmailTemplateMutationOptions(options), queryClient);
+    }
+
+export const getSendManualVenueEmailUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/manual-send`
+}
+
+/**
+ * @summary Send any available template to any venue regardless of application or previous delivery status
+ */
+export const sendManualVenueEmail = async (venueManualEmailInput: VenueManualEmailInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueContactRequestResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueContactRequestResult>(getSendManualVenueEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(venueManualEmailInput)
+  }
+);}
+
+
+
+
+
+export const getSendManualVenueEmailMutationKey = () => ['sendManualVenueEmail'] as const;
+
+export const getSendManualVenueEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendManualVenueEmail>>, TError,SendManualVenueEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendManualVenueEmail>>, TError,SendManualVenueEmailMutationVariables, TContext> => {
+
+const mutationKey = getSendManualVenueEmailMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendManualVenueEmail>>, SendManualVenueEmailMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendManualVenueEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendManualVenueEmailMutationResult = NonNullable<Awaited<ReturnType<typeof sendManualVenueEmail>>>
+    export type SendManualVenueEmailMutationBody = BodyType<VenueManualEmailInput>
+    export type SendManualVenueEmailMutationError = ErrorType<void>
+    export type SendManualVenueEmailMutationVariables = {data: BodyType<VenueManualEmailInput>}
+
+    /**
+ * @summary Send any available template to any venue regardless of application or previous delivery status
+ */
+export const useSendManualVenueEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendManualVenueEmail>>, TError,SendManualVenueEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendManualVenueEmail>>,
+        TError,
+        SendManualVenueEmailMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendManualVenueEmailMutationOptions(options), queryClient);
     }
 
 export const getGetVenueOutreachHistoryUrl = () => {

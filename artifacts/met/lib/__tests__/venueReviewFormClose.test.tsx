@@ -17,7 +17,7 @@
  */
 
 import React from "react";
-import { Alert } from "react-native";
+import { Alert, Linking } from "react-native";
 import renderer, { act } from "react-test-renderer";
 
 // ---------------------------------------------------------------------------
@@ -26,8 +26,9 @@ import renderer, { act } from "react-test-renderer";
 
 // Expo Router — provide navigation primitives used by VenueProfileScreen
 const mockRouterBack = jest.fn();
+const mockRouterPush = jest.fn();
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockRouterBack }),
+  useRouter: () => ({ back: mockRouterBack, push: mockRouterPush }),
   useLocalSearchParams: () => ({ placeId: "place-test-123" }),
   // useFocusEffect is a no-op in tests: isQrVerified is already true from
   // the getQrVerified mock, so there's nothing the focus callback needs to do.
@@ -45,6 +46,12 @@ jest.mock("react-native-safe-area-context", () => ({
 // App context — authenticated user
 jest.mock("@/contexts/AppContext", () => ({
   useApp: () => ({ authedUid: "guest-uid-1" }),
+}));
+jest.mock("@/contexts/ThemeContext", () => ({
+  useTheme: () => ({ isDark: false, theme: "light" }),
+}));
+jest.mock("@/components/VenueGuestbook", () => ({
+  VenueGuestbook: () => null,
 }));
 
 // expo-image — just render a plain View so the tree is stable
@@ -224,7 +231,7 @@ function hasNode(root: renderer.ReactTestRenderer, testID: string): boolean {
  * Render the real VenueProfileScreen and drain all async effects so the
  * component moves past its loading spinner and shows the venue content.
  */
-async function renderScreen(): Promise<renderer.ReactTestRenderer> {
+async function renderScreen(tab: "today" | "guestbook" = "guestbook"): Promise<renderer.ReactTestRenderer> {
   let root!: renderer.ReactTestRenderer;
   await act(async () => {
     root = renderer.create(<VenueProfileScreen />);
@@ -233,6 +240,11 @@ async function renderScreen(): Promise<renderer.ReactTestRenderer> {
     await new Promise<void>((r) => setImmediate(r));
     await new Promise<void>((r) => setImmediate(r));
   });
+  if (tab !== "today") {
+    await act(async () => {
+      root.root.findAll((n) => n.props.testID === `venue-tab-${tab}`)[0].props.onPress();
+    });
+  }
   return root;
 }
 
@@ -485,5 +497,50 @@ describe("submit button label while the API call is in-flight", () => {
 
     expect(hasNode(root, "review-comment-input")).toBe(false);
     expect(hasNode(root, "review-existing-summary")).toBe(true);
+  });
+});
+
+describe("Canopy venue navigation preserves real actions and drafts", () => {
+  it("keeps the review form on Guestbook and preserves a draft across tabs", async () => {
+    const root = await renderScreen("today");
+    expect(hasNode(root, "review-stars-row")).toBe(false);
+    await act(async () => {
+      root.root.findAll((n) => n.props.testID === "venue-tab-guestbook")[0].props.onPress();
+    });
+    await tapStar(root, 4);
+    await act(async () => {
+      root.root.findAll((n) => n.props.testID === "review-comment-input")[0].props.onChangeText("My unsaved visit note");
+      root.root.findAll((n) => n.props.testID === "venue-tab-today")[0].props.onPress();
+    });
+    expect(hasNode(root, "review-comment-input")).toBe(false);
+    await act(async () => {
+      root.root.findAll((n) => n.props.testID === "venue-tab-guestbook")[0].props.onPress();
+    });
+    expect(root.root.findAll((n) => n.props.testID === "review-comment-input")[0].props.value).toBe("My unsaved visit note");
+    expect(mockSubmitVenueReview).not.toHaveBeenCalled();
+  });
+
+  it("opens the existing QR scanner with the real venue identity", async () => {
+    const root = await renderScreen("today");
+    await act(async () => {
+      root.root.findAll((n) => n.props.testID === "venue-checkin")[0].props.onPress();
+    });
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/qr-scan",
+      params: { placeId: "place-test-123", placeName: expect.any(String) },
+    });
+    expect(mockHubQrVerify).not.toHaveBeenCalled();
+  });
+
+  it("opens directions for the same venue without making a check-in", async () => {
+    const openURL = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    const root = await renderScreen("today");
+    await act(async () => {
+      root.root.findAll((n) => n.props.testID === "venue-directions")[0].props.onPress();
+      await Promise.resolve();
+    });
+    expect(openURL).toHaveBeenCalledWith(expect.stringContaining("destination_place_id=place-test-123"));
+    expect(mockHubQrVerify).not.toHaveBeenCalled();
+    openURL.mockRestore();
   });
 });

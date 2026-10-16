@@ -18,12 +18,14 @@ const dbMock = vi.hoisted(() => ({
 
 // A `set` spy exposed so tests can assert on Firestore failure records.
 const fsSetSpy = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const recursiveDeleteSpy = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 // adminDb returns a mock that handles both call paths used in deleteUserData:
 //   deleteFirestoreUserData: collection("users").doc(uid).collection(sub).listDocuments()
 //   deleteStorageAssets:     collection("admin").doc(...).collection("uids").doc(uid).set({})
 const adminDbMock = vi.hoisted(() =>
   vi.fn(() => ({
+    recursiveDelete: recursiveDeleteSpy,
     collection: vi.fn(() => ({
       doc: vi.fn(() => ({
         // Used by deleteFirestoreUserData (user sub-collections).
@@ -130,6 +132,12 @@ beforeEach(() => {
 });
 
 describe("deleteUserData — Postgres cleanup", () => {
+  it("removes private saved places when the account is deleted", async () => {
+    await deleteUserData("uid-saved");
+    expect(recursiveDeleteSpy).toHaveBeenCalledOnce();
+    const firestore = adminDbMock.mock.results[0]!.value;
+    expect(firestore.collection).toHaveBeenCalledWith("savedPlaces");
+  });
   it("removes guestbook memories and both directions of guestbook blocks", async () => {
     const { tables } = captureDeletedTables();
     const { venueGuestbookTable, venueGuestbookBlocksTable } = await import("@workspace/db");

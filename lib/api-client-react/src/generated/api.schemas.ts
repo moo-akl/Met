@@ -5,6 +5,14 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface SavedPlace {
+  placeId: string;
+  placeName: string;
+  savedAt: string;
+  /** Whether the venue currently has an approved public profile */
+  available: boolean;
+}
+
 export interface VenueQrInput {
   /** @minLength 1 */
   placeId: string;
@@ -169,6 +177,57 @@ export interface VenueContactRequestInput {
   recipientEmail: string;
 }
 
+export type VenueEmailTemplateInputFormat = typeof VenueEmailTemplateInputFormat[keyof typeof VenueEmailTemplateInputFormat];
+
+
+export const VenueEmailTemplateInputFormat = {
+  text: 'text',
+  html: 'html',
+} as const;
+
+export interface VenueEmailTemplateInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 998
+     */
+  subject: string;
+  /**
+     * @minLength 1
+     * @maxLength 200000
+     */
+  body: string;
+  format: VenueEmailTemplateInputFormat;
+}
+
+export type VenueEmailTemplate = VenueEmailTemplateInput & {
+  id: string;
+  builtin: boolean;
+};
+
+export interface VenueManualEmailInput {
+  /**
+     * @minLength 1
+     * @maxLength 150
+     */
+  templateId: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  businessName: string;
+  /** @maxLength 255 */
+  recipientEmail: string;
+  /** @maxLength 255 */
+  placeId?: string;
+  /** @minimum 1 */
+  venueOwnerProfileId?: number;
+}
+
 export type VenueOutreachInputTemplate = typeof VenueOutreachInputTemplate[keyof typeof VenueOutreachInputTemplate];
 
 
@@ -270,6 +329,8 @@ export interface VenueOutreachHistoryEntry {
   businessName: string;
   recipientEmail: string;
   template: string;
+  /** @nullable */
+  templateName?: string | null;
   deliveryStatus: VenueOutreachHistoryEntryDeliveryStatus;
   createdAt: string;
   /** @nullable */
