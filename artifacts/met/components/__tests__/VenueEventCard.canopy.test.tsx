@@ -5,6 +5,9 @@ import { VenueEventCard } from "../VenueEventCard";
 
 const mockRsvp = jest.fn();
 jest.mock("@/contexts/AppContext", () => ({ useApp: () => ({ authedUid: "test-guest" }) }));
+jest.mock("@/contexts/ThemeContext", () => ({
+  useTheme: () => ({ isDark: false, theme: "light" }),
+}));
 jest.mock("@/lib/api/client", () => ({ api: { rsvpEvent: (...args: unknown[]) => mockRsvp(...args) } }));
 jest.mock("expo-linear-gradient", () => {
   const React = require("react");

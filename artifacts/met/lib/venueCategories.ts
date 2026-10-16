@@ -9,7 +9,7 @@ export const venueCategoryVisuals = {
   education: { label: "Education & library", icon: "school", color: "#4F6C94" },
   transit: { label: "Transport", icon: "train", color: "#487F91" },
   lodging: { label: "Hotel & lodging", icon: "bed", color: "#7762AE" },
-  other: { label: "Other venue", icon: "map-marker", color: "#61756B" },
+  other: { label: "Other venue", icon: "star", color: "#C99418" },
 } as const;
 
 export type VenueCategory = keyof typeof venueCategoryVisuals;

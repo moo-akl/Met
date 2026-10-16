@@ -18,15 +18,9 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useApp } from "@/contexts/AppContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { api } from "@/lib/api/client";
 import themeColors from "@/constants/colors";
-
-const CORAL = themeColors.light.brandPanel;
-const TEXT = themeColors.light.text;
-const TEXT2 = "#526557";
-const MUTED = themeColors.light.mutedForeground;
-const CARD = themeColors.light.card;
-const BORDER = themeColors.light.border;
 
 export interface VenueEventCardData {
   id: number;
@@ -59,6 +53,9 @@ function formatEventDate(iso: string): { month: string; day: string; time: strin
 
 export function VenueEventCard({ event, onPress, onRsvpChange, readOnly = false }: Props) {
   const { authedUid } = useApp();
+  const { isDark } = useTheme();
+  const palette = isDark ? themeColors.dark : themeColors.light;
+  const accent = isDark ? "#72D77A" : themeColors.light.brandPanel;
   const [myRsvp, setMyRsvp] = useState<"going" | "maybe" | "not_going" | null>(
     event.myRsvp ?? null,
   );
@@ -91,7 +88,11 @@ export function VenueEventCard({ event, onPress, onRsvpChange, readOnly = false 
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, onPress && pressed && { opacity: 0.88 }]}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: palette.card, borderColor: palette.border },
+        onPress && pressed && styles.pressed,
+      ]}
       onPress={onPress}
       disabled={!onPress}
     >
@@ -106,7 +107,7 @@ export function VenueEventCard({ event, onPress, onRsvpChange, readOnly = false 
           />
         ) : (
           <LinearGradient
-            colors={["#73C8A9", "#E1B866"]}
+            colors={isDark ? ["#28583B", "#8B7950"] : ["#B9D9B1", "#E8C98A"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.image}
@@ -137,15 +138,16 @@ export function VenueEventCard({ event, onPress, onRsvpChange, readOnly = false 
 
       {/* ── Title + time + RSVP button ───────────────── */}
       <View style={styles.footer}>
-        <Text numberOfLines={2} style={styles.title}>{event.title}</Text>
-        <Text style={styles.time}>🕐 {time}</Text>
+        <Text numberOfLines={2} style={[styles.title, { color: palette.text }]}>{event.title}</Text>
+        <Text style={[styles.time, { color: palette.mutedForeground }]}>◷  {time}</Text>
 
         <Pressable
           onPress={() => handleRsvp(isGoing ? "not_going" : "going")}
           style={[
             styles.rsvpBtn,
+            { borderColor: accent },
             isGoing
-              ? styles.rsvpBtnActive
+              ? { backgroundColor: accent }
               : styles.rsvpBtnIdle,
           ]}
           disabled={loading || readOnly}
@@ -153,9 +155,9 @@ export function VenueEventCard({ event, onPress, onRsvpChange, readOnly = false 
           accessibilityLabel={isGoing ? "Cancel RSVP" : "RSVP Going"}
         >
           {loading ? (
-            <ActivityIndicator size="small" color={isGoing ? "#fff" : CORAL} />
+            <ActivityIndicator size="small" color={isGoing ? "#fff" : accent} />
           ) : (
-            <Text style={[styles.rsvpBtnText, isGoing ? styles.rsvpBtnTextActive : styles.rsvpBtnTextIdle]}>
+            <Text style={[styles.rsvpBtnText, { color: isGoing ? "#fff" : accent }]}>
               {isGoing ? "✓ Going" : "RSVP"}
             </Text>
           )}
@@ -169,9 +171,9 @@ const styles = StyleSheet.create({
   card: {
     width: 250,
     borderRadius: 16,
-    backgroundColor: CARD,
+    backgroundColor: themeColors.light.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: themeColors.light.border,
     overflow: "hidden",
     marginRight: 14,
     shadowColor: "#000",
@@ -180,6 +182,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  pressed: { opacity: 0.88, transform: [{ scale: 0.985 }] },
 
   // Image area
   imageWrap: { position: "relative" },
@@ -191,15 +194,15 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 10,
     left: 10,
-    backgroundColor: CORAL,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: themeColors.light.brandPanel,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     alignItems: "center",
     minWidth: 40,
   },
-  dateBadgeMonth: { fontSize: 9,  fontFamily: "Inter_700Bold", color: "#fff", textTransform: "uppercase", letterSpacing: 0.5 },
-  dateBadgeDay:   { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff", lineHeight: 18 },
+  dateBadgeMonth: { fontSize: 9,  fontFamily: "Inter_700Bold", color: "#fff", textTransform: "uppercase", letterSpacing: 0.8 },
+  dateBadgeDay:   { fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff", lineHeight: 19 },
 
   // RSVP count pill
   rsvpPill: {
@@ -215,8 +218,8 @@ const styles = StyleSheet.create({
 
   // Footer
   footer: { padding: 12, gap: 6 },
-  title:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT, lineHeight: 20 },
-  time:   { fontSize: 12, fontFamily: "Inter_400Regular", color: MUTED },
+  title:  { fontSize: 15, fontFamily: "Inter_600SemiBold", lineHeight: 21 },
+  time:   { fontSize: 12, fontFamily: "Inter_500Medium" },
 
   // RSVP button
   rsvpBtn: {
@@ -226,9 +229,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 2,
   },
-  rsvpBtnIdle:         { backgroundColor: "transparent", borderColor: CORAL },
-  rsvpBtnActive:       { backgroundColor: CORAL, borderColor: CORAL },
+  rsvpBtnIdle:         { backgroundColor: "transparent" },
+  rsvpBtnActive:       {},
   rsvpBtnText:         { fontSize: 13, fontFamily: "Inter_700Bold" },
-  rsvpBtnTextIdle:     { color: CORAL },
+  rsvpBtnTextIdle:     {},
   rsvpBtnTextActive:   { color: "#fff" },
 });

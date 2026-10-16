@@ -14,7 +14,7 @@ jest.mock("expo-font", () => ({ useFonts: () => [true] }));
 jest.mock("@expo/vector-icons/MaterialCommunityIcons", () => {
   const React = require("react");
   const { Text } = require("react-native");
-  return Object.assign((props: any) => React.createElement(Text, null, props.name), { font: {} });
+  return Object.assign((props: any) => React.createElement(Text, { style: { color: props.color } }, props.name), { font: {} });
 });
 
 const venue = {
@@ -29,9 +29,25 @@ describe("venue category markers", () => {
     await fireEvent.press(screen.getByLabelText("Corner Café, Café"));
     expect(onPress).toHaveBeenCalledWith("cafe-id");
   });
-  it("uses a generic pin for missing or unknown types", async () => {
-    const screen = await render(<VenueOwnerMarker venue={{ ...venue, venueType: "future-category" }} />);
-    expect(screen.getByText("map-marker")).toBeTruthy();
+  it.each(["other", "future-category", null, undefined])("uses a gold star for the fallback type %s", async (venueType) => {
+    const onPress = jest.fn();
+    const screen = await render(<VenueOwnerMarker venue={{ ...venue, venueType }} onPress={onPress} />);
+    const stars = screen.getAllByText("star");
+    expect(stars).toHaveLength(2);
+    expect(stars[1].props.style.color).toBe("#C99418");
+    expect(screen.queryByText("map-marker")).toBeNull();
+    await fireEvent.press(screen.getByLabelText("Corner Café, Other venue"));
+    expect(onPress).toHaveBeenCalledWith("cafe-id");
+  });
+  it.each([["bar", "glass-cocktail"], ["shopping", "shopping"], ["outdoors", "tree"]])("keeps the %s category icon", async (venueType, icon) => {
+    const screen = await render(<VenueOwnerMarker venue={{ ...venue, venueType }} />);
+    expect(screen.getByText(icon)).toBeTruthy();
+    expect(screen.queryByText("star")).toBeNull();
+  });
+  it("keeps activity badges visible on gold stars", async () => {
+    const screen = await render(<VenueOwnerMarker venue={{ ...venue, hasActiveReward: true }} />);
+    expect(screen.getAllByText("star")).toHaveLength(2);
+    expect(screen.getByText("🎁")).toBeTruthy();
   });
   it("keeps reward and event badges separate from category icons", async () => {
     const screen = await render(<VenueOwnerMarker venue={{ ...venue, venueType: "restaurant", hasActiveReward: true }} />);

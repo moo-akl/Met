@@ -10,7 +10,6 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -49,40 +48,54 @@ export function MyRankings({ data, isLoading, error, onRetry }: Props) {
     >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Feather name="award" size={18} color="#F59E0B" />
-          <Text style={[styles.title, { color: colors.foreground }]}>
-            {t("home.myRankingsTitle")}
-          </Text>
+          <View style={[styles.headerIcon, { backgroundColor: colors.primarySoft }]}>
+            <Feather name="award" size={17} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.title, { color: colors.foreground }]}>{t("home.myRankingsTitle")}</Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{t("home.myRankingsSubtitle")}</Text>
+          </View>
         </View>
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          {t("home.myRankingsSubtitle")}
-        </Text>
       </View>
 
       {isLoading ? (
-        <View style={styles.loader}>
-          <ActivityIndicator color={colors.primary} />
+        <View style={styles.skeletonList} accessibilityLabel="Loading your venue rankings">
+          {[0, 1].map((row) => (
+            <View key={row} style={styles.skeletonRow}>
+              <View style={[styles.skeletonBadge, { backgroundColor: colors.primarySoft }]} />
+              <View style={{ flex: 1, gap: 7 }}>
+                <View style={[styles.skeletonLine, { backgroundColor: colors.primarySoft }]} />
+                <View style={[styles.skeletonShortLine, { backgroundColor: colors.primarySoft }]} />
+              </View>
+            </View>
+          ))}
         </View>
       ) : error ? (
-        <Pressable onPress={onRetry} style={styles.retry}>
-          <Feather name="refresh-cw" size={16} color={colors.primary} />
-          <Text style={[styles.retryText, { color: colors.primary }]}>
-            {t("common.retry")}
-          </Text>
-        </Pressable>
+        <View style={styles.stateBlock}>
+          <View style={[styles.stateIcon, { backgroundColor: colors.primarySoft }]}>
+            <Feather name="wifi-off" size={17} color={colors.primary} />
+          </View>
+          <Text style={[styles.stateTitle, { color: colors.foreground }]}>Couldn't load your rankings</Text>
+          <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>Try loading your venue visits again.</Text>
+          <Pressable
+            onPress={onRetry}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.retry,
+              { backgroundColor: colors.primarySoft, opacity: pressed ? 0.78 : 1 },
+            ]}
+          >
+            <Feather name="refresh-cw" size={14} color={colors.primary} />
+            <Text style={[styles.retryText, { color: colors.primary }]}>{t("common.retry")}</Text>
+          </Pressable>
+        </View>
       ) : data.length === 0 ? (
-        <View style={styles.empty}>
-          <Feather name="map-pin" size={24} color={colors.mutedForeground} />
-          <Text
-            style={[styles.emptyText, { color: colors.mutedForeground }]}
-          >
-            {t("home.myRankingsEmpty")}
-          </Text>
-          <Text
-            style={[styles.emptySub, { color: colors.mutedForeground }]}
-          >
-            {t("home.myRankingsEmptySub")}
-          </Text>
+        <View style={styles.stateBlock}>
+          <View style={[styles.stateIcon, { backgroundColor: colors.primarySoft }]}>
+            <Feather name="map-pin" size={17} color={colors.primary} />
+          </View>
+          <Text style={[styles.stateTitle, { color: colors.foreground }]}>{t("home.myRankingsEmpty")}</Text>
+          <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>{t("home.myRankingsEmptySub")}</Text>
         </View>
       ) : (
         <View style={styles.list}>
@@ -131,11 +144,12 @@ function RankRow({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
       style={({ pressed }) => [
         styles.row,
         {
-          opacity: pressed ? 0.8 : 1,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
+          backgroundColor: pressed ? colors.primarySoft : "transparent",
+          transform: [{ scale: pressed ? 0.99 : 1 }],
         },
       ]}
     >
@@ -189,88 +203,47 @@ function RankRow({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    borderRadius: 16,
-    borderWidth: 1,
-    marginHorizontal: 20,
-    marginTop: 16,
-    overflow: "hidden",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
+  container: { borderRadius: 22, borderWidth: 1, marginHorizontal: 16, marginTop: 15, overflow: "hidden" },
+  header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 13 },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 11 },
+  headerIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   title: {
     fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    lineHeight: 22,
+    fontFamily: "Inter_600SemiBold",
+    lineHeight: 21,
   },
   subtitle: {
-    fontSize: 11,
+    fontSize: 11, marginTop: 3,
     fontFamily: "Inter_400Regular",
   },
-  loader: {
-    paddingVertical: 30,
-    alignItems: "center",
-  },
-  retry: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 24,
-  },
-  retryText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  empty: {
-    alignItems: "center",
-    paddingVertical: 28,
-    gap: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: 4,
-  },
-  emptySub: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    paddingHorizontal: 20,
-  },
-  list: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-  },
+  skeletonList: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
+  skeletonRow: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52 },
+  skeletonBadge: { width: 38, height: 38, borderRadius: 14, opacity: 0.72 },
+  skeletonLine: { height: 10, width: "58%", borderRadius: 5, opacity: 0.7 },
+  skeletonShortLine: { height: 8, width: "34%", borderRadius: 4, opacity: 0.55 },
+  stateBlock: { alignItems: "center", paddingHorizontal: 22, paddingTop: 2, paddingBottom: 20, gap: 8 },
+  stateIcon: { width: 40, height: 40, borderRadius: 15, alignItems: "center", justifyContent: "center", marginBottom: 2 },
+  stateTitle: { fontFamily: "Inter_600SemiBold", fontSize: 13, textAlign: "center" },
+  retry: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 38, paddingHorizontal: 14, borderRadius: 999, marginTop: 3 },
+  retryText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  emptySub: { fontSize: 12, lineHeight: 17, fontFamily: "Inter_400Regular", textAlign: "center", paddingHorizontal: 14 },
+  list: { paddingHorizontal: 12, paddingBottom: 10 },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 11,
-    paddingHorizontal: 6,
-    borderRadius: 12,
+    paddingVertical: 11, paddingHorizontal: 7, borderRadius: 15,
   },
   badge: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
   },
   badgeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Inter_700Bold",
   },
   info: {
@@ -278,7 +251,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   venueName: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_600SemiBold",
   },
   meta: {

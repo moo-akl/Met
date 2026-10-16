@@ -1201,7 +1201,7 @@ export const en = {
   },
 
   leaderboard: {
-    title: "Leaderboard",
+    title: "Visitors",
     tabAllTime: "All-Time",
     tabMonthly: "Monthly Top",
     rankLabel: "Rank",

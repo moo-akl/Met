@@ -4,11 +4,10 @@
  * Displays a pill on the home screen when the user is currently at a
  * recognised Google Places venue (a "Hub").
  *
- * Shows:  📍 <Venue Name>  |  🔥 <Streak>
+ * Shows the current venue with a quiet activity streak marker.
  *
- * Premium visual features:
- *   - Looping glow pulse behind the pill (opacity loop via Animated)
- *   - Scale-bounce on the 🔥 icon whenever the streak increments
+ * The card follows the warm green Home surfaces and retains a soft entrance
+ * transition plus the first-visit discovery hint.
  *
  * Hides itself (returns null) when:
  *   - No hub is found within 50 m
@@ -21,6 +20,7 @@
  */
 
 import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { View, Text, StyleSheet, Animated, Pressable } from "react-native";
 import { type HubState, type VenueResult } from "@/hooks/useHubCheckin";
@@ -89,13 +89,6 @@ function HubStatusBadgeInner({
   // Fade badge in/out on visibility change
   const badgeOpacity = React.useRef(new Animated.Value(0)).current;
 
-  // Glow halo: loops 0.25 → 0.7 → 0.25
-  const glowOpacity = React.useRef(new Animated.Value(0.25)).current;
-
-  // Flame scale bounce on streak increment
-  const flameScale = React.useRef(new Animated.Value(1)).current;
-  const prevStreakRef = React.useRef<number | null>(null);
-
   // Tooltip — "Tap to compete!" shown for first 3 sessions
   const [tooltipVisible, setTooltipVisible] = React.useState(false);
   const [discoveryDismissed, setDiscoveryDismissed] = React.useState(
@@ -114,55 +107,6 @@ function HubStatusBadgeInner({
       friction: 12,
     }).start();
   }, [badgeVisible, badgeOpacity]);
-
-  // Glow pulse loop — spring-driven recursive chain
-  const glowActiveRef = React.useRef(true);
-  React.useEffect(() => {
-    if (!hubState) return;
-    glowActiveRef.current = true;
-    function pulseGlow(toValue: number) {
-      if (!glowActiveRef.current) return;
-      Animated.spring(glowOpacity, {
-        toValue,
-        useNativeDriver: true,
-        tension: 18,
-        friction: 10,
-      }).start(({ finished }) => {
-        if (finished && glowActiveRef.current) {
-          pulseGlow(toValue === 0.7 ? 0.25 : 0.7);
-        }
-      });
-    }
-    pulseGlow(0.7);
-    return () => {
-      glowActiveRef.current = false;
-    };
-  }, [hubState, glowOpacity]);
-
-  // Flame bounce on streak change
-  React.useEffect(() => {
-    if (!hubState) return;
-    if (
-      prevStreakRef.current !== null &&
-      hubState.streak !== prevStreakRef.current
-    ) {
-      Animated.sequence([
-        Animated.spring(flameScale, {
-          toValue: 1.55,
-          useNativeDriver: true,
-          tension: 220,
-          friction: 4,
-        }),
-        Animated.spring(flameScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-      ]).start();
-    }
-    prevStreakRef.current = hubState.streak;
-  }, [hubState?.streak, flameScale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Subscribe to real-time discovery dismissal (e.g. from HomeTabIcon tap)
   React.useEffect(() => {
@@ -221,22 +165,20 @@ function HubStatusBadgeInner({
         >
           <View
             style={[
-              styles.pill,
-              styles.cooldownPill,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-              },
+              styles.cooldownCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
             ]}
             accessibilityLabel={t("checkin.cooldownRemaining", { time: timeLabel })}
           >
-            <Text style={styles.icon}>⏳</Text>
-            <Text
-              numberOfLines={1}
-              style={[styles.cooldownText, { color: colors.mutedForeground }]}
-            >
-              {t("checkin.cooldownRemaining", { time: timeLabel })}
-            </Text>
+            <View style={[styles.statusIcon, { backgroundColor: colors.primarySoft }]}>
+              <Feather name="clock" size={17} color={colors.primary} />
+            </View>
+            <View style={styles.statusCopy}>
+              <Text style={[styles.statusEyebrow, { color: colors.mutedForeground }]}>CHECK-IN PAUSE</Text>
+              <Text numberOfLines={1} style={[styles.cooldownText, { color: colors.foreground }]}>
+                {t("checkin.cooldownRemaining", { time: timeLabel })}
+              </Text>
+            </View>
           </View>
         </Animated.View>
       </>
@@ -309,48 +251,32 @@ function HubStatusBadgeInner({
       <Pressable
         onPress={handlePress}
         disabled={hubState.isMock}
-        accessibilityLabel={`Checked in at ${hubState.placeName}, ${hubState.streak} day streak. Tap to see leaderboard.`}
+        accessibilityLabel={`Checked in at ${hubState.placeName}, ${hubState.streak} day streak. Tap to see visitors.`}
         accessibilityRole="button"
+        style={({ pressed }) => pressed && !hubState.isMock ? { opacity: 0.88, transform: [{ scale: 0.99 }] } : undefined}
       >
-        {/* Glow halo — sits behind the pill */}
-        <Animated.View
-          style={[
-            styles.glow,
-            { borderColor: colors.primary, opacity: glowOpacity },
-          ]}
-          pointerEvents="none"
-        />
-
         <View
           style={[
-            styles.pill,
+            styles.statusCard,
             {
               backgroundColor: colors.card,
-              borderColor: colors.primary,
+              borderColor: colors.border,
             },
           ]}
         >
-          {/* Location icon + venue name */}
-          <Text style={styles.icon}>📍</Text>
-          <Text
-            numberOfLines={1}
-            style={[styles.placeName, { color: colors.foreground }]}
-          >
-            {hubState.placeName}
-          </Text>
-
-          {/* Divider */}
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-          {/* Animated flame + streak count */}
-          <Animated.Text
-            style={[styles.fireIcon, { transform: [{ scale: flameScale }] }]}
-          >
-            🔥
-          </Animated.Text>
-          <Text style={[styles.streakCount, { color: colors.primary }]}>
-            {hubState.streak}
-          </Text>
+          <View style={[styles.statusIcon, { backgroundColor: colors.primarySoft }]}>
+            <Feather name="map-pin" size={17} color={colors.primary} />
+          </View>
+          <View style={styles.statusCopy}>
+            <Text style={[styles.statusEyebrow, { color: colors.mutedForeground }]}>YOU’RE AT</Text>
+            <Text numberOfLines={1} style={[styles.placeName, { color: colors.foreground }]}>
+              {hubState.placeName}
+            </Text>
+          </View>
+          <View style={[styles.streakPill, { backgroundColor: colors.primarySoft }]}>
+            <Feather name="activity" size={14} color={colors.primary} />
+            <Text style={[styles.streakCount, { color: colors.primary }]}>{hubState.streak}</Text>
+          </View>
 
           {/* Dev-only MOCK label */}
           {hubState.isMock ? (
@@ -366,14 +292,18 @@ function HubStatusBadgeInner({
       {showQrCta && (
         <Pressable
           onPress={handleScanQr}
-          style={[styles.qrCta, { backgroundColor: colors.primary }]}
+          style={({ pressed }) => [
+            styles.qrCta,
+            { backgroundColor: colors.primarySoft, opacity: pressed ? 0.82 : 1 },
+          ]}
           accessibilityRole="button"
           accessibilityLabel="Scan the venue QR code to unlock your reward"
         >
-          <Text style={styles.qrCtaIcon}>🔍</Text>
-          <Text style={[styles.qrCtaText, { color: colors.primaryForeground }]}>
+          <Feather name="maximize" size={15} color={colors.primary} />
+          <Text style={[styles.qrCtaText, { color: colors.primary }]}>
             You're here! Scan QR → Unlock Reward
           </Text>
+          <Feather name="arrow-right" size={15} color={colors.primary} />
         </Pressable>
       )}
     </Animated.View>
@@ -391,16 +321,8 @@ export function HubStatusBadge(props: HubStatusBadgeProps) {
 
 const styles = StyleSheet.create({
   tooltip: {
-    alignSelf: "center",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    alignSelf: "center", borderRadius: 12, paddingHorizontal: 14,
+    paddingVertical: 9, marginBottom: 8, elevation: 2,
   },
   tooltipText: {
     fontFamily: "Inter_700Bold",
@@ -408,72 +330,33 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   tooltipArrow: {
-    position: "absolute",
-    bottom: -7,
-    alignSelf: "center",
-    left: "50%",
-    marginLeft: -7,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 7,
-    borderRightWidth: 7,
-    borderTopWidth: 7,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
+    position: "absolute", bottom: -7, alignSelf: "center", left: "50%",
+    marginLeft: -7, width: 0, height: 0, borderLeftWidth: 7,
+    borderRightWidth: 7, borderTopWidth: 7,
+    borderLeftColor: "transparent", borderRightColor: "transparent",
   },
-  glow: {
-    position: "absolute",
-    top: -5,
-    left: -5,
-    right: -5,
-    bottom: -5,
-    borderRadius: 999,
-    borderWidth: 2,
-  },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
+  statusCard: {
+    width: "100%", minHeight: 76, flexDirection: "row", alignItems: "center",
+    gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 20,
     borderWidth: 1,
-    maxWidth: "100%",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
   },
-  icon: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
+  statusIcon: { width: 42, height: 42, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  statusCopy: { flex: 1, minWidth: 0, gap: 3 },
+  statusEyebrow: { fontFamily: "Inter_700Bold", fontSize: 9, letterSpacing: 1.1 },
   placeName: {
     fontFamily: "Inter_600SemiBold",
-    fontSize: 13,
+    fontSize: 15,
     flexShrink: 1,
-    maxWidth: 180,
+    maxWidth: "100%",
   },
-  divider: {
-    width: 1,
-    height: 14,
-    borderRadius: 1,
-  },
-  fireIcon: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
+  streakPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 999 },
   streakCount: {
     fontFamily: "Inter_700Bold",
     fontSize: 13,
   },
-  cooldownPill: {
-    opacity: 0.75,
-  },
+  cooldownCard: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 72, padding: 13, borderRadius: 18, borderWidth: 1 },
   cooldownText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Inter_600SemiBold",
     fontSize: 13,
     flexShrink: 1,
   },
@@ -493,24 +376,11 @@ const styles = StyleSheet.create({
   qrCta: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "center",
-    gap: 6,
-    marginTop: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  qrCtaIcon: {
-    fontSize: 14,
-    lineHeight: 18,
+    gap: 9, marginTop: 9, paddingHorizontal: 13, paddingVertical: 12,
+    borderRadius: 15,
   },
   qrCtaText: {
     fontFamily: "Inter_600SemiBold",
-    fontSize: 12,
+    fontSize: 12, flex: 1,
   },
 });

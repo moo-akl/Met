@@ -32,6 +32,7 @@ interface Props {
 export function VenueOwnerMarker({ venue, onPress }: Props) {
   const hasBadge = venue.hasActiveReward || venue.hasUpcomingEvent;
   const visual = getVenueCategoryVisual(venue.venueType);
+  const isStar = visual.icon === "star";
   const [fontsLoaded] = useFonts(MaterialCommunityIcons.font);
   const [tracking, setTracking] = React.useState(true);
   React.useEffect(() => {
@@ -62,13 +63,21 @@ export function VenueOwnerMarker({ venue, onPress }: Props) {
           </View>
         )}
 
-        {/* Category pin body */}
-        <View style={[styles.pin, { backgroundColor: visual.color, borderColor: "white", shadowColor: visual.color }]}>
-          <MaterialCommunityIcons name={visual.icon} size={20} color="white" />
-        </View>
-
-        {/* Pin tail */}
-        <View style={[styles.tail, { borderTopColor: visual.color }]} />
+        {isStar ? (
+          <View style={styles.star}>
+            <MaterialCommunityIcons name="star" size={44} color="white" />
+            <View style={styles.starFill}>
+              <MaterialCommunityIcons name="star" size={36} color={visual.color} />
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={[styles.pin, { backgroundColor: visual.color, borderColor: "white", shadowColor: visual.color }]}>
+              <MaterialCommunityIcons name={visual.icon} size={20} color="white" />
+            </View>
+            <View style={[styles.tail, { borderTopColor: visual.color }]} />
+          </>
+        )}
       </View>
     </Marker>
   );
@@ -77,6 +86,21 @@ export function VenueOwnerMarker({ venue, onPress }: Props) {
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
+  },
+  star: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#805B0A",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  starFill: {
+    position: "absolute",
+    top: 4,
+    left: 4,
   },
   badge: {
     position: "absolute",

@@ -8,9 +8,9 @@
  * Layout (top → bottom, single scroll):
  *   1. Immersive hero (warm gradient, identity overlaid, dark text)
  *   2. About / description
- *   3. "Be the Winner" reward card (white card + coral stripe)
+ *   3. "Be the Winner" reward card (warm paper + forest accent)
  *   4. Announcements
- *   5. Leaderboards (3-column white cards)
+ *   5. Visitors (a snapshot of the local community)
  *   6. Upcoming events (horizontal scroll)
  *   7. Info & Contact (unified white card)
  */
@@ -140,12 +140,13 @@ function SectionLabel({
   title: string;
   onSeeAll?: () => void;
 }) {
+  const { isDark } = useTheme();
   return (
     <View style={styles.sectionLabelRow}>
-      <Text style={styles.sectionLabel}>{title}</Text>
+      <Text style={[styles.sectionLabel, isDark && styles.sectionLabelDark]}>{title}</Text>
       {onSeeAll && (
         <Pressable onPress={onSeeAll} hitSlop={10}>
-          <Text style={styles.seeAllLink}>See all →</Text>
+          <Text style={[styles.seeAllLink, isDark && styles.darkAccentText]}>See all →</Text>
         </Pressable>
       )}
     </View>
@@ -174,24 +175,24 @@ function WinnerModal({
   onClose: () => void;
 }) {
   const insets   = useSafeAreaInsets();
+  const { isDark } = useTheme();
   const countdown = useCountdown(reward.endDate);
   const icon     = REWARD_ICON[reward.rewardType] ?? "🎁";
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={wm.backdrop} onPress={onClose} />
-      <View style={[wm.sheet, { paddingBottom: insets.bottom + 24 }]}>
+      <View style={[wm.sheet, isDark && wm.darkSheet, { paddingBottom: insets.bottom + 24 }]}>
         <SheetHandle style={{ marginBottom: 20 }} />
 
-        {/* Prize card — coral accent */}
-        <View style={wm.prizeCard}>
-          <View style={wm.prizeStripe} />
+        {/* Prize card — soft canopy wash */}
+        <View style={[wm.prizeCard, isDark && wm.darkPrizeCard]}>
           <View style={wm.prizeBody}>
             <Text style={wm.prizeIcon}>{icon}</Text>
-            <Text style={wm.prizeTitle}>{reward.title}</Text>
-            <Text style={wm.prizeDesc}>{reward.prizeDescription}</Text>
+            <Text style={[wm.prizeTitle, isDark && wm.darkTitle]}>{reward.title}</Text>
+            <Text style={[wm.prizeDesc, isDark && wm.darkBody]}>{reward.prizeDescription}</Text>
             {reward.description ? (
-              <Text style={wm.prizeExtra}>{reward.description}</Text>
+              <Text style={[wm.prizeExtra, isDark && wm.darkBody]}>{reward.description}</Text>
             ) : null}
             <View style={wm.metaRow}>
               <Text style={wm.prizeCountdown}>⏱ {countdown}</Text>
@@ -204,22 +205,22 @@ function WinnerModal({
           </View>
         </View>
 
-        <Text style={wm.howTitle}>How to win</Text>
+        <Text style={[wm.howTitle, isDark && wm.darkTitle]}>How to win</Text>
         <View style={wm.steps}>
           {[
             "Check in at this venue as many times as you can this month.",
-            "Rack up more check-ins than anyone else to reach #1 on the Leaderboard.",
+            "Rack up more check-ins than anyone else to reach #1 among this venue’s Visitors.",
             "Stay at the top when the reward ends and the prize is yours!",
           ].map((text, i) => (
             <View key={i} style={wm.step}>
               <View style={wm.stepNum}><Text style={wm.stepNumText}>{i + 1}</Text></View>
-              <Text style={wm.stepText}>{text}</Text>
+              <Text style={[wm.stepText, isDark && wm.darkBody]}>{text}</Text>
             </View>
           ))}
         </View>
 
-        <Pressable style={wm.closeBtn} onPress={onClose} accessibilityRole="button">
-          <Text style={wm.closeBtnText}>Got it!</Text>
+        <Pressable style={[wm.closeBtn, isDark && { backgroundColor: "#3DCC44" }]} onPress={onClose} accessibilityRole="button">
+          <Text style={[wm.closeBtnText, isDark && { color: "#19351F" }]}>Got it!</Text>
         </Pressable>
       </View>
     </Modal>
@@ -234,22 +235,24 @@ const wm = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 20,
   },
+  darkSheet: { backgroundColor: themeColors.dark.card },
   prizeCard: {
-    flexDirection: "row",
-    borderRadius: 14,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: "#DCE9D7",
     overflow: "hidden",
     marginBottom: 24,
-    backgroundColor: CARD,
+    backgroundColor: "#F3F7EF",
     ...cardShadow,
   },
-  prizeStripe: { width: 5, backgroundColor: CORAL },
-  prizeBody:   { flex: 1, padding: 16 },
-  prizeIcon:   { fontSize: 36, marginBottom: 8 },
+  darkPrizeCard: { backgroundColor: themeColors.dark.card, borderColor: themeColors.dark.border },
+  darkTitle: { color: themeColors.dark.text },
+  darkBody: { color: themeColors.dark.mutedForeground },
+  prizeBody:   { padding: 18 },
+  prizeIcon:   { fontSize: 34, marginBottom: 8 },
   prizeTitle:  { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 4 },
   prizeDesc:   { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, lineHeight: 21, marginBottom: 8 },
-  prizeCountdown: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: CORAL },
+  prizeCountdown: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#276A34" },
   howTitle:    { fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 16 },
   steps:       { gap: 14, marginBottom: 28 },
   step:        { flexDirection: "row", alignItems: "flex-start", gap: 12 },
@@ -266,10 +269,10 @@ const wm = StyleSheet.create({
   metaRow:  { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 4 },
   typePill: {
     paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 999, backgroundColor: "#F3F4F6",
+    borderRadius: 999, backgroundColor: "#E4EDE0",
   },
   typePillText: {
-    fontSize: 11, fontFamily: "Inter_500Medium", color: "#374151",
+    fontSize: 11, fontFamily: "Inter_500Medium", color: "#35563A",
     textTransform: "capitalize",
   },
   closeBtn:    { backgroundColor: CORAL, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
@@ -293,6 +296,7 @@ function BeTheWinnerCard({
   statusLabel: RewardStatus;
   onPress: () => void;
 }) {
+  const { isDark } = useTheme();
   const countdown = useCountdown(reward.endDate);
   const icon      = REWARD_ICON[reward.rewardType] ?? "🎁";
   const badge     = STATUS_BADGE[statusLabel];
@@ -300,27 +304,33 @@ function BeTheWinnerCard({
   return (
     <Pressable
       onPress={onPress}
-      style={[bw.card, cardShadow]}
+      style={({ pressed }) => [
+        bw.card,
+        isDark && bw.darkCard,
+        pressed && bw.pressed,
+        cardShadow,
+      ]}
       accessibilityRole="button"
       accessibilityLabel="View how to win this reward"
     >
-      {/* Coral left stripe */}
-      <View style={bw.stripe} />
       <View style={bw.body}>
-        {/* Icon circle */}
-        <View style={bw.iconCircle}>
-          <Text style={bw.iconEmoji}>{icon}</Text>
-        </View>
-        <View style={bw.text}>
-          {/* Status badge */}
+        <View style={bw.topRow}>
+          <View style={[bw.iconCircle, isDark && bw.iconCircleDark]}>
+            <Text style={bw.iconEmoji}>{icon}</Text>
+          </View>
           <View style={[bw.statusPill, { backgroundColor: badge.bg }]}>
             <Text style={[bw.statusPillText, { color: badge.text }]}>{badge.label}</Text>
           </View>
-          <Text style={bw.title}>{reward.title}</Text>
-          <Text numberOfLines={2} style={bw.prize}>{reward.prizeDescription}</Text>
-          <Text style={bw.countdown}>⏱ {countdown}</Text>
         </View>
-        <Text style={bw.chevron}>›</Text>
+        <Text style={[bw.title, isDark && bw.darkTitle]}>{reward.title}</Text>
+        <Text numberOfLines={2} style={[bw.prize, isDark && bw.darkBody]}>{reward.prizeDescription}</Text>
+        <View style={[bw.footer, isDark && bw.footerDark]}>
+          <Text style={[bw.countdown, isDark && bw.countdownDark]}>◷  {countdown}</Text>
+          <View style={bw.actionHint}>
+            <Text style={[bw.actionHintText, isDark && bw.countdownDark]}>How to win</Text>
+            <Text style={[bw.chevron, isDark && { color: themeColors.dark.mutedForeground }]}>›</Text>
+          </View>
+        </View>
       </View>
     </Pressable>
   );
@@ -328,39 +338,50 @@ function BeTheWinnerCard({
 
 const bw = StyleSheet.create({
   card: {
-    flexDirection: "row",
-    backgroundColor: CARD,
-    borderRadius: 14,
+    backgroundColor: "#F3F7EF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: "#DCE9D7",
     overflow: "hidden",
   },
-  stripe: { width: 5, backgroundColor: CORAL },
+  darkCard: { backgroundColor: themeColors.dark.card, borderColor: themeColors.dark.border },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.985 }] },
   body: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    paddingLeft: 12,
-    gap: 12,
+    padding: 16,
+    gap: 10,
   },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   iconCircle: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: `${CORAL}18`,
+    width: 48, height: 48, borderRadius: 16,
+    backgroundColor: "#E2EFDC",
     alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
+  iconCircleDark: { backgroundColor: "#193C24" },
   iconEmoji: { fontSize: 22 },
-  text:      { flex: 1 },
-  title:     { fontSize: 15, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 3 },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, marginTop: 2, letterSpacing: -0.3 },
+  darkTitle: { color: themeColors.dark.text },
   prize:     { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2, lineHeight: 19 },
-  countdown: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: CORAL, marginTop: 4 },
-  chevron:   { fontSize: 22, color: MUTED, lineHeight: 24 },
+  darkBody: { color: themeColors.dark.mutedForeground },
+  footer: {
+    marginTop: 4,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: "#DCE9D7",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  footerDark: { borderTopColor: themeColors.dark.border },
+  countdown: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#276A34" },
+  countdownDark: { color: "#8FD995" },
+  actionHint: { flexDirection: "row", alignItems: "center", gap: 4 },
+  actionHintText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#276A34" },
+  chevron:   { fontSize: 21, color: "#276A34", lineHeight: 22 },
   statusPill: {
-    alignSelf: "flex-start",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginBottom: 5,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   statusPillText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });
@@ -925,10 +946,10 @@ export default function VenueProfileScreen() {
                 </Text>
                 <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: themeColors.light.brandPanelText, opacity: 0.85, marginTop: 2, lineHeight: 18 }}>
                   {isScreenshotDemoVenue
-                    ? `Example activity: ${myLeaderboardEntry.checkinCount} visits · #${myLeaderboardEntry.rank} in sample standings`
+                    ? `Example activity: ${myLeaderboardEntry.checkinCount} visits · #${myLeaderboardEntry.rank} among sample Visitors`
                     : myLeaderboardEntry.checkinCount === 1
-                    ? "Your first check-in here — you're on the board"
-                    : `You've checked in ${myLeaderboardEntry.checkinCount} times — you're #${myLeaderboardEntry.rank} here`}
+                    ? "Your first check-in here — you're among this venue’s Visitors"
+                    : `You've checked in ${myLeaderboardEntry.checkinCount} times — you're #${myLeaderboardEntry.rank} among this venue’s Visitors`}
                 </Text>
               </View>
             </View>
@@ -947,7 +968,7 @@ export default function VenueProfileScreen() {
             <View style={styles.section}>
               <SectionLabel title="Announcements" />
               {announcements.slice(0, 5).map((ann) => (
-                <View key={ann.id} style={[styles.annCard, cardShadow]}>
+                <View key={ann.id} style={[styles.annCard, isDark && styles.annCardDark, cardShadow]}>
                   {"imageUrl" in ann && (ann as { imageUrl?: string | null }).imageUrl ? (
                     <Image
                       source={{ uri: (ann as { imageUrl: string }).imageUrl }}
@@ -958,10 +979,13 @@ export default function VenueProfileScreen() {
                   ) : null}
                   <View style={styles.annBody}>
                     {ann.isPinned && (
-                      <Text style={styles.annPinned}>📌 Pinned</Text>
+                      <View style={[styles.annPinnedPill, isDark && styles.annPinnedPillDark]}>
+                        <Feather name="bookmark" size={11} color={isDark ? "#8FD995" : CORAL} />
+                        <Text style={[styles.annPinned, isDark && styles.darkAccentText]}>Pinned note</Text>
+                      </View>
                     )}
-                    <Text style={styles.annTitle}>{ann.title}</Text>
-                    <Text numberOfLines={3} style={styles.annText}>{ann.body}</Text>
+                    <Text style={[styles.annTitle, isDark && styles.darkTitle]}>{ann.title}</Text>
+                    <Text numberOfLines={3} style={[styles.annText, isDark && styles.darkBody]}>{ann.body}</Text>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
                       <Text style={styles.annDate}>
                         {new Date(ann.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -1001,7 +1025,7 @@ export default function VenueProfileScreen() {
                           onPress={() => setSelectedReward(reward)}
                         />
                         <View
-                          style={[styles.rewardLockOverlay]}
+                          style={[styles.rewardLockOverlay, isDark && styles.rewardLockOverlayDark]}
                           pointerEvents="box-none"
                         >
                           <Feather name="lock" size={22} color={CORAL} />
@@ -1042,7 +1066,7 @@ export default function VenueProfileScreen() {
                 style={styles.endedToggle}
                 accessibilityRole="button"
               >
-                <Text style={styles.endedToggleText}>
+                <Text style={[styles.endedToggleText, isDark && styles.darkBody]}>
                   {showEndedRewards ? "▾" : "▸"}{" "}
                   {endedRewards.length} ended reward{endedRewards.length !== 1 ? "s" : ""}
                 </Text>
@@ -1084,16 +1108,16 @@ export default function VenueProfileScreen() {
             </View>
           )}
 
-          {/* ── 4. Leaderboards ────────────────────────────────────────── */}
+          {/* ── 4. Visitors ────────────────────────────────────────────── */}
           {activeTab === "today" && topVisitors.length > 0 && (
             <View style={styles.section}>
               <SectionLabel
-                title="Leaderboards"
+                title="Visitors"
                 onSeeAll={() => router.push(`/leaderboard/${placeId}`)}
               />
               <View style={styles.lbGrid}>
                 {topVisitors.map((v, i) => (
-                  <View key={v.uid} style={[styles.lbCard, cardShadow]}>
+                  <View key={v.uid} style={[styles.lbCard, isDark && styles.lbCardDark, cardShadow]}>
                     <Text style={styles.lbMedal}>{["🥇","🥈","🥉"][i]}</Text>
                     {v.photoUrl ? (
                       <Image source={{ uri: v.photoUrl }} style={styles.lbAvatar} contentFit="cover" transition={150} />
@@ -1107,11 +1131,11 @@ export default function VenueProfileScreen() {
                         </Text>
                       </LinearGradient>
                     )}
-                    <Text numberOfLines={1} style={styles.lbName}>{v.displayName}</Text>
+                    <Text numberOfLines={1} style={[styles.lbName, isDark && styles.darkTitle]}>{v.displayName}</Text>
                     <Text style={[styles.lbCount, i === 0 && styles.lbCountGold]}>
                       {v.checkinCount}
                     </Text>
-                    <Text style={styles.lbCountLabel}>visits</Text>
+                    <Text style={[styles.lbCountLabel, isDark && styles.darkBody]}>visits</Text>
                   </View>
                 ))}
               </View>
@@ -1375,7 +1399,7 @@ export default function VenueProfileScreen() {
             onPress={() => setSelectedEvent(null)}
           >
             <Pressable
-              style={[styles.eventDetailSheet, { paddingBottom: insets.bottom + 28 }]}
+              style={[styles.eventDetailSheet, isDark && styles.eventDetailSheetDark, { paddingBottom: insets.bottom + 28 }]}
               onPress={() => {/* prevent backdrop dismiss */}}
             >
               {/* drag pill */}
@@ -1390,7 +1414,7 @@ export default function VenueProfileScreen() {
                 />
               ) : (
                 <LinearGradient
-                  colors={["#73C8A9", "#E1B866"]}
+                  colors={isDark ? ["#28583B", "#8B7950"] : ["#B9D9B1", "#E8C98A"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={[styles.eventDetailHero, { alignItems: "center", justifyContent: "center" }]}
@@ -1401,8 +1425,8 @@ export default function VenueProfileScreen() {
 
               {/* content */}
               <View style={styles.eventDetailBody}>
-                <Text style={styles.eventDetailTitle}>{selectedEvent.title}</Text>
-                <Text style={styles.eventDetailDate}>
+                <Text style={[styles.eventDetailTitle, isDark && styles.darkTitle]}>{selectedEvent.title}</Text>
+                <Text style={[styles.eventDetailDate, isDark && { color: "#8FD995" }]}>
                   {new Date(selectedEvent.startsAt).toLocaleDateString("en-US", {
                     weekday: "long", month: "long", day: "numeric",
                   })}
@@ -1412,11 +1436,11 @@ export default function VenueProfileScreen() {
                   })}
                 </Text>
                 {selectedEvent.description ? (
-                  <Text style={styles.eventDetailDesc}>{selectedEvent.description}</Text>
+                  <Text style={[styles.eventDetailDesc, isDark && styles.darkBody]}>{selectedEvent.description}</Text>
                 ) : null}
                 <View style={styles.eventDetailMeta}>
-                  <Text style={styles.eventDetailMetaText}>
-                    👥  {selectedEvent.rsvpCount} going
+                  <Text style={[styles.eventDetailMetaText, isDark && styles.darkBody]}>
+                    {selectedEvent.rsvpCount} going
                   </Text>
                 </View>
                 <Pressable
@@ -1578,6 +1602,7 @@ const styles = StyleSheet.create({
     fontSize: 18, fontFamily: "Inter_600SemiBold",
     color: TEXT, letterSpacing: -0.5,
   },
+  sectionLabelDark: { color: themeColors.dark.text },
   seeAllLink: {
     fontSize: 13, fontFamily: "Inter_500Medium", color: CORAL,
   },
@@ -1600,6 +1625,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginTop: "auto",
   },
+  eventDetailSheetDark: { backgroundColor: themeColors.dark.card },
   eventDetailHandle: {
     alignSelf: "center",
     width: 36, height: 4,
@@ -1673,6 +1699,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  rewardLockOverlayDark: { backgroundColor: "rgba(23,34,26,0.94)" },
   rewardLockIcon: { fontSize: 28, marginBottom: 4 },
   rewardLockTitle: {
     fontSize: 15,
@@ -1702,33 +1729,50 @@ const styles = StyleSheet.create({
 
   // ── Announcements ─────────────────────────────────────────────────────────
   annCard: {
-    backgroundColor: CARD,
-    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: BORDER,
-    marginBottom: 10,
+    marginBottom: 12,
     overflow: "hidden",
   },
-  annImage:  { width: "100%", height: 130 },
-  annBody:   { padding: 14 },
-  annPinned: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: CORAL, marginBottom: 4 },
-  annTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 6 },
-  annText:   { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, lineHeight: 21, marginBottom: 6 },
+  annCardDark: { backgroundColor: themeColors.dark.card, borderColor: themeColors.dark.border },
+  darkTitle: { color: themeColors.dark.text },
+  darkBody: { color: themeColors.dark.mutedForeground },
+  darkAccentText: { color: "#8FD995" },
+  annImage:  { width: "100%", height: 154 },
+  annBody:   { padding: 16 },
+  annPinnedPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 999,
+    backgroundColor: "#E8F5E5",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    marginBottom: 10,
+  },
+  annPinnedPillDark: { backgroundColor: "#193C24" },
+  annPinned: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: CORAL, letterSpacing: 0.2 },
+  annTitle:  { fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 7, letterSpacing: -0.25 },
+  annText:   { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, lineHeight: 21, marginBottom: 8 },
   annDate:   { fontSize: 11, fontFamily: "Inter_400Regular", color: MUTED },
 
-  // ── Leaderboards ──────────────────────────────────────────────────────────
+  // ── Visitors ───────────────────────────────────────────────────────────────
   lbGrid:    { flexDirection: "row", gap: 10 },
   lbCard: {
     flex: 1,
-    backgroundColor: CARD,
-    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: BORDER,
     padding: 12,
-    paddingTop: 18,
+    paddingTop: 20,
     alignItems: "center",
-    gap: 3,
+    gap: 4,
   },
+  lbCardDark: { backgroundColor: themeColors.dark.card, borderColor: themeColors.dark.border },
   lbMedal:         { position: "absolute", top: -12, fontSize: 24 },
   lbAvatar:        { width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: "#fff" },
   lbAvatarFallback: {

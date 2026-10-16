@@ -2,7 +2,6 @@ import { CompleteProfileBanner } from "@/components/ProfileCompletionGate";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Updates from "expo-updates";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,7 +23,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "expo-image";
 import Svg, { Circle, Path } from "react-native-svg";
-import { LinearGradient as LG } from "expo-linear-gradient";
 import { Avatar } from "@/components/Avatar";
 import { HeatmapMap } from "@/components/HeatmapMap";
 import { CanopyHeader, CanopyMapCard, CanopyVisibility } from "@/components/CanopyChrome";
@@ -57,16 +55,6 @@ import {
   STORE_DEMO_PLACE_NAME,
   STORE_DEMO_VENUES,
 } from "@/lib/storeVenueDemo";
-
-// ─── Aurora Glass palette ─────────────────────────────────────────────────────
-const AG_BG          = "#050814";
-const AG_CARD        = "rgba(255,255,255,0.05)" as const;
-const AG_BORDER      = "rgba(255,255,255,0.1)"  as const;
-const AG_PURPLE      = "#A855F7";
-const AG_CYAN        = "#06B6D4";
-const AG_TEXT        = "#FFFFFF";
-const AG_MUTED       = "rgba(255,255,255,0.6)"  as const;
-const AG_MUTED_SOLID = "rgba(255,255,255,0.35)" as const;
 
 const CHECKIN_CTA_KEY = "met:checkin_cta_last_shown";
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
@@ -382,7 +370,7 @@ export default function HomeScreen() {
           accessibilityRole="button"
           accessibilityLabel="Open saved places"
           onPress={() => router.push("/saved-places")}
-          style={[canopyHome.place, { backgroundColor: card, borderColor: border, minHeight: 52 }]}
+          style={({ pressed }) => [canopyHome.place, { backgroundColor: card, borderColor: border, minHeight: 58, opacity: pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}
         >
           <Feather name="bookmark" size={20} color={colors.primary} />
           <Text style={[canopyHome.placeName, { color: text, flex: 1 }]}>Saved places</Text>
@@ -468,7 +456,7 @@ export default function HomeScreen() {
         </CanopyMapCard>
 
         {hubState && !hubState.isMock && (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Open ${hubState.placeName}`} onPress={() => router.push(`/venue/${hubState.placeId}`)} style={[canopyHome.place, { backgroundColor: card, borderColor: border }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Open ${hubState.placeName}`} onPress={() => router.push(`/venue/${hubState.placeId}`)} style={({ pressed }) => [canopyHome.place, { backgroundColor: card, borderColor: border, opacity: pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}>
             <View style={[canopyHome.placeIcon, { backgroundColor: colors.primarySoft }]}><Feather name="coffee" size={23} color={text} /></View>
             <View style={{ flex: 1 }}><Text style={[canopyHome.caption, { color: muted }]}>{t("home.canopyCurrentPlace")}</Text><Text style={[canopyHome.placeName, { color: text }]}>{hubState.placeName}</Text></View>
             <Feather name="arrow-right" size={20} color={text} />
@@ -477,12 +465,39 @@ export default function HomeScreen() {
         {!hubState && (
           <View style={{ marginBottom: 12 }}>
             <Text style={[canopyHome.placesLabel, { color: muted }]}>{t("home.canopyPlaces")}</Text>
-            {featuredPlaces.isLoading && <ActivityIndicator color={colors.primary} style={{ paddingVertical: 12 }} />}
-            {featuredPlaces.isError && <Pressable onPress={() => void featuredPlaces.refetch()} accessibilityRole="button" style={[canopyHome.place, { borderColor: border, backgroundColor: card }]}><Feather name="refresh-cw" size={17} color={text} /><Text style={[canopyHome.caption, { color: text }]}>{t("home.canopyPlacesRetry")}</Text></Pressable>}
+            {featuredPlaces.isLoading && (
+              <View style={styles.featuredSkeletonRow} accessibilityLabel="Loading nearby places">
+                {[0, 1].map((item) => (
+                  <View key={item} style={[styles.featuredSkeleton, { backgroundColor: card, borderColor: border }]}>
+                    <View style={[styles.featuredSkeletonIcon, { backgroundColor: colors.primarySoft }]} />
+                    <View style={{ flex: 1, gap: 7 }}>
+                      <View style={[styles.featuredSkeletonLine, { backgroundColor: colors.primarySoft }]} />
+                      <View style={[styles.featuredSkeletonShort, { backgroundColor: colors.primarySoft }]} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+            {featuredPlaces.isError && (
+              <Pressable
+                onPress={() => void featuredPlaces.refetch()}
+                accessibilityRole="button"
+                style={({ pressed }) => [canopyHome.place, { borderColor: border, backgroundColor: card, opacity: pressed ? 0.82 : 1 }]}
+              >
+                <View style={[styles.retryPlaceIcon, { backgroundColor: colors.primarySoft }]}>
+                  <Feather name="refresh-cw" size={16} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[canopyHome.placeName, { color: text, fontSize: 14, marginTop: 0 }]}>{t("home.canopyPlacesRetry")}</Text>
+                  <Text style={[canopyHome.caption, { color: muted }]}>Tap to try again</Text>
+                </View>
+                <Feather name="arrow-right" size={16} color={muted} />
+              </Pressable>
+            )}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
               {featuredPlaces.data?.venues.slice(0, 6).map((venue) => (
                 <View key={venue.placeId} style={{ width: 280 }}>
-                <Pressable accessibilityRole="button" onPress={() => router.push(`/venue/${venue.placeId}`)} style={[canopyHome.place, { width: 280, marginHorizontal: 0, marginBottom: 0, borderColor: border, backgroundColor: card }]}>
+                <Pressable accessibilityRole="button" onPress={() => router.push(`/venue/${venue.placeId}`)} style={({ pressed }) => [canopyHome.place, { width: 280, marginHorizontal: 0, marginBottom: 0, borderColor: border, backgroundColor: card, opacity: pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}>
                   {venue.logoUrl
                     ? <Image source={{ uri: venue.logoUrl }} style={canopyHome.placeIcon} contentFit="cover" />
                     : <View style={[canopyHome.placeIcon, { backgroundColor: colors.primarySoft }]}><Feather name="map-pin" size={22} color={text} /></View>}
@@ -493,22 +508,46 @@ export default function HomeScreen() {
                 </View>
               ))}
             </ScrollView>
-            {featuredPlaces.isSuccess && featuredPlaces.data.venues.length === 0 && <Text style={[canopyHome.emptyPlaces, { color: muted }]}>{t("home.canopyPlacesEmpty")}</Text>}
+            {featuredPlaces.isSuccess && featuredPlaces.data.venues.length === 0 && (
+              <View style={[styles.featuredEmpty, { backgroundColor: card, borderColor: border }]}>
+                <View style={[styles.retryPlaceIcon, { backgroundColor: colors.primarySoft }]}>
+                  <Feather name="map" size={16} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[canopyHome.placeName, { color: text, fontSize: 13, marginTop: 0 }]}>{t("home.canopyPlacesEmpty")}</Text>
+                  <Text style={[canopyHome.caption, { color: muted }]}>Places will appear here as the community grows.</Text>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
         {/* ── Quick actions grid ────────────────────────────────────── */}
+        <View style={styles.lowerSectionHeader}>
+          <View>
+            <Text style={[styles.lowerSectionTitle, { color: text }]}>Make a move</Text>
+            <Text style={[styles.lowerSectionSub, { color: muted }]}>A small hello can start anywhere.</Text>
+          </View>
+          <Feather name="arrow-down-right" size={18} color={colors.primary} />
+        </View>
         <View style={styles.quickActionsRow}>
           <Pressable
             onPress={handleCheckinPress}
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.quickActionCard,
-              { backgroundColor: colors.primary, borderColor: colors.primary, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
+              styles.checkinAction,
+              { backgroundColor: colors.primary, borderColor: colors.primary, opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
             ]}
           >
-            <Feather name="map-pin" size={20} color={colors.primaryForeground} />
-            <Text style={[styles.quickActionLabel, { color: colors.primaryForeground }]}>{t("home.checkInCta")}</Text>
+            <View style={[styles.quickActionIcon, { backgroundColor: colors.primaryForeground }]}>
+              <Feather name="map-pin" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.quickActionCopy}>
+              <Text style={[styles.quickActionLabel, { color: colors.primaryForeground }]}>{t("home.checkInCta")}</Text>
+              <Text style={[styles.quickActionHint, { color: colors.primaryForeground }]}>Mark this moment</Text>
+            </View>
+            <Feather name="arrow-up-right" size={17} color={colors.primaryForeground} />
           </Pressable>
 
           <Pressable
@@ -516,17 +555,23 @@ export default function HomeScreen() {
               if (hubState?.placeId) {
                 router.push(`/leaderboard/${hubState.placeId}`);
               } else {
-                Alert.alert("Check in first", "Check in to a venue to view its leaderboard.");
+                Alert.alert("Visitors", "Check in to a venue to view its visitors.");
               }
             }}
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.quickActionCard,
-              { backgroundColor: card, borderColor: border, opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
+              { backgroundColor: card, borderColor: border, opacity: pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
             ]}
           >
-            <Feather name="award" size={20} color={text} />
-            <Text style={[styles.quickActionLabel, { color: text }]}>Leaderboard</Text>
+            <View style={[styles.quickActionIcon, { backgroundColor: colors.primarySoft }]}>
+              <Feather name="users" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.quickActionCopy}>
+              <Text style={[styles.quickActionLabel, { color: text }]}>Visitors</Text>
+              <Text style={[styles.quickActionHint, { color: muted }]}>Explore venue visits</Text>
+            </View>
+            <Feather name="arrow-up-right" size={17} color={muted} />
           </Pressable>
         </View>
 
@@ -539,8 +584,19 @@ export default function HomeScreen() {
         />
 
         {/* ── This Week ────────────────────────────────────────────── */}
-        <View style={[styles.weeklyCard, { backgroundColor: colors.primarySoft, borderColor: border }]}>
-          <Text style={[styles.sectionLabel, { color: muted }]}>{t("home.thisWeek")}</Text>
+        <View style={[styles.weeklyCard, { backgroundColor: card, borderColor: border }]}>
+          <View style={styles.weeklyHeader}>
+            <View style={[styles.weeklyIcon, { backgroundColor: colors.primarySoft }]}>
+              <Feather name="activity" size={17} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.weeklyTitle, { color: text }]}>{t("home.thisWeek")}</Text>
+              <Text style={[styles.weeklySubtitle, { color: muted }]}>Your week in little moments</Text>
+            </View>
+            <View style={[styles.weeklyWindow, { backgroundColor: colors.primarySoft }]}>
+              <Text style={[styles.weeklyWindowText, { color: colors.primary }]}>7 DAYS</Text>
+            </View>
+          </View>
           <View style={styles.weeklyRow}>
             <Pressable
               onPress={() => router.push({ pathname: "/(tabs)/recent", params: { filter: "new" } })}
@@ -548,32 +604,33 @@ export default function HomeScreen() {
               accessibilityLabel={t("home.newPeopleA11y", { count: weekly.newPeople })}
               style={({ pressed }) => [
                 styles.weeklyCell,
-                { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+                { backgroundColor: colors.background, opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
               ]}
             >
+              <View style={styles.weeklyCellTop}>
+                <Feather name="user-plus" size={15} color={colors.primary} />
+                <Feather name="arrow-up-right" size={14} color={muted} />
+              </View>
               <Text style={[styles.weeklyValue, { color: text }]}>{weekly.newPeople}</Text>
               <Text style={[styles.weeklyLabel, { color: muted }]}>
                 {t(weekly.newPeople === 1 ? "home.newPerson_one" : "home.newPerson_other")}
               </Text>
-              <View style={styles.weeklyChev}>
-                <Feather name="chevron-right" size={14} color={muted} />
-              </View>
             </Pressable>
-            <View style={[styles.weeklyDivider, { backgroundColor: border }]} />
             <Pressable
               onPress={() => router.push({ pathname: "/(tabs)/recent", params: { filter: "repeats" } })}
               accessibilityRole="button"
               accessibilityLabel={t("home.crossedAgainA11y", { count: weekly.repeats })}
               style={({ pressed }) => [
                 styles.weeklyCell,
-                { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+                { backgroundColor: colors.background, opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
               ]}
             >
+              <View style={styles.weeklyCellTop}>
+                <Feather name="repeat" size={15} color={colors.primary} />
+                <Feather name="arrow-up-right" size={14} color={muted} />
+              </View>
               <Text style={[styles.weeklyValue, { color: text }]}>{weekly.repeats}</Text>
               <Text style={[styles.weeklyLabel, { color: muted }]}>{t("home.crossedAgainLabel")}</Text>
-              <View style={styles.weeklyChev}>
-                <Feather name="chevron-right" size={14} color={muted} />
-              </View>
             </Pressable>
           </View>
           <Text style={[styles.weeklyHint, { color: muted, borderTopColor: border }]}>
@@ -602,17 +659,14 @@ export default function HomeScreen() {
               { opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] },
             ]}
           >
-            <LinearGradient
-              colors={["rgba(249,115,22,0.3)", "rgba(239,68,68,0.2)"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View style={[styles.referralIconWrap, { backgroundColor: "rgba(249,115,22,0.2)" }]}>
-              <Feather name="radio" size={16} color="#FB923C" />
+            <View style={[styles.referralIconWrap, { backgroundColor: colors.primarySoft }]}>
+              <Feather name="radio" size={17} color={colors.primary} />
             </View>
-            <Text style={[styles.referralTitle, { color: text, flex: 1 }]}>Set up your beacon</Text>
-            <Feather name="chevron-right" size={16} color="#FB923C" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.referralTitle, { color: text }]}>Set up your beacon</Text>
+              <Text style={[styles.referralSub, { color: muted }]}>Turn on nearby discovery when you’re ready.</Text>
+            </View>
+            <Feather name="arrow-right" size={17} color={colors.primary} />
           </Pressable>
         ) : (
           <Pressable
@@ -624,19 +678,14 @@ export default function HomeScreen() {
               { borderColor: border, opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] },
             ]}
           >
-            <LinearGradient
-              colors={[colors.primarySoft, colors.primarySoft]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFillObject}
-            />
             <View style={[styles.referralIconWrap, { backgroundColor: colors.primarySoft }]}>
-              <Feather name="gift" size={16} color={text} />
+              <Feather name="gift" size={17} color={colors.primary} />
             </View>
-            <Text style={[styles.referralTitle, { color: text, flex: 1 }]}>
-              {t("home.referralCtaTitle")}
-            </Text>
-            <Feather name="arrow-right" size={16} color={text} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.referralTitle, { color: text }]}>{t("home.referralCtaTitle")}</Text>
+              <Text style={[styles.referralSub, { color: muted }]}>Invite someone who’d feel at home here.</Text>
+            </View>
+            <Feather name="arrow-right" size={17} color={colors.primary} />
           </Pressable>
         )}
       </ScrollView>
@@ -887,29 +936,15 @@ const canopyHome = StyleSheet.create({
   title: { fontFamily: "Inter_600SemiBold", fontSize: 31, lineHeight: 35, letterSpacing: -1.3 },
   count: { fontFamily: "Inter_600SemiBold", fontSize: 31, letterSpacing: -1 },
   caption: { fontFamily: "Inter_400Regular", fontSize: 10, lineHeight: 15 },
-  place: { marginHorizontal: 16, marginBottom: 8, borderWidth: 1, borderRadius: 18, padding: 12, flexDirection: "row", alignItems: "center", gap: 12 },
-  placeIcon: { width: 50, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  place: { marginHorizontal: 16, marginBottom: 9, borderWidth: 1, borderRadius: 20, padding: 13, flexDirection: "row", alignItems: "center", gap: 12 },
+  placeIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   placeName: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginTop: 3 },
   placesLabel: { marginHorizontal: 20, fontFamily: "Inter_600SemiBold", fontSize: 10, letterSpacing: 1.1, marginBottom: 8, textTransform: "uppercase" },
   emptyPlaces: { marginHorizontal: 20, fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 18 },
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: AG_BG },
-
-  // ── Aurora ambient blobs ───────────────────────────────────────────────────
-  auroraBlob1: {
-    position: "absolute", width: 340, height: 340, borderRadius: 170,
-    top: -100, left: -100,
-  },
-  auroraBlob2: {
-    position: "absolute", width: 280, height: 280, borderRadius: 140,
-    top: 100, right: -80,
-  },
-  auroraBlob3: {
-    position: "absolute", width: 400, height: 400, borderRadius: 200,
-    bottom: 80, left: 0,
-  },
+  container: { flex: 1 },
 
   // ── Banners ────────────────────────────────────────────────────────────────
   banner: {
@@ -924,85 +959,52 @@ const styles = StyleSheet.create({
   bannerTitle: { fontFamily: "Inter_700Bold", fontSize: 14 },
   bannerSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
 
-  // ── Beacon pill ───────────────────────────────────────────────────────────
-  beaconPillRow: { alignItems: "center", marginTop: 24, marginBottom: 4 },
-  beaconPill: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 16, paddingVertical: 7,
-    borderRadius: 999, borderWidth: 1,
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  liveDotWrap: { width: 10, height: 10, alignItems: "center", justifyContent: "center" },
-  liveDotPing: { position: "absolute", width: 10, height: 10, borderRadius: 5, backgroundColor: AG_PURPLE },
-  liveDotCore: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: AG_PURPLE },
-  beaconLabel: { fontFamily: "Inter_700Bold", fontSize: 11, letterSpacing: 3 },
-
-  // ── Hero ──────────────────────────────────────────────────────────────────
-  heroSection: { alignItems: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  heroNumber: { fontFamily: "Inter_700Bold", fontSize: 80, lineHeight: 88, color: AG_PURPLE },
-  heroSub:    { fontFamily: "Inter_400Regular", fontSize: 16, color: AG_MUTED, marginTop: 4 },
-  heroOffline: { fontFamily: "Inter_700Bold", fontSize: 20, lineHeight: 28, color: AG_TEXT, marginTop: 16, textAlign: "center" },
-  vibePill: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 999, borderWidth: 1, marginTop: 12,
-  },
-  vibeText: { fontFamily: "Inter_700Bold", fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase" },
-
-  // ── Heatmap ───────────────────────────────────────────────────────────────
-  heatmapSection: {
-    marginHorizontal: 12,
-    height: 340,
-    borderRadius: 170, // full circle — half of the 340px height
-    marginTop: 16,
-    borderWidth: 1, borderColor: AG_BORDER,
-    overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.03)",
-  },
-
-  // ── Quick actions ─────────────────────────────────────────────────────────
-  quickActionsRow: { flexDirection: "row", marginHorizontal: 16, marginTop: 0, gap: 9 },
+  lowerSectionHeader: { marginHorizontal: 20, marginTop: 19, marginBottom: 11, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  lowerSectionTitle: { fontFamily: "Inter_600SemiBold", fontSize: 19, letterSpacing: -0.45 },
+  lowerSectionSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 },
+  quickActionsRow: { flexDirection: "row", marginHorizontal: 16, gap: 10 },
   quickActionCard: {
-    flex: 1, alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 15, flexDirection: "row",
-    borderRadius: 16, borderWidth: 1, borderColor: AG_BORDER,
-    backgroundColor: AG_CARD,
+    flex: 1, minHeight: 82, alignItems: "center", gap: 10, padding: 12, flexDirection: "row",
+    borderRadius: 19, borderWidth: 1,
   },
-  quickActionIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  quickActionLabel: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: AG_TEXT },
-
-  // ── This Week card ────────────────────────────────────────────────────────
-  sectionLabel: {
-    fontFamily: "Inter_700Bold", fontSize: 11, letterSpacing: 2,
-    textTransform: "uppercase", color: AG_MUTED, marginBottom: 14,
-  },
+  checkinAction: { borderWidth: 0 },
+  quickActionIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  quickActionCopy: { flex: 1, gap: 4 },
+  quickActionLabel: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  quickActionHint: { fontFamily: "Inter_400Regular", fontSize: 10, opacity: 0.82 },
+  featuredSkeletonRow: { flexDirection: "row", paddingHorizontal: 16, gap: 10, marginBottom: 8 },
+  featuredSkeleton: { width: 246, minHeight: 78, borderWidth: 1, borderRadius: 20, padding: 12, flexDirection: "row", alignItems: "center", gap: 11 },
+  featuredSkeletonIcon: { width: 48, height: 48, borderRadius: 15, opacity: 0.75 },
+  featuredSkeletonLine: { height: 10, width: "74%", borderRadius: 5, opacity: 0.8 },
+  featuredSkeletonShort: { height: 8, width: "48%", borderRadius: 4, opacity: 0.6 },
+  retryPlaceIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  featuredEmpty: { marginHorizontal: 16, padding: 13, borderRadius: 18, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 11 },
   weeklyCard: {
-    marginHorizontal: 16, marginTop: 12, padding: 16,
-    borderRadius: 20, borderWidth: 1, borderColor: AG_BORDER,
-    backgroundColor: AG_CARD,
+    marginHorizontal: 16, marginTop: 15, padding: 16,
+    borderRadius: 22, borderWidth: 1,
   },
-  weeklyRow: { flexDirection: "row", alignItems: "stretch" },
-  weeklyCell: { flex: 1, alignItems: "flex-start", gap: 4, paddingVertical: 4, paddingRight: 4, position: "relative" },
-  weeklyChev: { position: "absolute", top: 6, right: 0, opacity: 0.6 },
-  weeklyDivider: { width: StyleSheet.hairlineWidth, marginHorizontal: 14, backgroundColor: AG_BORDER },
-  weeklyValue: { fontFamily: "Inter_700Bold", fontSize: 28, color: AG_TEXT },
-  weeklyLabel: { fontFamily: "Inter_400Regular", fontSize: 12, color: AG_MUTED },
+  weeklyHeader: { flexDirection: "row", alignItems: "center", gap: 11, marginBottom: 15 },
+  weeklyIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  weeklyTitle: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
+  weeklySubtitle: { fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 3 },
+  weeklyWindow: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
+  weeklyWindowText: { fontFamily: "Inter_700Bold", fontSize: 9, letterSpacing: 0.8 },
+  weeklyRow: { flexDirection: "row", gap: 9 },
+  weeklyCell: { flex: 1, minHeight: 106, alignItems: "flex-start", gap: 3, padding: 12, borderRadius: 16 },
+  weeklyCellTop: { width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
+  weeklyValue: { fontFamily: "Inter_700Bold", fontSize: 27 },
+  weeklyLabel: { fontFamily: "Inter_400Regular", fontSize: 11 },
   weeklyHint: {
-    fontFamily: "Inter_400Regular", fontSize: 12, color: AG_MUTED,
-    marginTop: 14, paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: AG_BORDER,
+    fontFamily: "Inter_400Regular", fontSize: 11, lineHeight: 16,
+    marginTop: 13, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth,
   },
-
-  // ── Referral CTA ──────────────────────────────────────────────────────────
   referralCard: {
-    marginHorizontal: 20, marginTop: 14,
-    borderRadius: 16, borderWidth: 1, borderColor: AG_BORDER,
-    paddingVertical: 14, paddingHorizontal: 16,
-    flexDirection: "row", alignItems: "center", gap: 12,
-    overflow: "hidden",
+    marginHorizontal: 16, marginTop: 14, borderRadius: 20, borderWidth: 1,
+    paddingVertical: 15, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", gap: 12,
   },
-  referralIconWrap: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  referralIconWrap: { width: 42, height: 42, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   referralTitle: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  referralSub: { fontFamily: "Inter_400Regular", fontSize: 11, lineHeight: 16, marginTop: 3 },
 
   // ── Language picker ───────────────────────────────────────────────────────
   langBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },

@@ -33,6 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MetGradient } from "@/components/MetGradient";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import themeColors from "@/constants/colors";
 import { api, type VenueReward } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
 import { useSubscription } from "@/lib/revenuecat";
@@ -41,10 +42,6 @@ import { VenueRewardBanner } from "@/components/VenueRewardBanner";
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const DARK_BG = "#0F0F12";
-const CARD_BG = "#1A1A1E";
-const CARD_ELEVATED = "#242428";
 
 const MEDAL = {
   1: {
@@ -197,6 +194,7 @@ function AnimatedTabBar({
   const pillX = useRef(new Animated.Value(0)).current;
   const isFirst = period === "current_month";
   const { t } = useT();
+  const colors = useColors();
 
   // Pill occupies half the bar (minus 4px inter-gap / inner padding)
   const tabW = (barWidth - 8) / 2;
@@ -217,7 +215,7 @@ function AnimatedTabBar({
 
   return (
     <View
-      style={styles.tabBar}
+      style={[styles.tabBar, { backgroundColor: colors.muted, borderColor: colors.border }]}
       onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
       accessibilityRole="tablist"
     >
@@ -225,6 +223,7 @@ function AnimatedTabBar({
       <Animated.View
         style={[
           styles.tabPillBg,
+          { backgroundColor: colors.card, shadowColor: colors.primary },
           { width: tabW, transform: [{ translateX: pillX }] },
         ]}
       />
@@ -242,7 +241,7 @@ function AnimatedTabBar({
             <Text
               style={[
                 styles.tabLabelText,
-                { color: active ? "#fff" : "rgba(255,255,255,0.45)" },
+                { color: active ? colors.text : colors.mutedForeground },
               ]}
             >
               {p === "current_month"
@@ -277,7 +276,7 @@ function LeaderboardRow({
   const { t } = useT();
   const isTop3 = item.rank <= 3;
 
-  const cardBg = isCurrentUser ? CARD_ELEVATED : CARD_BG;
+  const cardBg = colors.card;
 
   return (
     <Animated.View
@@ -295,7 +294,7 @@ function LeaderboardRow({
               ? MEDAL[item.rank as 1 | 2 | 3].glow + "30"
               : isCurrentUser
                 ? colors.primary + "40"
-                : "rgba(255,255,255,0.06)",
+                : colors.border,
             shadowColor: isTop3
               ? MEDAL[item.rank as 1 | 2 | 3].glow
               : colors.primary,
@@ -329,7 +328,7 @@ function LeaderboardRow({
           {isTop3 ? (
             <MedalBadge rank={item.rank as 1 | 2 | 3} />
           ) : (
-            <Text style={[styles.rankNum, { color: "rgba(255,255,255,0.35)" }]}>
+            <Text style={[styles.rankNum, { color: colors.mutedForeground }]}>
               {item.rank}
             </Text>
           )}
@@ -363,8 +362,8 @@ function LeaderboardRow({
             />
           </View>
         ) : (
-          <View style={[styles.avatarFallback, { backgroundColor: "#2C2C2E" }]}>
-            <Feather name="user" size={16} color="rgba(255,255,255,0.4)" />
+          <View style={[styles.avatarFallback, { backgroundColor: colors.muted }]}>
+            <Feather name="user" size={16} color={colors.mutedForeground} />
           </View>
         )}
 
@@ -378,7 +377,7 @@ function LeaderboardRow({
                 {
                   color: isCurrentUser
                     ? colors.primary
-                    : "rgba(255,255,255,0.92)",
+                    : colors.text,
                   fontFamily: isCurrentUser
                     ? "Inter_700Bold"
                     : "Inter_600SemiBold",
@@ -430,13 +429,13 @@ function LeaderboardRow({
               {
                 color: isTop3
                   ? MEDAL[item.rank as 1 | 2 | 3].glow
-                  : "rgba(255,255,255,0.85)",
+                  : colors.text,
               },
             ]}
           >
             {item.checkinCount}
           </Text>
-          <Text style={[styles.countLabel, { color: "rgba(255,255,255,0.35)" }]}>
+          <Text style={[styles.countLabel, { color: colors.mutedForeground }]}>
             {t("leaderboard.checkinsLabel")}
           </Text>
         </View>
@@ -586,7 +585,7 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
   const isEmpty = !loading && !error && entries.length === 0;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
+    <View style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
         {onClose && (
@@ -597,12 +596,12 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
             accessibilityLabel={t("common.back")}
             hitSlop={8}
           >
-            <Feather name="chevron-left" size={24} color="rgba(255,255,255,0.85)" />
+            <Feather name="chevron-left" size={24} color={colors.text} />
           </Pressable>
         )}
         <View style={styles.headerText}>
-          <Text style={styles.title}>{t("leaderboard.title")}</Text>
-          <Text numberOfLines={1} style={styles.subtitle}>
+          <Text style={[styles.title, { color: colors.text }]}>{t("leaderboard.title")}</Text>
+          <Text numberOfLines={1} style={[styles.subtitle, { color: colors.mutedForeground }]}>
             {placeName}
           </Text>
         </View>
@@ -635,7 +634,7 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
       ) : error ? (
         <View style={styles.center}>
           <Feather name="wifi-off" size={32} color="rgba(255,255,255,0.3)" />
-          <Text style={styles.emptyText}>{t("common.error")}</Text>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("common.error")}</Text>
           <Pressable
             onPress={() => fetchLeaderboard(period)}
             style={styles.retryBtn}
@@ -647,8 +646,8 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
         </View>
       ) : isEmpty ? (
         <View style={styles.center}>
-          <Text style={styles.emptyEmoji}>🏁</Text>
-          <Text style={styles.emptyText}>
+          <Feather name="users" size={28} color={colors.primary} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
             {period === "current_month"
               ? t("leaderboard.emptyMonthly")
               : t("leaderboard.emptyAllTime")}
@@ -679,7 +678,7 @@ export function LeaderboardScreen({ placeId, placeName, onClose }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: DARK_BG,
+    backgroundColor: themeColors.light.background,
   },
   header: {
     flexDirection: "row",
@@ -698,13 +697,13 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     fontSize: 20,
     letterSpacing: -0.4,
-    color: "rgba(255,255,255,0.95)",
+    color: themeColors.light.text,
   },
   subtitle: {
     fontFamily: "Inter_400Regular",
     fontSize: 13,
     marginTop: 2,
-    color: "rgba(255,255,255,0.4)",
+    color: themeColors.light.mutedForeground,
   },
   tabsContainer: {
     paddingHorizontal: 16,
@@ -712,9 +711,11 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#2C2C2E",
+    backgroundColor: themeColors.light.muted,
     borderRadius: 12,
     padding: 4,
+    borderWidth: 1,
+    borderColor: themeColors.light.border,
     position: "relative",
     overflow: "hidden",
   },
@@ -724,7 +725,7 @@ const styles = StyleSheet.create({
     bottom: 4,
     left: 4,
     borderRadius: 9,
-    backgroundColor: "#3A3A3E",
+    backgroundColor: themeColors.light.card,
     shadowColor: "#fff",
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -757,14 +758,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: "center",
     lineHeight: 22,
-    color: "rgba(255,255,255,0.4)",
+    color: themeColors.light.mutedForeground,
   },
   retryBtn: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: themeColors.light.border,
     marginTop: 4,
   },
   retryText: {
