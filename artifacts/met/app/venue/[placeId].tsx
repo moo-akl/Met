@@ -749,13 +749,15 @@ export default function VenueProfileScreen() {
   // ── render ───────────────────────────────────────────────────────────────────
   return (
     <View style={styles.root}>
-      {/* Drag handle — visible when presented as a bottom sheet (containedModal) */}
-      <SheetHandle style={{ marginTop: 10, marginBottom: 4 }} />
-      <View style={[canopyVenue.header, { paddingTop: insets.top + 2 }]}>
-        <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Go back" style={canopyVenue.iconButton}><Feather name="arrow-left" size={22} color={TEXT} /></Pressable>
-        <Text style={canopyVenue.headerLabel}>{isScreenshotDemoVenue ? "SAMPLE PLACE" : "A PLACE TO CONNECT"}</Text>
-        <SavePlaceButton placeId={placeId} placeName={profile?.businessName} disabled={isScreenshotDemoVenue} />
-        <Pressable onPress={() => showContentReportSheet("venue", 0, placeId ?? "")} accessibilityRole="button" accessibilityLabel="Report this venue" style={canopyVenue.iconButton}><Feather name="more-horizontal" size={22} color={TEXT} /></Pressable>
+      {/* Native formSheet needs one non-collapsible header before its ScrollView. */}
+      <View collapsable={false} style={canopyVenue.sheetHeader}>
+        <SheetHandle style={{ marginTop: 10, marginBottom: 4 }} />
+        <View style={[canopyVenue.header, { paddingTop: insets.top + 2 }]}>
+          <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Go back" style={canopyVenue.iconButton}><Feather name="arrow-left" size={22} color={TEXT} /></Pressable>
+          <Text style={canopyVenue.headerLabel}>{isScreenshotDemoVenue ? "SAMPLE PLACE" : "A PLACE TO CONNECT"}</Text>
+          <SavePlaceButton placeId={placeId} placeName={profile?.businessName} disabled={isScreenshotDemoVenue} />
+          <Pressable onPress={() => showContentReportSheet("venue", 0, placeId ?? "")} accessibilityRole="button" accessibilityLabel="Report this venue" style={canopyVenue.iconButton}><Feather name="more-horizontal" size={22} color={TEXT} /></Pressable>
+        </View>
       </View>
       <ScrollView
         style={styles.scroll}
@@ -1487,12 +1489,9 @@ export default function VenueProfileScreen() {
 // ─── styles ──────────────────────────────────────────────────────────────────
 
 const canopyVenue = StyleSheet.create({
-  // Keep the controls above the native sheet's scroll content and cover image.
+  sheetHeader: { flexShrink: 0, backgroundColor: BG },
   header: {
     flexShrink: 0,
-    position: "relative",
-    zIndex: 10,
-    elevation: 4,
     backgroundColor: BG,
     paddingHorizontal: 12,
     paddingBottom: 5,

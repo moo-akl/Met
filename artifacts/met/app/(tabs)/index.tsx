@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Updates from "expo-updates";
+import * as Location from "expo-location";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -27,6 +28,7 @@ import { Avatar } from "@/components/Avatar";
 import { HeatmapMap } from "@/components/HeatmapMap";
 import { CanopyHeader, CanopyMapCard, CanopyVisibility } from "@/components/CanopyChrome";
 import { api } from "@/lib/api/client";
+import { nearestVenues } from "@/lib/nearestVenues";
 import { HubStatusBadge } from "@/components/HubStatusBadge";
 import { PermissionDisclosureDialog } from "@/components/PermissionDisclosureDialog";
 import { RequestsSheet } from "@/components/RequestsSheet";
@@ -292,6 +294,40 @@ export default function HomeScreen() {
 
   const { locationOk, bluetoothOk, checked } = usePermissionStatus();
   const permsMissing = checked && (!locationOk || !bluetoothOk);
+  const [venueLocation, setVenueLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  useFocusEffect(useCallback(() => {
+    if (!locationOk || !authedUid || isStoreScreenshotDemo("home")) {
+      setVenueLocation(null);
+      return;
+    }
+    let cancelled = false;
+    let subscription: Location.LocationSubscription | undefined;
+    void (async () => {
+      try {
+        const last = await Location.getLastKnownPositionAsync({ maxAge: 60_000 });
+        if (cancelled) return;
+        if (last) setVenueLocation(last.coords);
+        const watcher = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, distanceInterval: 100, timeInterval: 60_000 },
+          (position) => {
+            if (!cancelled) setVenueLocation(position.coords);
+          },
+        );
+        if (cancelled) watcher.remove();
+        else subscription = watcher;
+      } catch (error) {
+        if (!cancelled) console.warn("[Home] Nearby venue location unavailable", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [locationOk, authedUid]));
+  const nearestPlaces = useMemo(
+    () => nearestVenues(featuredPlaces.data?.venues ?? [], venueLocation).slice(0, 6),
+    [featuredPlaces.data, venueLocation],
+  );
   const {
     reminder,
     dismiss: dismissReminder,
@@ -495,7 +531,7 @@ export default function HomeScreen() {
               </Pressable>
             )}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
-              {featuredPlaces.data?.venues.slice(0, 6).map((venue) => (
+              {nearestPlaces.map((venue) => (
                 <View key={venue.placeId} style={{ width: 280 }}>
                 <Pressable accessibilityRole="button" onPress={() => router.push(`/venue/${venue.placeId}`)} style={({ pressed }) => [canopyHome.place, { width: 280, marginHorizontal: 0, marginBottom: 0, borderColor: border, backgroundColor: card, opacity: pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}>
                   {venue.logoUrl
