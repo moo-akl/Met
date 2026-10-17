@@ -749,9 +749,8 @@ export default function VenueProfileScreen() {
   // ── render ───────────────────────────────────────────────────────────────────
   return (
     <View style={styles.root}>
-      {/* Native formSheet needs one non-collapsible header before its ScrollView. */}
-      <View collapsable={false} style={canopyVenue.sheetHeader}>
-        <SheetHandle style={{ marginTop: 10, marginBottom: 4 }} />
+      {/* Shared full-screen header for every venue entry path. */}
+      <View style={canopyVenue.pageHeader}>
         <View style={[canopyVenue.header, { paddingTop: insets.top + 2 }]}>
           <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Go back" style={canopyVenue.iconButton}><Feather name="arrow-left" size={22} color={TEXT} /></Pressable>
           <Text style={canopyVenue.headerLabel}>{isScreenshotDemoVenue ? "SAMPLE PLACE" : "A PLACE TO CONNECT"}</Text>
@@ -1489,7 +1488,7 @@ export default function VenueProfileScreen() {
 // ─── styles ──────────────────────────────────────────────────────────────────
 
 const canopyVenue = StyleSheet.create({
-  sheetHeader: { flexShrink: 0, backgroundColor: BG },
+  pageHeader: { flexShrink: 0, backgroundColor: BG },
   header: {
     flexShrink: 0,
     backgroundColor: BG,

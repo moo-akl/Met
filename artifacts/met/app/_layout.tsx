@@ -502,12 +502,9 @@ function RootLayoutNav() {
       <Stack.Screen
         name="venue/[placeId]"
         options={{
-          presentation: "formSheet",
-          animation: "slide_from_bottom",
-          sheetAllowedDetents: [0.9],
-          sheetInitialDetentIndex: 0,
-          sheetGrabberVisible: false,   // the screen renders its own drag handle
-          sheetExpandsWhenScrolledToEdge: true,
+          // Use one full-screen layout for map, saved-place and QR entry paths.
+          presentation: "card",
+          animation: "slide_from_right",
         }}
       />
       <Stack.Screen
