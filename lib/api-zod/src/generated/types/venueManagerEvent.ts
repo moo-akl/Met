@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenueManagerEventVisibility } from './venueManagerEventVisibility';
 
 export interface VenueManagerEvent {
   id: number;
@@ -20,6 +21,8 @@ export interface VenueManagerEvent {
   capacityLimit?: number | null;
   rsvpCount?: number;
   isPublished: boolean;
+  visibility?: VenueManagerEventVisibility;
+  inviteeUids?: string[];
   createdAt?: Date;
   updatedAt?: Date;
 }

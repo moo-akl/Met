@@ -162,11 +162,21 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="networks"
+        name="events"
         options={{
           title: t("tabs.networks"),
           tabBarIcon: ({ color }) => (
-            <Feather name="globe" size={22} color={color} />
+            <Feather name="calendar" size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="networks"
+        options={{
+          href: null,
+          title: t("networks.headerTitle"),
+          tabBarIcon: ({ color }) => (
+            <Feather name="users" size={22} color={color} />
           ),
         }}
       />

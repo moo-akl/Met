@@ -3207,6 +3207,217 @@ export const GetVenueManagerDashboardResponse = zod.object({
 
 
 /**
+ * @summary List visitors who have checked in at the caller's venue
+ */
+export const getVenueOwnerMeGuestsQueryPeriodDefault = `all`;
+export const getVenueOwnerMeGuestsQueryLimitDefault = 30;
+export const getVenueOwnerMeGuestsQueryLimitMax = 100;
+
+export const getVenueOwnerMeGuestsQueryOffsetDefault = 0;
+export const getVenueOwnerMeGuestsQueryOffsetMin = 0;
+
+
+
+export const GetVenueOwnerMeGuestsQueryParams = zod.object({
+  "period": zod.enum(['all', 'month', 'week']).default(getVenueOwnerMeGuestsQueryPeriodDefault),
+  "search": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().int().min(1).max(getVenueOwnerMeGuestsQueryLimitMax).default(getVenueOwnerMeGuestsQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(getVenueOwnerMeGuestsQueryOffsetMin).default(getVenueOwnerMeGuestsQueryOffsetDefault)
+})
+
+export const GetVenueOwnerMeGuestsResponse = zod.object({
+  "guests": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().url().nullish(),
+  "checkinCount": zod.number().int(),
+  "lastCheckinAt": zod.coerce.date().optional()
+})),
+  "total": zod.number().int()
+})
+
+
+/**
+ * @summary Create an event for the caller's venue
+ */
+export const createVenueOwnerEventBodyTitleMax = 120;
+
+export const createVenueOwnerEventBodyDescriptionMax = 2000;
+
+
+export const createVenueOwnerEventBodyInviteeUidsItemMax = 128;
+
+export const createVenueOwnerEventBodyInviteeUidsMax = 200;
+
+
+
+export const CreateVenueOwnerEventBody = zod.object({
+  "title": zod.string().min(1).max(createVenueOwnerEventBodyTitleMax),
+  "description": zod.string().max(createVenueOwnerEventBodyDescriptionMax).nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().min(1).nullish(),
+  "isPublished": zod.boolean().optional(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string().min(1).max(createVenueOwnerEventBodyInviteeUidsItemMax)).max(createVenueOwnerEventBodyInviteeUidsMax).optional()
+})
+
+export const CreateVenueOwnerEventResponse = zod.object({
+  "event": zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().nullish(),
+  "rsvpCount": zod.number().int().optional(),
+  "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
+ * @summary Update an event for the caller's venue
+ */
+export const UpdateVenueOwnerEventParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const updateVenueOwnerEventBodyTitleMax = 120;
+
+export const updateVenueOwnerEventBodyDescriptionMax = 2000;
+
+
+export const updateVenueOwnerEventBodyInviteeUidsItemMax = 128;
+
+export const updateVenueOwnerEventBodyInviteeUidsMax = 200;
+
+
+
+export const UpdateVenueOwnerEventBody = zod.object({
+  "title": zod.string().min(1).max(updateVenueOwnerEventBodyTitleMax).optional(),
+  "description": zod.string().max(updateVenueOwnerEventBodyDescriptionMax).nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date().optional(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().min(1).nullish(),
+  "isPublished": zod.boolean().optional(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string().min(1).max(updateVenueOwnerEventBodyInviteeUidsItemMax)).max(updateVenueOwnerEventBodyInviteeUidsMax).optional()
+})
+
+export const UpdateVenueOwnerEventResponse = zod.object({
+  "event": zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "capacityLimit": zod.number().int().nullish(),
+  "rsvpCount": zod.number().int().optional(),
+  "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
+ * @summary List public events and private events the caller may attend
+ */
+export const GetEventsFeedResponse = zod.object({
+  "events": zod.array(zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "id": zod.number().int(),
+  "ownerUid": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "location": zod.string().nullish(),
+  "placeId": zod.string().nullish(),
+  "venueName": zod.string().nullish(),
+  "creatorName": zod.string().nullish(),
+  "visibility": zod.enum(['public', 'invite_only']),
+  "rsvpCount": zod.number().int(),
+  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+}))
+})
+
+
+/**
+ * @summary Create a member event
+ */
+export const createCommunityEventBodyTitleMax = 120;
+
+export const createCommunityEventBodyDescriptionMax = 2000;
+
+export const createCommunityEventBodyLocationMax = 200;
+
+export const createCommunityEventBodyInviteeUidsItemMax = 128;
+
+export const createCommunityEventBodyInviteeUidsMax = 200;
+
+
+
+export const CreateCommunityEventBody = zod.object({
+  "title": zod.string().min(1).max(createCommunityEventBodyTitleMax),
+  "description": zod.string().max(createCommunityEventBodyDescriptionMax).nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "location": zod.string().max(createCommunityEventBodyLocationMax).nullish(),
+  "visibility": zod.enum(['public', 'invite_only']),
+  "inviteeUids": zod.array(zod.string().min(1).max(createCommunityEventBodyInviteeUidsItemMax)).max(createCommunityEventBodyInviteeUidsMax).optional()
+})
+
+export const CreateCommunityEventResponse = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "id": zod.number().int(),
+  "ownerUid": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "location": zod.string().nullish(),
+  "placeId": zod.string().nullish(),
+  "venueName": zod.string().nullish(),
+  "creatorName": zod.string().nullish(),
+  "visibility": zod.enum(['public', 'invite_only']),
+  "rsvpCount": zod.number().int(),
+  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+})
+
+
+/**
+ * @summary RSVP to a member event
+ */
+export const RsvpCommunityEventParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const RsvpCommunityEventBody = zod.object({
+  "status": zod.enum(['going', 'maybe', 'not_going'])
+})
+
+export const RsvpCommunityEventResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.enum(['going', 'maybe', 'not_going'])
+})
+
+
+/**
  * @summary List all events for a venue
  */
 
@@ -3227,6 +3438,8 @@ export const ListVenueManagerEventsResponse = zod.object({
   "capacityLimit": zod.number().int().nullish(),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -3255,6 +3468,10 @@ export const createVenueManagerEventBodyTitleMax = 120;
 export const createVenueManagerEventBodyDescriptionMax = 2000;
 
 
+export const createVenueManagerEventBodyInviteeUidsItemMax = 128;
+
+export const createVenueManagerEventBodyInviteeUidsMax = 200;
+
 
 
 export const CreateVenueManagerEventBody = zod.object({
@@ -3264,7 +3481,9 @@ export const CreateVenueManagerEventBody = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
-  "isPublished": zod.boolean().optional()
+  "isPublished": zod.boolean().optional(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string().min(1).max(createVenueManagerEventBodyInviteeUidsItemMax)).max(createVenueManagerEventBodyInviteeUidsMax).optional()
 })
 
 export const CreateVenueManagerEventResponse = zod.object({
@@ -3278,6 +3497,8 @@ export const CreateVenueManagerEventResponse = zod.object({
   "capacityLimit": zod.number().int().nullish(),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -3308,6 +3529,10 @@ export const updateVenueManagerEventBodyTitleMax = 120;
 export const updateVenueManagerEventBodyDescriptionMax = 2000;
 
 
+export const updateVenueManagerEventBodyInviteeUidsItemMax = 128;
+
+export const updateVenueManagerEventBodyInviteeUidsMax = 200;
+
 
 
 export const UpdateVenueManagerEventBody = zod.object({
@@ -3317,7 +3542,9 @@ export const UpdateVenueManagerEventBody = zod.object({
   "startsAt": zod.coerce.date().optional(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
-  "isPublished": zod.boolean().optional()
+  "isPublished": zod.boolean().optional(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string().min(1).max(updateVenueManagerEventBodyInviteeUidsItemMax)).max(updateVenueManagerEventBodyInviteeUidsMax).optional()
 })
 
 export const UpdateVenueManagerEventResponse = zod.object({
@@ -3331,6 +3558,8 @@ export const UpdateVenueManagerEventResponse = zod.object({
   "capacityLimit": zod.number().int().nullish(),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -4058,6 +4287,8 @@ export const ListAdminManagedEventsResponse = zod.object({
   "capacityLimit": zod.number().int().nullish(),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -4073,6 +4304,10 @@ export const createAdminManagedEventBodyTitleMax = 120;
 export const createAdminManagedEventBodyDescriptionMax = 2000;
 
 
+export const createAdminManagedEventBodyInviteeUidsItemMax = 128;
+
+export const createAdminManagedEventBodyInviteeUidsMax = 200;
+
 
 
 export const CreateAdminManagedEventBody = zod.object({
@@ -4082,7 +4317,9 @@ export const CreateAdminManagedEventBody = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
-  "isPublished": zod.boolean().optional()
+  "isPublished": zod.boolean().optional(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string().min(1).max(createAdminManagedEventBodyInviteeUidsItemMax)).max(createAdminManagedEventBodyInviteeUidsMax).optional()
 })
 
 export const CreateAdminManagedEventResponse = zod.object({
@@ -4096,6 +4333,8 @@ export const CreateAdminManagedEventResponse = zod.object({
   "capacityLimit": zod.number().int().nullish(),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -4147,6 +4386,10 @@ export const updateAdminManagedEventBodyTitleMax = 120;
 export const updateAdminManagedEventBodyDescriptionMax = 2000;
 
 
+export const updateAdminManagedEventBodyInviteeUidsItemMax = 128;
+
+export const updateAdminManagedEventBodyInviteeUidsMax = 200;
+
 
 
 export const UpdateAdminManagedEventBody = zod.object({
@@ -4156,7 +4399,9 @@ export const UpdateAdminManagedEventBody = zod.object({
   "startsAt": zod.coerce.date().optional(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
-  "isPublished": zod.boolean().optional()
+  "isPublished": zod.boolean().optional(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string().min(1).max(updateAdminManagedEventBodyInviteeUidsItemMax)).max(updateAdminManagedEventBodyInviteeUidsMax).optional()
 })
 
 export const UpdateAdminManagedEventResponse = zod.object({
@@ -4170,6 +4415,8 @@ export const UpdateAdminManagedEventResponse = zod.object({
   "capacityLimit": zod.number().int().nullish(),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
+  "visibility": zod.enum(['public', 'invite_only']).optional(),
+  "inviteeUids": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })

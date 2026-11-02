@@ -39,6 +39,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { normalizeGoogleVenueType, lookupGoogleVenueType } from "../lib/venueCategory";
 import { venueCategories } from "@workspace/db/schema";
 import {
+  arrayContains,
   eq,
   and,
   desc,
@@ -382,7 +383,12 @@ function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$in
 }
 
 function serializePublicVenueEvent(event: typeof venueEventsTable.$inferSelect, baseUrl: string) {
-  const { ownerUid: _ownerUid, ...publicEvent } = event;
+  const {
+    ownerUid: _ownerUid,
+    inviteeUids: _inviteeUids,
+    isHidden: _isHidden,
+    ...publicEvent
+  } = event;
   return { ...publicEvent, imageUrl: resolveStorageUrl(baseUrl, publicEvent.imageUrl) };
 }
 
@@ -1970,6 +1976,8 @@ router.post(
       endsAt: z.string().datetime().optional().nullable(),
       capacityLimit: z.number().int().positive().optional().nullable(),
       isPublished: z.boolean().optional(),
+      visibility: z.enum(["public", "invite_only"]).optional(),
+      inviteeUids: z.array(z.string().min(1).max(128)).max(200).optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -1979,6 +1987,28 @@ router.post(
 
     const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"], "Your venue must be approved and your membership active before creating events");
     if (!access) return;
+    const visibility = parsed.data.visibility ?? "public";
+    const inviteeUids = visibility === "invite_only"
+      ? [...new Set(parsed.data.inviteeUids ?? [])]
+      : [];
+    if (visibility === "invite_only" && inviteeUids.length === 0) {
+      res.status(400).json({ message: "Select at least one visitor for an invite-only event." });
+      return;
+    }
+    if (inviteeUids.length) {
+      const verifiedGuests = await db
+        .select({ uid: hubCheckinsTable.userUid })
+        .from(hubCheckinsTable)
+        .where(and(
+          eq(hubCheckinsTable.placeId, access.placeId),
+          inArray(hubCheckinsTable.userUid, inviteeUids),
+        ))
+        .groupBy(hubCheckinsTable.userUid);
+      if (verifiedGuests.length !== inviteeUids.length) {
+        res.status(400).json({ message: "Invitees must be visitors who have checked in at your venue." });
+        return;
+      }
+    }
 
     const [event] = await db
       .insert(venueEventsTable)
@@ -1992,6 +2022,8 @@ router.post(
         endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
         capacityLimit: parsed.data.capacityLimit ?? null,
         isPublished: parsed.data.isPublished ?? true,
+        visibility,
+        inviteeUids,
       })
       .returning();
 
@@ -2008,6 +2040,7 @@ router.get(
   venueOwnerReadLimit,
   async (req: Request, res: Response) => {
     const { placeId } = req.params as { placeId: string };
+    const uid = req.uid!;
 
     // Only return events for venues that are currently active/approved.
     const [venueProfile] = await db
@@ -2035,6 +2068,11 @@ router.get(
           eq(venueEventsTable.placeId, placeId),
           eq(venueEventsTable.isPublished, true),
           eq(venueEventsTable.isHidden, false),
+          or(
+            eq(venueEventsTable.visibility, "public"),
+            eq(venueEventsTable.ownerUid, uid),
+            arrayContains(venueEventsTable.inviteeUids, [uid]),
+          ),
         ),
       )
       .orderBy(desc(venueEventsTable.startsAt));
@@ -2078,11 +2116,36 @@ router.put(
       endsAt: z.string().datetime().optional().nullable(),
       capacityLimit: z.number().int().positive().optional().nullable(),
       isPublished: z.boolean().optional(),
+      visibility: z.enum(["public", "invite_only"]).optional(),
+      inviteeUids: z.array(z.string().min(1).max(128)).max(200).optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: "Invalid input", errors: parsed.error.issues });
       return;
+    }
+
+    const nextVisibility = parsed.data.visibility ?? existing.visibility;
+    const nextInvitees = parsed.data.inviteeUids !== undefined
+      ? [...new Set(parsed.data.inviteeUids)]
+      : existing.inviteeUids;
+    if (nextVisibility === "invite_only" && nextInvitees.length === 0) {
+      res.status(400).json({ message: "Select at least one visitor for an invite-only event." });
+      return;
+    }
+    if (parsed.data.inviteeUids !== undefined && nextInvitees.length) {
+      const verifiedGuests = await db
+        .select({ uid: hubCheckinsTable.userUid })
+        .from(hubCheckinsTable)
+        .where(and(
+          eq(hubCheckinsTable.placeId, access.placeId),
+          inArray(hubCheckinsTable.userUid, nextInvitees),
+        ))
+        .groupBy(hubCheckinsTable.userUid);
+      if (verifiedGuests.length !== nextInvitees.length) {
+        res.status(400).json({ message: "Invitees must be visitors who have checked in at your venue." });
+        return;
+      }
     }
 
     const updatePayload: Record<string, unknown> = { updatedAt: new Date() };
@@ -2093,6 +2156,10 @@ router.put(
     if (parsed.data.endsAt !== undefined) updatePayload["endsAt"] = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null;
     if (parsed.data.capacityLimit !== undefined) updatePayload["capacityLimit"] = parsed.data.capacityLimit;
     if (parsed.data.isPublished !== undefined) updatePayload["isPublished"] = parsed.data.isPublished;
+    if (parsed.data.visibility !== undefined) updatePayload["visibility"] = nextVisibility;
+    if (parsed.data.inviteeUids !== undefined || parsed.data.visibility !== undefined) {
+      updatePayload["inviteeUids"] = nextVisibility === "invite_only" ? nextInvitees : [];
+    }
 
     const [updated] = await db
       .update(venueEventsTable)
@@ -2167,12 +2234,27 @@ router.post(
     }
 
     const [event] = await db
-      .select({ id: venueEventsTable.id })
+      .select({
+        id: venueEventsTable.id,
+        ownerUid: venueEventsTable.ownerUid,
+        visibility: venueEventsTable.visibility,
+        inviteeUids: venueEventsTable.inviteeUids,
+        isPublished: venueEventsTable.isPublished,
+        isHidden: venueEventsTable.isHidden,
+      })
       .from(venueEventsTable)
       .where(eq(venueEventsTable.id, eventId))
       .limit(1);
-    if (!event) {
+    if (!event || event.isHidden || !event.isPublished) {
       res.status(404).json({ message: "Event not found" });
+      return;
+    }
+    if (
+      event.visibility === "invite_only" &&
+      event.ownerUid !== uid &&
+      !event.inviteeUids.includes(uid)
+    ) {
+      res.status(403).json({ message: "This event is invitation-only." });
       return;
     }
 

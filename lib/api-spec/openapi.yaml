@@ -2188,6 +2188,135 @@ paths:
               schema:
                 $ref: "#/components/schemas/VenueManagerDashboard"
 
+  /venue-owner/me/guests:
+    get:
+      operationId: getVenueOwnerMeGuests
+      tags: [venue-owner]
+      summary: List visitors who have checked in at the caller's venue
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string, enum: [all, month, week], default: all }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 30 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Venue visitors
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueGuestListResponse"
+
+  /venue-owner/me/events:
+    post:
+      operationId: createVenueOwnerEvent
+      tags: [venue-owner]
+      summary: Create an event for the caller's venue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerEventInput"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerEventResponse"
+
+  /venue-owner/me/events/{eventId}:
+    put:
+      operationId: updateVenueOwnerEvent
+      tags: [venue-owner]
+      summary: Update an event for the caller's venue
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueManagerEventUpdate"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerEventResponse"
+
+  /events/feed:
+    get:
+      operationId: getEventsFeed
+      tags: [events]
+      summary: List public events and private events the caller may attend
+      responses:
+        "200":
+          description: Event feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventFeedResponse"
+
+  /events:
+    post:
+      operationId: createCommunityEvent
+      tags: [events]
+      summary: Create a member event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityEventInput"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventFeedItem"
+
+  /community-events/{eventId}/rsvp:
+    post:
+      operationId: rsvpCommunityEvent
+      tags: [events]
+      summary: RSVP to a member event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityEventRsvpBody"
+      responses:
+        "200":
+          description: RSVP saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, status]
+                properties:
+                  success: { type: boolean }
+                  status: { type: string, enum: [going, maybe, not_going] }
+
   /venue-manager/businesses/{businessId}/events:
     get:
       operationId: listVenueManagerEvents
@@ -4464,6 +4593,10 @@ components:
         capacityLimit: { type: ["integer", "null"] }
         rsvpCount: { type: integer }
         isPublished: { type: boolean }
+        visibility: { type: string, enum: [public, invite_only] }
+        inviteeUids:
+          type: array
+          items: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     VenueManagerEventList:
@@ -4478,6 +4611,23 @@ components:
       required: [event]
       properties:
         event: { $ref: "#/components/schemas/VenueManagerEvent" }
+    VenueGuestSummary:
+      type: object
+      required: [uid, displayName, checkinCount]
+      properties:
+        uid: { type: string }
+        displayName: { type: string }
+        photoUrl: { type: ["string", "null"], format: uri }
+        checkinCount: { type: integer }
+        lastCheckinAt: { type: string, format: date-time }
+    VenueGuestListResponse:
+      type: object
+      required: [guests, total]
+      properties:
+        guests:
+          type: array
+          items: { $ref: "#/components/schemas/VenueGuestSummary" }
+        total: { type: integer }
     VenueManagerEventInput:
       type: object
       required: [title, startsAt]
@@ -4489,6 +4639,11 @@ components:
         endsAt: { type: ["string", "null"], format: date-time }
         capacityLimit: { type: ["integer", "null"], minimum: 1 }
         isPublished: { type: boolean }
+        visibility: { type: string, enum: [public, invite_only] }
+        inviteeUids:
+          type: array
+          maxItems: 200
+          items: { type: string, minLength: 1, maxLength: 128 }
     VenueManagerEventUpdate:
       type: object
       properties:
@@ -4499,6 +4654,57 @@ components:
         endsAt: { type: ["string", "null"], format: date-time }
         capacityLimit: { type: ["integer", "null"], minimum: 1 }
         isPublished: { type: boolean }
+        visibility: { type: string, enum: [public, invite_only] }
+        inviteeUids:
+          type: array
+          maxItems: 200
+          items: { type: string, minLength: 1, maxLength: 128 }
+    EventFeedItem:
+      type: object
+      required: [eventType, id, ownerUid, title, startsAt, visibility, rsvpCount]
+      properties:
+        eventType: { type: string, enum: [venue, member] }
+        id: { type: integer }
+        ownerUid: { type: string }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"], format: uri }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: ["string", "null"], format: date-time }
+        location: { type: ["string", "null"] }
+        placeId: { type: ["string", "null"] }
+        venueName: { type: ["string", "null"] }
+        creatorName: { type: ["string", "null"] }
+        visibility: { type: string, enum: [public, invite_only] }
+        rsvpCount: { type: integer }
+        myRsvp: { type: ["string", "null"], enum: [going, maybe, not_going, null] }
+    EventFeedResponse:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/EventFeedItem" }
+    CommunityEventInput:
+      type: object
+      required: [title, startsAt, visibility]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: ["string", "null"], maxLength: 2000 }
+        imageUrl: { type: ["string", "null"], format: uri }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: ["string", "null"], format: date-time }
+        location: { type: ["string", "null"], maxLength: 200 }
+        visibility: { type: string, enum: [public, invite_only] }
+        inviteeUids:
+          type: array
+          maxItems: 200
+          items: { type: string, minLength: 1, maxLength: 128 }
+    CommunityEventRsvpBody:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [going, maybe, not_going] }
     VenueManagerReward:
       type: object
       required: [id, title, prizeDescription, rewardType, status, startDate, endDate, venueTimezone]

@@ -355,6 +355,10 @@ export const venueEventsTable = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true }),
     /** Maximum attendees (null = unlimited). */
     capacityLimit: integer("capacity_limit"),
+    /** Public events appear in the Events feed; invite-only events require an explicit invite. */
+    visibility: text("visibility").notNull().default("public"),
+    /** Met users selected by the venue from its visitor list for invite-only events. */
+    inviteeUids: text("invitee_uids").array().notNull().default(sql`ARRAY[]::text[]`),
     /** Denormalized going+maybe RSVP count — updated on each RSVP change. */
     rsvpCount: integer("rsvp_count").notNull().default(0),
     isPublished: boolean("is_published").notNull().default(true),
@@ -419,6 +423,69 @@ export const insertVenueEventRsvpSchema = createInsertSchema(
 
 export type InsertVenueEventRsvp = z.infer<typeof insertVenueEventRsvpSchema>;
 export type VenueEventRsvp = typeof venueEventRsvpsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// community_events
+// Events created by Met members. Venue events remain in venue_events so their
+// existing ownership, moderation, and RSVP behavior is unchanged.
+// ---------------------------------------------------------------------------
+export const communityEventsTable = pgTable(
+  "community_events",
+  {
+    id: serial("id").primaryKey(),
+    ownerUid: text("owner_uid").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    imageUrl: text("image_url"),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    location: text("location"),
+    /** 'public' or 'invite_only' */
+    visibility: text("visibility").notNull().default("public"),
+    /** Explicitly invited Met matches for invite-only events. */
+    inviteeUids: text("invitee_uids").array().notNull().default(sql`ARRAY[]::text[]`),
+    isHidden: boolean("is_hidden").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    ownerUidIdx: index("community_events_owner_uid_idx").on(t.ownerUid),
+    startsAtIdx: index("community_events_starts_at_idx").on(t.startsAt),
+    visibilityIdx: index("community_events_visibility_idx").on(t.visibility),
+  }),
+);
+
+export const communityEventRsvpsTable = pgTable(
+  "community_event_rsvps",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id").notNull(),
+    userUid: text("user_uid").notNull(),
+    /** 'going' | 'maybe' | 'not_going' */
+    status: text("status").notNull().default("going"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    eventUserUniq: uniqueIndex("community_event_rsvps_event_user_uniq").on(
+      t.eventId,
+      t.userUid,
+    ),
+    eventIdIdx: index("community_event_rsvps_event_id_idx").on(t.eventId),
+    userUidIdx: index("community_event_rsvps_user_uid_idx").on(t.userUid),
+  }),
+);
+
+export type CommunityEvent = typeof communityEventsTable.$inferSelect;
+export type CommunityEventRsvp = typeof communityEventRsvpsTable.$inferSelect;
 
 // ---------------------------------------------------------------------------
 // venue_rewards

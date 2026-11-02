@@ -400,6 +400,23 @@ function serializeEvent(event: typeof venueEventsTable.$inferSelect) {
   return serialized;
 }
 
+async function validateVenueEventInvitees(placeId: string, value: unknown): Promise<string[] | null> {
+  if (!Array.isArray(value) || value.length > 200 || value.some((uid) => typeof uid !== "string" || !uid.trim() || uid.length > 128)) {
+    return null;
+  }
+  const inviteeUids = [...new Set(value as string[])];
+  if (!inviteeUids.length) return inviteeUids;
+  const verified = await db
+    .select({ uid: hubCheckinsTable.userUid })
+    .from(hubCheckinsTable)
+    .where(and(
+      eq(hubCheckinsTable.placeId, placeId),
+      inArray(hubCheckinsTable.userUid, inviteeUids),
+    ))
+    .groupBy(hubCheckinsTable.userUid);
+  return verified.length === inviteeUids.length ? inviteeUids : null;
+}
+
 function serializeReward(reward: typeof venueRewardsTable.$inferSelect) {
   const { ownerUid: _ownerUid, winnerUid: _winnerUid, ...serialized } = reward;
   return serialized;
@@ -953,10 +970,15 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   if (req.body?.endsAt !== undefined && req.body?.endsAt !== null && !endsAt) return void res.status(400).json({ message: "Use a valid event end time." });
   const capacityLimit = req.body?.capacityLimit === undefined ? undefined : req.body?.capacityLimit === null ? null : Number(req.body?.capacityLimit);
   if (capacityLimit !== undefined && capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) return void res.status(400).json({ message: "Capacity must be a positive whole number." });
+  const visibility = req.body?.visibility === undefined ? "public" : req.body.visibility;
+  if (visibility !== "public" && visibility !== "invite_only") return void res.status(400).json({ message: "Choose public or invite-only visibility." });
+  const inviteeUids = req.body?.inviteeUids === undefined ? [] : await validateVenueEventInvitees(business.business.placeId, req.body.inviteeUids);
+  if (!inviteeUids) return void res.status(400).json({ message: "Invitees must be visitors who have checked in at your venue." });
+  if (visibility === "invite_only" && inviteeUids.length === 0) return void res.status(400).json({ message: "Select at least one visitor for an invite-only event." });
   const [event] = await db.insert(venueEventsTable).values({
     ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, startsAt, endsAt,
     description: optionalText(req.body?.description, 2000) ?? null, imageUrl: optionalText(req.body?.imageUrl, 2000) ?? null,
-    capacityLimit, isPublished: req.body?.isPublished !== false,
+    capacityLimit, isPublished: req.body?.isPublished !== false, visibility, inviteeUids,
   }).returning();
   res.status(201).json({ event: serializeEvent(event!) });
 });
@@ -975,7 +997,21 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
   if ((req.body?.startsAt !== undefined && !startsAt) || (req.body?.endsAt !== undefined && req.body.endsAt !== null && !endsAt)) return void res.status(400).json({ message: "Use valid event dates." });
   const capacityLimit = req.body?.capacityLimit === undefined ? undefined : req.body.capacityLimit === null ? null : Number(req.body.capacityLimit);
   if (capacityLimit !== undefined && capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) return void res.status(400).json({ message: "Capacity must be a positive whole number." });
-  const patch = Object.fromEntries(Object.entries({ title, startsAt, endsAt, capacityLimit, description: optionalText(req.body?.description, 2000), imageUrl: optionalText(req.body?.imageUrl, 2000), isPublished: typeof req.body?.isPublished === "boolean" ? req.body.isPublished : undefined }).filter(([, value]) => value !== undefined));
+  const visibility = req.body?.visibility === undefined ? existing.visibility : req.body.visibility;
+  if (visibility !== "public" && visibility !== "invite_only") return void res.status(400).json({ message: "Choose public or invite-only visibility." });
+  const inviteeUids = req.body?.inviteeUids === undefined
+    ? existing.inviteeUids
+    : await validateVenueEventInvitees(business.business.placeId, req.body.inviteeUids);
+  if (!inviteeUids) return void res.status(400).json({ message: "Invitees must be visitors who have checked in at your venue." });
+  if (visibility === "invite_only" && inviteeUids.length === 0) return void res.status(400).json({ message: "Select at least one visitor for an invite-only event." });
+  const patch = Object.fromEntries(Object.entries({
+    title, startsAt, endsAt, capacityLimit,
+    description: optionalText(req.body?.description, 2000),
+    imageUrl: optionalText(req.body?.imageUrl, 2000),
+    isPublished: typeof req.body?.isPublished === "boolean" ? req.body.isPublished : undefined,
+    visibility,
+    inviteeUids: visibility === "invite_only" ? inviteeUids : [],
+  }).filter(([, value]) => value !== undefined));
   const [event] = await db.update(venueEventsTable).set({ ...patch, updatedAt: new Date() }).where(eq(venueEventsTable.id, eventId)).returning();
   res.json({ event: serializeEvent(event!) });
 });

@@ -214,10 +214,19 @@ export interface VenueEvent {
   startsAt: string;
   endsAt: string | null;
   capacityLimit: number | null;
+  visibility: "public" | "invite_only";
   rsvpCount: number;
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface VenueGuestSummary {
+  uid: string;
+  displayName: string;
+  photoUrl: string | null;
+  checkinCount: number;
+  lastCheckinAt: string;
 }
 
 export interface VenueReward {
@@ -1334,6 +1343,14 @@ export const api = {
       opts,
     ),
 
+  /** List visitors who have checked in at the caller's venue. */
+  getVenueGuests: (opts: ApiOptions, limit = 100, offset = 0) =>
+    request<{ guests: VenueGuestSummary[]; total: number }>(
+      "GET",
+      `/api/venue-owner/me/guests?period=all&limit=${limit}&offset=${offset}`,
+      opts,
+    ),
+
   /** Create an event at the caller's venue. */
   createVenueEvent: (
     opts: ApiOptions,
@@ -1345,6 +1362,8 @@ export const api = {
       endsAt?: string | null;
       capacityLimit?: number | null;
       isPublished?: boolean;
+      visibility?: "public" | "invite_only";
+      inviteeUids?: string[];
     },
   ) =>
     request<{ event: VenueEvent }>(
@@ -1374,6 +1393,8 @@ export const api = {
       endsAt?: string | null;
       capacityLimit?: number | null;
       isPublished?: boolean;
+      visibility?: "public" | "invite_only";
+      inviteeUids?: string[];
     },
   ) =>
     request<{ event: VenueEvent }>(

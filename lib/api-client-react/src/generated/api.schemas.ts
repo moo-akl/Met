@@ -1082,6 +1082,14 @@ export interface AdminManagedImageConfirmResponse {
   url: string;
 }
 
+export type VenueManagerEventVisibility = typeof VenueManagerEventVisibility[keyof typeof VenueManagerEventVisibility];
+
+
+export const VenueManagerEventVisibility = {
+  public: 'public',
+  invite_only: 'invite_only',
+} as const;
+
 export interface VenueManagerEvent {
   id: number;
   title: string;
@@ -1096,6 +1104,8 @@ export interface VenueManagerEvent {
   capacityLimit?: number | null;
   rsvpCount?: number;
   isPublished: boolean;
+  visibility?: VenueManagerEventVisibility;
+  inviteeUids?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1107,6 +1117,28 @@ export interface VenueManagerEventList {
 export interface VenueManagerEventResponse {
   event: VenueManagerEvent;
 }
+
+export interface VenueGuestSummary {
+  uid: string;
+  displayName: string;
+  /** @nullable */
+  photoUrl?: string | null;
+  checkinCount: number;
+  lastCheckinAt?: string;
+}
+
+export interface VenueGuestListResponse {
+  guests: VenueGuestSummary[];
+  total: number;
+}
+
+export type VenueManagerEventInputVisibility = typeof VenueManagerEventInputVisibility[keyof typeof VenueManagerEventInputVisibility];
+
+
+export const VenueManagerEventInputVisibility = {
+  public: 'public',
+  invite_only: 'invite_only',
+} as const;
 
 export interface VenueManagerEventInput {
   /**
@@ -1130,7 +1162,22 @@ export interface VenueManagerEventInput {
      */
   capacityLimit?: number | null;
   isPublished?: boolean;
+  visibility?: VenueManagerEventInputVisibility;
+  /**
+     * @maxItems 200
+     * @items.minLength 1
+     * @items.maxLength 128
+     */
+  inviteeUids?: string[];
 }
+
+export type VenueManagerEventUpdateVisibility = typeof VenueManagerEventUpdateVisibility[keyof typeof VenueManagerEventUpdateVisibility];
+
+
+export const VenueManagerEventUpdateVisibility = {
+  public: 'public',
+  invite_only: 'invite_only',
+} as const;
 
 export interface VenueManagerEventUpdate {
   /**
@@ -1154,6 +1201,122 @@ export interface VenueManagerEventUpdate {
      */
   capacityLimit?: number | null;
   isPublished?: boolean;
+  visibility?: VenueManagerEventUpdateVisibility;
+  /**
+     * @maxItems 200
+     * @items.minLength 1
+     * @items.maxLength 128
+     */
+  inviteeUids?: string[];
+}
+
+export type EventFeedItemEventType = typeof EventFeedItemEventType[keyof typeof EventFeedItemEventType];
+
+
+export const EventFeedItemEventType = {
+  venue: 'venue',
+  member: 'member',
+} as const;
+
+export type EventFeedItemVisibility = typeof EventFeedItemVisibility[keyof typeof EventFeedItemVisibility];
+
+
+export const EventFeedItemVisibility = {
+  public: 'public',
+  invite_only: 'invite_only',
+} as const;
+
+/**
+ * @nullable
+ */
+export type EventFeedItemMyRsvp = typeof EventFeedItemMyRsvp[keyof typeof EventFeedItemMyRsvp] | null;
+
+
+export const EventFeedItemMyRsvp = {
+  going: 'going',
+  maybe: 'maybe',
+  not_going: 'not_going',
+} as const;
+
+export interface EventFeedItem {
+  eventType: EventFeedItemEventType;
+  id: number;
+  ownerUid: string;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startsAt: string;
+  /** @nullable */
+  endsAt?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  placeId?: string | null;
+  /** @nullable */
+  venueName?: string | null;
+  /** @nullable */
+  creatorName?: string | null;
+  visibility: EventFeedItemVisibility;
+  rsvpCount: number;
+  /** @nullable */
+  myRsvp?: EventFeedItemMyRsvp;
+}
+
+export interface EventFeedResponse {
+  events: EventFeedItem[];
+}
+
+export type CommunityEventInputVisibility = typeof CommunityEventInputVisibility[keyof typeof CommunityEventInputVisibility];
+
+
+export const CommunityEventInputVisibility = {
+  public: 'public',
+  invite_only: 'invite_only',
+} as const;
+
+export interface CommunityEventInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  title: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startsAt: string;
+  /** @nullable */
+  endsAt?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  location?: string | null;
+  visibility: CommunityEventInputVisibility;
+  /**
+     * @maxItems 200
+     * @items.minLength 1
+     * @items.maxLength 128
+     */
+  inviteeUids?: string[];
+}
+
+export type CommunityEventRsvpBodyStatus = typeof CommunityEventRsvpBodyStatus[keyof typeof CommunityEventRsvpBodyStatus];
+
+
+export const CommunityEventRsvpBodyStatus = {
+  going: 'going',
+  maybe: 'maybe',
+  not_going: 'not_going',
+} as const;
+
+export interface CommunityEventRsvpBody {
+  status: CommunityEventRsvpBodyStatus;
 }
 
 export type VenueManagerRewardRewardType = typeof VenueManagerRewardRewardType[keyof typeof VenueManagerRewardRewardType];
@@ -2644,6 +2807,43 @@ export type InviteToNetwork200 = {
 
 export type DeleteAnnouncement200 = {
   success: boolean;
+};
+
+export type GetVenueOwnerMeGuestsParams = {
+period?: GetVenueOwnerMeGuestsPeriod;
+search?: string;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type GetVenueOwnerMeGuestsPeriod = typeof GetVenueOwnerMeGuestsPeriod[keyof typeof GetVenueOwnerMeGuestsPeriod];
+
+
+export const GetVenueOwnerMeGuestsPeriod = {
+  all: 'all',
+  month: 'month',
+  week: 'week',
+} as const;
+
+export type RsvpCommunityEvent200Status = typeof RsvpCommunityEvent200Status[keyof typeof RsvpCommunityEvent200Status];
+
+
+export const RsvpCommunityEvent200Status = {
+  going: 'going',
+  maybe: 'maybe',
+  not_going: 'not_going',
+} as const;
+
+export type RsvpCommunityEvent200 = {
+  success: boolean;
+  status: RsvpCommunityEvent200Status;
 };
 
 export type GetVenueOwnerMapPoints200 = {

@@ -19,6 +19,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -28,6 +29,7 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { DateTimePicker } from "@/components/DateTimePicker";
+import { useGetVenueOwnerMeGuests } from "@workspace/api-client-react";
 
 const GREEN = "#00E87A";
 
@@ -53,7 +55,13 @@ export default function NewVenueEventScreen() {
   const [endsAt, setEndsAt] = useState<Date | null>(null);
   const [capacityLimit, setCapacityLimit] = useState("");
   const [isPublished, setIsPublished] = useState(true);
+  const [visibility, setVisibility] = useState<"public" | "invite_only">("public");
+  const [inviteeUids, setInviteeUids] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const guestsQuery = useGetVenueOwnerMeGuests(
+    { period: "all", limit: 100, offset: 0 },
+    { query: { enabled: visibility === "invite_only", staleTime: 30_000 } },
+  );
 
   // ── Venue theme tokens ──────────────────────────────────────────────────────
   const vBg          = isDark ? "#0A0518"                : "#FAFAF8";
@@ -104,7 +112,8 @@ export default function NewVenueEventScreen() {
     }
   };
 
-  const canSubmit = title.trim().length > 0;
+  const canSubmit = title.trim().length > 0 &&
+    (visibility === "public" || inviteeUids.length > 0);
 
   const handleCreate = async () => {
     if (!authedUid || !canSubmit || submitting) return;
@@ -118,6 +127,8 @@ export default function NewVenueEventScreen() {
         endsAt: endsAt ? endsAt.toISOString() : null,
         capacityLimit: capacityLimit.trim() ? parseInt(capacityLimit, 10) : null,
         isPublished,
+        visibility,
+        inviteeUids: visibility === "invite_only" ? inviteeUids : [],
       });
       Alert.alert("Event created!", undefined, [{ text: "Done", onPress: () => router.back() }]);
     } catch (err) {
@@ -169,6 +180,75 @@ export default function NewVenueEventScreen() {
             </Pressable>
           )}
         </View>
+
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: vLabel }]}>Who can see this event?</Text>
+          <View style={styles.visibilityRow}>
+            {(["public", "invite_only"] as const).map((option) => {
+              const selected = visibility === option;
+              return (
+                <Pressable
+                  key={option}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  onPress={() => setVisibility(option)}
+                  style={[
+                    styles.visibilityOption,
+                    {
+                      backgroundColor: selected ? accent + "18" : vInput,
+                      borderColor: selected ? accent : accent + "35",
+                    },
+                  ]}
+                >
+                  <Text style={[styles.visibilityTitle, { color: vText }]}>
+                    {option === "public" ? "Public" : "Invitation only"}
+                  </Text>
+                  <Text style={[styles.visibilityDescription, { color: vMuted }]}>
+                    {option === "public" ? "Anyone can find this event." : "Only selected venue visitors can see it."}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {visibility === "invite_only" ? (
+          <View style={styles.field}>
+            <Text style={[styles.fieldLabel, { color: vLabel }]}>Invite visitors</Text>
+            <Text style={[styles.visibilityDescription, { color: vMuted }]}>
+              Choose people who have checked in at your venue.
+            </Text>
+            {guestsQuery.isLoading ? (
+              <ActivityIndicator color={accent} style={styles.guestLoading} />
+            ) : guestsQuery.isError ? (
+              <Text style={[styles.visibilityDescription, { color: colors.destructive }]}>
+                Could not load your visitor list. Try again.
+              </Text>
+            ) : (guestsQuery.data?.guests ?? []).length === 0 ? (
+              <Text style={[styles.visibilityDescription, { color: vMuted }]}>
+                No checked-in visitors are available to invite yet.
+              </Text>
+            ) : (guestsQuery.data?.guests ?? []).map((guest) => {
+              const selected = inviteeUids.includes(guest.uid);
+              return (
+                <Pressable
+                  key={guest.uid}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => setInviteeUids((current) => selected
+                    ? current.filter((uid) => uid !== guest.uid)
+                    : [...current, guest.uid])}
+                  style={[styles.guestRow, { borderBottomColor: accent + "25" }]}
+                >
+                  <Text style={[styles.guestName, { color: vText }]}>
+                    {guest.displayName} · {guest.checkinCount}
+                  </Text>
+                  <Feather name={selected ? "check-square" : "square"} size={20} color={accent} />
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
 
         <DateTimePicker
           label="Start Date & Time"
@@ -283,6 +363,13 @@ const styles = StyleSheet.create({
   clearBtnText: { color: "rgba(255,80,80,0.8)", fontSize: 12, fontFamily: "Inter_500Medium" },
   toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   toggleLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  visibilityRow: { gap: 9 },
+  visibilityOption: { borderWidth: 1, borderRadius: 12, padding: 12 },
+  visibilityTitle: { fontSize: 14, fontWeight: "700" },
+  visibilityDescription: { fontSize: 12, lineHeight: 18, marginTop: 4 },
+  guestLoading: { paddingVertical: 16 },
+  guestRow: { minHeight: 46, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  guestName: { fontSize: 13, fontWeight: "500" },
   submitBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8 },
   submitBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });

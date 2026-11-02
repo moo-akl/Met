@@ -1394,11 +1394,37 @@ function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
 
 function EventModal({ event, message, pending, onClose, onSubmit, businessId, csrfToken }: { event?: VenueManagerEvent; message: string; pending: boolean; onClose: () => void; onSubmit: (data: VenueManagerEventInput | VenueManagerEventUpdate) => void; businessId: number; csrfToken: string }) {
   const [imageUrl, setImageUrl] = useState(event?.imageUrl ?? "");
+  const [visibility, setVisibility] = useState<"public" | "invite_only">(event?.visibility ?? "public");
+  const [inviteeUids, setInviteeUids] = useState<string[]>(event?.inviteeUids ?? []);
+  const [guests, setGuests] = useState<VenueGuest[]>([]);
+  const [guestsLoading, setGuestsLoading] = useState(false);
+  const [guestError, setGuestError] = useState("");
+  useEffect(() => {
+    if (visibility !== "invite_only") return;
+    let cancelled = false;
+    setGuestsLoading(true);
+    setGuestError("");
+    fetch(`/api/venue-manager/businesses/${businessId}/guests?period=all&limit=100&offset=0`, { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not load this venue’s visitor list.");
+        return response.json() as Promise<{ guests?: VenueGuest[] }>;
+      })
+      .then((data) => { if (!cancelled) setGuests(data.guests ?? []); })
+      .catch((error: unknown) => {
+        if (!cancelled) setGuestError(error instanceof Error ? error.message : "Could not load visitors.");
+      })
+      .finally(() => { if (!cancelled) setGuestsLoading(false); });
+    return () => { cancelled = true; };
+  }, [businessId, visibility]);
   return (
     <Modal title={event ? "Edit event" : "New event"} onClose={onClose}>
       <form className="vm-form two-col" onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
+        if (visibility === "invite_only" && inviteeUids.length === 0) {
+          setGuestError("Choose at least one visitor for an invite-only event.");
+          return;
+        }
         onSubmit({
           title: formText(f.get("title")),
           description: formText(f.get("description")) || null,
@@ -1407,6 +1433,8 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
           capacityLimit: f.get("capacityLimit") ? Number(f.get("capacityLimit")) : null,
           isPublished: f.get("isPublished") === "on",
           imageUrl: imageUrl || null,
+          visibility,
+          inviteeUids: visibility === "invite_only" ? inviteeUids : [],
         });
       }}>
         {message && <div className="vm-notice error full">{message}</div>}
@@ -1415,6 +1443,26 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
         <label>Ends<input name="endsAt" type="datetime-local" defaultValue={dateTimeInput(event?.endsAt)} /></label>
         <label>Capacity<input name="capacityLimit" type="number" min="1" defaultValue={event?.capacityLimit ?? ""} /></label>
         <label className="checkbox"><input name="isPublished" type="checkbox" defaultChecked={event?.isPublished ?? true} /> Publish this event</label>
+        <label className="full">Visibility<select value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "invite_only")}><option value="public">Public — visible in Events</option><option value="invite_only">Invite-only — selected visitors only</option></select></label>
+        {visibility === "invite_only" && <div className="full">
+          <strong>Invite visitors</strong>
+          <p className="vm-subtitle">Only people who checked in at your venue can be invited.</p>
+          {guestsLoading && <SectionLoading />}
+          {guestError && <div className="vm-notice error">{guestError}</div>}
+          {!guestsLoading && !guestError && guests.length === 0 && <Empty text="No visitors are available to invite yet." />}
+          <div className="vm-stack">
+            {guests.map((guest) => <label className="checkbox" key={guest.uid}>
+              <input
+                type="checkbox"
+                checked={inviteeUids.includes(guest.uid)}
+                onChange={(e) => setInviteeUids((current) => e.target.checked
+                  ? [...new Set([...current, guest.uid])]
+                  : current.filter((uid) => uid !== guest.uid))}
+              />
+              {guest.displayName} · {guest.checkinCount} visits
+            </label>)}
+          </div>
+        </div>}
         <label className="full">Description<textarea name="description" rows={4} defaultValue={event?.description ?? ""} /></label>
         <div className="full">
           <ImageUploadField label="Event image" value={imageUrl} onChange={setImageUrl} businessId={businessId} csrfToken={csrfToken} />

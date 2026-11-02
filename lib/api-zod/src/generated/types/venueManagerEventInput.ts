@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenueManagerEventInputVisibility } from './venueManagerEventInputVisibility';
 
 export interface VenueManagerEventInput {
   /**
@@ -28,4 +29,11 @@ export interface VenueManagerEventInput {
      */
   capacityLimit?: number | null;
   isPublished?: boolean;
+  visibility?: VenueManagerEventInputVisibility;
+  /**
+     * @maxItems 200
+     * @items.minLength 1
+     * @items.maxLength 128
+     */
+  inviteeUids?: string[];
 }
