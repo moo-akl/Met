@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   integer,
+  doublePrecision,
   boolean,
   index,
   uniqueIndex,
@@ -447,6 +448,9 @@ export const communityEventsTable = pgTable(
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }),
     location: text("location"),
+    locationPlaceId: text("location_place_id"),
+    locationLatitude: doublePrecision("location_latitude"),
+    locationLongitude: doublePrecision("location_longitude"),
     /** 'public' or 'invite_only' */
     visibility: text("visibility").notNull().default("public"),
     /** Explicitly invited Met matches for invite-only events. */

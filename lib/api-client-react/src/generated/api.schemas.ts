@@ -1333,6 +1333,8 @@ export interface EventFeedItem {
   /** @nullable */
   location?: string | null;
   /** @nullable */
+  locationPlaceId: string | null;
+  /** @nullable */
   placeId?: string | null;
   /** @nullable */
   venueName?: string | null;
@@ -1389,6 +1391,23 @@ export interface CommunityEventInput {
      * @nullable
      */
   location?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  locationPlaceId?: string | null;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  latitude?: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  longitude?: number | null;
   visibility: CommunityEventInputVisibility;
   /**
      * @maxItems 200
@@ -1396,6 +1415,81 @@ export interface CommunityEventInput {
      * @items.maxLength 128
      */
   inviteeUids?: string[];
+}
+
+export interface EventLocationSearchResult {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  placeId: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  label: string;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  name: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude: number;
+}
+
+export interface EventLocationSearchResponse {
+  locations: EventLocationSearchResult[];
+}
+
+export type CommunityEventManageResponseVisibility = typeof CommunityEventManageResponseVisibility[keyof typeof CommunityEventManageResponseVisibility];
+
+
+export const CommunityEventManageResponseVisibility = {
+  public: 'public',
+  invite_only: 'invite_only',
+} as const;
+
+export interface CommunityEventManageResponse {
+  id: number;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startsAt: string;
+  /** @nullable */
+  endsAt?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  locationPlaceId?: string | null;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  latitude?: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  longitude?: number | null;
+  visibility: CommunityEventManageResponseVisibility;
+  /**
+     * @maxItems 200
+     * @items.minLength 1
+     * @items.maxLength 128
+     */
+  inviteeUids: string[];
 }
 
 export type CommunityEventRsvpBodyStatus = typeof CommunityEventRsvpBodyStatus[keyof typeof CommunityEventRsvpBodyStatus];
@@ -2923,6 +3017,14 @@ export const GetVenueOwnerMeGuestsPeriod = {
   month: 'month',
   week: 'week',
 } as const;
+
+export type SearchEventLocationsParams = {
+/**
+ * @minLength 3
+ * @maxLength 120
+ */
+q: string;
+};
 
 export type RsvpCommunityEvent200Status = typeof RsvpCommunityEvent200Status[keyof typeof RsvpCommunityEvent200Status];
 

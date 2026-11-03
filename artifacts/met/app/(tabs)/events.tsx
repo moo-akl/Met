@@ -27,6 +27,8 @@ import {
   type EventFeedItem,
 } from "@workspace/api-client-react";
 
+type RsvpStatus = "going" | "maybe" | "not_going";
+
 function getBrowserLocation(): Promise<{ latitude: number; longitude: number }> {
   return new Promise((resolve, reject) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -52,6 +54,7 @@ function EventsScreen() {
   const { t } = useT();
   const { authedUid } = useApp();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<RsvpStatus | null>(null);
   const [actionError, setActionError] = useState("");
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -64,9 +67,10 @@ function EventsScreen() {
     },
   });
 
-  const rsvp = useCallback(async (event: EventFeedItem, status: "going" | "maybe") => {
+  const rsvp = useCallback(async (event: EventFeedItem, status: RsvpStatus) => {
     const key = `${event.eventType}:${event.id}`;
     setPendingKey(key);
+    setPendingStatus(status);
     setActionError("");
     try {
       if (event.eventType === "venue") {
@@ -79,6 +83,7 @@ function EventsScreen() {
       setActionError(error instanceof ApiError ? error.message : "Could not update your RSVP.");
     } finally {
       setPendingKey(null);
+      setPendingStatus(null);
     }
   }, [authedUid, memberRsvp, queryClient]);
 
@@ -211,46 +216,81 @@ function EventsScreen() {
             const isPending = pendingKey === key;
             return (
               <View key={key} style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                {event.imageUrl ? <Image source={{ uri: event.imageUrl }} style={styles.cover} resizeMode="cover" /> : null}
-                <View style={styles.eventBody}>
-                  <View style={styles.badgeRow}>
-                    <Text style={[styles.badge, { color: colors.primary, backgroundColor: colors.primarySoft }]}>
-                      {event.eventType === "venue" ? t("tabs.events.venueEvent") : t("tabs.events.memberEvent")}
-                    </Text>
-                    {event.visibility === "invite_only" ? (
-                      <Text style={[styles.privateBadge, { color: colors.mutedForeground }]}>{t("tabs.events.inviteOnly")}</Text>
-                    ) : null}
-                  </View>
-                  <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
-                  <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>
-                    {new Date(event.startsAt).toLocaleString()}
-                  </Text>
-                  {(event.location || event.venueName || event.creatorName) ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${event.title}, ${t("tabs.events.detailsView")}`}
+                  testID={`event-card-${event.eventType}-${event.id}`}
+                  onPress={() => router.push(`/event-details/${event.eventType}/${event.id}` as never)}
+                >
+                  {event.imageUrl ? <Image source={{ uri: event.imageUrl }} style={styles.cover} resizeMode="cover" /> : null}
+                  <View style={styles.eventBody}>
+                    <View style={styles.badgeRow}>
+                      <Text style={[styles.badge, { color: colors.primary, backgroundColor: colors.primarySoft }]}>
+                        {event.eventType === "venue" ? t("tabs.events.venueEvent") : t("tabs.events.memberEvent")}
+                      </Text>
+                      {event.visibility === "invite_only" ? (
+                        <Text style={[styles.privateBadge, { color: colors.mutedForeground }]}>{t("tabs.events.inviteOnly")}</Text>
+                      ) : null}
+                    </View>
+                    <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
                     <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>
-                      {event.location ?? event.venueName ?? event.creatorName}
+                      {new Date(event.startsAt).toLocaleString()}
                     </Text>
-                  ) : null}
-                  {event.description ? <Text style={[styles.description, { color: colors.text }]}>{event.description}</Text> : null}
+                    {(event.location || event.venueName || event.creatorName) ? (
+                      <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>
+                        {event.location ?? event.venueName ?? event.creatorName}
+                      </Text>
+                    ) : null}
+                    {event.description ? <Text style={[styles.description, { color: colors.text }]} numberOfLines={3}>{event.description}</Text> : null}
+                    <View style={styles.detailsLink}>
+                      <Text style={[styles.detailsLinkText, { color: colors.primary }]}>
+                        {t("tabs.events.detailsView")}
+                      </Text>
+                      <Feather name="chevron-right" size={16} color={colors.primary} />
+                    </View>
+                  </View>
+                </Pressable>
+                <View style={styles.rsvpFooter}>
                   <View style={styles.rsvpRow}>
                     <Text style={[styles.rsvpCount, { color: colors.mutedForeground }]}>{event.rsvpCount} · {t("tabs.events.going")}</Text>
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={isPending}
-                      onPress={() => void rsvp(event, "going")}
-                      style={[styles.rsvpButton, { backgroundColor: event.myRsvp === "going" ? colors.primary : colors.primarySoft }]}
-                    >
-                      {isPending ? <ActivityIndicator size="small" color={colors.primary} /> : (
-                        <Text style={[styles.rsvpButtonText, { color: event.myRsvp === "going" ? colors.primaryForeground : colors.primary }]}>{t("tabs.events.going")}</Text>
-                      )}
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={isPending}
-                      onPress={() => void rsvp(event, "maybe")}
-                      style={[styles.rsvpButton, { backgroundColor: event.myRsvp === "maybe" ? colors.primary : colors.muted }]}
-                    >
-                      <Text style={[styles.rsvpButtonText, { color: event.myRsvp === "maybe" ? colors.primaryForeground : colors.text }]}>{t("tabs.events.maybe")}</Text>
-                    </Pressable>
+                    {([
+                      ["going", t("tabs.events.going")],
+                      ["maybe", t("tabs.events.interested")],
+                      ["not_going", t("tabs.events.notGoing")],
+                    ] as const).map(([status, label]) => {
+                      const selected = event.myRsvp === status;
+                      const isCurrentPending = isPending && pendingStatus === status;
+                      return (
+                        <Pressable
+                          key={status}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                          testID={`event-rsvp-${event.eventType}-${event.id}-${status}`}
+                          disabled={isPending}
+                          onPress={() => void rsvp(event, status)}
+                          style={[
+                            styles.rsvpButton,
+                            {
+                              backgroundColor: selected ? colors.primary : colors.primarySoft,
+                              opacity: isPending && !isCurrentPending ? 0.65 : 1,
+                            },
+                          ]}
+                        >
+                          {isCurrentPending ? (
+                            <ActivityIndicator size="small" color={colors.primaryForeground} />
+                          ) : (
+                            <Text
+                              style={[
+                                styles.rsvpButtonText,
+                                { color: selected ? colors.primaryForeground : colors.primary },
+                              ]}
+                            >
+                              {label}
+                            </Text>
+                          )}
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 </View>
               </View>
@@ -289,10 +329,13 @@ const styles = StyleSheet.create({
   eventTitle: { fontSize: 19, fontWeight: "700" },
   eventMeta: { fontSize: 13, marginTop: 5 },
   description: { fontSize: 14, lineHeight: 20, marginTop: 9 },
-  rsvpRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 },
+  detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2, marginTop: 12 },
+  detailsLinkText: { fontSize: 12, fontWeight: "700" },
+  rsvpFooter: { paddingHorizontal: 15, paddingBottom: 14 },
+  rsvpRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   rsvpCount: { flex: 1, fontSize: 12 },
-  rsvpButton: { minWidth: 72, alignItems: "center", justifyContent: "center", paddingHorizontal: 13, paddingVertical: 9, borderRadius: 11 },
-  rsvpButtonText: { fontSize: 12, fontWeight: "700" },
+  rsvpButton: { flex: 1, minWidth: 0, minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, paddingVertical: 7, borderRadius: 11 },
+  rsvpButtonText: { fontSize: 11, fontWeight: "700", textAlign: "center" },
 });
 
 export default EventsScreen;

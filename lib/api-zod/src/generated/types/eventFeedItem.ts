@@ -24,6 +24,8 @@ export interface EventFeedItem {
   /** @nullable */
   location?: string | null;
   /** @nullable */
+  locationPlaceId: string | null;
+  /** @nullable */
   placeId?: string | null;
   /** @nullable */
   venueName?: string | null;

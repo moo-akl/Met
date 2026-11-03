@@ -1,0 +1,394 @@
+import { Feather } from "@expo/vector-icons";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useApp } from "@/contexts/AppContext";
+import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
+import { api, ApiError } from "@/lib/api/client";
+import {
+  getGetEventDetailsQueryKey,
+  getGetEventDetailsQueryOptions,
+  getGetEventsFeedQueryKey,
+  useDeleteCommunityEvent,
+  useRsvpCommunityEvent,
+  type EventFeedItem,
+} from "@workspace/api-client-react";
+
+type RsvpStatus = "going" | "maybe" | "not_going";
+
+export default function EventDetailsScreen() {
+  const params = useLocalSearchParams<{
+    eventType?: string | string[];
+    id?: string | string[];
+  }>();
+  const rawType = Array.isArray(params.eventType) ? params.eventType[0] : params.eventType;
+  const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const eventType: "venue" | "member" = rawType === "venue" ? "venue" : "member";
+  const eventId = Number(rawId);
+  const isValidRoute =
+    (rawType === "venue" || rawType === "member") &&
+    Number.isSafeInteger(eventId) &&
+    eventId > 0;
+
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { t } = useT();
+  const { authedUid } = useApp();
+  const [actionError, setActionError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [rsvpPending, setRsvpPending] = useState(false);
+  const eventQuery = useQuery({
+    ...getGetEventDetailsQueryOptions(eventType, isValidRoute ? eventId : 0),
+    enabled: isValidRoute,
+  });
+
+  const memberRsvp = useRsvpCommunityEvent();
+  const deleteEvent = useDeleteCommunityEvent({
+    mutation: {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() });
+        router.replace("/(tabs)/events" as never);
+      },
+      onError: (error) => {
+        setActionError(error instanceof Error ? error.message : "Could not delete the event.");
+        setConfirmDelete(false);
+      },
+    },
+  });
+
+  const event = eventQuery.data;
+  const isOwner = Boolean(event && event.eventType === "member" && event.ownerUid === authedUid);
+  const location = event?.location ?? event?.venueName ?? null;
+
+  const saveRsvp = async (status: RsvpStatus) => {
+    if (!event) return;
+    setRsvpPending(true);
+    setActionError("");
+    try {
+      if (event.eventType === "venue") {
+        await api.rsvpEvent({ uid: authedUid ?? "" }, event.id, status);
+      } else {
+        await memberRsvp.mutateAsync({ eventId: event.id, data: { status } });
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() }),
+        queryClient.invalidateQueries({
+          queryKey: getGetEventDetailsQueryKey(event.eventType, event.id),
+        }),
+      ]);
+    } catch (error) {
+      setActionError(error instanceof ApiError ? error.message : "Could not update your RSVP.");
+    } finally {
+      setRsvpPending(false);
+    }
+  };
+
+  const openDirections = async (currentEvent: EventFeedItem) => {
+    const destination =
+      currentEvent.latitude != null && currentEvent.longitude != null
+        ? `${currentEvent.latitude},${currentEvent.longitude}`
+        : currentEvent.location ?? currentEvent.venueName ?? "";
+    if (!destination.trim()) return;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      setActionError(t("tabs.events.mapsUnavailable"));
+    }
+  };
+
+  const doDelete = () => {
+    if (event?.eventType !== "member" || !isOwner) return;
+    deleteEvent.mutate({ eventId: event.id });
+  };
+
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("common.back")}
+          onPress={() => router.back()}
+          style={styles.headerButton}
+        >
+          <Feather name="arrow-left" size={22} color={colors.text} />
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          {t("tabs.events.detailsView")}
+        </Text>
+        {isOwner && event ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("tabs.events.editEvent")}
+            onPress={() => router.push(`/event-edit/${event.id}` as never)}
+            style={styles.headerButton}
+          >
+            <Feather name="edit-2" size={19} color={colors.text} />
+          </Pressable>
+        ) : (
+          <View style={styles.headerButton} />
+        )}
+      </View>
+
+      {eventQuery.isLoading ? (
+        <View style={styles.state}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : !event ? (
+        <View style={styles.state}>
+          <Feather name="calendar" size={28} color={colors.mutedForeground} />
+          <Text style={[styles.stateText, { color: colors.text }]}>
+            {t("tabs.events.loadError")}
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: insets.bottom + 28 },
+          ]}
+        >
+          {event.imageUrl ? (
+            <Image source={{ uri: event.imageUrl }} style={styles.cover} resizeMode="cover" />
+          ) : (
+            <View style={[styles.coverPlaceholder, { backgroundColor: colors.primarySoft }]}>
+              <Feather name="calendar" size={34} color={colors.primary} />
+            </View>
+          )}
+
+          <View style={styles.body}>
+            <View style={styles.badgeRow}>
+              <Text style={[styles.badge, { color: colors.primary, backgroundColor: colors.primarySoft }]}>
+                {event.eventType === "venue"
+                  ? t("tabs.events.venueEvent")
+                  : t("tabs.events.memberEvent")}
+              </Text>
+              {event.visibility === "invite_only" ? (
+                <Text style={[styles.privateBadge, { color: colors.mutedForeground }]}>
+                  {t("tabs.events.inviteOnly")}
+                </Text>
+              ) : null}
+            </View>
+            <Text style={[styles.title, { color: colors.text }]}>{event.title}</Text>
+            <View style={styles.metaRow}>
+              <Feather name="clock" size={16} color={colors.mutedForeground} />
+              <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+                {new Date(event.startsAt).toLocaleString()}
+              </Text>
+            </View>
+            {event.endsAt ? (
+              <View style={styles.metaRow}>
+                <Feather name="clock" size={16} color={colors.mutedForeground} />
+                <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+                  {new Date(event.endsAt).toLocaleString()}
+                </Text>
+              </View>
+            ) : null}
+            {location ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${location}. ${t("tabs.events.openMap")}`}
+                onPress={() => void openDirections(event)}
+                style={[styles.locationRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <View style={[styles.locationIcon, { backgroundColor: colors.primarySoft }]}>
+                  <Feather name="map-pin" size={17} color={colors.primary} />
+                </View>
+                <View style={styles.locationCopy}>
+                  <Text style={[styles.locationLabel, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.location")}
+                  </Text>
+                  <Text style={[styles.locationText, { color: colors.text }]}>{location}</Text>
+                </View>
+                <Feather name="navigation" size={18} color={colors.primary} />
+              </Pressable>
+            ) : null}
+            {event.creatorName ? (
+              <Text style={[styles.creator, { color: colors.mutedForeground }]}>
+                {t("tabs.events.createdBy")} {event.creatorName}
+              </Text>
+            ) : null}
+            {event.description ? (
+              <Text style={[styles.description, { color: colors.text }]}>
+                {event.description}
+              </Text>
+            ) : null}
+
+            <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
+              <Text style={[styles.rsvpCount, { color: colors.mutedForeground }]}>
+                {event.rsvpCount} · {t("tabs.events.going")}
+              </Text>
+              <View style={styles.rsvpRow}>
+                {([
+                  ["going", t("tabs.events.going")],
+                  ["maybe", t("tabs.events.interested")],
+                  ["not_going", t("tabs.events.notGoing")],
+                ] as const).map(([status, label]) => {
+                  const selected = event.myRsvp === status;
+                  return (
+                    <Pressable
+                      key={status}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      disabled={rsvpPending}
+                      onPress={() => void saveRsvp(status)}
+                      style={[
+                        styles.rsvpButton,
+                        {
+                          backgroundColor: selected ? colors.primary : colors.primarySoft,
+                          opacity: rsvpPending ? 0.65 : 1,
+                        },
+                      ]}
+                    >
+                      {rsvpPending && selected ? (
+                        <ActivityIndicator size="small" color={selected ? colors.primaryForeground : colors.primary} />
+                      ) : (
+                        <Text
+                          style={[
+                            styles.rsvpButtonText,
+                            { color: selected ? colors.primaryForeground : colors.primary },
+                          ]}
+                        >
+                          {label}
+                        </Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {isOwner ? (
+              <View style={styles.ownerActions}>
+                {confirmDelete ? (
+                  <View style={[styles.confirmCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Text style={[styles.confirmTitle, { color: colors.text }]}>
+                      {t("tabs.events.deleteConfirmTitle")}
+                    </Text>
+                    <Text style={[styles.confirmBody, { color: colors.mutedForeground }]}>
+                      {t("tabs.events.deleteConfirmBody")}
+                    </Text>
+                    <View style={styles.confirmButtons}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => setConfirmDelete(false)}
+                        style={[styles.confirmButton, { backgroundColor: colors.muted }]}
+                      >
+                        <Text style={[styles.confirmButtonText, { color: colors.text }]}>
+                          {t("common.cancel")}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={deleteEvent.isPending}
+                        onPress={doDelete}
+                        style={[styles.confirmButton, { backgroundColor: colors.destructive }]}
+                      >
+                        {deleteEvent.isPending ? (
+                          <ActivityIndicator size="small" color={colors.primaryForeground} />
+                        ) : (
+                          <Text style={[styles.confirmButtonText, { color: colors.primaryForeground }]}>
+                            {t("tabs.events.deleteEvent")}
+                          </Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setConfirmDelete(true)}
+                    style={[styles.deleteButton, { borderColor: colors.destructive }]}
+                  >
+                    <Feather name="trash-2" size={16} color={colors.destructive} />
+                    <Text style={[styles.deleteText, { color: colors.destructive }]}>
+                      {t("tabs.events.deleteEvent")}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            ) : null}
+
+            {actionError ? (
+              <Text accessibilityRole="alert" style={[styles.errorText, { color: colors.destructive }]}>
+                {actionError}
+              </Text>
+            ) : null}
+          </View>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  header: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerButton: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
+  headerTitle: { fontSize: 18, fontWeight: "700" },
+  state: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
+  stateText: { fontSize: 15, fontWeight: "600" },
+  content: { paddingBottom: 24 },
+  cover: { width: "100%", height: 230 },
+  coverPlaceholder: { width: "100%", height: 160, alignItems: "center", justifyContent: "center" },
+  body: { paddingHorizontal: 18, paddingTop: 18 },
+  badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 9 },
+  badge: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99 },
+  privateBadge: { fontSize: 11, fontWeight: "600" },
+  title: { fontSize: 26, lineHeight: 32, fontWeight: "700", marginBottom: 15 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 9 },
+  meta: { fontSize: 14, lineHeight: 20, flex: 1 },
+  locationRow: {
+    borderWidth: 1,
+    borderRadius: 15,
+    minHeight: 70,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    gap: 11,
+    marginTop: 6,
+  },
+  locationIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  locationCopy: { flex: 1 },
+  locationLabel: { fontSize: 11, fontWeight: "600" },
+  locationText: { fontSize: 14, fontWeight: "600", marginTop: 3 },
+  creator: { fontSize: 13, marginTop: 14 },
+  description: { fontSize: 15, lineHeight: 23, marginTop: 18 },
+  rsvpSection: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 22, paddingTop: 16 },
+  rsvpCount: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
+  rsvpRow: { flexDirection: "row", gap: 8 },
+  rsvpButton: { flex: 1, minHeight: 42, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderRadius: 12 },
+  rsvpButtonText: { fontSize: 12, fontWeight: "700" },
+  ownerActions: { marginTop: 18 },
+  deleteButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  deleteText: { fontSize: 14, fontWeight: "700" },
+  confirmCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
+  confirmTitle: { fontSize: 15, fontWeight: "700" },
+  confirmBody: { fontSize: 13, lineHeight: 19 },
+  confirmButtons: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 4 },
+  confirmButton: { minHeight: 40, minWidth: 90, borderRadius: 10, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  confirmButtonText: { fontSize: 13, fontWeight: "700" },
+  errorText: { marginTop: 14, fontSize: 13, fontWeight: "600" },
+});

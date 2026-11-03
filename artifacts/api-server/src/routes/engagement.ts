@@ -9,7 +9,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { eq, and, desc, gte, sql, count, lt, isNull, isNotNull, or, avg, inArray } from "drizzle-orm";
+import { eq, and, desc, gte, sql, count, lt, isNull, isNotNull, or, avg, inArray, notExists } from "drizzle-orm";
 import {
   db,
   hubCheckinsTable,
@@ -1152,7 +1152,29 @@ router.get(
         : null;
 
     // Public leaderboard ranks only QR-verified check-ins so proximity-only
-    // detections (BLE/GPS without QR scan) don't inflate rankings.
+    // detections at registered QR venues don't inflate rankings. Unregistered
+    // places have no venue QR; show proximity check-ins only for complete
+    // public profiles so eligible visitors can appear in the Visitors list.
+    const unregisteredProximity = and(
+      eq(hubCheckinsTable.source, "proximity"),
+      notExists(
+        db
+          .select({ id: venueOwnerProfilesTable.id })
+          .from(venueOwnerProfilesTable)
+          .where(
+            and(
+              eq(venueOwnerProfilesTable.placeId, hubCheckinsTable.placeId),
+              eq(venueOwnerProfilesTable.isApproved, true),
+            ),
+          ),
+      ),
+      sql`COALESCE(TRIM(${profilesTable.displayName}), '') <> ''`,
+      sql`COALESCE(TRIM(${profilesTable.photoUrl}), '') <> ''`,
+    );
+    const visibleSources = or(
+      inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
+      unregisteredProximity,
+    );
     const rows = await db
       .select({
         userUid: hubCheckinsTable.userUid,
@@ -1170,11 +1192,11 @@ router.get(
           ? and(
               eq(hubCheckinsTable.placeId, placeId),
               gte(hubCheckinsTable.createdAt, monthStart),
-              inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
+              visibleSources,
             )
           : and(
               eq(hubCheckinsTable.placeId, placeId),
-              inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
+              visibleSources,
             ),
       )
       .groupBy(

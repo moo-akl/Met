@@ -3422,6 +3422,7 @@ export const GetEventsFeedResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().nullish(),
+  "locationPlaceId": zod.string().nullable(),
   "placeId": zod.string().nullish(),
   "venueName": zod.string().nullish(),
   "creatorName": zod.string().nullish(),
@@ -3443,6 +3444,14 @@ export const createCommunityEventBodyDescriptionMax = 2000;
 
 export const createCommunityEventBodyLocationMax = 200;
 
+export const createCommunityEventBodyLocationPlaceIdMax = 200;
+
+export const createCommunityEventBodyLatitudeMin = -90;
+export const createCommunityEventBodyLatitudeMax = 90;
+
+export const createCommunityEventBodyLongitudeMin = -180;
+export const createCommunityEventBodyLongitudeMax = 180;
+
 export const createCommunityEventBodyInviteeUidsItemMax = 128;
 
 export const createCommunityEventBodyInviteeUidsMax = 200;
@@ -3456,6 +3465,9 @@ export const CreateCommunityEventBody = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().max(createCommunityEventBodyLocationMax).nullish(),
+  "locationPlaceId": zod.string().max(createCommunityEventBodyLocationPlaceIdMax).nullish(),
+  "latitude": zod.number().min(createCommunityEventBodyLatitudeMin).max(createCommunityEventBodyLatitudeMax).nullish(),
+  "longitude": zod.number().min(createCommunityEventBodyLongitudeMin).max(createCommunityEventBodyLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
   "inviteeUids": zod.array(zod.string().min(1).max(createCommunityEventBodyInviteeUidsItemMax)).max(createCommunityEventBodyInviteeUidsMax).optional()
 })
@@ -3478,6 +3490,7 @@ export const CreateCommunityEventResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().nullish(),
+  "locationPlaceId": zod.string().nullable(),
   "placeId": zod.string().nullish(),
   "venueName": zod.string().nullish(),
   "creatorName": zod.string().nullish(),
@@ -3487,6 +3500,197 @@ export const CreateCommunityEventResponse = zod.object({
   "rsvpCount": zod.number().int(),
   "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
 })
+
+
+/**
+ * @summary Get an event visible to the current user
+ */
+export const GetEventDetailsParams = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "eventId": zod.coerce.number().int()
+})
+
+export const getEventDetailsResponseLatitudeMin = -90;
+export const getEventDetailsResponseLatitudeMax = 90;
+
+export const getEventDetailsResponseLongitudeMin = -180;
+export const getEventDetailsResponseLongitudeMax = 180;
+
+
+
+export const GetEventDetailsResponse = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "id": zod.number().int(),
+  "ownerUid": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "location": zod.string().nullish(),
+  "locationPlaceId": zod.string().nullable(),
+  "placeId": zod.string().nullish(),
+  "venueName": zod.string().nullish(),
+  "creatorName": zod.string().nullish(),
+  "latitude": zod.number().min(getEventDetailsResponseLatitudeMin).max(getEventDetailsResponseLatitudeMax).nullish(),
+  "longitude": zod.number().min(getEventDetailsResponseLongitudeMin).max(getEventDetailsResponseLongitudeMax).nullish(),
+  "visibility": zod.enum(['public', 'invite_only']),
+  "rsvpCount": zod.number().int(),
+  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+})
+
+
+/**
+ * @summary Search real places for an event location
+ */
+export const searchEventLocationsQueryQMin = 3;
+export const searchEventLocationsQueryQMax = 120;
+
+
+
+export const SearchEventLocationsQueryParams = zod.object({
+  "q": zod.coerce.string().min(searchEventLocationsQueryQMin).max(searchEventLocationsQueryQMax)
+})
+
+export const searchEventLocationsResponseLocationsItemPlaceIdMax = 200;
+
+export const searchEventLocationsResponseLocationsItemLabelMax = 200;
+
+export const searchEventLocationsResponseLocationsItemNameMax = 160;
+
+export const searchEventLocationsResponseLocationsItemLatitudeMin = -90;
+export const searchEventLocationsResponseLocationsItemLatitudeMax = 90;
+
+export const searchEventLocationsResponseLocationsItemLongitudeMin = -180;
+export const searchEventLocationsResponseLocationsItemLongitudeMax = 180;
+
+
+
+export const SearchEventLocationsResponse = zod.object({
+  "locations": zod.array(zod.object({
+  "placeId": zod.string().min(1).max(searchEventLocationsResponseLocationsItemPlaceIdMax),
+  "label": zod.string().min(1).max(searchEventLocationsResponseLocationsItemLabelMax),
+  "name": zod.string().min(1).max(searchEventLocationsResponseLocationsItemNameMax),
+  "latitude": zod.number().min(searchEventLocationsResponseLocationsItemLatitudeMin).max(searchEventLocationsResponseLocationsItemLatitudeMax),
+  "longitude": zod.number().min(searchEventLocationsResponseLocationsItemLongitudeMin).max(searchEventLocationsResponseLocationsItemLongitudeMax)
+}))
+})
+
+
+/**
+ * @summary Get a member event for its owner to edit
+ */
+export const GetCommunityEventForEditParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const getCommunityEventForEditResponseLatitudeMin = -90;
+export const getCommunityEventForEditResponseLatitudeMax = 90;
+
+export const getCommunityEventForEditResponseLongitudeMin = -180;
+export const getCommunityEventForEditResponseLongitudeMax = 180;
+
+export const getCommunityEventForEditResponseInviteeUidsItemMax = 128;
+
+export const getCommunityEventForEditResponseInviteeUidsMax = 200;
+
+
+
+export const GetCommunityEventForEditResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "location": zod.string().nullish(),
+  "locationPlaceId": zod.string().nullish(),
+  "latitude": zod.number().min(getCommunityEventForEditResponseLatitudeMin).max(getCommunityEventForEditResponseLatitudeMax).nullish(),
+  "longitude": zod.number().min(getCommunityEventForEditResponseLongitudeMin).max(getCommunityEventForEditResponseLongitudeMax).nullish(),
+  "visibility": zod.enum(['public', 'invite_only']),
+  "inviteeUids": zod.array(zod.string().min(1).max(getCommunityEventForEditResponseInviteeUidsItemMax)).max(getCommunityEventForEditResponseInviteeUidsMax)
+})
+
+
+/**
+ * @summary Update a member event owned by the current user
+ */
+export const UpdateCommunityEventParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const updateCommunityEventBodyTitleMax = 120;
+
+export const updateCommunityEventBodyDescriptionMax = 2000;
+
+export const updateCommunityEventBodyLocationMax = 200;
+
+export const updateCommunityEventBodyLocationPlaceIdMax = 200;
+
+export const updateCommunityEventBodyLatitudeMin = -90;
+export const updateCommunityEventBodyLatitudeMax = 90;
+
+export const updateCommunityEventBodyLongitudeMin = -180;
+export const updateCommunityEventBodyLongitudeMax = 180;
+
+export const updateCommunityEventBodyInviteeUidsItemMax = 128;
+
+export const updateCommunityEventBodyInviteeUidsMax = 200;
+
+
+
+export const UpdateCommunityEventBody = zod.object({
+  "title": zod.string().min(1).max(updateCommunityEventBodyTitleMax),
+  "description": zod.string().max(updateCommunityEventBodyDescriptionMax).nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "location": zod.string().max(updateCommunityEventBodyLocationMax).nullish(),
+  "locationPlaceId": zod.string().max(updateCommunityEventBodyLocationPlaceIdMax).nullish(),
+  "latitude": zod.number().min(updateCommunityEventBodyLatitudeMin).max(updateCommunityEventBodyLatitudeMax).nullish(),
+  "longitude": zod.number().min(updateCommunityEventBodyLongitudeMin).max(updateCommunityEventBodyLongitudeMax).nullish(),
+  "visibility": zod.enum(['public', 'invite_only']),
+  "inviteeUids": zod.array(zod.string().min(1).max(updateCommunityEventBodyInviteeUidsItemMax)).max(updateCommunityEventBodyInviteeUidsMax).optional()
+})
+
+export const updateCommunityEventResponseLatitudeMin = -90;
+export const updateCommunityEventResponseLatitudeMax = 90;
+
+export const updateCommunityEventResponseLongitudeMin = -180;
+export const updateCommunityEventResponseLongitudeMax = 180;
+
+
+
+export const UpdateCommunityEventResponse = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "id": zod.number().int(),
+  "ownerUid": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "location": zod.string().nullish(),
+  "locationPlaceId": zod.string().nullable(),
+  "placeId": zod.string().nullish(),
+  "venueName": zod.string().nullish(),
+  "creatorName": zod.string().nullish(),
+  "latitude": zod.number().min(updateCommunityEventResponseLatitudeMin).max(updateCommunityEventResponseLatitudeMax).nullish(),
+  "longitude": zod.number().min(updateCommunityEventResponseLongitudeMin).max(updateCommunityEventResponseLongitudeMax).nullish(),
+  "visibility": zod.enum(['public', 'invite_only']),
+  "rsvpCount": zod.number().int(),
+  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+})
+
+
+/**
+ * @summary Delete a member event owned by the current user
+ */
+export const DeleteCommunityEventParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const DeleteCommunityEventResponse = zod.void()
 
 
 /**

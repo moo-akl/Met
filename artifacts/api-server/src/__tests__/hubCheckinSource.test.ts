@@ -118,6 +118,7 @@ const hasDatabase = Boolean(process.env["DATABASE_URL"]);
 
 const TP = `itestsrc-${process.pid}`;
 const PLACE_ID = `${TP}-place`;
+const UNREGISTERED_PLACE_ID = `${TP}-unregistered`;
 const OWNER_UID = `${TP}-owner`;
 const GUEST_UID = `${TP}-guestA`;
 const GUEST2_UID = `${TP}-guestB`;
@@ -417,7 +418,52 @@ describe.skipIf(!hasDatabase)(
       }
     });
 
-    it("a public member event is created and appears in the Events pool", async () => {
+    it("shows complete-profile proximity visits for unregistered places, not registered QR venues", async () => {
+      const privateUid = `${TP}-private-profile`;
+      await db.insert(profilesTable).values({
+        uid: privateUid,
+        displayName: "",
+        photoUrl: null,
+      });
+      const inserted = await db
+        .insert(hubCheckinsTable)
+        .values([
+          { userUid: GUEST3_UID, placeId: PLACE_ID, source: "proximity" },
+          { userUid: GUEST3_UID, placeId: UNREGISTERED_PLACE_ID, source: "proximity" },
+          { userUid: privateUid, placeId: UNREGISTERED_PLACE_ID, source: "proximity" },
+        ])
+        .returning({ id: hubCheckinsTable.id });
+
+      try {
+        const registered = await request(app)
+          .get(`/api/hubs/${encodeURIComponent(PLACE_ID)}/leaderboard?period=all_time`)
+          .set(uid(GUEST_UID));
+        const unregistered = await request(app)
+          .get(`/api/hubs/${encodeURIComponent(UNREGISTERED_PLACE_ID)}/leaderboard?period=all_time`)
+          .set(uid(GUEST_UID));
+
+        expect(registered.status).toBe(200);
+        expect(registered.body).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ uid: GUEST3_UID })]),
+        );
+        expect(unregistered.status).toBe(200);
+        expect(unregistered.body).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ uid: GUEST3_UID, displayName: `Test ${GUEST3_UID}` }),
+          ]),
+        );
+        expect(unregistered.body).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ uid: privateUid })]),
+        );
+      } finally {
+        await db.delete(hubCheckinsTable).where(
+          inArray(hubCheckinsTable.id, inserted.map((row) => row.id)),
+        );
+        await db.delete(profilesTable).where(eq(profilesTable.uid, privateUid));
+      }
+    });
+
+    it("creates, opens, updates, and restricts member-event management to its owner", async () => {
       const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const created = await request(app)
         .post("/api/events")
@@ -426,13 +472,18 @@ describe.skipIf(!hasDatabase)(
           title: `Source Test Member Event ${TP}`,
           description: "Created by the integration test.",
           startsAt,
-          location: "Source Test Venue",
+          location: "Example Cafe, Bangkok, Thailand",
+          locationPlaceId: "n:12345",
+          latitude: 13.7563,
+          longitude: 100.5018,
           visibility: "public",
           inviteeUids: [],
         });
 
       expect(created.status).toBe(201);
       expect(created.body.eventType).toBe("member");
+      expect(created.body.locationPlaceId).toBe("n:12345");
+      expect(created.body.latitude).toBe(13.7563);
 
       const feed = await request(app)
         .get("/api/events/feed")
@@ -445,9 +496,59 @@ describe.skipIf(!hasDatabase)(
             eventType: "member",
             title: `Source Test Member Event ${TP}`,
             visibility: "public",
+            locationPlaceId: "n:12345",
+            latitude: 13.7563,
+            longitude: 100.5018,
           }),
         ]),
       );
+
+      const details = await request(app)
+        .get(`/api/events/member/${created.body.id}`)
+        .set(uid(GUEST2_UID));
+      expect(details.status).toBe(200);
+      expect(details.body.location).toBe("Example Cafe, Bangkok, Thailand");
+
+      const editable = await request(app)
+        .get(`/api/community-events/${created.body.id}/manage`)
+        .set(uid(GUEST_UID));
+      expect(editable.status).toBe(200);
+      expect(editable.body.locationPlaceId).toBe("n:12345");
+
+      const editBody = {
+        title: `Updated Source Test Member Event ${TP}`,
+        description: "Updated by the owner.",
+        startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+        endsAt: null,
+        location: "Example Cafe, Bangkok, Thailand",
+        locationPlaceId: "n:12345",
+        latitude: 13.7563,
+        longitude: 100.5018,
+        visibility: "public",
+        inviteeUids: [],
+      };
+      const deniedUpdate = await request(app)
+        .put(`/api/community-events/${created.body.id}`)
+        .set(uid(GUEST2_UID))
+        .send(editBody);
+      expect(deniedUpdate.status).toBe(404);
+
+      const deniedDelete = await request(app)
+        .delete(`/api/community-events/${created.body.id}`)
+        .set(uid(GUEST2_UID));
+      expect(deniedDelete.status).toBe(404);
+
+      const updated = await request(app)
+        .put(`/api/community-events/${created.body.id}`)
+        .set(uid(GUEST_UID))
+        .send(editBody);
+      expect(updated.status).toBe(200);
+      expect(updated.body.title).toBe(editBody.title);
+
+      const deleted = await request(app)
+        .delete(`/api/community-events/${created.body.id}`)
+        .set(uid(GUEST_UID));
+      expect(deleted.status).toBe(204);
     });
 
     it("a published public venue event appears in the Events pool with venue coordinates", async () => {

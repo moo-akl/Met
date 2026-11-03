@@ -2353,6 +2353,100 @@ paths:
               schema:
                 $ref: "#/components/schemas/EventFeedItem"
 
+  /events/{eventType}/{eventId}:
+    get:
+      operationId: getEventDetails
+      tags: [events]
+      summary: Get an event visible to the current user
+      parameters:
+        - name: eventType
+          in: path
+          required: true
+          schema: { type: string, enum: [venue, member] }
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventFeedItem"
+
+  /event-locations/search:
+    get:
+      operationId: searchEventLocations
+      tags: [events]
+      summary: Search real places for an event location
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 120 }
+      responses:
+        "200":
+          description: Matching real places
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventLocationSearchResponse"
+
+  /community-events/{eventId}/manage:
+    get:
+      operationId: getCommunityEventForEdit
+      tags: [events]
+      summary: Get a member event for its owner to edit
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Owner-only event details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventManageResponse"
+
+  /community-events/{eventId}:
+    put:
+      operationId: updateCommunityEvent
+      tags: [events]
+      summary: Update a member event owned by the current user
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityEventInput"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventFeedItem"
+    delete:
+      operationId: deleteCommunityEvent
+      tags: [events]
+      summary: Delete a member event owned by the current user
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Event deleted
+
   /community-events/{eventId}/rsvp:
     post:
       operationId: rsvpCommunityEvent
@@ -4766,7 +4860,7 @@ components:
           items: { type: string, minLength: 1, maxLength: 128 }
     EventFeedItem:
       type: object
-      required: [eventType, id, ownerUid, title, startsAt, visibility, rsvpCount]
+      required: [eventType, id, ownerUid, title, startsAt, visibility, rsvpCount, locationPlaceId]
       properties:
         eventType: { type: string, enum: [venue, member] }
         id: { type: integer }
@@ -4777,6 +4871,7 @@ components:
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         location: { type: ["string", "null"] }
+        locationPlaceId: { type: ["string", "null"] }
         placeId: { type: ["string", "null"] }
         venueName: { type: ["string", "null"] }
         creatorName: { type: ["string", "null"] }
@@ -4802,6 +4897,44 @@ components:
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         location: { type: ["string", "null"], maxLength: 200 }
+        locationPlaceId: { type: ["string", "null"], maxLength: 200 }
+        latitude: { type: ["number", "null"], minimum: -90, maximum: 90 }
+        longitude: { type: ["number", "null"], minimum: -180, maximum: 180 }
+        visibility: { type: string, enum: [public, invite_only] }
+        inviteeUids:
+          type: array
+          maxItems: 200
+          items: { type: string, minLength: 1, maxLength: 128 }
+    EventLocationSearchResult:
+      type: object
+      required: [placeId, label, name, latitude, longitude]
+      properties:
+        placeId: { type: string, minLength: 1, maxLength: 200 }
+        label: { type: string, minLength: 1, maxLength: 200 }
+        name: { type: string, minLength: 1, maxLength: 160 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+    EventLocationSearchResponse:
+      type: object
+      required: [locations]
+      properties:
+        locations:
+          type: array
+          items: { $ref: "#/components/schemas/EventLocationSearchResult" }
+    CommunityEventManageResponse:
+      type: object
+      required: [id, title, startsAt, visibility, inviteeUids]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"], format: uri }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: ["string", "null"], format: date-time }
+        location: { type: ["string", "null"] }
+        locationPlaceId: { type: ["string", "null"] }
+        latitude: { type: ["number", "null"], minimum: -90, maximum: 90 }
+        longitude: { type: ["number", "null"], minimum: -180, maximum: 180 }
         visibility: { type: string, enum: [public, invite_only] }
         inviteeUids:
           type: array

@@ -1245,11 +1245,6 @@ export default function ProfileScreen() {
                       {monthLabel} · {trophy.checkinCount} check-ins
                     </Text>
                   </View>
-                  <Image
-                    source={require("@/assets/images/rewards_trophy.jpg")}
-                    style={{ width: 44, height: 44, borderRadius: 8, opacity: 0.85 }}
-                    contentFit="cover"
-                  />
                 </View>
               );
             })}

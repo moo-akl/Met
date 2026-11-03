@@ -43,6 +43,7 @@ import type {
   BleResolveRequest,
   CastVoteRequest,
   CommunityEventInput,
+  CommunityEventManageResponse,
   CommunityEventRsvpBody,
   CreateAnnouncementRequest,
   CreateNetwork,
@@ -55,6 +56,7 @@ import type {
   Error,
   EventFeedItem,
   EventFeedResponse,
+  EventLocationSearchResponse,
   GetVenueOwnerMapPoints200,
   GetVenueOwnerMeGuestsParams,
   HealthStatus,
@@ -96,6 +98,7 @@ import type {
   SavedPlace,
   SearchAdminVenuePlaces200,
   SearchAdminVenuePlacesParams,
+  SearchEventLocationsParams,
   SubmitAnswersRequest,
   UpdateMemberRoleRequest,
   UpdateNetwork,
@@ -8013,6 +8016,487 @@ export const useCreateCommunityEvent = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateCommunityEventMutationOptions(options), queryClient);
+    }
+
+export const getGetEventDetailsUrl = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+
+
+
+
+  return `/api/events/${eventType}/${eventId}`
+}
+
+/**
+ * @summary Get an event visible to the current user
+ */
+export const getEventDetails = async (eventType: 'venue' | 'member',
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<EventFeedItem> => {
+
+  return customFetch<EventFeedItem>(getGetEventDetailsUrl(eventType,eventId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEventDetailsQueryKey = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+    return [
+    `/api/events/${eventType}/${eventId}`
+    ] as const;
+    }
+
+
+export const getGetEventDetailsQueryOptions = <TData = Awaited<ReturnType<typeof getEventDetails>>, TError = ErrorType<unknown>>(eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventDetails>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEventDetailsQueryKey(eventType,eventId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEventDetails>>> = ({ signal }) => getEventDetails(eventType,eventId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: eventType !== null && eventType !== undefined && eventId !== null && eventId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEventDetails>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetEventDetailsQueryResult = NonNullable<Awaited<ReturnType<typeof getEventDetails>>>
+export type GetEventDetailsQueryError = ErrorType<unknown>
+
+
+export function useGetEventDetails<TData = Awaited<ReturnType<typeof getEventDetails>>, TError = ErrorType<unknown>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventDetails>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEventDetails>>,
+          TError,
+          Awaited<ReturnType<typeof getEventDetails>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEventDetails<TData = Awaited<ReturnType<typeof getEventDetails>>, TError = ErrorType<unknown>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventDetails>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEventDetails>>,
+          TError,
+          Awaited<ReturnType<typeof getEventDetails>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEventDetails<TData = Awaited<ReturnType<typeof getEventDetails>>, TError = ErrorType<unknown>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventDetails>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get an event visible to the current user
+ */
+
+export function useGetEventDetails<TData = Awaited<ReturnType<typeof getEventDetails>>, TError = ErrorType<unknown>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventDetails>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetEventDetailsQueryOptions(eventType,eventId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSearchEventLocationsUrl = (params: SearchEventLocationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/event-locations/search?${stringifiedParams}` : `/api/event-locations/search`
+}
+
+/**
+ * @summary Search real places for an event location
+ */
+export const searchEventLocations = async (params: SearchEventLocationsParams, options?: Parameters<typeof customFetch>[1]): Promise<EventLocationSearchResponse> => {
+
+  return customFetch<EventLocationSearchResponse>(getSearchEventLocationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchEventLocationsQueryKey = (params?: SearchEventLocationsParams,) => {
+    return [
+    `/api/event-locations/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchEventLocationsQueryOptions = <TData = Awaited<ReturnType<typeof searchEventLocations>>, TError = ErrorType<unknown>>(params: SearchEventLocationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchEventLocations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchEventLocationsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchEventLocations>>> = ({ signal }) => searchEventLocations(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchEventLocations>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type SearchEventLocationsQueryResult = NonNullable<Awaited<ReturnType<typeof searchEventLocations>>>
+export type SearchEventLocationsQueryError = ErrorType<unknown>
+
+
+export function useSearchEventLocations<TData = Awaited<ReturnType<typeof searchEventLocations>>, TError = ErrorType<unknown>>(
+ params: SearchEventLocationsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchEventLocations>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchEventLocations>>,
+          TError,
+          Awaited<ReturnType<typeof searchEventLocations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchEventLocations<TData = Awaited<ReturnType<typeof searchEventLocations>>, TError = ErrorType<unknown>>(
+ params: SearchEventLocationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchEventLocations>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchEventLocations>>,
+          TError,
+          Awaited<ReturnType<typeof searchEventLocations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchEventLocations<TData = Awaited<ReturnType<typeof searchEventLocations>>, TError = ErrorType<unknown>>(
+ params: SearchEventLocationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchEventLocations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Search real places for an event location
+ */
+
+export function useSearchEventLocations<TData = Awaited<ReturnType<typeof searchEventLocations>>, TError = ErrorType<unknown>>(
+ params: SearchEventLocationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchEventLocations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getSearchEventLocationsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCommunityEventForEditUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/manage`
+}
+
+/**
+ * @summary Get a member event for its owner to edit
+ */
+export const getCommunityEventForEdit = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventManageResponse> => {
+
+  return customFetch<CommunityEventManageResponse>(getGetCommunityEventForEditUrl(eventId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommunityEventForEditQueryKey = (eventId: number,) => {
+    return [
+    `/api/community-events/${eventId}/manage`
+    ] as const;
+    }
+
+
+export const getGetCommunityEventForEditQueryOptions = <TData = Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError = ErrorType<unknown>>(eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommunityEventForEditQueryKey(eventId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityEventForEdit>>> = ({ signal }) => getCommunityEventForEdit(eventId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: eventId !== null && eventId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCommunityEventForEditQueryResult = NonNullable<Awaited<ReturnType<typeof getCommunityEventForEdit>>>
+export type GetCommunityEventForEditQueryError = ErrorType<unknown>
+
+
+export function useGetCommunityEventForEdit<TData = Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError = ErrorType<unknown>>(
+ eventId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityEventForEdit>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityEventForEdit>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCommunityEventForEdit<TData = Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError = ErrorType<unknown>>(
+ eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityEventForEdit>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityEventForEdit>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCommunityEventForEdit<TData = Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError = ErrorType<unknown>>(
+ eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get a member event for its owner to edit
+ */
+
+export function useGetCommunityEventForEdit<TData = Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError = ErrorType<unknown>>(
+ eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventForEdit>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCommunityEventForEditQueryOptions(eventId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateCommunityEventUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}`
+}
+
+/**
+ * @summary Update a member event owned by the current user
+ */
+export const updateCommunityEvent = async (eventId: number,
+    communityEventInput: CommunityEventInput, options?: Parameters<typeof customFetch>[1]): Promise<EventFeedItem> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventFeedItem>(getUpdateCommunityEventUrl(eventId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(communityEventInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCommunityEventMutationKey = () => ['updateCommunityEvent'] as const;
+
+export const getUpdateCommunityEventMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommunityEvent>>, TError,UpdateCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCommunityEvent>>, TError,UpdateCommunityEventMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCommunityEventMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCommunityEvent>>, UpdateCommunityEventMutationVariables> = (props) => {
+          const {eventId,data} = props ?? {};
+
+          return  updateCommunityEvent(eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCommunityEventMutationResult = NonNullable<Awaited<ReturnType<typeof updateCommunityEvent>>>
+    export type UpdateCommunityEventMutationBody = BodyType<CommunityEventInput>
+    export type UpdateCommunityEventMutationError = ErrorType<unknown>
+    export type UpdateCommunityEventMutationVariables = {eventId: number;data: BodyType<CommunityEventInput>}
+
+    /**
+ * @summary Update a member event owned by the current user
+ */
+export const useUpdateCommunityEvent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommunityEvent>>, TError,UpdateCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateCommunityEvent>>,
+        TError,
+        UpdateCommunityEventMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCommunityEventMutationOptions(options), queryClient);
+    }
+
+export const getDeleteCommunityEventUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}`
+}
+
+/**
+ * @summary Delete a member event owned by the current user
+ */
+export const deleteCommunityEvent = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteCommunityEventUrl(eventId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCommunityEventMutationKey = () => ['deleteCommunityEvent'] as const;
+
+export const getDeleteCommunityEventMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCommunityEvent>>, TError,DeleteCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCommunityEvent>>, TError,DeleteCommunityEventMutationVariables, TContext> => {
+
+const mutationKey = getDeleteCommunityEventMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCommunityEvent>>, DeleteCommunityEventMutationVariables> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  deleteCommunityEvent(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCommunityEventMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCommunityEvent>>>
+
+    export type DeleteCommunityEventMutationError = ErrorType<unknown>
+    export type DeleteCommunityEventMutationVariables = {eventId: number}
+
+    /**
+ * @summary Delete a member event owned by the current user
+ */
+export const useDeleteCommunityEvent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCommunityEvent>>, TError,DeleteCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCommunityEvent>>,
+        TError,
+        DeleteCommunityEventMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteCommunityEventMutationOptions(options), queryClient);
     }
 
 export const getRsvpCommunityEventUrl = (eventId: number,) => {

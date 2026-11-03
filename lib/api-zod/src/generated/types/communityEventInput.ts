@@ -28,6 +28,23 @@ export interface CommunityEventInput {
      * @nullable
      */
   location?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  locationPlaceId?: string | null;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  latitude?: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  longitude?: number | null;
   visibility: CommunityEventInputVisibility;
   /**
      * @maxItems 200
