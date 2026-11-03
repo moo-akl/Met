@@ -98,6 +98,7 @@ const activationMocks = vi.hoisted(() => {
     and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
     gte: vi.fn((column: unknown, value: unknown) => ({ op: "gte", column, value })),
     lte: vi.fn((column: unknown, value: unknown) => ({ op: "lte", column, value })),
+    inArray: vi.fn((column: unknown, values: unknown[]) => ({ op: "inArray", column, values })),
     isNull: vi.fn((column: unknown) => ({ op: "isNull", column })),
     isNotNull: vi.fn((column: unknown) => ({ op: "isNotNull", column })),
     or: vi.fn((...conditions: unknown[]) => ({ op: "or", conditions })),
@@ -116,6 +117,7 @@ vi.mock("drizzle-orm", () => ({
   and: activationMocks.and,
   gte: activationMocks.gte,
   lte: activationMocks.lte,
+  inArray: activationMocks.inArray,
   isNull: activationMocks.isNull,
   isNotNull: activationMocks.isNotNull,
   or: activationMocks.or,
@@ -133,7 +135,7 @@ vi.mock("../lib/logger", () => ({
 
 import express from "express";
 import request from "supertest";
-import { eq, gte, lte } from "drizzle-orm";
+import { eq, gte, inArray, lte } from "drizzle-orm";
 import { markVenueRegistered, recordVenueInvitation } from "./venueActivation";
 import venueActivationRouter from "../routes/venueActivation";
 
@@ -248,9 +250,10 @@ describe("venue activation policy", () => {
     });
   });
 
-  it("counts only QR-verified check-ins within the registration-to-QR-deadline window", async () => {
-    const registeredAt = new Date("2026-02-01T00:00:00.000Z");
-    const qrDeadline = new Date("2026-03-03T00:00:00.000Z");
+  it("counts verified check-ins within the registration-to-QR-deadline window", async () => {
+    const now = Date.now();
+    const registeredAt = new Date(now - 32 * 24 * 60 * 60 * 1000);
+    const qrDeadline = new Date(now - 24 * 60 * 60 * 1000);
     enqueueSelects(
       [{
         profileId: 27,
@@ -272,7 +275,7 @@ describe("venue activation policy", () => {
 
     expect(response.status).toBe(200);
     expect(activationMocks.updates).toHaveLength(0);
-    expect(eq).toHaveBeenCalledWith(checkins.source, "qr_verified");
+    expect(inArray).toHaveBeenCalledWith(checkins.source, ["qr_verified", "open_location"]);
     expect(gte).toHaveBeenCalledWith(checkins.createdAt, registeredAt);
     expect(lte).toHaveBeenCalledWith(checkins.createdAt, qrDeadline);
   });

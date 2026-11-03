@@ -69,6 +69,8 @@ export const venueCategories = [
 ] as const;
 export type VenueCategory = (typeof venueCategories)[number];
 
+export type VenueCheckinMode = "open" | "qr_only";
+
 export const venueOwnerProfilesTable = pgTable(
   "venue_owner_profiles",
   {
@@ -90,6 +92,11 @@ export const venueOwnerProfilesTable = pgTable(
     lat: text("lat"),
     /** Raw lng from Google Places (stored for map layer). */
     lng: text("lng"),
+    /** QR-only is the safe default; owners can explicitly enable location check-ins. */
+    checkInMode: text("check_in_mode")
+      .$type<VenueCheckinMode>()
+      .notNull()
+      .default("qr_only"),
     /** URL or storage path of the submitted verification document. */
     verificationDocUrl: text("verification_doc_url"),
     /** Optional additional notes submitted during registration. */

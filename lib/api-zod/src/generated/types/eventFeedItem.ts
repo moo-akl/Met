@@ -29,6 +29,18 @@ export interface EventFeedItem {
   venueName?: string | null;
   /** @nullable */
   creatorName?: string | null;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  latitude?: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  longitude?: number | null;
   visibility: EventFeedItemVisibility;
   rsvpCount: number;
   /** @nullable */

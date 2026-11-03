@@ -72,7 +72,7 @@ const FEATURES: FeatureMatrix[] = [
   },
   {
     icon: "send",
-    label: "Reveal requests",
+    label: "Connection requests",
     free: "4 / day",
     plus: "Unlimited",
     pro: "Unlimited",

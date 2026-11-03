@@ -29,7 +29,7 @@ import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { sendPush } from "../lib/push";
 import { logger } from "../lib/logger";
 import { getVerifiedTier } from "../lib/revenueCat";
-import { adminDb } from "../lib/firebaseAdmin";
+import { adminDb, verifyAppCheckToken } from "../lib/firebaseAdmin";
 import { z } from "zod/v4";
 import { VerifyVenueQrBody } from "@workspace/api-zod";
 import { recalcUserRating } from "../lib/reviewRecalc";
@@ -260,10 +260,28 @@ function computeNewStreak(
 
 // 4-hour cooldown per (user, place) to prevent streak/leaderboard farming.
 const CHECKIN_COOLDOWN_MS = 4 * 60 * 60 * 1000;
+const OPEN_CHECKIN_RADIUS_M = 50;
+const OPEN_CHECKIN_MAX_ACCURACY_M = 50;
+
+function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180;
+  const dLat = radians(lat2 - lat1);
+  const dLng = radians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(radians(lat1)) *
+      Math.cos(radians(lat2)) *
+      Math.sin(dLng / 2) ** 2;
+  const boundedA = Math.min(1, Math.max(0, a));
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(boundedA), Math.sqrt(1 - boundedA));
+}
 
 const CheckinBody = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
+  accuracy: z.number().finite().min(0).optional(),
+  /** Expo exposes this OS mock-location signal on Android. It is not attestation. */
+  mocked: z.boolean().optional(),
   /** When provided, skips the Google Places lookup and uses this venue directly. */
   placeId: z.string().optional(),
   /** Human-readable venue name supplied alongside an explicit placeId. */
@@ -278,10 +296,18 @@ router.post(
     const uid = req.uid!;
     const parsed = CheckinBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ message: "lat and lng are required" });
+      const invalidAccuracy = parsed.error.issues.some(
+        (issue) => issue.path[0] === "accuracy",
+      );
+      res.status(400).json({
+        error: invalidAccuracy ? "LOCATION_ACCURACY_TOO_LOW" : "INVALID_LOCATION",
+        message: invalidAccuracy
+          ? "Location accuracy data is invalid. Scan the venue QR code instead."
+          : "Valid latitude and longitude are required.",
+      });
       return;
     }
-    const { lat, lng } = parsed.data;
+    const { lat, lng, accuracy, mocked } = parsed.data;
 
     // Resolve place: use the explicit placeId when the client already made a
     // /nearby call and the user picked from the multi-venue modal; otherwise
@@ -307,10 +333,9 @@ router.post(
     const cooldownCutoff = new Date(now.getTime() - CHECKIN_COOLDOWN_MS);
 
     // ---------------------------------------------------------------------------
-    // Single round-trip: cooldown + registered-venue status + QR verification +
-    // current user_stats — all four gates must pass before we write anything.
+    // Load cooldown, venue mode, QR/open verification, and user stats together.
     // ---------------------------------------------------------------------------
-    const [recentCheckinArr, registeredRow, qrRow, statsRow] = await Promise.all([
+    const [recentCheckinArr, registeredRow, qrRow, recentOpenVisitArr, statsRow] = await Promise.all([
       db
         .select({ createdAt: hubCheckinsTable.createdAt })
         .from(hubCheckinsTable)
@@ -327,6 +352,9 @@ router.post(
         .select({
           id: venueOwnerProfilesTable.id,
           businessName: venueOwnerProfilesTable.businessName,
+          checkInMode: venueOwnerProfilesTable.checkInMode,
+          lat: venueOwnerProfilesTable.lat,
+          lng: venueOwnerProfilesTable.lng,
         })
         .from(venueOwnerProfilesTable)
         .where(
@@ -343,10 +371,24 @@ router.post(
           and(
             eq(venueQrVerificationsTable.userUid, uid),
             eq(venueQrVerificationsTable.placeId, place.placeId),
+            eq(venueQrVerificationsTable.source, "qr"),
             gte(
               venueQrVerificationsTable.verifiedAt,
               new Date(now.getTime() - CHECKIN_COOLDOWN_MS),
             ),
+          ),
+        )
+        .orderBy(desc(venueQrVerificationsTable.verifiedAt))
+        .limit(1),
+      db
+        .select({ verifiedAt: venueQrVerificationsTable.verifiedAt })
+        .from(venueQrVerificationsTable)
+        .where(
+          and(
+            eq(venueQrVerificationsTable.userUid, uid),
+            eq(venueQrVerificationsTable.placeId, place.placeId),
+            eq(venueQrVerificationsTable.source, "open_location"),
+            gte(venueQrVerificationsTable.verifiedAt, cooldownCutoff),
           ),
         )
         .orderBy(desc(venueQrVerificationsTable.verifiedAt))
@@ -360,15 +402,25 @@ router.post(
 
     // Cooldown gate — must come before the insert.
     const recentCheckin = recentCheckinArr[0];
-    if (recentCheckin) {
+    const recentOpenVisit = recentOpenVisitArr[0];
+    if (recentCheckin || recentOpenVisit) {
       const remainingMs =
-        recentCheckin.createdAt.getTime() + CHECKIN_COOLDOWN_MS - now.getTime();
+        (recentCheckin?.createdAt ?? recentOpenVisit!.verifiedAt).getTime() +
+        CHECKIN_COOLDOWN_MS -
+        now.getTime();
       const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
-      res.status(403).json({ error: "cooldown", remainingMinutes });
+      res.status(403).json({
+        error: "cooldown",
+        remainingMinutes,
+        message: "You already checked in here recently. Try again later.",
+      });
       return;
     }
 
     const isRegisteredVenue = registeredRow.length > 0;
+    const checkInMode = isRegisteredVenue
+      ? registeredRow[0]?.checkInMode ?? "qr_only"
+      : null;
 
     // If the place has a registered venue profile, use the owner's chosen
     // business name instead of whatever Google Places returned. This ensures
@@ -380,6 +432,98 @@ router.post(
     }
 
     const isQrVerified = qrRow.length > 0;
+    const isOpenLocationCheckin =
+      isRegisteredVenue && checkInMode === "open" && !isQrVerified;
+
+    if (isOpenLocationCheckin) {
+      if (process.env.NODE_ENV === "production") {
+        const appCheckToken = req.get("X-Firebase-AppCheck");
+        if (!appCheckToken) {
+          res.status(403).json({
+            error: "APP_CHECK_REQUIRED",
+            message: "This device could not be verified. Scan the venue QR code instead.",
+          });
+          return;
+        }
+        if (!(await verifyAppCheckToken(appCheckToken))) {
+          res.status(403).json({
+            error: "APP_CHECK_INVALID",
+            message: "This app or device could not be verified. Scan the venue QR code instead.",
+          });
+          return;
+        }
+      }
+
+      const venueLat = Number(registeredRow[0]?.lat);
+      const venueLng = Number(registeredRow[0]?.lng);
+      if (!Number.isFinite(venueLat) || !Number.isFinite(venueLng)) {
+        res.status(409).json({
+          error: "VENUE_LOCATION_UNAVAILABLE",
+          message: "This venue's location is unavailable. Scan its QR code instead.",
+        });
+        return;
+      }
+      if (mocked === true) {
+        res.status(403).json({
+          error: "MOCKED_LOCATION",
+          message: "This device reported a simulated location. Scan the venue QR code instead.",
+        });
+        return;
+      }
+      if (accuracy === undefined || accuracy > OPEN_CHECKIN_MAX_ACCURACY_M) {
+        res.status(403).json({
+          error: "LOCATION_ACCURACY_TOO_LOW",
+          message: "Your location is not precise enough to check in. Scan the venue QR code instead.",
+        });
+        return;
+      }
+      const distance = distanceMeters(lat, lng, venueLat, venueLng);
+      if (distance > OPEN_CHECKIN_RADIUS_M) {
+        res.status(403).json({
+          error: "VENUE_OUT_OF_RANGE",
+          message: "Move closer to the venue to check in.",
+        });
+        return;
+      }
+      if (distance + accuracy > OPEN_CHECKIN_RADIUS_M) {
+        res.status(403).json({
+          error: "LOCATION_UNCERTAIN",
+          message: "Your location is too close to the venue boundary to verify safely. Scan the venue QR code instead.",
+        });
+        return;
+      }
+
+      await db.insert(venueQrVerificationsTable).values({
+        userUid: uid,
+        placeId: place.placeId,
+        source: "open_location",
+      });
+    }
+
+    // Match QR check-in privacy: accounts without a public profile can record
+    // the verified visit, but never receive leaderboard or reward credit.
+    if (isRegisteredVenue && (isOpenLocationCheckin || isQrVerified)) {
+      const [visitor] = await db
+        .select({ photoUrl: profilesTable.photoUrl, displayName: profilesTable.displayName })
+        .from(profilesTable)
+        .where(eq(profilesTable.uid, uid))
+        .limit(1);
+      if (!visitor?.photoUrl?.trim() || !visitor?.displayName?.trim()) {
+        res.json({
+          placeId: place.placeId,
+          placeName: place.displayName,
+          streak: 0,
+          streak_points: 0,
+          checkin_multiplier: 1,
+          isRegisteredVenue: true,
+          isQrVerified,
+          checkInMode,
+          privateOnly: true,
+        });
+        return;
+      }
+    }
+
     const stats = statsRow[0] ?? null;
     const prevStreaks = (stats?.hubStreaks ?? {}) as Record<string, number>;
     const prevStreak = prevStreaks[place.placeId] ?? 0;
@@ -388,7 +532,7 @@ router.post(
     // We still insert a hub_checkins row (source='proximity') so the guest
     // appears on the venue owner's guest list, but we skip streak / pioneer
     // updates and return early without full leaderboard credit.
-    if (isRegisteredVenue && !isQrVerified) {
+    if (isRegisteredVenue && checkInMode === "qr_only" && !isQrVerified) {
       await db.insert(hubCheckinsTable).values({
         userUid: uid,
         placeId: place.placeId,
@@ -405,6 +549,8 @@ router.post(
         checkin_multiplier: 1,
         isRegisteredVenue: true,
         isQrVerified: false,
+        checkInMode,
+        privateOnly: false,
       });
       return;
     }
@@ -416,7 +562,11 @@ router.post(
       placeName: place.displayName,
       lat: String(lat),
       lng: String(lng),
-      source: isRegisteredVenue ? "qr_verified" : "proximity",
+      source: isQrVerified
+        ? "qr_verified"
+        : isOpenLocationCheckin
+          ? "open_location"
+          : "proximity",
     });
 
     // Full leaderboard credit — non-registered venue or already QR-verified.
@@ -478,7 +628,7 @@ router.post(
           (referral_count * 20)
           + (
               COALESCE(
-                (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid AND source = 'qr_verified'),
+                (SELECT COUNT(*) FROM hub_checkins WHERE user_uid = profiles.uid AND source IN ('qr_verified', 'open_location')),
                 0
               ) * 2
             )
@@ -496,6 +646,8 @@ router.post(
       checkin_multiplier: checkinMultiplier,
       isRegisteredVenue,
       isQrVerified,
+      checkInMode,
+      privateOnly: false,
     });
 
     // ── Crown-defense push ────────────────────────────────────────────────────
@@ -521,7 +673,7 @@ router.post(
             and(
               eq(hubCheckinsTable.placeId, place.placeId),
               gte(hubCheckinsTable.createdAt, monthStart),
-              eq(hubCheckinsTable.source, "qr_verified"),
+              inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
             ),
           )
           .groupBy(hubCheckinsTable.userUid, profilesTable.pushToken)
@@ -571,7 +723,7 @@ router.post(
             and(
               eq(hubCheckinsTable.placeId, place.placeId),
               gte(hubCheckinsTable.createdAt, monthStart),
-              eq(hubCheckinsTable.source, "qr_verified"),
+              inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
             ),
           )
           .groupBy(hubCheckinsTable.userUid, profilesTable.pushToken)
@@ -723,7 +875,7 @@ router.post(
             and(
               eq(hubCheckinsTable.userUid, uid),
               eq(hubCheckinsTable.placeId, placeId),
-              eq(hubCheckinsTable.source, "qr_verified"),
+              inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
             ),
           )
           .orderBy(desc(hubCheckinsTable.createdAt))
@@ -765,8 +917,8 @@ router.post(
 
 // ---------------------------------------------------------------------------
 // GET /api/hubs/:placeId/checkin-status
-// Returns whether the given place is a registered venue and whether the
-// authenticated user has QR-verified their presence within the last 4 hours.
+// Returns the venue's check-in mode, recent QR verification, and whether the
+// user has ever completed a location-validated open check-in there.
 // Used by the venue page to decide whether to show the lock overlay.
 // NOTE: must be registered BEFORE GET /hubs/:placeId/leaderboard.
 // ---------------------------------------------------------------------------
@@ -779,9 +931,12 @@ router.get(
     const { placeId } = req.params as { placeId: string };
     const now = new Date();
 
-    const [registeredRow, qrRow] = await Promise.all([
+    const [registeredRow, qrRow, openVisitRow] = await Promise.all([
       db
-        .select({ id: venueOwnerProfilesTable.id })
+        .select({
+          id: venueOwnerProfilesTable.id,
+          checkInMode: venueOwnerProfilesTable.checkInMode,
+        })
         .from(venueOwnerProfilesTable)
         .where(
           and(
@@ -797,6 +952,7 @@ router.get(
           and(
             eq(venueQrVerificationsTable.userUid, uid),
             eq(venueQrVerificationsTable.placeId, placeId),
+            eq(venueQrVerificationsTable.source, "qr"),
             gte(
               venueQrVerificationsTable.verifiedAt,
               new Date(now.getTime() - CHECKIN_COOLDOWN_MS),
@@ -805,11 +961,24 @@ router.get(
         )
         .orderBy(desc(venueQrVerificationsTable.verifiedAt))
         .limit(1),
+      db
+        .select({ id: venueQrVerificationsTable.id })
+        .from(venueQrVerificationsTable)
+        .where(
+          and(
+            eq(venueQrVerificationsTable.userUid, uid),
+            eq(venueQrVerificationsTable.placeId, placeId),
+            eq(venueQrVerificationsTable.source, "open_location"),
+          ),
+        )
+        .limit(1),
     ]);
 
     res.json({
       isRegisteredVenue: registeredRow.length > 0,
       isQrVerified: qrRow.length > 0,
+      checkInMode: registeredRow[0]?.checkInMode ?? null,
+      hasOpenCheckin: openVisitRow.length > 0,
     });
   },
 );
@@ -1001,11 +1170,11 @@ router.get(
           ? and(
               eq(hubCheckinsTable.placeId, placeId),
               gte(hubCheckinsTable.createdAt, monthStart),
-              eq(hubCheckinsTable.source, "qr_verified"),
+              inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
             )
           : and(
               eq(hubCheckinsTable.placeId, placeId),
-              eq(hubCheckinsTable.source, "qr_verified"),
+              inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
             ),
       )
       .groupBy(

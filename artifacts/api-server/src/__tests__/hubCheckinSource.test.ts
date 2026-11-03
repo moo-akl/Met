@@ -21,8 +21,10 @@
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
+  communityEventRsvpsTable,
+  communityEventsTable,
   db,
   hubCheckinsTable,
   venueOwnerProfilesTable,
@@ -30,6 +32,9 @@ import {
   profilesTable,
   venueBusinessesTable,
   venueMembershipsTable,
+  venueEventRsvpsTable,
+  venueEventsTable,
+  userStatsTable,
 } from "@workspace/db";
 import type { Express } from "express";
 
@@ -116,6 +121,7 @@ const PLACE_ID = `${TP}-place`;
 const OWNER_UID = `${TP}-owner`;
 const GUEST_UID = `${TP}-guestA`;
 const GUEST2_UID = `${TP}-guestB`;
+const GUEST3_UID = `${TP}-open-guest`;
 // Must be a valid UUID v4 (version=4, variant=8/9/a/b) — Zod rejects non-conforming UUIDs.
 const QR_TOKEN = "12345678-1234-4321-89ab-123456789012";
 
@@ -143,6 +149,8 @@ async function seed() {
       isApproved: true,
       isVerified: true,
       qrToken: QR_TOKEN,
+      lat: "51.5074",
+      lng: "-0.1278",
     })
     .returning({ id: venueOwnerProfilesTable.id });
 
@@ -166,7 +174,7 @@ async function seed() {
   });
 
   // Minimal profile rows so the guests endpoint can join
-  for (const u of [GUEST_UID, GUEST2_UID, OWNER_UID]) {
+  for (const u of [GUEST_UID, GUEST2_UID, GUEST3_UID, OWNER_UID]) {
     await db
       .insert(profilesTable)
       .values({ uid: u, displayName: `Test ${u}`, photoUrl: "https://example.com/test-profile.jpg" })
@@ -175,8 +183,29 @@ async function seed() {
 }
 
 async function cleanup() {
+  const communityEvents = await db
+    .select({ id: communityEventsTable.id })
+    .from(communityEventsTable)
+    .where(eq(communityEventsTable.ownerUid, GUEST_UID));
+  if (communityEvents.length) {
+    await db.delete(communityEventRsvpsTable).where(
+      inArray(communityEventRsvpsTable.eventId, communityEvents.map((event) => event.id)),
+    );
+  }
+  await db.delete(communityEventsTable).where(eq(communityEventsTable.ownerUid, GUEST_UID));
+  const venueEvents = await db
+    .select({ id: venueEventsTable.id })
+    .from(venueEventsTable)
+    .where(eq(venueEventsTable.placeId, PLACE_ID));
+  if (venueEvents.length) {
+    await db.delete(venueEventRsvpsTable).where(
+      inArray(venueEventRsvpsTable.eventId, venueEvents.map((event) => event.id)),
+    );
+  }
+  await db.delete(venueEventsTable).where(eq(venueEventsTable.placeId, PLACE_ID));
   await db.delete(hubCheckinsTable).where(eq(hubCheckinsTable.placeId, PLACE_ID));
   await db.delete(venueQrVerificationsTable).where(eq(venueQrVerificationsTable.placeId, PLACE_ID));
+  await db.delete(userStatsTable).where(inArray(userStatsTable.userUid, [GUEST_UID, GUEST2_UID, GUEST3_UID]));
 
   const businesses = await db
     .select({ id: venueBusinessesTable.id })
@@ -190,7 +219,7 @@ async function cleanup() {
 
   await db.delete(venueOwnerProfilesTable).where(eq(venueOwnerProfilesTable.placeId, PLACE_ID));
 
-  for (const u of [GUEST_UID, GUEST2_UID, OWNER_UID]) {
+  for (const u of [GUEST_UID, GUEST2_UID, GUEST3_UID, OWNER_UID]) {
     await db.delete(profilesTable).where(eq(profilesTable.uid, u));
   }
 }
@@ -200,7 +229,7 @@ async function cleanup() {
 // ---------------------------------------------------------------------------
 
 describe.skipIf(!hasDatabase)(
-  "hub_checkins.source — proximity vs qr_verified (real database)",
+  "hub_checkins.source — proximity, QR, and open-location visits (real database)",
   () => {
     let app: Express;
 
@@ -386,6 +415,201 @@ describe.skipIf(!hasDatabase)(
           .delete(hubCheckinsTable)
           .where(eq(hubCheckinsTable.userUid, PROXIMITY_UID));
       }
+    });
+
+    it("a public member event is created and appears in the Events pool", async () => {
+      const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const created = await request(app)
+        .post("/api/events")
+        .set(uid(GUEST_UID))
+        .send({
+          title: `Source Test Member Event ${TP}`,
+          description: "Created by the integration test.",
+          startsAt,
+          location: "Source Test Venue",
+          visibility: "public",
+          inviteeUids: [],
+        });
+
+      expect(created.status).toBe(201);
+      expect(created.body.eventType).toBe("member");
+
+      const feed = await request(app)
+        .get("/api/events/feed")
+        .set(uid(GUEST_UID));
+      expect(feed.status).toBe(200);
+      expect(feed.body.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: created.body.id,
+            eventType: "member",
+            title: `Source Test Member Event ${TP}`,
+            visibility: "public",
+          }),
+        ]),
+      );
+    });
+
+    it("a published public venue event appears in the Events pool with venue coordinates", async () => {
+      const created = await request(app)
+        .post("/api/venue-owner/me/events")
+        .set(uid(OWNER_UID))
+        .send({
+          title: `Source Test Public Venue Event ${TP}`,
+          startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          visibility: "public",
+        });
+      expect(created.status).toBe(201);
+
+      const feed = await request(app)
+        .get("/api/events/feed")
+        .set(uid(GUEST_UID));
+      expect(feed.status).toBe(200);
+      expect(feed.body.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: created.body.event.id,
+            eventType: "venue",
+            title: `Source Test Public Venue Event ${TP}`,
+            latitude: 51.5074,
+            longitude: -0.1278,
+          }),
+        ]),
+      );
+    });
+
+    it("rejects events that would be hidden from the upcoming Events pool", async () => {
+      const created = await request(app)
+        .post("/api/events")
+        .set(uid(GUEST_UID))
+        .send({
+          title: `Source Test Past Event ${TP}`,
+          startsAt: new Date(Date.now() - 60_000).toISOString(),
+          visibility: "public",
+        });
+
+      expect(created.status).toBe(400);
+      expect(created.body.message).toBe("Event start time must be in the future.");
+    });
+
+    it("open-mode check-ins validate location and receive QR-equivalent credit", async () => {
+      await db.update(venueOwnerProfilesTable)
+        .set({ checkInMode: "open" })
+        .where(eq(venueOwnerProfilesTable.placeId, PLACE_ID));
+
+      const originalNodeEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = "production";
+        const missingAppCheck = await request(app)
+          .post("/api/hubs/checkin")
+          .set(uid(GUEST3_UID))
+          .send({ lat: 51.5074, lng: -0.1278, accuracy: 5, placeId: PLACE_ID, placeName: "Source Test Venue" });
+        expect(missingAppCheck.status).toBe(403);
+        expect(missingAppCheck.body.error).toBe("APP_CHECK_REQUIRED");
+      } finally {
+        if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = originalNodeEnv;
+      }
+
+      const tooFar = await request(app)
+        .post("/api/hubs/checkin")
+        .set(uid(GUEST3_UID))
+        .send({ lat: 51.5174, lng: -0.1278, accuracy: 5, placeId: PLACE_ID, placeName: "Source Test Venue" });
+      expect(tooFar.status).toBe(403);
+      expect(tooFar.body.error).toBe("VENUE_OUT_OF_RANGE");
+
+      const lowAccuracy = await request(app)
+        .post("/api/hubs/checkin")
+        .set(uid(GUEST3_UID))
+        .send({ lat: 51.5074, lng: -0.1278, accuracy: 80, placeId: PLACE_ID, placeName: "Source Test Venue" });
+      expect(lowAccuracy.status).toBe(403);
+      expect(lowAccuracy.body.error).toBe("LOCATION_ACCURACY_TOO_LOW");
+
+      const missingAccuracy = await request(app)
+        .post("/api/hubs/checkin")
+        .set(uid(GUEST3_UID))
+        .send({ lat: 51.5074, lng: -0.1278, placeId: PLACE_ID, placeName: "Source Test Venue" });
+      expect(missingAccuracy.status).toBe(403);
+      expect(missingAccuracy.body.error).toBe("LOCATION_ACCURACY_TOO_LOW");
+
+      const uncertainBoundary = await request(app)
+        .post("/api/hubs/checkin")
+        .set(uid(GUEST3_UID))
+        .send({ lat: 51.50775, lng: -0.1278, accuracy: 15, placeId: PLACE_ID, placeName: "Source Test Venue" });
+      expect(uncertainBoundary.status).toBe(403);
+      expect(uncertainBoundary.body.error).toBe("LOCATION_UNCERTAIN");
+
+      const mocked = await request(app)
+        .post("/api/hubs/checkin")
+        .set(uid(GUEST3_UID))
+        .send({ lat: 51.5074, lng: -0.1278, accuracy: 5, mocked: true, placeId: PLACE_ID, placeName: "Source Test Venue" });
+      expect(mocked.status).toBe(403);
+      expect(mocked.body.error).toBe("MOCKED_LOCATION");
+
+      const rejectedVisits = await db
+        .select({ id: hubCheckinsTable.id })
+        .from(hubCheckinsTable)
+        .where(and(
+          eq(hubCheckinsTable.userUid, GUEST3_UID),
+          eq(hubCheckinsTable.placeId, PLACE_ID),
+        ));
+      expect(rejectedVisits).toHaveLength(0);
+      const rejectedVerifications = await db
+        .select({ id: venueQrVerificationsTable.id })
+        .from(venueQrVerificationsTable)
+        .where(and(
+          eq(venueQrVerificationsTable.userUid, GUEST3_UID),
+          eq(venueQrVerificationsTable.placeId, PLACE_ID),
+          eq(venueQrVerificationsTable.source, "open_location"),
+        ));
+      expect(rejectedVerifications).toHaveLength(0);
+
+      const checkedIn = await request(app)
+        .post("/api/hubs/checkin")
+        .set(uid(GUEST3_UID))
+        .send({ lat: 51.5074, lng: -0.1278, accuracy: 5, mocked: false, placeId: PLACE_ID, placeName: "Source Test Venue" });
+      expect(checkedIn.status).toBe(200);
+      expect(checkedIn.body).toMatchObject({
+        isRegisteredVenue: true,
+        isQrVerified: false,
+        checkInMode: "open",
+        privateOnly: false,
+      });
+      expect(checkedIn.body.streak_points).toBeGreaterThan(0);
+
+      const [visit] = await db
+        .select({ source: hubCheckinsTable.source })
+        .from(hubCheckinsTable)
+        .where(and(
+          eq(hubCheckinsTable.userUid, GUEST3_UID),
+          eq(hubCheckinsTable.placeId, PLACE_ID),
+        ))
+        .limit(1);
+      expect(visit?.source).toBe("open_location");
+
+      const guestList = await request(app)
+        .get("/api/venue-owner/me/guests?period=all")
+        .set(uid(OWNER_UID));
+      expect(guestList.status).toBe(200);
+      expect(guestList.body.guests).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            uid: GUEST3_UID,
+            checkinCount: 1,
+            qrVerifiedCount: 0,
+          }),
+        ]),
+      );
+
+      const status = await request(app)
+        .get(`/api/hubs/${PLACE_ID}/checkin-status`)
+        .set(uid(GUEST3_UID));
+      expect(status.body).toMatchObject({
+        isRegisteredVenue: true,
+        isQrVerified: false,
+        checkInMode: "open",
+        hasOpenCheckin: true,
+      });
     });
   },
 );

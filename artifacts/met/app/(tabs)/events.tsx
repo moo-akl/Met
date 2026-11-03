@@ -1,10 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Location from "expo-location";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -25,6 +27,23 @@ import {
   type EventFeedItem,
 } from "@workspace/api-client-react";
 
+function getBrowserLocation(): Promise<{ latitude: number; longitude: number }> {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      reject(new Error("Browser location is unavailable."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      }),
+      reject,
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+    );
+  });
+}
+
 function EventsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -34,6 +53,8 @@ function EventsScreen() {
   const { authedUid } = useApp();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   const feed = useGetEventsFeed({ query: { staleTime: 30_000, refetchOnMount: "always" } });
   const memberRsvp = useRsvpCommunityEvent({
     mutation: {
@@ -61,7 +82,62 @@ function EventsScreen() {
     }
   }, [authedUid, memberRsvp, queryClient]);
 
-  const events = feed.data?.events ?? [];
+  const enableNearbySorting = useCallback(async () => {
+    setLocationLoading(true);
+    try {
+      if (Platform.OS === "web") {
+        setUserLocation(await getBrowserLocation());
+        return;
+      }
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted) {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
+      if (!permission.granted) return;
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setUserLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+    } catch {
+      setUserLocation(null);
+    } finally {
+      setLocationLoading(false);
+    }
+  }, []);
+
+  const events = useMemo(() => {
+    const items = feed.data?.events ?? [];
+    const byStartTime = (a: EventFeedItem, b: EventFeedItem) =>
+      new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+    if (!userLocation) return [...items].sort(byStartTime);
+
+    const distanceMeters = (event: EventFeedItem): number | null => {
+      if (event.latitude == null || event.longitude == null) return null;
+      const radians = (degrees: number) => (degrees * Math.PI) / 180;
+      const dLat = radians(event.latitude - userLocation.latitude);
+      const dLng = radians(event.longitude - userLocation.longitude);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(radians(userLocation.latitude)) *
+          Math.cos(radians(event.latitude)) *
+          Math.sin(dLng / 2) ** 2;
+      return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    return [...items].sort((a, b) => {
+      const aDistance = distanceMeters(a);
+      const bDistance = distanceMeters(b);
+      if (aDistance == null && bDistance != null) return 1;
+      if (aDistance != null && bDistance == null) return -1;
+      if (aDistance != null && bDistance != null && aDistance !== bDistance) {
+        return aDistance - bDistance;
+      }
+      return byStartTime(a, b);
+    });
+  }, [feed.data?.events, userLocation]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -73,6 +149,21 @@ function EventsScreen() {
           <View>
             <Text style={[styles.title, { color: colors.text }]}>{t("tabs.events.title")}</Text>
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{t("tabs.events.subtitle")}</Text>
+            {userLocation ? (
+              <Text style={[styles.locationHint, { color: colors.primary }]}>{t("tabs.events.nearbyFirst")}</Text>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("tabs.events.enableNearby")}
+                testID="events-enable-nearby-sorting"
+                disabled={locationLoading}
+                onPress={() => void enableNearbySorting()}
+              >
+                <Text style={[styles.locationAction, { color: colors.primary }]}>
+                  {locationLoading ? t("tabs.events.findingLocation") : t("tabs.events.enableNearby")}
+                </Text>
+              </Pressable>
+            )}
           </View>
           <Pressable
             accessibilityRole="button"
@@ -177,6 +268,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
   title: { fontSize: 30, fontWeight: "700" },
   subtitle: { fontSize: 14, lineHeight: 20, marginTop: 4 },
+  locationAction: { fontSize: 12, fontWeight: "700", marginTop: 6 },
+  locationHint: { fontSize: 12, fontWeight: "600", marginTop: 6 },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   networkLink: { borderWidth: 1, borderRadius: 16, padding: 13, flexDirection: "row", alignItems: "center", gap: 12 },
   networkIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },

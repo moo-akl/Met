@@ -28,6 +28,7 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
+import * as Location from "expo-location";
 import { Feather } from "@expo/vector-icons";
 import themeColors from "@/constants/colors";
 import { LinearGradient } from "expo-linear-gradient";
@@ -36,7 +37,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useT } from "@/lib/i18n";
 import {
+  ApiError,
   api,
   type VenueOwnerProfile,
   type VenueEvent,
@@ -52,6 +55,7 @@ import {
   markQrVerified,
   subscribeQrVerification,
 } from "@/lib/qrVerificationState";
+import { getAppCheckToken } from "@/lib/firestore/client";
 import {
   isStoreScreenshotDemo,
   STORE_DEMO_ANNOUNCEMENTS,
@@ -391,6 +395,7 @@ const bw = StyleSheet.create({
 export default function VenueProfileScreen() {
   const { placeId, qrToken } = useLocalSearchParams<{ placeId: string; qrToken?: string }>();
   const { authedUid } = useApp();
+  const { t: tr } = useT();
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -486,6 +491,8 @@ export default function VenueProfileScreen() {
   );
   // Track whether this is a registered venue (set from the fetched profile).
   const [isRegisteredVenue, setIsRegisteredVenue] = useState(false);
+  const [hasOpenCheckin, setHasOpenCheckin] = useState(false);
+  const [isCheckinBusy, setIsCheckinBusy] = useState(false);
   const qrAutoVerifiedRef = useRef(false);
 
   // Subscribe to real-time QR verification events (fired from qr-scan.tsx).
@@ -570,6 +577,11 @@ export default function VenueProfileScreen() {
     setLoading(true);
     setError(false);
     const opts = { uid: authedUid };
+    api.hubCheckinStatus(opts, placeId).then((status) => {
+      setIsRegisteredVenue(status.isRegisteredVenue);
+      setIsQrVerified((previous) => previous || status.isQrVerified || getQrVerified(placeId));
+      setHasOpenCheckin(status.hasOpenCheckin);
+    }).catch(() => {});
     // Secondary sections start immediately and fill in progressively; they
     // never hold the page behind the loading state.
     api.getVenueEvents(opts, placeId).then((d) => setEvents(d.events)).catch(() => {});
@@ -671,7 +683,7 @@ export default function VenueProfileScreen() {
     else router.replace("/(tabs)");
   };
 
-  const openCheckin = () => {
+  const openQrScanner = () => {
     if (!profile || !placeId) return;
     router.push({
       pathname: "/qr-scan",
@@ -681,6 +693,117 @@ export default function VenueProfileScreen() {
         ...(isScreenshotDemoVenue ? { demo: "1", storeDemo: "checkin" } : {}),
       },
     } as never);
+  };
+
+  const showQrFallback = (title: string, message: string, canScanQr = true) => {
+    Alert.alert(title, message, [
+      ...(canScanQr
+        ? [{ text: tr("openCheckin.scanQrFallback"), onPress: openQrScanner }]
+        : []),
+      { text: tr("common.cancel"), style: "cancel" },
+    ]);
+  };
+
+  const openCheckin = () => {
+    if (!profile || !placeId) return;
+    if (isScreenshotDemoVenue || profile.checkInMode !== "open") {
+      openQrScanner();
+      return;
+    }
+    if (!authedUid) {
+      openQrScanner();
+      return;
+    }
+    void (async () => {
+      setIsCheckinBusy(true);
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (!permission.granted) {
+          showQrFallback(
+            tr("openCheckin.locationPermissionTitle"),
+            tr("openCheckin.locationPermissionBody"),
+          );
+          return;
+        }
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        const appCheckToken = await getAppCheckToken();
+        const result = await api.hubCheckin(
+          { uid: authedUid ?? "" },
+          {
+            lat: location.coords.latitude,
+            lng: location.coords.longitude,
+            ...(location.coords.accuracy != null
+              ? { accuracy: location.coords.accuracy }
+              : {}),
+            ...(typeof location.mocked === "boolean"
+              ? { mocked: location.mocked }
+              : {}),
+            placeId,
+            placeName: profile.businessName,
+          },
+          appCheckToken ?? undefined,
+        );
+        setHasOpenCheckin(true);
+        if (!result.privateOnly) {
+          try {
+            const leaderboardData = await api.getLeaderboard(
+              { uid: authedUid },
+              placeId,
+              "current_month",
+            );
+            const myEntry = leaderboardData.find((entry) => entry.uid === authedUid);
+            setMyLeaderboardEntry(
+              myEntry
+                ? { rank: myEntry.rank, checkinCount: myEntry.checkinCount }
+                : null,
+            );
+            setTopVisitors(leaderboardData.slice(0, 3));
+          } catch {
+            // The successful check-in remains valid if the refresh fails.
+          }
+        }
+        if (result.privateOnly) {
+          Alert.alert(
+            tr("openCheckin.privateTitle"),
+            tr("openCheckin.privateBody"),
+          );
+        } else {
+          Alert.alert(
+            tr("openCheckin.successTitle"),
+            tr("openCheckin.successBody"),
+          );
+        }
+      } catch (error) {
+        const errorCode =
+          error instanceof ApiError &&
+          typeof error.body === "object" &&
+          error.body !== null &&
+          "error" in error.body
+            ? String((error.body as { error?: unknown }).error)
+            : null;
+        const qrFallbackCodes = new Set([
+          "VENUE_LOCATION_UNAVAILABLE",
+          "APP_CHECK_REQUIRED",
+          "APP_CHECK_INVALID",
+          "VENUE_OUT_OF_RANGE",
+          "MOCKED_LOCATION",
+          "LOCATION_ACCURACY_TOO_LOW",
+          "LOCATION_UNCERTAIN",
+        ]);
+        const canScanQr = !(error instanceof ApiError) || qrFallbackCodes.has(errorCode ?? "");
+        showQrFallback(
+          tr("openCheckin.errorTitle"),
+          error instanceof Error
+            ? error.message
+            : tr("openCheckin.errorBody"),
+          canScanQr,
+        );
+      } finally {
+        setIsCheckinBusy(false);
+      }
+    })();
   };
 
   const openDirections = async () => {
@@ -911,8 +1034,9 @@ export default function VenueProfileScreen() {
             {isQrVerified && <View style={canopyVenue.verified}><Feather name="check-circle" size={12} color={CORAL} /><Text style={canopyVenue.verifiedText}>Visit verified</Text></View>}
           </View>
           <View style={canopyVenue.actions}>
-            <Pressable testID="venue-checkin" accessibilityRole="button" onPress={openCheckin} style={({ pressed }) => [canopyVenue.primaryButton, pressed && { opacity: 0.8 }]}>
-              <Feather name="maximize" size={18} color={TEXT} /><Text style={canopyVenue.primaryButtonText}>Check in here</Text>
+            <Pressable testID="venue-checkin" accessibilityRole="button" disabled={isCheckinBusy} onPress={openCheckin} style={({ pressed }) => [canopyVenue.primaryButton, (pressed || isCheckinBusy) && { opacity: 0.8 }]}>
+              {isCheckinBusy ? <ActivityIndicator size="small" color={TEXT} /> : <Feather name={profile.checkInMode === "open" ? "map-pin" : "maximize"} size={18} color={TEXT} />}
+              <Text style={canopyVenue.primaryButtonText}>{isCheckinBusy ? tr("openCheckin.checking") : tr("openCheckin.button")}</Text>
             </Pressable>
             <Pressable testID="venue-directions" accessibilityRole="button" onPress={() => void openDirections()} style={({ pressed }) => [canopyVenue.directionsButton, pressed && { opacity: 0.8 }]}>
               <Feather name="navigation" size={17} color={TEXT} /><Text style={canopyVenue.directionsText}>Directions</Text>
@@ -1012,7 +1136,12 @@ export default function VenueProfileScreen() {
               <SectionLabel title={displayRewards.length === 1 ? "Active Reward" : "Active Rewards"} />
               {displayRewards.map((reward) => {
                 const rewardStatus = getRewardStatus(reward, now);
-                const showLock = isRegisteredVenue && !isQrVerified && rewardStatus === "Active";
+                const showLock =
+                  !isScreenshotDemoVenue &&
+                  isRegisteredVenue &&
+                  profile.checkInMode !== "open" &&
+                  !isQrVerified &&
+                  rewardStatus === "Active";
                 return (
                   <View key={reward.id}>
                     {/* Lock overlay — only shown on Active rewards when QR not yet scanned.
@@ -1303,7 +1432,8 @@ export default function VenueProfileScreen() {
               placeId={placeId ?? ""}
               placeName={profile.businessName}
               isDemo={isScreenshotDemoVenue}
-              qrVerified={isQrVerified}
+              visitVerified={isQrVerified || hasOpenCheckin}
+              onCheckin={openCheckin}
             />
           </View>
 

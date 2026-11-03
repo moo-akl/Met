@@ -102,6 +102,70 @@ paths:
         "404":
           description: Venue not found or not approved
 
+  /hubs/checkin:
+    post:
+      operationId: postHubCheckin
+      tags: [profiles]
+      summary: Check in at a nearby venue
+      description: >
+        Registered venues configured for open check-in require server-side
+        location validation, a verified Firebase App Check token in production,
+        and device-reported location accuracy. QR-only venues retain proximity
+        detection without public leaderboard or reward credit until a QR scan
+        is verified. App Check verifies the calling app/device, not physical
+        location; coordinates and reported accuracy remain client-provided.
+      parameters:
+        - in: header
+          name: X-Firebase-AppCheck
+          required: false
+          schema:
+            type: string
+          description: Required for open-location check-ins in production; QR-verified requests do not require it.
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HubCheckinInput"
+      responses:
+        "200":
+          description: The check-in was recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HubCheckinResult"
+        "400":
+          description: Invalid coordinates
+        "401":
+          description: Sign-in required
+        "403":
+          description: Check-in cooldown, App Check, or venue location validation failed
+        "404":
+          description: No recognized venue found
+  /hubs/{placeId}/checkin-status:
+    get:
+      operationId: getHubCheckinStatus
+      tags: [profiles]
+      summary: Get the caller's check-in status at a venue
+      security:
+        - MetUid: []
+      parameters:
+        - name: placeId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Venue mode and the caller's verified visit state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HubCheckinStatus"
+        "401":
+          description: Sign-in required
+
   /healthz:
     get:
       operationId: healthCheck
@@ -3904,6 +3968,45 @@ components:
         available:
           type: boolean
           description: Whether the venue currently has an approved public profile
+    VenueCheckinMode:
+      type: string
+      enum: [open, qr_only]
+    HubCheckinInput:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+        accuracy:
+          type: number
+          minimum: 0
+          description: Horizontal accuracy in metres reported by the device's location API.
+        mocked:
+          type: boolean
+          description: OS-reported simulated-location flag when the platform exposes it; this is not cryptographic attestation.
+        placeId: { type: string, minLength: 1 }
+        placeName: { type: string, maxLength: 255 }
+    HubCheckinResult:
+      type: object
+      required: [placeId, placeName, streak, streak_points, checkin_multiplier, isRegisteredVenue, isQrVerified, checkInMode, privateOnly]
+      properties:
+        placeId: { type: string }
+        placeName: { type: string }
+        streak: { type: integer, minimum: 0 }
+        streak_points: { type: integer, minimum: 0 }
+        checkin_multiplier: { type: number, minimum: 1 }
+        isRegisteredVenue: { type: boolean }
+        isQrVerified: { type: boolean }
+        checkInMode: { type: ["string", "null"], enum: [open, qr_only, null] }
+        privateOnly: { type: boolean }
+    HubCheckinStatus:
+      type: object
+      required: [isRegisteredVenue, isQrVerified, checkInMode, hasOpenCheckin]
+      properties:
+        isRegisteredVenue: { type: boolean }
+        isQrVerified: { type: boolean }
+        checkInMode: { type: ["string", "null"], enum: [open, qr_only, null] }
+        hasOpenCheckin: { type: boolean }
     VenueQrInput:
       type: object
       required: [placeId, token]
@@ -4403,13 +4506,14 @@ components:
         close: { type: string, pattern: "^\\d{2}:\\d{2}$", description: "24-hour time, e.g. 23:00" }
     VenueManagerBusiness:
       type: object
-      required: [businessId, placeId, legalName, placeName, businessName, qrPosterDesign, role, isActive]
+      required: [businessId, placeId, legalName, placeName, businessName, checkInMode, qrPosterDesign, role, isActive]
       properties:
         businessId: { type: integer }
         placeId: { type: string }
         legalName: { type: string }
         placeName: { type: string }
         businessName: { type: string }
+        checkInMode: { $ref: "#/components/schemas/VenueCheckinMode" }
         venueType: { $ref: "#/components/schemas/VenueCategory" }
         tagline: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
@@ -4438,6 +4542,7 @@ components:
       type: object
       properties:
         businessName: { type: string, minLength: 1, maxLength: 255 }
+        checkInMode: { $ref: "#/components/schemas/VenueCheckinMode" }
         venueType: { $ref: "#/components/schemas/VenueCategory" }
         tagline: { type: ["string", "null"], maxLength: 160 }
         description: { type: ["string", "null"], maxLength: 1000 }
@@ -4675,6 +4780,8 @@ components:
         placeId: { type: ["string", "null"] }
         venueName: { type: ["string", "null"] }
         creatorName: { type: ["string", "null"] }
+        latitude: { type: ["number", "null"], minimum: -90, maximum: 90 }
+        longitude: { type: ["number", "null"], minimum: -180, maximum: 180 }
         visibility: { type: string, enum: [public, invite_only] }
         rsvpCount: { type: integer }
         myRsvp: { type: ["string", "null"], enum: [going, maybe, not_going, null] }

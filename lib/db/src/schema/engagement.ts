@@ -36,8 +36,13 @@ export const hubCheckinsTable = pgTable(
      *                 unlock reward eligibility.
      *   'qr_verified' — guest physically scanned the venue QR code. Full
      *                   leaderboard credit, streaks, and reward eligibility.
+     *   'open_location' — an approved open-mode venue validated the guest's
+     *                     location. Receives the same credit as a QR check-in.
      */
-    source: text("source").notNull().default("proximity"),
+    source: text("source")
+      .$type<"proximity" | "qr_verified" | "open_location">()
+      .notNull()
+      .default("proximity"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -323,6 +328,11 @@ export const venueQrVerificationsTable = pgTable(
     id: serial("id").primaryKey(),
     userUid: text("user_uid").notNull(),
     placeId: text("place_id").notNull(),
+    /** QR proves presence by scan; open_location is server-validated GPS. */
+    source: text("source")
+      .$type<"qr" | "open_location">()
+      .notNull()
+      .default("qr"),
     verifiedAt: timestamp("verified_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

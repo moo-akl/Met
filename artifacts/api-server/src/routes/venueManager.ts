@@ -568,6 +568,7 @@ function serializeBusiness(row: NonNullable<Awaited<ReturnType<typeof businessWi
     websiteUrl: row.profile.websiteUrl,
     publicEmail: row.profile.publicEmail,
     openingHours: row.profile.openingHours,
+    checkInMode: row.profile.checkInMode,
     qrPosterDesign: row.business.qrPosterDesign ?? null,
     role,
     isActive: row.business.isActive,
@@ -849,6 +850,11 @@ router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsr
     res.status(400).json({ message: "Choose a valid venue type." });
     return;
   }
+  const checkInMode = req.body?.checkInMode;
+  if (checkInMode !== undefined && checkInMode !== "open" && checkInMode !== "qr_only") {
+    res.status(400).json({ message: "Choose open check-in or QR-only check-in." });
+    return;
+  }
   const description = optionalText(req.body?.description, 1000);
   const coverPhotoUrl = optionalText(req.body?.coverPhotoUrl, 2000);
   const logoUrl = optionalText(req.body?.logoUrl, 2000);
@@ -908,7 +914,7 @@ router.patch("/venue-manager/businesses/:businessId", requireSession, requireCsr
       openingHours = validated;
     }
   }
-  const profilePatch = Object.fromEntries(Object.entries({ businessName, venueType, ...(venueType !== undefined ? { venueTypeSource: "manual" } : {}), tagline, description, coverPhotoUrl, logoUrl, phone, websiteUrl, publicEmail, openingHours })
+  const profilePatch = Object.fromEntries(Object.entries({ businessName, venueType, checkInMode, ...(venueType !== undefined ? { venueTypeSource: "manual" } : {}), tagline, description, coverPhotoUrl, logoUrl, phone, websiteUrl, publicEmail, openingHours })
     .filter(([, value]) => value !== undefined));
   if (membership.role === "editor" && Object.keys(profilePatch).length) {
     res.status(403).json({ message: "Editors can customize the poster but cannot change venue profile details." });
@@ -966,6 +972,7 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   const title = optionalText(req.body?.title, 120);
   const startsAt = validDate(req.body?.startsAt);
   if (!business || !title || !startsAt) return void res.status(400).json({ message: "An event title and start time are required." });
+  if (startsAt <= new Date()) return void res.status(400).json({ message: "Event start time must be in the future." });
   const endsAt = req.body?.endsAt === null ? null : validDate(req.body?.endsAt);
   if (req.body?.endsAt !== undefined && req.body?.endsAt !== null && !endsAt) return void res.status(400).json({ message: "Use a valid event end time." });
   const capacityLimit = req.body?.capacityLimit === undefined ? undefined : req.body?.capacityLimit === null ? null : Number(req.body?.capacityLimit);
@@ -1212,10 +1219,10 @@ router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, as
     db.select().from(venueRewardsTable).where(and(eq(venueRewardsTable.placeId, placeId), eq(venueRewardsTable.status, "active"), lt(venueRewardsTable.startDate, now), gte(venueRewardsTable.endDate, now))).limit(1),
     db.select({ distinctUsers: sql<number>`COUNT(DISTINCT ${venueQrVerificationsTable.userUid})` })
       .from(venueQrVerificationsTable)
-      .where(and(eq(venueQrVerificationsTable.placeId, placeId), gte(venueQrVerificationsTable.verifiedAt, todayStart))),
+      .where(and(eq(venueQrVerificationsTable.placeId, placeId), eq(venueQrVerificationsTable.source, "qr"), gte(venueQrVerificationsTable.verifiedAt, todayStart))),
     db.select({ day: sql<string>`DATE(${venueQrVerificationsTable.verifiedAt})`, count: sql<number>`COUNT(DISTINCT ${venueQrVerificationsTable.userUid})` })
       .from(venueQrVerificationsTable)
-      .where(and(eq(venueQrVerificationsTable.placeId, placeId), gte(venueQrVerificationsTable.verifiedAt, sevenDaysAgo)))
+      .where(and(eq(venueQrVerificationsTable.placeId, placeId), eq(venueQrVerificationsTable.source, "qr"), gte(venueQrVerificationsTable.verifiedAt, sevenDaysAgo)))
       .groupBy(sql`DATE(${venueQrVerificationsTable.verifiedAt})`)
       .orderBy(sql`DATE(${venueQrVerificationsTable.verifiedAt})`),
     db.select({
@@ -1226,7 +1233,7 @@ router.get("/venue-manager/businesses/:businessId/dashboard", requireSession, as
     })
       .from(venueQrVerificationsTable)
       .leftJoin(profilesTable, eq(venueQrVerificationsTable.userUid, profilesTable.uid))
-      .where(and(eq(venueQrVerificationsTable.placeId, placeId), gte(venueQrVerificationsTable.verifiedAt, todayStart)))
+      .where(and(eq(venueQrVerificationsTable.placeId, placeId), eq(venueQrVerificationsTable.source, "qr"), gte(venueQrVerificationsTable.verifiedAt, todayStart)))
       .groupBy(venueQrVerificationsTable.userUid, profilesTable.displayName, profilesTable.photoUrl)
       .orderBy(sql`MAX(${venueQrVerificationsTable.verifiedAt}) DESC`)
       .limit(10),

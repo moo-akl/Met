@@ -13,6 +13,84 @@ export interface SavedPlace {
   available: boolean;
 }
 
+export type VenueCheckinMode = typeof VenueCheckinMode[keyof typeof VenueCheckinMode];
+
+
+export const VenueCheckinMode = {
+  open: 'open',
+  qr_only: 'qr_only',
+} as const;
+
+export interface HubCheckinInput {
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  lat: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  lng: number;
+  /**
+     * Horizontal accuracy in metres reported by the device's location API.
+     * @minimum 0
+     */
+  accuracy?: number;
+  /** OS-reported simulated-location flag when the platform exposes it; this is not cryptographic attestation. */
+  mocked?: boolean;
+  /** @minLength 1 */
+  placeId?: string;
+  /** @maxLength 255 */
+  placeName?: string;
+}
+
+/**
+ * @nullable
+ */
+export type HubCheckinResultCheckInMode = typeof HubCheckinResultCheckInMode[keyof typeof HubCheckinResultCheckInMode] | null;
+
+
+export const HubCheckinResultCheckInMode = {
+  open: 'open',
+  qr_only: 'qr_only',
+} as const;
+
+export interface HubCheckinResult {
+  placeId: string;
+  placeName: string;
+  /** @minimum 0 */
+  streak: number;
+  /** @minimum 0 */
+  streak_points: number;
+  /** @minimum 1 */
+  checkin_multiplier: number;
+  isRegisteredVenue: boolean;
+  isQrVerified: boolean;
+  /** @nullable */
+  checkInMode: HubCheckinResultCheckInMode;
+  privateOnly: boolean;
+}
+
+/**
+ * @nullable
+ */
+export type HubCheckinStatusCheckInMode = typeof HubCheckinStatusCheckInMode[keyof typeof HubCheckinStatusCheckInMode] | null;
+
+
+export const HubCheckinStatusCheckInMode = {
+  open: 'open',
+  qr_only: 'qr_only',
+} as const;
+
+export interface HubCheckinStatus {
+  isRegisteredVenue: boolean;
+  isQrVerified: boolean;
+  /** @nullable */
+  checkInMode: HubCheckinStatusCheckInMode;
+  hasOpenCheckin: boolean;
+}
+
 export interface VenueQrInput {
   /** @minLength 1 */
   placeId: string;
@@ -967,6 +1045,7 @@ export interface VenueManagerBusiness {
   legalName: string;
   placeName: string;
   businessName: string;
+  checkInMode: VenueCheckinMode;
   venueType?: VenueCategory;
   /** @nullable */
   tagline?: string | null;
@@ -1004,6 +1083,7 @@ export interface VenueManagerBusinessUpdate {
      * @maxLength 255
      */
   businessName?: string;
+  checkInMode?: VenueCheckinMode;
   venueType?: VenueCategory;
   /**
      * @maxLength 160
@@ -1258,6 +1338,18 @@ export interface EventFeedItem {
   venueName?: string | null;
   /** @nullable */
   creatorName?: string | null;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  latitude?: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  longitude?: number | null;
   visibility: EventFeedItemVisibility;
   rsvpCount: number;
   /** @nullable */

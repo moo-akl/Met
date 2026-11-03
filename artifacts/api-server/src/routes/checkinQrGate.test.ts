@@ -136,7 +136,8 @@ describe("POST /api/hubs/checkin — registered venue QR gate", () => {
       .mockResolvedValueOnce([]) // 1. cooldown → allowed through
       .mockResolvedValueOnce([{ id: 1 }]) // 2. registeredRow → venue is approved
       .mockResolvedValueOnce([]) // 3. qrRow → not verified
-      .mockResolvedValueOnce([]); // 4. statsRow → irrelevant (early return before this)
+      .mockResolvedValueOnce([]) // 4. recent open visit → no location check-in
+      .mockResolvedValueOnce([]); // 5. statsRow
 
     const res = await request(app)
       .post("/api/hubs/checkin")
@@ -171,17 +172,21 @@ describe("POST /api/hubs/checkin — registered venue QR gate", () => {
     //   1. Cooldown check (hubCheckinsTable)         → [] — no recent checkin
     //   2. registeredRow (venueOwnerProfilesTable)   → [{ id: 1 }] — approved venue
     //   3. qrRow (venueQrVerificationsTable)         → [{ verifiedAt }] — QR verified
-    //   4. statsRow (userStatsTable)                 → [] — no existing stats → INSERT path
-    //   5. prevCheckinRow (hubCheckinsTable, offset) → [] — first visit, streak = 1
-    //   6. profilesTable (pioneer check)             → [] — not a pioneer
+    //   4. recent open visit                          → [] — no location check-in
+    //   5. statsRow (userStatsTable)                 → [] — no existing stats → INSERT path
+    //   6. visitor profile                            → complete profile
+    //   7. prevCheckinRow (hubCheckinsTable, offset) → [] — first visit, streak = 1
+    //   8. profilesTable (pioneer check)             → [] — not a pioneer
     const verifiedAt = new Date();
     dbMocks.chain.limit
       .mockResolvedValueOnce([]) // 1. cooldown → allowed through
       .mockResolvedValueOnce([{ id: 1 }]) // 2. registeredRow → approved venue
       .mockResolvedValueOnce([{ verifiedAt }]) // 3. qrRow → QR-verified
-      .mockResolvedValueOnce([]) // 4. statsRow → no existing stats (INSERT path)
-      .mockResolvedValueOnce([]) // 5. prevCheckinRow → first checkin, streak = 1
-      .mockResolvedValueOnce([]); // 6. profilesTable → not pioneer
+      .mockResolvedValueOnce([]) // 4. recent open visit
+      .mockResolvedValueOnce([]) // 5. statsRow → no existing stats (INSERT path)
+      .mockResolvedValueOnce([{ photoUrl: "https://example.com/photo.jpg", displayName: "Test User" }]) // 6. complete profile
+      .mockResolvedValueOnce([]) // 7. prevCheckinRow → first checkin, streak = 1
+      .mockResolvedValueOnce([]); // 8. profilesTable → not pioneer
 
     const res = await request(app)
       .post("/api/hubs/checkin")

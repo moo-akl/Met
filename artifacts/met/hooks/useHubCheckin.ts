@@ -29,6 +29,7 @@ import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError, type VenueResult } from "@/lib/api/client";
+import { getAppCheckToken } from "@/lib/firestore/client";
 import {
   getQrVerified,
   markQrVerified,
@@ -162,14 +163,18 @@ export function useHubCheckin(): {
       if (!uid) return;
 
       try {
+        const appCheckToken = await getAppCheckToken();
         const result = await api.hubCheckin(
           { uid },
           {
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
+            ...(pos.coords.accuracy != null ? { accuracy: pos.coords.accuracy } : {}),
+            ...(typeof pos.mocked === "boolean" ? { mocked: pos.mocked } : {}),
             placeId: venue.placeId,
             placeName: venue.displayName,
           },
+          appCheckToken ?? undefined,
         );
         if (mountedRef.current) {
           // Merge server response with in-session QR verification state.

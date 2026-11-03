@@ -10,7 +10,7 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
-import { getGetEventsFeedQueryKey, useCreateCommunityEvent } from "@workspace/api-client-react";
+import { getGetEventsFeedQueryKey, useCreateCommunityEvent, type EventFeedItem } from "@workspace/api-client-react";
 
 function defaultStart(): Date {
   const date = new Date();
@@ -26,7 +26,7 @@ export default function CreateEventScreen() {
   const queryClient = useQueryClient();
   const { t } = useT();
   const { encounters } = useApp();
-  const matches = useMemo(() => encounters.filter((encounter) => encounter.status === "connected"), [encounters]);
+  const connections = useMemo(() => encounters.filter((encounter) => encounter.status === "connected"), [encounters]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -37,7 +37,20 @@ export default function CreateEventScreen() {
 
   const createEvent = useCreateCommunityEvent({
     mutation: {
-      onSuccess: async () => {
+      onSuccess: async (createdEvent) => {
+        queryClient.setQueryData<{ events: EventFeedItem[] }>(
+          getGetEventsFeedQueryKey(),
+          (cached) => cached
+            ? {
+                events: [
+                  createdEvent,
+                  ...cached.events.filter((event) =>
+                    event.eventType !== createdEvent.eventType || event.id !== createdEvent.id,
+                  ),
+                ],
+              }
+            : cached,
+        );
         await queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() });
         router.replace("/(tabs)/events" as never);
       },
@@ -57,6 +70,10 @@ export default function CreateEventScreen() {
     setFormError("");
     if (!title.trim()) {
       setFormError(t("tabs.events.eventNameRequired"));
+      return;
+    }
+    if (!Number.isFinite(startsAt.getTime()) || startsAt.getTime() <= Date.now()) {
+      setFormError(t("tabs.events.eventDateMustBeFuture"));
       return;
     }
     if (visibility === "invite_only" && inviteeUids.length === 0) {
@@ -144,19 +161,19 @@ export default function CreateEventScreen() {
         {visibility === "invite_only" ? (
           <View style={styles.matchesSection}>
             <Text style={[styles.label, { color: colors.text }]}>{t("tabs.events.inviteMatches")}</Text>
-            {matches.length === 0 ? (
+            {connections.length === 0 ? (
               <Text style={[styles.helper, { color: colors.mutedForeground }]}>{t("tabs.events.noMatches")}</Text>
-            ) : matches.map((match) => {
-              const selected = inviteeUids.includes(match.id);
+            ) : connections.map((connection) => {
+              const selected = inviteeUids.includes(connection.id);
               return (
                 <Pressable
-                  key={match.id}
+                  key={connection.id}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: selected }}
-                  onPress={() => toggleInvitee(match.id)}
+                  onPress={() => toggleInvitee(connection.id)}
                   style={[styles.matchRow, { borderBottomColor: colors.border }]}
                 >
-                  <Text style={[styles.matchName, { color: colors.text }]}>{match.realName}</Text>
+                  <Text style={[styles.matchName, { color: colors.text }]}>{connection.realName}</Text>
                   <Feather name={selected ? "check-square" : "square"} size={21} color={selected ? colors.primary : colors.mutedForeground} />
                 </Pressable>
               );

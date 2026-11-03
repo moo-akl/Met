@@ -328,7 +328,7 @@ export async function presentRevealRequestNotification(opts: {
       content: {
         title: opts.fromName
           ? `${opts.fromName} wants to reveal`
-          : "New reveal request",
+          : "New connection request",
         body:
           opts.message?.trim() ||
           "Someone you've crossed paths with wants to connect.",

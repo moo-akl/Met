@@ -374,6 +374,8 @@ function serializePublicVenueProfile(profile: typeof venueOwnerProfilesTable.$in
     logoUrl: resolveStorageUrl(baseUrl, profile.logoUrl),
     lat: profile.lat,
     lng: profile.lng,
+    isApproved: profile.isApproved,
+    checkInMode: profile.checkInMode,
     isVerified: profile.isVerified,
     phone: profile.phone,
     websiteUrl: profile.websiteUrl,
@@ -1987,6 +1989,10 @@ router.post(
 
     const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"], "Your venue must be approved and your membership active before creating events");
     if (!access) return;
+    if (new Date(parsed.data.startsAt) <= new Date()) {
+      res.status(400).json({ message: "Event start time must be in the future." });
+      return;
+    }
     const visibility = parsed.data.visibility ?? "public";
     const inviteeUids = visibility === "invite_only"
       ? [...new Set(parsed.data.inviteeUids ?? [])]
@@ -2503,7 +2509,7 @@ router.post(
               eq(hubCheckinsTable.placeId, reward.placeId),
               gte(hubCheckinsTable.createdAt, reward.startDate),
               lt(hubCheckinsTable.createdAt, reward.endDate),
-              eq(hubCheckinsTable.source, "qr_verified"),
+              inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
             ),
           )
           .groupBy(hubCheckinsTable.userUid)
@@ -2933,7 +2939,7 @@ router.get(
         and(
           eq(hubCheckinsTable.placeId, placeId),
           gte(hubCheckinsTable.createdAt, monthStart),
-          eq(hubCheckinsTable.source, "qr_verified"),
+          inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
         ),
       )
       .groupBy(hubCheckinsTable.userUid)

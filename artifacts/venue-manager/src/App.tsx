@@ -1105,6 +1105,8 @@ function VenueQrCodePanel({ business, csrfToken }: { business: VenueManagerBusin
   const [qrMsg, setQrMsg] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
   const [showPoster, setShowPoster] = useState(false);
+  const [savingMode, setSavingMode] = useState(false);
+  const [modeMsg, setModeMsg] = useState("");
 
   const data = qr.data;
 
@@ -1129,6 +1131,23 @@ function VenueQrCodePanel({ business, csrfToken }: { business: VenueManagerBusin
       predicate: (query) => typeof query.queryKey[0] === "string" &&
         query.queryKey[0].startsWith("/api/venue-manager/"),
     });
+  }
+
+  async function saveCheckInMode(mode: "open" | "qr_only") {
+    setSavingMode(true);
+    setModeMsg("");
+    try {
+      await updateVenueManagerBusiness(business.businessId, { checkInMode: mode }, csrf(csrfToken));
+      await client.invalidateQueries({
+        predicate: (query) => typeof query.queryKey[0] === "string" &&
+          query.queryKey[0].startsWith("/api/venue-manager/"),
+      });
+      setModeMsg("Check-in preference saved.");
+    } catch (error) {
+      setModeMsg(apiError(error));
+    } finally {
+      setSavingMode(false);
+    }
   }
 
   async function uploadPosterImage(file: File) {
@@ -1198,6 +1217,38 @@ function VenueQrCodePanel({ business, csrfToken }: { business: VenueManagerBusin
           <h3 style={{ margin: 0 }}>Check-in QR code</h3>
           <p style={{ margin: "2px 0 0", fontSize: "0.85em", opacity: 0.7 }}>Print and display this at your venue so guests can check in.</p>
         </div>
+      </div>
+      <div style={{ border: "1px solid var(--vm-border)", borderRadius: 12, padding: 16, margin: "18px 0" }}>
+        <h4 style={{ margin: "0 0 4px" }}>Guest check-in method</h4>
+        <p className="vm-subtitle" style={{ margin: "0 0 12px" }}>
+          Choose whether guests can check in nearby or must scan. Your QR code and poster remain available in either mode.
+        </p>
+        <div role="radiogroup" aria-label="Guest check-in method" style={{ display: "grid", gap: 10 }}>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: business.role === "editor" ? "not-allowed" : "pointer" }}>
+            <input
+              type="radio"
+              name={`check-in-mode-${business.businessId}`}
+              value="open"
+              checked={business.checkInMode === "open"}
+              disabled={savingMode || business.role === "editor"}
+              onChange={() => void saveCheckInMode("open")}
+            />
+            <span><strong>Open check-in</strong><br /><small>Guests within 50 metres can check in with their location. QR scans still work.</small></span>
+          </label>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: business.role === "editor" ? "not-allowed" : "pointer" }}>
+            <input
+              type="radio"
+              name={`check-in-mode-${business.businessId}`}
+              value="qr_only"
+              checked={business.checkInMode === "qr_only"}
+              disabled={savingMode || business.role === "editor"}
+              onChange={() => void saveCheckInMode("qr_only")}
+            />
+            <span><strong>QR-only check-in</strong><br /><small>Guests must scan your QR code to earn check-in credit.</small></span>
+          </label>
+        </div>
+        {business.role === "editor" && <p className="vm-subtitle" style={{ margin: "10px 0 0" }}>Editors can design and print posters, but only owners and managers can change this setting.</p>}
+        {modeMsg && <div className={`vm-notice ${modeMsg.includes("saved") ? "success" : "error"}`} style={{ marginTop: 10 }}>{modeMsg}</div>}
       </div>
       {qr.isLoading && <SectionLoading />}
       {qr.isError && <div className="vm-notice error">Unable to load QR code. Refresh to try again.</div>}

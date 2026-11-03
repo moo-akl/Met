@@ -20,6 +20,7 @@
  *   isDark       — drives iOS themeVariant + textColor (true = dark, false = light)
  */
 import React, { useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import {
   Platform,
   Pressable,
@@ -104,14 +105,19 @@ export function DateTimePicker({
             onChange(picked);
             return;
           }
-          // For datetime: after picking date, open time picker
+          // Preserve the selected time while choosing a date, then combine
+          // the picked date and time explicitly.
+          const dateWithCurrentTime = new Date(picked);
+          dateWithCurrentTime.setHours(value.getHours(), value.getMinutes(), 0, 0);
           DateTimePickerAndroid.open({
-            value: picked,
+            value: dateWithCurrentTime,
             mode: "time",
             is24Hour: true,
             onChange: (_evt2, pickedTime) => {
               if (!pickedTime) return;
-              onChange(pickedTime);
+              const combined = new Date(dateWithCurrentTime);
+              combined.setHours(pickedTime.getHours(), pickedTime.getMinutes(), 0, 0);
+              onChange(combined);
             },
           });
         },
@@ -127,10 +133,12 @@ export function DateTimePicker({
           </Text>
         )}
         <Pressable
+          accessibilityRole="button"
+          testID={`date-time-picker-${mode}`}
           onPress={openAndroid}
           style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
         >
-          <Text style={styles.calIcon}>📅</Text>
+          <Feather name="calendar" size={16} color={valueColor} />
           <Text style={[styles.valueText, { color: valueColor }]}>{formatted}</Text>
           <Text style={[styles.chevron, { color: chevronColor }]}>›</Text>
         </Pressable>
@@ -148,10 +156,12 @@ export function DateTimePicker({
         </Text>
       )}
       <Pressable
+        accessibilityRole="button"
+        testID={`date-time-picker-${mode}`}
         onPress={() => setShowIOS((v) => !v)}
         style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
       >
-        <Text style={styles.calIcon}>📅</Text>
+        <Feather name="calendar" size={16} color={valueColor} />
         <Text style={[styles.valueText, { color: valueColor }]}>{formatted}</Text>
         <Text style={[styles.chevron, { color: chevronColor }, showIOS && styles.chevronOpen]}>›</Text>
       </Pressable>
@@ -193,9 +203,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 10,
-  },
-  calIcon: {
-    fontSize: 16,
   },
   valueText: {
     flex: 1,

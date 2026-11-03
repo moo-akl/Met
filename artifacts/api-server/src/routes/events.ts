@@ -39,6 +39,8 @@ router.get("/events/feed", requireUid, async (req, res) => {
       .select({
         event: venueEventsTable,
         venueName: venueOwnerProfilesTable.businessName,
+        latitude: venueOwnerProfilesTable.lat,
+        longitude: venueOwnerProfilesTable.lng,
       })
       .from(venueEventsTable)
       .innerJoin(
@@ -111,7 +113,7 @@ router.get("/events/feed", requireUid, async (req, res) => {
   }
 
   const events = [
-    ...venueRows.map(({ event, venueName }) => ({
+    ...venueRows.map(({ event, venueName, latitude, longitude }) => ({
       eventType: "venue" as const,
       id: event.id,
       ownerUid: event.ownerUid,
@@ -124,6 +126,8 @@ router.get("/events/feed", requireUid, async (req, res) => {
       placeId: event.placeId,
       venueName,
       creatorName: null,
+      latitude: latitude != null && Number.isFinite(Number(latitude)) ? Number(latitude) : null,
+      longitude: longitude != null && Number.isFinite(Number(longitude)) ? Number(longitude) : null,
       visibility: event.visibility,
       rsvpCount: event.rsvpCount,
       myRsvp: myVenueRsvp.get(event.id) ?? null,
@@ -141,6 +145,8 @@ router.get("/events/feed", requireUid, async (req, res) => {
       placeId: null,
       venueName: null,
       creatorName,
+      latitude: null,
+      longitude: null,
       visibility: event.visibility,
       rsvpCount: memberRsvpCounts.get(event.id) ?? 0,
       myRsvp: myMemberRsvp.get(event.id) ?? null,
@@ -169,13 +175,17 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
   }
   const startsAt = new Date(parsed.data.startsAt);
   const endsAt = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null;
+  if (startsAt <= new Date()) {
+    res.status(400).json({ message: "Event start time must be in the future." });
+    return;
+  }
   if (endsAt && endsAt <= startsAt) {
     res.status(400).json({ message: "Event end time must be after its start time." });
     return;
   }
   const inviteeUids = [...new Set(parsed.data.inviteeUids)].filter((inviteeUid) => inviteeUid !== uid);
   if (parsed.data.visibility === "invite_only" && inviteeUids.length === 0) {
-    res.status(400).json({ message: "Select at least one Match for an invite-only event." });
+    res.status(400).json({ message: "Select at least one Connection for an invite-only event." });
     return;
   }
 
@@ -212,6 +222,8 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     placeId: null,
     venueName: null,
     creatorName: profile?.displayName ?? null,
+    latitude: null,
+    longitude: null,
     visibility: event.visibility,
     rsvpCount: 0,
     myRsvp: null,

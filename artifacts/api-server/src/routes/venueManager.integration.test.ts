@@ -570,14 +570,16 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
 
       const saved = await agent.patch(`/api/venue-manager/businesses/${business.id}`)
         .set("x-csrf-token", csrf)
-        .send({ qrPosterDesign: design });
+        .send({ qrPosterDesign: design, checkInMode: "open" });
       expect(saved.status).toBe(200);
       expect(saved.body.qrPosterDesign).toEqual(design);
+      expect(saved.body.checkInMode).toBe("open");
 
       // A fresh detail request represents the editor loading after a reload.
       const reloaded = await agent.get(`/api/venue-manager/businesses/${business.id}`);
       expect(reloaded.status).toBe(200);
       expect(reloaded.body.qrPosterDesign).toEqual(design);
+      expect(reloaded.body.checkInMode).toBe("open");
 
       const afterQr = await agent.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
       expect(afterQr.status).toBe(200);
@@ -787,11 +789,12 @@ describe.skipIf(!hasDatabase)("venue manager accounts (real database)", async ()
 
       const profileChange = await editor.patch(`/api/venue-manager/businesses/${business.id}`)
         .set("x-csrf-token", editorCsrf)
-        .send({ businessName: "Unauthorized change" });
+        .send({ checkInMode: "open" });
       expect(profileChange.status).toBe(403);
 
       const reloaded = await editor.get(`/api/venue-manager/businesses/${business.id}`);
       expect(reloaded.body.businessName).toBe(`Business poster-editor`);
+      expect(reloaded.body.checkInMode).toBe("qr_only");
       expect(reloaded.body.qrPosterDesign).toEqual(design);
       const afterQr = await editor.get(`/api/venue-manager/businesses/${business.id}/qr-code`);
       expect(afterQr.body.qrToken).toBe(beforeQr.body.qrToken);

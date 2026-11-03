@@ -149,6 +149,7 @@ export interface VenueOwnerProfile {
   logoUrl: string | null;
   lat: string | null;
   lng: string | null;
+  checkInMode: "open" | "qr_only";
   verificationDocUrl: string | null;
   registrationNotes: string | null;
   isApproved: boolean;
@@ -343,6 +344,7 @@ async function request<T>(
   path: string,
   opts: ApiOptions,
   body?: unknown,
+  requestOptions?: { appCheckToken?: string },
 ): Promise<T> {
   if (!BASE_URL) {
     throw new ApiError("EXPO_PUBLIC_API_URL not configured", 0, null);
@@ -361,6 +363,9 @@ async function request<T>(
   }
   if (activeVenueBusinessId !== null) {
     headers["X-Met-Venue-Business-Id"] = String(activeVenueBusinessId);
+  }
+  if (requestOptions?.appCheckToken) {
+    headers["X-Firebase-AppCheck"] = requestOptions.appCheckToken;
   }
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
@@ -806,7 +811,9 @@ export const api = {
     ),
   /**
    * Hub check-in — records the visit to the given venue and updates the user's
-   * hub streak. When `placeId` is provided (chosen from the multi-venue modal)
+   * hub streak. At registered open-mode venues, the server verifies the
+   * coordinates against the venue's stored location before granting credit.
+   * When `placeId` is provided (chosen from the multi-venue modal)
    * the server skips the Google Places lookup. Otherwise it auto-resolves from
    * lat/lng (single-venue fast path).
    * Throws ApiError with status 404 when no venue is found (auto-resolve path).
@@ -818,21 +825,29 @@ export const api = {
     input: {
       lat: number;
       lng: number;
+      accuracy?: number;
+      mocked?: boolean;
       placeId?: string;
       placeName?: string;
     },
+    appCheckToken?: string,
   ) =>
     request<{
       placeId: string;
       placeName: string;
       streak: number;
+      streak_points?: number;
+      checkin_multiplier?: number;
       isRegisteredVenue?: boolean;
       isQrVerified?: boolean;
+      checkInMode?: "open" | "qr_only" | null;
+      privateOnly?: boolean;
     }>(
       "POST",
       "/api/hubs/checkin",
       opts,
       input,
+      { appCheckToken },
     ),
   /**
    * Validate a venue QR code token and record the user's physical presence,
@@ -853,7 +868,12 @@ export const api = {
    * authenticated user has QR-verified their presence within the last 4 h.
    */
   hubCheckinStatus: (opts: ApiOptions, placeId: string) =>
-    request<{ isRegisteredVenue: boolean; isQrVerified: boolean }>(
+    request<{
+      isRegisteredVenue: boolean;
+      isQrVerified: boolean;
+      checkInMode: "open" | "qr_only" | null;
+      hasOpenCheckin: boolean;
+    }>(
       "GET",
       `/api/hubs/${encodeURIComponent(placeId)}/checkin-status`,
       opts,

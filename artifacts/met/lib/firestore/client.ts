@@ -13,7 +13,7 @@ export type FirestoreSdk = typeof import("@react-native-firebase/firestore");
 
 let cached: Firestore | null = null;
 let nativeUnavailable = false;
-let appCheckInitialized = false;
+let appCheckInitPromise: Promise<void> | null = null;
 
 export async function getFirestoreSdk(): Promise<FirestoreSdk> {
   return await import("@react-native-firebase/firestore");
@@ -37,36 +37,57 @@ export function isFirestoreAvailable(): boolean {
  * Firestore reads/writes will still succeed — the rules tolerate a
  * missing app-check token outside production.
  */
-async function initAppCheck(): Promise<void> {
-  if (appCheckInitialized) return;
-  appCheckInitialized = true;
+function initAppCheck(): Promise<void> {
+  if (appCheckInitPromise) return appCheckInitPromise;
+  appCheckInitPromise = (async () => {
+    try {
+      const { default: appCheck, firebase } = await import(
+        "@react-native-firebase/app-check"
+      );
+      void firebase;
+      const provider = appCheck().newReactNativeFirebaseAppCheckProvider();
+      provider.configure({
+        android: {
+          provider: __DEV__ ? "debug" : "playIntegrity",
+          debugToken: process.env["EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN"],
+        },
+        apple: {
+          provider: __DEV__ ? "debug" : "appAttestWithDeviceCheckFallback",
+          debugToken: process.env["EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN"],
+        },
+        web: {
+          provider: "reCaptchaV3",
+          siteKey: "unused",
+        },
+      });
+      await appCheck().initializeAppCheck({
+        provider,
+        isTokenAutoRefreshEnabled: true,
+      });
+    } catch (err) {
+      // Non-fatal — Firestore still works without App Check during dev.
+      console.warn("[firestore] App Check init failed", err);
+    }
+  })();
+  return appCheckInitPromise;
+}
+
+/**
+ * Returns the native App Check token for server APIs that need to verify
+ * the calling app/device. Web preview has no native attestation token.
+ */
+export async function getAppCheckToken(): Promise<string | null> {
+  if (!isFirestoreAvailable()) return null;
+  await initAppCheck();
   try {
-    const { default: appCheck, firebase } = await import(
+    const { default: appCheck } = await import(
       "@react-native-firebase/app-check"
     );
-    void firebase;
-    const provider = appCheck().newReactNativeFirebaseAppCheckProvider();
-    provider.configure({
-      android: {
-        provider: __DEV__ ? "debug" : "playIntegrity",
-        debugToken: process.env["EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN"],
-      },
-      apple: {
-        provider: __DEV__ ? "debug" : "appAttestWithDeviceCheckFallback",
-        debugToken: process.env["EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN"],
-      },
-      web: {
-        provider: "reCaptchaV3",
-        siteKey: "unused",
-      },
-    });
-    await appCheck().initializeAppCheck({
-      provider,
-      isTokenAutoRefreshEnabled: true,
-    });
+    const tokenResult = await appCheck().getToken();
+    return tokenResult.token || null;
   } catch (err) {
-    // Non-fatal — Firestore still works without App Check during dev.
-    console.warn("[firestore] App Check init failed", err);
+    console.warn("[firestore] App Check token unavailable", err);
+    return null;
   }
 }
 

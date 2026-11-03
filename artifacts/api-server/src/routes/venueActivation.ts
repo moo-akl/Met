@@ -1,5 +1,5 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
-import { and, count, eq, gte, isNotNull, isNull, lte, or } from "drizzle-orm";
+import { and, count, eq, gte, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
 import {
   db,
   hubCheckinsTable,
@@ -83,7 +83,7 @@ async function activationResponse(profileId: number) {
       )
       .where(and(
         eq(venueOwnerProfilesTable.id, profileId),
-        eq(hubCheckinsTable.source, "qr_verified"),
+        inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
         gte(hubCheckinsTable.createdAt, policy.registeredAt),
         lte(hubCheckinsTable.createdAt, policy.qrDeadline),
       ));
@@ -413,7 +413,7 @@ async function softUnlist(
         .from(hubCheckinsTable)
         .where(and(
           eq(hubCheckinsTable.placeId, venue.placeId),
-          eq(hubCheckinsTable.source, "qr_verified"),
+          inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
           gte(hubCheckinsTable.createdAt, policy.registeredAt!),
           lte(hubCheckinsTable.createdAt, policy.qrDeadline!),
         ));

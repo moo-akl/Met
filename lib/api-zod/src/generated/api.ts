@@ -77,6 +77,71 @@ export const VerifyVenueQrResponse = zod.object({
 
 
 /**
+ * Registered venues configured for open check-in require server-side location validation, a verified Firebase App Check token in production, and device-reported location accuracy. QR-only venues retain proximity detection without public leaderboard or reward credit until a QR scan is verified. App Check verifies the calling app/device, not physical location; coordinates and reported accuracy remain client-provided.
+ * @summary Check in at a nearby venue
+ */
+export const PostHubCheckinHeader = zod.object({
+  "X-Firebase-AppCheck": zod.string().optional().describe('Required for open-location check-ins in production; QR-verified requests do not require it.')
+})
+
+export const postHubCheckinBodyLatMin = -90;
+export const postHubCheckinBodyLatMax = 90;
+
+export const postHubCheckinBodyLngMin = -180;
+export const postHubCheckinBodyLngMax = 180;
+
+export const postHubCheckinBodyAccuracyMin = 0;
+
+
+export const postHubCheckinBodyPlaceNameMax = 255;
+
+
+
+export const PostHubCheckinBody = zod.object({
+  "lat": zod.number().min(postHubCheckinBodyLatMin).max(postHubCheckinBodyLatMax),
+  "lng": zod.number().min(postHubCheckinBodyLngMin).max(postHubCheckinBodyLngMax),
+  "accuracy": zod.number().min(postHubCheckinBodyAccuracyMin).optional().describe('Horizontal accuracy in metres reported by the device\'s location API.'),
+  "mocked": zod.boolean().optional().describe('OS-reported simulated-location flag when the platform exposes it; this is not cryptographic attestation.'),
+  "placeId": zod.string().min(1).optional(),
+  "placeName": zod.string().max(postHubCheckinBodyPlaceNameMax).optional()
+})
+
+export const postHubCheckinResponseStreakMin = 0;
+
+export const postHubCheckinResponseStreakPointsMin = 0;
+
+
+
+
+export const PostHubCheckinResponse = zod.object({
+  "placeId": zod.string(),
+  "placeName": zod.string(),
+  "streak": zod.number().int().min(postHubCheckinResponseStreakMin),
+  "streak_points": zod.number().int().min(postHubCheckinResponseStreakPointsMin),
+  "checkin_multiplier": zod.number().min(1),
+  "isRegisteredVenue": zod.boolean(),
+  "isQrVerified": zod.boolean(),
+  "checkInMode": zod.union([zod.literal('open'),zod.literal('qr_only'),zod.literal(null)]).nullable(),
+  "privateOnly": zod.boolean()
+})
+
+
+/**
+ * @summary Get the caller's check-in status at a venue
+ */
+export const GetHubCheckinStatusParams = zod.object({
+  "placeId": zod.coerce.string()
+})
+
+export const GetHubCheckinStatusResponse = zod.object({
+  "isRegisteredVenue": zod.boolean(),
+  "isQrVerified": zod.boolean(),
+  "checkInMode": zod.union([zod.literal('open'),zod.literal('qr_only'),zod.literal(null)]).nullable(),
+  "hasOpenCheckin": zod.boolean()
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -1989,6 +2054,7 @@ export const ListVenueManagerBusinessesResponse = zod.object({
   "legalName": zod.string(),
   "placeName": zod.string(),
   "businessName": zod.string(),
+  "checkInMode": zod.enum(['open', 'qr_only']),
   "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
   "tagline": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -2326,6 +2392,7 @@ export const GetVenueManagerBusinessResponse = zod.object({
   "legalName": zod.string(),
   "placeName": zod.string(),
   "businessName": zod.string(),
+  "checkInMode": zod.enum(['open', 'qr_only']),
   "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
   "tagline": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -2677,6 +2744,7 @@ export const updateVenueManagerBusinessBodyQrPosterDesignTextBoxesMax = 16;
 
 export const UpdateVenueManagerBusinessBody = zod.object({
   "businessName": zod.string().min(1).max(updateVenueManagerBusinessBodyBusinessNameMax).optional(),
+  "checkInMode": zod.enum(['open', 'qr_only']).optional(),
   "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
   "tagline": zod.string().max(updateVenueManagerBusinessBodyTaglineMax).nullish(),
   "description": zod.string().max(updateVenueManagerBusinessBodyDescriptionMax).nullish(),
@@ -3000,6 +3068,7 @@ export const UpdateVenueManagerBusinessResponse = zod.object({
   "legalName": zod.string(),
   "placeName": zod.string(),
   "businessName": zod.string(),
+  "checkInMode": zod.enum(['open', 'qr_only']),
   "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional(),
   "tagline": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -3334,6 +3403,14 @@ export const UpdateVenueOwnerEventResponse = zod.object({
 /**
  * @summary List public events and private events the caller may attend
  */
+export const getEventsFeedResponseEventsItemLatitudeMin = -90;
+export const getEventsFeedResponseEventsItemLatitudeMax = 90;
+
+export const getEventsFeedResponseEventsItemLongitudeMin = -180;
+export const getEventsFeedResponseEventsItemLongitudeMax = 180;
+
+
+
 export const GetEventsFeedResponse = zod.object({
   "events": zod.array(zod.object({
   "eventType": zod.enum(['venue', 'member']),
@@ -3348,6 +3425,8 @@ export const GetEventsFeedResponse = zod.object({
   "placeId": zod.string().nullish(),
   "venueName": zod.string().nullish(),
   "creatorName": zod.string().nullish(),
+  "latitude": zod.number().min(getEventsFeedResponseEventsItemLatitudeMin).max(getEventsFeedResponseEventsItemLatitudeMax).nullish(),
+  "longitude": zod.number().min(getEventsFeedResponseEventsItemLongitudeMin).max(getEventsFeedResponseEventsItemLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
   "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
@@ -3381,6 +3460,14 @@ export const CreateCommunityEventBody = zod.object({
   "inviteeUids": zod.array(zod.string().min(1).max(createCommunityEventBodyInviteeUidsItemMax)).max(createCommunityEventBodyInviteeUidsMax).optional()
 })
 
+export const createCommunityEventResponseLatitudeMin = -90;
+export const createCommunityEventResponseLatitudeMax = 90;
+
+export const createCommunityEventResponseLongitudeMin = -180;
+export const createCommunityEventResponseLongitudeMax = 180;
+
+
+
 export const CreateCommunityEventResponse = zod.object({
   "eventType": zod.enum(['venue', 'member']),
   "id": zod.number().int(),
@@ -3394,6 +3481,8 @@ export const CreateCommunityEventResponse = zod.object({
   "placeId": zod.string().nullish(),
   "venueName": zod.string().nullish(),
   "creatorName": zod.string().nullish(),
+  "latitude": zod.number().min(createCommunityEventResponseLatitudeMin).max(createCommunityEventResponseLatitudeMax).nullish(),
+  "longitude": zod.number().min(createCommunityEventResponseLongitudeMin).max(createCommunityEventResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
   "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()

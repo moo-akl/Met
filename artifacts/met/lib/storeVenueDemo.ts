@@ -56,6 +56,7 @@ export const STORE_DEMO_PROFILE: VenueOwnerProfile = {
   placeName: STORE_DEMO_PLACE_NAME,
   businessName: STORE_DEMO_PLACE_NAME,
   tagline: "An illustrative café concept.",
+  checkInMode: "qr_only",
   description:
     "A sample venue concept for previewing local makers, community gatherings, and rewards.",
   coverPhotoUrl: null,

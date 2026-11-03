@@ -58,6 +58,9 @@ import type {
   GetVenueOwnerMapPoints200,
   GetVenueOwnerMeGuestsParams,
   HealthStatus,
+  HubCheckinInput,
+  HubCheckinResult,
+  HubCheckinStatus,
   InviteToNetwork200,
   InviteToNetworkRequest,
   JoinNetwork200,
@@ -548,6 +551,196 @@ export const useVerifyVenueQr = <TError = ErrorType<void>,
       > => {
       return useMutation(getVerifyVenueQrMutationOptions(options), queryClient);
     }
+
+export const getPostHubCheckinUrl = () => {
+
+
+
+
+  return `/api/hubs/checkin`
+}
+
+/**
+ * Registered venues configured for open check-in require server-side location validation, a verified Firebase App Check token in production, and device-reported location accuracy. QR-only venues retain proximity detection without public leaderboard or reward credit until a QR scan is verified. App Check verifies the calling app/device, not physical location; coordinates and reported accuracy remain client-provided.
+ * @summary Check in at a nearby venue
+ */
+export const postHubCheckin = async (hubCheckinInput: HubCheckinInput, options?: Parameters<typeof customFetch>[1]): Promise<HubCheckinResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<HubCheckinResult>(getPostHubCheckinUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(hubCheckinInput)
+  }
+);}
+
+
+
+
+
+export const getPostHubCheckinMutationKey = () => ['postHubCheckin'] as const;
+
+export const getPostHubCheckinMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postHubCheckin>>, TError,PostHubCheckinMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postHubCheckin>>, TError,PostHubCheckinMutationVariables, TContext> => {
+
+const mutationKey = getPostHubCheckinMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postHubCheckin>>, PostHubCheckinMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postHubCheckin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostHubCheckinMutationResult = NonNullable<Awaited<ReturnType<typeof postHubCheckin>>>
+    export type PostHubCheckinMutationBody = BodyType<HubCheckinInput>
+    export type PostHubCheckinMutationError = ErrorType<void>
+    export type PostHubCheckinMutationVariables = {data: BodyType<HubCheckinInput>}
+
+    /**
+ * @summary Check in at a nearby venue
+ */
+export const usePostHubCheckin = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postHubCheckin>>, TError,PostHubCheckinMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postHubCheckin>>,
+        TError,
+        PostHubCheckinMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostHubCheckinMutationOptions(options), queryClient);
+    }
+
+export const getGetHubCheckinStatusUrl = (placeId: string,) => {
+
+
+
+
+  return `/api/hubs/${placeId}/checkin-status`
+}
+
+/**
+ * @summary Get the caller's check-in status at a venue
+ */
+export const getHubCheckinStatus = async (placeId: string, options?: Parameters<typeof customFetch>[1]): Promise<HubCheckinStatus> => {
+
+  return customFetch<HubCheckinStatus>(getGetHubCheckinStatusUrl(placeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHubCheckinStatusQueryKey = (placeId: string,) => {
+    return [
+    `/api/hubs/${placeId}/checkin-status`
+    ] as const;
+    }
+
+
+export const getGetHubCheckinStatusQueryOptions = <TData = Awaited<ReturnType<typeof getHubCheckinStatus>>, TError = ErrorType<void>>(placeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHubCheckinStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHubCheckinStatusQueryKey(placeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHubCheckinStatus>>> = ({ signal }) => getHubCheckinStatus(placeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: placeId !== null && placeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHubCheckinStatus>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetHubCheckinStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getHubCheckinStatus>>>
+export type GetHubCheckinStatusQueryError = ErrorType<void>
+
+
+export function useGetHubCheckinStatus<TData = Awaited<ReturnType<typeof getHubCheckinStatus>>, TError = ErrorType<void>>(
+ placeId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHubCheckinStatus>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHubCheckinStatus>>,
+          TError,
+          Awaited<ReturnType<typeof getHubCheckinStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHubCheckinStatus<TData = Awaited<ReturnType<typeof getHubCheckinStatus>>, TError = ErrorType<void>>(
+ placeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHubCheckinStatus>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHubCheckinStatus>>,
+          TError,
+          Awaited<ReturnType<typeof getHubCheckinStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHubCheckinStatus<TData = Awaited<ReturnType<typeof getHubCheckinStatus>>, TError = ErrorType<void>>(
+ placeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHubCheckinStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get the caller's check-in status at a venue
+ */
+
+export function useGetHubCheckinStatus<TData = Awaited<ReturnType<typeof getHubCheckinStatus>>, TError = ErrorType<void>>(
+ placeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHubCheckinStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetHubCheckinStatusQueryOptions(placeId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getHealthCheckUrl = () => {
 

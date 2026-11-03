@@ -54,7 +54,7 @@ export const en = {
   tabs: {
     home: "Home",
     recent: "Recent",
-    connections: "Matches",
+    connections: "Connections",
     networks: "Events",
     events: {
       title: "Events",
@@ -73,8 +73,12 @@ export const en = {
       details: "Details",
       starts: "Starts",
       location: "Location",
-      inviteMatches: "Invite Matches",
-      noMatches: "No Matches available to invite",
+      inviteMatches: "Invite Connections",
+      noMatches: "No Connections available to invite",
+      eventDateMustBeFuture: "Choose a date and time in the future.",
+      enableNearby: "Show nearby events first",
+      findingLocation: "Finding your location…",
+      nearbyFirst: "Showing events closest to you first",
       submit: "Create event",
       networks: "Networks",
       venueEvent: "Venue event",
@@ -216,11 +220,11 @@ export const en = {
     welcomeTitle: "Your connections will live here",
     welcomeDesc:
       "When you and another member both reveal each other, the connection lands here — yours to keep, with private notes, tags, and meeting spots.",
-    welcomeHint: "Send your first reveal request from the Recent tab",
-    noMatchesTitle: "No matches",
+    welcomeHint: "Send your first connection request from the Recent tab",
+    noMatchesTitle: "No results",
     noMatchesByTag:
       "No connection tagged #{{tag}}{{andQuery}}.",
-    noMatchesByQuery: "No connection matches \"{{query}}\".",
+    noMatchesByQuery: "No connections match \"{{query}}\".",
     matchingQuerySuffix: " matching \"{{query}}\"",
     groupToday: "Today",
     groupWeek: "This week",
@@ -235,7 +239,7 @@ export const en = {
     timeDay: "{{count}}d",
     timeWeek: "{{count}}w",
     recentSection: "Met List",
-    connectionsSection: "Matches",
+    connectionsSection: "Connections",
   },
 
   requests: {
@@ -254,10 +258,10 @@ export const en = {
   },
 
   requestsSheet: {
-    title: "Reveal requests",
+    title: "Connection requests",
     emptyTitle: "You're all caught up",
     emptySub:
-      "Nobody is waiting on a reveal right now. New requests will show up here.",
+      "Nobody is waiting on a connection right now. New requests will show up here.",
     wantsToShareWithTime: "Wants to share socials · {{when}}",
     notNow: "Not now",
     acceptReveal: "Accept reveal",
@@ -455,7 +459,7 @@ export const en = {
     notificationsTitle: "Notifications",
     notificationsSub: "Pings when someone you've met nearby shows up again.",
     notificationsDesc:
-      "We'll let you know when you cross paths with someone new and when reveal requests arrive.",
+      "We'll let you know when you cross paths with someone new and when connection requests arrive.",
     cameraTitle: "Camera",
     cameraSub: "For your profile photo and QR scanning.",
     cameraDesc:
@@ -492,7 +496,7 @@ export const en = {
     notMetQRError: "That doesn't look like a Met QR code.",
     couldntAddError: "Couldn't add that encounter. Try again.",
     hintMain:
-      "Take a photo of another Met user's QR code to instantly add them as an encounter and send a reveal request.",
+      "Take a photo of another Met user's QR code to instantly add them as an encounter and send a connection request.",
     simulateScan: "Simulate a scan",
     defaultPersonName: "Sam from the cafe",
     captureHint: "Scan a Met QR code",
@@ -537,7 +541,7 @@ export const en = {
     meetingSpot: "Meeting Spot",
     tapToViewOnMaps: "Tap to view on Maps",
     lockReceivedTitle: "Wants to share socials",
-    lockReceivedSub: "{{name}} sent you a reveal request.",
+    lockReceivedSub: "{{name}} sent you a connection request.",
     revealMessageLabel: "Their note",
     acceptReveal: "ACCEPT REVEAL",
     notNow: "Not now",
@@ -547,7 +551,7 @@ export const en = {
     cancelReveal: "Cancel request",
     cancelRevealTitle: "Cancel request",
     socialsHidden: "Socials are hidden",
-    sendRevealRequestBtn: "SEND REVEAL REQUEST",
+    sendRevealRequestBtn: "SEND CONNECTION REQUEST",
     revealsLeftFree: "{{n}} of {{cap}} free reveals left today",
     revealsLimitReached:
       "Free limit reached — Met Plus unlocks unlimited reveals",
@@ -555,7 +559,7 @@ export const en = {
     blockAction: "Block",
     reportAction: "Report",
     revealSheet: {
-      title: "Send a reveal request",
+      title: "Send a connection request",
       advisory:
         "You have limited chances. Use them wisely. Be genuine — remind them of a moment you shared or why you want to connect.",
       placeholder: "Add a personal note (optional)…",
@@ -734,7 +738,7 @@ export const en = {
     doneBtn: "Done",
     featureDailyEncountersFree: "20",
     featurePhotosLabel: "Profile photos",
-    featureRevealsLabel: "Reveal requests",
+    featureRevealsLabel: "Connection requests",
     featureRevealsFreeValue: "4 / day",
     featureOpeningsLabel: "Opening messages",
     featureOpeningsPlus: "5 / day",
@@ -986,7 +990,7 @@ export const en = {
 
   encounterRow: {
     metAgo: "Met {{when}}",
-    statusRequestSent: "Reveal request sent",
+    statusRequestSent: "Connection request sent",
     statusRequestReceived: "Wants to share socials",
     statusConnected: "Connected",
     crossedAgainPill: "Crossed paths again · {{count}}x",
@@ -1272,6 +1276,24 @@ export const en = {
     authHint: "Sign in to finish checking in. Your scan is saved.",
   },
 
+  openCheckin: {
+    button: "Check in here",
+    checking: "Checking in…",
+    locationPermissionTitle: "Location permission needed",
+    locationPermissionBody: "Allow Met to use your location to check in at this venue.",
+    privateTitle: "Private check-in recorded",
+    privateBody: "Complete your profile with a photo to appear on leaderboards and earn venue rewards.",
+    successTitle: "You're checked in",
+    successBody: "Your visit counts toward this venue's leaderboard and rewards.",
+    errorTitle: "Unable to check in",
+    errorBody: "Met couldn't confirm your location. Please try again near the venue.",
+    scanQrFallback: "Scan QR code instead",
+    guestbookPostRequired: "You'll need a completed profile and a check-in here to sign.",
+    guestbookGateTitle: "Check in here to sign",
+    guestbookGateBody: "Visitors who check in at this venue with location or QR can leave a note.",
+    guestbookGateCta: "Check in here",
+  },
+
   profileGate: {
     title: "Finish your profile to meet people",
     body: "Add a photo and a few details before you can see people, chat, or join networks. Your check-ins stay private until then.",
@@ -1323,7 +1345,7 @@ export const en = {
   },
 
   connectionsWalkthrough: {
-    step1: "Reveal requests land here — tap one to accept or decline and connect.",
+    step1: "Connection requests land here — tap one to accept or decline and connect.",
     step2: "Everyone you've mutually connected with lives here. Tap a name to view their profile or start a chat.",
   },
 

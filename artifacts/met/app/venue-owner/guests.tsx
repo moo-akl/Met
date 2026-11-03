@@ -5,7 +5,7 @@
  * Signal (light): #FAFAF8 editorial bg, rule-separated rows, #0D0D0D typography.
  *
  * Ranked leaderboard of guests who have checked in at the owner's venue.
- * Tap any guest to view their profile and send a reveal request directly
+ * Tap any guest to view their profile and send a connection request directly
  * through the Met app.
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -396,7 +396,7 @@ export default function VenueOwnerGuestsScreen() {
                   {sentUids.has(selected.uid) ? (
                     <View style={[styles.sentBox, { backgroundColor: accent + "12", borderColor: accent + "35" }]}>
                       <Text style={[styles.sentBoxText, { color: accent }]}>
-                        ✓ Reveal request sent — they'll see it in their Met app
+                        ✓ Connection request sent — they'll see it in their Met app
                       </Text>
                     </View>
                   ) : !composerOpen ? (
@@ -407,7 +407,7 @@ export default function VenueOwnerGuestsScreen() {
                         { backgroundColor: accent, opacity: pressed ? 0.85 : 1 },
                       ]}
                     >
-                      <Text style={[styles.revealBtnText, { color: accentFg }]}>Send Reveal Request</Text>
+                      <Text style={[styles.revealBtnText, { color: accentFg }]}>Send Connection Request</Text>
                     </Pressable>
                   ) : (
                     <View style={styles.composerWrap}>
@@ -434,7 +434,7 @@ export default function VenueOwnerGuestsScreen() {
                         ]}
                       >
                         <Text style={[styles.revealBtnText, { color: accentFg }]}>
-                          {revealSending ? "Sending…" : "Send Reveal Request"}
+                          {revealSending ? "Sending…" : "Send Connection Request"}
                         </Text>
                       </Pressable>
                       <Pressable

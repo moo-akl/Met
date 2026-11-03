@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VenueCategory } from './venueCategory';
+import type { VenueCheckinMode } from './venueCheckinMode';
 import type { VenueManagerBusinessUpdateOpeningHours } from './venueManagerBusinessUpdateOpeningHours';
 import type { VenueQrPosterDesign } from './venueQrPosterDesign';
 
@@ -15,6 +16,7 @@ export interface VenueManagerBusinessUpdate {
      * @maxLength 255
      */
   businessName?: string;
+  checkInMode?: VenueCheckinMode;
   venueType?: VenueCategory;
   /**
      * @maxLength 160
