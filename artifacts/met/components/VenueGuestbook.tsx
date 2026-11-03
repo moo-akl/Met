@@ -28,6 +28,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/contexts/AppContext";
+import { useT } from "@/lib/i18n";
 import {
   api,
   ApiError,
@@ -114,14 +115,17 @@ export function VenueGuestbook({
   placeId,
   placeName,
   isDemo,
-  qrVerified,
+  visitVerified,
+  onCheckin,
 }: {
   placeId: string;
   placeName: string;
   isDemo: boolean;
-  qrVerified: boolean;
+  visitVerified: boolean;
+  onCheckin?: () => void;
 }) {
   const { authedUid } = useApp();
+  const { t: tr } = useT();
   const router = useRouter();
   const canNetwork = !isDemo && !!authedUid && !!placeId;
   const writesAllowed = canNetwork && !isLegacyUserId(authedUid ?? "");
@@ -173,11 +177,11 @@ export function VenueGuestbook({
 
   useEffect(() => { void loadFirst(); }, [loadFirst]);
 
-  // A fresh QR check-in may change eligibility — re-read the page.
+  // A newly verified visit may change eligibility — re-read the page.
   useEffect(() => {
-    if (qrVerified && eligibility === "checkin") void loadFirst();
+    if (visitVerified && eligibility === "checkin") void loadFirst();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qrVerified]);
+  }, [visitVerified]);
 
   const loadMore = async () => {
     if (!authedUid || nextCursor == null || loadingMore) return;
@@ -303,7 +307,7 @@ export function VenueGuestbook({
           : err instanceof ApiError && err.status === 503
           ? "Photo checks are temporarily unavailable. Your note is saved here, so try again in a few minutes or post without the photo."
           : err instanceof ApiError && err.status === 403
-          ? "You'll need a completed profile and a QR check-in here to sign."
+          ? tr("openCheckin.guestbookPostRequired")
           : err instanceof ApiError && err.status === 413
             ? "That photo is too large. Try a smaller one."
             : "Your note didn't send. It's still here — try again.";
@@ -385,13 +389,13 @@ export function VenueGuestbook({
           />
         ) : eligibility === "checkin" ? (
           <GateCard
-            icon="maximize"
-            title="Here right now? Scan in to sign"
-            body="Only visitors who scan the venue's QR code can leave a note."
-            cta="Open scanner"
-            onPress={() =>
+            icon="map-pin"
+            title={tr("openCheckin.guestbookGateTitle")}
+            body={tr("openCheckin.guestbookGateBody")}
+            cta={tr("openCheckin.guestbookGateCta")}
+            onPress={onCheckin ?? (() =>
               router.push({ pathname: "/qr-scan", params: { placeId, placeName } } as never)
-            }
+            )}
           />
         ) : null
       )}
