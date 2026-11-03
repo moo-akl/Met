@@ -212,6 +212,9 @@ export interface VenueEvent {
   title: string;
   description: string | null;
   imageUrl: string | null;
+  contactPhone?: string | null;
+  websiteUrl?: string | null;
+  publicEmail?: string | null;
   startsAt: string;
   endsAt: string | null;
   capacityLimit: number | null;
@@ -1378,6 +1381,9 @@ export const api = {
       title: string;
       description?: string | null;
       imageUrl?: string | null;
+      contactPhone?: string | null;
+      websiteUrl?: string | null;
+      publicEmail?: string | null;
       startsAt: string;
       endsAt?: string | null;
       capacityLimit?: number | null;
@@ -1409,6 +1415,9 @@ export const api = {
       title?: string;
       description?: string | null;
       imageUrl?: string | null;
+      contactPhone?: string | null;
+      websiteUrl?: string | null;
+      publicEmail?: string | null;
       startsAt?: string;
       endsAt?: string | null;
       capacityLimit?: number | null;

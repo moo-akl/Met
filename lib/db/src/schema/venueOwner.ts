@@ -357,6 +357,10 @@ export const venueEventsTable = pgTable(
     description: text("description"),
     /** Cover image URL (Firebase Storage). */
     imageUrl: text("image_url"),
+    /** Optional public event-specific contact details. */
+    contactPhone: text("contact_phone"),
+    websiteUrl: text("website_url"),
+    publicEmail: text("public_email"),
     /** ISO-8601 datetime when the event begins. */
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     /** ISO-8601 datetime when the event ends (optional). */
@@ -445,6 +449,9 @@ export const communityEventsTable = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     imageUrl: text("image_url"),
+    contactPhone: text("contact_phone"),
+    websiteUrl: text("website_url"),
+    publicEmail: text("public_email"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }),
     location: text("location"),

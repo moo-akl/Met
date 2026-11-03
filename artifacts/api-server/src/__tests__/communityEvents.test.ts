@@ -72,6 +72,10 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     const eventBody = {
       title: "Private community gathering",
       description: "An invite-only test event",
+      imageUrl: "https://example.com/community-event.jpg",
+      contactPhone: "+1 555 123 4567",
+      websiteUrl: "https://example.com/event",
+      publicEmail: "events@example.com",
       startsAt: "2030-06-01T12:00:00.000Z",
       endsAt: "2030-06-01T14:00:00.000Z",
       visibility: "invite_only",
@@ -90,6 +94,12 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .set(uidHeader(OWNER_UID))
       .expect(200);
     expect(ownerManageResponse.body.inviteeUids).toEqual([INVITEE_UID]);
+    expect(ownerManageResponse.body).toMatchObject({
+      imageUrl: eventBody.imageUrl,
+      contactPhone: eventBody.contactPhone,
+      websiteUrl: eventBody.websiteUrl,
+      publicEmail: eventBody.publicEmail,
+    });
 
     await request(app)
       .get(`/api/events/member/${eventId}`)
@@ -102,6 +112,12 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .expect(200);
     expect(inviteeDetails.body.title).toBe(eventBody.title);
     expect(inviteeDetails.body).not.toHaveProperty("inviteeUids");
+    expect(inviteeDetails.body).toMatchObject({
+      imageUrl: eventBody.imageUrl,
+      contactPhone: eventBody.contactPhone,
+      websiteUrl: eventBody.websiteUrl,
+      publicEmail: eventBody.publicEmail,
+    });
 
     const changedBody = {
       ...eventBody,
@@ -127,9 +143,20 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     const updated = await request(app)
       .put(`/api/community-events/${eventId}`)
       .set(uidHeader(OWNER_UID))
-      .send({ ...eventBody, title: "Updated community gathering" })
+      .send({
+        ...eventBody,
+        title: "Updated community gathering",
+        contactPhone: "+1 555 765 4321",
+        websiteUrl: "https://example.com/updated",
+        publicEmail: "updated@example.com",
+      })
       .expect(200);
     expect(updated.body.title).toBe("Updated community gathering");
+    expect(updated.body).toMatchObject({
+      contactPhone: "+1 555 765 4321",
+      websiteUrl: "https://example.com/updated",
+      publicEmail: "updated@example.com",
+    });
 
     await request(app)
       .delete(`/api/community-events/${eventId}`)

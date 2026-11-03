@@ -14,6 +14,21 @@ export interface CommunityEventManageResponse {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  contactPhone?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  websiteUrl?: string | null;
+  /**
+     * @maxLength 254
+     * @nullable
+     */
+  publicEmail?: string | null;
   startsAt: Date;
   /** @nullable */
   endsAt?: Date | null;

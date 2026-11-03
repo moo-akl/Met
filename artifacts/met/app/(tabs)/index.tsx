@@ -11,6 +11,7 @@ import {
   Alert,
   DevSettings,
   InteractionManager,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -328,6 +329,14 @@ export default function HomeScreen() {
     () => nearestVenues(featuredPlaces.data?.venues ?? [], venueLocation).slice(0, 6),
     [featuredPlaces.data, venueLocation],
   );
+  const openVenueDirections = async (placeId: string, placeName: string) => {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(placeName)}&destination_place_id=${encodeURIComponent(placeId)}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(t("tabs.events.mapsUnavailable"));
+    }
+  };
   const {
     reminder,
     dismiss: dismissReminder,
@@ -491,14 +500,28 @@ export default function HomeScreen() {
             : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.primary} /></View>}
         </CanopyMapCard>
 
-        {hubState && !hubState.isMock && (
+        {hubState && !hubState.isMock && hubState.isRegisteredVenue && (
           <Pressable accessibilityRole="button" accessibilityLabel={`Open ${hubState.placeName}`} onPress={() => router.push(`/venue/${hubState.placeId}`)} style={({ pressed }) => [canopyHome.place, { backgroundColor: card, borderColor: border, opacity: pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}>
             <View style={[canopyHome.placeIcon, { backgroundColor: colors.primarySoft }]}><Feather name="coffee" size={23} color={text} /></View>
             <View style={{ flex: 1 }}><Text style={[canopyHome.caption, { color: muted }]}>{t("home.canopyCurrentPlace")}</Text><Text style={[canopyHome.placeName, { color: text }]}>{hubState.placeName}</Text></View>
             <Feather name="arrow-right" size={20} color={text} />
           </Pressable>
         )}
-        {!hubState && (
+        {hubState && !hubState.isMock && !hubState.isRegisteredVenue && (
+          <View style={[canopyHome.place, { backgroundColor: card, borderColor: border }]}>
+            <View style={[canopyHome.placeIcon, { backgroundColor: colors.primarySoft }]}>
+              <Feather name="map-pin" size={21} color={text} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[canopyHome.caption, { color: muted }]}>{t("home.canopyCurrentPlace")}</Text>
+              <Text style={[canopyHome.placeName, { color: text }]}>{hubState.placeName}</Text>
+              <Text style={[canopyHome.caption, { color: muted, marginTop: 3 }]}>
+                {t("home.currentPlaceNotOnMet")}
+              </Text>
+            </View>
+          </View>
+        )}
+        {(!hubState || !hubState.isRegisteredVenue) && (
           <View style={{ marginBottom: 12 }}>
             <Text style={[canopyHome.placesLabel, { color: muted }]}>{t("home.canopyPlaces")}</Text>
             {featuredPlaces.isLoading && (
@@ -540,7 +563,30 @@ export default function HomeScreen() {
                   <View style={{ flex: 1 }}><Text numberOfLines={1} style={[canopyHome.placeName, { color: text }]}>{venue.businessName}</Text><Text numberOfLines={1} style={[canopyHome.caption, { color: muted }]}>{venue.tagline || venue.placeName}</Text></View>
                   <Feather name="arrow-right" size={16} color={text} />
                 </Pressable>
-                <SavePlaceButton placeId={venue.placeId} placeName={venue.businessName} />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Directions to ${venue.businessName}`}
+                    onPress={() => void openVenueDirections(venue.placeId, venue.businessName || venue.placeName)}
+                    style={({ pressed }) => ({
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      minHeight: 38,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.primarySoft,
+                      opacity: pressed ? 0.75 : 1,
+                    })}
+                  >
+                    <Feather name="navigation" size={15} color={colors.primary} />
+                    <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>
+                      Directions
+                    </Text>
+                  </Pressable>
+                  <SavePlaceButton placeId={venue.placeId} placeName={venue.businessName} />
+                </View>
                 </View>
               ))}
             </ScrollView>

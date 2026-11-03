@@ -31,6 +31,7 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { DateTimePicker } from "@/components/DateTimePicker";
+import { prepareVenueEventImage } from "@/lib/venueEventImage";
 
 const GREEN = "#00E87A";
 
@@ -52,6 +53,9 @@ export default function EditVenueEventScreen() {
     title?: string;
     description?: string;
     imageUrl?: string;
+    contactPhone?: string;
+    websiteUrl?: string;
+    publicEmail?: string;
     startsAt?: string;
     endsAt?: string;
     capacityLimit?: string;
@@ -62,6 +66,9 @@ export default function EditVenueEventScreen() {
 
   const [title, setTitle] = useState(params.title ?? "");
   const [description, setDescription] = useState(params.description ?? "");
+  const [contactPhone, setContactPhone] = useState(params.contactPhone ?? "");
+  const [websiteUrl, setWebsiteUrl] = useState(params.websiteUrl ?? "");
+  const [publicEmail, setPublicEmail] = useState(params.publicEmail ?? "");
   const [imageUrl, setImageUrl] = useState(params.imageUrl ?? "");
   const [startsAt, setStartsAt] = useState<Date>(() =>
     params.startsAt ? new Date(params.startsAt) : defaultStartsAt(),
@@ -93,34 +100,27 @@ export default function EditVenueEventScreen() {
   const accent       = isDark ? colors.primary           : GREEN;
 
   const pickImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Permission required", "Please allow photo access in Settings to add a cover image.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-      base64: true,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    if (!asset.base64) { Alert.alert("Error", "Could not read image data."); return; }
-    const MAX_BYTES = 5 * 1024 * 1024;
-    const byteSize = asset.fileSize ?? Math.floor(asset.base64.length * 3 / 4);
-    if (byteSize > MAX_BYTES) {
-      Alert.alert("Image too large", "Please choose an image under 5 MB.");
-      return;
-    }
     setImageUploading(true);
     try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const image = await prepareVenueEventImage(asset.uri, asset.width);
       const { url } = await api.uploadVenueEventImage(
         { uid: authedUid ?? "" },
-        { base64: asset.base64, contentType: asset.mimeType ?? "image/jpeg" },
+        image,
       );
       setImageUrl(url);
-    } catch {
-      Alert.alert("Upload failed", "Could not upload image. Please try again.");
+    } catch (error) {
+      Alert.alert(
+        "Upload failed",
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : "Could not upload image. Please try again.",
+      );
     } finally {
       setImageUploading(false);
     }
@@ -135,6 +135,11 @@ export default function EditVenueEventScreen() {
         title: title.trim(),
         description: description.trim() || null,
         imageUrl: imageUrl.trim() || null,
+        contactPhone: contactPhone.trim() || null,
+        websiteUrl: websiteUrl.trim()
+          ? (/^https?:\/\//i.test(websiteUrl.trim()) ? websiteUrl.trim() : `https://${websiteUrl.trim()}`)
+          : null,
+        publicEmail: publicEmail.trim() || null,
         startsAt: startsAt.toISOString(),
         endsAt: endsAt ? endsAt.toISOString() : null,
         capacityLimit: capacityLimit.trim() ? Number(capacityLimit) : null,
@@ -168,6 +173,15 @@ export default function EditVenueEventScreen() {
           vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
         <Field label="Description" value={description} onChangeText={setDescription}
           placeholder="What's happening at the event?" multiline numberOfLines={4}
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
+        <Field label="Contact phone (optional)" value={contactPhone} onChangeText={setContactPhone}
+          placeholder="+1 555 123 4567" keyboardType="phone-pad" autoCapitalize="none"
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
+        <Field label="Website (optional)" value={websiteUrl} onChangeText={setWebsiteUrl}
+          placeholder="https://example.com" keyboardType="url" autoCapitalize="none"
+          vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
+        <Field label="Contact email (optional)" value={publicEmail} onChangeText={setPublicEmail}
+          placeholder="hello@example.com" keyboardType="email-address" autoCapitalize="none"
           vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
 
         {/* ── Cover Image ── */}
@@ -268,11 +282,12 @@ export default function EditVenueEventScreen() {
 }
 
 function Field({
-  label, value, onChangeText, placeholder, multiline, numberOfLines, autoCapitalize = "sentences",
+  label, value, onChangeText, placeholder, multiline, numberOfLines, autoCapitalize = "sentences", keyboardType = "default",
   vInput, vText, vLabel, vPlaceholder, accent,
 }: {
   label: string; value: string; onChangeText: (v: string) => void; placeholder?: string;
   multiline?: boolean; numberOfLines?: number; autoCapitalize?: "none" | "sentences";
+  keyboardType?: "default" | "url" | "phone-pad" | "email-address";
   vInput: string; vText: string; vLabel: string; vPlaceholder: string; accent: string;
 }) {
   return (
@@ -281,7 +296,7 @@ function Field({
       <TextInput
         value={value} onChangeText={onChangeText} placeholder={placeholder}
         placeholderTextColor={vPlaceholder} multiline={multiline}
-        numberOfLines={numberOfLines} autoCapitalize={autoCapitalize}
+        numberOfLines={numberOfLines} autoCapitalize={autoCapitalize} keyboardType={keyboardType}
         style={[
           styles.fieldInput,
           multiline && { height: (numberOfLines ?? 1) * 24 + 20, textAlignVertical: "top" },

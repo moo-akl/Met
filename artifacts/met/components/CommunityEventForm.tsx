@@ -4,17 +4,21 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
+import { api, ApiError } from "@/lib/api/client";
+import { prepareVenueEventImage } from "@/lib/venueEventImage";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
@@ -48,7 +52,7 @@ export default function CommunityEventForm({ mode, initial }: Props) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { t } = useT();
-  const { encounters } = useApp();
+  const { authedUid, encounters } = useApp();
   const { isDark } = useTheme();
   const connections = useMemo(
     () => encounters.filter((encounter) => encounter.status === "connected"),
@@ -57,6 +61,11 @@ export default function CommunityEventForm({ mode, initial }: Props) {
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? "");
+  const [contactPhone, setContactPhone] = useState(initial?.contactPhone ?? "");
+  const [websiteUrl, setWebsiteUrl] = useState(initial?.websiteUrl ?? "");
+  const [publicEmail, setPublicEmail] = useState(initial?.publicEmail ?? "");
+  const [imageUploading, setImageUploading] = useState(false);
   const [location, setLocation] = useState(initial?.location ?? "");
   const [startsAt, setStartsAt] = useState<Date>(
     initial ? new Date(initial.startsAt) : defaultStart(),
@@ -85,6 +94,31 @@ export default function CommunityEventForm({ mode, initial }: Props) {
   });
   const [locationQuery, setLocationQuery] = useState("");
   const [formError, setFormError] = useState("");
+
+  const pickImage = async () => {
+    if (!authedUid || imageUploading) return;
+    setImageUploading(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const prepared = await prepareVenueEventImage(asset.uri, asset.width);
+      const { url } = await api.uploadVenueEventImage({ uid: authedUid }, prepared);
+      setImageUrl(url);
+      setFormError("");
+    } catch (error) {
+      setFormError(
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : "Could not upload the photo. Please try again.",
+      );
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setLocationQuery(location.trim()), 450);
@@ -156,6 +190,7 @@ export default function CommunityEventForm({ mode, initial }: Props) {
 
   const submit = () => {
     setFormError("");
+    if (imageUploading) return;
     if (!title.trim()) {
       setFormError(t("tabs.events.eventNameRequired"));
       return;
@@ -172,7 +207,12 @@ export default function CommunityEventForm({ mode, initial }: Props) {
     const data = {
       title: title.trim(),
       description: description.trim() || null,
-      imageUrl: initial?.imageUrl ?? null,
+      imageUrl: imageUrl.trim() || null,
+      contactPhone: contactPhone.trim() || null,
+      websiteUrl: websiteUrl.trim()
+        ? (/^https?:\/\//i.test(websiteUrl.trim()) ? websiteUrl.trim() : `https://${websiteUrl.trim()}`)
+        : null,
+      publicEmail: publicEmail.trim() || null,
       startsAt: startsAt.toISOString(),
       endsAt: initial?.endsAt ?? null,
       location: location.trim() || null,
@@ -233,6 +273,100 @@ export default function CommunityEventForm({ mode, initial }: Props) {
             styles.input,
             { color: colors.text, backgroundColor: colors.card, borderColor: colors.border },
           ]}
+        />
+        <Text style={[styles.label, { color: colors.text }]}>
+          {t("tabs.events.eventPhotoOptional")}
+        </Text>
+        {imageUrl ? (
+          <View style={{ gap: 8 }}>
+            <Image
+              source={{ uri: imageUrl }}
+              style={{ width: "100%", height: 180, borderRadius: 14 }}
+              resizeMode="cover"
+              accessibilityLabel={t("tabs.events.eventPhotoOptional")}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("tabs.events.removeEventPhoto")}
+              onPress={() => setImageUrl("")}
+              style={{ alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 2 }}
+            >
+              <Text style={{ color: colors.destructive, fontFamily: "Inter_600SemiBold" }}>
+                {t("tabs.events.removeEventPhoto")}
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("tabs.events.addEventPhoto")}
+            disabled={imageUploading}
+            onPress={() => void pickImage()}
+            style={({ pressed }) => [
+              {
+                minHeight: 76,
+                borderWidth: 1,
+                borderStyle: "dashed",
+                borderRadius: 14,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 9,
+                opacity: pressed || imageUploading ? 0.7 : 1,
+              },
+            ]}
+          >
+            {imageUploading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <>
+                <Feather name="image" size={18} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>
+                  {t("tabs.events.addEventPhoto")}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        )}
+        <Text style={[styles.label, { color: colors.text }]}>
+          {t("tabs.events.contactPhoneOptional")}
+        </Text>
+        <TextInput
+          value={contactPhone}
+          onChangeText={setContactPhone}
+          placeholder="+1 555 123 4567"
+          placeholderTextColor={colors.mutedForeground}
+          keyboardType="phone-pad"
+          maxLength={40}
+          style={[styles.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+        />
+        <Text style={[styles.label, { color: colors.text }]}>
+          {t("tabs.events.websiteOptional")}
+        </Text>
+        <TextInput
+          value={websiteUrl}
+          onChangeText={setWebsiteUrl}
+          placeholder="https://example.com"
+          placeholderTextColor={colors.mutedForeground}
+          keyboardType="url"
+          autoCapitalize="none"
+          maxLength={2000}
+          style={[styles.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+        />
+        <Text style={[styles.label, { color: colors.text }]}>
+          {t("tabs.events.contactEmailOptional")}
+        </Text>
+        <TextInput
+          value={publicEmail}
+          onChangeText={setPublicEmail}
+          placeholder="hello@example.com"
+          placeholderTextColor={colors.mutedForeground}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          maxLength={254}
+          style={[styles.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
         />
         <Text style={[styles.label, { color: colors.text }]}>
           {t("tabs.events.details")}
@@ -416,7 +550,7 @@ export default function CommunityEventForm({ mode, initial }: Props) {
         ) : null}
         <Pressable
           accessibilityRole="button"
-          disabled={isPending}
+          disabled={isPending || imageUploading}
           onPress={submit}
           style={[
             styles.submit,

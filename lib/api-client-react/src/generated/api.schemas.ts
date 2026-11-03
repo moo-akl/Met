@@ -1177,6 +1177,21 @@ export interface VenueManagerEvent {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  contactPhone?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  websiteUrl?: string | null;
+  /**
+     * @maxLength 254
+     * @nullable
+     */
+  publicEmail?: string | null;
   startsAt: string;
   /** @nullable */
   endsAt?: string | null;
@@ -1233,6 +1248,21 @@ export interface VenueManagerEventInput {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  contactPhone?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  websiteUrl?: string | null;
+  /**
+     * @maxLength 254
+     * @nullable
+     */
+  publicEmail?: string | null;
   startsAt: string;
   /** @nullable */
   endsAt?: string | null;
@@ -1272,6 +1302,21 @@ export interface VenueManagerEventUpdate {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  contactPhone?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  websiteUrl?: string | null;
+  /**
+     * @maxLength 254
+     * @nullable
+     */
+  publicEmail?: string | null;
   startsAt?: string;
   /** @nullable */
   endsAt?: string | null;
@@ -1327,6 +1372,21 @@ export interface EventFeedItem {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  contactPhone?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  websiteUrl?: string | null;
+  /**
+     * @maxLength 254
+     * @nullable
+     */
+  publicEmail?: string | null;
   startsAt: string;
   /** @nullable */
   endsAt?: string | null;
@@ -1383,6 +1443,21 @@ export interface CommunityEventInput {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  contactPhone?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  websiteUrl?: string | null;
+  /**
+     * @maxLength 254
+     * @nullable
+     */
+  publicEmail?: string | null;
   startsAt: string;
   /** @nullable */
   endsAt?: string | null;
@@ -1464,6 +1539,21 @@ export interface CommunityEventManageResponse {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  contactPhone?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  websiteUrl?: string | null;
+  /**
+     * @maxLength 254
+     * @nullable
+     */
+  publicEmail?: string | null;
   startsAt: string;
   /** @nullable */
   endsAt?: string | null;

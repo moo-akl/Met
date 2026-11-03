@@ -3313,6 +3313,12 @@ export const createVenueOwnerEventBodyTitleMax = 120;
 
 export const createVenueOwnerEventBodyDescriptionMax = 2000;
 
+export const createVenueOwnerEventBodyContactPhoneMax = 40;
+
+export const createVenueOwnerEventBodyWebsiteUrlMax = 2000;
+
+export const createVenueOwnerEventBodyPublicEmailMax = 254;
+
 
 export const createVenueOwnerEventBodyInviteeUidsItemMax = 128;
 
@@ -3324,6 +3330,9 @@ export const CreateVenueOwnerEventBody = zod.object({
   "title": zod.string().min(1).max(createVenueOwnerEventBodyTitleMax),
   "description": zod.string().max(createVenueOwnerEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(createVenueOwnerEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createVenueOwnerEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createVenueOwnerEventBodyPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
@@ -3332,12 +3341,23 @@ export const CreateVenueOwnerEventBody = zod.object({
   "inviteeUids": zod.array(zod.string().min(1).max(createVenueOwnerEventBodyInviteeUidsItemMax)).max(createVenueOwnerEventBodyInviteeUidsMax).optional()
 })
 
+export const createVenueOwnerEventResponseEventContactPhoneMax = 40;
+
+export const createVenueOwnerEventResponseEventWebsiteUrlMax = 2000;
+
+export const createVenueOwnerEventResponseEventPublicEmailMax = 254;
+
+
+
 export const CreateVenueOwnerEventResponse = zod.object({
   "event": zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(createVenueOwnerEventResponseEventContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createVenueOwnerEventResponseEventWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createVenueOwnerEventResponseEventPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
@@ -3362,6 +3382,12 @@ export const updateVenueOwnerEventBodyTitleMax = 120;
 
 export const updateVenueOwnerEventBodyDescriptionMax = 2000;
 
+export const updateVenueOwnerEventBodyContactPhoneMax = 40;
+
+export const updateVenueOwnerEventBodyWebsiteUrlMax = 2000;
+
+export const updateVenueOwnerEventBodyPublicEmailMax = 254;
+
 
 export const updateVenueOwnerEventBodyInviteeUidsItemMax = 128;
 
@@ -3373,6 +3399,9 @@ export const UpdateVenueOwnerEventBody = zod.object({
   "title": zod.string().min(1).max(updateVenueOwnerEventBodyTitleMax).optional(),
   "description": zod.string().max(updateVenueOwnerEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(updateVenueOwnerEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateVenueOwnerEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateVenueOwnerEventBodyPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date().optional(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
@@ -3381,12 +3410,23 @@ export const UpdateVenueOwnerEventBody = zod.object({
   "inviteeUids": zod.array(zod.string().min(1).max(updateVenueOwnerEventBodyInviteeUidsItemMax)).max(updateVenueOwnerEventBodyInviteeUidsMax).optional()
 })
 
+export const updateVenueOwnerEventResponseEventContactPhoneMax = 40;
+
+export const updateVenueOwnerEventResponseEventWebsiteUrlMax = 2000;
+
+export const updateVenueOwnerEventResponseEventPublicEmailMax = 254;
+
+
+
 export const UpdateVenueOwnerEventResponse = zod.object({
   "event": zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(updateVenueOwnerEventResponseEventContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateVenueOwnerEventResponseEventWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateVenueOwnerEventResponseEventPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
@@ -3403,6 +3443,12 @@ export const UpdateVenueOwnerEventResponse = zod.object({
 /**
  * @summary List public events and private events the caller may attend
  */
+export const getEventsFeedResponseEventsItemContactPhoneMax = 40;
+
+export const getEventsFeedResponseEventsItemWebsiteUrlMax = 2000;
+
+export const getEventsFeedResponseEventsItemPublicEmailMax = 254;
+
 export const getEventsFeedResponseEventsItemLatitudeMin = -90;
 export const getEventsFeedResponseEventsItemLatitudeMax = 90;
 
@@ -3419,6 +3465,9 @@ export const GetEventsFeedResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(getEventsFeedResponseEventsItemContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(getEventsFeedResponseEventsItemWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(getEventsFeedResponseEventsItemPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().nullish(),
@@ -3442,6 +3491,12 @@ export const createCommunityEventBodyTitleMax = 120;
 
 export const createCommunityEventBodyDescriptionMax = 2000;
 
+export const createCommunityEventBodyContactPhoneMax = 40;
+
+export const createCommunityEventBodyWebsiteUrlMax = 2000;
+
+export const createCommunityEventBodyPublicEmailMax = 254;
+
 export const createCommunityEventBodyLocationMax = 200;
 
 export const createCommunityEventBodyLocationPlaceIdMax = 200;
@@ -3462,6 +3517,9 @@ export const CreateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(createCommunityEventBodyTitleMax),
   "description": zod.string().max(createCommunityEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(createCommunityEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createCommunityEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createCommunityEventBodyPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().max(createCommunityEventBodyLocationMax).nullish(),
@@ -3471,6 +3529,12 @@ export const CreateCommunityEventBody = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "inviteeUids": zod.array(zod.string().min(1).max(createCommunityEventBodyInviteeUidsItemMax)).max(createCommunityEventBodyInviteeUidsMax).optional()
 })
+
+export const createCommunityEventResponseContactPhoneMax = 40;
+
+export const createCommunityEventResponseWebsiteUrlMax = 2000;
+
+export const createCommunityEventResponsePublicEmailMax = 254;
 
 export const createCommunityEventResponseLatitudeMin = -90;
 export const createCommunityEventResponseLatitudeMax = 90;
@@ -3487,6 +3551,9 @@ export const CreateCommunityEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(createCommunityEventResponseContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createCommunityEventResponseWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createCommunityEventResponsePublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().nullish(),
@@ -3510,6 +3577,12 @@ export const GetEventDetailsParams = zod.object({
   "eventId": zod.coerce.number().int()
 })
 
+export const getEventDetailsResponseContactPhoneMax = 40;
+
+export const getEventDetailsResponseWebsiteUrlMax = 2000;
+
+export const getEventDetailsResponsePublicEmailMax = 254;
+
 export const getEventDetailsResponseLatitudeMin = -90;
 export const getEventDetailsResponseLatitudeMax = 90;
 
@@ -3525,6 +3598,9 @@ export const GetEventDetailsResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(getEventDetailsResponseContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(getEventDetailsResponseWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(getEventDetailsResponsePublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().nullish(),
@@ -3584,6 +3660,12 @@ export const GetCommunityEventForEditParams = zod.object({
   "eventId": zod.coerce.number().int()
 })
 
+export const getCommunityEventForEditResponseContactPhoneMax = 40;
+
+export const getCommunityEventForEditResponseWebsiteUrlMax = 2000;
+
+export const getCommunityEventForEditResponsePublicEmailMax = 254;
+
 export const getCommunityEventForEditResponseLatitudeMin = -90;
 export const getCommunityEventForEditResponseLatitudeMax = 90;
 
@@ -3601,6 +3683,9 @@ export const GetCommunityEventForEditResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(getCommunityEventForEditResponseContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(getCommunityEventForEditResponseWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(getCommunityEventForEditResponsePublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().nullish(),
@@ -3623,6 +3708,12 @@ export const updateCommunityEventBodyTitleMax = 120;
 
 export const updateCommunityEventBodyDescriptionMax = 2000;
 
+export const updateCommunityEventBodyContactPhoneMax = 40;
+
+export const updateCommunityEventBodyWebsiteUrlMax = 2000;
+
+export const updateCommunityEventBodyPublicEmailMax = 254;
+
 export const updateCommunityEventBodyLocationMax = 200;
 
 export const updateCommunityEventBodyLocationPlaceIdMax = 200;
@@ -3643,6 +3734,9 @@ export const UpdateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(updateCommunityEventBodyTitleMax),
   "description": zod.string().max(updateCommunityEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(updateCommunityEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateCommunityEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateCommunityEventBodyPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().max(updateCommunityEventBodyLocationMax).nullish(),
@@ -3652,6 +3746,12 @@ export const UpdateCommunityEventBody = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "inviteeUids": zod.array(zod.string().min(1).max(updateCommunityEventBodyInviteeUidsItemMax)).max(updateCommunityEventBodyInviteeUidsMax).optional()
 })
+
+export const updateCommunityEventResponseContactPhoneMax = 40;
+
+export const updateCommunityEventResponseWebsiteUrlMax = 2000;
+
+export const updateCommunityEventResponsePublicEmailMax = 254;
 
 export const updateCommunityEventResponseLatitudeMin = -90;
 export const updateCommunityEventResponseLatitudeMax = 90;
@@ -3668,6 +3768,9 @@ export const UpdateCommunityEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(updateCommunityEventResponseContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateCommunityEventResponseWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateCommunityEventResponsePublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "location": zod.string().nullish(),
@@ -3720,12 +3823,23 @@ export const ListVenueManagerEventsParams = zod.object({
   "businessId": zod.coerce.number().int().min(1)
 })
 
+export const listVenueManagerEventsResponseEventsItemContactPhoneMax = 40;
+
+export const listVenueManagerEventsResponseEventsItemWebsiteUrlMax = 2000;
+
+export const listVenueManagerEventsResponseEventsItemPublicEmailMax = 254;
+
+
+
 export const ListVenueManagerEventsResponse = zod.object({
   "events": zod.array(zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(listVenueManagerEventsResponseEventsItemContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(listVenueManagerEventsResponseEventsItemWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(listVenueManagerEventsResponseEventsItemPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
@@ -3760,6 +3874,12 @@ export const createVenueManagerEventBodyTitleMax = 120;
 
 export const createVenueManagerEventBodyDescriptionMax = 2000;
 
+export const createVenueManagerEventBodyContactPhoneMax = 40;
+
+export const createVenueManagerEventBodyWebsiteUrlMax = 2000;
+
+export const createVenueManagerEventBodyPublicEmailMax = 254;
+
 
 export const createVenueManagerEventBodyInviteeUidsItemMax = 128;
 
@@ -3771,6 +3891,9 @@ export const CreateVenueManagerEventBody = zod.object({
   "title": zod.string().min(1).max(createVenueManagerEventBodyTitleMax),
   "description": zod.string().max(createVenueManagerEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(createVenueManagerEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createVenueManagerEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createVenueManagerEventBodyPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
@@ -3779,12 +3902,23 @@ export const CreateVenueManagerEventBody = zod.object({
   "inviteeUids": zod.array(zod.string().min(1).max(createVenueManagerEventBodyInviteeUidsItemMax)).max(createVenueManagerEventBodyInviteeUidsMax).optional()
 })
 
+export const createVenueManagerEventResponseEventContactPhoneMax = 40;
+
+export const createVenueManagerEventResponseEventWebsiteUrlMax = 2000;
+
+export const createVenueManagerEventResponseEventPublicEmailMax = 254;
+
+
+
 export const CreateVenueManagerEventResponse = zod.object({
   "event": zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(createVenueManagerEventResponseEventContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createVenueManagerEventResponseEventWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createVenueManagerEventResponseEventPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
@@ -3821,6 +3955,12 @@ export const updateVenueManagerEventBodyTitleMax = 120;
 
 export const updateVenueManagerEventBodyDescriptionMax = 2000;
 
+export const updateVenueManagerEventBodyContactPhoneMax = 40;
+
+export const updateVenueManagerEventBodyWebsiteUrlMax = 2000;
+
+export const updateVenueManagerEventBodyPublicEmailMax = 254;
+
 
 export const updateVenueManagerEventBodyInviteeUidsItemMax = 128;
 
@@ -3832,6 +3972,9 @@ export const UpdateVenueManagerEventBody = zod.object({
   "title": zod.string().min(1).max(updateVenueManagerEventBodyTitleMax).optional(),
   "description": zod.string().max(updateVenueManagerEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(updateVenueManagerEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateVenueManagerEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateVenueManagerEventBodyPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date().optional(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
@@ -3840,12 +3983,23 @@ export const UpdateVenueManagerEventBody = zod.object({
   "inviteeUids": zod.array(zod.string().min(1).max(updateVenueManagerEventBodyInviteeUidsItemMax)).max(updateVenueManagerEventBodyInviteeUidsMax).optional()
 })
 
+export const updateVenueManagerEventResponseEventContactPhoneMax = 40;
+
+export const updateVenueManagerEventResponseEventWebsiteUrlMax = 2000;
+
+export const updateVenueManagerEventResponseEventPublicEmailMax = 254;
+
+
+
 export const UpdateVenueManagerEventResponse = zod.object({
   "event": zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(updateVenueManagerEventResponseEventContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateVenueManagerEventResponseEventWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateVenueManagerEventResponseEventPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
@@ -4569,12 +4723,23 @@ export const ListAdminManagedEventsParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const listAdminManagedEventsResponseEventsItemContactPhoneMax = 40;
+
+export const listAdminManagedEventsResponseEventsItemWebsiteUrlMax = 2000;
+
+export const listAdminManagedEventsResponseEventsItemPublicEmailMax = 254;
+
+
+
 export const ListAdminManagedEventsResponse = zod.object({
   "events": zod.array(zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(listAdminManagedEventsResponseEventsItemContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(listAdminManagedEventsResponseEventsItemWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(listAdminManagedEventsResponseEventsItemPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
@@ -4596,6 +4761,12 @@ export const createAdminManagedEventBodyTitleMax = 120;
 
 export const createAdminManagedEventBodyDescriptionMax = 2000;
 
+export const createAdminManagedEventBodyContactPhoneMax = 40;
+
+export const createAdminManagedEventBodyWebsiteUrlMax = 2000;
+
+export const createAdminManagedEventBodyPublicEmailMax = 254;
+
 
 export const createAdminManagedEventBodyInviteeUidsItemMax = 128;
 
@@ -4607,6 +4778,9 @@ export const CreateAdminManagedEventBody = zod.object({
   "title": zod.string().min(1).max(createAdminManagedEventBodyTitleMax),
   "description": zod.string().max(createAdminManagedEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(createAdminManagedEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createAdminManagedEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createAdminManagedEventBodyPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
@@ -4615,12 +4789,23 @@ export const CreateAdminManagedEventBody = zod.object({
   "inviteeUids": zod.array(zod.string().min(1).max(createAdminManagedEventBodyInviteeUidsItemMax)).max(createAdminManagedEventBodyInviteeUidsMax).optional()
 })
 
+export const createAdminManagedEventResponseEventContactPhoneMax = 40;
+
+export const createAdminManagedEventResponseEventWebsiteUrlMax = 2000;
+
+export const createAdminManagedEventResponseEventPublicEmailMax = 254;
+
+
+
 export const CreateAdminManagedEventResponse = zod.object({
   "event": zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(createAdminManagedEventResponseEventContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(createAdminManagedEventResponseEventWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(createAdminManagedEventResponseEventPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
@@ -4678,6 +4863,12 @@ export const updateAdminManagedEventBodyTitleMax = 120;
 
 export const updateAdminManagedEventBodyDescriptionMax = 2000;
 
+export const updateAdminManagedEventBodyContactPhoneMax = 40;
+
+export const updateAdminManagedEventBodyWebsiteUrlMax = 2000;
+
+export const updateAdminManagedEventBodyPublicEmailMax = 254;
+
 
 export const updateAdminManagedEventBodyInviteeUidsItemMax = 128;
 
@@ -4689,6 +4880,9 @@ export const UpdateAdminManagedEventBody = zod.object({
   "title": zod.string().min(1).max(updateAdminManagedEventBodyTitleMax).optional(),
   "description": zod.string().max(updateAdminManagedEventBodyDescriptionMax).nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(updateAdminManagedEventBodyContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateAdminManagedEventBodyWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateAdminManagedEventBodyPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date().optional(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
@@ -4697,12 +4891,23 @@ export const UpdateAdminManagedEventBody = zod.object({
   "inviteeUids": zod.array(zod.string().min(1).max(updateAdminManagedEventBodyInviteeUidsItemMax)).max(updateAdminManagedEventBodyInviteeUidsMax).optional()
 })
 
+export const updateAdminManagedEventResponseEventContactPhoneMax = 40;
+
+export const updateAdminManagedEventResponseEventWebsiteUrlMax = 2000;
+
+export const updateAdminManagedEventResponseEventPublicEmailMax = 254;
+
+
+
 export const UpdateAdminManagedEventResponse = zod.object({
   "event": zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().url().nullish(),
+  "contactPhone": zod.string().max(updateAdminManagedEventResponseEventContactPhoneMax).nullish(),
+  "websiteUrl": zod.string().url().max(updateAdminManagedEventResponseEventWebsiteUrlMax).nullish(),
+  "publicEmail": zod.string().email().max(updateAdminManagedEventResponseEventPublicEmailMax).nullish(),
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),

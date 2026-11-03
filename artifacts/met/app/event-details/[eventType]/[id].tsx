@@ -228,6 +228,42 @@ export default function EventDetailsScreen() {
                 {event.description}
               </Text>
             ) : null}
+            {event.contactPhone || event.websiteUrl || event.publicEmail ? (
+              <View style={{ gap: 10, marginTop: 4 }}>
+                {event.contactPhone ? (
+                  <Pressable
+                    accessibilityRole="link"
+                    onPress={() => void Linking.openURL(`tel:${event.contactPhone}`)}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 9 }}
+                  >
+                    <Feather name="phone" size={16} color={colors.primary} />
+                    <Text style={{ color: colors.text, fontSize: 14 }}>{event.contactPhone}</Text>
+                  </Pressable>
+                ) : null}
+                {event.websiteUrl ? (
+                  <Pressable
+                    accessibilityRole="link"
+                    onPress={() => void Linking.openURL(
+                      /^https?:\/\//i.test(event.websiteUrl!) ? event.websiteUrl! : `https://${event.websiteUrl}`,
+                    )}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 9 }}
+                  >
+                    <Feather name="globe" size={16} color={colors.primary} />
+                    <Text numberOfLines={1} style={{ color: colors.primary, fontSize: 14 }}>{event.websiteUrl}</Text>
+                  </Pressable>
+                ) : null}
+                {event.publicEmail ? (
+                  <Pressable
+                    accessibilityRole="link"
+                    onPress={() => void Linking.openURL(`mailto:${event.publicEmail}`)}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 9 }}
+                  >
+                    <Feather name="mail" size={16} color={colors.primary} />
+                    <Text style={{ color: colors.primary, fontSize: 14 }}>{event.publicEmail}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
 
             <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
               <Text style={[styles.rsvpCount, { color: colors.mutedForeground }]}>

@@ -393,7 +393,11 @@ const bw = StyleSheet.create({
 // ─── main screen ─────────────────────────────────────────────────────────────
 
 export default function VenueProfileScreen() {
-  const { placeId, qrToken } = useLocalSearchParams<{ placeId: string; qrToken?: string }>();
+  const { placeId, qrToken, placeName } = useLocalSearchParams<{
+    placeId: string;
+    qrToken?: string;
+    placeName?: string;
+  }>();
   const { authedUid } = useApp();
   const { t: tr } = useT();
   const { isDark } = useTheme();
@@ -413,6 +417,7 @@ export default function VenueProfileScreen() {
   }>>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [selectedReward, setSelectedReward] = useState<VenueReward | null>(null);
   const [selectedEvent, setSelectedEvent]   = useState<VenueEvent | null>(null);
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
@@ -552,6 +557,7 @@ export default function VenueProfileScreen() {
     if (isScreenshotDemoVenue) {
       setLoading(true);
       setError(false);
+      setNotFound(false);
       setProfile(STORE_DEMO_PROFILE);
       setEvents(STORE_DEMO_EVENTS);
       setRewards(STORE_DEMO_REWARDS);
@@ -576,6 +582,7 @@ export default function VenueProfileScreen() {
     if (!authedUid || !placeId) return;
     setLoading(true);
     setError(false);
+    setNotFound(false);
     const opts = { uid: authedUid };
     api.hubCheckinStatus(opts, placeId).then((status) => {
       setIsRegisteredVenue(status.isRegisteredVenue);
@@ -604,9 +611,15 @@ export default function VenueProfileScreen() {
     // (Reviews are loaded by the dedicated reviews effect below.)
     try {
       const profileData = await api.getVenueOwnerProfile(opts, placeId);
-      setProfile(profileData.profile);
-      setIsRegisteredVenue(profileData.profile?.isApproved ?? false);
-    } catch {
+      if (!profileData.profile) {
+        setNotFound(true);
+        setError(true);
+      } else {
+        setProfile(profileData.profile);
+        setIsRegisteredVenue(profileData.profile.isApproved);
+      }
+    } catch (fetchError) {
+      setNotFound(fetchError instanceof ApiError && fetchError.status === 404);
       setError(true);
     } finally {
       setLoading(false);
@@ -858,11 +871,26 @@ export default function VenueProfileScreen() {
   if (error || !profile) {
     return (
       <View style={[styles.center, { backgroundColor: BG }]}>
-        <Text style={styles.errorText}>Venue not found</Text>
-        <Pressable onPress={() => void fetchAll()} style={{ marginTop: 12 }} accessibilityRole="button">
-          <Text style={[styles.errorBack, { color: CORAL }]}>Try again</Text>
-        </Pressable>
-        <Pressable onPress={goBack} style={{ marginTop: 12 }}>
+        <Text style={styles.errorText}>
+          {notFound
+            ? `${placeName || "This place"} isn’t on Met yet`
+            : "Couldn't load this place"}
+        </Text>
+        <Text style={{ color: MUTED, fontSize: 14, textAlign: "center", marginTop: 8, maxWidth: 280, lineHeight: 21 }}>
+          {notFound
+            ? "You can explore nearby registered venues or return to the map."
+            : "Check your connection and try again."}
+        </Text>
+        {notFound ? (
+          <Pressable onPress={() => router.replace("/" as never)} style={{ marginTop: 16 }} accessibilityRole="button">
+            <Text style={[styles.errorBack, { color: CORAL }]}>Explore registered venues</Text>
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => void fetchAll()} style={{ marginTop: 16 }} accessibilityRole="button">
+            <Text style={[styles.errorBack, { color: CORAL }]}>Try again</Text>
+          </Pressable>
+        )}
+        <Pressable onPress={goBack} style={{ marginTop: 12 }} accessibilityRole="button">
           <Text style={[styles.errorBack, { color: CORAL }]}>← Go back</Text>
         </Pressable>
       </View>
@@ -1568,6 +1596,50 @@ export default function VenueProfileScreen() {
                 </Text>
                 {selectedEvent.description ? (
                   <Text style={[styles.eventDetailDesc, isDark && styles.darkBody]}>{selectedEvent.description}</Text>
+                ) : null}
+                {(selectedEvent.contactPhone || selectedEvent.websiteUrl || selectedEvent.publicEmail) ? (
+                  <View style={{ gap: 9, marginTop: 8 }}>
+                    {selectedEvent.contactPhone ? (
+                      <Pressable
+                        accessibilityRole="link"
+                        onPress={() => void Linking.openURL(`tel:${selectedEvent.contactPhone}`)}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                      >
+                        <Feather name="phone" size={15} color={CORAL} />
+                        <Text style={[styles.eventDetailMetaText, isDark && styles.darkBody]}>
+                          {selectedEvent.contactPhone}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    {selectedEvent.websiteUrl ? (
+                      <Pressable
+                        accessibilityRole="link"
+                        onPress={() => void Linking.openURL(
+                          /^https?:\/\//i.test(selectedEvent.websiteUrl!)
+                            ? selectedEvent.websiteUrl!
+                            : `https://${selectedEvent.websiteUrl}`,
+                        )}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                      >
+                        <Feather name="globe" size={15} color={CORAL} />
+                        <Text style={[styles.eventDetailMetaText, isDark && styles.darkBody]} numberOfLines={1}>
+                          {selectedEvent.websiteUrl}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    {selectedEvent.publicEmail ? (
+                      <Pressable
+                        accessibilityRole="link"
+                        onPress={() => void Linking.openURL(`mailto:${selectedEvent.publicEmail}`)}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                      >
+                        <Feather name="mail" size={15} color={CORAL} />
+                        <Text style={[styles.eventDetailMetaText, isDark && styles.darkBody]}>
+                          {selectedEvent.publicEmail}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 ) : null}
                 <View style={styles.eventDetailMeta}>
                   <Text style={[styles.eventDetailMetaText, isDark && styles.darkBody]}>

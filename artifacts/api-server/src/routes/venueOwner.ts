@@ -1974,6 +1974,9 @@ router.post(
       title: z.string().min(1).max(120),
       description: z.string().max(2000).optional().nullable(),
       imageUrl: z.string().url().optional().nullable(),
+      contactPhone: z.string().trim().max(40).optional().nullable(),
+      websiteUrl: z.string().trim().url().max(2000).optional().nullable(),
+      publicEmail: z.string().trim().email().max(254).optional().nullable(),
       startsAt: z.string().datetime(),
       endsAt: z.string().datetime().optional().nullable(),
       capacityLimit: z.number().int().positive().optional().nullable(),
@@ -2024,6 +2027,9 @@ router.post(
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         imageUrl: parsed.data.imageUrl ?? null,
+        contactPhone: parsed.data.contactPhone?.trim() || null,
+        websiteUrl: parsed.data.websiteUrl?.trim() || null,
+        publicEmail: parsed.data.publicEmail?.trim() || null,
         startsAt: new Date(parsed.data.startsAt),
         endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
         capacityLimit: parsed.data.capacityLimit ?? null,
@@ -2118,6 +2124,9 @@ router.put(
       title: z.string().min(1).max(120).optional(),
       description: z.string().max(2000).optional().nullable(),
       imageUrl: z.string().url().optional().nullable(),
+      contactPhone: z.string().trim().max(40).optional().nullable(),
+      websiteUrl: z.string().trim().url().max(2000).optional().nullable(),
+      publicEmail: z.string().trim().email().max(254).optional().nullable(),
       startsAt: z.string().datetime().optional(),
       endsAt: z.string().datetime().optional().nullable(),
       capacityLimit: z.number().int().positive().optional().nullable(),
@@ -2158,6 +2167,9 @@ router.put(
     if (parsed.data.title !== undefined) updatePayload["title"] = parsed.data.title;
     if (parsed.data.description !== undefined) updatePayload["description"] = parsed.data.description;
     if (parsed.data.imageUrl !== undefined) updatePayload["imageUrl"] = parsed.data.imageUrl;
+    if (parsed.data.contactPhone !== undefined) updatePayload["contactPhone"] = parsed.data.contactPhone?.trim() || null;
+    if (parsed.data.websiteUrl !== undefined) updatePayload["websiteUrl"] = parsed.data.websiteUrl?.trim() || null;
+    if (parsed.data.publicEmail !== undefined) updatePayload["publicEmail"] = parsed.data.publicEmail?.trim() || null;
     if (parsed.data.startsAt !== undefined) updatePayload["startsAt"] = new Date(parsed.data.startsAt);
     if (parsed.data.endsAt !== undefined) updatePayload["endsAt"] = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null;
     if (parsed.data.capacityLimit !== undefined) updatePayload["capacityLimit"] = parsed.data.capacityLimit;

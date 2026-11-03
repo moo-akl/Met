@@ -1148,11 +1148,18 @@ export default function ProfileScreen() {
             {/* Header row with public/private toggle */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Image
-                  source={require("@/assets/images/rewards_trophy.jpg")}
-                  style={{ width: 32, height: 32, borderRadius: 6 }}
-                  contentFit="cover"
-                />
+                <View
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: colors.primarySoft,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Feather name="award" size={18} color={colors.primary} />
+                </View>
                 <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
                   Rewards Collection
                 </Text>

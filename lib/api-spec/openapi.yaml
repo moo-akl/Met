@@ -4787,6 +4787,9 @@ components:
         title: { type: string }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], format: uri }
+        contactPhone: { type: ["string", "null"], maxLength: 40 }
+        websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
+        publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         capacityLimit: { type: ["integer", "null"] }
@@ -4834,6 +4837,9 @@ components:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
         imageUrl: { type: ["string", "null"], format: uri }
+        contactPhone: { type: ["string", "null"], maxLength: 40 }
+        websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
+        publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         capacityLimit: { type: ["integer", "null"], minimum: 1 }
@@ -4849,6 +4855,9 @@ components:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
         imageUrl: { type: ["string", "null"], format: uri }
+        contactPhone: { type: ["string", "null"], maxLength: 40 }
+        websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
+        publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         capacityLimit: { type: ["integer", "null"], minimum: 1 }
@@ -4868,6 +4877,9 @@ components:
         title: { type: string }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], format: uri }
+        contactPhone: { type: ["string", "null"], maxLength: 40 }
+        websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
+        publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         location: { type: ["string", "null"] }
@@ -4894,6 +4906,9 @@ components:
         title: { type: string, minLength: 1, maxLength: 120 }
         description: { type: ["string", "null"], maxLength: 2000 }
         imageUrl: { type: ["string", "null"], format: uri }
+        contactPhone: { type: ["string", "null"], maxLength: 40 }
+        websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
+        publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         location: { type: ["string", "null"], maxLength: 200 }
@@ -4929,6 +4944,9 @@ components:
         title: { type: string }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], format: uri }
+        contactPhone: { type: ["string", "null"], maxLength: 40 }
+        websiteUrl: { type: ["string", "null"], maxLength: 2000, format: uri }
+        publicEmail: { type: ["string", "null"], maxLength: 254, format: email }
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         location: { type: ["string", "null"] }
