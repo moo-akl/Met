@@ -1860,6 +1860,95 @@ paths:
         "503":
           description: Server configuration missing
 
+  /venue-intro-profiles:
+    get:
+      operationId: getVenueIntroProfiles
+      tags: [admin]
+      summary: List the venue profiles available for tailored introductions
+      responses:
+        "200":
+          description: Built-in and team-managed venue profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VenueIntroProfile"
+  /admin/venue-intro-profiles:
+    post:
+      operationId: createVenueIntroProfile
+      tags: [admin]
+      summary: Add a venue profile for tailored introductions
+      security:
+        - VenueAdminSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueIntroProfileInput"
+      responses:
+        "201":
+          description: Venue profile created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueIntroProfile"
+        "400":
+          description: Profile copy is incomplete or invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Venue Admin session required
+        "409":
+          description: A profile with the same venue name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Admin sessions are not enabled
+  /admin/venue-intro-profiles/{key}:
+    parameters:
+      - $ref: "#/components/parameters/VenueIntroProfileKey"
+    put:
+      operationId: updateVenueIntroProfile
+      tags: [admin]
+      summary: Update a venue's tailored introduction copy
+      security:
+        - VenueAdminSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueIntroProfileInput"
+      responses:
+        "200":
+          description: Venue profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueIntroProfile"
+        "400":
+          description: Profile copy is incomplete or invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Venue Admin session required
+        "404":
+          description: Venue profile not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Admin sessions are not enabled
+
   /venue-manager/session:
     get:
       operationId: getVenueManagerSession
@@ -2415,7 +2504,7 @@ paths:
     post:
       operationId: createCommunityEventInviteLink
       tags: [events]
-      summary: Get the owner's shareable invite link
+      summary: Get a shareable event link
       security:
         - MetUid: []
       parameters:
@@ -2434,6 +2523,33 @@ paths:
           description: Event not found
         "409":
           description: Invite link is disabled
+
+  /community-event-reports:
+    post:
+      operationId: reportCommunityEvent
+      tags: [events]
+      summary: Report a community event
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityEventReportInput"
+      responses:
+        "201":
+          description: Report recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventReportResponse"
+        "403":
+          description: The event owner cannot report their own event
+        "404":
+          description: Event not found or unavailable to the caller
+        "409":
+          description: The caller already reported this event
 
   /event-invites/resolve:
     post:
@@ -2919,6 +3035,144 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /admin/venue-owner/openstreetmap/attractions:
+    get:
+      operationId: listAdminOpenStreetMapAttractions
+      tags: [admin]
+      summary: Find notable tourist attractions in OpenStreetMap
+      security:
+        - VenueAdminSessionCookie: []
+      parameters:
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [VN, MY, LA, KH]
+      responses:
+        "200":
+          description: Matching attractions with OpenStreetMap attribution, duplicate status, and discovery source
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminOpenStreetMapAttractionsResponse" }
+        "400":
+          description: Unsupported country
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: OpenStreetMap data is temporarily unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/venue-owner/openstreetmap/attractions/import-approved:
+    post:
+      operationId: importApprovedTouristAttractions
+      tags: [admin]
+      summary: Import the approved tourist attraction shortlist with descriptions and photos
+      security:
+        - VenueAdminSessionCookie: []
+      responses:
+        "200":
+          description: Approved shortlist entries were added or enriched
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovedTouristAttractionsImportResponse" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: A shortlist place is not an admin-managed venue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: A licensed source photo could not be retrieved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Photo storage or database import is unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/venue-owner/tourist-attractions/import-world:
+    post:
+      operationId: importWorldTouristAttractions
+      tags: [admin]
+      summary: Import 40 additional world tourist attractions with licensed photos
+      security:
+        - VenueAdminSessionCookie: []
+      responses:
+        "200":
+          description: World attraction entries were added or enriched
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovedTouristAttractionsImportResponse" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: An attraction is not an admin-managed venue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: A licensed source photo could not be retrieved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Photo storage or database import is unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/venue-owner/tourist-attractions/import-additional-world:
+    post:
+      operationId: importAdditionalWorldTouristAttractions
+      tags: [admin]
+      summary: Import a separate second set of 40 world attractions with licensed photos
+      security:
+        - VenueAdminSessionCookie: []
+      responses:
+        "200":
+          description: Additional world attraction entries were added or enriched
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovedTouristAttractionsImportResponse" }
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: An attraction is not an admin-managed venue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: A licensed source photo could not be retrieved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Photo storage or database import is unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /admin/venue-owner/venues:
     post:
       operationId: quickAddAdminVenue
@@ -2951,6 +3205,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /admin/venue-owner/venues/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    delete:
+      operationId: deleteAdminVenue
+      tags: [admin]
+      summary: Permanently delete a venue profile and associated venue data
+      responses:
+        "200":
+          description: Venue and associated data deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeleteAdminVenueResult" }
+        "401":
+          description: No active admin session
+        "404":
+          description: Venue not found
+        "503":
+          description: Venue deletion could not finish
   /admin/venue-owner/venues/{id}/management:
     parameters:
       - name: id
@@ -3439,7 +3715,7 @@ paths:
     post:
       operationId: sendManualVenueEmail
       tags: [admin]
-      summary: Send any available template to any venue regardless of application or previous delivery status
+      summary: Send an available template, optionally linking a retry to the exact bounced outreach record
       requestBody:
         required: true
         content:
@@ -3455,6 +3731,10 @@ paths:
           description: Invalid recipient or template
         "401":
           description: Admin sign-in required
+        "409":
+          description: The recipient is suppressed or the bounced retry source is no longer valid
+        "429":
+          description: Gmail rate-limited the send; no message was sent
         "503":
           description: Delivery could not be confirmed; no automatic retry
 
@@ -3472,6 +3752,302 @@ paths:
                 $ref: "#/components/schemas/VenueOutreachHistoryResponse"
         "401":
           description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteVenueOutreachHistory
+      tags: [admin]
+      summary: Remove selected email history without deleting the venue profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueOutreachHistoryDeleteInput" }
+      responses:
+        "200":
+          description: The selected outreach history was removed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueOutreachHistoryDeleteResult" }
+        "400":
+          description: The confirmation or selection is invalid
+        "401":
+          description: No active admin session
+        "409":
+          description: The selected history changed or no longer matches this venue
+  /admin/venue-owner/outreach/sync-gmail-replies:
+    post:
+      operationId: syncGmailVenueOutreachReplies
+      tags: [admin]
+      summary: Match Gmail reply metadata to venue outreach sends without AI classification
+      responses:
+        "200":
+          description: Gmail reply metadata matched to venue outreach history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncGmailVenueOutreachRepliesResult"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Connected Gmail could not be read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/classify-pending-replies:
+    post:
+      operationId: classifyPendingVenueOutreachReplies
+      tags: [admin]
+      summary: Classify pending matched Gmail replies using AI
+      responses:
+        "200":
+          description: Pending matched replies were classified or remain pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassifyPendingVenueOutreachRepliesResult"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/email-suppression:
+    put:
+      operationId: updateVenueOutreachEmailSuppression
+      tags: [admin]
+      summary: Block or allow future Venue Admin outreach to an email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueOutreachEmailSuppressionInput"
+      responses:
+        "200":
+          description: Updated email outreach block
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOutreachEmailSuppressionResult"
+        "400":
+          description: Email address or block setting is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/failed:
+    delete:
+      operationId: clearFailedVenueOutreach
+      tags: [admin]
+      summary: Remove confirmed bounced and unsent failed outreach records
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClearFailedVenueOutreachInput"
+      responses:
+        "200":
+          description: Confirmed bounced and unsent failed email records removed from Venue Admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearFailedVenueOutreachResult"
+        "400":
+          description: Cleanup confirmation is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Bounced or unsent-failure counts changed; refresh before clearing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/sync-gmail-bounces:
+    post:
+      operationId: syncGmailVenueOutreachBounces
+      tags: [admin]
+      summary: Match Gmail delivery failure notices and clear repeat-bounced retry history
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncVenueOutreachBouncesInput"
+      responses:
+        "200":
+          description: Matching delivery failures have been recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncVenueOutreachBouncesResult"
+        "400":
+          description: Sync confirmation is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Connected Gmail could not be read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/reconcile-gmail-bounces/preview:
+    post:
+      operationId: previewGmailVenueOutreachBounceReconciliation
+      tags: [admin]
+      summary: Preview verified Gmail bounce links for venue outreach
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GmailBounceReconciliationPreviewInput"
+      responses:
+        "200":
+          description: Read-only preview with a short-lived apply plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GmailBounceReconciliationPreviewResult"
+        "400":
+          description: Invalid preview request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Gmail scan was truncated, exceeded a safe limit, or did not produce the 119 approved matches
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Connected Gmail could not be read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/reconcile-gmail-bounces/apply:
+    post:
+      operationId: applyGmailVenueOutreachBounceReconciliation
+      tags: [admin]
+      summary: Apply an admin-confirmed Gmail bounce reconciliation preview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GmailBounceReconciliationApplyInput"
+      responses:
+        "200":
+          description: Verified bounce links were applied atomically
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GmailBounceReconciliationApplyResult"
+        "400":
+          description: Invalid or expired reconciliation plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: A planned notice or send changed after the preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Connected Gmail could not be read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/history/{id}/bounce:
+    put:
+      operationId: linkGmailBounceToVenueOutreach
+      tags: [admin]
+      summary: Manually link a reviewed Gmail delivery notice to a venue outreach send
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkGmailBounceToVenueOutreachInput"
+      responses:
+        "200":
+          description: Gmail notice linked, or the explicitly retried bounced history cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkGmailBounceToVenueOutreachResult"
+        "400":
+          description: Invalid send ID or confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Notice was already linked, is unavailable, or the send is no longer eligible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Connected Gmail could not be read
           content:
             application/json:
               schema:
@@ -3537,6 +4113,66 @@ paths:
                 $ref: "#/components/schemas/VenueOutreachFollowUp"
         "400":
           description: Follow-up details are invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/manual-interest:
+    put:
+      operationId: updateVenueOutreachManualInterest
+      tags: [admin]
+      summary: Save a venue's manual interest classification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueOutreachManualInterestInput"
+      responses:
+        "200":
+          description: Saved manual interest classification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOutreachManualInterest"
+        "400":
+          description: Manual interest classification is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No active admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/venue-owner/outreach/manual-reply:
+    post:
+      operationId: createVenueOutreachManualReplyEvent
+      tags: [admin]
+      summary: Record or undo an admin-confirmed venue reply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueOutreachManualReplyEventInput"
+      responses:
+        "201":
+          description: Manual reply action recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOutreachManualReplyEventResult"
+        "400":
+          description: Manual reply action is invalid
           content:
             application/json:
               schema:
@@ -3646,6 +4282,58 @@ paths:
           description: Venue already claimed or admin-managed
         "503":
           description: Email delivery could not be confirmed
+
+  /admin/venue-owner/registration-draft-targets:
+    get:
+      operationId: getVenueRegistrationDraftTargets
+      tags: [admin]
+      summary: Preview the approved venue registration-draft recipients
+      responses:
+        "200":
+          description: The fixed set of venue records and their draft eligibility
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueRegistrationDraftTargetsResponse" }
+        "401":
+          description: No active admin session
+
+  /admin/venue-owner/applications/{id}/registration-draft:
+    post:
+      operationId: createVenueRegistrationDraft
+      tags: [admin]
+      summary: Create an unsent Gmail registration draft with its venue PDF
+      parameters:
+        - $ref: "#/components/parameters/VenueApplicationId"
+        - name: X-Venue-Draft-Operation
+          in: header
+          required: true
+          schema: { type: string, minLength: 36, maxLength: 36 }
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: { type: string, format: binary }
+      responses:
+        "201":
+          description: Unsent Gmail draft created; the registration URL is not returned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueRegistrationDraftResult" }
+        "202":
+          description: Draft creation outcome is uncertain; check Gmail before retrying
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueRegistrationDraftResult" }
+        "400":
+          description: Invalid PDF or operation identifier
+        "401":
+          description: No active admin session
+        "409":
+          description: Venue is not eligible or this operation is still pending
+        "413":
+          description: PDF exceeds the upload limit
+        "502":
+          description: Gmail could not create the draft
 
   /admin/venue-owner/applications/{id}/registration-link:
     post:
@@ -4117,12 +4805,25 @@ components:
       in: header
       required: true
       schema: { type: string, minLength: 1 }
+    VenueIntroProfileKey:
+      name: key
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 120
   securitySchemes:
     MetUid:
       type: apiKey
       in: header
       name: X-Met-Uid
       description: Firebase UID of the requesting user (MVP — replace with verified ID token later)
+    VenueAdminSessionCookie:
+      type: apiKey
+      in: cookie
+      name: met_venue_admin
+      description: Signed Venue Admin session cookie
   schemas:
     SavedPlace:
       type: object
@@ -4331,6 +5032,40 @@ components:
         expiresAt:
           type: string
           format: date-time
+    VenueIntroProfile:
+      type: object
+      required:
+        - key
+        - venueName
+        - coverCopy
+        - slide2Heading
+        - slide2Copy
+        - slide3Heading
+        - slide3Copy
+      properties:
+        key: { type: string, minLength: 1, maxLength: 120 }
+        venueName: { type: string, minLength: 2, maxLength: 100 }
+        coverCopy: { type: string, minLength: 2, maxLength: 240 }
+        slide2Heading: { type: string, minLength: 2, maxLength: 100 }
+        slide2Copy: { type: string, minLength: 2, maxLength: 300 }
+        slide3Heading: { type: string, minLength: 2, maxLength: 100 }
+        slide3Copy: { type: string, minLength: 2, maxLength: 300 }
+    VenueIntroProfileInput:
+      type: object
+      required:
+        - venueName
+        - coverCopy
+        - slide2Heading
+        - slide2Copy
+        - slide3Heading
+        - slide3Copy
+      properties:
+        venueName: { type: string, minLength: 2, maxLength: 100 }
+        coverCopy: { type: string, minLength: 2, maxLength: 240 }
+        slide2Heading: { type: string, minLength: 2, maxLength: 100 }
+        slide2Copy: { type: string, minLength: 2, maxLength: 300 }
+        slide3Heading: { type: string, minLength: 2, maxLength: 100 }
+        slide3Copy: { type: string, minLength: 2, maxLength: 300 }
     VenueManagerSession:
       type: object
       required: [authenticated, csrfToken, expiresAt]
@@ -4377,15 +5112,26 @@ components:
           properties:
             id: { type: string }
             builtin: { type: boolean }
+    VenuePdfAttachment:
+      type: object
+      required: [fileName, contentBase64]
+      properties:
+        fileName: { type: string, minLength: 5, maxLength: 180 }
+        contentBase64: { type: string, minLength: 8, maxLength: 8000000 }
     VenueManualEmailInput:
       type: object
       required: [templateId, businessName, recipientEmail]
       properties:
         templateId: { type: string, minLength: 1, maxLength: 150 }
+        bulkInvitation: { type: boolean, description: Replace the greeting with a generic invitation for pasted email lists. }
         businessName: { type: string, minLength: 1, maxLength: 255 }
         recipientEmail: { type: string, format: email, maxLength: 255 }
+        venueFitReason: { type: string, maxLength: 500, description: A short venue-specific reason for the invitation. }
         placeId: { type: string, maxLength: 255 }
         venueOwnerProfileId: { type: integer, minimum: 1 }
+        retryOfLogId: { type: integer, minimum: 1, description: ID of the exact bounced outreach record being retried. }
+        pdfAttachment:
+          $ref: "#/components/schemas/VenuePdfAttachment"
 
     VenueOutreachInput:
       type: object
@@ -4396,7 +5142,7 @@ components:
         placeId: { type: string, maxLength: 255 }
         template:
           type: string
-          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up, latest_updates, latest_updates_prospect]
+          enum: [contact_request, met_launch_with_links, met_launch_without_links, met_u_foot_traffic_legacy, preapproval_video_application, introduction, benefits, events, rewards, follow_up, latest_updates, latest_updates_prospect]
           default: contact_request
     VenueOutreachPreviewInput:
       type: object
@@ -4409,7 +5155,7 @@ components:
       properties:
         id:
           type: string
-          enum: [contact_request, met_launch_with_links, met_launch_without_links, preapproval_video_application, introduction, benefits, events, rewards, follow_up, latest_updates, latest_updates_prospect]
+          enum: [contact_request, met_launch_with_links, met_launch_without_links, met_u_foot_traffic_legacy, preapproval_video_application, introduction, benefits, events, rewards, follow_up, latest_updates, latest_updates_prospect]
         label: { type: string }
         description: { type: string }
         subject: { type: string }
@@ -4423,12 +5169,17 @@ components:
         - recipientEmail
         - template
         - deliveryStatus
+        - deliveryFailureStatus
+        - deliveryFailureReason
         - createdAt
         - sentAt
         - venueOwnerProfileId
         - applicationId
         - applicationStatus
         - placeId
+        - gmailRepliedAt
+        - gmailThreadId
+        - gmailReplyClassification
         - expiresAt
         - linkStatus
         - venueKey
@@ -4436,6 +5187,8 @@ components:
         - assignedAgentName
         - nextActionNote
         - nextActionDueDate
+        - manualInterestLevel
+        - manualReplyEvents
       properties:
         id: { type: string }
         kind:
@@ -4447,13 +5200,20 @@ components:
         templateName: { type: ["string", "null"] }
         deliveryStatus:
           type: string
-          enum: [sending, sent, delivery_uncertain, failed]
+          enum: [sending, sent, delivery_uncertain, failed, bounced]
+        deliveryFailureStatus: { type: ["string", "null"], maxLength: 32 }
+        deliveryFailureReason: { type: ["string", "null"], maxLength: 500 }
         createdAt: { type: string, format: date-time }
         sentAt: { type: ["string", "null"], format: date-time }
         venueOwnerProfileId: { type: ["integer", "null"] }
         applicationId: { type: ["integer", "null"] }
         applicationStatus: { type: ["string", "null"] }
         placeId: { type: ["string", "null"], maxLength: 255 }
+        gmailRepliedAt: { type: ["string", "null"], format: date-time }
+        gmailThreadId: { type: ["string", "null"] }
+        gmailReplyClassification:
+          type: ["string", "null"]
+          enum: [interested, rejected, other, uncertain, null]
         expiresAt: { type: ["string", "null"], format: date-time }
         linkStatus:
           type: string
@@ -4465,6 +5225,13 @@ components:
         nextActionDueDate:
           type: ["string", "null"]
           pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        manualInterestLevel:
+          type: ["string", "null"]
+          enum: [top_interest, interest, no_interest, null]
+        manualReplyEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/VenueOutreachManualReplyEvent"
     VenueOutreachFollowUpInput:
       type: object
       required: [venueKey, nextActionNote, nextActionDueDate]
@@ -4484,6 +5251,52 @@ components:
           type: ["string", "null"]
           pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
         updatedAt: { type: string, format: date-time }
+    VenueOutreachManualInterestInput:
+      type: object
+      required: [venueKey, manualInterestLevel]
+      properties:
+        venueKey: { type: string, minLength: 1, maxLength: 512 }
+        manualInterestLevel:
+          type: ["string", "null"]
+          enum: [top_interest, interest, no_interest, null]
+    VenueOutreachManualInterest:
+      type: object
+      required: [venueKey, manualInterestLevel, updatedAt]
+      properties:
+        venueKey: { type: string }
+        manualInterestLevel:
+          type: ["string", "null"]
+          enum: [top_interest, interest, no_interest, null]
+        updatedAt: { type: string, format: date-time }
+    VenueOutreachManualReplyEventInput:
+      type: object
+      required: [venueKey, action]
+      properties:
+        venueKey: { type: string, minLength: 1, maxLength: 512 }
+        action:
+          type: string
+          enum: [mark_replied, undo_mark]
+    VenueOutreachManualReplyEvent:
+      type: object
+      required: [id, venueKey, action, actorUid, createdAt]
+      properties:
+        id: { type: string }
+        venueKey: { type: string }
+        action:
+          type: string
+          enum: [mark_replied, undo_mark]
+        actorUid: { type: string }
+        createdAt: { type: string, format: date-time }
+    VenueOutreachManualReplyEventResult:
+      type: object
+      required: [venueKey, action, actorUid, createdAt]
+      properties:
+        venueKey: { type: string }
+        action:
+          type: string
+          enum: [mark_replied, undo_mark]
+        actorUid: { type: string }
+        createdAt: { type: string, format: date-time }
     VenueOutreachPlaceIdInput:
       type: object
       required: [placeId]
@@ -4530,12 +5343,221 @@ components:
           enum: [delivery_uncertain, audit_log_failed, preparation_failed, null]
     VenueOutreachHistoryResponse:
       type: object
-      required: [emails]
+      required: [emails, suppressedEmails]
       properties:
         emails:
           type: array
           items:
             $ref: "#/components/schemas/VenueOutreachHistoryEntry"
+        suppressedEmails:
+          type: array
+          items: { type: string, format: email }
+    VenueOutreachHistoryDeleteInput:
+      type: object
+      required: [venueKey, eventIds, confirm]
+      properties:
+        venueKey: { type: string, minLength: 1, maxLength: 512 }
+        eventIds:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items: { type: string, minLength: 1, maxLength: 64 }
+        confirm:
+          type: boolean
+          enum: [true]
+    VenueOutreachHistoryDeleteResult:
+      type: object
+      required: [venueKey, deletedEmailCount, revokedInvitationCount, message]
+      properties:
+        venueKey: { type: string }
+        deletedEmailCount: { type: integer, minimum: 1 }
+        revokedInvitationCount: { type: integer, minimum: 0 }
+        message: { type: string }
+    DeleteAdminVenueResult:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    SyncGmailVenueOutreachRepliesResult:
+      type: object
+      required: [scannedCount, matchedReplyCount, updatedSendCount, classificationPendingCount, truncated, lookbackDays]
+      properties:
+        scannedCount: { type: integer, minimum: 0 }
+        matchedReplyCount: { type: integer, minimum: 0 }
+        updatedSendCount: { type: integer, minimum: 0 }
+        classificationPendingCount: { type: integer, minimum: 0 }
+        truncated: { type: boolean }
+        lookbackDays: { type: integer, minimum: 1 }
+    ClassifyPendingVenueOutreachRepliesResult:
+      type: object
+      required: [attemptedReplyCount, classifiedReplyCount, classificationFailedCount, classificationPendingCount, deferredCount]
+      properties:
+        attemptedReplyCount: { type: integer, minimum: 0 }
+        classifiedReplyCount: { type: integer, minimum: 0 }
+        classificationFailedCount: { type: integer, minimum: 0 }
+        classificationPendingCount: { type: integer, minimum: 0 }
+        deferredCount: { type: integer, minimum: 0 }
+    VenueOutreachEmailSuppressionInput:
+      type: object
+      required: [email, suppressed]
+      properties:
+        email: { type: string, format: email, maxLength: 255 }
+        suppressed: { type: boolean }
+    VenueOutreachEmailSuppressionResult:
+      type: object
+      required: [email, suppressed]
+      properties:
+        email: { type: string, format: email }
+        suppressed: { type: boolean }
+    ClearFailedVenueOutreachInput:
+      type: object
+      required: [confirm, expectedFailedEmailCount, expectedBouncedEmailCount]
+      properties:
+        confirm: { type: boolean, enum: [true] }
+        expectedFailedEmailCount: { type: integer, minimum: 0, description: Count of failed attempts with no recorded sent time. }
+        expectedBouncedEmailCount: { type: integer, minimum: 0, description: Count of bounced attempts recorded in Venue Admin. Gmail messages are not deleted. }
+    ClearFailedVenueOutreachResult:
+      type: object
+      required: [clearedEmailCount, clearedFailedEmailCount, clearedBouncedEmailCount, removedUnusedInviteCount]
+      properties:
+        clearedEmailCount: { type: integer, minimum: 0 }
+        clearedFailedEmailCount: { type: integer, minimum: 0 }
+        clearedBouncedEmailCount: { type: integer, minimum: 0 }
+        removedUnusedInviteCount: { type: integer, minimum: 0 }
+    SyncVenueOutreachBouncesInput:
+      type: object
+      required: [confirm]
+      properties:
+        confirm: { type: boolean, enum: [true] }
+    SyncVenueOutreachBouncesResult:
+      type: object
+      required: [scannedCount, matchedCount, repeatBouncesClearedCount, ambiguousCount, unmatchedCount, noHistoryCount, unmatchedByReason, ambiguousMatches, unmatchedNotices, noHistoryNotices, reconciliationCandidateCount, reconciliationSourceToken, truncated]
+      properties:
+        scannedCount: { type: integer, minimum: 0 }
+        matchedCount: { type: integer, minimum: 0 }
+        repeatBouncesClearedCount: { type: integer, minimum: 0, description: Retried sends that bounced again and whose Venue Admin history was cleared. Gmail messages remain in Gmail. }
+        ambiguousCount: { type: integer, minimum: 0 }
+        unmatchedCount: { type: integer, minimum: 0 }
+        noHistoryCount: { type: integer, minimum: 0, description: Parsed bounce notices whose recipient has no Venue Admin outreach record. }
+        unmatchedByReason:
+          type: object
+          required: [missing_original_message_id, no_eligible_send_candidate, recipient_mismatch, multiple_recipients]
+          properties:
+            missing_original_message_id: { type: integer, minimum: 0 }
+            no_eligible_send_candidate: { type: integer, minimum: 0 }
+            recipient_mismatch: { type: integer, minimum: 0 }
+            multiple_recipients: { type: integer, minimum: 0 }
+        ambiguousMatches:
+          type: array
+          items:
+            type: object
+            required: [gmailMessageId, gmailThreadId, recipientEmail, originalSentAt, candidates]
+            properties:
+              gmailMessageId: { type: string }
+              gmailThreadId: { type: ["string", "null"] }
+              recipientEmail: { type: string, format: email }
+              originalSentAt: { type: ["string", "null"], format: date-time }
+              candidates:
+                type: array
+                items:
+                  type: object
+                  required: [id, businessName, createdAt]
+                  properties:
+                    id: { type: string }
+                    businessName: { type: string }
+                    createdAt: { type: string, format: date-time }
+        unmatchedNotices:
+          type: array
+          items:
+            type: object
+            required: [gmailMessageId, gmailThreadId, recipientEmail, originalSentAt, status, reason, matchingReason]
+            properties:
+              gmailMessageId: { type: string }
+              gmailThreadId: { type: ["string", "null"] }
+              recipientEmail: { type: string, format: email }
+              originalSentAt: { type: ["string", "null"], format: date-time }
+              status: { type: ["string", "null"] }
+              reason: { type: string, maxLength: 500 }
+              matchingReason:
+                type: string
+                enum: [missing_original_message_id, no_eligible_send_candidate, recipient_mismatch, multiple_recipients]
+        noHistoryNotices:
+          type: array
+          items:
+            type: object
+            required: [gmailMessageId, gmailThreadId, recipientEmail, originalSentAt, status, reason]
+            properties:
+              gmailMessageId: { type: string }
+              gmailThreadId: { type: ["string", "null"] }
+              recipientEmail: { type: string, format: email }
+              originalSentAt: { type: ["string", "null"], format: date-time }
+              status: { type: ["string", "null"] }
+              reason: { type: string, maxLength: 500 }
+        reconciliationCandidateCount: { type: integer, minimum: 0 }
+        reconciliationSourceToken: { type: ["string", "null"], maxLength: 1000000 }
+        truncated: { type: boolean }
+    LinkGmailBounceToVenueOutreachInput:
+      type: object
+      required: [gmailMessageId, confirm]
+      properties:
+        gmailMessageId: { type: string, minLength: 1, maxLength: 256 }
+        confirm: { type: boolean, enum: [true] }
+    GmailBounceReconciliationPreviewInput:
+      type: object
+      required: [confirm, sourceToken]
+      properties:
+        confirm: { type: boolean, enum: [true] }
+        sourceToken: { type: string, minLength: 1, maxLength: 1000000 }
+    GmailBounceReconciliationApplyInput:
+      type: object
+      required: [planToken, confirm]
+      properties:
+        planToken: { type: string, minLength: 1, maxLength: 1000000 }
+        confirm: { type: boolean, enum: [true] }
+    GmailBounceReconciliationCandidate:
+      type: object
+      required: [logId, businessName, recipientEmail, originalSentAt, sentAt]
+      properties:
+        logId: { type: string }
+        businessName: { type: string }
+        recipientEmail: { type: string, format: email }
+        originalSentAt: { type: string, format: date-time }
+        sentAt: { type: string, format: date-time }
+    GmailBounceReconciliationPreviewResult:
+      type: object
+      required: [scannedCount, verifiedCandidateCount, planToken, expiresAt, candidates]
+      properties:
+        scannedCount: { type: integer, minimum: 0 }
+        verifiedCandidateCount: { type: integer, minimum: 0 }
+        planToken: { type: string, minLength: 1, maxLength: 1000000 }
+        expiresAt: { type: string, format: date-time }
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/GmailBounceReconciliationCandidate"
+    GmailBounceReconciliationAppliedItem:
+      type: object
+      required: [logId, businessName, recipientEmail]
+      properties:
+        logId: { type: string }
+        businessName: { type: string }
+        recipientEmail: { type: string, format: email }
+    GmailBounceReconciliationApplyResult:
+      type: object
+      required: [appliedCount, applied]
+      properties:
+        appliedCount: { type: integer, minimum: 0 }
+        applied:
+          type: array
+          items:
+            $ref: "#/components/schemas/GmailBounceReconciliationAppliedItem"
+    LinkGmailBounceToVenueOutreachResult:
+      type: object
+      required: [id, gmailBounceMessageId, repeatBounceCleared]
+      properties:
+        id: { type: string }
+        gmailBounceMessageId: { type: string }
+        repeatBounceCleared: { type: boolean, description: Whether the retry and its prior bounced history were cleared from Venue Admin. Gmail messages remain in Gmail. }
     VenueContactRequestResult:
       type: object
       required: [emailSent, recipientEmail]
@@ -4595,6 +5617,35 @@ components:
         emailSent: { type: boolean }
         emailError: { type: ["string", "null"], enum: [not_configured, auth_failed, gmail_connection_failed, delivery_failed, null] }
         contactEmail: { type: ["string", "null"] }
+    VenueRegistrationDraftTarget:
+      type: object
+      required: [profileId, businessName, contactEmail, pdfFilename, eligible, ineligibilityReason]
+      properties:
+        profileId: { type: ["integer", "null"] }
+        businessName: { type: string }
+        contactEmail: { type: ["string", "null"], format: email }
+        pdfFilename: { type: string }
+        eligible: { type: boolean }
+        ineligibilityReason: { type: ["string", "null"] }
+    VenueRegistrationDraftTargetsResponse:
+      type: object
+      required: [targets]
+      properties:
+        targets:
+          type: array
+          items: { $ref: "#/components/schemas/VenueRegistrationDraftTarget" }
+    VenueRegistrationDraftResult:
+      type: object
+      required: [profileId, businessName, recipientEmail, pdfFilename, status, draftId, expiresAt, message]
+      properties:
+        profileId: { type: integer }
+        businessName: { type: string }
+        recipientEmail: { type: string, format: email }
+        pdfFilename: { type: string }
+        status: { type: string, enum: [created, already_created, uncertain, failed] }
+        draftId: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"], format: date-time }
+        message: { type: ["string", "null"] }
     VenueManagerFirebaseRegistration:
       type: object
       required: [token, idToken, displayName, acceptedTermsVersion]
@@ -5044,6 +6095,17 @@ components:
       properties:
         url: { type: string, format: uri }
         passcodeRequired: { type: boolean }
+    CommunityEventReportInput:
+      type: object
+      required: [eventId, reason]
+      properties:
+        eventId: { type: integer, minimum: 1 }
+        reason: { type: string, enum: [inappropriate, harassment, spam, offensive_image, other] }
+    CommunityEventReportResponse:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
     EventInviteResolveInput:
       type: object
       required: [token]
@@ -5350,6 +6412,8 @@ components:
         managementMode: { type: string, enum: [invite_owner, admin] }
         contactName: { type: string, maxLength: 255 }
         contactEmail: { type: string, format: email, maxLength: 255 }
+        description: { type: ["string", "null"], maxLength: 1000 }
+        venueType: { $ref: "#/components/schemas/VenueCategory" }
     AdminQuickAddVenueResponse:
       type: object
       required: [profile, emailSent, emailError]
@@ -5359,6 +6423,46 @@ components:
         emailError:
           type: ["string", "null"]
           enum: [not_configured, gmail_connection_failed, delivery_failed, null]
+    AdminOpenStreetMapAttraction:
+      type: object
+      required: [placeId, placeName, category, lat, lng, sourceUrl, alreadyAdded]
+      properties:
+        placeId: { type: string }
+        placeName: { type: string }
+        category: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        sourceUrl: { type: string, format: uri }
+        alreadyAdded: { type: boolean }
+    AdminOpenStreetMapAttractionsResponse:
+      type: object
+      required: [country, attractions, attributionUrl, source]
+      properties:
+        country: { type: string, enum: [VN, MY, LA, KH] }
+        attractions:
+          type: array
+          items: { $ref: "#/components/schemas/AdminOpenStreetMapAttraction" }
+        attributionUrl: { type: string, format: uri }
+        source: { type: string, enum: [overpass, curated_fallback] }
+    ApprovedTouristAttractionImportResult:
+      type: object
+      required: [placeId, placeName, action, photoUploaded]
+      properties:
+        placeId: { type: string }
+        placeName: { type: string }
+        action: { type: string, enum: [added, updated] }
+        photoUploaded: { type: boolean }
+    ApprovedTouristAttractionsImportResponse:
+      type: object
+      required: [total, added, updated, photosUploaded, results]
+      properties:
+        total: { type: integer }
+        added: { type: integer }
+        updated: { type: integer }
+        photosUploaded: { type: integer }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/ApprovedTouristAttractionImportResult" }
     AdminManagedVenue:
       type: object
       required: [id, placeId, placeName, businessName, qrUrl]

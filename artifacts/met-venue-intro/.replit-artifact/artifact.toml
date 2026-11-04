@@ -1,0 +1,28 @@
+kind = "slides"
+previewPath = "/met-venue-intro/"
+title = "Met Venue Introduction"
+description = "A 10-slide introduction for venue owners and managers, showing how Met helps venues get discovered, welcome real guests, build a lasting Guest Book, offer rewards, and set up QR check-ins."
+version = "1.0.0"
+id = "artifacts/met-venue-intro"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/met-venue-intro/" ]
+localPort = 18837
+
+[services.development]
+run = "pnpm --filter @workspace/met-venue-intro run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/met-venue-intro", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/met-venue-intro/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18837"
+BASE_PATH = "/met-venue-intro/"

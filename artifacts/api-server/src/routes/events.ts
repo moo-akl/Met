@@ -6,6 +6,7 @@ import {
   exists,
   gte,
   inArray,
+  isNull,
   ne,
   or,
 } from "drizzle-orm";
@@ -566,7 +567,10 @@ router.post(
             communityEventsTable.inviteTokenHash,
             hashEventInviteToken(parsed.data.token),
           ),
-          eq(communityEventsTable.visibility, "invite_only"),
+          or(
+            eq(communityEventsTable.visibility, "invite_only"),
+            eq(communityEventsTable.visibility, "public"),
+          ),
           eq(communityEventsTable.isHidden, false),
         ),
       )
@@ -638,13 +642,14 @@ router.get(
     const [event] = await db
       .select()
       .from(communityEventsTable)
-      .where(
-        and(
-          eq(communityEventsTable.id, eventId),
+      .where(and(
+        eq(communityEventsTable.id, eventId),
+        eq(communityEventsTable.isHidden, false),
+        or(
+          eq(communityEventsTable.visibility, "public"),
           eq(communityEventsTable.ownerUid, uid),
-          eq(communityEventsTable.isHidden, false),
         ),
-      )
+      ))
       .limit(1);
     if (!event) {
       res.status(404).json({ message: "Event not found" });
@@ -691,8 +696,11 @@ router.post(
       .where(
         and(
           eq(communityEventsTable.id, eventId),
-          eq(communityEventsTable.ownerUid, uid),
           eq(communityEventsTable.isHidden, false),
+          or(
+            eq(communityEventsTable.visibility, "public"),
+            eq(communityEventsTable.ownerUid, uid),
+          ),
         ),
       )
       .limit(1);
@@ -700,21 +708,63 @@ router.post(
       res.status(404).json({ message: "Event not found" });
       return;
     }
-    if (
-      event.visibility !== "invite_only" ||
-      !event.inviteTokenHash ||
-      !event.inviteTokenEncrypted
-    ) {
+    const ownerCanSharePrivateEvent =
+      event.visibility === "invite_only" &&
+      event.ownerUid === uid &&
+      Boolean(event.inviteTokenHash && event.inviteTokenEncrypted);
+    if (event.visibility === "invite_only" && !ownerCanSharePrivateEvent) {
       res.status(409).json({ message: "Invite link is disabled for this event." });
       return;
     }
     try {
-      const token = decryptEventInviteToken(event.inviteTokenEncrypted);
+      let token: string;
+      let passcodeRequired: boolean;
+      if (event.visibility === "public" && (!event.inviteTokenHash || !event.inviteTokenEncrypted)) {
+        const fields = createEventInviteLinkFields();
+        const [created] = await db
+          .update(communityEventsTable)
+          .set(fields)
+          .where(and(
+            eq(communityEventsTable.id, event.id),
+            eq(communityEventsTable.visibility, "public"),
+            eq(communityEventsTable.isHidden, false),
+            isNull(communityEventsTable.inviteTokenHash),
+          ))
+          .returning({
+            inviteTokenEncrypted: communityEventsTable.inviteTokenEncrypted,
+          });
+        const stored = created?.inviteTokenEncrypted
+          ? created
+          : (await db
+              .select({ inviteTokenEncrypted: communityEventsTable.inviteTokenEncrypted })
+              .from(communityEventsTable)
+              .where(and(
+                eq(communityEventsTable.id, event.id),
+                eq(communityEventsTable.visibility, "public"),
+                eq(communityEventsTable.isHidden, false),
+              ))
+              .limit(1))[0];
+        if (!stored?.inviteTokenEncrypted) {
+          res.status(409).json({ message: "This event can no longer be shared." });
+          return;
+        }
+        token = decryptEventInviteToken(
+          created ? fields.inviteTokenEncrypted : stored.inviteTokenEncrypted,
+        );
+        passcodeRequired = false;
+      } else {
+        if (!event.inviteTokenEncrypted) {
+          res.status(409).json({ message: "Invite link is disabled for this event." });
+          return;
+        }
+        token = decryptEventInviteToken(event.inviteTokenEncrypted);
+        passcodeRequired = Boolean(event.invitePasscodeHash);
+      }
       res.setHeader("Cache-Control", "no-store");
       res.json(
         CreateCommunityEventInviteLinkResponse.parse({
           url: buildEventInviteUrl(token),
-          passcodeRequired: Boolean(event.invitePasscodeHash),
+          passcodeRequired,
         }),
       );
     } catch (error) {
@@ -803,7 +853,11 @@ router.put(
         invitePasscodeSalt: null,
         invitePasscodeHash: null,
       };
-    } else if (!existing.inviteTokenHash || !existing.inviteTokenEncrypted) {
+    } else if (
+      !existing.inviteTokenHash ||
+      !existing.inviteTokenEncrypted ||
+      existing.visibility !== "invite_only"
+    ) {
       try {
         inviteLinkFields = createEventInviteLinkFields(invitePasscode);
       } catch (error) {
@@ -996,7 +1050,10 @@ router.post(
             communityEventsTable.inviteTokenHash,
             hashEventInviteToken(parsedBody.data.token),
           ),
-          eq(communityEventsTable.visibility, "invite_only"),
+          or(
+            eq(communityEventsTable.visibility, "invite_only"),
+            eq(communityEventsTable.visibility, "public"),
+          ),
           eq(communityEventsTable.isHidden, false),
         ),
       )

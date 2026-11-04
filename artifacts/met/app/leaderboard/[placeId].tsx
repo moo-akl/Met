@@ -33,7 +33,7 @@ function StoreDemoLeaderboard({ onClose }: { onClose: () => void }) {
         <Pressable onPress={onClose} style={demoStyles.iconButton} accessibilityLabel="Go back">
           <Feather name="arrow-left" size={20} color={light ? "#252B36" : "#F8FAFC"} />
         </Pressable>
-        <Text style={[demoStyles.topTitle, light && demoLight.ink]}>Venue leaderboard</Text>
+        <Text style={[demoStyles.topTitle, light && demoLight.ink]}>Visitors</Text>
         <Feather name="award" size={20} color={light ? "#A26921" : "#F5C45E"} />
       </View>
 
@@ -43,51 +43,16 @@ function StoreDemoLeaderboard({ onClose }: { onClose: () => void }) {
       >
         <View style={[demoStyles.demoPill, light && demoLight.demoPill]}>
           <Feather name="layers" size={11} color={light ? "#6552AD" : "#C4B5FD"} />
-          <Text style={[demoStyles.demoPillText, light && demoLight.accent]}>SAMPLE LEADERBOARD</Text>
+          <Text style={[demoStyles.demoPillText, light && demoLight.accent]}>VISITOR COMMUNITY</Text>
         </View>
         <Text style={[demoStyles.venueName, light && demoLight.ink]}>{STORE_DEMO_PLACE_NAME}</Text>
-        <Text style={[demoStyles.subtitle, light && demoLight.muted]}>This month · the community that keeps showing up</Text>
-
-        <View style={[demoStyles.rewardCard, light && demoLight.rewardCard]}>
-          <View style={[demoStyles.rewardIcon, light && demoLight.rewardIcon]}>
-            <Feather name="gift" size={20} color={light ? "#A26921" : "#F7C968"} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[demoStyles.rewardEyebrow, light && demoLight.rewardAccent]}>MONTHLY VENUE REWARD</Text>
-            <Text style={[demoStyles.rewardTitle, light && demoLight.ink]}>Coffee & pastry for two</Text>
-            <Text style={[demoStyles.rewardSub, light && demoLight.muted]}>Every visit adds to your progress</Text>
-          </View>
-          <Feather name="chevron-right" size={17} color={light ? "#797F8A" : "#94A3B8"} />
-        </View>
+        <Text style={[demoStyles.subtitle, light && demoLight.muted]}>
+          {STORE_DEMO_LEADERBOARD.length} visitors this month · Coffee & pastry for two is up for grabs
+        </Text>
 
         <View style={demoStyles.sectionRow}>
-          <Text style={[demoStyles.sectionTitle, light && demoLight.ink]}>Community standings</Text>
-          <Text style={[demoStyles.sectionHint, light && demoLight.accent]}>DEMO DATA</Text>
-        </View>
-
-        <View style={demoStyles.podium}>
-          {STORE_DEMO_LEADERBOARD.slice(0, 3).map((entry, index) => (
-            <View
-              key={entry.uid}
-              style={[
-                demoStyles.podiumPerson,
-                index === 0 ? demoStyles.podiumWinner : index === 1 ? demoStyles.podiumSecond : demoStyles.podiumThird,
-                 light && demoLight.podiumPerson,
-                 light && index === 0 && demoLight.podiumWinner,
-              ]}
-            >
-              <View style={demoStyles.podiumAvatar}>
-                <Avatar uri={entry.photoUrl} size={48} />
-                <View style={[demoStyles.medal, light && demoLight.medal, index === 0 ? demoStyles.gold : index === 1 ? demoStyles.silver : demoStyles.bronze]}>
-                  <Text style={demoStyles.medalText}>{entry.rank}</Text>
-                </View>
-              </View>
-              <Text numberOfLines={1} style={[demoStyles.podiumName, light && demoLight.ink]}>
-                {entry.displayName.split(" ")[0]}
-              </Text>
-              <Text style={[demoStyles.podiumCount, light && demoLight.muted]}>{entry.checkinCount} visits</Text>
-            </View>
-          ))}
+          <Text style={[demoStyles.sectionTitle, light && demoLight.ink]}>All visitors</Text>
+          <Text style={[demoStyles.sectionHint, light && demoLight.accent]}>{STORE_DEMO_LEADERBOARD.length} VISITORS</Text>
         </View>
 
         <View style={[demoStyles.rowsCard, light && demoLight.rowsCard]}>

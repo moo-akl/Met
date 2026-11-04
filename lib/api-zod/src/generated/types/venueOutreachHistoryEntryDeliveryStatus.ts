@@ -14,4 +14,5 @@ export const VenueOutreachHistoryEntryDeliveryStatus = {
   sent: 'sent',
   delivery_uncertain: 'delivery_uncertain',
   failed: 'failed',
+  bounced: 'bounced',
 } as const;

@@ -1,14 +1,16 @@
 import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   communityEventRsvpsTable,
   communityEventsTable,
   db,
   profilesTable,
+  venueContentReportsTable,
 } from "@workspace/db";
 import eventsRouter from "../routes/events";
+import reportsRouter from "../routes/reports";
 
 vi.mock("../middlewares/rateLimit", () => ({
   createUserRateLimiter:
@@ -21,7 +23,11 @@ vi.mock("../lib/firebaseAdmin", () => ({
   adminAuth: () => ({
     verifyIdToken: vi.fn().mockRejectedValue(new Error("not used in these tests")),
   }),
-  adminDb: { collection: vi.fn() },
+  adminDb: () => ({
+    collection: vi.fn(() => ({
+      doc: vi.fn(() => ({ create: vi.fn().mockResolvedValue(undefined) })),
+    })),
+  }),
   adminStorage: {},
 }));
 
@@ -34,6 +40,7 @@ const OTHER_UID = `${testPrefix}-other`;
 const app = express();
 app.use(express.json());
 app.use("/api", eventsRouter);
+app.use("/api", reportsRouter);
 
 function uidHeader(uid: string) {
   return { "X-Met-Uid": uid };
@@ -46,6 +53,12 @@ async function cleanup() {
     .where(eq(communityEventsTable.ownerUid, OWNER_UID));
 
   if (ownedEvents.length) {
+    await db
+      .delete(venueContentReportsTable)
+      .where(and(
+        eq(venueContentReportsTable.entityType, "community_event"),
+        inArray(venueContentReportsTable.entityId, ownedEvents.map(({ id }) => id)),
+      ));
     await db
       .delete(communityEventRsvpsTable)
       .where(inArray(communityEventRsvpsTable.eventId, ownedEvents.map(({ id }) => id)));
@@ -290,5 +303,57 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .post("/api/event-invites/resolve")
       .send({ token, passcode: "frosty7" })
       .expect(404);
+  });
+
+  it("lets guests share and report public community events", async () => {
+    const eventBody = {
+      title: "Open community gathering",
+      description: "A public event for sharing",
+      startsAt: "2030-06-02T12:00:00.000Z",
+      visibility: "public",
+      inviteeUids: [],
+    };
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send(eventBody)
+      .expect(201);
+    const eventId = created.body.id as number;
+
+    const sharedLink = await request(app)
+      .post(`/api/community-events/${eventId}/invite-link`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200);
+    expect(sharedLink.body.passcodeRequired).toBe(false);
+    const token = new URL(sharedLink.body.url as string).pathname.split("/").pop()!;
+    const resolved = await request(app)
+      .post("/api/event-invites/resolve")
+      .send({ token })
+      .expect(200);
+    expect(resolved.body).toMatchObject({
+      requiresPasscode: false,
+      event: { id: eventId, title: eventBody.title },
+    });
+
+    await request(app)
+      .post("/api/community-event-reports")
+      .set(uidHeader(OTHER_UID))
+      .send({ eventId, reason: "spam" })
+      .expect(201);
+    const [report] = await db
+      .select()
+      .from(venueContentReportsTable)
+      .where(and(
+        eq(venueContentReportsTable.entityType, "community_event"),
+        eq(venueContentReportsTable.entityId, eventId),
+        eq(venueContentReportsTable.reporterUid, OTHER_UID),
+      ))
+      .limit(1);
+    expect(report).toMatchObject({
+      entityType: "community_event",
+      entityId: eventId,
+      placeId: "community-events",
+      reason: "spam",
+    });
   });
 });

@@ -37,9 +37,9 @@ export function buildStoreDemoChat(
 ): { messages: ChatMessage[]; meta: ChatMeta } {
   const now = Date.now();
   const transcript = [
-    { from: peerUid, text: "Hey Alex, nice meeting you at Mira." },
+    { from: peerUid, text: "Hey Alex, nice meeting you at The Sunroom." },
     { from: myUid, text: "You too! I’m glad Met helped us find each other again." },
-    { from: peerUid, text: "I go there most weekends. Have you tried their new pour-over?" },
+    { from: peerUid, text: "I go there most weekends. Have you tried their new coffee flight?" },
     { from: myUid, text: "Not yet, but it’s on my list. The place has such a good feel." },
     { from: peerUid, text: "You’d love it. We should compare notes next time." },
     { from: myUid, text: "That sounds great. See you around!" },

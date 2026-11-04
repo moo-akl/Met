@@ -33,22 +33,30 @@ import type {
   AdminManagedImageUploadResponse,
   AdminManagedVenueResponse,
   AdminManagedVenueUpdate,
+  AdminOpenStreetMapAttractionsResponse,
   AdminQuickAddVenueRequest,
   AdminQuickAddVenueResponse,
   Announcement,
   AnnouncementQuestionWithAnswers,
   ApproveMemberRequest,
   ApproveNetworkMember200,
+  ApprovedTouristAttractionsImportResponse,
   BleResolveEntry,
   BleResolveRequest,
   CastVoteRequest,
+  ClassifyPendingVenueOutreachRepliesResult,
+  ClearFailedVenueOutreachInput,
+  ClearFailedVenueOutreachResult,
   CommunityEventInput,
   CommunityEventInviteLinkResponse,
   CommunityEventManageResponse,
+  CommunityEventReportInput,
+  CommunityEventReportResponse,
   CommunityEventRsvpBody,
   CreateAnnouncementRequest,
   CreateNetwork,
   CreateRevealRequest,
+  DeleteAdminVenueResult,
   DeleteAnnouncement200,
   DeleteNetwork200,
   EditAnnouncementBody,
@@ -63,6 +71,10 @@ import type {
   EventLocationSearchResponse,
   GetVenueOwnerMapPoints200,
   GetVenueOwnerMeGuestsParams,
+  GmailBounceReconciliationApplyInput,
+  GmailBounceReconciliationApplyResult,
+  GmailBounceReconciliationPreviewInput,
+  GmailBounceReconciliationPreviewResult,
   HealthStatus,
   HubCheckinInput,
   HubCheckinResult,
@@ -72,6 +84,9 @@ import type {
   JoinNetwork200,
   JoinNetworkByCode200,
   LeaveNetwork200,
+  LinkGmailBounceToVenueOutreachInput,
+  LinkGmailBounceToVenueOutreachResult,
+  ListAdminOpenStreetMapAttractionsParams,
   ListNetworksParams,
   ListVenueApplicationsParams,
   LogEncounter,
@@ -105,6 +120,9 @@ import type {
   SearchAdminVenuePlacesParams,
   SearchEventLocationsParams,
   SubmitAnswersRequest,
+  SyncGmailVenueOutreachRepliesResult,
+  SyncVenueOutreachBouncesInput,
+  SyncVenueOutreachBouncesResult,
   UpdateMemberRoleRequest,
   UpdateNetwork,
   UpdateNetworkMemberRole200,
@@ -141,6 +159,8 @@ import type {
   VenueEmailTemplate,
   VenueEmailTemplateInput,
   VenueGuestListResponse,
+  VenueIntroProfile,
+  VenueIntroProfileInput,
   VenueManagerAnnouncementInput,
   VenueManagerAnnouncementList,
   VenueManagerAnnouncementResponse,
@@ -179,10 +199,18 @@ import type {
   VenueManagerUpdateBroadcastInput,
   VenueManagerUpdateBroadcastResult,
   VenueManualEmailInput,
+  VenueOutreachEmailSuppressionInput,
+  VenueOutreachEmailSuppressionResult,
   VenueOutreachFollowUp,
   VenueOutreachFollowUpInput,
+  VenueOutreachHistoryDeleteInput,
+  VenueOutreachHistoryDeleteResult,
   VenueOutreachHistoryResponse,
   VenueOutreachInput,
+  VenueOutreachManualInterest,
+  VenueOutreachManualInterestInput,
+  VenueOutreachManualReplyEventInput,
+  VenueOutreachManualReplyEventResult,
   VenueOutreachPlaceIdInput,
   VenueOutreachPlaceIdResult,
   VenueOutreachPreviewInput,
@@ -191,6 +219,8 @@ import type {
   VenueOwnerBranchesResponse,
   VenueQrInput,
   VenueQrResult,
+  VenueRegistrationDraftResult,
+  VenueRegistrationDraftTargetsResponse,
   VenueRegistrationLinkInput,
   VenueRegistrationLinkResult
 } from './api.schemas';
@@ -5519,6 +5549,284 @@ export const useRecoverVenueAdminPassword = <TError = ErrorType<void>,
       return useMutation(getRecoverVenueAdminPasswordMutationOptions(options), queryClient);
     }
 
+export const getGetVenueIntroProfilesUrl = () => {
+
+
+
+
+  return `/api/venue-intro-profiles`
+}
+
+/**
+ * @summary List the venue profiles available for tailored introductions
+ */
+export const getVenueIntroProfiles = async ( options?: Parameters<typeof customFetch>[1]): Promise<VenueIntroProfile[]> => {
+
+  return customFetch<VenueIntroProfile[]>(getGetVenueIntroProfilesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVenueIntroProfilesQueryKey = () => {
+    return [
+    `/api/venue-intro-profiles`
+    ] as const;
+    }
+
+
+export const getGetVenueIntroProfilesQueryOptions = <TData = Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVenueIntroProfilesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVenueIntroProfiles>>> = ({ signal }) => getVenueIntroProfiles({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetVenueIntroProfilesQueryResult = NonNullable<Awaited<ReturnType<typeof getVenueIntroProfiles>>>
+export type GetVenueIntroProfilesQueryError = ErrorType<unknown>
+
+
+export function useGetVenueIntroProfiles<TData = Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueIntroProfiles>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueIntroProfiles>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueIntroProfiles<TData = Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueIntroProfiles>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueIntroProfiles>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueIntroProfiles<TData = Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List the venue profiles available for tailored introductions
+ */
+
+export function useGetVenueIntroProfiles<TData = Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueIntroProfiles>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetVenueIntroProfilesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateVenueIntroProfileUrl = () => {
+
+
+
+
+  return `/api/admin/venue-intro-profiles`
+}
+
+/**
+ * @summary Add a venue profile for tailored introductions
+ */
+export const createVenueIntroProfile = async (venueIntroProfileInput: VenueIntroProfileInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueIntroProfile> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueIntroProfile>(getCreateVenueIntroProfileUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(venueIntroProfileInput)
+  }
+);}
+
+
+
+
+
+export const getCreateVenueIntroProfileMutationKey = () => ['createVenueIntroProfile'] as const;
+
+export const getCreateVenueIntroProfileMutationOptions = <TError = ErrorType<Error | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueIntroProfile>>, TError,CreateVenueIntroProfileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVenueIntroProfile>>, TError,CreateVenueIntroProfileMutationVariables, TContext> => {
+
+const mutationKey = getCreateVenueIntroProfileMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVenueIntroProfile>>, CreateVenueIntroProfileMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createVenueIntroProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVenueIntroProfileMutationResult = NonNullable<Awaited<ReturnType<typeof createVenueIntroProfile>>>
+    export type CreateVenueIntroProfileMutationBody = BodyType<VenueIntroProfileInput>
+    export type CreateVenueIntroProfileMutationError = ErrorType<Error | void>
+    export type CreateVenueIntroProfileMutationVariables = {data: BodyType<VenueIntroProfileInput>}
+
+    /**
+ * @summary Add a venue profile for tailored introductions
+ */
+export const useCreateVenueIntroProfile = <TError = ErrorType<Error | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueIntroProfile>>, TError,CreateVenueIntroProfileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createVenueIntroProfile>>,
+        TError,
+        CreateVenueIntroProfileMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateVenueIntroProfileMutationOptions(options), queryClient);
+    }
+
+export const getUpdateVenueIntroProfileUrl = (key: string,) => {
+
+
+
+
+  return `/api/admin/venue-intro-profiles/${key}`
+}
+
+/**
+ * @summary Update a venue's tailored introduction copy
+ */
+export const updateVenueIntroProfile = async (key: string,
+    venueIntroProfileInput: VenueIntroProfileInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueIntroProfile> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueIntroProfile>(getUpdateVenueIntroProfileUrl(key),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(venueIntroProfileInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateVenueIntroProfileMutationKey = () => ['updateVenueIntroProfile'] as const;
+
+export const getUpdateVenueIntroProfileMutationOptions = <TError = ErrorType<Error | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVenueIntroProfile>>, TError,UpdateVenueIntroProfileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateVenueIntroProfile>>, TError,UpdateVenueIntroProfileMutationVariables, TContext> => {
+
+const mutationKey = getUpdateVenueIntroProfileMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateVenueIntroProfile>>, UpdateVenueIntroProfileMutationVariables> = (props) => {
+          const {key,data} = props ?? {};
+
+          return  updateVenueIntroProfile(key,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateVenueIntroProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateVenueIntroProfile>>>
+    export type UpdateVenueIntroProfileMutationBody = BodyType<VenueIntroProfileInput>
+    export type UpdateVenueIntroProfileMutationError = ErrorType<Error | void>
+    export type UpdateVenueIntroProfileMutationVariables = {key: string;data: BodyType<VenueIntroProfileInput>}
+
+    /**
+ * @summary Update a venue's tailored introduction copy
+ */
+export const useUpdateVenueIntroProfile = <TError = ErrorType<Error | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVenueIntroProfile>>, TError,UpdateVenueIntroProfileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateVenueIntroProfile>>,
+        TError,
+        UpdateVenueIntroProfileMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateVenueIntroProfileMutationOptions(options), queryClient);
+    }
+
 export const getGetVenueManagerSessionUrl = () => {
 
 
@@ -8350,7 +8658,7 @@ export const getCreateCommunityEventInviteLinkUrl = (eventId: number,) => {
 }
 
 /**
- * @summary Get the owner's shareable invite link
+ * @summary Get a shareable event link
  */
 export const createCommunityEventInviteLink = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
 
@@ -8402,7 +8710,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateCommunityEventInviteLinkMutationVariables = {eventId: number}
 
     /**
- * @summary Get the owner's shareable invite link
+ * @summary Get a shareable event link
  */
 export const useCreateCommunityEventInviteLink = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityEventInviteLink>>, TError,CreateCommunityEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -8413,6 +8721,94 @@ export const useCreateCommunityEventInviteLink = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateCommunityEventInviteLinkMutationOptions(options), queryClient);
+    }
+
+export const getReportCommunityEventUrl = () => {
+
+
+
+
+  return `/api/community-event-reports`
+}
+
+/**
+ * @summary Report a community event
+ */
+export const reportCommunityEvent = async (communityEventReportInput: CommunityEventReportInput, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventReportResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CommunityEventReportResponse>(getReportCommunityEventUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(communityEventReportInput)
+  }
+);}
+
+
+
+
+
+export const getReportCommunityEventMutationKey = () => ['reportCommunityEvent'] as const;
+
+export const getReportCommunityEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportCommunityEvent>>, TError,ReportCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportCommunityEvent>>, TError,ReportCommunityEventMutationVariables, TContext> => {
+
+const mutationKey = getReportCommunityEventMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportCommunityEvent>>, ReportCommunityEventMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  reportCommunityEvent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportCommunityEventMutationResult = NonNullable<Awaited<ReturnType<typeof reportCommunityEvent>>>
+    export type ReportCommunityEventMutationBody = BodyType<CommunityEventReportInput>
+    export type ReportCommunityEventMutationError = ErrorType<void>
+    export type ReportCommunityEventMutationVariables = {data: BodyType<CommunityEventReportInput>}
+
+    /**
+ * @summary Report a community event
+ */
+export const useReportCommunityEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportCommunityEvent>>, TError,ReportCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reportCommunityEvent>>,
+        TError,
+        ReportCommunityEventMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReportCommunityEventMutationOptions(options), queryClient);
     }
 
 export const getResolveEventInviteUrl = () => {
@@ -10512,6 +10908,336 @@ export function useSearchAdminVenuePlaces<TData = Awaited<ReturnType<typeof sear
 
 
 
+export const getListAdminOpenStreetMapAttractionsUrl = (params: ListAdminOpenStreetMapAttractionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/venue-owner/openstreetmap/attractions?${stringifiedParams}` : `/api/admin/venue-owner/openstreetmap/attractions`
+}
+
+/**
+ * @summary Find notable tourist attractions in OpenStreetMap
+ */
+export const listAdminOpenStreetMapAttractions = async (params: ListAdminOpenStreetMapAttractionsParams, options?: Parameters<typeof customFetch>[1]): Promise<AdminOpenStreetMapAttractionsResponse> => {
+
+  return customFetch<AdminOpenStreetMapAttractionsResponse>(getListAdminOpenStreetMapAttractionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminOpenStreetMapAttractionsQueryKey = (params?: ListAdminOpenStreetMapAttractionsParams,) => {
+    return [
+    `/api/admin/venue-owner/openstreetmap/attractions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAdminOpenStreetMapAttractionsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError = ErrorType<Error>>(params: ListAdminOpenStreetMapAttractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminOpenStreetMapAttractionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>> = ({ signal }) => listAdminOpenStreetMapAttractions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminOpenStreetMapAttractionsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>>
+export type ListAdminOpenStreetMapAttractionsQueryError = ErrorType<Error>
+
+
+export function useListAdminOpenStreetMapAttractions<TData = Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError = ErrorType<Error>>(
+ params: ListAdminOpenStreetMapAttractionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminOpenStreetMapAttractions<TData = Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError = ErrorType<Error>>(
+ params: ListAdminOpenStreetMapAttractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminOpenStreetMapAttractions<TData = Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError = ErrorType<Error>>(
+ params: ListAdminOpenStreetMapAttractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Find notable tourist attractions in OpenStreetMap
+ */
+
+export function useListAdminOpenStreetMapAttractions<TData = Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError = ErrorType<Error>>(
+ params: ListAdminOpenStreetMapAttractionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOpenStreetMapAttractions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminOpenStreetMapAttractionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportApprovedTouristAttractionsUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/openstreetmap/attractions/import-approved`
+}
+
+/**
+ * @summary Import the approved tourist attraction shortlist with descriptions and photos
+ */
+export const importApprovedTouristAttractions = async ( options?: Parameters<typeof customFetch>[1]): Promise<ApprovedTouristAttractionsImportResponse> => {
+
+  return customFetch<ApprovedTouristAttractionsImportResponse>(getImportApprovedTouristAttractionsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getImportApprovedTouristAttractionsMutationKey = () => ['importApprovedTouristAttractions'] as const;
+
+export const getImportApprovedTouristAttractionsMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importApprovedTouristAttractions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importApprovedTouristAttractions>>, TError,void, TContext> => {
+
+const mutationKey = getImportApprovedTouristAttractionsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importApprovedTouristAttractions>>, void> = () => {
+
+
+          return  importApprovedTouristAttractions(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportApprovedTouristAttractionsMutationResult = NonNullable<Awaited<ReturnType<typeof importApprovedTouristAttractions>>>
+
+    export type ImportApprovedTouristAttractionsMutationError = ErrorType<Error>
+
+
+    /**
+ * @summary Import the approved tourist attraction shortlist with descriptions and photos
+ */
+export const useImportApprovedTouristAttractions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importApprovedTouristAttractions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof importApprovedTouristAttractions>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getImportApprovedTouristAttractionsMutationOptions(options), queryClient);
+    }
+
+export const getImportWorldTouristAttractionsUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/tourist-attractions/import-world`
+}
+
+/**
+ * @summary Import 40 additional world tourist attractions with licensed photos
+ */
+export const importWorldTouristAttractions = async ( options?: Parameters<typeof customFetch>[1]): Promise<ApprovedTouristAttractionsImportResponse> => {
+
+  return customFetch<ApprovedTouristAttractionsImportResponse>(getImportWorldTouristAttractionsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getImportWorldTouristAttractionsMutationKey = () => ['importWorldTouristAttractions'] as const;
+
+export const getImportWorldTouristAttractionsMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importWorldTouristAttractions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importWorldTouristAttractions>>, TError,void, TContext> => {
+
+const mutationKey = getImportWorldTouristAttractionsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importWorldTouristAttractions>>, void> = () => {
+
+
+          return  importWorldTouristAttractions(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportWorldTouristAttractionsMutationResult = NonNullable<Awaited<ReturnType<typeof importWorldTouristAttractions>>>
+
+    export type ImportWorldTouristAttractionsMutationError = ErrorType<Error>
+
+
+    /**
+ * @summary Import 40 additional world tourist attractions with licensed photos
+ */
+export const useImportWorldTouristAttractions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importWorldTouristAttractions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof importWorldTouristAttractions>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getImportWorldTouristAttractionsMutationOptions(options), queryClient);
+    }
+
+export const getImportAdditionalWorldTouristAttractionsUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/tourist-attractions/import-additional-world`
+}
+
+/**
+ * @summary Import a separate second set of 40 world attractions with licensed photos
+ */
+export const importAdditionalWorldTouristAttractions = async ( options?: Parameters<typeof customFetch>[1]): Promise<ApprovedTouristAttractionsImportResponse> => {
+
+  return customFetch<ApprovedTouristAttractionsImportResponse>(getImportAdditionalWorldTouristAttractionsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getImportAdditionalWorldTouristAttractionsMutationKey = () => ['importAdditionalWorldTouristAttractions'] as const;
+
+export const getImportAdditionalWorldTouristAttractionsMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importAdditionalWorldTouristAttractions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importAdditionalWorldTouristAttractions>>, TError,void, TContext> => {
+
+const mutationKey = getImportAdditionalWorldTouristAttractionsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importAdditionalWorldTouristAttractions>>, void> = () => {
+
+
+          return  importAdditionalWorldTouristAttractions(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportAdditionalWorldTouristAttractionsMutationResult = NonNullable<Awaited<ReturnType<typeof importAdditionalWorldTouristAttractions>>>
+
+    export type ImportAdditionalWorldTouristAttractionsMutationError = ErrorType<Error>
+
+
+    /**
+ * @summary Import a separate second set of 40 world attractions with licensed photos
+ */
+export const useImportAdditionalWorldTouristAttractions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importAdditionalWorldTouristAttractions>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof importAdditionalWorldTouristAttractions>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getImportAdditionalWorldTouristAttractionsMutationOptions(options), queryClient);
+    }
+
 export const getQuickAddAdminVenueUrl = () => {
 
 
@@ -10598,6 +11324,80 @@ export const useQuickAddAdminVenue = <TError = ErrorType<Error>,
         TContext
       > => {
       return useMutation(getQuickAddAdminVenueMutationOptions(options), queryClient);
+    }
+
+export const getDeleteAdminVenueUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/venue-owner/venues/${id}`
+}
+
+/**
+ * @summary Permanently delete a venue profile and associated venue data
+ */
+export const deleteAdminVenue = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DeleteAdminVenueResult> => {
+
+  return customFetch<DeleteAdminVenueResult>(getDeleteAdminVenueUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminVenueMutationKey = () => ['deleteAdminVenue'] as const;
+
+export const getDeleteAdminVenueMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminVenue>>, TError,DeleteAdminVenueMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminVenue>>, TError,DeleteAdminVenueMutationVariables, TContext> => {
+
+const mutationKey = getDeleteAdminVenueMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminVenue>>, DeleteAdminVenueMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAdminVenue(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminVenueMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminVenue>>>
+
+    export type DeleteAdminVenueMutationError = ErrorType<void>
+    export type DeleteAdminVenueMutationVariables = {id: number}
+
+    /**
+ * @summary Permanently delete a venue profile and associated venue data
+ */
+export const useDeleteAdminVenue = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminVenue>>, TError,DeleteAdminVenueMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminVenue>>,
+        TError,
+        DeleteAdminVenueMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteAdminVenueMutationOptions(options), queryClient);
     }
 
 export const getGetAdminManagedVenueUrl = (id: number,) => {
@@ -12822,7 +13622,7 @@ export const getSendManualVenueEmailUrl = () => {
 }
 
 /**
- * @summary Send any available template to any venue regardless of application or previous delivery status
+ * @summary Send an available template, optionally linking a retry to the exact bounced outreach record
  */
 export const sendManualVenueEmail = async (venueManualEmailInput: VenueManualEmailInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueContactRequestResult> => {
 
@@ -12888,7 +13688,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SendManualVenueEmailMutationVariables = {data: BodyType<VenueManualEmailInput>}
 
     /**
- * @summary Send any available template to any venue regardless of application or previous delivery status
+ * @summary Send an available template, optionally linking a retry to the exact bounced outreach record
  */
 export const useSendManualVenueEmail = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendManualVenueEmail>>, TError,SendManualVenueEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -13001,6 +13801,771 @@ export function useGetVenueOutreachHistory<TData = Awaited<ReturnType<typeof get
 
 
 
+
+export const getDeleteVenueOutreachHistoryUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/history`
+}
+
+/**
+ * @summary Remove selected email history without deleting the venue profile
+ */
+export const deleteVenueOutreachHistory = async (venueOutreachHistoryDeleteInput: VenueOutreachHistoryDeleteInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueOutreachHistoryDeleteResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueOutreachHistoryDeleteResult>(getDeleteVenueOutreachHistoryUrl(),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(venueOutreachHistoryDeleteInput)
+  }
+);}
+
+
+
+
+
+export const getDeleteVenueOutreachHistoryMutationKey = () => ['deleteVenueOutreachHistory'] as const;
+
+export const getDeleteVenueOutreachHistoryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVenueOutreachHistory>>, TError,DeleteVenueOutreachHistoryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteVenueOutreachHistory>>, TError,DeleteVenueOutreachHistoryMutationVariables, TContext> => {
+
+const mutationKey = getDeleteVenueOutreachHistoryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteVenueOutreachHistory>>, DeleteVenueOutreachHistoryMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  deleteVenueOutreachHistory(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteVenueOutreachHistoryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteVenueOutreachHistory>>>
+    export type DeleteVenueOutreachHistoryMutationBody = BodyType<VenueOutreachHistoryDeleteInput>
+    export type DeleteVenueOutreachHistoryMutationError = ErrorType<void>
+    export type DeleteVenueOutreachHistoryMutationVariables = {data: BodyType<VenueOutreachHistoryDeleteInput>}
+
+    /**
+ * @summary Remove selected email history without deleting the venue profile
+ */
+export const useDeleteVenueOutreachHistory = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVenueOutreachHistory>>, TError,DeleteVenueOutreachHistoryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteVenueOutreachHistory>>,
+        TError,
+        DeleteVenueOutreachHistoryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteVenueOutreachHistoryMutationOptions(options), queryClient);
+    }
+
+export const getSyncGmailVenueOutreachRepliesUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/sync-gmail-replies`
+}
+
+/**
+ * @summary Match Gmail reply metadata to venue outreach sends without AI classification
+ */
+export const syncGmailVenueOutreachReplies = async ( options?: Parameters<typeof customFetch>[1]): Promise<SyncGmailVenueOutreachRepliesResult> => {
+
+  return customFetch<SyncGmailVenueOutreachRepliesResult>(getSyncGmailVenueOutreachRepliesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSyncGmailVenueOutreachRepliesMutationKey = () => ['syncGmailVenueOutreachReplies'] as const;
+
+export const getSyncGmailVenueOutreachRepliesMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncGmailVenueOutreachReplies>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncGmailVenueOutreachReplies>>, TError,void, TContext> => {
+
+const mutationKey = getSyncGmailVenueOutreachRepliesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncGmailVenueOutreachReplies>>, void> = () => {
+
+
+          return  syncGmailVenueOutreachReplies(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncGmailVenueOutreachRepliesMutationResult = NonNullable<Awaited<ReturnType<typeof syncGmailVenueOutreachReplies>>>
+
+    export type SyncGmailVenueOutreachRepliesMutationError = ErrorType<Error>
+
+
+    /**
+ * @summary Match Gmail reply metadata to venue outreach sends without AI classification
+ */
+export const useSyncGmailVenueOutreachReplies = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncGmailVenueOutreachReplies>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof syncGmailVenueOutreachReplies>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSyncGmailVenueOutreachRepliesMutationOptions(options), queryClient);
+    }
+
+export const getClassifyPendingVenueOutreachRepliesUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/classify-pending-replies`
+}
+
+/**
+ * @summary Classify pending matched Gmail replies using AI
+ */
+export const classifyPendingVenueOutreachReplies = async ( options?: Parameters<typeof customFetch>[1]): Promise<ClassifyPendingVenueOutreachRepliesResult> => {
+
+  return customFetch<ClassifyPendingVenueOutreachRepliesResult>(getClassifyPendingVenueOutreachRepliesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getClassifyPendingVenueOutreachRepliesMutationKey = () => ['classifyPendingVenueOutreachReplies'] as const;
+
+export const getClassifyPendingVenueOutreachRepliesMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifyPendingVenueOutreachReplies>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifyPendingVenueOutreachReplies>>, TError,void, TContext> => {
+
+const mutationKey = getClassifyPendingVenueOutreachRepliesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifyPendingVenueOutreachReplies>>, void> = () => {
+
+
+          return  classifyPendingVenueOutreachReplies(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifyPendingVenueOutreachRepliesMutationResult = NonNullable<Awaited<ReturnType<typeof classifyPendingVenueOutreachReplies>>>
+
+    export type ClassifyPendingVenueOutreachRepliesMutationError = ErrorType<Error>
+
+
+    /**
+ * @summary Classify pending matched Gmail replies using AI
+ */
+export const useClassifyPendingVenueOutreachReplies = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifyPendingVenueOutreachReplies>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifyPendingVenueOutreachReplies>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getClassifyPendingVenueOutreachRepliesMutationOptions(options), queryClient);
+    }
+
+export const getUpdateVenueOutreachEmailSuppressionUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/email-suppression`
+}
+
+/**
+ * @summary Block or allow future Venue Admin outreach to an email address
+ */
+export const updateVenueOutreachEmailSuppression = async (venueOutreachEmailSuppressionInput: VenueOutreachEmailSuppressionInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueOutreachEmailSuppressionResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueOutreachEmailSuppressionResult>(getUpdateVenueOutreachEmailSuppressionUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(venueOutreachEmailSuppressionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateVenueOutreachEmailSuppressionMutationKey = () => ['updateVenueOutreachEmailSuppression'] as const;
+
+export const getUpdateVenueOutreachEmailSuppressionMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVenueOutreachEmailSuppression>>, TError,UpdateVenueOutreachEmailSuppressionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateVenueOutreachEmailSuppression>>, TError,UpdateVenueOutreachEmailSuppressionMutationVariables, TContext> => {
+
+const mutationKey = getUpdateVenueOutreachEmailSuppressionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateVenueOutreachEmailSuppression>>, UpdateVenueOutreachEmailSuppressionMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateVenueOutreachEmailSuppression(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateVenueOutreachEmailSuppressionMutationResult = NonNullable<Awaited<ReturnType<typeof updateVenueOutreachEmailSuppression>>>
+    export type UpdateVenueOutreachEmailSuppressionMutationBody = BodyType<VenueOutreachEmailSuppressionInput>
+    export type UpdateVenueOutreachEmailSuppressionMutationError = ErrorType<Error>
+    export type UpdateVenueOutreachEmailSuppressionMutationVariables = {data: BodyType<VenueOutreachEmailSuppressionInput>}
+
+    /**
+ * @summary Block or allow future Venue Admin outreach to an email address
+ */
+export const useUpdateVenueOutreachEmailSuppression = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVenueOutreachEmailSuppression>>, TError,UpdateVenueOutreachEmailSuppressionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateVenueOutreachEmailSuppression>>,
+        TError,
+        UpdateVenueOutreachEmailSuppressionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateVenueOutreachEmailSuppressionMutationOptions(options), queryClient);
+    }
+
+export const getClearFailedVenueOutreachUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/failed`
+}
+
+/**
+ * @summary Remove confirmed bounced and unsent failed outreach records
+ */
+export const clearFailedVenueOutreach = async (clearFailedVenueOutreachInput: ClearFailedVenueOutreachInput, options?: Parameters<typeof customFetch>[1]): Promise<ClearFailedVenueOutreachResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ClearFailedVenueOutreachResult>(getClearFailedVenueOutreachUrl(),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(clearFailedVenueOutreachInput)
+  }
+);}
+
+
+
+
+
+export const getClearFailedVenueOutreachMutationKey = () => ['clearFailedVenueOutreach'] as const;
+
+export const getClearFailedVenueOutreachMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearFailedVenueOutreach>>, TError,ClearFailedVenueOutreachMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof clearFailedVenueOutreach>>, TError,ClearFailedVenueOutreachMutationVariables, TContext> => {
+
+const mutationKey = getClearFailedVenueOutreachMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clearFailedVenueOutreach>>, ClearFailedVenueOutreachMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  clearFailedVenueOutreach(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClearFailedVenueOutreachMutationResult = NonNullable<Awaited<ReturnType<typeof clearFailedVenueOutreach>>>
+    export type ClearFailedVenueOutreachMutationBody = BodyType<ClearFailedVenueOutreachInput>
+    export type ClearFailedVenueOutreachMutationError = ErrorType<Error>
+    export type ClearFailedVenueOutreachMutationVariables = {data: BodyType<ClearFailedVenueOutreachInput>}
+
+    /**
+ * @summary Remove confirmed bounced and unsent failed outreach records
+ */
+export const useClearFailedVenueOutreach = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearFailedVenueOutreach>>, TError,ClearFailedVenueOutreachMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof clearFailedVenueOutreach>>,
+        TError,
+        ClearFailedVenueOutreachMutationVariables,
+        TContext
+      > => {
+      return useMutation(getClearFailedVenueOutreachMutationOptions(options), queryClient);
+    }
+
+export const getSyncGmailVenueOutreachBouncesUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/sync-gmail-bounces`
+}
+
+/**
+ * @summary Match Gmail delivery failure notices and clear repeat-bounced retry history
+ */
+export const syncGmailVenueOutreachBounces = async (syncVenueOutreachBouncesInput: SyncVenueOutreachBouncesInput, options?: Parameters<typeof customFetch>[1]): Promise<SyncVenueOutreachBouncesResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SyncVenueOutreachBouncesResult>(getSyncGmailVenueOutreachBouncesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(syncVenueOutreachBouncesInput)
+  }
+);}
+
+
+
+
+
+export const getSyncGmailVenueOutreachBouncesMutationKey = () => ['syncGmailVenueOutreachBounces'] as const;
+
+export const getSyncGmailVenueOutreachBouncesMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncGmailVenueOutreachBounces>>, TError,SyncGmailVenueOutreachBouncesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncGmailVenueOutreachBounces>>, TError,SyncGmailVenueOutreachBouncesMutationVariables, TContext> => {
+
+const mutationKey = getSyncGmailVenueOutreachBouncesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncGmailVenueOutreachBounces>>, SyncGmailVenueOutreachBouncesMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  syncGmailVenueOutreachBounces(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncGmailVenueOutreachBouncesMutationResult = NonNullable<Awaited<ReturnType<typeof syncGmailVenueOutreachBounces>>>
+    export type SyncGmailVenueOutreachBouncesMutationBody = BodyType<SyncVenueOutreachBouncesInput>
+    export type SyncGmailVenueOutreachBouncesMutationError = ErrorType<Error>
+    export type SyncGmailVenueOutreachBouncesMutationVariables = {data: BodyType<SyncVenueOutreachBouncesInput>}
+
+    /**
+ * @summary Match Gmail delivery failure notices and clear repeat-bounced retry history
+ */
+export const useSyncGmailVenueOutreachBounces = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncGmailVenueOutreachBounces>>, TError,SyncGmailVenueOutreachBouncesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof syncGmailVenueOutreachBounces>>,
+        TError,
+        SyncGmailVenueOutreachBouncesMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSyncGmailVenueOutreachBouncesMutationOptions(options), queryClient);
+    }
+
+export const getPreviewGmailVenueOutreachBounceReconciliationUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/reconcile-gmail-bounces/preview`
+}
+
+/**
+ * @summary Preview verified Gmail bounce links for venue outreach
+ */
+export const previewGmailVenueOutreachBounceReconciliation = async (gmailBounceReconciliationPreviewInput: GmailBounceReconciliationPreviewInput, options?: Parameters<typeof customFetch>[1]): Promise<GmailBounceReconciliationPreviewResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GmailBounceReconciliationPreviewResult>(getPreviewGmailVenueOutreachBounceReconciliationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(gmailBounceReconciliationPreviewInput)
+  }
+);}
+
+
+
+
+
+export const getPreviewGmailVenueOutreachBounceReconciliationMutationKey = () => ['previewGmailVenueOutreachBounceReconciliation'] as const;
+
+export const getPreviewGmailVenueOutreachBounceReconciliationMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewGmailVenueOutreachBounceReconciliation>>, TError,PreviewGmailVenueOutreachBounceReconciliationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewGmailVenueOutreachBounceReconciliation>>, TError,PreviewGmailVenueOutreachBounceReconciliationMutationVariables, TContext> => {
+
+const mutationKey = getPreviewGmailVenueOutreachBounceReconciliationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewGmailVenueOutreachBounceReconciliation>>, PreviewGmailVenueOutreachBounceReconciliationMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewGmailVenueOutreachBounceReconciliation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewGmailVenueOutreachBounceReconciliationMutationResult = NonNullable<Awaited<ReturnType<typeof previewGmailVenueOutreachBounceReconciliation>>>
+    export type PreviewGmailVenueOutreachBounceReconciliationMutationBody = BodyType<GmailBounceReconciliationPreviewInput>
+    export type PreviewGmailVenueOutreachBounceReconciliationMutationError = ErrorType<Error>
+    export type PreviewGmailVenueOutreachBounceReconciliationMutationVariables = {data: BodyType<GmailBounceReconciliationPreviewInput>}
+
+    /**
+ * @summary Preview verified Gmail bounce links for venue outreach
+ */
+export const usePreviewGmailVenueOutreachBounceReconciliation = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewGmailVenueOutreachBounceReconciliation>>, TError,PreviewGmailVenueOutreachBounceReconciliationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof previewGmailVenueOutreachBounceReconciliation>>,
+        TError,
+        PreviewGmailVenueOutreachBounceReconciliationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPreviewGmailVenueOutreachBounceReconciliationMutationOptions(options), queryClient);
+    }
+
+export const getApplyGmailVenueOutreachBounceReconciliationUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/reconcile-gmail-bounces/apply`
+}
+
+/**
+ * @summary Apply an admin-confirmed Gmail bounce reconciliation preview
+ */
+export const applyGmailVenueOutreachBounceReconciliation = async (gmailBounceReconciliationApplyInput: GmailBounceReconciliationApplyInput, options?: Parameters<typeof customFetch>[1]): Promise<GmailBounceReconciliationApplyResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GmailBounceReconciliationApplyResult>(getApplyGmailVenueOutreachBounceReconciliationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(gmailBounceReconciliationApplyInput)
+  }
+);}
+
+
+
+
+
+export const getApplyGmailVenueOutreachBounceReconciliationMutationKey = () => ['applyGmailVenueOutreachBounceReconciliation'] as const;
+
+export const getApplyGmailVenueOutreachBounceReconciliationMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyGmailVenueOutreachBounceReconciliation>>, TError,ApplyGmailVenueOutreachBounceReconciliationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyGmailVenueOutreachBounceReconciliation>>, TError,ApplyGmailVenueOutreachBounceReconciliationMutationVariables, TContext> => {
+
+const mutationKey = getApplyGmailVenueOutreachBounceReconciliationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyGmailVenueOutreachBounceReconciliation>>, ApplyGmailVenueOutreachBounceReconciliationMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  applyGmailVenueOutreachBounceReconciliation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyGmailVenueOutreachBounceReconciliationMutationResult = NonNullable<Awaited<ReturnType<typeof applyGmailVenueOutreachBounceReconciliation>>>
+    export type ApplyGmailVenueOutreachBounceReconciliationMutationBody = BodyType<GmailBounceReconciliationApplyInput>
+    export type ApplyGmailVenueOutreachBounceReconciliationMutationError = ErrorType<Error>
+    export type ApplyGmailVenueOutreachBounceReconciliationMutationVariables = {data: BodyType<GmailBounceReconciliationApplyInput>}
+
+    /**
+ * @summary Apply an admin-confirmed Gmail bounce reconciliation preview
+ */
+export const useApplyGmailVenueOutreachBounceReconciliation = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyGmailVenueOutreachBounceReconciliation>>, TError,ApplyGmailVenueOutreachBounceReconciliationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof applyGmailVenueOutreachBounceReconciliation>>,
+        TError,
+        ApplyGmailVenueOutreachBounceReconciliationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApplyGmailVenueOutreachBounceReconciliationMutationOptions(options), queryClient);
+    }
+
+export const getLinkGmailBounceToVenueOutreachUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/history/${id}/bounce`
+}
+
+/**
+ * @summary Manually link a reviewed Gmail delivery notice to a venue outreach send
+ */
+export const linkGmailBounceToVenueOutreach = async (id: number,
+    linkGmailBounceToVenueOutreachInput: LinkGmailBounceToVenueOutreachInput, options?: Parameters<typeof customFetch>[1]): Promise<LinkGmailBounceToVenueOutreachResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LinkGmailBounceToVenueOutreachResult>(getLinkGmailBounceToVenueOutreachUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(linkGmailBounceToVenueOutreachInput)
+  }
+);}
+
+
+
+
+
+export const getLinkGmailBounceToVenueOutreachMutationKey = () => ['linkGmailBounceToVenueOutreach'] as const;
+
+export const getLinkGmailBounceToVenueOutreachMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkGmailBounceToVenueOutreach>>, TError,LinkGmailBounceToVenueOutreachMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkGmailBounceToVenueOutreach>>, TError,LinkGmailBounceToVenueOutreachMutationVariables, TContext> => {
+
+const mutationKey = getLinkGmailBounceToVenueOutreachMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkGmailBounceToVenueOutreach>>, LinkGmailBounceToVenueOutreachMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  linkGmailBounceToVenueOutreach(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkGmailBounceToVenueOutreachMutationResult = NonNullable<Awaited<ReturnType<typeof linkGmailBounceToVenueOutreach>>>
+    export type LinkGmailBounceToVenueOutreachMutationBody = BodyType<LinkGmailBounceToVenueOutreachInput>
+    export type LinkGmailBounceToVenueOutreachMutationError = ErrorType<Error>
+    export type LinkGmailBounceToVenueOutreachMutationVariables = {id: number;data: BodyType<LinkGmailBounceToVenueOutreachInput>}
+
+    /**
+ * @summary Manually link a reviewed Gmail delivery notice to a venue outreach send
+ */
+export const useLinkGmailBounceToVenueOutreach = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkGmailBounceToVenueOutreach>>, TError,LinkGmailBounceToVenueOutreachMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof linkGmailBounceToVenueOutreach>>,
+        TError,
+        LinkGmailBounceToVenueOutreachMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLinkGmailBounceToVenueOutreachMutationOptions(options), queryClient);
+    }
 
 export const getUpdateVenueOutreachPlaceIdUrl = (id: number,) => {
 
@@ -13177,6 +14742,182 @@ export const useUpdateVenueOutreachFollowUp = <TError = ErrorType<Error>,
         TContext
       > => {
       return useMutation(getUpdateVenueOutreachFollowUpMutationOptions(options), queryClient);
+    }
+
+export const getUpdateVenueOutreachManualInterestUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/manual-interest`
+}
+
+/**
+ * @summary Save a venue's manual interest classification
+ */
+export const updateVenueOutreachManualInterest = async (venueOutreachManualInterestInput: VenueOutreachManualInterestInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueOutreachManualInterest> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueOutreachManualInterest>(getUpdateVenueOutreachManualInterestUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(venueOutreachManualInterestInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateVenueOutreachManualInterestMutationKey = () => ['updateVenueOutreachManualInterest'] as const;
+
+export const getUpdateVenueOutreachManualInterestMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVenueOutreachManualInterest>>, TError,UpdateVenueOutreachManualInterestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateVenueOutreachManualInterest>>, TError,UpdateVenueOutreachManualInterestMutationVariables, TContext> => {
+
+const mutationKey = getUpdateVenueOutreachManualInterestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateVenueOutreachManualInterest>>, UpdateVenueOutreachManualInterestMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateVenueOutreachManualInterest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateVenueOutreachManualInterestMutationResult = NonNullable<Awaited<ReturnType<typeof updateVenueOutreachManualInterest>>>
+    export type UpdateVenueOutreachManualInterestMutationBody = BodyType<VenueOutreachManualInterestInput>
+    export type UpdateVenueOutreachManualInterestMutationError = ErrorType<Error>
+    export type UpdateVenueOutreachManualInterestMutationVariables = {data: BodyType<VenueOutreachManualInterestInput>}
+
+    /**
+ * @summary Save a venue's manual interest classification
+ */
+export const useUpdateVenueOutreachManualInterest = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVenueOutreachManualInterest>>, TError,UpdateVenueOutreachManualInterestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateVenueOutreachManualInterest>>,
+        TError,
+        UpdateVenueOutreachManualInterestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateVenueOutreachManualInterestMutationOptions(options), queryClient);
+    }
+
+export const getCreateVenueOutreachManualReplyEventUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/outreach/manual-reply`
+}
+
+/**
+ * @summary Record or undo an admin-confirmed venue reply
+ */
+export const createVenueOutreachManualReplyEvent = async (venueOutreachManualReplyEventInput: VenueOutreachManualReplyEventInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueOutreachManualReplyEventResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueOutreachManualReplyEventResult>(getCreateVenueOutreachManualReplyEventUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(venueOutreachManualReplyEventInput)
+  }
+);}
+
+
+
+
+
+export const getCreateVenueOutreachManualReplyEventMutationKey = () => ['createVenueOutreachManualReplyEvent'] as const;
+
+export const getCreateVenueOutreachManualReplyEventMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueOutreachManualReplyEvent>>, TError,CreateVenueOutreachManualReplyEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVenueOutreachManualReplyEvent>>, TError,CreateVenueOutreachManualReplyEventMutationVariables, TContext> => {
+
+const mutationKey = getCreateVenueOutreachManualReplyEventMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVenueOutreachManualReplyEvent>>, CreateVenueOutreachManualReplyEventMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createVenueOutreachManualReplyEvent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVenueOutreachManualReplyEventMutationResult = NonNullable<Awaited<ReturnType<typeof createVenueOutreachManualReplyEvent>>>
+    export type CreateVenueOutreachManualReplyEventMutationBody = BodyType<VenueOutreachManualReplyEventInput>
+    export type CreateVenueOutreachManualReplyEventMutationError = ErrorType<Error>
+    export type CreateVenueOutreachManualReplyEventMutationVariables = {data: BodyType<VenueOutreachManualReplyEventInput>}
+
+    /**
+ * @summary Record or undo an admin-confirmed venue reply
+ */
+export const useCreateVenueOutreachManualReplyEvent = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueOutreachManualReplyEvent>>, TError,CreateVenueOutreachManualReplyEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createVenueOutreachManualReplyEvent>>,
+        TError,
+        CreateVenueOutreachManualReplyEventMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateVenueOutreachManualReplyEventMutationOptions(options), queryClient);
     }
 
 export const getValidateVenueApplicationInviteUrl = () => {
@@ -13531,6 +15272,196 @@ export const useSendVenueContactRequest = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSendVenueContactRequestMutationOptions(options), queryClient);
+    }
+
+export const getGetVenueRegistrationDraftTargetsUrl = () => {
+
+
+
+
+  return `/api/admin/venue-owner/registration-draft-targets`
+}
+
+/**
+ * @summary Preview the approved venue registration-draft recipients
+ */
+export const getVenueRegistrationDraftTargets = async ( options?: Parameters<typeof customFetch>[1]): Promise<VenueRegistrationDraftTargetsResponse> => {
+
+  return customFetch<VenueRegistrationDraftTargetsResponse>(getGetVenueRegistrationDraftTargetsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVenueRegistrationDraftTargetsQueryKey = () => {
+    return [
+    `/api/admin/venue-owner/registration-draft-targets`
+    ] as const;
+    }
+
+
+export const getGetVenueRegistrationDraftTargetsQueryOptions = <TData = Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVenueRegistrationDraftTargetsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>> = ({ signal }) => getVenueRegistrationDraftTargets({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetVenueRegistrationDraftTargetsQueryResult = NonNullable<Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>>
+export type GetVenueRegistrationDraftTargetsQueryError = ErrorType<void>
+
+
+export function useGetVenueRegistrationDraftTargets<TData = Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueRegistrationDraftTargets<TData = Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueRegistrationDraftTargets<TData = Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Preview the approved venue registration-draft recipients
+ */
+
+export function useGetVenueRegistrationDraftTargets<TData = Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueRegistrationDraftTargets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetVenueRegistrationDraftTargetsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateVenueRegistrationDraftUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/venue-owner/applications/${id}/registration-draft`
+}
+
+/**
+ * @summary Create an unsent Gmail registration draft with its venue PDF
+ */
+export const createVenueRegistrationDraft = async (id: number,
+    createVenueRegistrationDraftBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<VenueRegistrationDraftResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueRegistrationDraftResult>(getCreateVenueRegistrationDraftUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/pdf', ...getHeaders(options?.headers) },
+    body: createVenueRegistrationDraftBody
+  }
+);}
+
+
+
+
+
+export const getCreateVenueRegistrationDraftMutationKey = () => ['createVenueRegistrationDraft'] as const;
+
+export const getCreateVenueRegistrationDraftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueRegistrationDraft>>, TError,CreateVenueRegistrationDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVenueRegistrationDraft>>, TError,CreateVenueRegistrationDraftMutationVariables, TContext> => {
+
+const mutationKey = getCreateVenueRegistrationDraftMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVenueRegistrationDraft>>, CreateVenueRegistrationDraftMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createVenueRegistrationDraft(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVenueRegistrationDraftMutationResult = NonNullable<Awaited<ReturnType<typeof createVenueRegistrationDraft>>>
+    export type CreateVenueRegistrationDraftMutationBody = BodyType<Blob>
+    export type CreateVenueRegistrationDraftMutationError = ErrorType<void>
+    export type CreateVenueRegistrationDraftMutationVariables = {id: number;data: BodyType<Blob>}
+
+    /**
+ * @summary Create an unsent Gmail registration draft with its venue PDF
+ */
+export const useCreateVenueRegistrationDraft = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueRegistrationDraft>>, TError,CreateVenueRegistrationDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createVenueRegistrationDraft>>,
+        TError,
+        CreateVenueRegistrationDraftMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateVenueRegistrationDraftMutationOptions(options), queryClient);
     }
 
 export const getCreateVenueRegistrationLinkUrl = (id: number,) => {

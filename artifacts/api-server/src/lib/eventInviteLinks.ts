@@ -127,7 +127,7 @@ export function verifyEventInvitePasscode(
 }
 
 export function buildEventInviteUrl(token: string): string {
-  const baseUrl = (process.env["APP_BASE_URL"] ?? "https://metapp.replit.app").replace(
+  const baseUrl = (process.env["APP_BASE_URL"] ?? "https://met-app.org").replace(
     /\/+$/,
     "",
   );

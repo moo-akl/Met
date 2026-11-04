@@ -1519,6 +1519,181 @@ export const RecoverVenueAdminPasswordResponse = zod.void()
 
 
 /**
+ * @summary List the venue profiles available for tailored introductions
+ */
+export const getVenueIntroProfilesResponseKeyMax = 120;
+
+export const getVenueIntroProfilesResponseVenueNameMin = 2;
+export const getVenueIntroProfilesResponseVenueNameMax = 100;
+
+export const getVenueIntroProfilesResponseCoverCopyMin = 2;
+export const getVenueIntroProfilesResponseCoverCopyMax = 240;
+
+export const getVenueIntroProfilesResponseSlide2HeadingMin = 2;
+export const getVenueIntroProfilesResponseSlide2HeadingMax = 100;
+
+export const getVenueIntroProfilesResponseSlide2CopyMin = 2;
+export const getVenueIntroProfilesResponseSlide2CopyMax = 300;
+
+export const getVenueIntroProfilesResponseSlide3HeadingMin = 2;
+export const getVenueIntroProfilesResponseSlide3HeadingMax = 100;
+
+export const getVenueIntroProfilesResponseSlide3CopyMin = 2;
+export const getVenueIntroProfilesResponseSlide3CopyMax = 300;
+
+
+
+export const GetVenueIntroProfilesResponseItem = zod.object({
+  "key": zod.string().min(1).max(getVenueIntroProfilesResponseKeyMax),
+  "venueName": zod.string().min(getVenueIntroProfilesResponseVenueNameMin).max(getVenueIntroProfilesResponseVenueNameMax),
+  "coverCopy": zod.string().min(getVenueIntroProfilesResponseCoverCopyMin).max(getVenueIntroProfilesResponseCoverCopyMax),
+  "slide2Heading": zod.string().min(getVenueIntroProfilesResponseSlide2HeadingMin).max(getVenueIntroProfilesResponseSlide2HeadingMax),
+  "slide2Copy": zod.string().min(getVenueIntroProfilesResponseSlide2CopyMin).max(getVenueIntroProfilesResponseSlide2CopyMax),
+  "slide3Heading": zod.string().min(getVenueIntroProfilesResponseSlide3HeadingMin).max(getVenueIntroProfilesResponseSlide3HeadingMax),
+  "slide3Copy": zod.string().min(getVenueIntroProfilesResponseSlide3CopyMin).max(getVenueIntroProfilesResponseSlide3CopyMax)
+})
+export const GetVenueIntroProfilesResponse = zod.array(GetVenueIntroProfilesResponseItem)
+
+
+/**
+ * @summary Add a venue profile for tailored introductions
+ */
+export const createVenueIntroProfileBodyVenueNameMin = 2;
+export const createVenueIntroProfileBodyVenueNameMax = 100;
+
+export const createVenueIntroProfileBodyCoverCopyMin = 2;
+export const createVenueIntroProfileBodyCoverCopyMax = 240;
+
+export const createVenueIntroProfileBodySlide2HeadingMin = 2;
+export const createVenueIntroProfileBodySlide2HeadingMax = 100;
+
+export const createVenueIntroProfileBodySlide2CopyMin = 2;
+export const createVenueIntroProfileBodySlide2CopyMax = 300;
+
+export const createVenueIntroProfileBodySlide3HeadingMin = 2;
+export const createVenueIntroProfileBodySlide3HeadingMax = 100;
+
+export const createVenueIntroProfileBodySlide3CopyMin = 2;
+export const createVenueIntroProfileBodySlide3CopyMax = 300;
+
+
+
+export const CreateVenueIntroProfileBody = zod.object({
+  "venueName": zod.string().min(createVenueIntroProfileBodyVenueNameMin).max(createVenueIntroProfileBodyVenueNameMax),
+  "coverCopy": zod.string().min(createVenueIntroProfileBodyCoverCopyMin).max(createVenueIntroProfileBodyCoverCopyMax),
+  "slide2Heading": zod.string().min(createVenueIntroProfileBodySlide2HeadingMin).max(createVenueIntroProfileBodySlide2HeadingMax),
+  "slide2Copy": zod.string().min(createVenueIntroProfileBodySlide2CopyMin).max(createVenueIntroProfileBodySlide2CopyMax),
+  "slide3Heading": zod.string().min(createVenueIntroProfileBodySlide3HeadingMin).max(createVenueIntroProfileBodySlide3HeadingMax),
+  "slide3Copy": zod.string().min(createVenueIntroProfileBodySlide3CopyMin).max(createVenueIntroProfileBodySlide3CopyMax)
+})
+
+export const createVenueIntroProfileResponseKeyMax = 120;
+
+export const createVenueIntroProfileResponseVenueNameMin = 2;
+export const createVenueIntroProfileResponseVenueNameMax = 100;
+
+export const createVenueIntroProfileResponseCoverCopyMin = 2;
+export const createVenueIntroProfileResponseCoverCopyMax = 240;
+
+export const createVenueIntroProfileResponseSlide2HeadingMin = 2;
+export const createVenueIntroProfileResponseSlide2HeadingMax = 100;
+
+export const createVenueIntroProfileResponseSlide2CopyMin = 2;
+export const createVenueIntroProfileResponseSlide2CopyMax = 300;
+
+export const createVenueIntroProfileResponseSlide3HeadingMin = 2;
+export const createVenueIntroProfileResponseSlide3HeadingMax = 100;
+
+export const createVenueIntroProfileResponseSlide3CopyMin = 2;
+export const createVenueIntroProfileResponseSlide3CopyMax = 300;
+
+
+
+export const CreateVenueIntroProfileResponse = zod.object({
+  "key": zod.string().min(1).max(createVenueIntroProfileResponseKeyMax),
+  "venueName": zod.string().min(createVenueIntroProfileResponseVenueNameMin).max(createVenueIntroProfileResponseVenueNameMax),
+  "coverCopy": zod.string().min(createVenueIntroProfileResponseCoverCopyMin).max(createVenueIntroProfileResponseCoverCopyMax),
+  "slide2Heading": zod.string().min(createVenueIntroProfileResponseSlide2HeadingMin).max(createVenueIntroProfileResponseSlide2HeadingMax),
+  "slide2Copy": zod.string().min(createVenueIntroProfileResponseSlide2CopyMin).max(createVenueIntroProfileResponseSlide2CopyMax),
+  "slide3Heading": zod.string().min(createVenueIntroProfileResponseSlide3HeadingMin).max(createVenueIntroProfileResponseSlide3HeadingMax),
+  "slide3Copy": zod.string().min(createVenueIntroProfileResponseSlide3CopyMin).max(createVenueIntroProfileResponseSlide3CopyMax)
+})
+
+
+/**
+ * @summary Update a venue's tailored introduction copy
+ */
+export const updateVenueIntroProfilePathKeyMax = 120;
+
+
+
+export const UpdateVenueIntroProfileParams = zod.object({
+  "key": zod.coerce.string().min(1).max(updateVenueIntroProfilePathKeyMax)
+})
+
+export const updateVenueIntroProfileBodyVenueNameMin = 2;
+export const updateVenueIntroProfileBodyVenueNameMax = 100;
+
+export const updateVenueIntroProfileBodyCoverCopyMin = 2;
+export const updateVenueIntroProfileBodyCoverCopyMax = 240;
+
+export const updateVenueIntroProfileBodySlide2HeadingMin = 2;
+export const updateVenueIntroProfileBodySlide2HeadingMax = 100;
+
+export const updateVenueIntroProfileBodySlide2CopyMin = 2;
+export const updateVenueIntroProfileBodySlide2CopyMax = 300;
+
+export const updateVenueIntroProfileBodySlide3HeadingMin = 2;
+export const updateVenueIntroProfileBodySlide3HeadingMax = 100;
+
+export const updateVenueIntroProfileBodySlide3CopyMin = 2;
+export const updateVenueIntroProfileBodySlide3CopyMax = 300;
+
+
+
+export const UpdateVenueIntroProfileBody = zod.object({
+  "venueName": zod.string().min(updateVenueIntroProfileBodyVenueNameMin).max(updateVenueIntroProfileBodyVenueNameMax),
+  "coverCopy": zod.string().min(updateVenueIntroProfileBodyCoverCopyMin).max(updateVenueIntroProfileBodyCoverCopyMax),
+  "slide2Heading": zod.string().min(updateVenueIntroProfileBodySlide2HeadingMin).max(updateVenueIntroProfileBodySlide2HeadingMax),
+  "slide2Copy": zod.string().min(updateVenueIntroProfileBodySlide2CopyMin).max(updateVenueIntroProfileBodySlide2CopyMax),
+  "slide3Heading": zod.string().min(updateVenueIntroProfileBodySlide3HeadingMin).max(updateVenueIntroProfileBodySlide3HeadingMax),
+  "slide3Copy": zod.string().min(updateVenueIntroProfileBodySlide3CopyMin).max(updateVenueIntroProfileBodySlide3CopyMax)
+})
+
+export const updateVenueIntroProfileResponseKeyMax = 120;
+
+export const updateVenueIntroProfileResponseVenueNameMin = 2;
+export const updateVenueIntroProfileResponseVenueNameMax = 100;
+
+export const updateVenueIntroProfileResponseCoverCopyMin = 2;
+export const updateVenueIntroProfileResponseCoverCopyMax = 240;
+
+export const updateVenueIntroProfileResponseSlide2HeadingMin = 2;
+export const updateVenueIntroProfileResponseSlide2HeadingMax = 100;
+
+export const updateVenueIntroProfileResponseSlide2CopyMin = 2;
+export const updateVenueIntroProfileResponseSlide2CopyMax = 300;
+
+export const updateVenueIntroProfileResponseSlide3HeadingMin = 2;
+export const updateVenueIntroProfileResponseSlide3HeadingMax = 100;
+
+export const updateVenueIntroProfileResponseSlide3CopyMin = 2;
+export const updateVenueIntroProfileResponseSlide3CopyMax = 300;
+
+
+
+export const UpdateVenueIntroProfileResponse = zod.object({
+  "key": zod.string().min(1).max(updateVenueIntroProfileResponseKeyMax),
+  "venueName": zod.string().min(updateVenueIntroProfileResponseVenueNameMin).max(updateVenueIntroProfileResponseVenueNameMax),
+  "coverCopy": zod.string().min(updateVenueIntroProfileResponseCoverCopyMin).max(updateVenueIntroProfileResponseCoverCopyMax),
+  "slide2Heading": zod.string().min(updateVenueIntroProfileResponseSlide2HeadingMin).max(updateVenueIntroProfileResponseSlide2HeadingMax),
+  "slide2Copy": zod.string().min(updateVenueIntroProfileResponseSlide2CopyMin).max(updateVenueIntroProfileResponseSlide2CopyMax),
+  "slide3Heading": zod.string().min(updateVenueIntroProfileResponseSlide3HeadingMin).max(updateVenueIntroProfileResponseSlide3HeadingMax),
+  "slide3Copy": zod.string().min(updateVenueIntroProfileResponseSlide3CopyMin).max(updateVenueIntroProfileResponseSlide3CopyMax)
+})
+
+
+/**
  * @summary Check the current venue manager session
  */
 export const GetVenueManagerSessionResponse = zod.object({
@@ -3706,7 +3881,7 @@ export const GetCommunityEventForEditResponse = zod.object({
 
 
 /**
- * @summary Get the owner's shareable invite link
+ * @summary Get a shareable event link
  */
 export const CreateCommunityEventInviteLinkParams = zod.object({
   "eventId": zod.coerce.number().int()
@@ -3715,6 +3890,22 @@ export const CreateCommunityEventInviteLinkParams = zod.object({
 export const CreateCommunityEventInviteLinkResponse = zod.object({
   "url": zod.string().url(),
   "passcodeRequired": zod.boolean()
+})
+
+
+/**
+ * @summary Report a community event
+ */
+
+
+
+export const ReportCommunityEventBody = zod.object({
+  "eventId": zod.number().int().min(1),
+  "reason": zod.enum(['inappropriate', 'harassment', 'spam', 'offensive_image', 'other'])
+})
+
+export const ReportCommunityEventResponse = zod.object({
+  "id": zod.string()
 })
 
 
@@ -4640,6 +4831,80 @@ export const SearchAdminVenuePlacesResponse = zod.object({
 
 
 /**
+ * @summary Find notable tourist attractions in OpenStreetMap
+ */
+export const ListAdminOpenStreetMapAttractionsQueryParams = zod.object({
+  "country": zod.enum(['VN', 'MY', 'LA', 'KH'])
+})
+
+export const ListAdminOpenStreetMapAttractionsResponse = zod.object({
+  "country": zod.enum(['VN', 'MY', 'LA', 'KH']),
+  "attractions": zod.array(zod.object({
+  "placeId": zod.string(),
+  "placeName": zod.string(),
+  "category": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "sourceUrl": zod.string().url(),
+  "alreadyAdded": zod.boolean()
+})),
+  "attributionUrl": zod.string().url(),
+  "source": zod.enum(['overpass', 'curated_fallback'])
+})
+
+
+/**
+ * @summary Import the approved tourist attraction shortlist with descriptions and photos
+ */
+export const ImportApprovedTouristAttractionsResponse = zod.object({
+  "total": zod.number().int(),
+  "added": zod.number().int(),
+  "updated": zod.number().int(),
+  "photosUploaded": zod.number().int(),
+  "results": zod.array(zod.object({
+  "placeId": zod.string(),
+  "placeName": zod.string(),
+  "action": zod.enum(['added', 'updated']),
+  "photoUploaded": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Import 40 additional world tourist attractions with licensed photos
+ */
+export const ImportWorldTouristAttractionsResponse = zod.object({
+  "total": zod.number().int(),
+  "added": zod.number().int(),
+  "updated": zod.number().int(),
+  "photosUploaded": zod.number().int(),
+  "results": zod.array(zod.object({
+  "placeId": zod.string(),
+  "placeName": zod.string(),
+  "action": zod.enum(['added', 'updated']),
+  "photoUploaded": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Import a separate second set of 40 world attractions with licensed photos
+ */
+export const ImportAdditionalWorldTouristAttractionsResponse = zod.object({
+  "total": zod.number().int(),
+  "added": zod.number().int(),
+  "updated": zod.number().int(),
+  "photosUploaded": zod.number().int(),
+  "results": zod.array(zod.object({
+  "placeId": zod.string(),
+  "placeName": zod.string(),
+  "action": zod.enum(['added', 'updated']),
+  "photoUploaded": zod.boolean()
+}))
+})
+
+
+/**
  * @summary Add an approved venue with either an owner invitation or direct admin management
  */
 export const quickAddAdminVenueBodyPlaceIdMax = 255;
@@ -4658,6 +4923,8 @@ export const quickAddAdminVenueBodyContactNameMax = 255;
 
 export const quickAddAdminVenueBodyContactEmailMax = 255;
 
+export const quickAddAdminVenueBodyDescriptionMax = 1000;
+
 
 
 export const QuickAddAdminVenueBody = zod.object({
@@ -4668,7 +4935,9 @@ export const QuickAddAdminVenueBody = zod.object({
   "lng": zod.number().min(quickAddAdminVenueBodyLngMin).max(quickAddAdminVenueBodyLngMax),
   "managementMode": zod.enum(['invite_owner', 'admin']),
   "contactName": zod.string().max(quickAddAdminVenueBodyContactNameMax).optional(),
-  "contactEmail": zod.string().email().max(quickAddAdminVenueBodyContactEmailMax).optional()
+  "contactEmail": zod.string().email().max(quickAddAdminVenueBodyContactEmailMax).optional(),
+  "description": zod.string().max(quickAddAdminVenueBodyDescriptionMax).nullish(),
+  "venueType": zod.enum(['restaurant', 'cafe', 'bar', 'shopping', 'outdoors', 'culture', 'fitness', 'education', 'transit', 'lodging', 'other']).optional()
 })
 
 export const QuickAddAdminVenueResponse = zod.object({
@@ -4704,6 +4973,21 @@ export const QuickAddAdminVenueResponse = zod.object({
 }),
   "emailSent": zod.boolean(),
   "emailError": zod.union([zod.literal('not_configured'),zod.literal('gmail_connection_failed'),zod.literal('delivery_failed'),zod.literal(null)]).nullable()
+})
+
+
+/**
+ * @summary Permanently delete a venue profile and associated venue data
+ */
+
+
+
+export const DeleteAdminVenueParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteAdminVenueResponse = zod.object({
+  "message": zod.string()
 })
 
 
@@ -5344,7 +5628,7 @@ export const SendNewVenueOutreachBody = zod.object({
   "businessName": zod.string().min(sendNewVenueOutreachBodyBusinessNameMin).max(sendNewVenueOutreachBodyBusinessNameMax),
   "recipientEmail": zod.string().email().max(sendNewVenueOutreachBodyRecipientEmailMax),
   "placeId": zod.string().max(sendNewVenueOutreachBodyPlaceIdMax).optional(),
-  "template": zod.enum(['contact_request', 'met_launch_with_links', 'met_launch_without_links', 'preapproval_video_application', 'introduction', 'benefits', 'events', 'rewards', 'follow_up', 'latest_updates', 'latest_updates_prospect']).default(sendNewVenueOutreachBodyTemplateDefault)
+  "template": zod.enum(['contact_request', 'met_launch_with_links', 'met_launch_without_links', 'met_u_foot_traffic_legacy', 'preapproval_video_application', 'introduction', 'benefits', 'events', 'rewards', 'follow_up', 'latest_updates', 'latest_updates_prospect']).default(sendNewVenueOutreachBodyTemplateDefault)
 })
 
 export const SendNewVenueOutreachResponse = zod.object({
@@ -5527,7 +5811,7 @@ export const DeleteVenueEmailTemplateResponse = zod.void()
 
 
 /**
- * @summary Send any available template to any venue regardless of application or previous delivery status
+ * @summary Send an available template, optionally linking a retry to the exact bounced outreach record
  */
 export const sendManualVenueEmailBodyTemplateIdMax = 150;
 
@@ -5535,17 +5819,33 @@ export const sendManualVenueEmailBodyBusinessNameMax = 255;
 
 export const sendManualVenueEmailBodyRecipientEmailMax = 255;
 
+export const sendManualVenueEmailBodyVenueFitReasonMax = 500;
+
 export const sendManualVenueEmailBodyPlaceIdMax = 255;
 
+
+
+export const sendManualVenueEmailBodyPdfAttachmentFileNameMin = 5;
+export const sendManualVenueEmailBodyPdfAttachmentFileNameMax = 180;
+
+export const sendManualVenueEmailBodyPdfAttachmentContentBase64Min = 8;
+export const sendManualVenueEmailBodyPdfAttachmentContentBase64Max = 8000000;
 
 
 
 export const SendManualVenueEmailBody = zod.object({
   "templateId": zod.string().min(1).max(sendManualVenueEmailBodyTemplateIdMax),
+  "bulkInvitation": zod.boolean().optional().describe('Replace the greeting with a generic invitation for pasted email lists.'),
   "businessName": zod.string().min(1).max(sendManualVenueEmailBodyBusinessNameMax),
   "recipientEmail": zod.string().email().max(sendManualVenueEmailBodyRecipientEmailMax),
+  "venueFitReason": zod.string().max(sendManualVenueEmailBodyVenueFitReasonMax).optional().describe('A short venue-specific reason for the invitation.'),
   "placeId": zod.string().max(sendManualVenueEmailBodyPlaceIdMax).optional(),
-  "venueOwnerProfileId": zod.number().int().min(1).optional()
+  "venueOwnerProfileId": zod.number().int().min(1).optional(),
+  "retryOfLogId": zod.number().int().min(1).optional().describe('ID of the exact bounced outreach record being retried.'),
+  "pdfAttachment": zod.object({
+  "fileName": zod.string().min(sendManualVenueEmailBodyPdfAttachmentFileNameMin).max(sendManualVenueEmailBodyPdfAttachmentFileNameMax),
+  "contentBase64": zod.string().min(sendManualVenueEmailBodyPdfAttachmentContentBase64Min).max(sendManualVenueEmailBodyPdfAttachmentContentBase64Max)
+}).optional()
 })
 
 export const SendManualVenueEmailResponse = zod.object({
@@ -5557,6 +5857,10 @@ export const SendManualVenueEmailResponse = zod.object({
 /**
  * @summary List outreach emails and owner invitations sent to venues
  */
+export const getVenueOutreachHistoryResponseEmailsItemDeliveryFailureStatusMax = 32;
+
+export const getVenueOutreachHistoryResponseEmailsItemDeliveryFailureReasonMax = 500;
+
 export const getVenueOutreachHistoryResponseEmailsItemPlaceIdMax = 255;
 
 export const getVenueOutreachHistoryResponseEmailsItemNextActionDueDateRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
@@ -5570,21 +5874,335 @@ export const GetVenueOutreachHistoryResponse = zod.object({
   "recipientEmail": zod.string().email(),
   "template": zod.string(),
   "templateName": zod.string().nullish(),
-  "deliveryStatus": zod.enum(['sending', 'sent', 'delivery_uncertain', 'failed']),
+  "deliveryStatus": zod.enum(['sending', 'sent', 'delivery_uncertain', 'failed', 'bounced']),
+  "deliveryFailureStatus": zod.string().max(getVenueOutreachHistoryResponseEmailsItemDeliveryFailureStatusMax).nullable(),
+  "deliveryFailureReason": zod.string().max(getVenueOutreachHistoryResponseEmailsItemDeliveryFailureReasonMax).nullable(),
   "createdAt": zod.coerce.date(),
   "sentAt": zod.coerce.date().nullable(),
   "venueOwnerProfileId": zod.number().int().nullable(),
   "applicationId": zod.number().int().nullable(),
   "applicationStatus": zod.string().nullable(),
   "placeId": zod.string().max(getVenueOutreachHistoryResponseEmailsItemPlaceIdMax).nullable(),
+  "gmailRepliedAt": zod.coerce.date().nullable(),
+  "gmailThreadId": zod.string().nullable(),
+  "gmailReplyClassification": zod.union([zod.literal('interested'),zod.literal('rejected'),zod.literal('other'),zod.literal('uncertain'),zod.literal(null)]).nullable(),
   "expiresAt": zod.coerce.date().nullable(),
   "linkStatus": zod.enum(['none', 'active', 'expired', 'used', 'superseded', 'unknown']),
   "venueKey": zod.string(),
   "assignedAgentId": zod.number().int().nullable(),
   "assignedAgentName": zod.string().nullable(),
   "nextActionNote": zod.string().nullable(),
-  "nextActionDueDate": zod.string().regex(getVenueOutreachHistoryResponseEmailsItemNextActionDueDateRegExp).nullable()
+  "nextActionDueDate": zod.string().regex(getVenueOutreachHistoryResponseEmailsItemNextActionDueDateRegExp).nullable(),
+  "manualInterestLevel": zod.union([zod.literal('top_interest'),zod.literal('interest'),zod.literal('no_interest'),zod.literal(null)]).nullable(),
+  "manualReplyEvents": zod.array(zod.object({
+  "id": zod.string(),
+  "venueKey": zod.string(),
+  "action": zod.enum(['mark_replied', 'undo_mark']),
+  "actorUid": zod.string(),
+  "createdAt": zod.coerce.date()
 }))
+})),
+  "suppressedEmails": zod.array(zod.string().email())
+})
+
+
+/**
+ * @summary Remove selected email history without deleting the venue profile
+ */
+export const deleteVenueOutreachHistoryBodyVenueKeyMax = 512;
+
+export const deleteVenueOutreachHistoryBodyEventIdsItemMax = 64;
+
+export const deleteVenueOutreachHistoryBodyEventIdsMax = 5000;
+
+
+
+export const DeleteVenueOutreachHistoryBody = zod.object({
+  "venueKey": zod.string().min(1).max(deleteVenueOutreachHistoryBodyVenueKeyMax),
+  "eventIds": zod.array(zod.string().min(1).max(deleteVenueOutreachHistoryBodyEventIdsItemMax)).min(1).max(deleteVenueOutreachHistoryBodyEventIdsMax),
+  "confirm": zod.literal(true)
+})
+
+
+export const deleteVenueOutreachHistoryResponseRevokedInvitationCountMin = 0;
+
+
+
+export const DeleteVenueOutreachHistoryResponse = zod.object({
+  "venueKey": zod.string(),
+  "deletedEmailCount": zod.number().int().min(1),
+  "revokedInvitationCount": zod.number().int().min(deleteVenueOutreachHistoryResponseRevokedInvitationCountMin),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Match Gmail reply metadata to venue outreach sends without AI classification
+ */
+export const syncGmailVenueOutreachRepliesResponseScannedCountMin = 0;
+
+export const syncGmailVenueOutreachRepliesResponseMatchedReplyCountMin = 0;
+
+export const syncGmailVenueOutreachRepliesResponseUpdatedSendCountMin = 0;
+
+export const syncGmailVenueOutreachRepliesResponseClassificationPendingCountMin = 0;
+
+
+
+
+export const SyncGmailVenueOutreachRepliesResponse = zod.object({
+  "scannedCount": zod.number().int().min(syncGmailVenueOutreachRepliesResponseScannedCountMin),
+  "matchedReplyCount": zod.number().int().min(syncGmailVenueOutreachRepliesResponseMatchedReplyCountMin),
+  "updatedSendCount": zod.number().int().min(syncGmailVenueOutreachRepliesResponseUpdatedSendCountMin),
+  "classificationPendingCount": zod.number().int().min(syncGmailVenueOutreachRepliesResponseClassificationPendingCountMin),
+  "truncated": zod.boolean(),
+  "lookbackDays": zod.number().int().min(1)
+})
+
+
+/**
+ * @summary Classify pending matched Gmail replies using AI
+ */
+export const classifyPendingVenueOutreachRepliesResponseAttemptedReplyCountMin = 0;
+
+export const classifyPendingVenueOutreachRepliesResponseClassifiedReplyCountMin = 0;
+
+export const classifyPendingVenueOutreachRepliesResponseClassificationFailedCountMin = 0;
+
+export const classifyPendingVenueOutreachRepliesResponseClassificationPendingCountMin = 0;
+
+export const classifyPendingVenueOutreachRepliesResponseDeferredCountMin = 0;
+
+
+
+export const ClassifyPendingVenueOutreachRepliesResponse = zod.object({
+  "attemptedReplyCount": zod.number().int().min(classifyPendingVenueOutreachRepliesResponseAttemptedReplyCountMin),
+  "classifiedReplyCount": zod.number().int().min(classifyPendingVenueOutreachRepliesResponseClassifiedReplyCountMin),
+  "classificationFailedCount": zod.number().int().min(classifyPendingVenueOutreachRepliesResponseClassificationFailedCountMin),
+  "classificationPendingCount": zod.number().int().min(classifyPendingVenueOutreachRepliesResponseClassificationPendingCountMin),
+  "deferredCount": zod.number().int().min(classifyPendingVenueOutreachRepliesResponseDeferredCountMin)
+})
+
+
+/**
+ * @summary Block or allow future Venue Admin outreach to an email address
+ */
+export const updateVenueOutreachEmailSuppressionBodyEmailMax = 255;
+
+
+
+export const UpdateVenueOutreachEmailSuppressionBody = zod.object({
+  "email": zod.string().email().max(updateVenueOutreachEmailSuppressionBodyEmailMax),
+  "suppressed": zod.boolean()
+})
+
+export const UpdateVenueOutreachEmailSuppressionResponse = zod.object({
+  "email": zod.string().email(),
+  "suppressed": zod.boolean()
+})
+
+
+/**
+ * @summary Remove confirmed bounced and unsent failed outreach records
+ */
+export const clearFailedVenueOutreachBodyExpectedFailedEmailCountMin = 0;
+
+export const clearFailedVenueOutreachBodyExpectedBouncedEmailCountMin = 0;
+
+
+
+export const ClearFailedVenueOutreachBody = zod.object({
+  "confirm": zod.literal(true),
+  "expectedFailedEmailCount": zod.number().int().min(clearFailedVenueOutreachBodyExpectedFailedEmailCountMin).describe('Count of failed attempts with no recorded sent time.'),
+  "expectedBouncedEmailCount": zod.number().int().min(clearFailedVenueOutreachBodyExpectedBouncedEmailCountMin).describe('Count of bounced attempts recorded in Venue Admin. Gmail messages are not deleted.')
+})
+
+export const clearFailedVenueOutreachResponseClearedEmailCountMin = 0;
+
+export const clearFailedVenueOutreachResponseClearedFailedEmailCountMin = 0;
+
+export const clearFailedVenueOutreachResponseClearedBouncedEmailCountMin = 0;
+
+export const clearFailedVenueOutreachResponseRemovedUnusedInviteCountMin = 0;
+
+
+
+export const ClearFailedVenueOutreachResponse = zod.object({
+  "clearedEmailCount": zod.number().int().min(clearFailedVenueOutreachResponseClearedEmailCountMin),
+  "clearedFailedEmailCount": zod.number().int().min(clearFailedVenueOutreachResponseClearedFailedEmailCountMin),
+  "clearedBouncedEmailCount": zod.number().int().min(clearFailedVenueOutreachResponseClearedBouncedEmailCountMin),
+  "removedUnusedInviteCount": zod.number().int().min(clearFailedVenueOutreachResponseRemovedUnusedInviteCountMin)
+})
+
+
+/**
+ * @summary Match Gmail delivery failure notices and clear repeat-bounced retry history
+ */
+export const SyncGmailVenueOutreachBouncesBody = zod.object({
+  "confirm": zod.literal(true)
+})
+
+export const syncGmailVenueOutreachBouncesResponseScannedCountMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseMatchedCountMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseRepeatBouncesClearedCountMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseAmbiguousCountMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseUnmatchedCountMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseNoHistoryCountMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseUnmatchedByReasonMissingOriginalMessageIdMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseUnmatchedByReasonNoEligibleSendCandidateMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseUnmatchedByReasonRecipientMismatchMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseUnmatchedByReasonMultipleRecipientsMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseUnmatchedNoticesItemReasonMax = 500;
+
+export const syncGmailVenueOutreachBouncesResponseNoHistoryNoticesItemReasonMax = 500;
+
+export const syncGmailVenueOutreachBouncesResponseReconciliationCandidateCountMin = 0;
+
+export const syncGmailVenueOutreachBouncesResponseReconciliationSourceTokenMax = 1000000;
+
+
+
+export const SyncGmailVenueOutreachBouncesResponse = zod.object({
+  "scannedCount": zod.number().int().min(syncGmailVenueOutreachBouncesResponseScannedCountMin),
+  "matchedCount": zod.number().int().min(syncGmailVenueOutreachBouncesResponseMatchedCountMin),
+  "repeatBouncesClearedCount": zod.number().int().min(syncGmailVenueOutreachBouncesResponseRepeatBouncesClearedCountMin).describe('Retried sends that bounced again and whose Venue Admin history was cleared. Gmail messages remain in Gmail.'),
+  "ambiguousCount": zod.number().int().min(syncGmailVenueOutreachBouncesResponseAmbiguousCountMin),
+  "unmatchedCount": zod.number().int().min(syncGmailVenueOutreachBouncesResponseUnmatchedCountMin),
+  "noHistoryCount": zod.number().int().min(syncGmailVenueOutreachBouncesResponseNoHistoryCountMin).describe('Parsed bounce notices whose recipient has no Venue Admin outreach record.'),
+  "unmatchedByReason": zod.object({
+  "missing_original_message_id": zod.number().int().min(syncGmailVenueOutreachBouncesResponseUnmatchedByReasonMissingOriginalMessageIdMin),
+  "no_eligible_send_candidate": zod.number().int().min(syncGmailVenueOutreachBouncesResponseUnmatchedByReasonNoEligibleSendCandidateMin),
+  "recipient_mismatch": zod.number().int().min(syncGmailVenueOutreachBouncesResponseUnmatchedByReasonRecipientMismatchMin),
+  "multiple_recipients": zod.number().int().min(syncGmailVenueOutreachBouncesResponseUnmatchedByReasonMultipleRecipientsMin)
+}),
+  "ambiguousMatches": zod.array(zod.object({
+  "gmailMessageId": zod.string(),
+  "gmailThreadId": zod.string().nullable(),
+  "recipientEmail": zod.string().email(),
+  "originalSentAt": zod.coerce.date().nullable(),
+  "candidates": zod.array(zod.object({
+  "id": zod.string(),
+  "businessName": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+})),
+  "unmatchedNotices": zod.array(zod.object({
+  "gmailMessageId": zod.string(),
+  "gmailThreadId": zod.string().nullable(),
+  "recipientEmail": zod.string().email(),
+  "originalSentAt": zod.coerce.date().nullable(),
+  "status": zod.string().nullable(),
+  "reason": zod.string().max(syncGmailVenueOutreachBouncesResponseUnmatchedNoticesItemReasonMax),
+  "matchingReason": zod.enum(['missing_original_message_id', 'no_eligible_send_candidate', 'recipient_mismatch', 'multiple_recipients'])
+})),
+  "noHistoryNotices": zod.array(zod.object({
+  "gmailMessageId": zod.string(),
+  "gmailThreadId": zod.string().nullable(),
+  "recipientEmail": zod.string().email(),
+  "originalSentAt": zod.coerce.date().nullable(),
+  "status": zod.string().nullable(),
+  "reason": zod.string().max(syncGmailVenueOutreachBouncesResponseNoHistoryNoticesItemReasonMax)
+})),
+  "reconciliationCandidateCount": zod.number().int().min(syncGmailVenueOutreachBouncesResponseReconciliationCandidateCountMin),
+  "reconciliationSourceToken": zod.string().max(syncGmailVenueOutreachBouncesResponseReconciliationSourceTokenMax).nullable(),
+  "truncated": zod.boolean()
+})
+
+
+/**
+ * @summary Preview verified Gmail bounce links for venue outreach
+ */
+export const previewGmailVenueOutreachBounceReconciliationBodySourceTokenMax = 1000000;
+
+
+
+export const PreviewGmailVenueOutreachBounceReconciliationBody = zod.object({
+  "confirm": zod.literal(true),
+  "sourceToken": zod.string().min(1).max(previewGmailVenueOutreachBounceReconciliationBodySourceTokenMax)
+})
+
+export const previewGmailVenueOutreachBounceReconciliationResponseScannedCountMin = 0;
+
+export const previewGmailVenueOutreachBounceReconciliationResponseVerifiedCandidateCountMin = 0;
+
+export const previewGmailVenueOutreachBounceReconciliationResponsePlanTokenMax = 1000000;
+
+
+
+export const PreviewGmailVenueOutreachBounceReconciliationResponse = zod.object({
+  "scannedCount": zod.number().int().min(previewGmailVenueOutreachBounceReconciliationResponseScannedCountMin),
+  "verifiedCandidateCount": zod.number().int().min(previewGmailVenueOutreachBounceReconciliationResponseVerifiedCandidateCountMin),
+  "planToken": zod.string().min(1).max(previewGmailVenueOutreachBounceReconciliationResponsePlanTokenMax),
+  "expiresAt": zod.coerce.date(),
+  "candidates": zod.array(zod.object({
+  "logId": zod.string(),
+  "businessName": zod.string(),
+  "recipientEmail": zod.string().email(),
+  "originalSentAt": zod.coerce.date(),
+  "sentAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Apply an admin-confirmed Gmail bounce reconciliation preview
+ */
+export const applyGmailVenueOutreachBounceReconciliationBodyPlanTokenMax = 1000000;
+
+
+
+export const ApplyGmailVenueOutreachBounceReconciliationBody = zod.object({
+  "planToken": zod.string().min(1).max(applyGmailVenueOutreachBounceReconciliationBodyPlanTokenMax),
+  "confirm": zod.literal(true)
+})
+
+export const applyGmailVenueOutreachBounceReconciliationResponseAppliedCountMin = 0;
+
+
+
+export const ApplyGmailVenueOutreachBounceReconciliationResponse = zod.object({
+  "appliedCount": zod.number().int().min(applyGmailVenueOutreachBounceReconciliationResponseAppliedCountMin),
+  "applied": zod.array(zod.object({
+  "logId": zod.string(),
+  "businessName": zod.string(),
+  "recipientEmail": zod.string().email()
+}))
+})
+
+
+/**
+ * @summary Manually link a reviewed Gmail delivery notice to a venue outreach send
+ */
+
+
+
+export const LinkGmailBounceToVenueOutreachParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const linkGmailBounceToVenueOutreachBodyGmailMessageIdMax = 256;
+
+
+
+export const LinkGmailBounceToVenueOutreachBody = zod.object({
+  "gmailMessageId": zod.string().min(1).max(linkGmailBounceToVenueOutreachBodyGmailMessageIdMax),
+  "confirm": zod.literal(true)
+})
+
+export const LinkGmailBounceToVenueOutreachResponse = zod.object({
+  "id": zod.string(),
+  "gmailBounceMessageId": zod.string(),
+  "repeatBounceCleared": zod.boolean().describe('Whether the retry and its prior bounced history were cleared from Venue Admin. Gmail messages remain in Gmail.')
 })
 
 
@@ -5640,6 +6258,45 @@ export const UpdateVenueOutreachFollowUpResponse = zod.object({
   "nextActionNote": zod.string().nullable(),
   "nextActionDueDate": zod.string().regex(updateVenueOutreachFollowUpResponseNextActionDueDateRegExp).nullable(),
   "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Save a venue's manual interest classification
+ */
+export const updateVenueOutreachManualInterestBodyVenueKeyMax = 512;
+
+
+
+export const UpdateVenueOutreachManualInterestBody = zod.object({
+  "venueKey": zod.string().min(1).max(updateVenueOutreachManualInterestBodyVenueKeyMax),
+  "manualInterestLevel": zod.union([zod.literal('top_interest'),zod.literal('interest'),zod.literal('no_interest'),zod.literal(null)]).nullable()
+})
+
+export const UpdateVenueOutreachManualInterestResponse = zod.object({
+  "venueKey": zod.string(),
+  "manualInterestLevel": zod.union([zod.literal('top_interest'),zod.literal('interest'),zod.literal('no_interest'),zod.literal(null)]).nullable(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Record or undo an admin-confirmed venue reply
+ */
+export const createVenueOutreachManualReplyEventBodyVenueKeyMax = 512;
+
+
+
+export const CreateVenueOutreachManualReplyEventBody = zod.object({
+  "venueKey": zod.string().min(1).max(createVenueOutreachManualReplyEventBodyVenueKeyMax),
+  "action": zod.enum(['mark_replied', 'undo_mark'])
+})
+
+export const CreateVenueOutreachManualReplyEventResponse = zod.object({
+  "venueKey": zod.string(),
+  "action": zod.enum(['mark_replied', 'undo_mark']),
+  "actorUid": zod.string(),
+  "createdAt": zod.coerce.date()
 })
 
 
@@ -5728,7 +6385,7 @@ export const PreviewNewVenueOutreachBody = zod.object({
 
 export const PreviewNewVenueOutreachResponse = zod.object({
   "templates": zod.array(zod.object({
-  "id": zod.enum(['contact_request', 'met_launch_with_links', 'met_launch_without_links', 'preapproval_video_application', 'introduction', 'benefits', 'events', 'rewards', 'follow_up', 'latest_updates', 'latest_updates_prospect']),
+  "id": zod.enum(['contact_request', 'met_launch_with_links', 'met_launch_without_links', 'met_u_foot_traffic_legacy', 'preapproval_video_application', 'introduction', 'benefits', 'events', 'rewards', 'follow_up', 'latest_updates', 'latest_updates_prospect']),
   "label": zod.string(),
   "description": zod.string(),
   "subject": zod.string(),
@@ -5758,6 +6415,52 @@ export const SendVenueContactRequestBody = zod.object({
 export const SendVenueContactRequestResponse = zod.object({
   "emailSent": zod.boolean(),
   "recipientEmail": zod.string().email()
+})
+
+
+/**
+ * @summary Preview the approved venue registration-draft recipients
+ */
+export const GetVenueRegistrationDraftTargetsResponse = zod.object({
+  "targets": zod.array(zod.object({
+  "profileId": zod.number().int().nullable(),
+  "businessName": zod.string(),
+  "contactEmail": zod.string().email().nullable(),
+  "pdfFilename": zod.string(),
+  "eligible": zod.boolean(),
+  "ineligibilityReason": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Create an unsent Gmail registration draft with its venue PDF
+ */
+
+
+
+export const CreateVenueRegistrationDraftParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const createVenueRegistrationDraftHeaderXVenueDraftOperationMin = 36;
+export const createVenueRegistrationDraftHeaderXVenueDraftOperationMax = 36;
+
+
+
+export const CreateVenueRegistrationDraftHeader = zod.object({
+  "X-Venue-Draft-Operation": zod.string().min(createVenueRegistrationDraftHeaderXVenueDraftOperationMin).max(createVenueRegistrationDraftHeaderXVenueDraftOperationMax)
+})
+
+export const CreateVenueRegistrationDraftResponse = zod.object({
+  "profileId": zod.number().int(),
+  "businessName": zod.string(),
+  "recipientEmail": zod.string().email(),
+  "pdfFilename": zod.string(),
+  "status": zod.enum(['created', 'already_created', 'uncertain', 'failed']),
+  "draftId": zod.string().nullable(),
+  "expiresAt": zod.coerce.date().nullable(),
+  "message": zod.string().nullable()
 })
 
 

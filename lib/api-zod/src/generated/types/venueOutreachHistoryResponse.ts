@@ -9,4 +9,5 @@ import type { VenueOutreachHistoryEntry } from './venueOutreachHistoryEntry';
 
 export interface VenueOutreachHistoryResponse {
   emails: VenueOutreachHistoryEntry[];
+  suppressedEmails: string[];
 }

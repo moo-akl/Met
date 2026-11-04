@@ -6,8 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VenueOutreachHistoryEntryDeliveryStatus } from './venueOutreachHistoryEntryDeliveryStatus';
+import type { VenueOutreachHistoryEntryGmailReplyClassification } from './venueOutreachHistoryEntryGmailReplyClassification';
 import type { VenueOutreachHistoryEntryKind } from './venueOutreachHistoryEntryKind';
 import type { VenueOutreachHistoryEntryLinkStatus } from './venueOutreachHistoryEntryLinkStatus';
+import type { VenueOutreachHistoryEntryManualInterestLevel } from './venueOutreachHistoryEntryManualInterestLevel';
+import type { VenueOutreachManualReplyEvent } from './venueOutreachManualReplyEvent';
 
 export interface VenueOutreachHistoryEntry {
   id: string;
@@ -18,6 +21,16 @@ export interface VenueOutreachHistoryEntry {
   /** @nullable */
   templateName?: string | null;
   deliveryStatus: VenueOutreachHistoryEntryDeliveryStatus;
+  /**
+     * @maxLength 32
+     * @nullable
+     */
+  deliveryFailureStatus: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  deliveryFailureReason: string | null;
   createdAt: Date;
   /** @nullable */
   sentAt: Date | null;
@@ -33,6 +46,12 @@ export interface VenueOutreachHistoryEntry {
      */
   placeId: string | null;
   /** @nullable */
+  gmailRepliedAt: Date | null;
+  /** @nullable */
+  gmailThreadId: string | null;
+  /** @nullable */
+  gmailReplyClassification: VenueOutreachHistoryEntryGmailReplyClassification;
+  /** @nullable */
   expiresAt: Date | null;
   linkStatus: VenueOutreachHistoryEntryLinkStatus;
   venueKey: string;
@@ -47,4 +66,7 @@ export interface VenueOutreachHistoryEntry {
      * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
      */
   nextActionDueDate: string | null;
+  /** @nullable */
+  manualInterestLevel: VenueOutreachHistoryEntryManualInterestLevel;
+  manualReplyEvents: VenueOutreachManualReplyEvent[];
 }

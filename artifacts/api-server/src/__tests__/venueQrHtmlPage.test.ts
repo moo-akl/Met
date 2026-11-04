@@ -147,8 +147,9 @@ describe("GET /v/:placeId — QR check-in HTML page", () => {
 
   it.each([
     ["iPhone", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"],
+    ["iPad", "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)", "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"],
     ["Android", "Mozilla/5.0 (Linux; Android 15; Pixel 8)", "https://play.google.com/store/apps/details?id=app.met.founders"],
-  ])("keeps the check-in link available after installing on %s", async (_device, userAgent, storeUrl) => {
+  ])("redirects a valid QR scan on %s directly to its app store", async (_device, userAgent, storeUrl) => {
     vi.resetModules();
     applyCommonMocks([APPROVED_PROFILE]);
     const app = (await import("../app")).default;
@@ -158,11 +159,9 @@ describe("GET /v/:placeId — QR check-in HTML page", () => {
       .query({ t: APPROVED_PROFILE.qrToken })
       .set("User-Agent", userAgent);
 
-    expect(res.status).toBe(200);
-    expect(res.headers.location).toBeUndefined();
-    expect(res.text).toContain(storeUrl);
-    expect(res.text).toContain("Open Met to check in");
-    expect(res.text).toContain("Return to this browser page");
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(storeUrl);
+    expect(res.headers["cache-control"]).toContain("no-store");
   });
 
   // -------------------------------------------------------------------------
@@ -180,6 +179,7 @@ describe("GET /v/:placeId — QR check-in HTML page", () => {
 
     expect(res.status).toBe(400);
     expect(res.type).toMatch(/html/);
+    expect(res.headers.location).toBeUndefined();
     expect(res.text).toContain("Invalid check-in link");
     // The page should mention the venue name in the "ask staff" context but
     // must not render the full branded check-in success page.

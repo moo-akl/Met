@@ -22,8 +22,21 @@ const venue = {
 beforeEach(() => { mocks.chain.limit.mockResolvedValue([venue]); });
 
 describe("hotspot installation handoff page", () => {
-  it.each(["iPhone", "Android", "Desktop"])("keeps the check-in context for %s", async (ua) => {
+  it.each([
+    ["iPhone", "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"],
+    ["iPad", "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"],
+    ["Android", "https://play.google.com/store/apps/details?id=app.met.founders"],
+  ])("sends %s visitors directly to the matching app store", async (ua, storeUrl) => {
     const res = await request(app).get("/v/place-123?t=test-token").set("User-Agent", ua);
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(storeUrl);
+    expect(res.headers["cache-control"]).toContain("no-store");
+  });
+
+  it("keeps the check-in context for desktop visitors", async () => {
+    const res = await request(app).get("/v/place-123?t=test-token").set("User-Agent", "Desktop");
+
     expect(res.status).toBe(200);
     expect(res.headers.location).toBeUndefined();
     expect(res.text).toContain("River &amp; Park");
@@ -43,5 +56,21 @@ describe("hotspot installation handoff page", () => {
     const res = await request(app).get("/v/place-123?t=test-token");
     expect(res.text).not.toContain("<script>alert(1)</script>");
     expect(res.text).toContain("&lt;script&gt;");
+  });
+});
+
+describe("public privacy policy", () => {
+  it("serves the canonical policy with current visibility and review disclosures", async () => {
+    const res = await request(app).get("/privacy");
+
+    expect(res.status).toBe(200);
+    expect(res.headers.location).toBeUndefined();
+    expect(res.headers["content-type"]).toContain("text/html");
+    expect(res.text).toContain("Nearby visibility is an optional setting.");
+    expect(res.text).toContain("detect your phone over Bluetooth");
+    expect(res.text).toContain("GPS coordinates are not shared through this visibility feature.");
+    expect(res.text).toContain("Turning visibility off does not erase information already shared");
+    expect(res.text).toContain("approval is not a security or privacy guarantee.");
+    expect(res.text).not.toContain("military-grade");
   });
 });

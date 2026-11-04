@@ -1,11 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
   Image,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -14,6 +15,7 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -36,6 +38,10 @@ import {
   type EventFeedItem,
   type EventLocationSearchResult,
 } from "@workspace/api-client-react";
+import {
+  nearestEventLocations,
+  type Coordinates,
+} from "@/lib/nearestEventLocations";
 
 type Props = {
   mode: "create" | "edit";
@@ -104,6 +110,8 @@ export default function CommunityEventForm({ mode, initial }: Props) {
     };
   });
   const [locationQuery, setLocationQuery] = useState("");
+  const [deviceLocation, setDeviceLocation] = useState<Coordinates | null>(null);
+  const locationLookupStarted = useRef(false);
   const [formError, setFormError] = useState("");
 
   const pickImage = async () => {
@@ -142,6 +150,39 @@ export default function CommunityEventForm({ mode, initial }: Props) {
     staleTime: 60_000,
   });
   const createInviteLink = useCreateCommunityEventInviteLink();
+
+  const captureLocationForNearbySuggestions = async () => {
+    if (deviceLocation || locationLookupStarted.current) return;
+    locationLookupStarted.current = true;
+    try {
+      if (Platform.OS === "web") {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+          ({ coords }) => setDeviceLocation({
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+          }),
+          () => undefined,
+          { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+        );
+        return;
+      }
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted) {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
+      if (!permission.granted) return;
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setDeviceLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+    } catch {
+      // Search remains available in provider order when location is unavailable.
+    }
+  };
 
   const updateFeedItem = async (event: EventFeedItem) => {
     queryClient.setQueryData<{ events: EventFeedItem[] }>(
@@ -309,7 +350,10 @@ export default function CommunityEventForm({ mode, initial }: Props) {
   };
 
   const isPending = createEvent.isPending || updateEvent.isPending;
-  const matchingLocations = locationSearch.data?.locations ?? [];
+  const matchingLocations = nearestEventLocations(
+    locationSearch.data?.locations ?? [],
+    deviceLocation,
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -471,6 +515,7 @@ export default function CommunityEventForm({ mode, initial }: Props) {
             setLocation(value);
             setSelectedPlace(null);
           }}
+          onFocus={() => void captureLocationForNearbySuggestions()}
           placeholder={t("tabs.events.locationSearchHint")}
           placeholderTextColor={colors.mutedForeground}
           maxLength={200}

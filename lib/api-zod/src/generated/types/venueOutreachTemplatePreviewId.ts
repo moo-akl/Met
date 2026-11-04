@@ -13,6 +13,7 @@ export const VenueOutreachTemplatePreviewId = {
   contact_request: 'contact_request',
   met_launch_with_links: 'met_launch_with_links',
   met_launch_without_links: 'met_launch_without_links',
+  met_u_foot_traffic_legacy: 'met_u_foot_traffic_legacy',
   preapproval_video_application: 'preapproval_video_application',
   introduction: 'introduction',
   benefits: 'benefits',

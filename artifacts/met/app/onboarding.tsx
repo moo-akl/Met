@@ -135,7 +135,7 @@ const VERIFY_POLL_MS = 5 * 1000;
 const TERMS_URL =
   "https://doc-hosting.flycricket.io/met-terms-conditions/de6cbb09-1b5f-4203-aba7-c70fe3fa4932/terms";
 const PRIVACY_URL =
-  "https://doc-hosting.flycricket.io/met-privacy-policy/fdc825e1-e02f-4a47-8169-e8bb9c4f54c9/privacy";
+  "https://met-app.org/privacy";
 
 export default function OnboardingScreen() {
   const colors = useColors();

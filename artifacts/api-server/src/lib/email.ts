@@ -17,7 +17,14 @@
 import nodemailer from "nodemailer";
 import { sendGmailHtmlEmail } from "./gmail.js";
 import { logger } from "./logger.js";
-import { buildVenueContactRequestEmail, buildVenueOutreachEmail, buildVenueRegistrationInviteEmail, type OutreachTemplateId } from "./venueOutreachEmail.js";
+import {
+  buildVenueContactRequestEmail,
+  buildVenueOutreachEmail,
+  buildVenueRegistrationInviteEmail,
+  MET_APP_STORE_URL,
+  MET_GOOGLE_PLAY_URL,
+  type OutreachTemplateId,
+} from "./venueOutreachEmail.js";
 
 const CONTACT_EMAIL = "metapp.contact@gmail.com";
 const VENUE_MANAGER_URL = process.env["VENUE_MANAGER_BASE_URL"]?.replace(/\/$/, "") ?? "https://met-app.org/venue-manager";
@@ -59,13 +66,13 @@ function layout(title: string, bodyHtml: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(title)}</title>
   <style>
-    body { margin: 0; padding: 0; background: #f6f6f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #333; }
+    body { margin: 0; padding: 0; background: #f1f2ed; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #172c28; }
     .wrapper { max-width: 560px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-    .header { background: #111; padding: 28px 32px; }
-    .header h1 { margin: 0; color: #fff; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    .header { background: #113e35; padding: 28px 32px; }
+    .header h1 { margin: 0; color: #fffefa; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
     .body { padding: 32px; }
     .body p { margin: 0 0 16px; line-height: 1.6; font-size: 15px; }
-    .cta { display: inline-block; margin: 8px 0 24px; padding: 12px 24px; background: #111; color: #fff !important; text-decoration: none; border-radius: 6px; font-size: 15px; font-weight: 600; }
+    .cta { display: inline-block; margin: 8px 0 24px; padding: 12px 24px; background: #11765e; color: #fff !important; text-decoration: none; border-radius: 6px; font-size: 15px; font-weight: 600; }
     .footer { padding: 20px 32px; border-top: 1px solid #eee; font-size: 13px; color: #888; }
     .footer a { color: #555; }
   </style>
@@ -103,24 +110,56 @@ export async function sendVenueApprovedEmail(opts: ApprovedEmailOptions): Promis
   }
 
   const subject = `🎉 Your venue "${opts.businessName}" has been approved`;
+  const registrationUrl = opts.registrationUrl
+    ? safeEmailLinkUrl(opts.registrationUrl)
+    : null;
 
   const registrationDeadlineText = opts.registrationDeadline
     ? ` Complete registration by <strong>${escapeHtml(formatEmailDate(opts.registrationDeadline))}</strong>.`
     : "";
   const registrationSection = opts.registrationUrl
-    ? `<p>To set up your venue manager account and start posting events and rewards, use your one-time registration link below.${registrationDeadlineText}</p>
-       <a class="cta" href="${escapeAttr(safeEmailLinkUrl(opts.registrationUrl))}">Set up your account →</a>`
+    ? `<p>To set up your Venue Manager account, update your venue page, and share events and rewards, use your one-time registration link below.${registrationDeadlineText}</p>
+       <a class="cta" href="${escapeAttr(registrationUrl ?? "")}">Set up your account →</a>`
     : `<p>Our team will be in touch shortly with your account setup link.</p>`;
 
   const html = layout(subject, `
     <p>Hi there,</p>
     <p>Great news — your application to list <strong>${escapeHtml(opts.businessName)}</strong> on Met has been approved!</p>
     ${registrationSection}
-    <p>Once you're set up you can create events, publish rewards, and post announcements that appear directly to Met users nearby.</p>
+    <p>Nearby guests can discover and save your venue page, check in on-site with your QR code, and leave visit notes and photos in your guestbook. Each month, your top three visitors earn Gold, Silver, or Bronze trophies in their Met Trophies collection.</p>
+    <p>In Venue Manager, you can keep venue details current, create venue-branded QR codes and posters, share events and rewards, and manage multiple venues.</p>
+    <p>Explore the app: <a href="${MET_APP_STORE_URL}">App Store</a> | <a href="${MET_GOOGLE_PLAY_URL}">Google Play</a></p>
     <p>Welcome to the Met Venues community!</p>
   `);
 
-  await transport.sendMail({ from: getFrom(), to: opts.to, subject, html });
+  const text = [
+    "Hi there,",
+    "",
+    `Great news — your application to list ${opts.businessName} on Met has been approved!`,
+    "",
+    ...(opts.registrationUrl
+      ? [
+          "To set up your Venue Manager account, update your venue page, and share events and rewards, use your one-time registration link:",
+          ...(opts.registrationDeadline
+            ? [`Complete registration by ${formatEmailDate(opts.registrationDeadline)}.`]
+            : []),
+          registrationUrl ?? "",
+        ]
+      : ["Our team will be in touch shortly with your account setup link."]),
+    "",
+    "Nearby guests can discover and save your venue page, check in on-site with your QR code, and leave visit notes and photos in your guestbook. Each month, your top three visitors earn Gold, Silver, or Bronze trophies in their Met Trophies collection.",
+    "",
+    "In Venue Manager, you can keep venue details current, create venue-branded QR codes and posters, share events and rewards, and manage multiple venues.",
+    "",
+    `Explore the app: App Store: ${MET_APP_STORE_URL}`,
+    `Google Play: ${MET_GOOGLE_PLAY_URL}`,
+    "",
+    "Welcome to the Met Venues community!",
+    "",
+    `Questions? Email us at ${CONTACT_EMAIL}.`,
+  ].join("\n");
+
+  await transport.sendMail({ from: getFrom(), to: opts.to, subject, html, text });
   logger.info({ to: opts.to, businessName: opts.businessName }, "Sent venue approved email");
 }
 
@@ -154,10 +193,11 @@ export async function sendVenueContactRequestEmail(opts: {
   to: string;
   businessName: string;
   coverPhotoUrl?: string | null;
-}): Promise<void> {
+}): Promise<{ rfcMessageId: string | null; gmailThreadId: string | null }> {
   const email = buildVenueContactRequestEmail(opts);
-  await sendGmailHtmlEmail({ to: opts.to, ...email });
+  const result = await sendGmailHtmlEmail({ to: opts.to, ...email });
   logger.info({ to: opts.to, businessName: opts.businessName }, "Sent venue management contact request");
+  return result;
 }
 
 export async function sendNewVenueOutreachEmail(opts: {
@@ -172,6 +212,21 @@ export async function sendNewVenueOutreachEmail(opts: {
     contentType: string;
   }>;
 }): Promise<void> {
+  await sendNewVenueOutreachEmailWithResult(opts);
+}
+
+export async function sendNewVenueOutreachEmailWithResult(opts: {
+  to: string;
+  businessName: string;
+  template: OutreachTemplateId;
+  applicationUrl?: string;
+  applicationExpiresAt?: Date;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+  }>;
+}): Promise<{ rfcMessageId: string | null; gmailThreadId: string | null }> {
   const email = buildVenueOutreachEmail({
     ...opts,
     venueManagerUrl: getVenueManagerBaseUrl(),
@@ -180,11 +235,12 @@ export async function sendNewVenueOutreachEmail(opts: {
       ? { appIntroVideo: getMetAppIntroVideoAssets() }
       : {}),
   });
-  await sendGmailHtmlEmail({ to: opts.to, ...email, attachments: opts.attachments });
+  const result = await sendGmailHtmlEmail({ to: opts.to, ...email, attachments: opts.attachments });
   logger.info(
     { template: opts.template, ...(opts.template === "latest_updates" ? {} : { businessName: opts.businessName }) },
     opts.template === "latest_updates" ? "Sent venue manager update" : "Sent new venue outreach",
   );
+  return result;
 }
 
 /**
@@ -196,14 +252,27 @@ export async function sendNewVenueOutreachEmail(opts: {
 export async function sendRegistrationLinkEmail(
   opts: RegistrationLinkEmailOptions,
 ): Promise<boolean> {
+  await sendRegistrationLinkEmailWithResult(opts);
+  return true;
+}
+
+export async function sendRegistrationLinkEmailWithResult(
+  opts: RegistrationLinkEmailOptions,
+): Promise<{ emailSent: true; rfcMessageId: string | null; gmailThreadId: string | null }> {
+  const email = buildRegistrationLinkEmailContent(opts);
+  const result = await sendGmailHtmlEmail({ to: opts.to, ...email });
+  logger.info({ to: opts.to, businessName: opts.businessName }, "Sent registration link email");
+  return { emailSent: true, rfcMessageId: result.rfcMessageId, gmailThreadId: result.gmailThreadId };
+}
+
+export function buildRegistrationLinkEmailContent(
+  opts: RegistrationLinkEmailOptions,
+): ReturnType<typeof buildVenueRegistrationInviteEmail> {
   const { includeAppIntro = false, ...emailOptions } = opts;
-  const email = buildVenueRegistrationInviteEmail({
+  return buildVenueRegistrationInviteEmail({
     ...emailOptions,
     ...(includeAppIntro ? { appIntroVideo: getMetAppIntroVideoAssets() } : {}),
   });
-  await sendGmailHtmlEmail({ to: opts.to, ...email });
-  logger.info({ to: opts.to, businessName: opts.businessName }, "Sent registration link email");
-  return true;
 }
 
 export interface VenueRegistrationReminderEmailOptions {
@@ -230,6 +299,7 @@ export async function sendVenueRegistrationReminderEmail(
 ): Promise<boolean> {
   const deadline = formatEmailDate(opts.registrationDeadline);
   const subject = `Reminder: finish setting up ${opts.businessName} on Met`;
+  const registrationUrl = safeEmailLinkUrl(opts.registrationUrl);
   const imageUrl = opts.preview.coverPhotoUrl
     ? safeEmailImageUrl(opts.preview.coverPhotoUrl)
     : "";
@@ -258,14 +328,49 @@ export async function sendVenueRegistrationReminderEmail(
     <p>Hi there,</p>
     <p>${opts.manual ? "This is a reminder" : `This is your day ${opts.day} reminder`} to finish setting up <strong>${escapeHtml(opts.businessName)}</strong> on Venue Manager.</p>
     <p>Your registration deadline is <strong>${escapeHtml(deadline)}</strong>. The one-time setup link below will take you to the registration form.</p>
-    <a class="cta" href="${escapeAttr(safeEmailLinkUrl(opts.registrationUrl))}">Finish registration &rarr;</a>
+    <a class="cta" href="${escapeAttr(registrationUrl)}">Finish registration &rarr;</a>
+    <p>Met’s refreshed app helps nearby guests discover and save your venue page, check in with your QR code, and leave visit notes and photos in your guestbook. Your top three visitors each month earn Gold, Silver, or Bronze trophies.</p>
     ${listingPreview}
     <p>Once registered, your venue has 30 days to receive at least 10 genuine guest check-ins verified by its Met QR code. If the activation milestones are not met, the public listing may be delisted; delisting is reversible by contacting support.</p>
+    <p>Explore Met: <a href="${MET_APP_STORE_URL}">App Store</a> | <a href="${MET_GOOGLE_PLAY_URL}">Google Play</a></p>
     <p style="font-size:13px;color:#777;">Review the <a href="${VENUE_MANAGER_TERMS_URL}">Venue Manager Terms</a> and <a href="${VENUE_MANAGER_PRIVACY_URL}">Venue Manager Privacy notice</a>.</p>
     <p style="font-size:13px;color:#888;">If you have already completed registration, you can ignore this reminder.</p>
   `);
 
-  await sendGmailHtmlEmail({ to: opts.to, subject, html });
+  const text = [
+    "Hi there,",
+    "",
+    `${opts.manual ? "This is a reminder" : `This is your day ${opts.day} reminder`} to finish setting up ${opts.businessName} on Venue Manager.`,
+    "",
+    `Your registration deadline is ${deadline}. The one-time setup link below will take you to the registration form.`,
+    "",
+    registrationUrl,
+    "",
+    "Met’s refreshed app helps nearby guests discover and save your venue page, check in with your QR code, and leave visit notes and photos in your guestbook. Your top three visitors each month earn Gold, Silver, or Bronze trophies.",
+    "",
+    "Guest-facing listing preview:",
+    opts.businessName,
+    ...(opts.preview.tagline ? [opts.preview.tagline] : []),
+    ...(opts.preview.description
+      ? [opts.preview.description]
+      : opts.preview.tagline
+        ? []
+        : ["Your venue details will appear here for Met guests."]),
+    "",
+    "Once registered, your venue has 30 days to receive at least 10 genuine guest check-ins verified by its Met QR code. If the activation milestones are not met, the public listing may be delisted; delisting is reversible by contacting support.",
+    "",
+    `Explore Met: App Store: ${MET_APP_STORE_URL}`,
+    `Google Play: ${MET_GOOGLE_PLAY_URL}`,
+    "",
+    `Review the Venue Manager Terms: ${VENUE_MANAGER_TERMS_URL}`,
+    `Review the Venue Manager Privacy notice: ${VENUE_MANAGER_PRIVACY_URL}`,
+    "",
+    "If you have already completed registration, you can ignore this reminder.",
+    "",
+    `Questions? Email us at ${CONTACT_EMAIL}.`,
+  ].join("\n");
+
+  await sendGmailHtmlEmail({ to: opts.to, subject, html, text });
   logger.info({ to: opts.to, businessName: opts.businessName, day: opts.day }, "Sent venue registration reminder email");
   return true;
 }
@@ -363,6 +468,24 @@ export async function sendClaimLinkOverdueAlertEmail(
     )
     .join("\n");
 
+  const text = [
+    "Hi team,",
+    "",
+    "The following approved, agent-registered venues have never had a claim link sent to the owner.",
+    "Please follow up with the assigned agent so the owner can set up their account before they give up.",
+    "",
+    ...opts.venues.flatMap((venue) => [
+      `Venue #${venue.id}: ${venue.businessName}`,
+      `Place: ${venue.placeName}`,
+      `Agent: #${venue.agentId}`,
+      `Approved on: ${venue.approvedAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+      "Status: Approved; claim link has never been sent.",
+      "",
+    ]),
+    "This alert fires when a venue has been approved for more than 3 days with no registration link on record.",
+    "A follow-up alert will be sent in 7 days if the link is still not sent.",
+  ].join("\n");
+
   const html = layout(subject, `
     <p>Hi team,</p>
     <p>The following approved, agent-registered venues have <strong>never had a claim link sent</strong> to the owner.
@@ -389,7 +512,7 @@ export async function sendClaimLinkOverdueAlertEmail(
     </p>
   `);
 
-  await transport.sendMail({ from: getFrom(), to: opts.to, subject, html });
+  await transport.sendMail({ from: getFrom(), to: opts.to, subject, html, text });
   logger.info(
     { to: opts.to, count: opts.venues.length },
     "Sent claim-link overdue alert email",
@@ -421,6 +544,7 @@ export async function sendAdminVenueRemovalRequestEmail(
   }
 
   const subject = `[Met Admin] Venue removal requested — ${opts.businessName}`;
+  const reasonText = opts.reason || "No reason provided";
 
   const html = layout(subject, `
     <p>Hi team,</p>
@@ -434,7 +558,19 @@ export async function sendAdminVenueRemovalRequestEmail(
     <p>Please review the request in the admin dashboard and follow up with the venue within 2–3 business days.</p>
   `);
 
-  await transport.sendMail({ from: getFrom(), to: opts.to, subject, html });
+  const text = [
+    "Hi team,",
+    "",
+    `The owner of ${opts.businessName} has submitted a removal request via the Venue Manager portal.`,
+    "",
+    `Business ID: #${opts.businessId}`,
+    `Manager ID: #${opts.managerId}`,
+    `Reason: ${reasonText}`,
+    "",
+    "Please review the request in the admin dashboard and follow up with the venue within 2–3 business days.",
+  ].join("\n");
+
+  await transport.sendMail({ from: getFrom(), to: opts.to, subject, html, text });
   logger.info({ businessName: opts.businessName }, "Sent admin venue removal request email");
 }
 

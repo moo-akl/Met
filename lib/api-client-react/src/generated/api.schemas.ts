@@ -223,6 +223,77 @@ export interface VenueAdminSession {
   expiresAt: string;
 }
 
+export interface VenueIntroProfile {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  key: string;
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  venueName: string;
+  /**
+     * @minLength 2
+     * @maxLength 240
+     */
+  coverCopy: string;
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  slide2Heading: string;
+  /**
+     * @minLength 2
+     * @maxLength 300
+     */
+  slide2Copy: string;
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  slide3Heading: string;
+  /**
+     * @minLength 2
+     * @maxLength 300
+     */
+  slide3Copy: string;
+}
+
+export interface VenueIntroProfileInput {
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  venueName: string;
+  /**
+     * @minLength 2
+     * @maxLength 240
+     */
+  coverCopy: string;
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  slide2Heading: string;
+  /**
+     * @minLength 2
+     * @maxLength 300
+     */
+  slide2Copy: string;
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  slide3Heading: string;
+  /**
+     * @minLength 2
+     * @maxLength 300
+     */
+  slide3Copy: string;
+}
+
 export interface VenueManagerSession {
   authenticated: boolean;
   csrfToken: string;
@@ -287,12 +358,27 @@ export type VenueEmailTemplate = VenueEmailTemplateInput & {
   builtin: boolean;
 };
 
+export interface VenuePdfAttachment {
+  /**
+     * @minLength 5
+     * @maxLength 180
+     */
+  fileName: string;
+  /**
+     * @minLength 8
+     * @maxLength 8000000
+     */
+  contentBase64: string;
+}
+
 export interface VenueManualEmailInput {
   /**
      * @minLength 1
      * @maxLength 150
      */
   templateId: string;
+  /** Replace the greeting with a generic invitation for pasted email lists. */
+  bulkInvitation?: boolean;
   /**
      * @minLength 1
      * @maxLength 255
@@ -300,10 +386,21 @@ export interface VenueManualEmailInput {
   businessName: string;
   /** @maxLength 255 */
   recipientEmail: string;
+  /**
+     * A short venue-specific reason for the invitation.
+     * @maxLength 500
+     */
+  venueFitReason?: string;
   /** @maxLength 255 */
   placeId?: string;
   /** @minimum 1 */
   venueOwnerProfileId?: number;
+  /**
+     * ID of the exact bounced outreach record being retried.
+     * @minimum 1
+     */
+  retryOfLogId?: number;
+  pdfAttachment?: VenuePdfAttachment;
 }
 
 export type VenueOutreachInputTemplate = typeof VenueOutreachInputTemplate[keyof typeof VenueOutreachInputTemplate];
@@ -313,6 +410,7 @@ export const VenueOutreachInputTemplate = {
   contact_request: 'contact_request',
   met_launch_with_links: 'met_launch_with_links',
   met_launch_without_links: 'met_launch_without_links',
+  met_u_foot_traffic_legacy: 'met_u_foot_traffic_legacy',
   preapproval_video_application: 'preapproval_video_application',
   introduction: 'introduction',
   benefits: 'benefits',
@@ -351,6 +449,7 @@ export const VenueOutreachTemplatePreviewId = {
   contact_request: 'contact_request',
   met_launch_with_links: 'met_launch_with_links',
   met_launch_without_links: 'met_launch_without_links',
+  met_u_foot_traffic_legacy: 'met_u_foot_traffic_legacy',
   preapproval_video_application: 'preapproval_video_application',
   introduction: 'introduction',
   benefits: 'benefits',
@@ -387,6 +486,20 @@ export const VenueOutreachHistoryEntryDeliveryStatus = {
   sent: 'sent',
   delivery_uncertain: 'delivery_uncertain',
   failed: 'failed',
+  bounced: 'bounced',
+} as const;
+
+/**
+ * @nullable
+ */
+export type VenueOutreachHistoryEntryGmailReplyClassification = typeof VenueOutreachHistoryEntryGmailReplyClassification[keyof typeof VenueOutreachHistoryEntryGmailReplyClassification] | null;
+
+
+export const VenueOutreachHistoryEntryGmailReplyClassification = {
+  interested: 'interested',
+  rejected: 'rejected',
+  other: 'other',
+  uncertain: 'uncertain',
 } as const;
 
 export type VenueOutreachHistoryEntryLinkStatus = typeof VenueOutreachHistoryEntryLinkStatus[keyof typeof VenueOutreachHistoryEntryLinkStatus];
@@ -401,6 +514,34 @@ export const VenueOutreachHistoryEntryLinkStatus = {
   unknown: 'unknown',
 } as const;
 
+/**
+ * @nullable
+ */
+export type VenueOutreachHistoryEntryManualInterestLevel = typeof VenueOutreachHistoryEntryManualInterestLevel[keyof typeof VenueOutreachHistoryEntryManualInterestLevel] | null;
+
+
+export const VenueOutreachHistoryEntryManualInterestLevel = {
+  top_interest: 'top_interest',
+  interest: 'interest',
+  no_interest: 'no_interest',
+} as const;
+
+export type VenueOutreachManualReplyEventAction = typeof VenueOutreachManualReplyEventAction[keyof typeof VenueOutreachManualReplyEventAction];
+
+
+export const VenueOutreachManualReplyEventAction = {
+  mark_replied: 'mark_replied',
+  undo_mark: 'undo_mark',
+} as const;
+
+export interface VenueOutreachManualReplyEvent {
+  id: string;
+  venueKey: string;
+  action: VenueOutreachManualReplyEventAction;
+  actorUid: string;
+  createdAt: string;
+}
+
 export interface VenueOutreachHistoryEntry {
   id: string;
   kind: VenueOutreachHistoryEntryKind;
@@ -410,6 +551,16 @@ export interface VenueOutreachHistoryEntry {
   /** @nullable */
   templateName?: string | null;
   deliveryStatus: VenueOutreachHistoryEntryDeliveryStatus;
+  /**
+     * @maxLength 32
+     * @nullable
+     */
+  deliveryFailureStatus: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  deliveryFailureReason: string | null;
   createdAt: string;
   /** @nullable */
   sentAt: string | null;
@@ -425,6 +576,12 @@ export interface VenueOutreachHistoryEntry {
      */
   placeId: string | null;
   /** @nullable */
+  gmailRepliedAt: string | null;
+  /** @nullable */
+  gmailThreadId: string | null;
+  /** @nullable */
+  gmailReplyClassification: VenueOutreachHistoryEntryGmailReplyClassification;
+  /** @nullable */
   expiresAt: string | null;
   linkStatus: VenueOutreachHistoryEntryLinkStatus;
   venueKey: string;
@@ -439,6 +596,9 @@ export interface VenueOutreachHistoryEntry {
      * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
      */
   nextActionDueDate: string | null;
+  /** @nullable */
+  manualInterestLevel: VenueOutreachHistoryEntryManualInterestLevel;
+  manualReplyEvents: VenueOutreachManualReplyEvent[];
 }
 
 export interface VenueOutreachFollowUpInput {
@@ -469,6 +629,79 @@ export interface VenueOutreachFollowUp {
      */
   nextActionDueDate: string | null;
   updatedAt: string;
+}
+
+/**
+ * @nullable
+ */
+export type VenueOutreachManualInterestInputManualInterestLevel = typeof VenueOutreachManualInterestInputManualInterestLevel[keyof typeof VenueOutreachManualInterestInputManualInterestLevel] | null;
+
+
+export const VenueOutreachManualInterestInputManualInterestLevel = {
+  top_interest: 'top_interest',
+  interest: 'interest',
+  no_interest: 'no_interest',
+} as const;
+
+export interface VenueOutreachManualInterestInput {
+  /**
+     * @minLength 1
+     * @maxLength 512
+     */
+  venueKey: string;
+  /** @nullable */
+  manualInterestLevel: VenueOutreachManualInterestInputManualInterestLevel;
+}
+
+/**
+ * @nullable
+ */
+export type VenueOutreachManualInterestManualInterestLevel = typeof VenueOutreachManualInterestManualInterestLevel[keyof typeof VenueOutreachManualInterestManualInterestLevel] | null;
+
+
+export const VenueOutreachManualInterestManualInterestLevel = {
+  top_interest: 'top_interest',
+  interest: 'interest',
+  no_interest: 'no_interest',
+} as const;
+
+export interface VenueOutreachManualInterest {
+  venueKey: string;
+  /** @nullable */
+  manualInterestLevel: VenueOutreachManualInterestManualInterestLevel;
+  updatedAt: string;
+}
+
+export type VenueOutreachManualReplyEventInputAction = typeof VenueOutreachManualReplyEventInputAction[keyof typeof VenueOutreachManualReplyEventInputAction];
+
+
+export const VenueOutreachManualReplyEventInputAction = {
+  mark_replied: 'mark_replied',
+  undo_mark: 'undo_mark',
+} as const;
+
+export interface VenueOutreachManualReplyEventInput {
+  /**
+     * @minLength 1
+     * @maxLength 512
+     */
+  venueKey: string;
+  action: VenueOutreachManualReplyEventInputAction;
+}
+
+export type VenueOutreachManualReplyEventResultAction = typeof VenueOutreachManualReplyEventResultAction[keyof typeof VenueOutreachManualReplyEventResultAction];
+
+
+export const VenueOutreachManualReplyEventResultAction = {
+  mark_replied: 'mark_replied',
+  undo_mark: 'undo_mark',
+} as const;
+
+export interface VenueOutreachManualReplyEventResult {
+  venueKey: string;
+  action: VenueOutreachManualReplyEventResultAction;
+  actorUid: string;
+  createdAt: string;
 }
 
 export interface VenueOutreachPlaceIdInput {
@@ -547,6 +780,268 @@ export interface VenueManagerUpdateBroadcastResult {
 
 export interface VenueOutreachHistoryResponse {
   emails: VenueOutreachHistoryEntry[];
+  suppressedEmails: string[];
+}
+
+export interface VenueOutreachHistoryDeleteInput {
+  /**
+     * @minLength 1
+     * @maxLength 512
+     */
+  venueKey: string;
+  /**
+     * @minItems 1
+     * @maxItems 5000
+     * @items.minLength 1
+     * @items.maxLength 64
+     */
+  eventIds: string[];
+  confirm: true;
+}
+
+export interface VenueOutreachHistoryDeleteResult {
+  venueKey: string;
+  /** @minimum 1 */
+  deletedEmailCount: number;
+  /** @minimum 0 */
+  revokedInvitationCount: number;
+  message: string;
+}
+
+export interface DeleteAdminVenueResult {
+  message: string;
+}
+
+export interface SyncGmailVenueOutreachRepliesResult {
+  /** @minimum 0 */
+  scannedCount: number;
+  /** @minimum 0 */
+  matchedReplyCount: number;
+  /** @minimum 0 */
+  updatedSendCount: number;
+  /** @minimum 0 */
+  classificationPendingCount: number;
+  truncated: boolean;
+  /** @minimum 1 */
+  lookbackDays: number;
+}
+
+export interface ClassifyPendingVenueOutreachRepliesResult {
+  /** @minimum 0 */
+  attemptedReplyCount: number;
+  /** @minimum 0 */
+  classifiedReplyCount: number;
+  /** @minimum 0 */
+  classificationFailedCount: number;
+  /** @minimum 0 */
+  classificationPendingCount: number;
+  /** @minimum 0 */
+  deferredCount: number;
+}
+
+export interface VenueOutreachEmailSuppressionInput {
+  /** @maxLength 255 */
+  email: string;
+  suppressed: boolean;
+}
+
+export interface VenueOutreachEmailSuppressionResult {
+  email: string;
+  suppressed: boolean;
+}
+
+export interface ClearFailedVenueOutreachInput {
+  confirm: true;
+  /**
+     * Count of failed attempts with no recorded sent time.
+     * @minimum 0
+     */
+  expectedFailedEmailCount: number;
+  /**
+     * Count of bounced attempts recorded in Venue Admin. Gmail messages are not deleted.
+     * @minimum 0
+     */
+  expectedBouncedEmailCount: number;
+}
+
+export interface ClearFailedVenueOutreachResult {
+  /** @minimum 0 */
+  clearedEmailCount: number;
+  /** @minimum 0 */
+  clearedFailedEmailCount: number;
+  /** @minimum 0 */
+  clearedBouncedEmailCount: number;
+  /** @minimum 0 */
+  removedUnusedInviteCount: number;
+}
+
+export interface SyncVenueOutreachBouncesInput {
+  confirm: true;
+}
+
+export type SyncVenueOutreachBouncesResultUnmatchedByReason = {
+  /** @minimum 0 */
+  missing_original_message_id: number;
+  /** @minimum 0 */
+  no_eligible_send_candidate: number;
+  /** @minimum 0 */
+  recipient_mismatch: number;
+  /** @minimum 0 */
+  multiple_recipients: number;
+};
+
+export type SyncVenueOutreachBouncesResultAmbiguousMatchesItemCandidatesItem = {
+  id: string;
+  businessName: string;
+  createdAt: string;
+};
+
+export type SyncVenueOutreachBouncesResultAmbiguousMatchesItem = {
+  gmailMessageId: string;
+  /** @nullable */
+  gmailThreadId: string | null;
+  recipientEmail: string;
+  /** @nullable */
+  originalSentAt: string | null;
+  candidates: SyncVenueOutreachBouncesResultAmbiguousMatchesItemCandidatesItem[];
+};
+
+export type SyncVenueOutreachBouncesResultUnmatchedNoticesItemMatchingReason = typeof SyncVenueOutreachBouncesResultUnmatchedNoticesItemMatchingReason[keyof typeof SyncVenueOutreachBouncesResultUnmatchedNoticesItemMatchingReason];
+
+
+export const SyncVenueOutreachBouncesResultUnmatchedNoticesItemMatchingReason = {
+  missing_original_message_id: 'missing_original_message_id',
+  no_eligible_send_candidate: 'no_eligible_send_candidate',
+  recipient_mismatch: 'recipient_mismatch',
+  multiple_recipients: 'multiple_recipients',
+} as const;
+
+export type SyncVenueOutreachBouncesResultUnmatchedNoticesItem = {
+  gmailMessageId: string;
+  /** @nullable */
+  gmailThreadId: string | null;
+  recipientEmail: string;
+  /** @nullable */
+  originalSentAt: string | null;
+  /** @nullable */
+  status: string | null;
+  /** @maxLength 500 */
+  reason: string;
+  matchingReason: SyncVenueOutreachBouncesResultUnmatchedNoticesItemMatchingReason;
+};
+
+export type SyncVenueOutreachBouncesResultNoHistoryNoticesItem = {
+  gmailMessageId: string;
+  /** @nullable */
+  gmailThreadId: string | null;
+  recipientEmail: string;
+  /** @nullable */
+  originalSentAt: string | null;
+  /** @nullable */
+  status: string | null;
+  /** @maxLength 500 */
+  reason: string;
+};
+
+export interface SyncVenueOutreachBouncesResult {
+  /** @minimum 0 */
+  scannedCount: number;
+  /** @minimum 0 */
+  matchedCount: number;
+  /**
+     * Retried sends that bounced again and whose Venue Admin history was cleared. Gmail messages remain in Gmail.
+     * @minimum 0
+     */
+  repeatBouncesClearedCount: number;
+  /** @minimum 0 */
+  ambiguousCount: number;
+  /** @minimum 0 */
+  unmatchedCount: number;
+  /**
+     * Parsed bounce notices whose recipient has no Venue Admin outreach record.
+     * @minimum 0
+     */
+  noHistoryCount: number;
+  unmatchedByReason: SyncVenueOutreachBouncesResultUnmatchedByReason;
+  ambiguousMatches: SyncVenueOutreachBouncesResultAmbiguousMatchesItem[];
+  unmatchedNotices: SyncVenueOutreachBouncesResultUnmatchedNoticesItem[];
+  noHistoryNotices: SyncVenueOutreachBouncesResultNoHistoryNoticesItem[];
+  /** @minimum 0 */
+  reconciliationCandidateCount: number;
+  /**
+     * @maxLength 1000000
+     * @nullable
+     */
+  reconciliationSourceToken: string | null;
+  truncated: boolean;
+}
+
+export interface LinkGmailBounceToVenueOutreachInput {
+  /**
+     * @minLength 1
+     * @maxLength 256
+     */
+  gmailMessageId: string;
+  confirm: true;
+}
+
+export interface GmailBounceReconciliationPreviewInput {
+  confirm: true;
+  /**
+     * @minLength 1
+     * @maxLength 1000000
+     */
+  sourceToken: string;
+}
+
+export interface GmailBounceReconciliationApplyInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000000
+     */
+  planToken: string;
+  confirm: true;
+}
+
+export interface GmailBounceReconciliationCandidate {
+  logId: string;
+  businessName: string;
+  recipientEmail: string;
+  originalSentAt: string;
+  sentAt: string;
+}
+
+export interface GmailBounceReconciliationPreviewResult {
+  /** @minimum 0 */
+  scannedCount: number;
+  /** @minimum 0 */
+  verifiedCandidateCount: number;
+  /**
+     * @minLength 1
+     * @maxLength 1000000
+     */
+  planToken: string;
+  expiresAt: string;
+  candidates: GmailBounceReconciliationCandidate[];
+}
+
+export interface GmailBounceReconciliationAppliedItem {
+  logId: string;
+  businessName: string;
+  recipientEmail: string;
+}
+
+export interface GmailBounceReconciliationApplyResult {
+  /** @minimum 0 */
+  appliedCount: number;
+  applied: GmailBounceReconciliationAppliedItem[];
+}
+
+export interface LinkGmailBounceToVenueOutreachResult {
+  id: string;
+  gmailBounceMessageId: string;
+  /** Whether the retry and its prior bounced history were cleared from Venue Admin. Gmail messages remain in Gmail. */
+  repeatBounceCleared: boolean;
 }
 
 export interface VenueContactRequestResult {
@@ -673,6 +1168,46 @@ export interface VenueRegistrationLinkResult {
   emailError?: VenueRegistrationLinkResultEmailError;
   /** @nullable */
   contactEmail: string | null;
+}
+
+export interface VenueRegistrationDraftTarget {
+  /** @nullable */
+  profileId: number | null;
+  businessName: string;
+  /** @nullable */
+  contactEmail: string | null;
+  pdfFilename: string;
+  eligible: boolean;
+  /** @nullable */
+  ineligibilityReason: string | null;
+}
+
+export interface VenueRegistrationDraftTargetsResponse {
+  targets: VenueRegistrationDraftTarget[];
+}
+
+export type VenueRegistrationDraftResultStatus = typeof VenueRegistrationDraftResultStatus[keyof typeof VenueRegistrationDraftResultStatus];
+
+
+export const VenueRegistrationDraftResultStatus = {
+  created: 'created',
+  already_created: 'already_created',
+  uncertain: 'uncertain',
+  failed: 'failed',
+} as const;
+
+export interface VenueRegistrationDraftResult {
+  profileId: number;
+  businessName: string;
+  recipientEmail: string;
+  pdfFilename: string;
+  status: VenueRegistrationDraftResultStatus;
+  /** @nullable */
+  draftId: string | null;
+  /** @nullable */
+  expiresAt: string | null;
+  /** @nullable */
+  message: string | null;
 }
 
 export type VenueManagerFirebaseRegistrationAcceptedTermsVersion = typeof VenueManagerFirebaseRegistrationAcceptedTermsVersion[keyof typeof VenueManagerFirebaseRegistrationAcceptedTermsVersion];
@@ -1596,6 +2131,27 @@ export interface CommunityEventInviteLinkResponse {
   passcodeRequired: boolean;
 }
 
+export type CommunityEventReportInputReason = typeof CommunityEventReportInputReason[keyof typeof CommunityEventReportInputReason];
+
+
+export const CommunityEventReportInputReason = {
+  inappropriate: 'inappropriate',
+  harassment: 'harassment',
+  spam: 'spam',
+  offensive_image: 'offensive_image',
+  other: 'other',
+} as const;
+
+export interface CommunityEventReportInput {
+  /** @minimum 1 */
+  eventId: number;
+  reason: CommunityEventReportInputReason;
+}
+
+export interface CommunityEventReportResponse {
+  id: string;
+}
+
 export interface EventInviteResolveInput {
   /**
      * @minLength 32
@@ -2079,6 +2635,12 @@ export interface AdminQuickAddVenueRequest {
   contactName?: string;
   /** @maxLength 255 */
   contactEmail?: string;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  description?: string | null;
+  venueType?: VenueCategory;
 }
 
 /**
@@ -2098,6 +2660,64 @@ export interface AdminQuickAddVenueResponse {
   emailSent: boolean;
   /** @nullable */
   emailError: AdminQuickAddVenueResponseEmailError;
+}
+
+export interface AdminOpenStreetMapAttraction {
+  placeId: string;
+  placeName: string;
+  category: string;
+  lat: number;
+  lng: number;
+  sourceUrl: string;
+  alreadyAdded: boolean;
+}
+
+export type AdminOpenStreetMapAttractionsResponseCountry = typeof AdminOpenStreetMapAttractionsResponseCountry[keyof typeof AdminOpenStreetMapAttractionsResponseCountry];
+
+
+export const AdminOpenStreetMapAttractionsResponseCountry = {
+  VN: 'VN',
+  MY: 'MY',
+  LA: 'LA',
+  KH: 'KH',
+} as const;
+
+export type AdminOpenStreetMapAttractionsResponseSource = typeof AdminOpenStreetMapAttractionsResponseSource[keyof typeof AdminOpenStreetMapAttractionsResponseSource];
+
+
+export const AdminOpenStreetMapAttractionsResponseSource = {
+  overpass: 'overpass',
+  curated_fallback: 'curated_fallback',
+} as const;
+
+export interface AdminOpenStreetMapAttractionsResponse {
+  country: AdminOpenStreetMapAttractionsResponseCountry;
+  attractions: AdminOpenStreetMapAttraction[];
+  attributionUrl: string;
+  source: AdminOpenStreetMapAttractionsResponseSource;
+}
+
+export type ApprovedTouristAttractionImportResultAction = typeof ApprovedTouristAttractionImportResultAction[keyof typeof ApprovedTouristAttractionImportResultAction];
+
+
+export const ApprovedTouristAttractionImportResultAction = {
+  added: 'added',
+  updated: 'updated',
+} as const;
+
+export interface ApprovedTouristAttractionImportResult {
+  placeId: string;
+  placeName: string;
+  action: ApprovedTouristAttractionImportResultAction;
+  photoUploaded: boolean;
+}
+
+export interface ApprovedTouristAttractionsImportResponse {
+  total: number;
+  added: number;
+  updated: number;
+  photosUploaded: number;
+  results: ApprovedTouristAttractionImportResult[];
 }
 
 /**
@@ -3231,6 +3851,20 @@ query: string;
 export type SearchAdminVenuePlaces200 = {
   places: AdminVenuePlace[];
 };
+
+export type ListAdminOpenStreetMapAttractionsParams = {
+country: ListAdminOpenStreetMapAttractionsCountry;
+};
+
+export type ListAdminOpenStreetMapAttractionsCountry = typeof ListAdminOpenStreetMapAttractionsCountry[keyof typeof ListAdminOpenStreetMapAttractionsCountry];
+
+
+export const ListAdminOpenStreetMapAttractionsCountry = {
+  VN: 'VN',
+  MY: 'MY',
+  LA: 'LA',
+  KH: 'KH',
+} as const;
 
 export type ListVenueApplicationsParams = {
 /**

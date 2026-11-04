@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenuePdfAttachment } from './venuePdfAttachment';
 
 export interface VenueManualEmailInput {
   /**
@@ -12,6 +13,8 @@ export interface VenueManualEmailInput {
      * @maxLength 150
      */
   templateId: string;
+  /** Replace the greeting with a generic invitation for pasted email lists. */
+  bulkInvitation?: boolean;
   /**
      * @minLength 1
      * @maxLength 255
@@ -19,8 +22,19 @@ export interface VenueManualEmailInput {
   businessName: string;
   /** @maxLength 255 */
   recipientEmail: string;
+  /**
+     * A short venue-specific reason for the invitation.
+     * @maxLength 500
+     */
+  venueFitReason?: string;
   /** @maxLength 255 */
   placeId?: string;
   /** @minimum 1 */
   venueOwnerProfileId?: number;
+  /**
+     * ID of the exact bounced outreach record being retried.
+     * @minimum 1
+     */
+  retryOfLogId?: number;
+  pdfAttachment?: VenuePdfAttachment;
 }

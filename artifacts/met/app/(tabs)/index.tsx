@@ -24,7 +24,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "expo-image";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { Avatar } from "@/components/Avatar";
 import { HeatmapMap } from "@/components/HeatmapMap";
 import { CanopyHeader, CanopyMapCard, CanopyVisibility } from "@/components/CanopyChrome";
@@ -96,43 +96,45 @@ function StoreDemoHomeScreen() {
           </View>
           <Text style={[canopyHome.title, { color: colors.text }]}>A little closer{"\n"}to your world.</Text>
           <Text style={[canopyHome.caption, { color: colors.mutedForeground }]}>
-            Illustrative venue activity · read-only sample
+            New York City · read-only sample
           </Text>
         </View>
 
         <View style={{ marginHorizontal: -14 }}>
         <CanopyVisibility visible={false} onToggle={() => Alert.alert("Sample preview", "Visibility is not changed in this read-only sample.")} title="Your visibility is paused" subtitle="Nearby discovery, on your terms." />
-        <CanopyMapCard>
+        <CanopyMapCard footerLabel={`${STORE_DEMO_VENUES.length} sample venue pins · New York City`}>
           <View style={[storeDemoHomeStyles.map, light && storeDemoLightStyles.map, { flex: 1, height: undefined }]}>
             <Svg viewBox="0 0 360 165" preserveAspectRatio={compact ? "xMidYMid slice" : "xMidYMid meet"} style={storeDemoHomeStyles.worldMap}>
-              <Path d="M37 40 51 27 72 19 91 23 101 17 116 25 124 38 118 47 106 48 104 59 95 63 90 77 80 89 73 82 68 72 55 69 49 61 39 58 31 48Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
-              <Path d="m98 63 12 5 8 11 10 8-3 11 8 9-3 14-8 8-4 15-8 5-8-12-1-13-8-12 2-11-7-9 7-10Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
-              <Path d="m96 16 9-8 14 3 5 8-7 7-13-1Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
-              <Path d="m160 39 9-7 12 2 6 6-5 6-12-1-5 5-9-3Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
-              <Path d="m178 53 14-5 17 3 8 10-5 12-8 9-3 15-11 13-7 18-8 6-7-14-4-15-7-13 3-15-5-11Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
-              <Path d="m192 30 13-8 19 2 12-5 18 6 17-2 16 7 14 1 10 9 16 3 9 9-9 7-14-5-12 3-10-5-12 4-13-4-8 8-15-1-10-7-15 1-9-8-15 2-9-7-16 4-7-7Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
-              <Path d="m285 107 14-6 17 4 9 10-8 10-17 1-13-8Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
-              <Path d="m324 91 4-2 3 7-4 6Z" fill={light ? "#CADBD6" : "#20374A"} stroke={light ? "#8CAEA5" : "#456178"} strokeWidth="1" />
-              {[
-                { x: 67, y: 58, color: "#A78BFA", radius: 13 },
-                { x: 116, y: 64, color: "#F97360", radius: 9 },
-                { x: 178, y: 47, color: "#34D399", radius: 10 },
-                { x: 199, y: 74, color: "#F97360", radius: 13 },
-                { x: 241, y: 58, color: "#A78BFA", radius: 9 },
-                { x: 280, y: 65, color: "#22D3EE", radius: 12 },
-                { x: 254, y: 96, color: "#34D399", radius: 8 },
-                { x: 301, y: 113, color: "#F97360", radius: 8 },
-              ].map((spot, index) => (
-                <React.Fragment key={index}>
-                  <Circle cx={spot.x} cy={spot.y} r={spot.radius * 1.8} fill={light ? ["#635AA4", "#B05D47", "#26785B", "#B05D47", "#635AA4", "#197B94", "#26785B", "#B05D47"][index] : spot.color} opacity={light ? 0.23 : 0.13} />
-                  <Circle cx={spot.x} cy={spot.y} r={spot.radius * 0.58} fill={light ? ["#635AA4", "#B05D47", "#26785B", "#B05D47", "#635AA4", "#197B94", "#26785B", "#B05D47"][index] : spot.color} opacity={light ? 1 : 0.9} />
-                  <Circle cx={spot.x} cy={spot.y} r={2.2} fill={light ? "#FAF8F2" : "#F8FAFC"} />
-                </React.Fragment>
-              ))}
+              <Rect width="360" height="165" fill={light ? "#D9E9EB" : "#1B3441"} />
+              <Path d="M0 0h73c5 21 4 42 1 61 4 19 10 37 8 55-2 17-4 32 2 49H0Z" fill={light ? "#E9E2D2" : "#35443F"} />
+              <Path d="M82-5c6 23 11 43 18 63 7 19 13 38 19 57 5 19 10 39 18 60H92c3-18 2-36 1-54-1-20-8-39-13-58-5-21-9-43-13-68Z" fill={light ? "#F0EADB" : "#40504A"} />
+              <Path d="M103-5c5 24 10 44 17 63 7 20 14 38 20 57 7 20 16 39 25 60H112c2-18 2-36 0-54-2-20-8-39-13-58-6-21-11-43-16-68Z" fill={light ? "#F2ECDE" : "#44554E"} stroke={light ? "#C9C1B1" : "#607168"} strokeWidth="1" />
+              <Path d="M253-5c-3 24-1 45 1 66 2 19 6 37 6 55 0 19-3 38-7 59h107V-5Z" fill={light ? "#E9E2D2" : "#35443F"} />
+              <Path d="M169-5c-5 20-5 39-1 57 4 19 12 37 18 55 6 19 14 38 21 63h-30c-9-21-18-41-25-61-7-19-14-37-21-56-7-19-13-39-19-58Z" fill={light ? "#F2ECDE" : "#44554E"} stroke={light ? "#C9C1B1" : "#607168"} strokeWidth="1" />
+              <Path d="M108 13 184 17M112 31 190 36M117 50 197 55M123 69 204 75M130 89 210 96M137 109 217 116M144 129 223 137M152 149 229 158M130 0 164 165M146 0 181 165M163 0 198 165" fill="none" stroke={light ? "#FFFDF7" : "#718078"} strokeWidth="1.5" opacity=".9" />
+              <Path d="M134 16c8-5 18-5 27-2l15 34-18 12-18-14-10-18Z" fill={light ? "#B9CCA9" : "#5A765D"} />
+              <Path d="M270 18 360 40M264 43 360 66M260 70 360 91M258 98 360 119M255 126 360 148M292 0 280 165M320 0 309 165M341 0 333 165" fill="none" stroke={light ? "#FFFDF7" : "#718078"} strokeWidth="1.5" opacity=".85" />
+              {STORE_DEMO_VENUES.map((venue) => {
+                const x = 18 + ((venue.lng + 74.03) / 0.09) * 324;
+                const y = 14 + ((40.78 - venue.lat) / 0.08) * 137;
+                return (
+                  <React.Fragment key={venue.placeId}>
+                    <Circle cx={x} cy={y - 6} r="12" fill={venue.color} opacity=".2" />
+                    <Path
+                      d={`M ${x} ${y + 12} C ${x + 7} ${y + 4} ${x + 8} ${y} ${x + 8} ${y - 6} A 8 8 0 1 0 ${x - 8} ${y - 6} C ${x - 8} ${y} ${x - 7} ${y + 4} ${x} ${y + 12} Z`}
+                      fill={venue.color}
+                      stroke={light ? "#FFFFFF" : "#172A30"}
+                      strokeWidth="2"
+                    />
+                    <Circle cx={x} cy={y - 6} r="2.8" fill="#FFFFFF" />
+                  </React.Fragment>
+                );
+              })}
             </Svg>
-            <Text style={[storeDemoHomeStyles.region, light && storeDemoLightStyles.region, { left: "12%", top: "43%" }]}>AMERICAS</Text>
-            <Text style={[storeDemoHomeStyles.region, light && storeDemoLightStyles.region, { left: "43%", top: "31%" }]}>EUROPE</Text>
-            <Text style={[storeDemoHomeStyles.region, light && storeDemoLightStyles.region, { right: "9%", top: "40%" }]}>ASIA PACIFIC</Text>
+            <Text style={[storeDemoHomeStyles.region, light && storeDemoLightStyles.region, { left: "7%", top: "8%" }]}>NEW YORK CITY</Text>
+            <Text style={[storeDemoHomeStyles.region, light && storeDemoLightStyles.region, { left: "5%", top: "60%" }]}>HUDSON</Text>
+            <Text style={[storeDemoHomeStyles.region, light && storeDemoLightStyles.region, { left: "41%", top: "14%" }]}>MANHATTAN</Text>
+            <Text style={[storeDemoHomeStyles.region, light && storeDemoLightStyles.region, { right: "5%", top: "74%" }]}>BROOKLYN</Text>
           </View>
         </CanopyMapCard>
         </View>
@@ -140,7 +142,7 @@ function StoreDemoHomeScreen() {
         <View style={[storeDemoHomeStyles.sectionHeading, light && storeDemoLightStyles.sectionHeading, compact && storeDemoCompactStyles.sectionHeading]}>
           <View>
             <Text style={[storeDemoHomeStyles.sectionTitle, light && storeDemoLightStyles.sectionTitle, compact && storeDemoCompactStyles.sectionTitle]}>Featured venues</Text>
-            <Text style={[storeDemoHomeStyles.sectionSub, light && storeDemoLightStyles.sectionSub, compact && storeDemoCompactStyles.sectionSub]}>Sample places · this week’s community activity</Text>
+            <Text style={[storeDemoHomeStyles.sectionSub, light && storeDemoLightStyles.sectionSub, compact && storeDemoCompactStyles.sectionSub]}>New York favorites · this week’s community activity</Text>
           </View>
           <Feather name="arrow-up-right" size={17} color={light ? "#507467" : "#94A3B8"} />
         </View>

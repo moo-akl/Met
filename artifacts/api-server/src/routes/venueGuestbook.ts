@@ -78,8 +78,8 @@ router.post(base, requireUid, writeLimit, async (req, res) => {
   const uid = req.uid!;
   const access = await eligibility(uid, place.data);
   if (!access.canPost) {
-    res.status(403).json({ code: access.eligibility === "profile" ? "PROFILE_COMPLETION_REQUIRED" : "QR_CHECKIN_REQUIRED",
-      message: access.eligibility === "profile" ? "Complete your profile and photo before posting." : "Check in with this venue's QR code before leaving a memory." }); return;
+    res.status(403).json({ code: access.eligibility === "profile" ? "PROFILE_COMPLETION_REQUIRED" : "VENUE_CHECKIN_REQUIRED",
+      message: access.eligibility === "profile" ? "Complete your profile and photo before posting." : "Check in at this venue with location or QR before leaving a memory." }); return;
   }
   const clientId = body.data.clientId ?? randomUUID();
   const [existing] = await db.select().from(entries)

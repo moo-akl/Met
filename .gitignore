@@ -77,3 +77,9 @@ attached_assets/*.jks
 attached_assets/*.jfif
 attached_assets/*.txt
 attached_assets/*.dart
+
+# Generated research evidence; the reviewed CSV and source registry remain tracked.
+/research/sources/venue-prospects-global/
+
+# Generated, downloadable artifacts.
+/generated-artifacts/

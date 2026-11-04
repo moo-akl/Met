@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Met Venue Introduction — Email Template</title>
+    <style>
+      body { margin: 0; padding: 32px 16px; background: #f3f5ed; color: #183c2f; font-family: Arial, Helvetica, sans-serif; }
+      .wrap { max-width: 760px; margin: 0 auto; }
+      .meta { margin: 0 0 14px; padding: 14px 18px; border: 1px solid #dbe4d8; border-radius: 10px; background: #fffdf7; font-size: 14px; line-height: 1.55; }
+      .meta strong { display: inline-block; min-width: 110px; color: #26735a; }
+      .email { border: 1px solid #dbe4d8; border-radius: 14px; background: #fffdf7; overflow: hidden; }
+      .brand { padding: 24px 30px; background: #183c2f; color: #fffdf7; font-weight: 700; letter-spacing: 2px; }
+      .content { padding: 28px 30px 34px; font-size: 16px; line-height: 1.65; }
+      .content h1 { margin: 0 0 18px; color: #183c2f; font-size: 26px; line-height: 1.2; }
+      .content p { margin: 0 0 16px; }
+      .steps { margin: 8px 0 20px; padding-left: 22px; }
+      .steps li { padding: 0 0 8px; }
+      .attachment { margin-top: 24px; padding: 14px 16px; border-radius: 8px; background: #e5efe4; font-weight: 600; }
+      .footer { padding: 0 30px 28px; color: #65736a; font-size: 13px; }
+      @media (max-width: 560px) {
+        body { padding: 16px 8px; }
+        .content { padding: 22px 20px 28px; }
+        .brand { padding: 20px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="meta" aria-label="Email details">
+        <div><strong>Subject</strong> Help your venue get discovered and remembered with Met</div>
+        <div><strong>Attachment</strong> Met Venue Introduction.pdf</div>
+      </section>
+      <article class="email">
+        <header class="brand">MET</header>
+        <div class="content">
+          <p>Hi {{Venue Manager Name}},</p>
+          <h1>Bring your venue into a growing community.</h1>
+          <p>Met helps venues connect with real guests who visit in person and Met users who discover places in the app. Your venue can appear on Met’s world map, where users can save it and return when they’re choosing where to go.</p>
+          <p>When guests scan your venue’s QR code on-site, their verified check-ins build your visitor community. After visiting, they can leave a note or photo in your venue’s Guest Book—a lasting record of the moments people shared there.</p>
+          <p>Venue managers can build on those visits with rewards, monthly visitor competitions, trophies, and ways to stay connected with real visitors after they leave. Met is also adding venues around the world, so more places can be discovered and saved over time.</p>
+          <p>Getting started is straightforward:</p>
+          <ol class="steps">
+            <li>Apply for your venue in the Met app and provide proof of ownership, such as a business licence, lease, or utility bill addressed to the venue.</li>
+            <li>After approval, complete account registration using the link sent to your email.</li>
+            <li>In Venue Manager, design your custom QR poster and complete your venue page.</li>
+            <li>Print and display the QR code so guests can check in, join your visitor list, take part in rewards, and leave Guest Book notes.</li>
+          </ol>
+          <p>Guests can also send Bluetooth connection requests to people they encounter through Met. The app is introducing a Trust Score for users as a new part of its community experience.</p>
+          <p>I’ve attached a short introduction to Met, including the guest journey and the steps for getting your venue set up.</p>
+          <p>Best,<br />{{Sender Name}}</p>
+          <div class="attachment">PDF to attach: Met Venue Introduction.pdf</div>
+        </div>
+        <footer class="footer">Replace the name placeholders before sending, and attach the PDF listed above.</footer>
+      </article>
+    </main>
+  </body>
+</html>

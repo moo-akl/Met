@@ -313,7 +313,7 @@ function ConnectionsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
-        title={t("appHeader.titleConnections")}
+        title={`${t("appHeader.titleConnections")} (${connections.length})`}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[
           { icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount },

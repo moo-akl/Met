@@ -27,6 +27,7 @@ import {
   getGetEventsFeedQueryKey,
   useDeleteCommunityEvent,
   useCreateCommunityEventInviteLink,
+  useReportCommunityEvent,
   useRsvpCommunityEvent,
   type EventFeedItem,
 } from "@workspace/api-client-react";
@@ -54,6 +55,7 @@ export default function EventDetailsScreen() {
   const { t } = useT();
   const { authedUid } = useApp();
   const [actionError, setActionError] = useState("");
+  const [reportPending, setReportPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rsvpPending, setRsvpPending] = useState(false);
   const eventQuery = useQuery({
@@ -83,6 +85,7 @@ export default function EventDetailsScreen() {
     enabled: isOwner && event?.eventType === "member",
   });
   const shareInviteMutation = useCreateCommunityEventInviteLink();
+  const reportCommunityEvent = useReportCommunityEvent();
 
   const saveRsvp = async (status: RsvpStatus) => {
     if (!event) return;
@@ -107,20 +110,33 @@ export default function EventDetailsScreen() {
     }
   };
 
-  const shareInviteLink = async () => {
-    if (
-      !event ||
-      event.eventType !== "member" ||
-      !isOwner ||
-      !ownerManageQuery.data?.inviteLinkEnabled
-    ) {
-      return;
-    }
+  const canShareEvent = Boolean(
+    event &&
+    (event.eventType === "venue" ||
+      event.visibility === "public" ||
+      (isOwner && ownerManageQuery.data?.inviteLinkEnabled)),
+  );
+
+  const shareEvent = async () => {
+    if (!event || !canShareEvent) return;
     setActionError("");
     try {
-      const link = await shareInviteMutation.mutateAsync({ eventId: event.id });
+      const link = event.eventType === "venue"
+        ? {
+            url: `https://met-app.org/v/${encodeURIComponent(event.placeId ?? "")}`,
+            passcodeRequired: false,
+          }
+        : await shareInviteMutation.mutateAsync({ eventId: event.id });
+      if (event.eventType === "venue" && !event.placeId) {
+        throw new Error("This venue event does not have a shareable venue link.");
+      }
+      const details = [
+        event.title,
+        new Date(event.startsAt).toLocaleString(),
+        location,
+      ].filter(Boolean).join("\n");
       await Share.share({
-        message: `${event.title}\n${link.url}`,
+        message: `${details}\n${link.url}`,
         url: link.url,
         title: event.title,
       });
@@ -135,6 +151,52 @@ export default function EventDetailsScreen() {
         error instanceof Error ? error.message : t("tabs.events.inviteLinkShareFailed"),
       );
     }
+  };
+
+  const submitEventReport = async (
+    reason: "inappropriate" | "harassment" | "spam" | "offensive_image" | "other",
+  ) => {
+    if (!event || isOwner) return;
+    setReportPending(true);
+    setActionError("");
+    try {
+      if (event.eventType === "member") {
+        await reportCommunityEvent.mutateAsync({
+          data: { eventId: event.id, reason },
+        });
+      } else if (event.placeId) {
+        await api.reportVenueContent(
+          { uid: authedUid ?? "" },
+          {
+            entityType: "event",
+            entityId: event.id,
+            placeId: event.placeId,
+            reason,
+          },
+        );
+      } else {
+        throw new Error("This event cannot be reported right now.");
+      }
+      Alert.alert("Thanks", "Your report has been submitted for review.");
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Could not submit the report. Please try again.",
+      );
+    } finally {
+      setReportPending(false);
+    }
+  };
+
+  const showEventReportOptions = () => {
+    if (!event || isOwner || reportPending) return;
+    Alert.alert("Report this event", "Why are you reporting this?", [
+      { text: "Inappropriate", onPress: () => void submitEventReport("inappropriate") },
+      { text: "Offensive image", onPress: () => void submitEventReport("offensive_image") },
+      { text: "Spam", onPress: () => void submitEventReport("spam") },
+      { text: "Harassment", onPress: () => void submitEventReport("harassment") },
+      { text: "Other", onPress: () => void submitEventReport("other") },
+      { text: t("common.cancel"), style: "cancel" },
+    ]);
   };
 
   const openDirections = async (currentEvent: EventFeedItem) => {
@@ -348,31 +410,47 @@ export default function EventDetailsScreen() {
               </View>
             </View>
 
+            {canShareEvent ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("common.share")}
+                disabled={shareInviteMutation.isPending}
+                onPress={() => void shareEvent()}
+                style={[
+                  styles.shareButton,
+                  {
+                    borderColor: colors.primary,
+                    opacity: shareInviteMutation.isPending ? 0.65 : 1,
+                  },
+                ]}
+              >
+                {shareInviteMutation.isPending ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Feather name="share-2" size={16} color={colors.primary} />
+                )}
+                <Text style={[styles.shareText, { color: colors.primary }]}>
+                  {t("common.share")}
+                </Text>
+              </Pressable>
+            ) : null}
+            {!isOwner ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Report this event"
+                disabled={reportPending}
+                onPress={showEventReportOptions}
+                style={[styles.reportButton, { opacity: reportPending ? 0.6 : 1 }]}
+              >
+                <Feather name="flag" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.reportText, { color: colors.mutedForeground }]}>
+                  {reportPending ? "Submitting report…" : "Report this event"}
+                </Text>
+              </Pressable>
+            ) : null}
+
             {isOwner ? (
               <View style={styles.ownerActions}>
-                {ownerManageQuery.data?.inviteLinkEnabled ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={shareInviteMutation.isPending}
-                    onPress={() => void shareInviteLink()}
-                    style={[
-                      styles.shareButton,
-                      {
-                        borderColor: colors.primary,
-                        opacity: shareInviteMutation.isPending ? 0.65 : 1,
-                      },
-                    ]}
-                  >
-                    {shareInviteMutation.isPending ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                      <Feather name="share-2" size={16} color={colors.primary} />
-                    )}
-                    <Text style={[styles.shareText, { color: colors.primary }]}>
-                      {t("tabs.events.shareInviteLink")}
-                    </Text>
-                  </Pressable>
-                ) : null}
                 {confirmDelete ? (
                   <View style={[styles.confirmCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Text style={[styles.confirmTitle, { color: colors.text }]}>
@@ -482,6 +560,8 @@ const styles = StyleSheet.create({
   ownerActions: { marginTop: 18 },
   shareButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 },
   shareText: { fontSize: 14, fontWeight: "700" },
+  reportButton: { minHeight: 36, flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 7, marginBottom: 10 },
+  reportText: { fontSize: 13, fontWeight: "600" },
   deleteButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   deleteText: { fontSize: 14, fontWeight: "700" },
   confirmCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },

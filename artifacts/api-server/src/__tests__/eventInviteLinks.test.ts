@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   createEventInviteLinkFields,
   decryptEventInviteToken,
+  buildEventInviteUrl,
   hashEventInviteToken,
   verifyEventInvitePasscode,
 } from "../lib/eventInviteLinks";
@@ -12,6 +13,22 @@ beforeAll(() => {
 });
 
 describe("event invite link credentials", () => {
+  it("defaults shareable event invite links to Met's canonical domain", () => {
+    const previousBaseUrl = process.env["APP_BASE_URL"];
+    delete process.env["APP_BASE_URL"];
+    try {
+      expect(buildEventInviteUrl("invite_token-123")).toBe(
+        "https://met-app.org/event-invite/invite_token-123",
+      );
+    } finally {
+      if (previousBaseUrl === undefined) {
+        delete process.env["APP_BASE_URL"];
+      } else {
+        process.env["APP_BASE_URL"] = previousBaseUrl;
+      }
+    }
+  });
+
   it("stores only a token digest and authenticated ciphertext", () => {
     const fields = createEventInviteLinkFields();
     const token = decryptEventInviteToken(fields.inviteTokenEncrypted);

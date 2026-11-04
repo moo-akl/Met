@@ -21,6 +21,7 @@ import {
   Linking,
   Modal,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -32,7 +33,6 @@ import * as Location from "expo-location";
 import { Feather } from "@expo/vector-icons";
 import themeColors from "@/constants/colors";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
@@ -405,7 +405,6 @@ export default function VenueProfileScreen() {
   const router = useRouter();
   const isScreenshotDemoVenue =
     isStoreScreenshotDemo("venue") && placeId === STORE_DEMO_PLACE_ID;
-  const isBrightDemo = isScreenshotDemoVenue && !isDark;
 
   const [profile, setProfile]             = useState<VenueOwnerProfile | null>(null);
   const [events, setEvents]               = useState<VenueEvent[]>([]);
@@ -836,6 +835,24 @@ export default function VenueProfileScreen() {
     }
   };
 
+  const shareVenue = async () => {
+    if (!profile || !placeId) return;
+    if (isScreenshotDemoVenue) {
+      Alert.alert("Sample venue", "This illustrative preview cannot be shared.");
+      return;
+    }
+    const url = `https://met-app.org/v/${encodeURIComponent(placeId)}`;
+    try {
+      await Share.share({
+        title: profile.businessName,
+        message: `${profile.businessName}\n${url}`,
+        url,
+      });
+    } catch {
+      Alert.alert("Couldn't share this venue", "Please try again in a moment.");
+    }
+  };
+
   const now = new Date();
   // Active / Upcoming shown by default; Ended hidden behind a toggle.
   const endedRewards = rewards.filter((r) => getRewardStatus(r, now) === "Ended");
@@ -905,6 +922,7 @@ export default function VenueProfileScreen() {
         <View style={[canopyVenue.header, { paddingTop: insets.top + 2 }]}>
           <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Go back" style={canopyVenue.iconButton}><Feather name="arrow-left" size={22} color={TEXT} /></Pressable>
           <Text style={canopyVenue.headerLabel}>{isScreenshotDemoVenue ? "SAMPLE PLACE" : "A PLACE TO CONNECT"}</Text>
+          <Pressable onPress={() => void shareVenue()} accessibilityRole="button" accessibilityLabel="Share this venue" style={canopyVenue.iconButton}><Feather name="share-2" size={19} color={TEXT} /></Pressable>
           <SavePlaceButton placeId={placeId} placeName={profile?.businessName} disabled={isScreenshotDemoVenue} />
           <Pressable onPress={() => showContentReportSheet("venue", 0, placeId ?? "")} accessibilityRole="button" accessibilityLabel="Report this venue" style={canopyVenue.iconButton}><Feather name="more-horizontal" size={22} color={TEXT} /></Pressable>
         </View>
@@ -919,53 +937,13 @@ export default function VenueProfileScreen() {
         <View style={styles.hero}>
           {/* Warm gradient background */}
           {isScreenshotDemoVenue ? (
-            <LinearGradient
-              colors={isBrightDemo ? ["#D6E9D9", "#F5E5BC", "#DF9B78"] : ["#A8D8C8", "#E6D5A4", "#DE9A65"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+            <Image
+              source={require("../../assets/images/sunroom-cafe-cover.jpg")}
               style={styles.heroCover}
-            >
-              <Svg
-                viewBox="0 0 360 286"
-                preserveAspectRatio="xMidYMid slice"
-                style={StyleSheet.absoluteFillObject}
-                accessibilityLabel="Illustration of a sample neighborhood café"
-              >
-                <Circle cx="292" cy="43" r="24" fill="#FFF4CD" opacity=".6" />
-                <Path d="M0 177C37 153 71 160 108 177v109H0Z" fill="#617C5B" />
-                <Path d="M0 189c30-31 48-53 60-83M21 168c-8-18-18-27-30-33m43 4c8-18 18-29 30-35m-37 70c17-8 30-8 44-4" fill="none" stroke="#395846" strokeWidth="8" strokeLinecap="round" />
-                <Circle cx="20" cy="118" r="23" fill="#6F9364" />
-                <Circle cx="58" cy="91" r="25" fill="#78996A" />
-                <Circle cx="76" cy="145" r="21" fill="#527650" />
-                <Path d="M0 225c67-28 123-15 188 12l-17 49H0Z" fill="#C5A875" />
-                <Rect x="105" y="82" width="244" height="148" rx="5" fill="#B96243" />
-                <Path d="m95 88 24-27h217l20 27Z" fill="#754337" />
-                <Rect x="119" y="103" width="214" height="14" rx="3" fill="#D78A5E" />
-                <Rect x="128" y="126" width="84" height="77" rx="3" fill="#223A3B" />
-                <Rect x="134" y="132" width="72" height="64" rx="2" fill="#E4AE68" />
-                <Rect x="137" y="136" width="66" height="55" fill="#75523E" />
-                <Path d="M170 136v55M137 161h66" stroke="#253D3A" strokeWidth="4" />
-                <Rect x="225" y="126" width="91" height="104" rx="3" fill="#21383A" />
-                <Rect x="231" y="132" width="79" height="92" rx="2" fill="#D8995B" />
-                <Rect x="263" y="132" width="5" height="92" fill="#283D3A" />
-                <Circle cx="258" cy="183" r="3" fill="#F7E2A8" />
-                <Path d="M110 121h230" stroke="#F0C17A" strokeWidth="4" />
-                <Circle cx="135" cy="119" r="3.5" fill="#FFE6A6" />
-                <Circle cx="160" cy="119" r="3.5" fill="#FFE6A6" />
-                <Circle cx="185" cy="119" r="3.5" fill="#FFE6A6" />
-                <Circle cx="210" cy="119" r="3.5" fill="#FFE6A6" />
-                <Circle cx="235" cy="119" r="3.5" fill="#FFE6A6" />
-                <Circle cx="260" cy="119" r="3.5" fill="#FFE6A6" />
-                <Circle cx="285" cy="119" r="3.5" fill="#FFE6A6" />
-                <Rect x="286" y="230" width="11" height="30" rx="3" fill="#544539" />
-                <Circle cx="292" cy="223" r="19" fill="#476A4E" />
-                <Circle cx="331" cy="241" r="23" fill="#57764F" />
-                <Path d="M0 267c92-31 177-24 267 19H0Z" fill="#45624A" opacity=".9" />
-              </Svg>
-              <View style={styles.illustrationBadge}>
-                <Text style={styles.illustrationBadgeText}>ILLUSTRATIVE SAMPLE VENUE</Text>
-              </View>
-            </LinearGradient>
+              contentFit="cover"
+              transition={200}
+              accessibilityLabel="The Sunroom Café in New York"
+            />
           ) : profile.coverPhotoUrl ? (
             <Pressable
               onPress={() => setPhotoViewerUrl(profile.coverPhotoUrl!)}
@@ -999,7 +977,14 @@ export default function VenueProfileScreen() {
           {/* Identity — bottom of hero */}
           <View style={styles.heroIdentity}>
             {/* Logo */}
-            {profile.logoUrl ? (
+            {isScreenshotDemoVenue ? (
+              <Image
+                source={require("../../assets/images/sunroom-cafe-profile.png")}
+                style={styles.heroLogo}
+                contentFit="cover"
+                accessibilityLabel="The Sunroom Café profile photo"
+              />
+            ) : profile.logoUrl ? (
               <Pressable
                 onPress={() => setPhotoViewerUrl(profile.logoUrl!)}
                 accessibilityRole="imagebutton"
@@ -1733,24 +1718,6 @@ const styles = StyleSheet.create({
   demoHero: { height: 286 },
   heroCover: { width: "100%", height: 232 },
   demoHeroCover: { height: 286 },
-  illustrationBadge: {
-    position: "absolute",
-    top: 12,
-    right: 16,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: "rgba(31,41,36,.65)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,.3)",
-  },
-  illustrationBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 7,
-    letterSpacing: 0.7,
-    fontFamily: "Inter_700Bold",
-  },
-
   backBtn: {
     position: "absolute",
     left: 16,

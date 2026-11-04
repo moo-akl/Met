@@ -1,0 +1,106 @@
+[
+  {
+    "id": "b1a1b8f1-581a-4f9b-8d1a-100000000001",
+    "position": 1,
+    "filepath": "src/pages/slides/Slide1.tsx",
+    "title": "Connect with your real visitors",
+    "description": "Give visitors reasons to return and keep relationships and memories going.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1a1b8f1-581a-4f9b-8d1a-100000000002",
+    "position": 2,
+    "filepath": "src/pages/slides/Slide2.tsx",
+    "title": "Let users discover your venue on Met’s world map.",
+    "description": "Guests can save your venue and revisit it later.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1a1b8f1-581a-4f9b-8d1a-100000000007",
+    "position": 3,
+    "filepath": "src/pages/slides/Slide7.tsx",
+    "title": "Why is Met different?",
+    "description": "Bluetooth helps nearby users discover profiles, send connection requests, and build relationships.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "95da8fd7-820b-4942-a70b-782006a5b0ff",
+    "position": 4,
+    "filepath": "src/pages/slides/Slide13.tsx",
+    "title": "What about guest privacy?",
+    "description": "Visibility choices, location privacy, reveal consent, turn-based chat, and community Trust Score.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1a1b8f1-581a-4f9b-8d1a-100000000003",
+    "position": 5,
+    "filepath": "src/pages/slides/Slide3.tsx",
+    "title": "Share events, rewards, and announcements with your actual customers.",
+    "description": "Promote venue updates and offers to customers who visit your venue.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1a1b8f1-581a-4f9b-8d1a-100000000004",
+    "position": 6,
+    "filepath": "src/pages/slides/Slide4.tsx",
+    "title": "Let guests leave a lasting note.",
+    "description": "The Guest Book lets visitors leave notes and photos that remain available for future visits.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1a1b8f1-581a-4f9b-8d1a-100000000005",
+    "position": 7,
+    "filepath": "src/pages/slides/Slide5.tsx",
+    "title": "Give guests reasons to come back.",
+    "description": "Venue rewards, monthly visitor standings, and trophies.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1a1b8f1-581a-4f9b-8d1a-100000000006",
+    "position": 8,
+    "filepath": "src/pages/slides/Slide6.tsx",
+    "title": "See your visitors. Stay connected.",
+    "description": "Track top customers by visit count, connect in Met, and invite regulars to major events.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1a1b8f1-581a-4f9b-8d1a-100000000008",
+    "position": 9,
+    "filepath": "src/pages/slides/Slide8.tsx",
+    "title": "Apply and verify your venue.",
+    "description": "Apply in the app, provide proof of ownership, and finish registration after approval.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b1a1b8f1-581a-4f9b-8d1a-100000000010",
+    "position": 10,
+    "filepath": "src/pages/slides/Slide10.tsx",
+    "title": "Print your poster. Welcome guests. Grow your community.",
+    "description": "Design a custom QR poster in Venue Manager, then print and display it for guests.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "d612c9b3-8354-486b-8366-f670f78a6310",
+    "position": 11,
+    "filepath": "src/pages/slides/Slide14.tsx",
+    "title": "Questions about security?",
+    "description": "How Met protects data and what app-store review can and cannot guarantee.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "ac01a850-63cf-45df-a04e-dda182feccbe",
+    "position": 12,
+    "filepath": "src/pages/slides/Slide12.tsx",
+    "title": "From QR check-in to a reason to return.",
+    "description": "Guests check in, earn points, join your visitor list, and find reasons to visit again.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "3097d764-00b0-44b0-979a-b05008279cfb",
+    "position": 13,
+    "filepath": "src/pages/slides/Slide11.tsx",
+    "title": "Free registration.",
+    "description": "Venues that join Met now can register for free forever.",
+    "speakerNotes": ""
+  }
+]

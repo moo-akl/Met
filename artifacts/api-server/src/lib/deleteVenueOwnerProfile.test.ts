@@ -9,7 +9,7 @@ import {
   venueActivationPoliciesTable, venueOutreachEmailLogsTable,
   venueEventsTable, venueEventRsvpsTable, venueRewardsTable, venueAnnouncementsTable,
   venueContentReportsTable, venueQrVerificationsTable, venueReviewsTable,
-  hubCheckinsTable, monthlyChampionsTable, userStatsTable,
+  hubCheckinsTable, monthlyChampionsTable, userStatsTable, venueOutreachFollowUpsTable,
 } from "@workspace/db";
 import { deleteVenueOwnerProfile } from "./deleteVenueOwnerProfile";
 
@@ -86,6 +86,10 @@ describe("permanent venue deletion", () => {
     await tx.insert(hubCheckinsTable).values({ placeId: key, userUid: key, source: "qr_verified" });
     await tx.insert(monthlyChampionsTable).values({ placeId: key, userUid: key, month: "2026-10-01" });
     await tx.insert(userStatsTable).values({ userUid: key, hubStreaks: { [key]: 2, otherVenue: 3 } });
+    await tx.insert(venueOutreachFollowUpsTable).values([
+      { venueKey: `profile:${p.id}`, manualInterestLevel: "top_interest" },
+      { venueKey: `place:${key}`, nextActionNote: "Call back next week" },
+    ]);
 
     expect(await deleteVenueOwnerProfile(tx, p)).toEqual(expect.arrayContaining(["cover", "logo", "doc", "event", "announcement"]));
     for (const [table, condition] of [
@@ -114,6 +118,10 @@ describe("permanent venue deletion", () => {
       const result = await tx.execute(sql`SELECT COUNT(*)::int AS n FROM ${table} WHERE ${condition}`);
       expect(result.rows[0]?.n).toBe(0);
     }
+    expect(await tx.select().from(venueOutreachFollowUpsTable)
+      .where(eq(venueOutreachFollowUpsTable.venueKey, `profile:${p.id}`))).toHaveLength(0);
+    expect(await tx.select().from(venueOutreachFollowUpsTable)
+      .where(eq(venueOutreachFollowUpsTable.venueKey, `place:${key}`))).toHaveLength(0);
     const [stats] = await tx.select().from(userStatsTable).where(eq(userStatsTable.userUid, key));
     expect(stats?.hubStreaks).toEqual({ otherVenue: 3 });
     // Venue email and place can immediately be reused; shared Auth identity is
@@ -144,9 +152,15 @@ describe("permanent venue deletion", () => {
     const replacement = await profile(tx, `${key}-new`, { placeId: key });
     await tx.insert(venueReviewsTable).values({ placeId: key, userUid: key, starRating: 5 });
     await tx.insert(hubCheckinsTable).values({ placeId: key, userUid: key });
+    await tx.insert(venueOutreachFollowUpsTable).values({
+      venueKey: `place:${key}`,
+      manualInterestLevel: "interest",
+    });
     await deleteVenueOwnerProfile(tx, old);
     expect(await tx.select().from(venueOwnerProfilesTable).where(eq(venueOwnerProfilesTable.id, replacement.id))).toHaveLength(1);
     expect(await tx.select().from(venueReviewsTable).where(eq(venueReviewsTable.placeId, key))).toHaveLength(1);
     expect(await tx.select().from(hubCheckinsTable).where(eq(hubCheckinsTable.placeId, key))).toHaveLength(1);
+    expect(await tx.select().from(venueOutreachFollowUpsTable)
+      .where(eq(venueOutreachFollowUpsTable.venueKey, `place:${key}`))).toHaveLength(1);
   }));
 });

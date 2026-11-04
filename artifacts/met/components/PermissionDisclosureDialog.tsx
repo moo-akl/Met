@@ -34,9 +34,9 @@ const COPY: Record<
   location: {
     title: "Location Usage",
     body:
-      "Met collects location data to find people you've encountered nearby, even when the app is closed or not in use. This data is used solely to match you with others you've physically crossed paths with — your exact location is never shared with anyone.",
+      "Met uses location to find people you've encountered nearby, even when the app is closed or not in use, and to sort event-place suggestions by distance while you create an event. Event-search location is used on your device and is not shared. Your exact location is never shared with other users.",
     reminderBody:
-      "Location is currently off, so Met can't detect anyone you cross paths with. Met uses your location only to match you with people you've physically met — your exact location is never shared.",
+      "Location is currently off, so Met can't detect encounters or sort event-place suggestions by distance. Your exact location is never shared with other users.",
     cta: "Accept & Continue",
   },
   bluetooth: {

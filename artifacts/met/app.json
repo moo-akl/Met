@@ -14,7 +14,10 @@
       "buildNumber": "306",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
-      "associatedDomains": ["applinks:metapp.replit.app", "applinks:met-app.org"],
+      "associatedDomains": [
+        "applinks:metapp.replit.app",
+        "applinks:met-app.org"
+      ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Met uses your microphone to record and send voice messages.",
@@ -58,6 +61,11 @@
               "scheme": "https",
               "host": "met-app.org",
               "pathPrefix": "/v"
+            },
+            {
+              "scheme": "https",
+              "host": "met-app.org",
+              "pathPrefix": "/event-invite"
             },
             {
               "scheme": "https",
@@ -125,7 +133,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Met uses your location to find people nearby so you don't miss connections."
+          "locationWhenInUsePermission": "Met uses your location to find people nearby and to show nearby event-place suggestions first. Your exact location is not shared."
         }
       ],
       [
@@ -156,9 +164,12 @@
           "androidMode": "default"
         }
       ],
-      ["react-native-maps", {
-        "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
-      }],
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
+        }
+      ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-firebase/messaging",

@@ -8,3 +8,28 @@ export function isAllowedImageMagicBytes(bytes: Buffer): boolean {
     bytes.length >= 12 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return true;
   return false;
 }
+
+export type SupportedImageContentType = "image/jpeg" | "image/png";
+
+export function getSupportedImageContentType(
+  value: string | null,
+): SupportedImageContentType | null {
+  const contentType = value?.split(";")[0]?.trim().toLowerCase();
+  return contentType === "image/jpeg" || contentType === "image/png"
+    ? contentType
+    : null;
+}
+
+export function imageMagicMatchesContentType(
+  bytes: Buffer,
+  contentType: SupportedImageContentType,
+): boolean {
+  if (contentType === "image/jpeg") {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  return bytes.length >= 4 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47;
+}

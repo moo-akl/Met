@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
+import {
+  getVenueApplicationSource,
+  trackVenueApplicationStarted,
+  trackVenueApplicationSubmitted,
+} from "../lib/analytics";
 
 type PlaceResult = {
   placeId: string;
@@ -28,6 +33,11 @@ const STEPS = [
 ];
 
 export default function VenueApply() {
+  const [applicationSource] = useState(() =>
+    getVenueApplicationSource(
+      typeof window === "undefined" ? "" : window.location.search,
+    ),
+  );
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormData>({
     contactEmail: "",
@@ -45,6 +55,10 @@ export default function VenueApply() {
   const [submitted, setSubmitted] = useState(false);
 
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    trackVenueApplicationStarted(applicationSource);
+  }, [applicationSource]);
 
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -105,6 +119,7 @@ export default function VenueApply() {
       }
     },
     onSuccess: () => {
+      trackVenueApplicationSubmitted(applicationSource);
       setError(null);
       setSubmitted(true);
     },

@@ -1,9 +1,18 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
+import { createHash } from "crypto";
 import { and, eq, count, or, sql } from "drizzle-orm";
 import { requireUid } from "../middlewares/requireUid";
 import { adminDb } from "../lib/firebaseAdmin";
-import { db, userReportsTable, userStatsTable, reviewsTable, venueContentReportsTable } from "@workspace/db";
+import {
+  communityEventRsvpsTable,
+  communityEventsTable,
+  db,
+  userReportsTable,
+  userStatsTable,
+  reviewsTable,
+  venueContentReportsTable,
+} from "@workspace/db";
 import { recalcUserRating } from "../lib/reviewRecalc";
 
 const router: IRouter = Router();
@@ -223,6 +232,99 @@ router.post("/venue-content-reports", requireUid, async (req, res) => {
   }
 
   res.json({ id: firestoreId });
+});
+
+const CommunityEventReportBody = z.object({
+  eventId: z.number().int().positive(),
+  reason: z.enum(["inappropriate", "harassment", "spam", "offensive_image", "other"]),
+});
+
+router.post("/community-event-reports", requireUid, async (req, res) => {
+  const reporterUid = req.uid!;
+  const parsed = CommunityEventReportBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ message: "Invalid community event report." });
+    return;
+  }
+
+  const [event] = await db
+    .select()
+    .from(communityEventsTable)
+    .where(and(
+      eq(communityEventsTable.id, parsed.data.eventId),
+      eq(communityEventsTable.isHidden, false),
+    ))
+    .limit(1);
+  if (!event) {
+    res.status(404).json({ message: "Event not found." });
+    return;
+  }
+  if (event.ownerUid === reporterUid) {
+    res.status(403).json({ message: "You cannot report your own event." });
+    return;
+  }
+
+  const [rsvp] = await db
+    .select({ id: communityEventRsvpsTable.id })
+    .from(communityEventRsvpsTable)
+    .where(and(
+      eq(communityEventRsvpsTable.eventId, event.id),
+      eq(communityEventRsvpsTable.userUid, reporterUid),
+    ))
+    .limit(1);
+  const mayView =
+    event.visibility === "public" ||
+    event.inviteeUids.includes(reporterUid) ||
+    Boolean(rsvp);
+  if (!mayView) {
+    res.status(404).json({ message: "Event not found." });
+    return;
+  }
+
+  const reportDocId = createHash("sha256")
+    .update(`${reporterUid}:${event.id}`)
+    .digest("hex");
+  const firestoreId = `community-event-${reportDocId}`;
+  try {
+    await adminDb()
+      .collection("venue_content_reports")
+      .doc(firestoreId)
+      .create({
+        reporterUid,
+        entityType: "community_event",
+        entityId: event.id,
+        placeId: "community-events",
+        reason: parsed.data.reason,
+        createdAt: new Date().toISOString(),
+        status: "open",
+      });
+  } catch (error) {
+    const code = (error as { code?: unknown })?.code;
+    if (code === 6 || code === "already-exists" || code === "ALREADY_EXISTS") {
+      res.status(409).json({ message: "You have already reported this event." });
+      return;
+    }
+    req.log?.error?.({ error, eventId: event.id }, "failed to write community event report");
+    res.status(500).json({ message: "Failed to record report." });
+    return;
+  }
+
+  try {
+    await db
+      .insert(venueContentReportsTable)
+      .values({
+        reporterUid,
+        entityType: "community_event",
+        entityId: event.id,
+        placeId: "community-events",
+        reason: parsed.data.reason,
+        firestoreId,
+      })
+      .onConflictDoNothing();
+  } catch (error) {
+    req.log?.warn?.({ error, eventId: event.id }, "failed to mirror community event report");
+  }
+  res.status(201).json({ id: firestoreId });
 });
 
 export default router;

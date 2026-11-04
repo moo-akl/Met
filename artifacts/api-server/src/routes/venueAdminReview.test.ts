@@ -19,6 +19,7 @@ process.env["SESSION_SECRET"] = "test-session-secret";
 const eqSpy = vi.hoisted(() => vi.fn());
 const neSpy = vi.hoisted(() => vi.fn());
 const isNullSpy = vi.hoisted(() => vi.fn());
+const inArraySpy = vi.hoisted(() => vi.fn());
 vi.mock("drizzle-orm", async (importActual) => {
   const actual = await importActual<typeof import("drizzle-orm")>();
   return {
@@ -35,8 +36,52 @@ vi.mock("drizzle-orm", async (importActual) => {
       isNullSpy(...args);
       return actual.isNull(...args);
     },
+    inArray: (...args: Parameters<typeof actual.inArray>) => {
+      inArraySpy(...args);
+      return actual.inArray(...args);
+    },
   };
 });
+
+const gmailBounceMocks = vi.hoisted(() => ({ readGmailDeliveryFailures: vi.fn() }));
+vi.mock("../lib/gmailBounceSync.js", () => ({
+  readGmailDeliveryFailures: (...args: unknown[]) => gmailBounceMocks.readGmailDeliveryFailures(...args),
+  matchGmailBounceToOutreach: vi.fn(() => ({ kind: "unmatched", reason: "no_eligible_send_candidate" })),
+}));
+
+const gmailReplyMocks = vi.hoisted(() => ({
+  classifyMatchedVenueOutreachReplies: vi.fn(),
+  matchGmailReplyToVenueOutreach: vi.fn(),
+  readGmailVenueOutreachReplies: vi.fn(),
+}));
+vi.mock("../lib/gmailReplySync.js", () => ({
+  classifyMatchedVenueOutreachReplies: gmailReplyMocks.classifyMatchedVenueOutreachReplies,
+  shouldClassifyVenueOutreachReply: (target: {
+    gmailReplyAt: Date | null;
+    gmailReplyMessageId: string | null;
+    gmailReplyClassification: string | null;
+    gmailReplyClassificationVersion: number;
+  }) => Boolean(
+    target.gmailReplyAt &&
+    target.gmailReplyMessageId &&
+    (
+      target.gmailReplyClassification === null ||
+      (
+        target.gmailReplyClassificationVersion < 2 &&
+        ["other", "uncertain"].includes(target.gmailReplyClassification)
+      )
+    )
+  ),
+  VENUE_OUTREACH_REPLY_CLASSIFICATION_VERSION: 2,
+  gmailReplyReferenceIds: vi.fn(() => []),
+  hasPotentialLegacyVenueOutreachTarget: vi.fn(() => false),
+  hasPotentialVenueOutreachThreadRecoveryTarget: vi.fn(() => false),
+  matchGmailReplyToVenueOutreach: gmailReplyMocks.matchGmailReplyToVenueOutreach,
+  matchGmailReplyToLegacyVenueOutreach: vi.fn(() => null),
+  matchGmailReplyToVenueOutreachThread: vi.fn(() => null),
+  readGmailVenueOutreachReplies: gmailReplyMocks.readGmailVenueOutreachReplies,
+  readGmailVenueOutreachThread: vi.fn(async () => []),
+}));
 
 const dbMocks = vi.hoisted(() => {
   /**
@@ -93,7 +138,56 @@ const dbMocks = vi.hoisted(() => {
    * approval bootstrap (business + owner membership + audit inserts) never
    * consumes the sequential mocks meant for application queries.
    */
-  const bizTable = { id: "bizId", venueOwnerProfileId: "venueOwnerProfileId" };
+  const profileTable = {
+    id: "id",
+    ownerUid: "ownerUid",
+    placeId: "placeId",
+    placeName: "placeName",
+    businessName: "businessName",
+    contactEmail: "contactEmail",
+    applicationStatus: "applicationStatus",
+    applicationSource: "applicationSource",
+    applicationApplicantUid: "applicationApplicantUid",
+    assignedAgentId: "assignedAgentId",
+    isApproved: "isApproved",
+    isVerified: "isVerified",
+    submittedAt: "submittedAt",
+    createdAt: "createdAt",
+    updatedAt: "updatedAt",
+    tagline: "tagline",
+    description: "description",
+    coverPhotoUrl: "coverPhotoUrl",
+    logoUrl: "logoUrl",
+    venueType: "venueType",
+    venueTypeSource: "venueTypeSource",
+    websiteUrl: "websiteUrl",
+    lat: "lat",
+    lng: "lng",
+    qrToken: "qrToken",
+    reviewedAt: "reviewedAt",
+    approvedAt: "approvedAt",
+  };
+  const historyTable = {
+    id: "id",
+    venueOwnerProfileId: "venueOwnerProfileId",
+    eventType: "eventType",
+    fromStatus: "fromStatus",
+    toStatus: "toStatus",
+    actorRole: "actorRole",
+    actorUid: "actorUid",
+    applicantMessage: "applicantMessage",
+    internalNote: "internalNote",
+    metadata: "metadata",
+    createdAt: "createdAt",
+  };
+  const bizTable = {
+    id: "bizId",
+    venueOwnerProfileId: "venueOwnerProfileId",
+    placeId: "placeId",
+    legalName: "legalName",
+    createdByUid: "createdByUid",
+    isActive: "isActive",
+  };
   const bizChain: Record<string, ReturnType<typeof vi.fn>> = {} as never;
   bizChain["values"] = vi.fn(() => bizChain);
   bizChain["onConflictDoNothing"] = vi.fn(() => bizChain);
@@ -109,6 +203,7 @@ const dbMocks = vi.hoisted(() => {
     innerJoin: vi.fn().mockReturnThis(),
     groupBy: vi.fn(),
     limit: vi.fn(),
+    for: vi.fn(),
     insert: vi.fn(),
     values: vi.fn().mockReturnThis(),
     update: vi.fn(),
@@ -116,6 +211,7 @@ const dbMocks = vi.hoisted(() => {
     onConflictDoUpdate: vi.fn(),
     set: vi.fn().mockReturnThis(),
     returning: vi.fn(),
+    execute: vi.fn().mockResolvedValue(undefined),
     transaction: vi.fn(),
   };
   const contentTables = {
@@ -123,36 +219,23 @@ const dbMocks = vi.hoisted(() => {
     rewards: { id: "rewardId", placeId: "rewardPlaceId", ownerUid: "rewardOwnerUid", status: "rewardStatus", winnerUid: "rewardWinnerUid" },
     announcements: { id: "announcementId", placeId: "announcementPlaceId", ownerUid: "announcementOwnerUid", isPinned: "announcementIsPinned" },
   };
-  return { chain, credChain, credState, credTable, bizChain, bizTable, contentTables };
+  return {
+    chain,
+    credChain,
+    credState,
+    credTable,
+    profileTable,
+    historyTable,
+    bizChain,
+    bizTable,
+    contentTables,
+  };
 });
 
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
-  venueOwnerProfilesTable: {
-    id: "id",
-    ownerUid: "ownerUid",
-    placeId: "placeId",
-    businessName: "businessName",
-    contactEmail: "contactEmail",
-    applicationStatus: "applicationStatus",
-    applicationSource: "applicationSource",
-    submittedAt: "submittedAt",
-    createdAt: "createdAt",
-    assignedAgentId: "assignedAgentId",
-  },
-  venueApplicationHistoryTable: {
-    id: "id",
-    venueOwnerProfileId: "venueOwnerProfileId",
-    eventType: "eventType",
-    fromStatus: "fromStatus",
-    toStatus: "toStatus",
-    actorRole: "actorRole",
-    actorUid: "actorUid",
-    applicantMessage: "applicantMessage",
-    internalNote: "internalNote",
-    metadata: "metadata",
-    createdAt: "createdAt",
-  },
+  venueOwnerProfilesTable: dbMocks.profileTable,
+  venueApplicationHistoryTable: dbMocks.historyTable,
   venueApplicationInviteTokensTable: {
     id: "inviteTokenId",
     tokenHash: "tokenHash",
@@ -173,13 +256,36 @@ vi.mock("@workspace/db", () => ({
     venueOwnerProfileId: "outreachProfileId",
     applicationInviteTokenId: "outreachInviteTokenId",
     registrationTokenId: "outreachRegistrationTokenId",
+    businessName: "outreachBusinessName",
+    recipientEmail: "outreachRecipientEmail",
+    placeId: "outreachPlaceId",
     createdAt: "outreachCreatedAt",
+    deliveryStatus: "outreachDeliveryStatus",
+    sentAt: "outreachSentAt",
+    gmailBounceMessageId: "outreachGmailBounceMessageId",
+    gmailRfcMessageId: "outreachGmailRfcMessageId",
+    retryOfLogId: "outreachRetryOfLogId",
+    bouncedAt: "outreachBouncedAt",
   },
   venueOutreachFollowUpsTable: {
     venueKey: "followUpVenueKey",
     nextActionNote: "nextActionNote",
     nextActionDueDate: "nextActionDueDate",
+    manualInterestLevel: "manualInterestLevel",
     updatedAt: "followUpUpdatedAt",
+  },
+  venueOutreachManualReplyEventsTable: {
+    id: "manualReplyId",
+    venueKey: "manualReplyVenueKey",
+    action: "manualReplyAction",
+    actorUid: "manualReplyActorUid",
+    createdAt: "manualReplyCreatedAt",
+  },
+  venueOutreachEmailSuppressionsTable: {
+    email: "suppressedEmail",
+    actorUid: "suppressionActorUid",
+    createdAt: "suppressionCreatedAt",
+    updatedAt: "suppressionUpdatedAt",
   },
   salesAgentsTable: { id: "salesAgentId", displayName: "salesAgentDisplayName" },
   venueAdminCredentialsTable: dbMocks.credTable,
@@ -221,9 +327,38 @@ const imageStorage = vi.hoisted(() => {
 });
 vi.mock("../lib/objectStorage", () => ({ ObjectStorageService: vi.fn(function () { return imageStorage; }) }));
 
+const touristAttractionStorage = vi.hoisted(() => {
+  const files = new Map<string, { bytes: Buffer; options: Record<string, unknown> }>();
+  const bucket = {
+    name: "test-tourist-attractions",
+    file: vi.fn((objectPath: string) => ({
+      save: vi.fn(async (bytes: Buffer, options: Record<string, unknown>) => {
+        files.set(objectPath, { bytes, options });
+      }),
+      makePublic: vi.fn().mockResolvedValue(undefined),
+      setMetadata: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn(async () => {
+        files.delete(objectPath);
+      }),
+    })),
+  };
+  const storage = { bucket: vi.fn(() => bucket) };
+  return {
+    bucket,
+    storage,
+    files,
+    adminStorage: vi.fn(() => storage),
+  };
+});
+vi.mock("../lib/firebaseAdmin", () => ({
+  adminAuth: () => ({ getUsers: vi.fn().mockResolvedValue({ users: [] }) }),
+  adminStorage: touristAttractionStorage.adminStorage,
+}));
+
 import express from "express";
 import cookieParser from "cookie-parser";
 import request from "supertest";
+import { WORLD_TOURIST_ATTRACTIONS } from "../lib/worldTouristAttractions.js";
 import venueOwnerRouter from "./venueOwner";
 
 const app = express();
@@ -285,8 +420,110 @@ async function signedInAgent() {
   return agent;
 }
 
+function configureTouristAttractionPersistenceStore() {
+  const state = {
+    profiles: [] as Array<Record<string, any>>,
+    histories: [] as Array<Record<string, any>>,
+    businesses: [] as Array<Record<string, any>>,
+  };
+  const chain = dbMocks.chain;
+  let selectedTable: unknown;
+  let operation: "select" | "insert" | "update" = "select";
+  let pendingValues: Record<string, any> | null = null;
+  let pendingSet: Record<string, any> | null = null;
+  let updatedProfile: Record<string, any> | null = null;
+  let updateIndex = 0;
+  let nextProfileId = 1;
+
+  chain.select.mockImplementation(() => {
+    operation = "select";
+    return chain;
+  });
+  chain.from.mockImplementation((table: unknown) => {
+    if (table === dbMocks.credTable) return dbMocks.credChain;
+    selectedTable = table;
+    return chain;
+  });
+  chain.insert.mockImplementation((table: unknown) => {
+    operation = "insert";
+    selectedTable = table;
+    return chain;
+  });
+  chain.update.mockImplementation((table: unknown) => {
+    operation = "update";
+    selectedTable = table;
+    return chain;
+  });
+  chain.values.mockImplementation((values: Record<string, any>) => {
+    pendingValues = values;
+    if (selectedTable === dbMocks.historyTable) state.histories.push(values);
+    if (selectedTable === dbMocks.bizTable) state.businesses.push(values);
+    return chain;
+  });
+  chain.set.mockImplementation((values: Record<string, any>) => {
+    pendingSet = values;
+    return chain;
+  });
+  chain.where.mockImplementation(() => {
+    if (operation === "select" && selectedTable === dbMocks.profileTable) {
+      updateIndex = 0;
+      return Promise.resolve([...state.profiles]);
+    }
+    if (operation === "update" && selectedTable === dbMocks.profileTable) {
+      updatedProfile = state.profiles[updateIndex++] ?? null;
+      if (updatedProfile && pendingSet) Object.assign(updatedProfile, pendingSet);
+      return chain;
+    }
+    return chain;
+  });
+  chain.returning.mockImplementation(async () => {
+    if (operation === "insert" && selectedTable === dbMocks.profileTable && pendingValues) {
+      const profile = { ...pendingValues, id: nextProfileId++ };
+      state.profiles.push(profile);
+      return [profile];
+    }
+    if (operation === "insert" && selectedTable === dbMocks.bizTable) {
+      return [{ id: state.businesses.length }];
+    }
+    if (operation === "update" && selectedTable === dbMocks.profileTable && updatedProfile) {
+      return [{ id: updatedProfile.id }];
+    }
+    return [];
+  });
+  chain.execute.mockResolvedValue(undefined);
+  chain.transaction.mockImplementation(async (callback: (tx: typeof chain) => unknown) =>
+    callback(chain),
+  );
+
+  return state;
+}
+
+function deletedOutreachTableKinds(): string[] {
+  return dbMocks.chain.delete.mock.calls.map(([table]) => {
+    const columnNames = new Set(Object.values(table as Record<string, unknown>));
+    if (columnNames.has("outreachLogId")) return "outreach-history";
+    if (columnNames.has("followUpVenueKey")) return "follow-up";
+    if (columnNames.has("inviteTokenId")) return "application-invite";
+    if (columnNames.has("registrationTokenId")) return "registration-invite";
+    if (columnNames.has("suppressedEmail")) return "suppression";
+    if (columnNames.has("metadata")) return "application-history";
+    if (columnNames.has("ownerUid")) return "venue-profile";
+    return "unexpected";
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  dbMocks.chain.where.mockReset();
+  dbMocks.chain.orderBy.mockReset();
+  dbMocks.chain.groupBy.mockReset();
+  dbMocks.chain.limit.mockReset();
+  dbMocks.chain.for.mockReset();
+  dbMocks.chain.returning.mockReset();
+  imageStorage.getObjectMagicBytes.mockReset();
+  gmailReplyMocks.readGmailVenueOutreachReplies.mockReset();
+  gmailReplyMocks.matchGmailReplyToVenueOutreach.mockReset();
+  gmailReplyMocks.classifyMatchedVenueOutreachReplies.mockReset();
   dbMocks.credState.rows = [];
   dbMocks.credState.pendingWrite = null;
   dbMocks.chain.select.mockReturnThis();
@@ -309,6 +546,7 @@ beforeEach(() => {
   );
   dbMocks.chain.delete.mockReturnValue(dbMocks.chain);
   dbMocks.chain.where.mockReturnThis();
+  dbMocks.chain.for.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
   dbMocks.chain.values.mockReturnThis();
   dbMocks.chain.onConflictDoUpdate.mockReturnThis();
@@ -319,11 +557,25 @@ beforeEach(() => {
   dbMocks.chain.transaction.mockImplementation(
     async (cb: (tx: typeof dbMocks.chain) => unknown) => cb(dbMocks.chain),
   );
+  imageStorage.getObjectMagicBytes.mockResolvedValue(Buffer.from([0xff, 0xd8, 0xff, 0x00]));
+  gmailReplyMocks.readGmailVenueOutreachReplies.mockResolvedValue({
+    messages: [],
+    scannedCount: 0,
+    truncated: false,
+  });
+  gmailReplyMocks.matchGmailReplyToVenueOutreach.mockReturnValue(null);
+  gmailReplyMocks.classifyMatchedVenueOutreachReplies.mockResolvedValue({
+    classifications: [],
+    attemptedCount: 0,
+    failedCount: 0,
+    deferredCount: 0,
+  });
 });
 
 describe("admin session authorization", () => {
   const guarded: Array<[string, string]> = [
     ["get", "/api/admin/venue-owner/places/search?query=cafe"],
+    ["get", "/api/admin/venue-owner/openstreetmap/attractions?country=VN"],
     ["post", "/api/admin/venue-owner/venues"],
     ["get", "/api/admin/venue-owner/applications"],
     ["get", "/api/admin/venue-owner/applications/7"],
@@ -334,9 +586,17 @@ describe("admin session authorization", () => {
     ["post", "/api/admin/venue-owner/applications/7/withdraw"],
     ["post", "/api/admin/venue-owner/applications/7/notes"],
     ["get", "/api/admin/venue-owner/outreach/history"],
+    ["delete", "/api/admin/venue-owner/outreach/history"],
+    ["post", "/api/admin/venue-owner/outreach/sync-gmail-replies"],
+    ["post", "/api/admin/venue-owner/outreach/classify-pending-replies"],
+    ["put", "/api/admin/venue-owner/outreach/email-suppression"],
+    ["post", "/api/admin/venue-owner/outreach/manual-reply"],
+    ["delete", "/api/admin/venue-owner/outreach/failed"],
+    ["put", "/api/admin/venue-owner/outreach/history/12/bounce"],
     ["put", "/api/admin/venue-owner/outreach/history/12/place"],
     ["get", "/api/admin/venue-owner/venues/7/events"],
     ["post", "/api/admin/venue-owner/venues/7/events"],
+    ["delete", "/api/admin/venue-owner/venues/7"],
     ["get", "/api/admin/venue-owner/venues/7/rewards"],
     ["post", "/api/admin/venue-owner/venues/7/rewards"],
     ["get", "/api/admin/venue-owner/venues/7/announcements"],
@@ -350,7 +610,9 @@ describe("admin session authorization", () => {
       ? request(app).get(path)
       : method === "put"
         ? request(app).put(path).send({ placeId: "maps-place-1" })
-        : request(app).post(path).send({ reason: "not ok", message: "fix it", internalNote: "x" }));
+        : method === "delete"
+          ? request(app).delete(path).send({ confirm: true, expectedFailedEmailCount: 1 })
+          : request(app).post(path).send({ reason: "not ok", message: "fix it", internalNote: "x" }));
     expect(res.status).toBe(401);
     expect(dbMocks.chain.update).not.toHaveBeenCalled();
   });
@@ -365,6 +627,174 @@ describe("admin session authorization", () => {
       });
     expect(res.status).toBe(401);
     expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects outreach history deletion when the venue history has changed", async () => {
+    const agent = await signedInAgent();
+    const response = await agent
+      .delete("/api/admin/venue-owner/outreach/history")
+      .send({
+        venueKey: "profile:71",
+        eventIds: ["13"],
+        confirm: true,
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toContain("history changed");
+    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
+  });
+
+  it("removes only legacy outreach history and its follow-up for a confirmed venue", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.where.mockResolvedValueOnce([{
+      id: 201,
+      venueOwnerProfileId: 71,
+      businessName: "Corner Social",
+      placeId: null,
+      recipientEmail: "owner@example.com",
+    }]);
+
+    const response = await agent
+      .delete("/api/admin/venue-owner/outreach/history")
+      .send({
+        venueKey: "profile:71",
+        eventIds: ["legacy-history-201"],
+        confirm: true,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      venueKey: "profile:71",
+      deletedEmailCount: 1,
+      revokedInvitationCount: 0,
+    });
+    expect(dbMocks.chain.delete).toHaveBeenCalledTimes(2);
+    expect(dbMocks.chain.delete.mock.calls.some(([table]) =>
+      typeof table === "object" && table !== null && "ownerUid" in table,
+    )).toBe(false);
+  });
+
+  it("removes logged sends, revokes unused invitations, and preserves blocks and applications", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.where
+      .mockResolvedValueOnce([
+        {
+          log: {
+            id: 42,
+            venueOwnerProfileId: null,
+            placeId: "maps-place-71",
+            businessName: "Corner Social",
+            recipientEmail: "owner@example.com",
+            applicationInviteTokenId: 31,
+            registrationTokenId: null,
+          },
+          applicationInvite: { id: 31, applicationId: null, consumedAt: null },
+        },
+        {
+          log: {
+            id: 43,
+            venueOwnerProfileId: null,
+            placeId: "maps-place-71",
+            businessName: "Corner Social",
+            recipientEmail: "owner@example.com",
+            applicationInviteTokenId: null,
+            registrationTokenId: 91,
+          },
+          applicationInvite: null,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 91, consumedAt: null }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    dbMocks.chain.returning
+      .mockResolvedValueOnce([{ id: 31 }])
+      .mockResolvedValueOnce([{ id: 91 }]);
+
+    const response = await agent
+      .delete("/api/admin/venue-owner/outreach/history")
+      .send({
+        venueKey: "place:maps-place-71",
+        eventIds: ["42", "43"],
+        confirm: true,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      venueKey: "place:maps-place-71",
+      deletedEmailCount: 2,
+      revokedInvitationCount: 2,
+    });
+    expect(deletedOutreachTableKinds()).toEqual([
+      "outreach-history",
+      "follow-up",
+      "application-invite",
+      "registration-invite",
+    ]);
+    expect(gmailBounceMocks.readGmailDeliveryFailures).not.toHaveBeenCalled();
+  });
+
+  it("keeps used, application-linked, and consumed invitation tokens", async () => {
+    const agent = await signedInAgent();
+    const consumedAt = new Date("2026-10-10T08:00:00.000Z");
+    dbMocks.chain.where
+      .mockResolvedValueOnce([
+        {
+          log: {
+            id: 44,
+            venueOwnerProfileId: null,
+            placeId: "maps-place-71",
+            businessName: "Corner Social",
+            recipientEmail: "owner@example.com",
+            applicationInviteTokenId: 32,
+            registrationTokenId: null,
+          },
+          applicationInvite: { id: 32, applicationId: null, consumedAt },
+        },
+        {
+          log: {
+            id: 45,
+            venueOwnerProfileId: null,
+            placeId: "maps-place-71",
+            businessName: "Corner Social",
+            recipientEmail: "owner@example.com",
+            applicationInviteTokenId: 33,
+            registrationTokenId: null,
+          },
+          applicationInvite: { id: 33, applicationId: 71, consumedAt: null },
+        },
+        {
+          log: {
+            id: 46,
+            venueOwnerProfileId: null,
+            placeId: "maps-place-71",
+            businessName: "Corner Social",
+            recipientEmail: "owner@example.com",
+            applicationInviteTokenId: null,
+            registrationTokenId: 92,
+          },
+          applicationInvite: null,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 71, placeId: "maps-place-71" }])
+      .mockResolvedValueOnce([{ id: 92, consumedAt }]);
+
+    const response = await agent
+      .delete("/api/admin/venue-owner/outreach/history")
+      .send({
+        venueKey: "place:maps-place-71",
+        eventIds: ["44", "45", "46"],
+        confirm: true,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      venueKey: "place:maps-place-71",
+      deletedEmailCount: 3,
+      revokedInvitationCount: 0,
+    });
+    expect(deletedOutreachTableKinds()).toEqual(["outreach-history", "follow-up"]);
+    expect(dbMocks.chain.returning).not.toHaveBeenCalled();
+    expect(gmailBounceMocks.readGmailDeliveryFailures).not.toHaveBeenCalled();
   });
 
   it("reports first-time setup before a password exists", async () => {
@@ -465,7 +895,279 @@ describe("admin venue Places search", () => {
   });
 });
 
+describe("world tourist attraction import retries", () => {
+  it("avoids duplicate profiles, preserves an existing photo, and keeps photo credits private", async () => {
+    const agent = await signedInAgent();
+    const state = configureTouristAttractionPersistenceStore();
+    touristAttractionStorage.files.clear();
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const fetchMock = vi.fn(async (input: URL | string) => {
+      const sourceUrl = String(input);
+      return {
+        ok: true,
+        status: 200,
+        url: sourceUrl,
+        headers: { get: (name: string) => name.toLowerCase() === "content-type" ? "image/jpeg" : null },
+        arrayBuffer: async () => jpegBytes.buffer,
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const firstImport = await agent
+        .post("/api/admin/venue-owner/tourist-attractions/import-world")
+        .send({});
+
+      expect(firstImport.status, JSON.stringify({
+        body: firstImport.body,
+        text: firstImport.text,
+        imageRequests: fetchMock.mock.calls.length,
+        savedFiles: touristAttractionStorage.files.size,
+      })).toBe(200);
+      expect(firstImport.body).toMatchObject({
+        total: 40,
+        added: 40,
+        updated: 0,
+        photosUploaded: 40,
+      });
+      expect(state.profiles).toHaveLength(40);
+      expect(new Set(state.profiles.map((profile) => profile.placeId)).size).toBe(40);
+      expect(state.businesses).toHaveLength(40);
+      expect(fetchMock).toHaveBeenCalledTimes(40);
+      expect(touristAttractionStorage.files).toHaveProperty("size", 40);
+
+      const attraction = WORLD_TOURIST_ATTRACTIONS[0]!;
+      const profile = state.profiles.find((item) => item.placeId === attraction.placeId)!;
+      expect(profile.description).toBe(attraction.description);
+      expect(profile.description).not.toMatch(/wikimedia|commons|creativecommons|photo:/i);
+
+      const history = state.histories.find((item) => item.venueOwnerProfileId === profile.id)!;
+      expect(history.internalNote).toMatch(/photo credits and license details/i);
+      expect(history.metadata).toMatchObject({
+        touristAttractionImport: "worldwide_catalog",
+        photoSourceUrl: attraction.photo.sourceUrl,
+        photoArtist: attraction.photo.artist,
+        photoLicense: attraction.photo.license,
+        photoLicenseUrl: attraction.photo.licenseUrl,
+      });
+
+      const storedPhotoPath = [...touristAttractionStorage.files.keys()]
+        .find((path) => path.includes(attraction.placeId))!;
+      const storedPhoto = touristAttractionStorage.files.get(storedPhotoPath)!;
+      const storageMetadata = storedPhoto.options["metadata"] as {
+        metadata: Record<string, unknown>;
+      };
+      expect(storageMetadata.metadata).toMatchObject({
+        sourceUrl: attraction.photo.sourceUrl,
+        artist: attraction.photo.artist,
+        license: attraction.photo.license,
+        licenseUrl: attraction.photo.licenseUrl,
+      });
+
+      const existingPhotoUrl = "https://storage.googleapis.com/venue-media/existing-cover.jpg";
+      profile.coverPhotoUrl = existingPhotoUrl;
+      const storedFileCountBeforeRetry = touristAttractionStorage.files.size;
+      const historyCountBeforeRetry = state.histories.length;
+      const secondImport = await agent
+        .post("/api/admin/venue-owner/tourist-attractions/import-world")
+        .send({});
+
+      expect(secondImport.status).toBe(200);
+      expect(secondImport.body).toMatchObject({
+        total: 40,
+        added: 0,
+        updated: 40,
+        photosUploaded: 0,
+      });
+      expect(state.profiles).toHaveLength(40);
+      expect(new Set(state.profiles.map((item) => item.placeId)).size).toBe(40);
+      expect(state.businesses).toHaveLength(40);
+      expect(profile.coverPhotoUrl).toBe(existingPhotoUrl);
+      expect(fetchMock).toHaveBeenCalledTimes(40);
+      expect(touristAttractionStorage.files.size).toBe(storedFileCountBeforeRetry);
+      expect(state.histories).toHaveLength(historyCountBeforeRetry + 40);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("venue outreach history", () => {
+  const singleRecipientBounce = {
+    gmailMessageId: "gmail-bounce-1",
+    gmailThreadId: "gmail-thread-1",
+    recipientEmail: "owner@example.com",
+    recipientCount: 1,
+    recipientMismatch: false,
+    originalMessageId: "<outgoing-1@example.com>",
+    originalSentAt: new Date("2026-10-18T10:00:00.000Z"),
+    receivedAt: new Date("2026-10-18T10:01:00.000Z"),
+    status: "5.1.1",
+    reason: "Mailbox unavailable",
+  };
+
+  it("links a verified Gmail notice only to an eligible send with no prior bounce", async () => {
+    gmailBounceMocks.readGmailDeliveryFailures.mockResolvedValue({
+      messages: [singleRecipientBounce],
+      scannedCount: 1,
+      truncated: false,
+    });
+    const agent = await signedInAgent();
+    dbMocks.chain.returning.mockResolvedValueOnce([{ id: 12 }]);
+
+    const response = await agent
+      .put("/api/admin/venue-owner/outreach/history/12/bounce")
+      .send({ gmailMessageId: singleRecipientBounce.gmailMessageId, confirm: true });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      id: "12",
+      gmailBounceMessageId: singleRecipientBounce.gmailMessageId,
+      repeatBounceCleared: false,
+    });
+    expect(dbMocks.chain.set).toHaveBeenCalledWith(expect.objectContaining({
+      deliveryStatus: "bounced",
+      gmailBounceMessageId: singleRecipientBounce.gmailMessageId,
+      gmailBounceStatus: "5.1.1",
+      gmailBounceReason: "Mailbox unavailable",
+    }));
+    expect(eqSpy).toHaveBeenCalledWith("outreachLogId", 12);
+    expect(inArraySpy).toHaveBeenCalledWith("outreachDeliveryStatus", [
+      "sent",
+      "delivery_uncertain",
+      "sending",
+    ]);
+    expect(isNullSpy).toHaveBeenCalledWith("outreachGmailBounceMessageId");
+    expect(gmailBounceMocks.readGmailDeliveryFailures).toHaveBeenCalledOnce();
+  });
+
+  it("returns a conflict if the send became ineligible before the update", async () => {
+    gmailBounceMocks.readGmailDeliveryFailures.mockResolvedValue({
+      messages: [singleRecipientBounce],
+      scannedCount: 1,
+      truncated: false,
+    });
+    const agent = await signedInAgent();
+    dbMocks.chain.returning.mockResolvedValueOnce([]);
+
+    const response = await agent
+      .put("/api/admin/venue-owner/outreach/history/12/bounce")
+      .send({ gmailMessageId: singleRecipientBounce.gmailMessageId, confirm: true });
+
+    expect(response.status).toBe(409);
+    expect(dbMocks.chain.update).toHaveBeenCalled();
+  });
+
+  it("does not link a multi-recipient notice or reuse a notice already linked elsewhere", async () => {
+    gmailBounceMocks.readGmailDeliveryFailures.mockResolvedValue({
+      messages: [{ ...singleRecipientBounce, recipientCount: 2 }],
+      scannedCount: 1,
+      truncated: false,
+    });
+    const agent = await signedInAgent();
+    const multiRecipient = await agent
+      .put("/api/admin/venue-owner/outreach/history/12/bounce")
+      .send({ gmailMessageId: singleRecipientBounce.gmailMessageId, confirm: true });
+
+    expect(multiRecipient.status).toBe(409);
+    expect(dbMocks.chain.update).not.toHaveBeenCalled();
+
+    gmailBounceMocks.readGmailDeliveryFailures.mockResolvedValue({
+      messages: [singleRecipientBounce],
+      scannedCount: 1,
+      truncated: false,
+    });
+    dbMocks.chain.returning.mockRejectedValueOnce(
+      Object.assign(new Error("unique constraint"), { cause: { code: "23505" } }),
+    );
+    const alreadyLinked = await agent
+      .put("/api/admin/venue-owner/outreach/history/12/bounce")
+      .send({ gmailMessageId: singleRecipientBounce.gmailMessageId, confirm: true });
+
+    expect(alreadyLinked.status).toBe(409);
+    expect(alreadyLinked.body.message).toMatch(/already been linked/i);
+  });
+
+  it("syncs Gmail reply metadata without invoking AI classification", async () => {
+    const sentAt = new Date("2026-10-20T10:00:00.000Z");
+    const replyAt = new Date("2026-10-21T10:00:00.000Z");
+    dbMocks.chain.orderBy.mockResolvedValueOnce([{
+      id: 12,
+      recipientEmail: "owner@example.com",
+      sentAt,
+      gmailRfcMessageId: "outreach-1@example.com",
+      gmailThreadId: "thread-1",
+      gmailReplyAt: null,
+      gmailReplyMessageId: null,
+      gmailReplyClassification: null,
+      gmailReplyClassificationVersion: 2,
+    }]);
+    dbMocks.chain.returning.mockResolvedValueOnce([{ id: 12 }]);
+    gmailReplyMocks.readGmailVenueOutreachReplies.mockResolvedValueOnce({
+      messages: [{ id: "reply-1", threadId: "thread-1" }],
+      scannedCount: 1,
+      truncated: false,
+    });
+    gmailReplyMocks.matchGmailReplyToVenueOutreach.mockReturnValueOnce({
+      logId: 12,
+      gmailMessageId: "reply-1",
+      gmailThreadId: "thread-1",
+      replyAt,
+    });
+
+    const agent = await signedInAgent();
+    const response = await agent.post("/api/admin/venue-owner/outreach/sync-gmail-replies");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      scannedCount: 1,
+      matchedReplyCount: 1,
+      updatedSendCount: 1,
+      classificationPendingCount: 1,
+      truncated: false,
+      lookbackDays: 730,
+    });
+    expect(gmailReplyMocks.classifyMatchedVenueOutreachReplies).not.toHaveBeenCalled();
+  });
+
+  it("runs classification only through the separate explicit endpoint", async () => {
+    const pendingTarget = {
+      id: 12,
+      recipientEmail: "owner@example.com",
+      sentAt: new Date("2026-10-20T10:00:00.000Z"),
+      gmailRfcMessageId: "outreach-1@example.com",
+      gmailThreadId: "thread-1",
+      gmailReplyAt: new Date("2026-10-21T10:00:00.000Z"),
+      gmailReplyMessageId: "reply-1",
+      gmailReplyClassification: null,
+      gmailReplyClassificationVersion: 2,
+    };
+    dbMocks.chain.orderBy.mockResolvedValueOnce([pendingTarget]);
+    dbMocks.chain.returning.mockResolvedValueOnce([{ id: 12 }]);
+    gmailReplyMocks.classifyMatchedVenueOutreachReplies.mockResolvedValueOnce({
+      classifications: [{ logId: 12, classification: "interested" }],
+      attemptedCount: 1,
+      failedCount: 0,
+      deferredCount: 0,
+    });
+
+    const agent = await signedInAgent();
+    const response = await agent.post("/api/admin/venue-owner/outreach/classify-pending-replies");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      attemptedReplyCount: 1,
+      classifiedReplyCount: 1,
+      classificationFailedCount: 0,
+      classificationPendingCount: 0,
+      deferredCount: 0,
+    });
+    expect(gmailReplyMocks.classifyMatchedVenueOutreachReplies).toHaveBeenCalledWith([{
+      logId: 12,
+      gmailMessageId: "reply-1",
+    }]);
+  });
+
   it("returns tracked email details without exposing invitation tokens", async () => {
     const createdAt = new Date("2026-09-30T10:00:00.000Z");
     dbMocks.chain.orderBy
@@ -520,13 +1222,24 @@ describe("venue outreach history", () => {
         venueKey: "prospect:corner social|owner@example.com",
         nextActionNote: "Call the owner about opening week",
         nextActionDueDate: "2026-10-20",
+        manualInterestLevel: "top_interest",
         updatedAt: new Date("2026-10-01T00:00:00.000Z"),
-      }]);
+      }])
+      .mockResolvedValueOnce([{
+        id: 41,
+        venueKey: "place:place-corner-social",
+        action: "mark_replied",
+        actorUid: "admin:1",
+        createdAt: new Date("2026-10-22T09:00:00.000Z"),
+      }])
+      .mockResolvedValueOnce([{ email: "owner@example.com" }]);
 
     const agent = await signedInAgent();
     const response = await agent.get("/api/admin/venue-owner/outreach/history");
 
     expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+    expect(response.body.suppressedEmails).toEqual(["owner@example.com"]);
     expect(response.body.emails).toEqual([expect.objectContaining({
       id: "13",
       deliveryStatus: "delivery_uncertain",
@@ -544,8 +1257,133 @@ describe("venue outreach history", () => {
       assignedAgentName: "Jordan Lee",
       nextActionNote: "Call the owner about opening week",
       nextActionDueDate: "2026-10-20",
+      manualInterestLevel: "top_interest",
+      manualReplyEvents: [{
+        id: "41",
+        venueKey: "place:place-corner-social",
+        action: "mark_replied",
+        actorUid: "admin:1",
+        createdAt: "2026-10-22T09:00:00.000Z",
+      }],
     })]);
     expect(JSON.stringify(response.body)).not.toContain("tokenHash");
+  });
+
+  it("blocks or allows future outreach to a normalized email address", async () => {
+    const agent = await signedInAgent();
+    const blocked = await agent
+      .put("/api/admin/venue-owner/outreach/email-suppression")
+      .send({ email: " Owner@Example.com ", suppressed: true });
+
+    expect(blocked.status).toBe(200);
+    expect(blocked.body).toEqual({ email: "owner@example.com", suppressed: true });
+    expect(dbMocks.chain.insert).toHaveBeenCalled();
+    expect(dbMocks.chain.onConflictDoUpdate).toHaveBeenCalled();
+
+    const allowed = await agent
+      .put("/api/admin/venue-owner/outreach/email-suppression")
+      .send({ email: "owner@example.com", suppressed: false });
+
+    expect(allowed.status).toBe(200);
+    expect(allowed.body).toEqual({ email: "owner@example.com", suppressed: false });
+    expect(dbMocks.chain.delete).toHaveBeenCalled();
+  });
+
+  it("rejects manual outreach to an address that is blocked", async () => {
+    const agent = await signedInAgent();
+    dbMocks.chain.limit.mockResolvedValueOnce([{ email: "owner@example.com" }]);
+    dbMocks.chain.insert.mockClear();
+
+    const response = await agent
+      .post("/api/admin/venue-owner/outreach")
+      .send({
+        businessName: "Corner Social",
+        recipientEmail: "owner@example.com",
+        template: "contact_request",
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toMatch(/future outreach.*blocked/i);
+    expect(dbMocks.chain.insert).not.toHaveBeenCalled();
+  });
+
+  it("clears only confirmed failed sends and removes their unused invite links", async () => {
+    const createdInvite = { id: 31, consumedAt: null, applicationId: null };
+    dbMocks.chain.orderBy.mockReturnThis();
+    dbMocks.chain.for
+      .mockResolvedValueOnce([
+        { id: 21, applicationInviteTokenId: null },
+        { id: 22, applicationInviteTokenId: 31 },
+      ])
+      .mockResolvedValueOnce([]);
+    dbMocks.chain.returning
+      .mockResolvedValueOnce([
+        { id: 21, applicationInviteTokenId: null, deliveryStatus: "failed", gmailBounceMessageId: null },
+        { id: 22, applicationInviteTokenId: 31, deliveryStatus: "failed", gmailBounceMessageId: null },
+      ]);
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([createdInvite])
+      .mockResolvedValueOnce([]);
+
+    const agent = await signedInAgent();
+    const response = await agent.delete("/api/admin/venue-owner/outreach/failed")
+      .send({ confirm: true, expectedFailedEmailCount: 2, expectedBouncedEmailCount: 0 });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      clearedEmailCount: 2,
+      clearedFailedEmailCount: 2,
+      clearedBouncedEmailCount: 0,
+      removedUnusedInviteCount: 1,
+    });
+    expect(dbMocks.chain.transaction).toHaveBeenCalled();
+    expect(eqSpy).toHaveBeenCalledWith("outreachDeliveryStatus", "failed");
+    expect(isNullSpy).toHaveBeenCalledWith("outreachSentAt");
+    expect(dbMocks.chain.delete).toHaveBeenCalled();
+  });
+
+  it("keeps an invitation token that has been used or linked to an application", async () => {
+    dbMocks.chain.orderBy.mockReturnThis();
+    dbMocks.chain.for
+      .mockResolvedValueOnce([
+        { id: 23, applicationInviteTokenId: 32 },
+      ])
+      .mockResolvedValueOnce([]);
+    dbMocks.chain.returning.mockResolvedValueOnce([
+      { id: 23, applicationInviteTokenId: 32, deliveryStatus: "failed", gmailBounceMessageId: null },
+    ]);
+    dbMocks.chain.limit.mockResolvedValueOnce([{
+      id: 32, consumedAt: new Date(), applicationId: 77,
+    }]);
+
+    const agent = await signedInAgent();
+    const response = await agent.delete("/api/admin/venue-owner/outreach/failed")
+      .send({ confirm: true, expectedFailedEmailCount: 1, expectedBouncedEmailCount: 0 });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      clearedEmailCount: 1,
+      clearedFailedEmailCount: 1,
+      clearedBouncedEmailCount: 0,
+      removedUnusedInviteCount: 0,
+    });
+    expect(dbMocks.chain.delete).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks the admin to refresh instead of clearing when the failed count has changed", async () => {
+    dbMocks.chain.orderBy.mockReturnThis();
+    dbMocks.chain.for
+      .mockResolvedValueOnce([
+        { id: 24, applicationInviteTokenId: null },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const agent = await signedInAgent();
+    const response = await agent.delete("/api/admin/venue-owner/outreach/failed")
+      .send({ confirm: true, expectedFailedEmailCount: 2, expectedBouncedEmailCount: 0 });
+
+    expect(response.status).toBe(409);
+    expect(dbMocks.chain.delete).not.toHaveBeenCalled();
   });
 
   it("saves and updates a durable next-contact plan", async () => {
@@ -575,6 +1413,60 @@ describe("venue outreach history", () => {
         nextActionNote: "Confirm the registration link arrived",
         nextActionDueDate: "2026-10-22",
       }),
+    }));
+  });
+
+  it("saves a manual interest classification without changing follow-up details", async () => {
+    const agent = await signedInAgent();
+    const response = await agent
+      .put("/api/admin/venue-owner/outreach/manual-interest")
+      .send({ venueKey: "profile:71", manualInterestLevel: "top_interest" });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      venueKey: "profile:71",
+      manualInterestLevel: "top_interest",
+    });
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(expect.objectContaining({
+      venueKey: "profile:71",
+      manualInterestLevel: "top_interest",
+    }));
+    expect(dbMocks.chain.onConflictDoUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      set: expect.objectContaining({ manualInterestLevel: "top_interest" }),
+    }));
+  });
+
+  it("records an admin reply confirmation and appends an undo action", async () => {
+    const agent = await signedInAgent();
+
+    const marked = await agent
+      .post("/api/admin/venue-owner/outreach/manual-reply")
+      .send({ venueKey: "place:place-corner-social", action: "mark_replied" });
+    expect(marked.status).toBe(201);
+    expect(marked.body).toMatchObject({
+      venueKey: "place:place-corner-social",
+      action: "mark_replied",
+      actorUid: "admin:1",
+    });
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(expect.objectContaining({
+      venueKey: "place:place-corner-social",
+      action: "mark_replied",
+      actorUid: "admin:1",
+    }));
+
+    const undone = await agent
+      .post("/api/admin/venue-owner/outreach/manual-reply")
+      .send({ venueKey: "place:place-corner-social", action: "undo_mark" });
+    expect(undone.status).toBe(201);
+    expect(undone.body).toMatchObject({
+      venueKey: "place:place-corner-social",
+      action: "undo_mark",
+      actorUid: "admin:1",
+    });
+    expect(dbMocks.chain.values).toHaveBeenLastCalledWith(expect.objectContaining({
+      venueKey: "place:place-corner-social",
+      action: "undo_mark",
+      actorUid: "admin:1",
     }));
   });
 

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AdminQuickAddVenueRequestManagementMode } from './adminQuickAddVenueRequestManagementMode';
+import type { VenueCategory } from './venueCategory';
 
 export interface AdminQuickAddVenueRequest {
   /** @maxLength 255 */
@@ -29,4 +30,10 @@ export interface AdminQuickAddVenueRequest {
   contactName?: string;
   /** @maxLength 255 */
   contactEmail?: string;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  description?: string | null;
+  venueType?: VenueCategory;
 }

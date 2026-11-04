@@ -23,6 +23,190 @@ publicDir = "artifacts/met-landing/dist/public"
 serve = "static"
 
 [[services.production.rewrites]]
+from = "/guides"
+to = "/guides/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/"
+to = "/guides/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/sossusvlei"
+to = "/guides/sossusvlei/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/sossusvlei/"
+to = "/guides/sossusvlei/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/alhambra"
+to = "/guides/alhambra/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/alhambra/"
+to = "/guides/alhambra/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/kinkaku-ji"
+to = "/guides/kinkaku-ji/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/kinkaku-ji/"
+to = "/guides/kinkaku-ji/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/angkor-wat"
+to = "/guides/angkor-wat/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/angkor-wat/"
+to = "/guides/angkor-wat/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/taj-mahal"
+to = "/guides/taj-mahal/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/taj-mahal/"
+to = "/guides/taj-mahal/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/halong-bay"
+to = "/guides/halong-bay/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/halong-bay/"
+to = "/guides/halong-bay/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/borobudur"
+to = "/guides/borobudur/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/borobudur/"
+to = "/guides/borobudur/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/gardens-by-the-bay"
+to = "/guides/gardens-by-the-bay/index.html"
+
+[[services.production.rewrites]]
+from = "/guides/gardens-by-the-bay/"
+to = "/guides/gardens-by-the-bay/index.html"
+
+[[services.production.rewrites]]
+from = "/articles"
+to = "/articles/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/"
+to = "/articles/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia"
+to = "/articles/asia/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/"
+to = "/articles/asia/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/where-to-visit-vietnam"
+to = "/articles/asia/where-to-visit-vietnam/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/where-to-visit-vietnam/"
+to = "/articles/asia/where-to-visit-vietnam/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/where-to-visit-thailand"
+to = "/articles/asia/where-to-visit-thailand/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/where-to-visit-thailand/"
+to = "/articles/asia/where-to-visit-thailand/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/where-to-visit-japan"
+to = "/articles/asia/where-to-visit-japan/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/where-to-visit-japan/"
+to = "/articles/asia/where-to-visit-japan/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/10-places-in-hanoi"
+to = "/articles/asia/10-places-in-hanoi/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/10-places-in-hanoi/"
+to = "/articles/asia/10-places-in-hanoi/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/10-places-in-ho-chi-minh-city"
+to = "/articles/asia/10-places-in-ho-chi-minh-city/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/10-places-in-ho-chi-minh-city/"
+to = "/articles/asia/10-places-in-ho-chi-minh-city/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/10-places-in-bangkok"
+to = "/articles/asia/10-places-in-bangkok/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/10-places-in-bangkok/"
+to = "/articles/asia/10-places-in-bangkok/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/10-places-in-tokyo"
+to = "/articles/asia/10-places-in-tokyo/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/asia/10-places-in-tokyo/"
+to = "/articles/asia/10-places-in-tokyo/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/travel-apps"
+to = "/articles/travel-apps/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/travel-apps/"
+to = "/articles/travel-apps/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/dating-apps-for-travelers"
+to = "/articles/dating-apps-for-travelers/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/dating-apps-for-travelers/"
+to = "/articles/dating-apps-for-travelers/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/meet-people-while-traveling"
+to = "/articles/meet-people-while-traveling/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/meet-people-while-traveling/"
+to = "/articles/meet-people-while-traveling/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/build-connections-new-city"
+to = "/articles/build-connections-new-city/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/build-connections-new-city/"
+to = "/articles/build-connections-new-city/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/first-hello-to-connection"
+to = "/articles/first-hello-to-connection/index.html"
+
+[[services.production.rewrites]]
+from = "/articles/first-hello-to-connection/"
+to = "/articles/first-hello-to-connection/index.html"
+
+[[services.production.rewrites]]
 from = "/*"
 to = "/index.html"
 

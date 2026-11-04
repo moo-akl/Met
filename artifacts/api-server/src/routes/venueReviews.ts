@@ -52,6 +52,7 @@ router.post(
         and(
           eq(venueQrVerificationsTable.userUid, uid),
           eq(venueQrVerificationsTable.placeId, placeId),
+          eq(venueQrVerificationsTable.source, "qr"),
         ),
       )
       .limit(1);

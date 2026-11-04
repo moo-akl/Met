@@ -17,6 +17,7 @@ import {
   venueActivationPoliciesTable,
   venueApplicationInviteTokensTable,
   venueOutreachEmailLogsTable,
+  venueOutreachFollowUpsTable,
   venueContentReportsTable,
   hubCheckinsTable,
   venueQrVerificationsTable,
@@ -203,6 +204,12 @@ export async function deleteVenueOwnerProfile(
     .from(venueOwnerProfilesTable)
     .where(and(eq(venueOwnerProfilesTable.placeId, placeId), ne(venueOwnerProfilesTable.id, profileId)))
     .limit(1);
+  const followUpKeys = [
+    `profile:${profileId}`,
+    ...(!otherProfile ? [`place:${placeId}`] : []),
+  ];
+  await tx.delete(venueOutreachFollowUpsTable)
+    .where(inArray(venueOutreachFollowUpsTable.venueKey, followUpKeys));
   if (!otherProfile) {
     const guests = await tx.selectDistinct({ uid: hubCheckinsTable.userUid })
       .from(hubCheckinsTable).where(eq(hubCheckinsTable.placeId, placeId));
@@ -222,7 +229,7 @@ export async function deleteVenueOwnerProfile(
     if (guests.length) {
       await tx.update(profilesTable).set({
         pioneerScore: sql`COALESCE(${profilesTable.referralCount}, 0) * 20
-          + (SELECT COUNT(*) FROM ${hubCheckinsTable} WHERE ${hubCheckinsTable.userUid} = ${profilesTable.uid} AND ${hubCheckinsTable.source} = 'qr_verified') * 2
+          + (SELECT COUNT(*) FROM ${hubCheckinsTable} WHERE ${hubCheckinsTable.userUid} = ${profilesTable.uid} AND ${hubCheckinsTable.source} IN ('qr_verified', 'open_location')) * 2
           + COALESCE(${profilesTable.chatConnections}, 0) * 5`,
       }).where(inArray(profilesTable.uid, guests.map(({ uid }) => uid)));
     }

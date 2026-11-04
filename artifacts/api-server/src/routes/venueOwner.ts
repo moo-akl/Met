@@ -35,7 +35,7 @@
  * POST   /venue-owner/alert-unsent-claim-links   — cron: alert on approved venues with no claim link sent
  */
 
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import express, { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { normalizeGoogleVenueType, lookupGoogleVenueType } from "../lib/venueCategory";
 import { venueCategories } from "@workspace/db/schema";
 import {
@@ -57,7 +57,9 @@ import {
 } from "drizzle-orm";
 import {
   db,
+  communityEventsTable,
   venueOwnerProfilesTable,
+  venueActivationPoliciesTable,
   venueApplicationHistoryTable,
   venueEventsTable,
   venueEventRsvpsTable,
@@ -78,6 +80,9 @@ import {
   venueApplicationInviteTokensTable,
   venueOutreachEmailLogsTable,
   venueOutreachFollowUpsTable,
+  venueOutreachEmailSuppressionsTable,
+  venueOutreachClearedBounceMessagesTable,
+  venueOutreachManualReplyEventsTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createIpRateLimiter, createUserRateLimiter } from "../middlewares/rateLimit";
@@ -88,7 +93,11 @@ import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 import { adminAuth, adminStorage } from "../lib/firebaseAdmin";
 import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
 import { ObjectStorageService } from "../lib/objectStorage";
-import { isAllowedImageMagicBytes } from "../lib/imageMagic";
+import {
+  getSupportedImageContentType,
+  imageMagicMatchesContentType,
+  isAllowedImageMagicBytes,
+} from "../lib/imageMagic";
 import {
   PrepareAdminManagedImageBody,
   PrepareAdminManagedImageResponse,
@@ -97,25 +106,100 @@ import {
   UpdateVenueOutreachPlaceIdParams,
   UpdateVenueOutreachPlaceIdBody,
   UpdateVenueOutreachPlaceIdResponse,
+  ClearFailedVenueOutreachBody,
+  ClearFailedVenueOutreachResponse,
+  SyncGmailVenueOutreachBouncesBody,
+  SyncGmailVenueOutreachBouncesResponse,
+  SyncGmailVenueOutreachRepliesResponse,
+  ClassifyPendingVenueOutreachRepliesResponse,
+  PreviewGmailVenueOutreachBounceReconciliationBody,
+  PreviewGmailVenueOutreachBounceReconciliationResponse,
+  ApplyGmailVenueOutreachBounceReconciliationBody,
+  ApplyGmailVenueOutreachBounceReconciliationResponse,
+  LinkGmailBounceToVenueOutreachParams,
+  LinkGmailBounceToVenueOutreachBody,
+  LinkGmailBounceToVenueOutreachResponse,
   UpdateVenueOutreachFollowUpBody,
   UpdateVenueOutreachFollowUpResponse,
+  UpdateVenueOutreachManualInterestBody,
+  UpdateVenueOutreachManualInterestResponse,
+  CreateVenueOutreachManualReplyEventBody,
+  CreateVenueOutreachManualReplyEventResponse,
+  UpdateVenueOutreachEmailSuppressionBody,
+  UpdateVenueOutreachEmailSuppressionResponse,
+  DeleteVenueOutreachHistoryBody,
+  DeleteVenueOutreachHistoryResponse,
+  DeleteAdminVenueResponse,
+  CreateVenueRegistrationDraftHeader,
+  CreateVenueRegistrationDraftResponse,
+  GetVenueRegistrationDraftTargetsResponse,
+  ListAdminOpenStreetMapAttractionsQueryParams,
+  ListAdminOpenStreetMapAttractionsResponse,
+  ImportApprovedTouristAttractionsResponse,
 } from "@workspace/api-zod";
 import {
   sendVenueRejectedEmail,
   sendVenueChangesRequestedEmail,
-  sendRegistrationLinkEmail,
+  sendRegistrationLinkEmailWithResult,
+  buildRegistrationLinkEmailContent,
   sendVenueContactRequestEmail,
-  sendNewVenueOutreachEmail,
+  sendNewVenueOutreachEmailWithResult,
   sendClaimLinkOverdueAlertEmail,
   getMetAppIntroVideoAssets,
   getVenueManagerBaseUrl,
 } from "../lib/email.js";
 import { OUTREACH_TEMPLATE_IDS, OUTREACH_TEMPLATES, buildVenueOutreachEmail } from "../lib/venueOutreachEmail.js";
 import { createVenueManagerUpdatePosterPack } from "../lib/venueManagerUpdatePosters.js";
+import {
+  discoverOpenStreetMapAttractions,
+  OPENSTREETMAP_ATTRIBUTION_URL,
+} from "../lib/openStreetMapAttractions.js";
+import {
+  APPROVED_TOURIST_ATTRACTIONS,
+  type TouristAttractionImportEntry,
+} from "../lib/approvedTouristAttractions.js";
+import { ADDITIONAL_WORLD_TOURIST_ATTRACTIONS } from "../lib/additionalWorldTouristAttractions.js";
+import { WORLD_TOURIST_ATTRACTIONS } from "../lib/worldTouristAttractions.js";
 import { z } from "zod/v4";
 import { venueGuestbookTable } from "@workspace/db";
 import crypto from "node:crypto";
 import { createVenueEmailTemplatesRouter } from "./venueEmailTemplates.js";
+import { createVenueIntroProfilesRouter } from "./venueIntroProfiles.js";
+import { gmailFailureStatus } from "../lib/gmailDeliveryStatus.js";
+import { createGmailHtmlDraft } from "../lib/gmail.js";
+import {
+  VENUE_REGISTRATION_DRAFT_TARGETS,
+  isExpectedVenueRegistrationDraftPdf,
+  normalizeVenueDraftName,
+  venueDraftNameMatchesBusinessName,
+  venueNameFromDraftPdf,
+} from "../lib/venueRegistrationDraftTargets.js";
+import {
+  matchGmailBounceToOutreach,
+  readGmailDeliveryFailures,
+  readGmailDeliveryFailureNoticesByIds,
+  findGmailSentMessageByRfcMessageId,
+  gmailSentMessageIdExists,
+  readGmailSentMessageById,
+  readGmailAccountEmail,
+  type BounceCandidateMatch,
+  type GmailBounceNotice,
+  type GmailSentMessage,
+  type OutreachBounceCandidate,
+} from "../lib/gmailBounceSync.js";
+import {
+  classifyMatchedVenueOutreachReplies,
+  shouldClassifyVenueOutreachReply,
+  VENUE_OUTREACH_REPLY_CLASSIFICATION_VERSION,
+  gmailReplyReferenceIds,
+  hasPotentialLegacyVenueOutreachTarget,
+  hasPotentialVenueOutreachThreadRecoveryTarget,
+  matchGmailReplyToVenueOutreach,
+  matchGmailReplyToLegacyVenueOutreach,
+  matchGmailReplyToVenueOutreachThread,
+  readGmailVenueOutreachReplies,
+  readGmailVenueOutreachThread,
+} from "../lib/gmailReplySync.js";
 
 const venueApplicationStatuses = [
   "draft",
@@ -206,6 +290,209 @@ function adminSessionOptions(req: Request) {
 // ---------------------------------------------------------------------------
 
 type AdminSession = { credentialId: number; sessionVersion: number; expiresAt: number };
+
+const GMAIL_BOUNCE_RECONCILIATION_TTL_MS = 10 * 60_000;
+const GMAIL_BOUNCE_RECONCILIATION_WINDOW_MS = 15 * 60_000;
+const MAX_GMAIL_BOUNCE_RECONCILIATION_ENTRIES = 250;
+const EXPECTED_GMAIL_BOUNCE_RECONCILIATION_COUNT = 98;
+const gmailBounceReconciliationSourceSchema = z.object({
+  version: z.literal(1),
+  credentialId: z.number().int().positive(),
+  sessionVersion: z.number().int().positive(),
+  expiresAt: z.number().int().positive(),
+  scannedCount: z.number().int().nonnegative(),
+  notices: z.array(z.object({
+    gmailMessageId: z.string().min(1).max(256),
+    recipientEmail: z.string().email(),
+    recipientCount: z.number().int().positive(),
+    recipientMismatch: z.boolean(),
+    originalMessageId: z.string().min(1).max(998),
+    originalSentAt: z.coerce.date(),
+  })).max(MAX_GMAIL_BOUNCE_RECONCILIATION_ENTRIES),
+});
+
+const gmailBounceReconciliationEntrySchema = z.object({
+  gmailMessageId: z.string().min(1).max(256),
+  outreachLogId: z.number().int().positive(),
+  originalMessageId: z.string().min(1).max(998),
+  storedRfcMessageId: z.string().min(1).max(998),
+  sentMessageId: z.string().min(1).max(256),
+  recipientEmail: z.string().email(),
+  originalSentAt: z.string().datetime(),
+  createdAt: z.string().datetime(),
+  sentAt: z.string().datetime(),
+});
+
+const gmailBounceReconciliationPlanSchema = z.object({
+  version: z.literal(1),
+  credentialId: z.number().int().positive(),
+  sessionVersion: z.number().int().positive(),
+  expiresAt: z.number().int().positive(),
+  entries: z.array(gmailBounceReconciliationEntrySchema)
+    .max(MAX_GMAIL_BOUNCE_RECONCILIATION_ENTRIES),
+});
+
+type GmailBounceReconciliationEntry = z.infer<typeof gmailBounceReconciliationEntrySchema>;
+type GmailBounceReconciliationPlan = z.infer<typeof gmailBounceReconciliationPlanSchema>;
+type GmailBounceReconciliationSource = z.infer<typeof gmailBounceReconciliationSourceSchema>;
+
+type GmailBounceReconciliationLogRow = {
+  id: number;
+  businessName: string;
+  recipientEmail: string;
+  kind: string;
+  deliveryStatus: string;
+  createdAt: Date;
+  sentAt: Date | null;
+  gmailRfcMessageId: string | null;
+  gmailBounceMessageId: string | null;
+};
+
+function normalizeReconciliationMessageId(value: string | null | undefined): string | null {
+  const normalized = value?.trim().replace(/^<|>$/g, "").trim().toLowerCase();
+  return normalized || null;
+}
+
+function createGmailBounceReconciliationToken(
+  plan: GmailBounceReconciliationPlan,
+  secret: string,
+): string {
+  return createSignedGmailBounceToken(plan, secret);
+}
+
+function createSignedGmailBounceToken(payloadValue: unknown, secret: string): string {
+  const payload = Buffer.from(JSON.stringify(payloadValue)).toString("base64url");
+  const signature = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+function readSignedGmailBounceToken(token: string, secret: string): unknown | null {
+  const [payload, signature, extra] = token.split(".");
+  if (!payload || !signature || extra !== undefined) return null;
+  const expected = crypto.createHmac("sha256", secret).update(payload).digest();
+  const provided = Buffer.from(signature, "base64url");
+  if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) return null;
+  try {
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function readGmailBounceReconciliationToken(
+  token: string,
+  secret: string,
+): GmailBounceReconciliationPlan | null {
+  const parsed = gmailBounceReconciliationPlanSchema.safeParse(
+    readSignedGmailBounceToken(token, secret),
+  );
+  return parsed.success ? parsed.data : null;
+}
+
+function readGmailBounceReconciliationSource(
+  token: string,
+  secret: string,
+): GmailBounceReconciliationSource | null {
+  const parsed = gmailBounceReconciliationSourceSchema.safeParse(
+    readSignedGmailBounceToken(token, secret),
+  );
+  return parsed.success ? parsed.data : null;
+}
+
+function withinTimeWindow(left: Date, right: Date, windowMs: number): boolean {
+  return Math.abs(left.getTime() - right.getTime()) <= windowMs;
+}
+
+type InitialGmailBounceReconciliationNotice = Pick<
+  GmailBounceNotice,
+  | "gmailMessageId"
+  | "recipientEmail"
+  | "recipientCount"
+  | "recipientMismatch"
+  | "originalMessageId"
+  | "originalSentAt"
+>;
+
+function findInitialGmailBounceReconciliationCandidates<T extends InitialGmailBounceReconciliationNotice>(
+  notices: T[],
+  logs: GmailBounceReconciliationLogRow[],
+  processedMessageIds: Set<string>,
+): Array<{
+  notice: T;
+  row: GmailBounceReconciliationLogRow;
+}> {
+  const candidates: Array<{
+    notice: T;
+    row: GmailBounceReconciliationLogRow;
+  }> = [];
+  for (const notice of notices) {
+    const originalMessageId = normalizeReconciliationMessageId(notice.originalMessageId);
+    if (
+      processedMessageIds.has(notice.gmailMessageId) ||
+      notice.recipientMismatch ||
+      notice.recipientCount !== 1 ||
+      !notice.originalSentAt ||
+      !originalMessageId
+    ) continue;
+
+    const exactIdRows = logs.filter((row) =>
+      normalizeReconciliationMessageId(row.gmailRfcMessageId) === originalMessageId,
+    );
+    if (exactIdRows.length > 0) continue;
+
+    const normalizedRecipient = notice.recipientEmail.trim().toLowerCase();
+    const nearbyRows = logs.filter((row) =>
+      row.recipientEmail.trim().toLowerCase() === normalizedRecipient &&
+      withinTimeWindow(row.createdAt, notice.originalSentAt!, GMAIL_BOUNCE_RECONCILIATION_WINDOW_MS),
+    );
+    if (nearbyRows.length !== 1) continue;
+    const row = nearbyRows[0]!;
+    if (
+      row.kind !== "manager_announcement" ||
+      row.deliveryStatus !== "sent" ||
+      row.gmailBounceMessageId !== null ||
+      !row.gmailRfcMessageId ||
+      !row.sentAt ||
+      normalizeReconciliationMessageId(row.gmailRfcMessageId) === originalMessageId
+    ) continue;
+    candidates.push({ notice, row });
+  }
+  return candidates;
+}
+
+function verifyGmailSentMessage(
+  message: GmailSentMessage | null,
+  expectedGmailMessageId: string,
+  expectedRfcMessageId: string,
+  expectedSender: string,
+  expectedRecipient: string,
+  expectedSentAt: Date,
+): boolean {
+  return Boolean(
+    message &&
+    message.gmailMessageId === expectedGmailMessageId &&
+    normalizeReconciliationMessageId(message.rfcMessageId) ===
+      normalizeReconciliationMessageId(expectedRfcMessageId) &&
+    message.from.length === 1 &&
+    message.from[0] === expectedSender &&
+    message.to.length === 1 &&
+    message.to[0] === expectedRecipient.trim().toLowerCase() &&
+    message.sentAt &&
+    withinTimeWindow(message.sentAt, expectedSentAt, GMAIL_BOUNCE_RECONCILIATION_WINDOW_MS),
+  );
+}
+
+async function mapInBatches<T, R>(
+  values: T[],
+  batchSize: number,
+  map: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let offset = 0; offset < values.length; offset += batchSize) {
+    results.push(...await Promise.all(values.slice(offset, offset + batchSize).map(map)));
+  }
+  return results;
+}
 
 function readAdminSession(req: Request): AdminSession | null {
   if (!process.env["SESSION_SECRET"]) return null;
@@ -324,6 +611,11 @@ const venueOwnerPlaceSearchLimit = createUserRateLimiter({
   windowMs: 60_000,
   max: 20,
   name: "venue-owner-place-search",
+});
+const venueAdminOpenStreetMapSearchLimit = createIpRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 12,
+  name: "venue-admin-openstreetmap-search",
 });
 const venueAdminAuthLimit = createIpRateLimiter({
   windowMs: 15 * 60_000,
@@ -589,8 +881,10 @@ type VenueOutreachDeliveryStatus =
   | "sending"
   | "sent"
   | "delivery_uncertain"
-  | "failed";
+  | "failed"
+  | "bounced";
 const STALE_OUTREACH_SEND_MS = 5 * 60_000;
+const OUTREACH_BOUNCE_ELIGIBLE_STATUSES = ["sent", "delivery_uncertain", "sending"] as const;
 
 async function createVenueOutreachLog(input: {
   venueOwnerProfileId?: number | null;
@@ -615,15 +909,133 @@ async function createVenueOutreachLog(input: {
   return entry.id;
 }
 
+async function clearRepeatedBounceHistory(input: {
+  logId: number;
+  gmailMessageId: string;
+  recipientEmail: string;
+  originalMessageId?: string | null;
+}): Promise<string[] | null> {
+  const normalizedRecipient = input.recipientEmail.trim().toLowerCase();
+  const normalizedOriginalMessageId = input.originalMessageId
+    ?.trim()
+    .replace(/^<|>$/g, "")
+    .trim()
+    .toLowerCase();
+  const originalMessageIdCondition = normalizedOriginalMessageId
+    ? or(
+        isNull(venueOutreachEmailLogsTable.gmailRfcMessageId),
+        eq(
+          sql`lower(trim(both '<>' from trim(${venueOutreachEmailLogsTable.gmailRfcMessageId})))`,
+          normalizedOriginalMessageId,
+        ),
+      )
+    : undefined;
+
+  return db.transaction(async (tx) => {
+    const [currentLog] = await tx
+      .select({
+        id: venueOutreachEmailLogsTable.id,
+        retryOfLogId: venueOutreachEmailLogsTable.retryOfLogId,
+        businessName: venueOutreachEmailLogsTable.businessName,
+      })
+      .from(venueOutreachEmailLogsTable)
+      .where(and(
+        eq(venueOutreachEmailLogsTable.id, input.logId),
+        sql`lower(trim(${venueOutreachEmailLogsTable.recipientEmail})) = ${normalizedRecipient}`,
+        inArray(venueOutreachEmailLogsTable.deliveryStatus, [...OUTREACH_BOUNCE_ELIGIBLE_STATUSES]),
+        isNull(venueOutreachEmailLogsTable.gmailBounceMessageId),
+        ...(originalMessageIdCondition ? [originalMessageIdCondition] : []),
+      ))
+      .for("update")
+      .limit(1);
+    if (!currentLog || currentLog.retryOfLogId === null) return null;
+
+    const [retryRoot] = await tx
+      .select({
+        id: venueOutreachEmailLogsTable.id,
+        recipientEmail: venueOutreachEmailLogsTable.recipientEmail,
+        businessName: venueOutreachEmailLogsTable.businessName,
+        deliveryStatus: venueOutreachEmailLogsTable.deliveryStatus,
+      })
+      .from(venueOutreachEmailLogsTable)
+      .where(eq(venueOutreachEmailLogsTable.id, currentLog.retryOfLogId))
+      .for("update")
+      .limit(1);
+    if (
+      !retryRoot ||
+      retryRoot.deliveryStatus !== "bounced" ||
+      retryRoot.recipientEmail.trim().toLowerCase() !== normalizedRecipient ||
+      retryRoot.businessName.trim().toLowerCase() !== currentLog.businessName.trim().toLowerCase()
+    ) return null;
+
+    const previousBounces = await tx
+      .select({
+        id: venueOutreachEmailLogsTable.id,
+        gmailBounceMessageId: venueOutreachEmailLogsTable.gmailBounceMessageId,
+      })
+      .from(venueOutreachEmailLogsTable)
+      .where(and(
+        eq(venueOutreachEmailLogsTable.deliveryStatus, "bounced"),
+        or(
+          eq(venueOutreachEmailLogsTable.id, retryRoot.id),
+          eq(venueOutreachEmailLogsTable.retryOfLogId, retryRoot.id),
+        ),
+      ))
+      .for("update");
+    if (previousBounces.length === 0) return null;
+
+    const messageIds = [...new Set([
+      input.gmailMessageId,
+      ...previousBounces
+        .map((row) => row.gmailBounceMessageId)
+        .filter((id): id is string => Boolean(id)),
+    ])];
+    await tx
+      .insert(venueOutreachClearedBounceMessagesTable)
+      .values(messageIds.map((gmailMessageId) => ({ gmailMessageId })))
+      .onConflictDoNothing();
+    await tx
+      .delete(venueOutreachEmailLogsTable)
+      .where(inArray(venueOutreachEmailLogsTable.id, [
+        currentLog.id,
+        ...previousBounces.map((row) => row.id),
+      ]));
+    return messageIds;
+  });
+}
+
+async function getSuppressedVenueOutreachEmails(): Promise<string[]> {
+  const rows = await db
+    .select({ email: venueOutreachEmailSuppressionsTable.email })
+    .from(venueOutreachEmailSuppressionsTable)
+    .orderBy(venueOutreachEmailSuppressionsTable.email);
+  return rows.map((row) => row.email);
+}
+
+async function isVenueOutreachEmailSuppressed(email: string): Promise<boolean> {
+  const [row] = await db
+    .select({ email: venueOutreachEmailSuppressionsTable.email })
+    .from(venueOutreachEmailSuppressionsTable)
+    .where(eq(venueOutreachEmailSuppressionsTable.email, email.trim().toLowerCase()))
+    .limit(1);
+  return row !== undefined;
+}
+
 async function finishVenueOutreachLog(
   id: number,
   deliveryStatus: Exclude<VenueOutreachDeliveryStatus, "sending">,
+  gmailRfcMessageId?: string | null,
+  gmailThreadId?: string | null,
 ): Promise<void> {
   await db
     .update(venueOutreachEmailLogsTable)
     .set({
       deliveryStatus,
       ...(deliveryStatus === "sent" ? { sentAt: new Date() } : {}),
+      ...(deliveryStatus === "sent" && gmailRfcMessageId
+        ? { gmailRfcMessageId }
+        : {}),
+      ...(deliveryStatus === "sent" && gmailThreadId ? { gmailThreadId } : {}),
     })
     .where(eq(venueOutreachEmailLogsTable.id, id));
 }
@@ -838,7 +1250,11 @@ async function getVenueManagerUpdateRecipients(options?: {
     .filter((recipient) => !shouldExcludeRecent || !recentEmails.has(recipient.email))
     .sort((left, right) => left.email.localeCompare(right.email));
 
-  return { registeredManagers, contactedProspects };
+  const suppressedEmails = new Set(await getSuppressedVenueOutreachEmails());
+  return {
+    registeredManagers: registeredManagers.filter((recipient) => !suppressedEmails.has(recipient.email)),
+    contactedProspects: contactedProspects.filter((prospect) => !suppressedEmails.has(prospect.email)),
+  };
 }
 
 async function buildVenueManagerUpdatePosterAttachment(
@@ -3752,12 +4168,22 @@ const adminQuickAddVenueSchema = z.object({
   managementMode: z.enum(["invite_owner", "admin"]),
   contactName: z.string().trim().min(1).max(255).optional(),
   contactEmail: z.string().trim().email().max(255).optional(),
+  description: z.string().trim().max(1000).nullable().optional(),
+  venueType: z.enum(venueCategories).optional(),
 }).superRefine((data, ctx) => {
   if (data.managementMode === "invite_owner" && (!data.contactName || !data.contactEmail)) {
     ctx.addIssue({ code: "custom", message: "Owner name and email are required when inviting an owner." });
   }
   if (data.managementMode === "admin" && (data.contactName || data.contactEmail)) {
     ctx.addIssue({ code: "custom", message: "Do not supply owner contact details for an admin-managed venue." });
+  }
+  if (data.placeId.startsWith("osm-")) {
+    if (!/^osm-(?:node|way|relation)-\d+$/.test(data.placeId)) {
+      ctx.addIssue({ code: "custom", message: "Invalid OpenStreetMap feature ID." });
+    }
+    if (data.managementMode !== "admin") {
+      ctx.addIssue({ code: "custom", message: "OpenStreetMap attractions must be Met-managed." });
+    }
   }
 });
 
@@ -3847,6 +4273,495 @@ router.get(
 );
 
 /**
+ * GET /admin/venue-owner/openstreetmap/attractions
+ * Search notable OpenStreetMap tourist places for Met-managed listings.
+ */
+router.get(
+  "/admin/venue-owner/openstreetmap/attractions",
+  requireAdminSession,
+  venueAdminOpenStreetMapSearchLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = ListAdminOpenStreetMapAttractionsQueryParams.safeParse({
+      country: req.query["country"],
+    });
+    if (!parsed.success) {
+      res.status(400).json({ message: "Choose one of the supported countries." });
+      return;
+    }
+
+    const discovery = await discoverOpenStreetMapAttractions(parsed.data.country);
+    if (discovery.source === "curated_fallback") {
+      req.log?.warn(
+        { error: discovery.upstreamError, country: parsed.data.country },
+        "OpenStreetMap attraction search failed; serving curated fallback",
+      );
+    }
+    const existing = discovery.attractions.length
+      ? await db
+        .select({ placeId: venueOwnerProfilesTable.placeId })
+        .from(venueOwnerProfilesTable)
+        .where(and(
+          inArray(venueOwnerProfilesTable.placeId, discovery.attractions.map((item) => item.placeId)),
+          ne(venueOwnerProfilesTable.applicationStatus, "withdrawn"),
+          ne(venueOwnerProfilesTable.applicationStatus, "expired"),
+        ))
+      : [];
+    const existingPlaceIds = new Set(existing.map((item) => item.placeId));
+    const response = {
+      country: parsed.data.country,
+      attributionUrl: OPENSTREETMAP_ATTRIBUTION_URL,
+      source: discovery.source,
+      attractions: discovery.attractions.map((item) => ({
+        ...item,
+        alreadyAdded: existingPlaceIds.has(item.placeId),
+      })),
+    };
+    res.json(ListAdminOpenStreetMapAttractionsResponse.parse(response));
+  },
+);
+
+type UploadedApprovedAttractionPhoto = {
+  url: string;
+  objectPath: string;
+};
+
+type ApprovedAttractionPhotoAttempt =
+  | { placeId: string; photo: UploadedApprovedAttractionPhoto }
+  | { placeId: string; error: unknown };
+
+class TouristAttractionImportConflictError extends Error {}
+
+const APPROVED_ATTRACTION_PHOTO_MAX_BYTES = 2_500_000;
+const APPROVED_ATTRACTION_PHOTO_HOSTS = new Set(["thumb.wikimedia.org", "upload.wikimedia.org"]);
+
+function importedTouristAttractionDescription(
+  attraction: TouristAttractionImportEntry,
+): string {
+  if (attraction.includeAttributionInDescription === false) {
+    return attraction.description;
+  }
+  const { photo } = attraction;
+  return [
+    attraction.description,
+    "This is a Met-managed visitor hotspot, not an official profile from the attraction operator.",
+    `Information source: ${attraction.informationSourceUrl}`,
+    ...(attraction.sourceUrl
+      ? [
+          `Location data © OpenStreetMap contributors (ODbL): ${OPENSTREETMAP_ATTRIBUTION_URL}`,
+          `OpenStreetMap feature: ${attraction.sourceUrl}`,
+        ]
+      : []),
+    `Photo: ${photo.artist}, Wikimedia Commons (${photo.license}). ${photo.sourceUrl}${photo.licenseUrl ? ` License: ${photo.licenseUrl}` : ""}`,
+  ].join("\n\n");
+}
+
+async function uploadTouristAttractionPhoto(
+  attraction: TouristAttractionImportEntry,
+): Promise<UploadedApprovedAttractionPhoto> {
+  const sourceUrl = new URL(attraction.photo.imageUrl);
+  if (
+    sourceUrl.protocol !== "https:" ||
+    !APPROVED_ATTRACTION_PHOTO_HOSTS.has(sourceUrl.hostname)
+  ) {
+    throw new Error("The approved photo source is not allowed.");
+  }
+
+  const response = await fetch(sourceUrl, {
+    headers: {
+      "User-Agent": "Met Venue Admin (+https://met-app.org)",
+      "Accept": "image/jpeg, image/png",
+    },
+    signal: AbortSignal.timeout(20_000),
+  });
+  const finalUrl = new URL(response.url);
+  const contentType = getSupportedImageContentType(response.headers.get("content-type"));
+  if (
+    !response.ok ||
+    finalUrl.protocol !== "https:" ||
+    !APPROVED_ATTRACTION_PHOTO_HOSTS.has(finalUrl.hostname) ||
+    !contentType
+  ) {
+    throw new Error(`Wikimedia photo fetch failed with HTTP ${response.status}.`);
+  }
+
+  const contentLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > APPROVED_ATTRACTION_PHOTO_MAX_BYTES) {
+    throw new Error("The approved photo is larger than the upload limit.");
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (
+    bytes.length === 0 ||
+    bytes.length > APPROVED_ATTRACTION_PHOTO_MAX_BYTES ||
+    !imageMagicMatchesContentType(bytes.subarray(0, 16), contentType)
+  ) {
+    throw new Error("The approved photo did not pass image validation.");
+  }
+
+  const fileExtension = contentType === "image/png" ? "png" : "jpg";
+  const objectPath =
+    `venue-profile-photos/admin-managed-attractions/${attraction.placeId}/cover-${crypto.randomUUID()}.${fileExtension}`;
+  const bucket = adminStorage().bucket();
+  const file = bucket.file(objectPath);
+  const sourceMetadata = {
+    sourceUrl: attraction.photo.sourceUrl,
+    artist: attraction.photo.artist,
+    license: attraction.photo.license,
+    licenseUrl: attraction.photo.licenseUrl ?? "Public domain",
+  };
+
+  await file.save(bytes, {
+    contentType,
+    resumable: false,
+    metadata: {
+      cacheControl: "public, max-age=31536000",
+      metadata: sourceMetadata,
+    },
+  });
+
+  try {
+    await file.makePublic();
+    return {
+      url: `https://storage.googleapis.com/${bucket.name}/${objectPath}`,
+      objectPath,
+    };
+  } catch {
+    const token = crypto.randomUUID();
+    try {
+      await file.setMetadata({
+        cacheControl: "public, max-age=31536000",
+        metadata: {
+          ...sourceMetadata,
+          firebaseStorageDownloadTokens: token,
+        },
+      });
+    } catch (error) {
+      await file.delete({ ignoreNotFound: true }).catch(() => undefined);
+      throw error;
+    }
+    return {
+      url:
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+        `${encodeURIComponent(objectPath)}?alt=media&token=${token}`,
+      objectPath,
+    };
+  }
+}
+
+async function deleteApprovedAttractionPhotos(
+  objectPaths: string[],
+  req: Request,
+): Promise<void> {
+  const bucket = adminStorage().bucket();
+  await Promise.all(objectPaths.map(async (objectPath) => {
+    try {
+      await bucket.file(objectPath).delete({ ignoreNotFound: true });
+    } catch (error) {
+      req.log?.warn({ error, objectPath }, "Could not clean up an unused attraction photo");
+    }
+  }));
+}
+
+async function importTouristAttractionCollection(
+  req: Request,
+  res: Response,
+  attractions: readonly TouristAttractionImportEntry[],
+  collection: "approved_shortlist" | "worldwide_catalog" | "additional_worldwide_catalog",
+): Promise<void> {
+    const isWorldCatalog = collection !== "approved_shortlist";
+    const placeIds = attractions.map((item) => item.placeId);
+    const existingRows = await db
+      .select()
+      .from(venueOwnerProfilesTable)
+      .where(inArray(venueOwnerProfilesTable.placeId, placeIds));
+    const activeRows = existingRows.filter(
+      (profile) => !["withdrawn", "expired"].includes(profile.applicationStatus),
+    );
+    const conflicts = activeRows.filter((profile) => !isAdminManagedVenue(profile));
+    if (conflicts.length > 0) {
+      res.status(409).json({
+        message: "One or more attraction places are not active Met-managed listings. No records were changed.",
+      });
+      return;
+    }
+
+    const activeByPlaceId = new Map(activeRows.map((profile) => [profile.placeId, profile]));
+    const photosNeeded = attractions.filter(
+      (attraction) => !activeByPlaceId.get(attraction.placeId)?.coverPhotoUrl?.trim(),
+    );
+    const attempts = await mapInBatches(
+      photosNeeded,
+      4,
+      async (attraction): Promise<ApprovedAttractionPhotoAttempt> => {
+        try {
+          return {
+            placeId: attraction.placeId,
+            photo: await uploadTouristAttractionPhoto(attraction),
+          };
+        } catch (error) {
+          req.log?.error({ error, placeId: attraction.placeId }, "Tourist attraction photo upload failed");
+          return { placeId: attraction.placeId, error };
+        }
+      },
+    );
+    const uploadedPhotos = attempts.flatMap((attempt) =>
+      "photo" in attempt ? [{ placeId: attempt.placeId, ...attempt.photo }] : [],
+    );
+    const failedPlaceIds = new Set(
+      attempts.flatMap((attempt) => "error" in attempt ? [attempt.placeId] : []),
+    );
+    if (failedPlaceIds.size > 0) {
+      await deleteApprovedAttractionPhotos(
+        uploadedPhotos.map((photo) => photo.objectPath),
+        req,
+      );
+      const failedAttraction = attractions.find((item) =>
+        failedPlaceIds.has(item.placeId),
+      );
+      res.status(502).json({
+        message: `Could not upload the photo for ${failedAttraction?.placeName ?? "an attraction"}. No venue records were changed.`,
+      });
+      return;
+    }
+
+    const uploadedByPlaceId = new Map(uploadedPhotos.map((photo) => [photo.placeId, photo]));
+    let transactionCommitted = false;
+    try {
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(2038615011::bigint)`);
+        const currentRows = await tx
+          .select()
+          .from(venueOwnerProfilesTable)
+          .where(inArray(venueOwnerProfilesTable.placeId, placeIds));
+        const currentActiveRows = currentRows.filter(
+          (profile) => !["withdrawn", "expired"].includes(profile.applicationStatus),
+        );
+        if (currentActiveRows.some((profile) => !isAdminManagedVenue(profile))) {
+          throw new TouristAttractionImportConflictError(
+          "An attraction place is no longer an admin-managed listing.",
+          );
+        }
+
+        const currentByPlaceId = new Map(currentActiveRows.map((profile) => [profile.placeId, profile]));
+        const results: Array<{
+          placeId: string;
+          placeName: string;
+          action: "added" | "updated";
+          photoUploaded: boolean;
+        }> = [];
+        const usedPhotoPaths = new Set<string>();
+        let added = 0;
+        let updated = 0;
+
+        for (const attraction of attractions) {
+          const current = currentByPlaceId.get(attraction.placeId);
+          const uploaded = uploadedByPlaceId.get(attraction.placeId);
+          const coverPhotoUrl = current?.coverPhotoUrl?.trim() || uploaded?.url;
+          if (!coverPhotoUrl) {
+            throw new Error(`No cover photo is available for ${attraction.placeName}.`);
+          }
+          const photoUploaded = Boolean(uploaded && coverPhotoUrl === uploaded.url);
+          if (photoUploaded) usedPhotoPaths.add(uploaded!.objectPath);
+          const description = importedTouristAttractionDescription(attraction);
+          const now = new Date();
+
+          if (current) {
+            const [profile] = await tx
+              .update(venueOwnerProfilesTable)
+              .set({
+                tagline: attraction.tagline,
+                description,
+                venueType: attraction.venueType,
+                venueTypeSource: "manual",
+                coverPhotoUrl,
+                websiteUrl: current.websiteUrl?.trim() || attraction.websiteUrl || null,
+                updatedAt: now,
+              })
+              .where(and(
+                eq(venueOwnerProfilesTable.id, current.id),
+                eq(venueOwnerProfilesTable.ownerUid, current.ownerUid),
+                eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+              ))
+              .returning({ id: venueOwnerProfilesTable.id });
+            if (!profile) {
+              throw new TouristAttractionImportConflictError(
+                `${attraction.placeName} changed while the import was running.`,
+              );
+            }
+            await appendApplicationHistory({
+              venueOwnerProfileId: current.id,
+              eventType: "review_note_added",
+              actorRole: "admin",
+              internalNote: isWorldCatalog
+                ? "Enriched the Met-managed world attraction listing; photo credits and license details are recorded in admin history and storage metadata."
+                : "Enriched the Met-managed tourist attraction listing and added source attributions.",
+              metadata: {
+                approvedTouristAttractionImport: collection === "approved_shortlist",
+                worldTouristAttractionImport: isWorldCatalog,
+                additionalWorldTouristAttractionImport: collection === "additional_worldwide_catalog",
+                touristAttractionImport: collection,
+                informationSourceUrl: attraction.informationSourceUrl,
+                websiteUrl: attraction.websiteUrl ?? null,
+                photoSourceUrl: attraction.photo.sourceUrl,
+                photoArtist: attraction.photo.artist,
+                photoLicense: attraction.photo.license,
+                photoLicenseUrl: attraction.photo.licenseUrl,
+              },
+            }, tx);
+            updated += 1;
+            results.push({
+              placeId: attraction.placeId,
+              placeName: attraction.placeName,
+              action: "updated",
+              photoUploaded,
+            });
+            continue;
+          }
+
+          const ownerUid = `admin-managed:${crypto.randomUUID()}`;
+          const [created] = await tx
+            .insert(venueOwnerProfilesTable)
+            .values({
+              ownerUid,
+              placeId: attraction.placeId,
+              placeName: attraction.placeName,
+              businessName: attraction.placeName,
+              venueType: attraction.venueType,
+              venueTypeSource: "manual",
+              tagline: attraction.tagline,
+              description,
+              coverPhotoUrl,
+              websiteUrl: attraction.websiteUrl ?? null,
+              lat: String(attraction.lat),
+              lng: String(attraction.lng),
+              contactEmail: null,
+              contactName: null,
+              applicationSource: "admin",
+              applicationStatus: "approved",
+              submittedAt: now,
+              reviewedAt: now,
+              approvedAt: now,
+              isApproved: true,
+              isVerified: true,
+              qrToken: crypto.randomUUID(),
+            })
+            .returning();
+          if (!created) throw new Error(`Failed to add ${attraction.placeName}.`);
+
+          await appendApplicationHistory({
+            venueOwnerProfileId: created.id,
+            eventType: "approved",
+            toStatus: "approved",
+            actorRole: "admin",
+            internalNote: isWorldCatalog
+              ? "Added as a Met-managed world attraction. Photo credits and license details are recorded in admin history and storage metadata."
+              : "Added as a Met-managed tourist attraction with linked information and photo attributions.",
+            metadata: {
+              approvedTouristAttractionImport: collection === "approved_shortlist",
+              worldTouristAttractionImport: isWorldCatalog,
+              additionalWorldTouristAttractionImport: collection === "additional_worldwide_catalog",
+              touristAttractionImport: collection,
+              informationSourceUrl: attraction.informationSourceUrl,
+              websiteUrl: attraction.websiteUrl ?? null,
+              photoSourceUrl: attraction.photo.sourceUrl,
+              photoArtist: attraction.photo.artist,
+              photoLicense: attraction.photo.license,
+              photoLicenseUrl: attraction.photo.licenseUrl,
+            },
+          }, tx);
+          const [business] = await tx
+            .insert(venueBusinessesTable)
+            .values({
+              venueOwnerProfileId: created.id,
+              placeId: created.placeId,
+              legalName: created.businessName,
+              createdByUid: ownerUid,
+            })
+            .returning({ id: venueBusinessesTable.id });
+          if (!business) throw new Error(`Failed to create the map listing for ${attraction.placeName}.`);
+
+          added += 1;
+          results.push({
+            placeId: attraction.placeId,
+            placeName: attraction.placeName,
+            action: "added",
+            photoUploaded,
+          });
+        }
+
+        return {
+          response: {
+            total: results.length,
+            added,
+            updated,
+            photosUploaded: results.filter((item) => item.photoUploaded).length,
+            results,
+          },
+          usedPhotoPaths: [...usedPhotoPaths],
+        };
+      });
+
+      transactionCommitted = true;
+      const usedPaths = new Set(result.usedPhotoPaths);
+      await deleteApprovedAttractionPhotos(
+        uploadedPhotos
+          .filter((photo) => !usedPaths.has(photo.objectPath))
+          .map((photo) => photo.objectPath),
+        req,
+      );
+      res.json(ImportApprovedTouristAttractionsResponse.parse(result.response));
+    } catch (error) {
+      if (!transactionCommitted) {
+        await deleteApprovedAttractionPhotos(
+          uploadedPhotos.map((photo) => photo.objectPath),
+          req,
+        );
+      }
+      if (error instanceof TouristAttractionImportConflictError || isUniqueViolation(error)) {
+        res.status(409).json({
+          message: "An attraction place changed during import. No venue records were changed; reload and retry.",
+        });
+        return;
+      }
+      req.log?.error({ error }, "Approved tourist attraction import failed");
+      res.status(503).json({
+        message: "The attraction shortlist could not be saved. No venue records were changed.",
+      });
+    }
+}
+
+router.post(
+  "/admin/venue-owner/openstreetmap/attractions/import-approved",
+  requireAdminSession,
+  venueAdminOpenStreetMapSearchLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    await importTouristAttractionCollection(req, res, APPROVED_TOURIST_ATTRACTIONS, "approved_shortlist");
+  },
+);
+
+router.post(
+  "/admin/venue-owner/tourist-attractions/import-world",
+  requireAdminSession,
+  venueAdminOpenStreetMapSearchLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    await importTouristAttractionCollection(req, res, WORLD_TOURIST_ATTRACTIONS, "worldwide_catalog");
+  },
+);
+
+router.post(
+  "/admin/venue-owner/tourist-attractions/import-additional-world",
+  requireAdminSession,
+  venueAdminOpenStreetMapSearchLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    await importTouristAttractionCollection(
+      req,
+      res,
+      ADDITIONAL_WORLD_TOURIST_ATTRACTIONS,
+      "additional_worldwide_catalog",
+    );
+  },
+);
+
+/**
  * POST /admin/venue-owner/venues
  * Adds a Google venue directly to the map as approved+verified. An invited
  * venue receives an owner setup link; an admin-managed venue receives none.
@@ -3862,6 +4777,14 @@ router.post(
     }
     const data = parsed.data;
     const adminManaged = data.managementMode === "admin";
+    const osmSourceMatch = data.placeId.match(/^osm-(node|way|relation)-(\d+)$/);
+    if (data.placeId.startsWith("osm-") && !osmSourceMatch) {
+      res.status(400).json({ message: "Invalid OpenStreetMap feature ID." });
+      return;
+    }
+    const osmSourceUrl = osmSourceMatch
+      ? `https://www.openstreetmap.org/${osmSourceMatch[1]}/${osmSourceMatch[2]}`
+      : null;
     const ownerUid = `${adminManaged ? "admin-managed" : "admin"}:${crypto.randomUUID()}`;
     const now = new Date();
 
@@ -3874,6 +4797,15 @@ router.post(
             placeId: data.placeId,
             placeName: data.placeName,
             businessName: data.businessName,
+            description: osmSourceUrl
+              ? [
+                "Met-managed visitor hotspot. This is not an official listing from the attraction operator.",
+                `Location data © OpenStreetMap contributors (ODbL): ${OPENSTREETMAP_ATTRIBUTION_URL}`,
+                `OpenStreetMap feature: ${osmSourceUrl}`,
+              ].join("\n\n")
+              : data.description ?? null,
+            venueType: data.venueType ?? (osmSourceUrl ? "other" : undefined),
+            venueTypeSource: data.venueType || osmSourceUrl ? "manual" : "unclassified",
             lat: String(data.lat),
             lng: String(data.lng),
             contactEmail: adminManaged ? null : data.contactEmail!.toLowerCase(),
@@ -3962,14 +4894,20 @@ router.post(
             kind: "registration_invite",
             actorUid: adminActorUid(req),
           });
-          emailSent = await sendRegistrationLinkEmail({
+          const sendResult = await sendRegistrationLinkEmailWithResult({
             to: data.contactEmail!,
             businessName: data.businessName,
             registrationUrl: registrationLink.url,
             expiresAt: registrationLink.expiresAt,
             registrationDeadline: registrationLink.expiresAt,
           });
-          await finishVenueOutreachLog(outreachLogId, emailSent ? "sent" : "failed");
+          emailSent = sendResult.emailSent;
+          await finishVenueOutreachLog(
+            outreachLogId,
+            emailSent ? "sent" : "failed",
+            sendResult.rfcMessageId,
+            sendResult.gmailThreadId,
+          );
           if (!emailSent) {
             await db.update(venueManagerRegistrationTokensTable)
               .set({ expiresAt: new Date() })
@@ -3982,7 +4920,7 @@ router.post(
           if (outreachLogId !== null) {
             await finishVenueOutreachLog(
               outreachLogId,
-              emailError === "delivery_failed" ? "delivery_uncertain" : "failed",
+              gmailFailureStatus(error),
             );
           }
           req.log?.warn({ error, profileId: profile.id }, "Quick-add owner invitation failed");
@@ -4597,13 +5535,14 @@ router.post(
             kind: "registration_invite",
             actorUid: "system:approval",
           });
-          const emailSent = await sendRegistrationLinkEmail({
+          const sendResult = await sendRegistrationLinkEmailWithResult({
             to: emailTo,
             businessName: emailBusinessName,
             registrationUrl: registrationLink.url,
             expiresAt: registrationLink.expiresAt,
             registrationDeadline: registrationLink.expiresAt,
           });
+          const emailSent = sendResult.emailSent;
           if (!emailSent) {
             await finishVenueOutreachLog(outreachLogId, "failed");
             await db.update(venueManagerRegistrationTokensTable)
@@ -4611,7 +5550,12 @@ router.post(
               .where(eq(venueManagerRegistrationTokensTable.id, registrationLink.tokenId));
             return;
           }
-          await finishVenueOutreachLog(outreachLogId, "sent");
+          await finishVenueOutreachLog(
+            outreachLogId,
+            "sent",
+            sendResult.rfcMessageId,
+            sendResult.gmailThreadId,
+          );
           await recordVenueInvitation(emailProfileId);
           await appendApplicationHistory({
             venueOwnerProfileId: emailProfileId,
@@ -4628,7 +5572,7 @@ router.post(
           });
         } catch (err) {
           if (outreachLogId !== null) {
-            await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
+            await finishVenueOutreachLog(outreachLogId, gmailFailureStatus(err));
           }
           logger.warn({ err, profileId: emailProfileId }, "Failed to send venue approved email");
         }
@@ -4784,17 +5728,22 @@ router.post(
       }
 
       try {
-        await sendNewVenueOutreachEmail({
+        const sendResult = await sendNewVenueOutreachEmailWithResult({
           to: entry.recipient.email,
           businessName,
           template,
           ...(attachments.length > 0 ? { attachments } : {}),
         });
-        await finishVenueOutreachLog(outreachLogId, "sent");
+        await finishVenueOutreachLog(
+          outreachLogId,
+          "sent",
+          sendResult.rfcMessageId,
+          sendResult.gmailThreadId,
+        );
         sentCount += 1;
       } catch (err) {
         try {
-          await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
+          await finishVenueOutreachLog(outreachLogId, gmailFailureStatus(err));
         } catch (logErr) {
           req.log?.error({ err: logErr, recipientIndex: index }, "Unable to update manager announcement delivery status");
         }
@@ -4844,6 +5793,7 @@ router.get(
   "/admin/venue-owner/outreach/history",
   requireAdminSession,
   async (req: Request, res: Response): Promise<void> => {
+    res.setHeader("Cache-Control", "private, no-store");
     const loggedRows = await db
       .select({
         log: venueOutreachEmailLogsTable,
@@ -5000,6 +5950,8 @@ router.get(
           recipientEmail: log.recipientEmail,
           template: log.template,
           templateName: log.templateName ?? null,
+          deliveryFailureStatus: log.gmailBounceStatus ?? null,
+          deliveryFailureReason: log.gmailBounceReason ?? null,
           deliveryStatus:
             log.deliveryStatus === "sending" &&
             log.createdAt.getTime() < Date.now() - STALE_OUTREACH_SEND_MS
@@ -5013,6 +5965,9 @@ router.get(
             ? profileById.get(profileId)?.applicationStatus ?? null
             : null,
           placeId: log.placeId ?? (profileId ? profileById.get(profileId)?.placeId ?? null : null),
+          gmailRepliedAt: log.gmailReplyAt?.toISOString() ?? null,
+          gmailThreadId: log.gmailThreadId ?? null,
+          gmailReplyClassification: log.gmailReplyClassification ?? null,
           expiresAt: expiry?.toISOString() ?? null,
           linkStatus,
         };
@@ -5032,6 +5987,8 @@ router.get(
             recipientEmail: invite.invitedEmail,
             template: "preapproval_video_application",
             deliveryStatus: "delivery_uncertain" as const,
+            deliveryFailureStatus: null,
+            deliveryFailureReason: null,
             createdAt: invite.createdAt.toISOString(),
             sentAt: null,
             venueOwnerProfileId: invite.applicationId,
@@ -5042,6 +5999,9 @@ router.get(
             placeId: invite.applicationId
               ? profileById.get(invite.applicationId)?.placeId ?? null
               : null,
+            gmailRepliedAt: null,
+            gmailThreadId: null,
+            gmailReplyClassification: null,
             expiresAt: invite.expiresAt.toISOString(),
             linkStatus,
           };
@@ -5061,12 +6021,17 @@ router.get(
             recipientEmail: entry.recipientEmail,
             template: entry.template,
             deliveryStatus: "sent" as const,
+            deliveryFailureStatus: null,
+            deliveryFailureReason: null,
             createdAt: entry.createdAt.toISOString(),
             sentAt: entry.createdAt.toISOString(),
             venueOwnerProfileId: entry.venueOwnerProfileId,
             applicationId: entry.venueOwnerProfileId,
             applicationStatus: entry.applicationStatus,
             placeId: entry.placeId,
+            gmailRepliedAt: null,
+            gmailThreadId: null,
+            gmailReplyClassification: null,
             expiresAt: null,
             linkStatus: isRegistration ? "unknown" as const : "none" as const,
           };
@@ -5108,6 +6073,37 @@ router.get(
       (Array.isArray(followUpRows) ? followUpRows : [])
         .map((followUp) => [followUp.venueKey, followUp]),
     );
+    const manualReplyRows = venueKeys.length > 0
+      ? await db
+          .select()
+          .from(venueOutreachManualReplyEventsTable)
+          .where(inArray(venueOutreachManualReplyEventsTable.venueKey, venueKeys))
+          .orderBy(
+            desc(venueOutreachManualReplyEventsTable.createdAt),
+            desc(venueOutreachManualReplyEventsTable.id),
+          )
+      : [];
+    const manualReplyEventsByKey = new Map<
+      string,
+      Array<{
+        id: string;
+        venueKey: string;
+        action: "mark_replied" | "undo_mark";
+        actorUid: string;
+        createdAt: string;
+      }>
+    >();
+    for (const event of manualReplyRows) {
+      const events = manualReplyEventsByKey.get(event.venueKey) ?? [];
+      events.push({
+        id: String(event.id),
+        venueKey: event.venueKey,
+        action: event.action,
+        actorUid: event.actorUid,
+        createdAt: event.createdAt.toISOString(),
+      });
+      manualReplyEventsByKey.set(event.venueKey, events);
+    }
 
     const historyEntries = emails.map((entry) => {
       const venueKey = getVenueOutreachKey(
@@ -5124,6 +6120,14 @@ router.get(
       const followUp = followUpKeys
         .map((key) => followUpsByKey.get(key))
         .find((candidate) => candidate !== undefined);
+      const manualReplyEvents = [...new Map(
+        followUpKeys
+          .flatMap((key) => manualReplyEventsByKey.get(key) ?? [])
+          .map((event) => [event.id, event]),
+      ).values()].sort((a, b) =>
+        Date.parse(a.createdAt) - Date.parse(b.createdAt) ||
+        Number(a.id) - Number(b.id),
+      );
       return {
         ...entry,
         venueKey,
@@ -5131,10 +6135,1425 @@ router.get(
         assignedAgentName: profile?.assignedAgentName ?? null,
         nextActionNote: followUp?.nextActionNote ?? null,
         nextActionDueDate: followUp?.nextActionDueDate ?? null,
+        manualInterestLevel: followUp?.manualInterestLevel ?? null,
+        manualReplyEvents,
       };
     });
 
-    res.json({ emails: historyEntries });
+    const suppressedEmails = await getSuppressedVenueOutreachEmails();
+    res.json({ emails: historyEntries, suppressedEmails });
+  },
+);
+
+router.delete(
+  "/admin/venue-owner/outreach/history",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = DeleteVenueOutreachHistoryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Confirm the removal and refresh the venue history before retrying." });
+      return;
+    }
+
+    const { venueKey, eventIds } = parsed.data;
+    if (new Set(eventIds).size !== eventIds.length) {
+      res.status(400).json({ message: "The selected history contains duplicate entries." });
+      return;
+    }
+
+    const logIds: number[] = [];
+    const inviteIds: number[] = [];
+    const legacyHistoryIds: number[] = [];
+    for (const eventId of eventIds) {
+      const logMatch = eventId.match(/^([1-9]\d*)$/);
+      const inviteMatch = eventId.match(/^legacy-invite-([1-9]\d*)$/);
+      const historyMatch = eventId.match(/^legacy-history-([1-9]\d*)$/);
+      const numericValue = Number(logMatch?.[1] ?? inviteMatch?.[1] ?? historyMatch?.[1]);
+      if (!Number.isSafeInteger(numericValue) || numericValue < 1) {
+        res.status(400).json({ message: "The selected history IDs are invalid." });
+        return;
+      }
+      if (logMatch) logIds.push(numericValue);
+      else if (inviteMatch) inviteIds.push(numericValue);
+      else if (historyMatch) legacyHistoryIds.push(numericValue);
+      else {
+        res.status(400).json({ message: "The selected history IDs are invalid." });
+        return;
+      }
+    }
+
+    const result = await db.transaction(async (tx) => {
+      const loggedRowsResult = logIds.length > 0
+        ? await tx
+            .select({
+              log: venueOutreachEmailLogsTable,
+              applicationInvite: venueApplicationInviteTokensTable,
+            })
+            .from(venueOutreachEmailLogsTable)
+            .leftJoin(
+              venueApplicationInviteTokensTable,
+              eq(
+                venueOutreachEmailLogsTable.applicationInviteTokenId,
+                venueApplicationInviteTokensTable.id,
+              ),
+            )
+            .where(inArray(venueOutreachEmailLogsTable.id, logIds))
+        : [];
+      const loggedRows = Array.isArray(loggedRowsResult) ? loggedRowsResult : [];
+      const legacyInvitesResult = inviteIds.length > 0
+        ? await tx
+            .select({
+              id: venueApplicationInviteTokensTable.id,
+              applicationId: venueApplicationInviteTokensTable.applicationId,
+              businessName: venueApplicationInviteTokensTable.businessName,
+              invitedEmail: venueApplicationInviteTokensTable.invitedEmail,
+              consumedAt: venueApplicationInviteTokensTable.consumedAt,
+            })
+            .from(venueApplicationInviteTokensTable)
+            .where(inArray(venueApplicationInviteTokensTable.id, inviteIds))
+        : [];
+      const legacyInvites = Array.isArray(legacyInvitesResult) ? legacyInvitesResult : [];
+      const legacyHistoryResult = legacyHistoryIds.length > 0
+        ? await tx
+            .select({
+              id: venueApplicationHistoryTable.id,
+              venueOwnerProfileId: venueApplicationHistoryTable.venueOwnerProfileId,
+              businessName: venueOwnerProfilesTable.businessName,
+              placeId: venueOwnerProfilesTable.placeId,
+              recipientEmail: sql<string>`COALESCE(
+                ${venueApplicationHistoryTable.metadata}->>'sentTo',
+                ${venueApplicationHistoryTable.metadata}->>'to',
+                ${venueOwnerProfilesTable.contactEmail},
+                ''
+              )`,
+              template: sql<string>`COALESCE(
+                ${venueApplicationHistoryTable.metadata}->>'template',
+                CASE WHEN ${venueApplicationHistoryTable.metadata}->>'registrationLink' = 'true'
+                  THEN 'registration' ELSE 'contact_request' END
+              )`,
+              registrationLink: sql<boolean>`COALESCE(
+                ${venueApplicationHistoryTable.metadata}->>'registrationLink',
+                'false'
+              ) = 'true'`,
+            })
+            .from(venueApplicationHistoryTable)
+            .innerJoin(
+              venueOwnerProfilesTable,
+              eq(
+                venueApplicationHistoryTable.venueOwnerProfileId,
+                venueOwnerProfilesTable.id,
+              ),
+            )
+            .where(and(
+              inArray(venueApplicationHistoryTable.id, legacyHistoryIds),
+              eq(venueApplicationHistoryTable.eventType, "email_sent"),
+              sql`${venueApplicationHistoryTable.metadata}->>'outreachLogId' IS NULL`,
+              or(
+                sql`${venueApplicationHistoryTable.metadata}->>'template' IN ('contact_request', 'registration', 'registration_with_video')`,
+                sql`${venueApplicationHistoryTable.metadata}->>'registrationLink' = 'true'`,
+              ),
+            ))
+        : [];
+      const legacyHistory = Array.isArray(legacyHistoryResult) ? legacyHistoryResult : [];
+
+      const profileIds = [...new Set([
+        ...loggedRows.flatMap(({ log, applicationInvite }) => [
+          log.venueOwnerProfileId,
+          applicationInvite?.applicationId ?? null,
+        ]),
+        ...legacyInvites.map((invite) => invite.applicationId),
+      ].filter((id): id is number => id !== null && id !== undefined))];
+      const profilesResult = profileIds.length > 0
+        ? await tx
+            .select({ id: venueOwnerProfilesTable.id, placeId: venueOwnerProfilesTable.placeId })
+            .from(venueOwnerProfilesTable)
+            .where(inArray(venueOwnerProfilesTable.id, profileIds))
+        : [];
+      const profiles = Array.isArray(profilesResult) ? profilesResult : [];
+      const placeByProfileId = new Map(profiles.map((profile) => [profile.id, profile.placeId]));
+
+      const matchesGroup = [
+        ...loggedRows.map(({ log, applicationInvite }) => {
+          const profileId = log.venueOwnerProfileId ?? applicationInvite?.applicationId ?? null;
+          return getVenueOutreachKey(
+            profileId,
+            log.placeId ?? (profileId == null ? null : placeByProfileId.get(profileId) ?? null),
+            log.businessName,
+            log.recipientEmail,
+            String(log.id),
+          ) === venueKey;
+        }),
+        ...legacyInvites.map((invite) => getVenueOutreachKey(
+          invite.applicationId,
+          invite.applicationId == null ? null : placeByProfileId.get(invite.applicationId) ?? null,
+          invite.businessName,
+          invite.invitedEmail,
+          `legacy-invite-${invite.id}`,
+        ) === venueKey),
+        ...legacyHistory
+          .filter((entry) => entry.recipientEmail.includes("@"))
+          .map((entry) => getVenueOutreachKey(
+            entry.venueOwnerProfileId,
+            entry.placeId,
+            entry.businessName,
+            entry.recipientEmail,
+            `legacy-history-${entry.id}`,
+          ) === venueKey),
+      ];
+      const foundCount = loggedRows.length + legacyInvites.length +
+        legacyHistory.filter((entry) => entry.recipientEmail.includes("@")).length;
+      if (foundCount !== eventIds.length || matchesGroup.length !== eventIds.length ||
+        matchesGroup.some((matches) => !matches)) {
+        return { conflict: true as const };
+      }
+
+      const applicationInviteIds = [...new Set([
+        ...loggedRows
+          .filter(({ applicationInvite }) =>
+            applicationInvite?.applicationId == null && applicationInvite?.consumedAt == null)
+          .map(({ log }) => log.applicationInviteTokenId),
+        ...legacyInvites
+          .filter((invite) => invite.applicationId == null && invite.consumedAt == null)
+          .map((invite) => invite.id),
+      ].filter((id): id is number => id !== null && id !== undefined))];
+      const registrationTokenIds = [...new Set(loggedRows
+        .map(({ log }) => log.registrationTokenId)
+        .filter((id): id is number => id !== null))];
+      const registrationTokensResult = registrationTokenIds.length > 0
+        ? await tx
+            .select({
+              id: venueManagerRegistrationTokensTable.id,
+              consumedAt: venueManagerRegistrationTokensTable.consumedAt,
+            })
+            .from(venueManagerRegistrationTokensTable)
+            .where(inArray(venueManagerRegistrationTokensTable.id, registrationTokenIds))
+        : [];
+      const registrationTokens = Array.isArray(registrationTokensResult)
+        ? registrationTokensResult
+        : [];
+      const revocableRegistrationTokenIds = registrationTokens
+        .filter((token) => token.consumedAt == null)
+        .map(({ id }) => id);
+
+      if (logIds.length > 0) {
+        await tx.delete(venueOutreachEmailLogsTable)
+          .where(inArray(venueOutreachEmailLogsTable.id, logIds));
+      }
+      if (legacyHistoryIds.length > 0) {
+        await tx.delete(venueApplicationHistoryTable)
+          .where(inArray(venueApplicationHistoryTable.id, legacyHistoryIds));
+      }
+      await tx.delete(venueOutreachFollowUpsTable)
+        .where(eq(venueOutreachFollowUpsTable.venueKey, venueKey));
+
+      const remainingInviteRefsResult = applicationInviteIds.length > 0
+        ? await tx
+            .select({ tokenId: venueOutreachEmailLogsTable.applicationInviteTokenId })
+            .from(venueOutreachEmailLogsTable)
+            .where(inArray(venueOutreachEmailLogsTable.applicationInviteTokenId, applicationInviteIds))
+        : [];
+      const remainingInviteRefs = Array.isArray(remainingInviteRefsResult)
+        ? remainingInviteRefsResult
+        : [];
+      const referencedInviteIds = new Set(remainingInviteRefs.map(({ tokenId }) => tokenId));
+      const invitationsToRevoke = applicationInviteIds.filter((id) => !referencedInviteIds.has(id));
+      const revokedInvitations = invitationsToRevoke.length > 0
+        ? await tx.delete(venueApplicationInviteTokensTable)
+            .where(inArray(venueApplicationInviteTokensTable.id, invitationsToRevoke))
+            .returning({ id: venueApplicationInviteTokensTable.id })
+        : [];
+
+      const remainingRegistrationRefsResult = revocableRegistrationTokenIds.length > 0
+        ? await tx
+            .select({ tokenId: venueOutreachEmailLogsTable.registrationTokenId })
+            .from(venueOutreachEmailLogsTable)
+            .where(inArray(venueOutreachEmailLogsTable.registrationTokenId, revocableRegistrationTokenIds))
+        : [];
+      const remainingRegistrationRefs = Array.isArray(remainingRegistrationRefsResult)
+        ? remainingRegistrationRefsResult
+        : [];
+      const referencedRegistrationIds = new Set(remainingRegistrationRefs.map(({ tokenId }) => tokenId));
+      const registrationsToRevoke = revocableRegistrationTokenIds
+        .filter((id) => !referencedRegistrationIds.has(id));
+      const revokedRegistrations = registrationsToRevoke.length > 0
+        ? await tx.delete(venueManagerRegistrationTokensTable)
+            .where(inArray(venueManagerRegistrationTokensTable.id, registrationsToRevoke))
+            .returning({ id: venueManagerRegistrationTokensTable.id })
+        : [];
+
+      return {
+        conflict: false as const,
+        deletedEmailCount: eventIds.length,
+        revokedInvitationCount: revokedInvitations.length + revokedRegistrations.length,
+      };
+    });
+
+    if (result.conflict) {
+      res.status(409).json({ message: "This venue's outreach history changed. Refresh it and try again." });
+      return;
+    }
+
+    res.json(DeleteVenueOutreachHistoryResponse.parse({
+      venueKey,
+      deletedEmailCount: result.deletedEmailCount,
+      revokedInvitationCount: result.revokedInvitationCount,
+      message: "Outreach history removed. Venue profiles and applications were kept.",
+    }));
+  },
+);
+
+router.put(
+  "/admin/venue-owner/outreach/email-suppression",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const rawBody = req.body && typeof req.body.email === "string"
+      ? { ...req.body, email: req.body.email.trim() }
+      : req.body;
+    const parsed = UpdateVenueOutreachEmailSuppressionBody.safeParse(rawBody);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Enter a valid email address and choose whether to block it." });
+      return;
+    }
+    const email = parsed.data.email.trim().toLowerCase();
+    if (parsed.data.suppressed) {
+      const now = new Date();
+      await db.insert(venueOutreachEmailSuppressionsTable)
+        .values({ email, actorUid: adminActorUid(req), updatedAt: now })
+        .onConflictDoUpdate({
+          target: venueOutreachEmailSuppressionsTable.email,
+          set: { actorUid: adminActorUid(req), updatedAt: now },
+        });
+    } else {
+      await db.delete(venueOutreachEmailSuppressionsTable)
+        .where(eq(venueOutreachEmailSuppressionsTable.email, email));
+    }
+    res.json(UpdateVenueOutreachEmailSuppressionResponse.parse({
+      email,
+      suppressed: parsed.data.suppressed,
+    }));
+  },
+);
+
+router.delete(
+  "/admin/venue-owner/outreach/failed",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = ClearFailedVenueOutreachBody.safeParse(req.body);
+    if (
+      !parsed.success ||
+      (parsed.data.expectedFailedEmailCount === 0 && parsed.data.expectedBouncedEmailCount === 0)
+    ) {
+      res.status(400).json({ message: "Confirm the cleanup and refresh the bounced and failed record counts." });
+      return;
+    }
+    const cleanupConflict = new Error("OUTREACH_CLEANUP_COUNT_CHANGED");
+    type CleanupResult =
+      | { conflict: true }
+      | {
+          conflict: false;
+          clearedEmailCount: number;
+          clearedFailedEmailCount: number;
+          clearedBouncedEmailCount: number;
+          removedUnusedInviteCount: number;
+        };
+    let result: CleanupResult;
+    try {
+      result = await db.transaction(async (tx) => {
+        const currentFailures = await tx
+          .select({
+            id: venueOutreachEmailLogsTable.id,
+            applicationInviteTokenId: venueOutreachEmailLogsTable.applicationInviteTokenId,
+          })
+          .from(venueOutreachEmailLogsTable)
+          .where(and(
+            eq(venueOutreachEmailLogsTable.deliveryStatus, "failed"),
+            isNull(venueOutreachEmailLogsTable.sentAt),
+          ))
+          .orderBy(venueOutreachEmailLogsTable.id)
+          .for("update");
+        const currentBounces = await tx
+          .select({
+            id: venueOutreachEmailLogsTable.id,
+            applicationInviteTokenId: venueOutreachEmailLogsTable.applicationInviteTokenId,
+            gmailBounceMessageId: venueOutreachEmailLogsTable.gmailBounceMessageId,
+          })
+          .from(venueOutreachEmailLogsTable)
+          .where(eq(venueOutreachEmailLogsTable.deliveryStatus, "bounced"))
+          .orderBy(venueOutreachEmailLogsTable.id)
+          .for("update");
+        if (
+          currentFailures.length !== parsed.data.expectedFailedEmailCount ||
+          currentBounces.length !== parsed.data.expectedBouncedEmailCount
+        ) {
+          return { conflict: true as const };
+        }
+
+        const targetIds = [...currentFailures, ...currentBounces].map((log) => log.id);
+        const cleared = await tx
+          .delete(venueOutreachEmailLogsTable)
+          .where(and(
+            inArray(venueOutreachEmailLogsTable.id, targetIds),
+            or(
+              and(
+                eq(venueOutreachEmailLogsTable.deliveryStatus, "failed"),
+                isNull(venueOutreachEmailLogsTable.sentAt),
+              ),
+              eq(venueOutreachEmailLogsTable.deliveryStatus, "bounced"),
+            ),
+          ))
+          .returning({
+            id: venueOutreachEmailLogsTable.id,
+            applicationInviteTokenId: venueOutreachEmailLogsTable.applicationInviteTokenId,
+            deliveryStatus: venueOutreachEmailLogsTable.deliveryStatus,
+            gmailBounceMessageId: venueOutreachEmailLogsTable.gmailBounceMessageId,
+          });
+        const clearedFailedEmailCount = cleared.filter((log) => log.deliveryStatus === "failed").length;
+        const clearedBouncedEmailCount = cleared.filter((log) => log.deliveryStatus === "bounced").length;
+        if (
+          clearedFailedEmailCount !== parsed.data.expectedFailedEmailCount ||
+          clearedBouncedEmailCount !== parsed.data.expectedBouncedEmailCount
+        ) {
+          throw cleanupConflict;
+        }
+
+        // Preserve IDs for notices whose Venue Admin history was removed, so
+        // later Gmail syncs do not surface those same messages again.
+        const clearedBounceMessageIds = [...new Set(cleared
+          .map((log) => log.gmailBounceMessageId)
+          .filter((id): id is string => Boolean(id)))];
+        if (clearedBounceMessageIds.length > 0) {
+          await tx
+            .insert(venueOutreachClearedBounceMessagesTable)
+            .values(clearedBounceMessageIds.map((gmailMessageId) => ({ gmailMessageId })))
+            .onConflictDoNothing();
+        }
+
+        const inviteIds = [...new Set(cleared
+          .map((log) => log.applicationInviteTokenId)
+          .filter((id): id is number => id !== null))];
+        let removedUnusedInviteCount = 0;
+        for (const inviteId of inviteIds) {
+          const [invite] = await tx
+            .select({
+              id: venueApplicationInviteTokensTable.id,
+              consumedAt: venueApplicationInviteTokensTable.consumedAt,
+              applicationId: venueApplicationInviteTokensTable.applicationId,
+            })
+            .from(venueApplicationInviteTokensTable)
+            .where(eq(venueApplicationInviteTokensTable.id, inviteId))
+            .limit(1);
+          if (!invite || invite.consumedAt || invite.applicationId !== null) continue;
+
+          // Preserve any invitation token still referenced by a different email.
+          const [otherLog] = await tx
+            .select({ id: venueOutreachEmailLogsTable.id })
+            .from(venueOutreachEmailLogsTable)
+            .where(eq(venueOutreachEmailLogsTable.applicationInviteTokenId, inviteId))
+            .limit(1);
+          if (otherLog) continue;
+
+          await tx.delete(venueApplicationInviteTokensTable)
+            .where(eq(venueApplicationInviteTokensTable.id, inviteId));
+          removedUnusedInviteCount += 1;
+        }
+
+        return {
+          conflict: false as const,
+          clearedEmailCount: cleared.length,
+          clearedFailedEmailCount,
+          clearedBouncedEmailCount,
+          removedUnusedInviteCount,
+        };
+      });
+    } catch (error) {
+      if (error === cleanupConflict) {
+        res.status(409).json({ message: "The bounced or unsent-failure count changed. Refresh and review it again." });
+        return;
+      }
+      throw error;
+    }
+    if (result.conflict) {
+      res.status(409).json({ message: "The bounced or unsent-failure count changed. Refresh and review it again." });
+      return;
+    }
+    res.json(ClearFailedVenueOutreachResponse.parse(result));
+  },
+);
+
+router.post(
+  "/admin/venue-owner/outreach/reconcile-gmail-bounces/preview",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = PreviewGmailVenueOutreachBounceReconciliationBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Confirm the Gmail bounce reconciliation preview before continuing." });
+      return;
+    }
+    const secret = process.env["SESSION_SECRET"];
+    const session = readAdminSession(req);
+    if (!secret || !session) {
+      res.status(401).json({ message: "Your admin session has expired. Unlock the dashboard again." });
+      return;
+    }
+    const source = readGmailBounceReconciliationSource(parsed.data.sourceToken, secret);
+    if (!source || source.expiresAt <= Date.now()) {
+      res.status(400).json({ message: "This Gmail scan is invalid or expired. Sync Gmail bounces again before reviewing." });
+      return;
+    }
+    if (
+      source.credentialId !== session.credentialId ||
+      source.sessionVersion !== session.sessionVersion
+    ) {
+      res.status(401).json({ message: "This Gmail scan belongs to a different admin session. Sync Gmail bounces again." });
+      return;
+    }
+
+    let gmailAccountEmail: string | null;
+    try {
+      gmailAccountEmail = await readGmailAccountEmail();
+    } catch (error) {
+      req.log?.warn({
+        detail: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : "UnknownError",
+      }, "Unable to verify the Gmail sender for bounce reconciliation preview");
+      res.status(503).json({
+        message: "The connected Gmail sender could not be verified. No reconciliation plan was created.",
+      });
+      return;
+    }
+    if (!gmailAccountEmail) {
+      res.status(503).json({ message: "The connected Gmail sender could not be verified." });
+      return;
+    }
+    const [allOutreachLogs, existingBounces] = await Promise.all([
+      db
+        .select({
+          id: venueOutreachEmailLogsTable.id,
+          businessName: venueOutreachEmailLogsTable.businessName,
+          recipientEmail: venueOutreachEmailLogsTable.recipientEmail,
+          kind: venueOutreachEmailLogsTable.kind,
+          deliveryStatus: venueOutreachEmailLogsTable.deliveryStatus,
+          createdAt: venueOutreachEmailLogsTable.createdAt,
+          sentAt: venueOutreachEmailLogsTable.sentAt,
+          gmailRfcMessageId: venueOutreachEmailLogsTable.gmailRfcMessageId,
+          gmailBounceMessageId: venueOutreachEmailLogsTable.gmailBounceMessageId,
+        })
+        .from(venueOutreachEmailLogsTable),
+      db
+        .select({ gmailBounceMessageId: venueOutreachEmailLogsTable.gmailBounceMessageId })
+        .from(venueOutreachEmailLogsTable)
+        .where(isNotNull(venueOutreachEmailLogsTable.gmailBounceMessageId)),
+    ]);
+    const processedMessageIds = new Set(
+      existingBounces
+        .map((row) => row.gmailBounceMessageId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    const initialCandidates = findInitialGmailBounceReconciliationCandidates(
+      source.notices,
+      allOutreachLogs,
+      processedMessageIds,
+    );
+    if (initialCandidates.length > MAX_GMAIL_BOUNCE_RECONCILIATION_ENTRIES) {
+      res.status(409).json({
+        message: "More than 250 messages meet the initial criteria. No reconciliation plan was created.",
+      });
+      return;
+    }
+
+    const usedLogIds = new Set<number>();
+    const usedNoticeIds = new Set<string>();
+    const usedOriginalMessageIds = new Set<string>();
+    const entries: GmailBounceReconciliationEntry[] = [];
+    try {
+      for (const batchStart of Array.from(
+        { length: Math.ceil(initialCandidates.length / 2) },
+        (_, index) => index * 2,
+      )) {
+        const batch = initialCandidates.slice(batchStart, batchStart + 2);
+        const verified = await Promise.all(batch.map(async ({ notice, row }) => {
+          const originalMessageId = normalizeReconciliationMessageId(notice.originalMessageId)!;
+          const sent = await findGmailSentMessageByRfcMessageId(originalMessageId);
+          if (
+            sent.kind !== "matched" ||
+            !verifyGmailSentMessage(
+              sent.message,
+              sent.message.gmailMessageId,
+              originalMessageId,
+              gmailAccountEmail,
+              notice.recipientEmail,
+              notice.originalSentAt!,
+            )
+          ) return null;
+          if (await gmailSentMessageIdExists(row.gmailRfcMessageId!)) return null;
+          return { notice, row, sent: sent.message, originalMessageId };
+        }));
+
+        for (const match of verified) {
+          if (!match) continue;
+          if (
+            usedLogIds.has(match.row.id) ||
+            usedNoticeIds.has(match.notice.gmailMessageId) ||
+            usedOriginalMessageIds.has(match.originalMessageId)
+          ) continue;
+          usedLogIds.add(match.row.id);
+          usedNoticeIds.add(match.notice.gmailMessageId);
+          usedOriginalMessageIds.add(match.originalMessageId);
+          entries.push({
+            gmailMessageId: match.notice.gmailMessageId,
+            outreachLogId: match.row.id,
+            originalMessageId: match.originalMessageId,
+            storedRfcMessageId: match.row.gmailRfcMessageId!,
+            sentMessageId: match.sent.gmailMessageId,
+            recipientEmail: match.row.recipientEmail,
+            originalSentAt: match.notice.originalSentAt!.toISOString(),
+            createdAt: match.row.createdAt.toISOString(),
+            sentAt: match.row.sentAt!.toISOString(),
+          });
+        }
+      }
+    } catch (error) {
+      req.log?.warn({
+        detail: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : "UnknownError",
+      }, "Unable to verify Gmail sent messages for bounce reconciliation preview");
+      res.status(503).json({
+        message: "Gmail sent messages could not be verified. No reconciliation plan was created.",
+      });
+      return;
+    }
+
+    if (entries.length !== EXPECTED_GMAIL_BOUNCE_RECONCILIATION_COUNT) {
+      res.status(409).json({
+        message: `Expected exactly ${EXPECTED_GMAIL_BOUNCE_RECONCILIATION_COUNT} one-to-one verified Gmail matches, but found ${entries.length} verified matches from ${source.notices.length} sync candidates. No reconciliation plan was created.`,
+      });
+      return;
+    }
+
+    const expiresAt = Date.now() + GMAIL_BOUNCE_RECONCILIATION_TTL_MS;
+    const plan: GmailBounceReconciliationPlan = {
+      version: 1,
+      credentialId: session.credentialId,
+      sessionVersion: session.sessionVersion,
+      expiresAt,
+      entries,
+    };
+    const planToken = createGmailBounceReconciliationToken(plan, secret);
+    const candidates = entries.map((entry) => {
+      const row = allOutreachLogs.find((item) => item.id === entry.outreachLogId)!;
+      return {
+        logId: String(entry.outreachLogId),
+        businessName: row.businessName,
+        recipientEmail: row.recipientEmail,
+        originalSentAt: entry.originalSentAt,
+        sentAt: entry.sentAt,
+      };
+    }).sort((left, right) =>
+      left.originalSentAt.localeCompare(right.originalSentAt) ||
+      left.businessName.localeCompare(right.businessName),
+    );
+    res.json(PreviewGmailVenueOutreachBounceReconciliationResponse.parse({
+      scannedCount: source.scannedCount,
+      verifiedCandidateCount: candidates.length,
+      planToken,
+      expiresAt: new Date(expiresAt).toISOString(),
+      candidates,
+    }));
+  },
+);
+
+router.post(
+  "/admin/venue-owner/outreach/reconcile-gmail-bounces/apply",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = ApplyGmailVenueOutreachBounceReconciliationBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Confirm the Gmail bounce reconciliation before applying it." });
+      return;
+    }
+    const secret = process.env["SESSION_SECRET"];
+    const session = readAdminSession(req);
+    if (!secret || !session) {
+      res.status(401).json({ message: "Your admin session has expired. Unlock the dashboard again." });
+      return;
+    }
+    const plan = readGmailBounceReconciliationToken(parsed.data.planToken, secret);
+    if (!plan || plan.expiresAt <= Date.now() || plan.entries.length === 0) {
+      res.status(400).json({ message: "This preview is invalid or expired. Create a new preview before applying." });
+      return;
+    }
+    if (
+      plan.credentialId !== session.credentialId ||
+      plan.sessionVersion !== session.sessionVersion
+    ) {
+      res.status(401).json({ message: "This preview belongs to a different admin session. Create a new preview." });
+      return;
+    }
+
+    let notices: Map<string, GmailBounceNotice>;
+    let gmailAccountEmail: string | null;
+    let sentMessages: Array<GmailSentMessage | null>;
+    let oldMessageIdExists: boolean[];
+    try {
+      [notices, gmailAccountEmail, sentMessages, oldMessageIdExists] = await Promise.all([
+        readGmailDeliveryFailureNoticesByIds(plan.entries.map((entry) => entry.gmailMessageId)),
+        readGmailAccountEmail(),
+        mapInBatches(plan.entries, 2, (entry) => readGmailSentMessageById(entry.sentMessageId)),
+        mapInBatches(plan.entries, 2, (entry) => gmailSentMessageIdExists(entry.storedRfcMessageId)),
+      ]);
+    } catch (error) {
+      req.log?.warn({
+        detail: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : "UnknownError",
+      }, "Unable to revalidate Gmail records for bounce reconciliation");
+      res.status(503).json({
+        message: "Gmail could not be revalidated. No outreach records were changed.",
+      });
+      return;
+    }
+    if (!gmailAccountEmail) {
+      res.status(503).json({
+        message: "The connected Gmail sender could not be verified. No outreach records were changed.",
+      });
+      return;
+    }
+
+    for (const [index, entry] of plan.entries.entries()) {
+      const notice = notices.get(entry.gmailMessageId);
+      const originalSentAt = new Date(entry.originalSentAt);
+      if (
+        !notice ||
+        notice.recipientMismatch ||
+        notice.recipientCount !== 1 ||
+        notice.recipientEmail.trim().toLowerCase() !== entry.recipientEmail.trim().toLowerCase() ||
+        normalizeReconciliationMessageId(notice.originalMessageId) !==
+          normalizeReconciliationMessageId(entry.originalMessageId) ||
+        !notice.originalSentAt ||
+        !withinTimeWindow(notice.originalSentAt, originalSentAt, 1_000) ||
+        oldMessageIdExists[index] ||
+        !verifyGmailSentMessage(
+          sentMessages[index] ?? null,
+          entry.sentMessageId,
+          entry.originalMessageId,
+          gmailAccountEmail,
+          entry.recipientEmail,
+          originalSentAt,
+        )
+      ) {
+        res.status(409).json({
+          message: "A Gmail notice or sent message changed after the preview. No outreach records were changed; create a new preview.",
+        });
+        return;
+      }
+    }
+
+    try {
+      const applied = await db.transaction(async (tx) => {
+        const changed: Array<{ logId: string; businessName: string; recipientEmail: string }> = [];
+        for (const [index, entry] of plan.entries.entries()) {
+          const notice = notices.get(entry.gmailMessageId)!;
+          const createdAt = new Date(entry.createdAt);
+          const sentAt = new Date(entry.sentAt);
+          const [updated] = await tx
+            .update(venueOutreachEmailLogsTable)
+            .set({
+              deliveryStatus: "bounced",
+              gmailRfcMessageId: entry.originalMessageId,
+              gmailBounceMessageId: entry.gmailMessageId,
+              gmailBounceStatus: notice.status?.slice(0, 32) ?? null,
+              gmailBounceReason: notice.reason || null,
+              bouncedAt: notice.receivedAt ?? new Date(),
+            })
+            .where(and(
+              eq(venueOutreachEmailLogsTable.id, entry.outreachLogId),
+              eq(venueOutreachEmailLogsTable.kind, "manager_announcement"),
+              eq(venueOutreachEmailLogsTable.deliveryStatus, "sent"),
+              eq(venueOutreachEmailLogsTable.recipientEmail, entry.recipientEmail),
+              eq(venueOutreachEmailLogsTable.gmailRfcMessageId, entry.storedRfcMessageId),
+              // PostgreSQL timestamps can retain microseconds, but Date/ISO
+              // serialization in the signed plan only retains milliseconds.
+              // Compare within that serialized millisecond rather than making
+              // an exact timestamp comparison that rejects unchanged rows.
+              gte(venueOutreachEmailLogsTable.createdAt, createdAt),
+              lt(venueOutreachEmailLogsTable.createdAt, new Date(createdAt.getTime() + 1)),
+              gte(venueOutreachEmailLogsTable.sentAt, sentAt),
+              lt(venueOutreachEmailLogsTable.sentAt, new Date(sentAt.getTime() + 1)),
+              isNull(venueOutreachEmailLogsTable.gmailBounceMessageId),
+            ))
+            .returning({
+              id: venueOutreachEmailLogsTable.id,
+              businessName: venueOutreachEmailLogsTable.businessName,
+              recipientEmail: venueOutreachEmailLogsTable.recipientEmail,
+            });
+          if (!updated) {
+            throw new Error("The planned outreach record changed after preview.");
+          }
+          changed.push({
+            logId: String(updated.id),
+            businessName: updated.businessName,
+            recipientEmail: updated.recipientEmail,
+          });
+          if (index === plan.entries.length - 1 && changed.length !== plan.entries.length) {
+            throw new Error("The reconciliation count changed during apply.");
+          }
+        }
+        return changed;
+      });
+      res.json(ApplyGmailVenueOutreachBounceReconciliationResponse.parse({
+        appliedCount: applied.length,
+        applied,
+      }));
+    } catch (error) {
+      const cause = error as { code?: unknown; cause?: { code?: unknown } };
+      if (
+        error instanceof Error && error.message.includes("changed after preview") ||
+        error instanceof Error && error.message.includes("count changed during apply")
+      ) {
+        res.status(409).json({
+          message: "An outreach record changed after the preview. No changes were applied; create a new preview.",
+        });
+        return;
+      }
+      if (cause?.code === "23505" || cause?.cause?.code === "23505") {
+        res.status(409).json({
+          message: "A Gmail message ID is already linked to another send. No changes were applied.",
+        });
+        return;
+      }
+      throw error;
+    }
+  },
+);
+
+router.post(
+  "/admin/venue-owner/outreach/sync-gmail-replies",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const secret = process.env["SESSION_SECRET"];
+    const session = readAdminSession(req);
+    if (!secret || !session) {
+      res.status(401).json({ message: "Your admin session has expired. Unlock the dashboard again." });
+      return;
+    }
+
+    const targets = await db
+      .select({
+        id: venueOutreachEmailLogsTable.id,
+        recipientEmail: venueOutreachEmailLogsTable.recipientEmail,
+        sentAt: venueOutreachEmailLogsTable.sentAt,
+        gmailRfcMessageId: venueOutreachEmailLogsTable.gmailRfcMessageId,
+        gmailThreadId: venueOutreachEmailLogsTable.gmailThreadId,
+        gmailReplyAt: venueOutreachEmailLogsTable.gmailReplyAt,
+        gmailReplyMessageId: venueOutreachEmailLogsTable.gmailReplyMessageId,
+        gmailReplyClassification: venueOutreachEmailLogsTable.gmailReplyClassification,
+        gmailReplyClassificationVersion: venueOutreachEmailLogsTable.gmailReplyClassificationVersion,
+      })
+      .from(venueOutreachEmailLogsTable)
+      .where(and(
+        eq(venueOutreachEmailLogsTable.deliveryStatus, "sent"),
+        isNotNull(venueOutreachEmailLogsTable.sentAt),
+      ))
+      .orderBy(desc(venueOutreachEmailLogsTable.sentAt));
+
+    let gmailScan: Awaited<ReturnType<typeof readGmailVenueOutreachReplies>>;
+    try {
+      gmailScan = await readGmailVenueOutreachReplies(targets.map((target) => target.recipientEmail));
+    } catch (error) {
+      req.log?.warn({
+        detail: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : "UnknownError",
+      }, "Unable to read Gmail replies to venue outreach");
+      res.status(503).json({
+        message: "Gmail replies could not be read. Check the connected Gmail access and try again.",
+      });
+      return;
+    }
+
+    const targetsById = new Map(targets.map((target) => [target.id, target]));
+    const matchesByLogId = new Map<number, ReturnType<typeof matchGmailReplyToVenueOutreach>>();
+    const sentMessageLookups = new Map<
+      string,
+      ReturnType<typeof findGmailSentMessageByRfcMessageId>
+    >();
+    const threadMessageLookups = new Map<string, ReturnType<typeof readGmailVenueOutreachThread>>();
+    const MAX_LEGACY_SENT_MESSAGE_LOOKUPS = 200;
+    const MAX_THREAD_MESSAGE_LOOKUPS = 200;
+    let legacySentMessageLookupCount = 0;
+    let legacySentMessageLookupFailureCount = 0;
+    let threadMessageLookupCount = 0;
+    let threadMessageLookupFailureCount = 0;
+    for (const message of gmailScan.messages) {
+      let match = matchGmailReplyToVenueOutreach(message, targets);
+      if (!match && hasPotentialLegacyVenueOutreachTarget(message, targets)) {
+        for (const referenceId of gmailReplyReferenceIds(message)) {
+          let lookup = sentMessageLookups.get(referenceId);
+          if (!lookup) {
+            if (legacySentMessageLookupCount >= MAX_LEGACY_SENT_MESSAGE_LOOKUPS) break;
+            legacySentMessageLookupCount += 1;
+            lookup = findGmailSentMessageByRfcMessageId(referenceId).catch(() => {
+              legacySentMessageLookupFailureCount += 1;
+              return { kind: "none" as const };
+            });
+            sentMessageLookups.set(referenceId, lookup);
+          }
+          const sent = await lookup;
+          if (sent.kind !== "matched") continue;
+          match = matchGmailReplyToLegacyVenueOutreach(message, targets, sent.message);
+          if (match) break;
+        }
+      }
+      if (
+        !match &&
+        message.threadId &&
+        hasPotentialVenueOutreachThreadRecoveryTarget(message, targets)
+      ) {
+        let lookup = threadMessageLookups.get(message.threadId);
+        if (!lookup && threadMessageLookupCount < MAX_THREAD_MESSAGE_LOOKUPS) {
+          threadMessageLookupCount += 1;
+          lookup = readGmailVenueOutreachThread(message.threadId).catch(() => {
+            threadMessageLookupFailureCount += 1;
+            return [];
+          });
+          threadMessageLookups.set(message.threadId, lookup);
+        }
+        if (lookup) {
+          const threadMessages = await lookup;
+          match = matchGmailReplyToVenueOutreachThread(message, targets, threadMessages);
+        }
+      }
+      if (!match) continue;
+      const previous = matchesByLogId.get(match.logId);
+      if (!previous || match.replyAt.getTime() < previous.replyAt.getTime()) {
+        matchesByLogId.set(match.logId, match);
+      }
+    }
+
+    let updatedSendCount = 0;
+    for (const match of matchesByLogId.values()) {
+      if (!match) continue;
+      const target = targetsById.get(match.logId);
+      if (!target) continue;
+      if (!target.gmailReplyAt) {
+        const updated = await db
+          .update(venueOutreachEmailLogsTable)
+          .set({
+            gmailReplyAt: match.replyAt,
+            gmailReplyMessageId: match.gmailMessageId,
+            gmailThreadId: match.originalGmailThreadId ?? match.gmailThreadId,
+            ...(match.originalRfcMessageId
+              ? { gmailRfcMessageId: match.originalRfcMessageId }
+              : {}),
+          })
+          .where(and(
+            eq(venueOutreachEmailLogsTable.id, match.logId),
+            isNull(venueOutreachEmailLogsTable.gmailReplyAt),
+          ))
+          .returning({ id: venueOutreachEmailLogsTable.id });
+        if (updated.length > 0) updatedSendCount += 1;
+        target.gmailReplyAt = match.replyAt;
+        target.gmailReplyMessageId = match.gmailMessageId;
+        target.gmailThreadId = match.originalGmailThreadId ?? match.gmailThreadId;
+        if (match.originalRfcMessageId) {
+          target.gmailRfcMessageId = match.originalRfcMessageId;
+        }
+      }
+    }
+    const classificationPendingCount = [...targetsById.values()].filter((target) =>
+      shouldClassifyVenueOutreachReply(target),
+    ).length;
+
+    const response = SyncGmailVenueOutreachRepliesResponse.parse({
+      scannedCount: gmailScan.scannedCount,
+      matchedReplyCount: matchesByLogId.size,
+      updatedSendCount,
+      classificationPendingCount,
+      truncated: gmailScan.truncated,
+      lookbackDays: 730,
+    });
+    req.log?.info({
+      scannedCount: response.scannedCount,
+      matchedReplyCount: response.matchedReplyCount,
+      updatedSendCount: response.updatedSendCount,
+      classificationPendingCount: response.classificationPendingCount,
+      truncated: response.truncated,
+      legacySentMessageLookupCount,
+      legacySentMessageLookupFailureCount,
+      threadMessageLookupCount,
+      threadMessageLookupFailureCount,
+    }, "Synced Gmail replies to venue outreach");
+    res.json(response);
+  },
+);
+
+router.post(
+  "/admin/venue-owner/outreach/classify-pending-replies",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const secret = process.env["SESSION_SECRET"];
+    const session = readAdminSession(req);
+    if (!secret || !session) {
+      res.status(401).json({ message: "Your admin session has expired. Unlock the dashboard again." });
+      return;
+    }
+
+    const targets = await db
+      .select({
+        id: venueOutreachEmailLogsTable.id,
+        recipientEmail: venueOutreachEmailLogsTable.recipientEmail,
+        sentAt: venueOutreachEmailLogsTable.sentAt,
+        gmailRfcMessageId: venueOutreachEmailLogsTable.gmailRfcMessageId,
+        gmailThreadId: venueOutreachEmailLogsTable.gmailThreadId,
+        gmailReplyAt: venueOutreachEmailLogsTable.gmailReplyAt,
+        gmailReplyMessageId: venueOutreachEmailLogsTable.gmailReplyMessageId,
+        gmailReplyClassification: venueOutreachEmailLogsTable.gmailReplyClassification,
+        gmailReplyClassificationVersion: venueOutreachEmailLogsTable.gmailReplyClassificationVersion,
+      })
+      .from(venueOutreachEmailLogsTable)
+      .where(and(
+        eq(venueOutreachEmailLogsTable.deliveryStatus, "sent"),
+        isNotNull(venueOutreachEmailLogsTable.sentAt),
+        isNotNull(venueOutreachEmailLogsTable.gmailReplyAt),
+      ))
+      .orderBy(desc(venueOutreachEmailLogsTable.sentAt));
+
+    const targetsById = new Map(targets.map((target) => [target.id, target]));
+    const classificationCandidates = targets
+      .filter((target) => shouldClassifyVenueOutreachReply(target))
+      .flatMap((target) => target.gmailReplyMessageId
+        ? [{ logId: target.id, gmailMessageId: target.gmailReplyMessageId }]
+        : []);
+    const classificationResult = await classifyMatchedVenueOutreachReplies(classificationCandidates);
+
+    let classifiedReplyCount = 0;
+    for (const result of classificationResult.classifications) {
+      const target = targetsById.get(result.logId);
+      if (!target) continue;
+      const updated = await db
+        .update(venueOutreachEmailLogsTable)
+        .set({
+          gmailReplyClassification: result.classification,
+          gmailReplyClassificationVersion: VENUE_OUTREACH_REPLY_CLASSIFICATION_VERSION,
+        })
+        .where(and(
+          eq(venueOutreachEmailLogsTable.id, result.logId),
+          eq(
+            venueOutreachEmailLogsTable.gmailReplyClassificationVersion,
+            target.gmailReplyClassificationVersion,
+          ),
+          or(
+            isNull(venueOutreachEmailLogsTable.gmailReplyClassification),
+            inArray(venueOutreachEmailLogsTable.gmailReplyClassification, ["other", "uncertain"]),
+          ),
+        ))
+        .returning({ id: venueOutreachEmailLogsTable.id });
+      if (updated.length > 0) {
+        classifiedReplyCount += 1;
+        target.gmailReplyClassification = result.classification;
+        target.gmailReplyClassificationVersion = VENUE_OUTREACH_REPLY_CLASSIFICATION_VERSION;
+      }
+    }
+
+    const classificationPendingCount = targets.filter((target) =>
+      shouldClassifyVenueOutreachReply(target),
+    ).length;
+    const response = ClassifyPendingVenueOutreachRepliesResponse.parse({
+      attemptedReplyCount: classificationResult.attemptedCount,
+      classifiedReplyCount,
+      classificationFailedCount: classificationResult.failedCount,
+      classificationPendingCount,
+      deferredCount: classificationResult.deferredCount,
+    });
+    req.log?.info({
+      attemptedReplyCount: response.attemptedReplyCount,
+      classifiedReplyCount: response.classifiedReplyCount,
+      classificationFailedCount: response.classificationFailedCount,
+      classificationPendingCount: response.classificationPendingCount,
+      deferredCount: response.deferredCount,
+    }, "Classified pending venue outreach replies");
+    res.json(response);
+  },
+);
+
+router.post(
+  "/admin/venue-owner/outreach/sync-gmail-bounces",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = SyncGmailVenueOutreachBouncesBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Confirm the Gmail bounce sync before continuing." });
+      return;
+    }
+    const secret = process.env["SESSION_SECRET"];
+    const session = readAdminSession(req);
+    if (!secret || !session) {
+      res.status(401).json({ message: "Your admin session has expired. Unlock the dashboard again." });
+      return;
+    }
+
+    let gmailSync: Awaited<ReturnType<typeof readGmailDeliveryFailures>>;
+    try {
+      gmailSync = await readGmailDeliveryFailures();
+    } catch (error) {
+      req.log?.warn({
+        detail: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : "UnknownError",
+      }, "Unable to read Gmail delivery failure notices");
+      res.status(503).json({
+        message: "Gmail delivery notices could not be read. Check the connected Gmail access and try again.",
+      });
+      return;
+    }
+
+    const existingBounces = await db
+      .select({ gmailBounceMessageId: venueOutreachEmailLogsTable.gmailBounceMessageId })
+      .from(venueOutreachEmailLogsTable)
+      .where(isNotNull(venueOutreachEmailLogsTable.gmailBounceMessageId));
+    const clearedBounces = await db
+      .select({ gmailMessageId: venueOutreachClearedBounceMessagesTable.gmailMessageId })
+      .from(venueOutreachClearedBounceMessagesTable);
+    const processedMessageIds = new Set(
+      [
+        ...existingBounces.map((row) => row.gmailBounceMessageId),
+        ...clearedBounces.map((row) => row.gmailMessageId),
+      ].filter(
+        (id): id is string => Boolean(id),
+      ),
+    );
+
+    const [activeLogs, allOutreachLogs] = await Promise.all([
+      db
+        .select({
+          id: venueOutreachEmailLogsTable.id,
+          businessName: venueOutreachEmailLogsTable.businessName,
+          recipientEmail: venueOutreachEmailLogsTable.recipientEmail,
+          createdAt: venueOutreachEmailLogsTable.createdAt,
+          gmailRfcMessageId: venueOutreachEmailLogsTable.gmailRfcMessageId,
+        })
+        .from(venueOutreachEmailLogsTable)
+        .where(inArray(venueOutreachEmailLogsTable.deliveryStatus, [
+          "sent",
+          "delivery_uncertain",
+          "sending",
+        ])),
+      db
+        .select({
+          id: venueOutreachEmailLogsTable.id,
+          businessName: venueOutreachEmailLogsTable.businessName,
+          recipientEmail: venueOutreachEmailLogsTable.recipientEmail,
+          kind: venueOutreachEmailLogsTable.kind,
+          deliveryStatus: venueOutreachEmailLogsTable.deliveryStatus,
+          createdAt: venueOutreachEmailLogsTable.createdAt,
+          sentAt: venueOutreachEmailLogsTable.sentAt,
+          gmailRfcMessageId: venueOutreachEmailLogsTable.gmailRfcMessageId,
+          gmailBounceMessageId: venueOutreachEmailLogsTable.gmailBounceMessageId,
+        })
+        .from(venueOutreachEmailLogsTable),
+    ]);
+
+    const candidates: OutreachBounceCandidate[] = activeLogs;
+    const knownRecipientEmails = new Set(
+      (Array.isArray(allOutreachLogs) ? allOutreachLogs : [])
+        .map((row) => row.recipientEmail.trim().toLowerCase()),
+    );
+    let matchedCount = 0;
+    let repeatBouncesClearedCount = 0;
+    let ambiguousCount = 0;
+    let unmatchedCount = 0;
+    let noHistoryCount = 0;
+    const unmatchedByReason: Record<Extract<BounceCandidateMatch, { kind: "unmatched" }>["reason"], number> = {
+      missing_original_message_id: 0,
+      no_eligible_send_candidate: 0,
+      recipient_mismatch: 0,
+      multiple_recipients: 0,
+    };
+    const ambiguousMatches: Array<{
+      gmailMessageId: string;
+      gmailThreadId: string | null;
+      recipientEmail: string;
+      originalSentAt: string | null;
+      candidates: Array<{ id: string; businessName: string; createdAt: string }>;
+    }> = [];
+    const unmatchedNotices: Array<{
+      gmailMessageId: string;
+      gmailThreadId: string | null;
+      recipientEmail: string;
+      originalSentAt: string | null;
+      status: string | null;
+      reason: string;
+      matchingReason: Extract<BounceCandidateMatch, { kind: "unmatched" }>["reason"];
+    }> = [];
+    const noHistoryNotices: Array<{
+      gmailMessageId: string;
+      gmailThreadId: string | null;
+      recipientEmail: string;
+      originalSentAt: string | null;
+      status: string | null;
+      reason: string;
+    }> = [];
+    const addUnmatchedNotice = (
+      notice: (typeof gmailSync.messages)[number],
+      matchingReason: Extract<BounceCandidateMatch, { kind: "unmatched" }>["reason"],
+    ) => {
+      if (unmatchedNotices.length >= 25) return;
+      unmatchedNotices.push({
+        gmailMessageId: notice.gmailMessageId,
+        gmailThreadId: notice.gmailThreadId ?? null,
+        recipientEmail: notice.recipientEmail,
+        originalSentAt: notice.originalSentAt?.toISOString() ?? null,
+        status: notice.status,
+        reason: notice.reason,
+        matchingReason,
+      });
+    };
+
+    for (const notice of gmailSync.messages) {
+      if (processedMessageIds.has(notice.gmailMessageId)) continue;
+      const match = matchGmailBounceToOutreach(notice, candidates);
+      if (match.kind === "ambiguous") {
+        ambiguousCount += 1;
+        if (ambiguousMatches.length < 25) {
+          ambiguousMatches.push({
+            gmailMessageId: notice.gmailMessageId,
+            gmailThreadId: notice.gmailThreadId ?? null,
+            recipientEmail: notice.recipientEmail,
+            originalSentAt: notice.originalSentAt?.toISOString() ?? null,
+            candidates: match.candidates.map((candidate) => ({
+              id: String(candidate.id),
+              businessName: candidate.businessName,
+              createdAt: candidate.createdAt.toISOString(),
+            })),
+          });
+        }
+        continue;
+      }
+      if (match.kind === "unmatched") {
+        const noHistoryMatch = !knownRecipientEmails.has(notice.recipientEmail.trim().toLowerCase()) &&
+          !notice.recipientMismatch &&
+          notice.recipientCount === 1 &&
+          (match.reason === "missing_original_message_id" || match.reason === "no_eligible_send_candidate");
+        if (noHistoryMatch) {
+          noHistoryCount += 1;
+          if (noHistoryNotices.length < 25) {
+            noHistoryNotices.push({
+              gmailMessageId: notice.gmailMessageId,
+              gmailThreadId: notice.gmailThreadId ?? null,
+              recipientEmail: notice.recipientEmail,
+              originalSentAt: notice.originalSentAt?.toISOString() ?? null,
+              status: notice.status,
+              reason: notice.reason,
+            });
+          }
+          continue;
+        }
+        unmatchedCount += 1;
+        unmatchedByReason[match.reason] += 1;
+        addUnmatchedNotice(notice, match.reason);
+        continue;
+      }
+
+      const clearedRepeatBounceMessageIds = await clearRepeatedBounceHistory({
+        logId: match.candidate.id,
+        gmailMessageId: notice.gmailMessageId,
+        recipientEmail: notice.recipientEmail,
+        originalMessageId: notice.originalMessageId,
+      });
+
+      if (clearedRepeatBounceMessageIds !== null) {
+        repeatBouncesClearedCount += 1;
+        for (const messageId of clearedRepeatBounceMessageIds) {
+          processedMessageIds.add(messageId);
+        }
+        const candidateIndex = candidates.findIndex((candidate) => candidate.id === match.candidate.id);
+        if (candidateIndex >= 0) candidates.splice(candidateIndex, 1);
+        continue;
+      }
+
+      const updated = await db
+        .update(venueOutreachEmailLogsTable)
+        .set({
+          deliveryStatus: "bounced",
+          gmailBounceMessageId: notice.gmailMessageId,
+          gmailBounceStatus: notice.status?.slice(0, 32) ?? null,
+          gmailBounceReason: notice.reason || null,
+          bouncedAt: notice.receivedAt ?? new Date(),
+          ...(notice.originalMessageId
+            ? { gmailRfcMessageId: notice.originalMessageId }
+            : {}),
+        })
+        .where(and(
+          eq(venueOutreachEmailLogsTable.id, match.candidate.id),
+          inArray(venueOutreachEmailLogsTable.deliveryStatus, [...OUTREACH_BOUNCE_ELIGIBLE_STATUSES]),
+          isNull(venueOutreachEmailLogsTable.gmailBounceMessageId),
+        ))
+        .returning({ id: venueOutreachEmailLogsTable.id });
+      if (updated.length === 1) {
+        matchedCount += 1;
+        processedMessageIds.add(notice.gmailMessageId);
+        const candidateIndex = candidates.findIndex((candidate) => candidate.id === match.candidate.id);
+        if (candidateIndex >= 0) candidates.splice(candidateIndex, 1);
+      } else {
+        unmatchedCount += 1;
+        unmatchedByReason.no_eligible_send_candidate += 1;
+        addUnmatchedNotice(notice, "no_eligible_send_candidate");
+      }
+    }
+
+    const reconciliationCandidates = gmailSync.truncated
+      ? []
+      : findInitialGmailBounceReconciliationCandidates(
+          gmailSync.messages,
+          allOutreachLogs,
+          processedMessageIds,
+        );
+    const reconciliationCandidateCount = reconciliationCandidates.length;
+    const reconciliationSourceToken =
+      !gmailSync.truncated &&
+      reconciliationCandidateCount > 0 &&
+      reconciliationCandidateCount <= MAX_GMAIL_BOUNCE_RECONCILIATION_ENTRIES
+        ? createSignedGmailBounceToken(gmailBounceReconciliationSourceSchema.parse({
+            version: 1,
+            credentialId: session.credentialId,
+            sessionVersion: session.sessionVersion,
+            expiresAt: Date.now() + GMAIL_BOUNCE_RECONCILIATION_TTL_MS,
+            scannedCount: gmailSync.scannedCount,
+            notices: reconciliationCandidates.map(({ notice }) => ({
+              gmailMessageId: notice.gmailMessageId,
+              recipientEmail: notice.recipientEmail,
+              recipientCount: notice.recipientCount,
+              recipientMismatch: notice.recipientMismatch,
+              originalMessageId: notice.originalMessageId,
+              originalSentAt: notice.originalSentAt,
+            })),
+          }), secret)
+        : null;
+
+    res.json(SyncGmailVenueOutreachBouncesResponse.parse({
+      scannedCount: gmailSync.scannedCount,
+      matchedCount,
+      repeatBouncesClearedCount,
+      ambiguousCount,
+      unmatchedCount,
+      noHistoryCount,
+      unmatchedByReason,
+      ambiguousMatches,
+      unmatchedNotices,
+      noHistoryNotices,
+      reconciliationCandidateCount,
+      reconciliationSourceToken,
+      truncated: gmailSync.truncated,
+    }));
+  },
+);
+
+router.put(
+  "/admin/venue-owner/outreach/history/:id/bounce",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const params = LinkGmailBounceToVenueOutreachParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ message: params.error.message });
+      return;
+    }
+    const parsed = LinkGmailBounceToVenueOutreachBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.message });
+      return;
+    }
+
+    let gmailSync: Awaited<ReturnType<typeof readGmailDeliveryFailures>>;
+    try {
+      gmailSync = await readGmailDeliveryFailures();
+    } catch (error) {
+      req.log?.warn({
+        detail: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : "UnknownError",
+      }, "Unable to verify Gmail delivery failure notice for manual outreach link");
+      res.status(503).json({
+        message: "The Gmail notice could not be verified. Check connected Gmail access and try again.",
+      });
+      return;
+    }
+
+    const notice = gmailSync.messages.find(
+      (message) => message.gmailMessageId === parsed.data.gmailMessageId,
+    );
+    if (!notice || notice.recipientCount !== 1 || notice.recipientMismatch) {
+      res.status(409).json({
+        message: "This Gmail notice is unavailable or covers multiple recipients, so it cannot be linked to one send.",
+      });
+      return;
+    }
+
+    const normalizedRecipient = notice.recipientEmail.trim().toLowerCase();
+    const normalizedOriginalMessageId = notice.originalMessageId
+      ?.trim()
+      .replace(/^<|>$/g, "")
+      .trim()
+      .toLowerCase();
+    const originalMessageIdCondition = normalizedOriginalMessageId
+      ? or(
+          isNull(venueOutreachEmailLogsTable.gmailRfcMessageId),
+          eq(
+            sql`lower(trim(both '<>' from trim(${venueOutreachEmailLogsTable.gmailRfcMessageId})))`,
+            normalizedOriginalMessageId,
+          ),
+        )
+      : undefined;
+    try {
+      const clearedRepeatBounceMessageIds = await clearRepeatedBounceHistory({
+        logId: params.data.id,
+        gmailMessageId: notice.gmailMessageId,
+        recipientEmail: normalizedRecipient,
+        originalMessageId: notice.originalMessageId,
+      });
+      if (clearedRepeatBounceMessageIds !== null) {
+        res.json(LinkGmailBounceToVenueOutreachResponse.parse({
+          id: String(params.data.id),
+          gmailBounceMessageId: notice.gmailMessageId,
+          repeatBounceCleared: true,
+        }));
+        return;
+      }
+
+      const [updated] = await db
+        .update(venueOutreachEmailLogsTable)
+        .set({
+          deliveryStatus: "bounced",
+          gmailBounceMessageId: notice.gmailMessageId,
+          gmailBounceStatus: notice.status?.slice(0, 32) ?? null,
+          gmailBounceReason: notice.reason || null,
+          bouncedAt: notice.receivedAt ?? new Date(),
+        })
+        .where(and(
+          eq(venueOutreachEmailLogsTable.id, params.data.id),
+          eq(venueOutreachEmailLogsTable.recipientEmail, normalizedRecipient),
+          inArray(venueOutreachEmailLogsTable.deliveryStatus, [...OUTREACH_BOUNCE_ELIGIBLE_STATUSES]),
+          isNull(venueOutreachEmailLogsTable.gmailBounceMessageId),
+          ...(originalMessageIdCondition ? [originalMessageIdCondition] : []),
+        ))
+        .returning({ id: venueOutreachEmailLogsTable.id });
+
+      if (!updated) {
+        res.status(409).json({
+          message: "The send recipient or original message ID does not match this notice, or the send is no longer eligible. Refresh and review the history again.",
+        });
+        return;
+      }
+      res.json(LinkGmailBounceToVenueOutreachResponse.parse({
+        id: String(updated.id),
+        gmailBounceMessageId: notice.gmailMessageId,
+        repeatBounceCleared: false,
+      }));
+    } catch (error) {
+      const cause = error as { code?: unknown; cause?: { code?: unknown } };
+      if (cause?.code === "23505" || cause?.cause?.code === "23505") {
+        res.status(409).json({
+          message: "This Gmail notice has already been linked to another send.",
+        });
+        return;
+      }
+      throw error;
+    }
   },
 );
 
@@ -5212,6 +7631,64 @@ router.put(
   },
 );
 
+router.put(
+  "/admin/venue-owner/outreach/manual-interest",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = UpdateVenueOutreachManualInterestBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const { venueKey, manualInterestLevel } = parsed.data;
+    const updatedAt = new Date();
+    await db
+      .insert(venueOutreachFollowUpsTable)
+      .values({ venueKey, manualInterestLevel, updatedAt })
+      .onConflictDoUpdate({
+        target: venueOutreachFollowUpsTable.venueKey,
+        set: { manualInterestLevel, updatedAt },
+      });
+    res.json(UpdateVenueOutreachManualInterestResponse.parse({
+      venueKey,
+      manualInterestLevel,
+      updatedAt,
+    }));
+  },
+);
+
+router.post(
+  "/admin/venue-owner/outreach/manual-reply",
+  requireAdminSession,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = CreateVenueOutreachManualReplyEventBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const actorUid = adminActorUid(req);
+    if (!actorUid) {
+      res.status(401).json({ error: "No active admin session." });
+      return;
+    }
+    const createdAt = new Date();
+    await db
+      .insert(venueOutreachManualReplyEventsTable)
+      .values({
+        venueKey: parsed.data.venueKey,
+        action: parsed.data.action,
+        actorUid,
+        createdAt,
+      });
+    res.status(201).json(CreateVenueOutreachManualReplyEventResponse.parse({
+      venueKey: parsed.data.venueKey,
+      action: parsed.data.action,
+      actorUid,
+      createdAt: createdAt.toISOString(),
+    }));
+  },
+);
+
 /**
  * Email a venue that is not in Met yet. The pre-approval application template
  * creates a short-lived, email-bound link; it does not approve the venue or
@@ -5233,6 +7710,12 @@ router.post(
     }
     const { businessName, template } = parsed.data;
     const recipientEmail = parsed.data.recipientEmail.toLowerCase();
+    if (await isVenueOutreachEmailSuppressed(recipientEmail)) {
+      res.status(409).json({
+        message: "Future outreach to this address is blocked. Allow the address again before sending.",
+      });
+      return;
+    }
     let applicationUrl: string | undefined;
     let applicationExpiresAt: Date | undefined;
     let applicationInviteTokenId: number | null = null;
@@ -5306,21 +7789,28 @@ router.post(
         : "new_venue_outreach",
       actorUid: adminActorUid(req),
     });
+    let gmailRfcMessageId: string | null = null;
+    let gmailThreadId: string | null = null;
     try {
-      await sendNewVenueOutreachEmail({
+      const sendResult = await sendNewVenueOutreachEmailWithResult({
         to: recipientEmail,
         businessName,
         template,
         ...(applicationUrl ? { applicationUrl, applicationExpiresAt } : {}),
         ...(posterAttachments.length > 0 ? { attachments: posterAttachments } : {}),
       });
+      gmailRfcMessageId = sendResult.rfcMessageId;
+      gmailThreadId = sendResult.gmailThreadId;
     } catch (err) {
-      await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
+      const deliveryStatus = gmailFailureStatus(err);
+      await finishVenueOutreachLog(outreachLogId, deliveryStatus);
       req.log?.warn({ err }, "Unable to confirm new venue outreach delivery");
-      res.status(503).json({ message: "Delivery could not be confirmed. Check the connected Gmail Sent folder before trying again." });
+      res.status(503).json({ message: deliveryStatus === "failed"
+        ? "The email was not sent. It is marked Failed and can be cleared from Venue Admin."
+        : "Delivery could not be confirmed. Check the connected Gmail Sent folder before trying again." });
       return;
     }
-    await finishVenueOutreachLog(outreachLogId, "sent");
+    await finishVenueOutreachLog(outreachLogId, "sent", gmailRfcMessageId, gmailThreadId);
     if (applicationInviteTokenId !== null) {
       const previousInvites = await db
         .select({ id: venueApplicationInviteTokensTable.id })
@@ -5390,19 +7880,25 @@ router.post(
       kind: "contact_request",
       actorUid: adminActorUid(req),
     });
+    let sendResult: Awaited<ReturnType<typeof sendVenueContactRequestEmail>>;
     try {
-      await sendVenueContactRequestEmail({
+      sendResult = await sendVenueContactRequestEmail({
         to: recipientEmail,
         businessName: profile.businessName,
         coverPhotoUrl: profile.coverPhotoUrl,
       });
     } catch (err) {
-      await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
+      await finishVenueOutreachLog(outreachLogId, gmailFailureStatus(err));
       req.log?.warn({ err, profileId }, "Unable to confirm venue contact-request delivery");
       res.status(503).json({ message: "Delivery could not be confirmed. Check the connected Gmail Sent folder before trying again." });
       return;
     }
-    await finishVenueOutreachLog(outreachLogId, "sent");
+    await finishVenueOutreachLog(
+      outreachLogId,
+      "sent",
+      sendResult.rfcMessageId,
+      sendResult.gmailThreadId,
+    );
     await appendApplicationHistory({
       venueOwnerProfileId: profile.id,
       eventType: "email_sent",
@@ -5415,6 +7911,364 @@ router.post(
       },
     });
     res.status(201).json({ emailSent: true, recipientEmail });
+  },
+);
+
+async function loadVenueRegistrationDraftTargets() {
+  const profiles = await db
+    .select({
+      profileId: venueOwnerProfilesTable.id,
+      businessName: venueOwnerProfilesTable.businessName,
+      contactEmail: venueOwnerProfilesTable.contactEmail,
+      ownerUid: venueOwnerProfilesTable.ownerUid,
+      applicationStatus: venueOwnerProfilesTable.applicationStatus,
+      activationExempt: venueActivationPoliciesTable.exempt,
+      unlistedAt: venueActivationPoliciesTable.unlistedAt,
+      businessId: venueBusinessesTable.id,
+    })
+    .from(venueOwnerProfilesTable)
+    .leftJoin(
+      venueActivationPoliciesTable,
+      eq(venueActivationPoliciesTable.profileId, venueOwnerProfilesTable.id),
+    )
+    .leftJoin(
+      venueBusinessesTable,
+      eq(venueBusinessesTable.venueOwnerProfileId, venueOwnerProfilesTable.id),
+    );
+
+  return Promise.all(
+    VENUE_REGISTRATION_DRAFT_TARGETS.map(async (pdfFilename) => {
+      const matches = profiles.filter(
+        (profile) => venueDraftNameMatchesBusinessName(pdfFilename, profile.businessName),
+      );
+      if (matches.length !== 1) {
+        return {
+          profileId: null,
+          businessName: venueNameFromDraftPdf(pdfFilename),
+          contactEmail: null,
+          pdfFilename,
+          eligible: false,
+          ineligibilityReason: matches.length === 0
+            ? "No matching venue record was found."
+            : "More than one matching venue record was found.",
+        };
+      }
+
+      const profile = matches[0]!;
+      const contactEmail = profile.contactEmail?.trim() || null;
+      let ineligibilityReason: string | null = null;
+      if (profile.applicationStatus !== "approved") {
+        ineligibilityReason = "The venue is not approved.";
+      } else if (profile.ownerUid.startsWith("admin-managed:")) {
+        ineligibilityReason = "This venue is managed directly in Venue Admin.";
+      } else if (!contactEmail || !z.string().email().safeParse(contactEmail).success) {
+        ineligibilityReason = "The approved venue record has no contact email.";
+      } else if (!profile.businessId) {
+        ineligibilityReason = "The venue business record is not set up.";
+      } else if (!profile.activationExempt) {
+        ineligibilityReason = "The venue does not have the required activation exception.";
+      } else if (profile.unlistedAt) {
+        ineligibilityReason = "The venue is currently delisted.";
+      } else if (await checkHasClaimedVenueManager(profile.profileId)) {
+        ineligibilityReason = "A venue manager has already claimed this venue.";
+      }
+
+      return {
+        profileId: profile.profileId,
+        businessName: profile.businessName,
+        contactEmail,
+        pdfFilename,
+        eligible: ineligibilityReason === null,
+        ineligibilityReason,
+      };
+    }),
+  );
+}
+
+function parseRegistrationDraftPdf(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  express.raw({ type: "application/pdf", limit: "3mb" })(req, res, (error) => {
+    if (
+      error &&
+      typeof error === "object" &&
+      "type" in error &&
+      error.type === "entity.too.large"
+    ) {
+      res.status(413).json({ message: "The optimized PDF must be smaller than 3 MB." });
+      return;
+    }
+    next(error);
+  });
+}
+
+router.get(
+  "/admin/venue-owner/registration-draft-targets",
+  requireAdminSession,
+  async (_req: Request, res: Response) => {
+    const response = GetVenueRegistrationDraftTargetsResponse.parse({
+      targets: await loadVenueRegistrationDraftTargets(),
+    });
+    res.json(response);
+  },
+);
+
+/**
+ * Create an unsent Gmail draft for a fixed venue/PDF pair. Operation history
+ * prevents a lost response from silently creating a duplicate on retry.
+ */
+router.post(
+  "/admin/venue-owner/applications/:id/registration-draft",
+  requireAdminSession,
+  parseRegistrationDraftPdf,
+  async (req: Request, res: Response) => {
+    const profileId = Number(req.params["id"]);
+    const operationHeader = CreateVenueRegistrationDraftHeader.safeParse({
+      "X-Venue-Draft-Operation": req.get("X-Venue-Draft-Operation") ?? "",
+    });
+    const operationId = operationHeader.success
+      ? operationHeader.data["X-Venue-Draft-Operation"]
+      : "";
+    if (
+      !Number.isInteger(profileId) ||
+      profileId <= 0 ||
+      !operationHeader.success ||
+      !z.string().uuid().safeParse(operationId).success
+    ) {
+      res.status(400).json({ message: "A valid venue ID and draft operation ID are required." });
+      return;
+    }
+
+    const pdf = Buffer.isBuffer(req.body) ? req.body : null;
+    if (!pdf || pdf.length < 5 || pdf.subarray(0, 5).toString("ascii") !== "%PDF-") {
+      res.status(400).json({ message: "Upload a valid PDF file." });
+      return;
+    }
+
+    const targets = await loadVenueRegistrationDraftTargets();
+    const target = targets.find((entry) => entry.profileId === profileId);
+    if (!target || !target.eligible || !target.contactEmail) {
+      res.status(409).json({
+        message: target?.ineligibilityReason ?? "This venue is not eligible for a registration draft.",
+      });
+      return;
+    }
+    if (!isExpectedVenueRegistrationDraftPdf(target.pdfFilename, pdf)) {
+      res.status(400).json({
+        message: "This PDF does not match the approved introduction file for the selected venue.",
+      });
+      return;
+    }
+
+    const previousEvents = await db
+      .select({ metadata: venueApplicationHistoryTable.metadata })
+      .from(venueApplicationHistoryTable)
+      .where(
+        and(
+          eq(venueApplicationHistoryTable.venueOwnerProfileId, profileId),
+          eq(venueApplicationHistoryTable.eventType, "review_note_added"),
+        ),
+      )
+      .orderBy(desc(venueApplicationHistoryTable.createdAt))
+      .limit(50);
+    const previousOperation = previousEvents.find(
+      (event) => event.metadata?.["registrationDraftOperationId"] === operationId,
+    );
+    const previousStatus = previousOperation?.metadata?.["registrationDraftStatus"];
+    if (previousStatus === "created") {
+      const response = CreateVenueRegistrationDraftResponse.parse({
+        profileId,
+        businessName: target.businessName,
+        recipientEmail: target.contactEmail,
+        pdfFilename: target.pdfFilename,
+        status: "already_created",
+        draftId: previousOperation?.metadata?.["gmailDraftId"] ?? null,
+        expiresAt: previousOperation?.metadata?.["expiresAt"] ?? null,
+        message: "This operation already created an unsent Gmail draft.",
+      });
+      res.status(200).json(response);
+      return;
+    }
+    if (previousStatus === "pending" || previousStatus === "uncertain") {
+      const response = CreateVenueRegistrationDraftResponse.parse({
+        profileId,
+        businessName: target.businessName,
+        recipientEmail: target.contactEmail,
+        pdfFilename: target.pdfFilename,
+        status: "uncertain",
+        draftId: null,
+        expiresAt: null,
+        message: "A previous attempt may have created a draft. Check Gmail Drafts before retrying.",
+      });
+      res.status(202).json(response);
+      return;
+    }
+
+    const managerBaseUrl = process.env["VENUE_MANAGER_BASE_URL"];
+    if (!managerBaseUrl) {
+      res.status(503).json({ message: "Registration links are not configured on this server." });
+      return;
+    }
+    let parsedBaseUrl: URL;
+    try {
+      parsedBaseUrl = new URL(managerBaseUrl);
+    } catch {
+      res.status(503).json({ message: "Registration links are not configured with a valid URL." });
+      return;
+    }
+    if (parsedBaseUrl.protocol !== "https:" || parsedBaseUrl.username || parsedBaseUrl.password) {
+      res.status(503).json({ message: "Registration links require a secure Venue Manager URL." });
+      return;
+    }
+
+    const [business] = await db
+      .select({ id: venueBusinessesTable.id })
+      .from(venueBusinessesTable)
+      .where(eq(venueBusinessesTable.venueOwnerProfileId, profileId))
+      .limit(1);
+    if (!business) {
+      res.status(409).json({ message: "The venue business record is not set up." });
+      return;
+    }
+
+    const existingDeadline = await getRegistrationDeadline(profileId);
+    if (existingDeadline && existingDeadline <= new Date()) {
+      res.status(409).json({ message: "The registration deadline has passed. Reinstate the venue before creating a new link." });
+      return;
+    }
+    const expiresAt = existingDeadline ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const rawToken = crypto.randomBytes(32).toString("base64url");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("base64url");
+    const [registrationToken] = await db
+      .insert(venueManagerRegistrationTokensTable)
+      .values({
+        businessId: business.id,
+        tokenHash,
+        invitedEmail: target.contactEmail.toLowerCase(),
+        expiresAt,
+      })
+      .returning({ id: venueManagerRegistrationTokensTable.id });
+    if (!registrationToken) {
+      res.status(500).json({ message: "Could not create the registration invitation." });
+      return;
+    }
+
+    const writeOperationNote = async (
+      status: "pending" | "created" | "failed" | "uncertain",
+      metadata: Record<string, unknown> = {},
+    ) => appendApplicationHistory({
+      venueOwnerProfileId: profileId,
+      eventType: "review_note_added",
+      actorRole: "admin",
+      internalNote: "Prepared an unsent Venue Manager registration email draft.",
+      metadata: {
+        registrationDraftOperationId: operationId,
+        registrationDraftStatus: status,
+        pdfFilename: target.pdfFilename,
+        ...metadata,
+      },
+    });
+
+    try {
+      await writeOperationNote("pending", { expiresAt: expiresAt.toISOString() });
+    } catch {
+      await db
+        .delete(venueManagerRegistrationTokensTable)
+        .where(eq(venueManagerRegistrationTokensTable.id, registrationToken.id));
+      res.status(500).json({ message: "Could not record the draft operation." });
+      return;
+    }
+
+    const registrationUrl = `${managerBaseUrl.replace(/\/$/, "")}/register?token=${rawToken}`;
+    let emailContent: ReturnType<typeof buildRegistrationLinkEmailContent>;
+    try {
+      emailContent = buildRegistrationLinkEmailContent({
+        to: target.contactEmail,
+        businessName: target.businessName,
+        coverPhotoUrl: null,
+        registrationUrl,
+        expiresAt,
+        registrationDeadline: existingDeadline ?? expiresAt,
+      });
+    } catch {
+      await db
+        .delete(venueManagerRegistrationTokensTable)
+        .where(eq(venueManagerRegistrationTokensTable.id, registrationToken.id));
+      await writeOperationNote("failed", { expiresAt: expiresAt.toISOString() });
+      res.status(502).json({ message: "Could not prepare the registration email draft." });
+      return;
+    }
+
+    try {
+      const gmailDraft = await createGmailHtmlDraft({
+        to: target.contactEmail,
+        ...emailContent,
+        headers: { "X-Met-Venue-Registration-Draft-Operation": operationId },
+        attachments: [{
+          filename: target.pdfFilename,
+          content: pdf,
+          contentType: "application/pdf",
+        }],
+      });
+      try {
+        await writeOperationNote("created", {
+          gmailDraftId: gmailDraft.draftId,
+          expiresAt: expiresAt.toISOString(),
+        });
+      } catch {
+        res.status(202).json(CreateVenueRegistrationDraftResponse.parse({
+          profileId,
+          businessName: target.businessName,
+          recipientEmail: target.contactEmail,
+          pdfFilename: target.pdfFilename,
+          status: "uncertain",
+          draftId: null,
+          expiresAt: null,
+          message: "Gmail accepted the draft, but its result could not be recorded. Check Gmail Drafts before retrying.",
+        }));
+        return;
+      }
+
+      res.status(201).json(CreateVenueRegistrationDraftResponse.parse({
+        profileId,
+        businessName: target.businessName,
+        recipientEmail: target.contactEmail,
+        pdfFilename: target.pdfFilename,
+        status: "created",
+        draftId: gmailDraft.draftId,
+        expiresAt: expiresAt.toISOString(),
+        message: "Unsent Gmail draft created.",
+      }));
+    } catch (error) {
+      const uncertain = gmailFailureStatus(error) === "delivery_uncertain";
+      if (!uncertain) {
+        await db
+          .delete(venueManagerRegistrationTokensTable)
+          .where(eq(venueManagerRegistrationTokensTable.id, registrationToken.id));
+      }
+      try {
+        await writeOperationNote(uncertain ? "uncertain" : "failed", {
+          expiresAt: expiresAt.toISOString(),
+        });
+      } catch {
+        // The original pending marker still prevents a blind duplicate retry.
+      }
+      const response = CreateVenueRegistrationDraftResponse.parse({
+        profileId,
+        businessName: target.businessName,
+        recipientEmail: target.contactEmail,
+        pdfFilename: target.pdfFilename,
+        status: uncertain ? "uncertain" : "failed",
+        draftId: null,
+        expiresAt: uncertain ? expiresAt.toISOString() : null,
+        message: uncertain
+          ? "Draft creation could not be confirmed. Check Gmail Drafts before retrying."
+          : "Gmail could not create the draft.",
+      });
+      res.status(uncertain ? 202 : 502).json(response);
+    }
   },
 );
 
@@ -5528,7 +8382,7 @@ router.post(
             kind: "registration_invite",
             actorUid: adminActorUid(req),
           });
-          emailSent = await sendRegistrationLinkEmail({
+          const sendResult = await sendRegistrationLinkEmailWithResult({
             to: invitedEmail,
             businessName: profile.businessName,
             coverPhotoUrl: profile.coverPhotoUrl,
@@ -5537,10 +8391,13 @@ router.post(
             registrationDeadline: existingDeadline ?? expiresAt,
             includeAppIntro: requestBody.data.template === "registration_with_video",
           });
+          emailSent = sendResult.emailSent;
           if (!emailSent) emailError = "not_configured";
           await finishVenueOutreachLog(
             outreachLogId,
             emailSent ? "sent" : "failed",
+            sendResult.rfcMessageId,
+            sendResult.gmailThreadId,
           );
         } catch (err) {
           const code = (err as { code?: string }).code;
@@ -5549,7 +8406,7 @@ router.post(
           if (outreachLogId !== null) {
             await finishVenueOutreachLog(
               outreachLogId,
-              emailError === "delivery_failed" ? "delivery_uncertain" : "failed",
+              gmailFailureStatus(err),
             );
           }
           logger.warn({ err, to: invitedEmail }, "Failed to send registration link email");
@@ -5918,7 +8775,7 @@ router.delete(
       { profileId, businessName: profile.businessName, placeId: profile.placeId },
       "Admin permanently deleted venue",
     );
-    res.status(200).json({ message: "Venue deleted successfully" });
+    res.status(200).json(DeleteAdminVenueResponse.parse({ message: "Venue deleted successfully" }));
   },
 );
 
@@ -6687,6 +9544,8 @@ router.post(
 
     let emailSent = false;
     let deliveryUncertain = false;
+    let gmailRfcMessageId: string | null = null;
+    let gmailThreadId: string | null = null;
     const outreachLogId = await createVenueOutreachLog({
       venueOwnerProfileId: profile.id,
       registrationTokenId: registrationToken.id,
@@ -6698,17 +9557,20 @@ router.post(
     });
     const registrationUrl = `${baseUrl.replace(/\/$/, "")}/register?token=${rawToken}`;
     try {
-      emailSent = await sendRegistrationLinkEmail({
+      const sendResult = await sendRegistrationLinkEmailWithResult({
         to: profile.contactEmail,
         businessName: profile.businessName,
         registrationUrl,
         expiresAt,
         registrationDeadline: existingDeadline ?? expiresAt,
       });
+      emailSent = sendResult.emailSent;
+      gmailRfcMessageId = sendResult.rfcMessageId;
+      gmailThreadId = sendResult.gmailThreadId;
     } catch (err) {
-      deliveryUncertain = true;
+      deliveryUncertain = gmailFailureStatus(err) === "delivery_uncertain";
       logger.warn({ err, to: profile.contactEmail }, "Failed to send registration link email");
-      await finishVenueOutreachLog(outreachLogId, "delivery_uncertain");
+      await finishVenueOutreachLog(outreachLogId, gmailFailureStatus(err));
     }
 
     if (!emailSent) {
@@ -6724,7 +9586,7 @@ router.post(
       });
       return;
     }
-    await finishVenueOutreachLog(outreachLogId, "sent");
+    await finishVenueOutreachLog(outreachLogId, "sent", gmailRfcMessageId, gmailThreadId);
     await recordVenueInvitation(profile.id);
 
     const sentAt = new Date();
@@ -7062,15 +9924,22 @@ router.get(
     const eventIds = reports
       .filter((r) => r.entityType === "event" && r.entityId > 0)
       .map((r) => r.entityId);
+    const communityEventIds = reports
+      .filter((r) => r.entityType === "community_event" && r.entityId > 0)
+      .map((r) => r.entityId);
     const announcementIds = reports
       .filter((r) => r.entityType === "announcement" && r.entityId > 0)
       .map((r) => r.entityId);
     const guestbookIds = reports.filter(r => r.entityType === "guestbook").map(r => r.entityId);
 
-    const [hiddenEvents, hiddenAnnouncements, guestbookEntries] = await Promise.all([
+    const [hiddenEvents, hiddenCommunityEvents, hiddenAnnouncements, guestbookEntries] = await Promise.all([
       eventIds.length
         ? db.select({ id: venueEventsTable.id, isHidden: venueEventsTable.isHidden, title: venueEventsTable.title })
             .from(venueEventsTable).where(inArray(venueEventsTable.id, eventIds))
+        : Promise.resolve([]),
+      communityEventIds.length
+        ? db.select({ id: communityEventsTable.id, isHidden: communityEventsTable.isHidden, title: communityEventsTable.title })
+            .from(communityEventsTable).where(inArray(communityEventsTable.id, communityEventIds))
         : Promise.resolve([]),
       announcementIds.length
         ? db.select({ id: venueAnnouncementsTable.id, isHidden: venueAnnouncementsTable.isHidden, title: venueAnnouncementsTable.title })
@@ -7084,6 +9953,7 @@ router.get(
     ]);
 
     const eventMap = Object.fromEntries(hiddenEvents.map((e) => [e.id, e]));
+    const communityEventMap = Object.fromEntries(hiddenCommunityEvents.map((e) => [e.id, e]));
     const announcementMap = Object.fromEntries(hiddenAnnouncements.map((a) => [a.id, a]));
     const guestbookMap = Object.fromEntries(guestbookEntries.map(e => [e.id, e]));
 
@@ -7093,12 +9963,16 @@ router.get(
       contentTitle:
         r.entityType === "event"
           ? (eventMap[r.entityId]?.title ?? null)
+          : r.entityType === "community_event"
+            ? (communityEventMap[r.entityId]?.title ?? null)
           : r.entityType === "announcement"
             ? (announcementMap[r.entityId]?.title ?? null)
             : r.entityType === "guestbook" ? (guestbookMap[r.entityId]?.title ?? null) : null,
       contentIsHidden:
         r.entityType === "event"
           ? (eventMap[r.entityId]?.isHidden ?? null)
+          : r.entityType === "community_event"
+            ? (communityEventMap[r.entityId]?.isHidden ?? null)
           : r.entityType === "announcement"
             ? (announcementMap[r.entityId]?.isHidden ?? null)
             : r.entityType === "guestbook" ? (guestbookMap[r.entityId]?.isHidden ?? null) : null,
@@ -7153,6 +10027,11 @@ router.patch(
           .update(venueEventsTable)
           .set({ isHidden: hidden })
           .where(eq(venueEventsTable.id, report.entityId));
+      } else if (report.entityType === "community_event" && report.entityId > 0) {
+        await db
+          .update(communityEventsTable)
+          .set({ isHidden: hidden })
+          .where(eq(communityEventsTable.id, report.entityId));
       } else if (report.entityType === "announcement" && report.entityId > 0) {
         await db
           .update(venueAnnouncementsTable)
@@ -7178,6 +10057,7 @@ router.patch(
 );
 
 router.use(createVenueEmailTemplatesRouter(requireAdminSession, adminActorUid));
+router.use(createVenueIntroProfilesRouter(requireAdminSession));
 
 export default router;
 

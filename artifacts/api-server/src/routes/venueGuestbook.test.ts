@@ -80,11 +80,31 @@ describe("venue guestbook persistence and safety", () => {
     expect(result.body.code).toBe("PROFILE_COMPLETION_REQUIRED");
     expect(photo.save).not.toHaveBeenCalled();
   });
-  it("requires a venue-specific QR visit; browsing remains available", async () => {
-    expect((await post(viewer)).body.code).toBe("QR_CHECKIN_REQUIRED");
+  it("requires a venue-specific verified visit; browsing remains available", async () => {
+    expect((await post(viewer)).body.code).toBe("VENUE_CHECKIN_REQUIRED");
     const result = await request(app).get(path).set("x-test-uid", viewer);
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ canPost: false, eligibility: "checkin" });
+  });
+  it("allows a completed visitor with an open-location check-in to sign", async () => {
+    await db.insert(venueQrVerificationsTable).values({
+      userUid: viewer,
+      placeId: place,
+      source: "open_location",
+    });
+    try {
+      const result = await post(viewer);
+      expect(result.status).toBe(201);
+      const page = await request(app).get(path).set("x-test-uid", viewer);
+      expect(page.body).toMatchObject({ canPost: true, eligibility: null });
+    } finally {
+      await db.delete(venueQrVerificationsTable).where(
+        and(
+          eq(venueQrVerificationsTable.userUid, viewer),
+          eq(venueQrVerificationsTable.placeId, place),
+        ),
+      );
+    }
   });
   it.each(["", " ".repeat(2), "x".repeat(501)])("rejects an invalid note", async note => {
     expect((await post(author, { note })).status).toBe(400);

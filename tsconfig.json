@@ -16,6 +16,9 @@
       "path": "./lib/interests"
     },
     {
+      "path": "./lib/integrations-openai-ai-server"
+    },
+    {
       "path": "./lib/object-storage-web"
     }
   ]

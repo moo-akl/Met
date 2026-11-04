@@ -47,7 +47,13 @@ export function CanopyVisibility({ visible, onToggle, title, subtitle }: {
 }
 
 /** Resizes the existing real map instead of mounting a second polling/location instance. */
-export function CanopyMapCard({ children }: { children: ReactNode }) {
+export function CanopyMapCard({
+  children,
+  footerLabel = "Venue activity · no live guest pins",
+}: {
+  children: ReactNode;
+  footerLabel?: string;
+}) {
   const [expanded, setExpanded] = useState(false);
   const c = useColors();
   return <View testID="home-map-card" style={[s.map, { height: expanded ? 470 : 232, borderColor: c.border, backgroundColor: c.primarySoft }]}>
@@ -65,7 +71,7 @@ export function CanopyMapCard({ children }: { children: ReactNode }) {
     </Pressable>
     <View pointerEvents="none" style={[s.mapPrivacy, { backgroundColor: c.card }]}>
       <Feather name="shield" size={12} color={c.mutedForeground} />
-      <Text style={[s.mapPrivacyText, { color: c.mutedForeground }]}>Venue activity · no live guest pins</Text>
+      <Text style={[s.mapPrivacyText, { color: c.mutedForeground }]}>{footerLabel}</Text>
     </View>
   </View>;
 }

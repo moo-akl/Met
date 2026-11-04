@@ -81,11 +81,11 @@ Bluetooth Data: Unique, non-identifiable numeric hashes (UID Hashes) used for de
 Authentication Data: Email addresses and login credentials managed securely via Google Firebase.
 
 2. Use of Background Location & Bluetooth (Core Disclosure)
-Met's primary purpose is to help you discover people you have physically crossed paths with. To function correctly, Met collects location data and performs Bluetooth scanning even when the app is closed or not in use.
+Met's primary purpose is to help you discover people you have physically crossed paths with. Met uses location to detect nearby encounters, including when the app is closed or not in use. When you create an event, your current location can also be used on your device to sort place suggestions by distance; it is not sent to the place-search provider.
 
 Why we need this: Without background access, the app cannot "detect" an encounter unless you have the app open in your hand at the exact moment you pass someone.
 
-Proximity vs. History: We do not build a permanent map of your movements. Location data is used transiently to calculate proximity to other users and is only recorded as a static "Encounter" event (Time + Approximate Location) when a match is found.
+Proximity vs. History: We do not build a permanent map of your movements. Location data is used transiently to calculate proximity to other users and to sort event-place suggestions on your device. It is only recorded as a static "Encounter" event (Time + Approximate Location) when a match is found.
 
 User Control: You can disable background tracking at any time in your device settings, though this will prevent the app from recording new encounters.
 
