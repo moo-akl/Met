@@ -91,6 +91,16 @@
               "scheme": "https",
               "host": "metapp.replit.app",
               "pathPrefix": "/event-invite"
+            },
+            {
+              "scheme": "https",
+              "host": "met-app.org",
+              "pathPrefix": "/event-details"
+            },
+            {
+              "scheme": "https",
+              "host": "metapp.replit.app",
+              "pathPrefix": "/event-details"
             }
           ],
           "category": [

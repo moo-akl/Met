@@ -47,9 +47,25 @@ describe("event invitation app links", () => {
     );
   });
 
-  it("has an Expo Router screen for the invite path", () => {
+  it("registers the event-details path for both Android App Link hosts", () => {
+    const configuredHosts = appConfig.expo.android.intentFilters.flatMap(
+      (filter) =>
+        filter.data
+          .filter((entry) => entry.pathPrefix === "/event-details")
+          .map((entry) => entry.host),
+    );
+
+    expect(configuredHosts).toEqual(
+      expect.arrayContaining(["met-app.org", "metapp.replit.app"]),
+    );
+  });
+
+  it("has Expo Router screens for invitation and event-detail links", () => {
     expect(
       existsSync(resolve(__dirname, "../../app/event-invite/[token].tsx")),
+    ).toBe(true);
+    expect(
+      existsSync(resolve(__dirname, "../../app/event-details/[eventType]/[id].tsx")),
     ).toBe(true);
   });
 });

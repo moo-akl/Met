@@ -1,7 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, venueOwnerProfilesTable } from "@workspace/db";
+import { db, venueEventsTable, venueOwnerProfilesTable } from "@workspace/db";
 import { isValidEventInviteToken } from "../lib/eventInviteLinks";
+
+const CANONICAL_APP_ORIGIN = "https://met-app.org";
+const DEFAULT_EVENT_PREVIEW_IMAGE = `${CANONICAL_APP_ORIGIN}/opengraph.jpg`;
 
 // ---------------------------------------------------------------------------
 // Output-encoding helpers
@@ -362,6 +365,8 @@ const appleAppSiteAssociation = JSON.stringify(
             "/join/*",
             // Shareable community-event invitations  e.g. /event-invite/<token>
             "/event-invite/*",
+            // Shared venue event detail links.
+            "/event-details/*",
             // Venue-owner registration / dashboard entry point
             "/venue-owner",
             "/venue-owner/*",
@@ -443,6 +448,150 @@ router.get("/event-invite/:token", (req: Request, res: Response) => {
   </body>
 </html>`);
 });
+
+router.get("/event-details/:eventType/:eventId", async (req: Request, res: Response): Promise<void> => {
+  const eventType = req.params["eventType"];
+  const eventId = req.params["eventId"];
+  if (
+    eventType !== "venue" ||
+    typeof eventId !== "string" ||
+    !/^[1-9]\d*$/.test(eventId) ||
+    !Number.isSafeInteger(Number(eventId))
+  ) {
+    res.status(404).type("text").send("Event not found.");
+    return;
+  }
+
+  const [event] = await db
+    .select({
+      title: venueEventsTable.title,
+      startsAt: venueEventsTable.startsAt,
+      imageUrl: venueEventsTable.imageUrl,
+      venueName: venueOwnerProfilesTable.businessName,
+    })
+    .from(venueEventsTable)
+    .innerJoin(
+      venueOwnerProfilesTable,
+      eq(venueOwnerProfilesTable.placeId, venueEventsTable.placeId),
+    )
+    .where(
+      and(
+        eq(venueEventsTable.id, Number(eventId)),
+        eq(venueEventsTable.isPublished, true),
+        eq(venueEventsTable.isHidden, false),
+        eq(venueEventsTable.visibility, "public"),
+        eq(venueOwnerProfilesTable.isApproved, true),
+        eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+      ),
+    )
+    .limit(1);
+
+  if (!event) {
+    res
+      .status(404)
+      .type("html")
+      .set("Cache-Control", "no-store")
+      .send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Event unavailable · Met</title>
+  </head>
+  <body><main><h1>Event unavailable</h1><p>This event is no longer available.</p></main></body>
+</html>`);
+    return;
+  }
+
+  const eventUrl = new URL(
+    `/event-details/venue/${eventId}`,
+    CANONICAL_APP_ORIGIN,
+  );
+  const previewVersion = req.query["preview"];
+  if (
+    typeof previewVersion === "string" &&
+    /^[1-9]\d{0,15}$/.test(previewVersion) &&
+    Number.isSafeInteger(Number(previewVersion))
+  ) {
+    eventUrl.searchParams.set("preview", previewVersion);
+  }
+  const canonicalEventUrl = eventUrl.toString();
+  const appUrl = `met:///event-details/venue/${encodeURIComponent(eventId)}`;
+  const appStoreUrl =
+    "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926";
+  const playStoreUrl =
+    "https://play.google.com/store/apps/details?id=app.met.founders";
+  const eventTitle = escapeHtml(event.title);
+  const venueName = escapeHtml(event.venueName);
+  const eventDate = escapeHtml(
+    new Intl.DateTimeFormat("en", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "UTC",
+      timeZoneName: "short",
+    }).format(event.startsAt),
+  );
+  const eventImage = escapeHtml(resolveEventPreviewImageUrl(event.imageUrl));
+  const previewDescription = escapeHtml(`${eventDate} · ${event.venueName}`);
+  res
+    .status(200)
+    .type("html")
+    .set("Cache-Control", "no-store")
+    .send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>${eventTitle} · Met</title>
+    <link rel="canonical" href="${escapeHtml(canonicalEventUrl)}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="${escapeHtml(canonicalEventUrl)}" />
+    <meta property="og:title" content="${eventTitle}" />
+    <meta property="og:description" content="${previewDescription}" />
+    <meta property="og:image" content="${eventImage}" />
+    <meta property="og:image:alt" content="${escapeHtml(`${event.title} at ${event.venueName}`)}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${eventTitle}" />
+    <meta name="twitter:description" content="${previewDescription}" />
+    <meta name="twitter:image" content="${eventImage}" />
+    <style>
+      body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f7f3;color:#1a2421;font:16px system-ui,sans-serif}
+      main{width:min(440px,calc(100% - 40px));padding:30px;border-radius:20px;background:white;box-shadow:0 12px 40px #132a1918;text-align:center}
+      h1{font-size:25px;margin:0 0 10px}p{line-height:1.55;color:#58645e}
+      a{display:inline-block;margin:8px;padding:12px 18px;border-radius:10px;background:#1a2421;color:white;text-decoration:none;font-weight:700}
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="${eventImage}" alt="${escapeHtml(`${event.title} at ${event.venueName}`)}" style="display:block;width:100%;max-height:280px;object-fit:cover;border-radius:14px;margin-bottom:18px" />
+      <h1>${eventTitle}</h1>
+      <p>${eventDate}<br />${venueName}</p>
+      <p>Open this event in Met to RSVP.</p>
+      <p><a href="${appUrl}">Open event in Met</a></p>
+      <p><a href="${appStoreUrl}">App Store</a><a href="${playStoreUrl}">Google Play</a></p>
+    </main>
+  </body>
+</html>`);
+});
+
+function resolveEventPreviewImageUrl(imageUrl: string | null): string {
+  if (!imageUrl) return DEFAULT_EVENT_PREVIEW_IMAGE;
+  try {
+    const parsed = new URL(imageUrl, `${CANONICAL_APP_ORIGIN}/`);
+    return parsed.protocol === "https:"
+      ? parsed.href
+      : DEFAULT_EVENT_PREVIEW_IMAGE;
+  } catch {
+    return DEFAULT_EVENT_PREVIEW_IMAGE;
+  }
+}
+
 // Venue QR check-in landing page.
 //
 // Primary path: a device with Met installed is intercepted by the OS via

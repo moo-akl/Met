@@ -1,16 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 const mocks = vi.hoisted(() => ({
   chain: {
     select: vi.fn().mockReturnThis(), from: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(), limit: vi.fn(),
   },
 }));
 vi.mock("@workspace/db", () => ({
   db: mocks.chain,
   venueOwnerProfilesTable: { placeId: "place", isApproved: "approved", applicationStatus: "status" },
+  venueEventsTable: {
+    id: "eventId",
+    title: "eventTitle",
+    startsAt: "eventStartsAt",
+    imageUrl: "eventImageUrl",
+    placeId: "eventPlaceId",
+    isPublished: "eventIsPublished",
+    isHidden: "eventIsHidden",
+    visibility: "eventVisibility",
+  },
 }));
 import legalRouter from "./legal";
 const app = express();
@@ -124,5 +136,116 @@ describe("event invitation app-link associations", () => {
       relation: ["delegate_permission/common.handle_all_urls"],
       target: { namespace: "android_app", package_name: "app.met.founders" },
     });
+  });
+});
+
+describe("venue event detail links", () => {
+  it("includes event and invite paths in iOS universal-link association", async () => {
+    const res = await request(app).get("/.well-known/apple-app-site-association");
+
+    expect(res.status).toBe(200);
+    expect(res.body.applinks.details[0].paths).toContain("/event-details/*");
+    expect(res.body.applinks.details[0].paths).toContain("/event-invite/*");
+  });
+
+  it("routes a shared event URL to the event, not the venue check-in", async () => {
+    mocks.chain.where.mockClear();
+    mocks.chain.limit.mockResolvedValueOnce([{
+      title: "Lantern Dinner",
+      startsAt: new Date("2026-01-03T08:00:00.000Z"),
+      imageUrl: "https://cdn.example.test/lantern-dinner.jpg",
+      venueName: "River & Park",
+    }]);
+
+    const res = await request(app).get("/event-details/venue/123");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/html");
+    expect(res.text).toContain('<meta property="og:title" content="Lantern Dinner" />');
+    expect(res.text).toContain('<meta property="og:url" content="https://met-app.org/event-details/venue/123" />');
+    expect(res.text).toContain("Sat, Jan 3, 2026, 8:00 AM UTC · River &amp; Park");
+    expect(res.text).toContain('<meta property="og:image" content="https://cdn.example.test/lantern-dinner.jpg" />');
+    expect(res.text).toContain('<meta name="twitter:image" content="https://cdn.example.test/lantern-dinner.jpg" />');
+    expect(res.text).toContain("Open this event in Met to RSVP.");
+    expect(res.text).toContain("met:///event-details/venue/123");
+    expect(res.text).not.toContain("met:///v/");
+
+    const [whereExpression] = mocks.chain.where.mock.calls[0] ?? [];
+    const query = new PgDialect().sqlToQuery(whereExpression);
+    expect(query.params).toEqual(
+      expect.arrayContaining([123, true, false, "public", "approved"]),
+    );
+  });
+
+  it("serves fresh metadata at each versioned share URL and preserves the cache key", async () => {
+    mocks.chain.limit
+      .mockResolvedValueOnce([{
+        title: "Old Event Name",
+        startsAt: new Date("2026-01-03T08:00:00.000Z"),
+        imageUrl: "https://cdn.example.test/old-image.jpg",
+        venueName: "River & Park",
+      }])
+      .mockResolvedValueOnce([{
+        title: "Updated Event Name",
+        startsAt: new Date("2026-02-04T10:30:00.000Z"),
+        imageUrl: "https://cdn.example.test/new-image.jpg",
+        venueName: "Harbor Hall",
+      }]);
+
+    const oldPreview = await request(app).get(
+      "/event-details/venue/123?preview=1700000000000",
+    );
+    const updatedPreview = await request(app).get(
+      "/event-details/venue/123?preview=1700000000001",
+    );
+
+    expect(oldPreview.text).toContain('content="Old Event Name"');
+    expect(oldPreview.text).toContain("old-image.jpg");
+    expect(updatedPreview.text).toContain(
+      '<meta property="og:url" content="https://met-app.org/event-details/venue/123?preview=1700000000001" />',
+    );
+    expect(updatedPreview.text).toContain('content="Updated Event Name"');
+    expect(updatedPreview.text).toContain(
+      "Wed, Feb 4, 2026, 10:30 AM UTC · Harbor Hall",
+    );
+    expect(updatedPreview.text).toContain("new-image.jpg");
+    expect(updatedPreview.headers["cache-control"]).toContain("no-store");
+  });
+
+  it("escapes event copy and falls back from an unsafe event image URL", async () => {
+    mocks.chain.limit.mockResolvedValueOnce([{
+      title: "<script>Party</script>",
+      startsAt: new Date("2026-01-03T08:00:00.000Z"),
+      imageUrl: "javascript:alert(1)",
+      venueName: "River & Park",
+    }]);
+
+    const res = await request(app).get("/event-details/venue/123");
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("&lt;script&gt;Party&lt;/script&gt;");
+    expect(res.text).not.toContain("<script>Party</script>");
+    expect(res.text).toContain("https://met-app.org/opengraph.jpg");
+    expect(res.text).not.toContain("javascript:alert(1)");
+  });
+
+  it("does not expose preview metadata for a missing, deleted, or ineligible event", async () => {
+    mocks.chain.limit.mockResolvedValueOnce([]);
+
+    const res = await request(app).get("/event-details/venue/123");
+
+    expect(res.status).toBe(404);
+    expect(res.text).toContain("Event unavailable");
+    expect(res.text).not.toContain("og:title");
+    expect(res.text).not.toContain("og:image");
+  });
+
+  it.each(["member", "venue", "other"])("rejects unsupported or malformed event path %s", async (eventType) => {
+    const path = eventType === "venue"
+      ? "/event-details/venue/not-an-id"
+      : `/event-details/${eventType}/123`;
+    const res = await request(app).get(path);
+
+    expect(res.status).toBe(404);
   });
 });

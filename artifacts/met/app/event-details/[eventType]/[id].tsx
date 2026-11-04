@@ -20,6 +20,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { api, ApiError } from "@/lib/api/client";
+import { buildEventDetailsUrl } from "@/lib/eventLinks";
 import {
   getGetEventDetailsQueryKey,
   getGetEventDetailsQueryOptions,
@@ -123,7 +124,7 @@ export default function EventDetailsScreen() {
     try {
       const link = event.eventType === "venue"
         ? {
-            url: `https://met-app.org/v/${encodeURIComponent(event.placeId ?? "")}`,
+            url: buildEventDetailsUrl("venue", event.id),
             passcodeRequired: false,
           }
         : await shareInviteMutation.mutateAsync({ eventId: event.id });
