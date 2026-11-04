@@ -54,8 +54,8 @@ export function decideProfileGateRoute(input: {
   permissionsCompleted: boolean;
 }): string | null {
   const { root, authedUid, profile, permissionsCompleted } = input;
-  // The QR check-in route owns its own auth/onboarding branching.
-  if (root === "v") return null;
+  // QR check-in and event-invite routes own their auth/onboarding branching.
+  if (root === "v" || root === "event-invite") return null;
   if (!profile) {
     if (authedUid && root === "venue-owner") return null;
     return root === "onboarding" ? null : "/onboarding";

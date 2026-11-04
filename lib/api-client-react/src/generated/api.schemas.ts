@@ -1490,6 +1490,13 @@ export interface CommunityEventInput {
      * @items.maxLength 128
      */
   inviteeUids?: string[];
+  inviteLinkEnabled?: boolean;
+  /**
+     * @minLength 6
+     * @maxLength 64
+     * @nullable
+     */
+  invitePasscode?: string | null;
 }
 
 export interface EventLocationSearchResult {
@@ -1580,6 +1587,72 @@ export interface CommunityEventManageResponse {
      * @items.maxLength 128
      */
   inviteeUids: string[];
+  inviteLinkEnabled: boolean;
+  invitePasscodeRequired: boolean;
+}
+
+export interface CommunityEventInviteLinkResponse {
+  url: string;
+  passcodeRequired: boolean;
+}
+
+export interface EventInviteResolveInput {
+  /**
+     * @minLength 32
+     * @maxLength 64
+     */
+  token: string;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  passcode?: string;
+}
+
+export interface EventInviteSummary {
+  id: number;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  startsAt: string;
+  /** @nullable */
+  endsAt?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  creatorName: string | null;
+  /** @nullable */
+  latitude?: number | null;
+  /** @nullable */
+  longitude?: number | null;
+  rsvpCount: number;
+}
+
+export interface EventInviteResolveResponse {
+  requiresPasscode: boolean;
+  event: EventInviteSummary | null;
+}
+
+export type EventInviteRsvpBodyStatus = typeof EventInviteRsvpBodyStatus[keyof typeof EventInviteRsvpBodyStatus];
+
+
+export const EventInviteRsvpBodyStatus = {
+  going: 'going',
+  maybe: 'maybe',
+  not_going: 'not_going',
+} as const;
+
+export interface EventInviteRsvpBody {
+  /**
+     * @minLength 32
+     * @maxLength 64
+     */
+  token: string;
+  status: EventInviteRsvpBodyStatus;
+  /** @maxLength 64 */
+  passcode?: string;
 }
 
 export type CommunityEventRsvpBodyStatus = typeof CommunityEventRsvpBodyStatus[keyof typeof CommunityEventRsvpBodyStatus];
@@ -3114,6 +3187,20 @@ export type SearchEventLocationsParams = {
  * @maxLength 120
  */
 q: string;
+};
+
+export type RsvpToEventInvite200Status = typeof RsvpToEventInvite200Status[keyof typeof RsvpToEventInvite200Status];
+
+
+export const RsvpToEventInvite200Status = {
+  going: 'going',
+  maybe: 'maybe',
+  not_going: 'not_going',
+} as const;
+
+export type RsvpToEventInvite200 = {
+  success: boolean;
+  status: RsvpToEventInvite200Status;
 };
 
 export type RsvpCommunityEvent200Status = typeof RsvpCommunityEvent200Status[keyof typeof RsvpCommunityEvent200Status];

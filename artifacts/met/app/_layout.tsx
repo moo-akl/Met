@@ -133,10 +133,19 @@ void initializeFirestore().catch((err) => {
 // Stash a referral code that came in via deep link (`met://r/CODE` or
 // universal link with `/r/CODE`) so onboarding can pre-fill it.
 let pendingDeepLinkReferral: string | null = null;
+let pendingEventInviteToken: string | null = null;
 export function consumePendingReferral(): string | null {
   const v = pendingDeepLinkReferral;
   pendingDeepLinkReferral = null;
   return v;
+}
+export function setPendingEventInvite(token: string): void {
+  pendingEventInviteToken = token;
+}
+export function consumePendingEventInvite(): string | null {
+  const token = pendingEventInviteToken;
+  pendingEventInviteToken = null;
+  return token;
 }
 
 export function parseReferralFromUrl(url: string | null): string | null {
@@ -370,6 +379,13 @@ function ProfileGate() {
 
   useEffect(() => {
     if (!ready) return;
+    if (authedUid) {
+      const pendingInviteToken = consumePendingEventInvite();
+      if (pendingInviteToken) {
+        router.replace(`/event-invite/${pendingInviteToken}` as never);
+        return;
+      }
+    }
     // Centralized decision (see lib/profileCompletion): /v owns its own
     // auth branching, incomplete private profiles may browse without the
     // permissions redirect, complete profiles keep the existing flow.
@@ -462,6 +478,7 @@ function RootLayoutNav() {
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="permissions" />
       <Stack.Screen name="v/[placeId]" options={{ animation: "fade" }} />
+      <Stack.Screen name="event-invite/[token]" options={{ animation: "fade" }} />
       <Stack.Screen name="venue-owner/index" />
       <Stack.Screen
         name="encounter/[id]"

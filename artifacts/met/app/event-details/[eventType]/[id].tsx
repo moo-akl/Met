@@ -3,10 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   Image,
   Linking,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,8 +23,10 @@ import { api, ApiError } from "@/lib/api/client";
 import {
   getGetEventDetailsQueryKey,
   getGetEventDetailsQueryOptions,
+  getGetCommunityEventForEditQueryOptions,
   getGetEventsFeedQueryKey,
   useDeleteCommunityEvent,
+  useCreateCommunityEventInviteLink,
   useRsvpCommunityEvent,
   type EventFeedItem,
 } from "@workspace/api-client-react";
@@ -74,6 +78,11 @@ export default function EventDetailsScreen() {
   const event = eventQuery.data;
   const isOwner = Boolean(event && event.eventType === "member" && event.ownerUid === authedUid);
   const location = event?.location ?? event?.venueName ?? null;
+  const ownerManageQuery = useQuery({
+    ...getGetCommunityEventForEditQueryOptions(isValidRoute ? eventId : 0),
+    enabled: isOwner && event?.eventType === "member",
+  });
+  const shareInviteMutation = useCreateCommunityEventInviteLink();
 
   const saveRsvp = async (status: RsvpStatus) => {
     if (!event) return;
@@ -95,6 +104,36 @@ export default function EventDetailsScreen() {
       setActionError(error instanceof ApiError ? error.message : "Could not update your RSVP.");
     } finally {
       setRsvpPending(false);
+    }
+  };
+
+  const shareInviteLink = async () => {
+    if (
+      !event ||
+      event.eventType !== "member" ||
+      !isOwner ||
+      !ownerManageQuery.data?.inviteLinkEnabled
+    ) {
+      return;
+    }
+    setActionError("");
+    try {
+      const link = await shareInviteMutation.mutateAsync({ eventId: event.id });
+      await Share.share({
+        message: `${event.title}\n${link.url}`,
+        url: link.url,
+        title: event.title,
+      });
+      if (link.passcodeRequired) {
+        Alert.alert(
+          t("tabs.events.passcodeProtected"),
+          t("tabs.events.passcodeShareReminder"),
+        );
+      }
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : t("tabs.events.inviteLinkShareFailed"),
+      );
     }
   };
 
@@ -311,6 +350,29 @@ export default function EventDetailsScreen() {
 
             {isOwner ? (
               <View style={styles.ownerActions}>
+                {ownerManageQuery.data?.inviteLinkEnabled ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={shareInviteMutation.isPending}
+                    onPress={() => void shareInviteLink()}
+                    style={[
+                      styles.shareButton,
+                      {
+                        borderColor: colors.primary,
+                        opacity: shareInviteMutation.isPending ? 0.65 : 1,
+                      },
+                    ]}
+                  >
+                    {shareInviteMutation.isPending ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Feather name="share-2" size={16} color={colors.primary} />
+                    )}
+                    <Text style={[styles.shareText, { color: colors.primary }]}>
+                      {t("tabs.events.shareInviteLink")}
+                    </Text>
+                  </Pressable>
+                ) : null}
                 {confirmDelete ? (
                   <View style={[styles.confirmCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Text style={[styles.confirmTitle, { color: colors.text }]}>
@@ -418,6 +480,8 @@ const styles = StyleSheet.create({
   rsvpButton: { flex: 1, minHeight: 42, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderRadius: 12 },
   rsvpButtonText: { fontSize: 12, fontWeight: "700" },
   ownerActions: { marginTop: 18 },
+  shareButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 },
+  shareText: { fontSize: 14, fontWeight: "700" },
   deleteButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   deleteText: { fontSize: 14, fontWeight: "700" },
   confirmCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },

@@ -3,15 +3,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   Image,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DateTimePicker } from "@/components/DateTimePicker";
@@ -27,6 +30,7 @@ import {
   getGetEventsFeedQueryKey,
   getSearchEventLocationsQueryOptions,
   useCreateCommunityEvent,
+  useCreateCommunityEventInviteLink,
   useUpdateCommunityEvent,
   type CommunityEventManageResponse,
   type EventFeedItem,
@@ -73,6 +77,13 @@ export default function CommunityEventForm({ mode, initial }: Props) {
   const [visibility, setVisibility] = useState<"public" | "invite_only">(
     initial?.visibility ?? "public",
   );
+  const [inviteLinkEnabled, setInviteLinkEnabled] = useState(
+    initial?.inviteLinkEnabled ?? false,
+  );
+  const [requireInvitePasscode, setRequireInvitePasscode] = useState(
+    initial?.invitePasscodeRequired ?? false,
+  );
+  const [invitePasscode, setInvitePasscode] = useState("");
   const [inviteeUids, setInviteeUids] = useState<string[]>(
     initial?.inviteeUids ?? [],
   );
@@ -130,6 +141,7 @@ export default function CommunityEventForm({ mode, initial }: Props) {
     enabled: !selectedPlace && locationQuery.length >= 3,
     staleTime: 60_000,
   });
+  const createInviteLink = useCreateCommunityEventInviteLink();
 
   const updateFeedItem = async (event: EventFeedItem) => {
     queryClient.setQueryData<{ events: EventFeedItem[] }>(
@@ -158,6 +170,40 @@ export default function CommunityEventForm({ mode, initial }: Props) {
       await queryClient.invalidateQueries({
         queryKey: getGetEventDetailsQueryKey("member", initial.id),
       });
+    }
+    if (
+      !isEditing &&
+      event.eventType === "member" &&
+      visibility === "invite_only" &&
+      inviteLinkEnabled
+    ) {
+      try {
+        const link = await createInviteLink.mutateAsync({ eventId: event.id });
+        await Share.share({
+          message: `${event.title}\n${link.url}`,
+          url: link.url,
+          title: event.title,
+        });
+        const passcode = invitePasscode.trim();
+        if (requireInvitePasscode && passcode) {
+          Alert.alert(
+            t("tabs.events.passcodeProtected"),
+            passcode,
+            [
+              {
+                text: t("tabs.events.copyPasscode"),
+                onPress: () => void Clipboard.setStringAsync(passcode),
+              },
+              { text: t("common.done") },
+            ],
+          );
+        }
+      } catch {
+        Alert.alert(
+          t("common.error"),
+          t("tabs.events.inviteLinkShareFailed"),
+        );
+      }
     }
     if (isEditing) router.back();
     else router.replace("/(tabs)/events" as never);
@@ -199,8 +245,34 @@ export default function CommunityEventForm({ mode, initial }: Props) {
       setFormError(t("tabs.events.eventDateMustBeFuture"));
       return;
     }
-    if (visibility === "invite_only" && inviteeUids.length === 0) {
+    if (
+      visibility === "invite_only" &&
+      inviteeUids.length === 0 &&
+      !inviteLinkEnabled
+    ) {
       setFormError(t("tabs.events.noMatches"));
+      return;
+    }
+    if (
+      inviteLinkEnabled &&
+      requireInvitePasscode &&
+      !invitePasscode.trim() &&
+      !(isEditing && initial?.invitePasscodeRequired)
+    ) {
+      setFormError(t("tabs.events.passcodeRequired"));
+      return;
+    }
+    if (
+      inviteLinkEnabled &&
+      requireInvitePasscode &&
+      invitePasscode.trim().length > 0 &&
+      invitePasscode.trim().length < 6
+    ) {
+      setFormError(t("tabs.events.passcodeTooShort"));
+      return;
+    }
+    if (invitePasscode.trim().length > 64) {
+      setFormError(t("tabs.events.passcodeTooLong"));
       return;
     }
 
@@ -221,6 +293,12 @@ export default function CommunityEventForm({ mode, initial }: Props) {
       longitude: selectedPlace?.longitude ?? null,
       visibility,
       inviteeUids: visibility === "invite_only" ? inviteeUids : [],
+      inviteLinkEnabled: visibility === "invite_only" && inviteLinkEnabled,
+      invitePasscode:
+        visibility !== "invite_only" || !inviteLinkEnabled || !requireInvitePasscode
+          ? null
+          : invitePasscode.trim() ||
+            (isEditing && initial?.invitePasscodeRequired ? undefined : null),
     };
 
     if (isEditing && initial) {
@@ -543,6 +621,84 @@ export default function CommunityEventForm({ mode, initial }: Props) {
           </View>
         ) : null}
 
+        {visibility === "invite_only" ? (
+          <View
+            style={[
+              styles.inviteLinkCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: inviteLinkEnabled }}
+              onPress={() => setInviteLinkEnabled((current) => !current)}
+              style={styles.inviteLinkRow}
+            >
+              <View style={styles.inviteLinkCopy}>
+                <Text style={[styles.inviteLinkTitle, { color: colors.text }]}>
+                  {t("tabs.events.inviteLinkTitle")}
+                </Text>
+                <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                  {t("tabs.events.inviteLinkDescription")}
+                </Text>
+              </View>
+              <Feather
+                name={inviteLinkEnabled ? "check-square" : "square"}
+                size={21}
+                color={inviteLinkEnabled ? colors.primary : colors.mutedForeground}
+              />
+            </Pressable>
+            {inviteLinkEnabled ? (
+              <View style={styles.passcodeSection}>
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: requireInvitePasscode }}
+                  onPress={() => setRequireInvitePasscode((current) => !current)}
+                  style={styles.inviteLinkRow}
+                >
+                  <Text style={[styles.matchName, { color: colors.text }]}>
+                    {t("tabs.events.passcodeToggle")}
+                  </Text>
+                  <Feather
+                    name={requireInvitePasscode ? "check-square" : "square"}
+                    size={21}
+                    color={requireInvitePasscode ? colors.primary : colors.mutedForeground}
+                  />
+                </Pressable>
+                {requireInvitePasscode ? (
+                  <>
+                    <TextInput
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      maxLength={64}
+                      onChangeText={setInvitePasscode}
+                      placeholder={
+                        isEditing && initial?.invitePasscodeRequired
+                          ? t("tabs.events.passcodeKeepPlaceholder")
+                          : t("tabs.events.passcodePlaceholder")
+                      }
+                      placeholderTextColor={colors.mutedForeground}
+                      secureTextEntry
+                      style={[
+                        styles.input,
+                        {
+                          color: colors.text,
+                          borderColor: colors.border,
+                          backgroundColor: colors.background,
+                        },
+                      ]}
+                      value={invitePasscode}
+                    />
+                    <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                      {t("tabs.events.passcodeShareReminder")}
+                    </Text>
+                  </>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {formError ? (
           <Text accessibilityRole="alert" style={[styles.error, { color: colors.destructive }]}>
             {formError}
@@ -609,6 +765,11 @@ const styles = StyleSheet.create({
   visibilityTitle: { fontSize: 14, fontWeight: "700" },
   visibilityText: { fontSize: 12, lineHeight: 17, marginTop: 4 },
   matchesSection: { marginTop: 6 },
+  inviteLinkCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 12, marginTop: 4 },
+  inviteLinkRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  inviteLinkCopy: { flex: 1, gap: 4 },
+  inviteLinkTitle: { fontSize: 14, fontWeight: "700" },
+  passcodeSection: { gap: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#D8E0DA" },
   helper: { fontSize: 13, lineHeight: 19, paddingVertical: 8 },
   matchRow: {
     minHeight: 48,

@@ -78,6 +78,11 @@
               "scheme": "https",
               "host": "metapp.replit.app",
               "pathPrefix": "/v"
+            },
+            {
+              "scheme": "https",
+              "host": "metapp.replit.app",
+              "pathPrefix": "/event-invite"
             }
           ],
           "category": [

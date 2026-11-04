@@ -13,6 +13,8 @@ import eventsRouter from "../routes/events";
 vi.mock("../middlewares/rateLimit", () => ({
   createUserRateLimiter:
     () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  createIpRateLimiter:
+    () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
 vi.mock("../lib/firebaseAdmin", () => ({
@@ -24,6 +26,7 @@ vi.mock("../lib/firebaseAdmin", () => ({
 }));
 
 const hasDatabase = Boolean(process.env["DATABASE_URL"]);
+process.env["SESSION_SECRET"] ??= "test-event-invite-session-secret";
 const testPrefix = `itest-event-${process.pid}`;
 const OWNER_UID = `${testPrefix}-owner`;
 const INVITEE_UID = `${testPrefix}-invitee`;
@@ -165,6 +168,127 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     await request(app)
       .get(`/api/community-events/${eventId}/manage`)
       .set(uidHeader(OWNER_UID))
+      .expect(404);
+  });
+
+  it("shares passcode-protected invite links and grants event access after RSVP", async () => {
+    const eventBody = {
+      title: "Invite link gathering",
+      description: "A private event shared by link",
+      startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+      endsAt: null,
+      location: null,
+      locationPlaceId: null,
+      latitude: null,
+      longitude: null,
+      visibility: "invite_only",
+      inviteeUids: [],
+      inviteLinkEnabled: true,
+      invitePasscode: "frosty7",
+    };
+
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send(eventBody)
+      .expect(201);
+    const eventId = created.body.id as number;
+
+    const [storedEvent] = await db
+      .select()
+      .from(communityEventsTable)
+      .where(eq(communityEventsTable.id, eventId))
+      .limit(1);
+    expect(storedEvent?.invitePasscodeHash).toBeTruthy();
+    expect(storedEvent?.invitePasscodeHash).not.toBe(eventBody.invitePasscode);
+    expect(storedEvent?.invitePasscodeSalt).toBeTruthy();
+    expect(storedEvent?.inviteTokenHash).toBeTruthy();
+    expect(storedEvent?.inviteTokenEncrypted).toBeTruthy();
+    expect(storedEvent?.inviteTokenEncrypted).not.toContain("frosty7");
+
+    const ownerManageResponse = await request(app)
+      .get(`/api/community-events/${eventId}/manage`)
+      .set(uidHeader(OWNER_UID))
+      .expect(200);
+    expect(ownerManageResponse.body).toMatchObject({
+      inviteLinkEnabled: true,
+      invitePasscodeRequired: true,
+    });
+    expect(ownerManageResponse.body).not.toHaveProperty("inviteTokenHash");
+    expect(ownerManageResponse.body).not.toHaveProperty("invitePasscodeHash");
+
+    const sharedLink = await request(app)
+      .post(`/api/community-events/${eventId}/invite-link`)
+      .set(uidHeader(OWNER_UID))
+      .expect(200);
+    expect(sharedLink.body.passcodeRequired).toBe(true);
+    const token = new URL(sharedLink.body.url as string).pathname.split("/").pop()!;
+
+    await request(app)
+      .post("/api/event-invites/resolve")
+      .send({ token })
+      .expect(200, { requiresPasscode: true, event: null });
+    await request(app)
+      .post("/api/event-invites/resolve")
+      .send({ token, passcode: "wrong-passcode" })
+      .expect(401);
+
+    const resolved = await request(app)
+      .post("/api/event-invites/resolve")
+      .send({ token, passcode: "frosty7" })
+      .expect(200);
+    expect(resolved.body).toMatchObject({
+      requiresPasscode: true,
+      event: {
+        id: eventId,
+        title: eventBody.title,
+        rsvpCount: 0,
+      },
+    });
+    expect(resolved.body.event).not.toHaveProperty("ownerUid");
+    expect(resolved.body.event).not.toHaveProperty("inviteeUids");
+    expect(resolved.body.event).not.toHaveProperty("inviteTokenHash");
+
+    await request(app)
+      .get(`/api/events/member/${eventId}`)
+      .set(uidHeader(OTHER_UID))
+      .expect(404);
+
+    await request(app)
+      .post("/api/event-invites/rsvp")
+      .set(uidHeader(OTHER_UID))
+      .send({ token, status: "going", passcode: "frosty7" })
+      .expect(200, { success: true, status: "going" });
+
+    const recipientDetails = await request(app)
+      .get(`/api/events/member/${eventId}`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200);
+    expect(recipientDetails.body.myRsvp).toBe("going");
+
+    const feed = await request(app)
+      .get("/api/events/feed")
+      .set(uidHeader(OTHER_UID))
+      .expect(200);
+    expect(feed.body.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventType: "member", id: eventId }),
+      ]),
+    );
+
+    await request(app)
+      .put(`/api/community-events/${eventId}`)
+      .set(uidHeader(OWNER_UID))
+      .send({
+        ...eventBody,
+        inviteeUids: [INVITEE_UID],
+        inviteLinkEnabled: false,
+        invitePasscode: null,
+      })
+      .expect(200);
+    await request(app)
+      .post("/api/event-invites/resolve")
+      .send({ token, passcode: "frosty7" })
       .expect(404);
   });
 });

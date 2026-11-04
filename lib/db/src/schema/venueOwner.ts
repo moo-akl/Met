@@ -462,6 +462,11 @@ export const communityEventsTable = pgTable(
     visibility: text("visibility").notNull().default("public"),
     /** Explicitly invited Met matches for invite-only events. */
     inviteeUids: text("invitee_uids").array().notNull().default(sql`ARRAY[]::text[]`),
+    /** SHA-256 lookup digest; the bearer token itself is encrypted at rest. */
+    inviteTokenHash: text("invite_token_hash"),
+    inviteTokenEncrypted: text("invite_token_encrypted"),
+    invitePasscodeSalt: text("invite_passcode_salt"),
+    invitePasscodeHash: text("invite_passcode_hash"),
     isHidden: boolean("is_hidden").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -474,6 +479,9 @@ export const communityEventsTable = pgTable(
     ownerUidIdx: index("community_events_owner_uid_idx").on(t.ownerUid),
     startsAtIdx: index("community_events_starts_at_idx").on(t.startsAt),
     visibilityIdx: index("community_events_visibility_idx").on(t.visibility),
+    inviteTokenHashUniq: uniqueIndex("community_events_invite_token_hash_uniq").on(
+      t.inviteTokenHash,
+    ),
   }),
 );
 

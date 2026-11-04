@@ -43,6 +43,7 @@ import type {
   BleResolveRequest,
   CastVoteRequest,
   CommunityEventInput,
+  CommunityEventInviteLinkResponse,
   CommunityEventManageResponse,
   CommunityEventRsvpBody,
   CreateAnnouncementRequest,
@@ -56,6 +57,9 @@ import type {
   Error,
   EventFeedItem,
   EventFeedResponse,
+  EventInviteResolveInput,
+  EventInviteResolveResponse,
+  EventInviteRsvpBody,
   EventLocationSearchResponse,
   GetVenueOwnerMapPoints200,
   GetVenueOwnerMeGuestsParams,
@@ -95,6 +99,7 @@ import type {
   RevealRequest,
   RevealRequestWithProfile,
   RsvpCommunityEvent200,
+  RsvpToEventInvite200,
   SavedPlace,
   SearchAdminVenuePlaces200,
   SearchAdminVenuePlacesParams,
@@ -8335,6 +8340,256 @@ export function useGetCommunityEventForEdit<TData = Awaited<ReturnType<typeof ge
 
 
 
+
+export const getCreateCommunityEventInviteLinkUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/invite-link`
+}
+
+/**
+ * @summary Get the owner's shareable invite link
+ */
+export const createCommunityEventInviteLink = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
+
+  return customFetch<CommunityEventInviteLinkResponse>(getCreateCommunityEventInviteLinkUrl(eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateCommunityEventInviteLinkMutationKey = () => ['createCommunityEventInviteLink'] as const;
+
+export const getCreateCommunityEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityEventInviteLink>>, TError,CreateCommunityEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCommunityEventInviteLink>>, TError,CreateCommunityEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getCreateCommunityEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCommunityEventInviteLink>>, CreateCommunityEventInviteLinkMutationVariables> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  createCommunityEventInviteLink(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCommunityEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof createCommunityEventInviteLink>>>
+
+    export type CreateCommunityEventInviteLinkMutationError = ErrorType<void>
+    export type CreateCommunityEventInviteLinkMutationVariables = {eventId: number}
+
+    /**
+ * @summary Get the owner's shareable invite link
+ */
+export const useCreateCommunityEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityEventInviteLink>>, TError,CreateCommunityEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCommunityEventInviteLink>>,
+        TError,
+        CreateCommunityEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCommunityEventInviteLinkMutationOptions(options), queryClient);
+    }
+
+export const getResolveEventInviteUrl = () => {
+
+
+
+
+  return `/api/event-invites/resolve`
+}
+
+/**
+ * @summary Resolve a shareable event invitation
+ */
+export const resolveEventInvite = async (eventInviteResolveInput: EventInviteResolveInput, options?: Parameters<typeof customFetch>[1]): Promise<EventInviteResolveResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventInviteResolveResponse>(getResolveEventInviteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(eventInviteResolveInput)
+  }
+);}
+
+
+
+
+
+export const getResolveEventInviteMutationKey = () => ['resolveEventInvite'] as const;
+
+export const getResolveEventInviteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveEventInvite>>, TError,ResolveEventInviteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resolveEventInvite>>, TError,ResolveEventInviteMutationVariables, TContext> => {
+
+const mutationKey = getResolveEventInviteMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resolveEventInvite>>, ResolveEventInviteMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  resolveEventInvite(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResolveEventInviteMutationResult = NonNullable<Awaited<ReturnType<typeof resolveEventInvite>>>
+    export type ResolveEventInviteMutationBody = BodyType<EventInviteResolveInput>
+    export type ResolveEventInviteMutationError = ErrorType<void>
+    export type ResolveEventInviteMutationVariables = {data: BodyType<EventInviteResolveInput>}
+
+    /**
+ * @summary Resolve a shareable event invitation
+ */
+export const useResolveEventInvite = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveEventInvite>>, TError,ResolveEventInviteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resolveEventInvite>>,
+        TError,
+        ResolveEventInviteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResolveEventInviteMutationOptions(options), queryClient);
+    }
+
+export const getRsvpToEventInviteUrl = () => {
+
+
+
+
+  return `/api/event-invites/rsvp`
+}
+
+/**
+ * @summary RSVP to an event using its invitation link
+ */
+export const rsvpToEventInvite = async (eventInviteRsvpBody: EventInviteRsvpBody, options?: Parameters<typeof customFetch>[1]): Promise<RsvpToEventInvite200> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<RsvpToEventInvite200>(getRsvpToEventInviteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(eventInviteRsvpBody)
+  }
+);}
+
+
+
+
+
+export const getRsvpToEventInviteMutationKey = () => ['rsvpToEventInvite'] as const;
+
+export const getRsvpToEventInviteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rsvpToEventInvite>>, TError,RsvpToEventInviteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rsvpToEventInvite>>, TError,RsvpToEventInviteMutationVariables, TContext> => {
+
+const mutationKey = getRsvpToEventInviteMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rsvpToEventInvite>>, RsvpToEventInviteMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  rsvpToEventInvite(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RsvpToEventInviteMutationResult = NonNullable<Awaited<ReturnType<typeof rsvpToEventInvite>>>
+    export type RsvpToEventInviteMutationBody = BodyType<EventInviteRsvpBody>
+    export type RsvpToEventInviteMutationError = ErrorType<void>
+    export type RsvpToEventInviteMutationVariables = {data: BodyType<EventInviteRsvpBody>}
+
+    /**
+ * @summary RSVP to an event using its invitation link
+ */
+export const useRsvpToEventInvite = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rsvpToEventInvite>>, TError,RsvpToEventInviteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rsvpToEventInvite>>,
+        TError,
+        RsvpToEventInviteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRsvpToEventInviteMutationOptions(options), queryClient);
+    }
 
 export const getUpdateCommunityEventUrl = (eventId: number,) => {
 

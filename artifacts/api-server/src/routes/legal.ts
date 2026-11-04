@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, venueOwnerProfilesTable } from "@workspace/db";
+import { isValidEventInviteToken } from "../lib/eventInviteLinks";
 
 // ---------------------------------------------------------------------------
 // Output-encoding helpers
@@ -360,6 +361,8 @@ const appleAppSiteAssociation = JSON.stringify(
             "/r/*",
             // Network invite links  e.g. /join/CODE1234
             "/join/*",
+            // Shareable community-event invitations  e.g. /event-invite/<token>
+            "/event-invite/*",
             // Venue-owner registration / dashboard entry point
             "/venue-owner",
             "/venue-owner/*",
@@ -398,6 +401,46 @@ router.get("/.well-known/assetlinks.json", (_req: Request, res: Response) => {
     .type("application/json")
     .set("Cache-Control", "public, max-age=3600")
     .send(assetLinks);
+});
+
+router.get("/event-invite/:token", (req: Request, res: Response) => {
+  const token = typeof req.params["token"] === "string" ? req.params["token"] : "";
+  if (!isValidEventInviteToken(token)) {
+    res.status(404).type("text").send("Invitation not found.");
+    return;
+  }
+  const appStoreUrl =
+    "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926";
+  const playStoreUrl =
+    "https://play.google.com/store/apps/details?id=app.met.founders";
+  const appUrl = `met:///event-invite/${encodeURIComponent(token)}`;
+  res
+    .status(200)
+    .type("html")
+    .set("Cache-Control", "no-store")
+    .send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Event invitation · Met</title>
+    <style>
+      body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f7f3;color:#1a2421;font:16px system-ui,sans-serif}
+      main{width:min(440px,calc(100% - 40px));padding:30px;border-radius:20px;background:white;box-shadow:0 12px 40px #132a1918;text-align:center}
+      h1{font-size:25px;margin:0 0 10px}p{line-height:1.55;color:#58645e}
+      a{display:inline-block;margin:8px;padding:12px 18px;border-radius:10px;background:#1a2421;color:white;text-decoration:none;font-weight:700}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You’re invited</h1>
+      <p>Open this event invitation in Met, or install the app to view it and RSVP.</p>
+      <p><a href="${appUrl}">Open in Met</a></p>
+      <p><a href="${appStoreUrl}">App Store</a><a href="${playStoreUrl}">Google Play</a></p>
+    </main>
+  </body>
+</html>`);
 });
 
 // Venue QR check-in landing page.

@@ -2411,6 +2411,82 @@ paths:
               schema:
                 $ref: "#/components/schemas/CommunityEventManageResponse"
 
+  /community-events/{eventId}/invite-link:
+    post:
+      operationId: createCommunityEventInviteLink
+      tags: [events]
+      summary: Get the owner's shareable invite link
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Shareable event link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
+        "404":
+          description: Event not found
+        "409":
+          description: Invite link is disabled
+
+  /event-invites/resolve:
+    post:
+      operationId: resolveEventInvite
+      tags: [events]
+      summary: Resolve a shareable event invitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventInviteResolveInput"
+      responses:
+        "200":
+          description: Invitation status and event preview when unlocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventInviteResolveResponse"
+        "404":
+          description: Invitation not found
+        "401":
+          description: Passcode is incorrect
+
+  /event-invites/rsvp:
+    post:
+      operationId: rsvpToEventInvite
+      tags: [events]
+      security:
+        - MetUid: []
+      summary: RSVP to an event using its invitation link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventInviteRsvpBody"
+      responses:
+        "200":
+          description: RSVP saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, status]
+                properties:
+                  success: { type: boolean }
+                  status: { type: string, enum: [going, maybe, not_going] }
+        "404":
+          description: Invitation not found
+        "401":
+          description: Passcode is incorrect
+
   /community-events/{eventId}:
     put:
       operationId: updateCommunityEvent
@@ -4920,6 +4996,8 @@ components:
           type: array
           maxItems: 200
           items: { type: string, minLength: 1, maxLength: 128 }
+        inviteLinkEnabled: { type: boolean, default: false }
+        invitePasscode: { type: ["string", "null"], minLength: 6, maxLength: 64 }
     EventLocationSearchResult:
       type: object
       required: [placeId, label, name, latitude, longitude]
@@ -4938,7 +5016,7 @@ components:
           items: { $ref: "#/components/schemas/EventLocationSearchResult" }
     CommunityEventManageResponse:
       type: object
-      required: [id, title, startsAt, visibility, inviteeUids]
+      required: [id, title, startsAt, visibility, inviteeUids, inviteLinkEnabled, invitePasscodeRequired]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -4958,6 +5036,51 @@ components:
           type: array
           maxItems: 200
           items: { type: string, minLength: 1, maxLength: 128 }
+        inviteLinkEnabled: { type: boolean }
+        invitePasscodeRequired: { type: boolean }
+    CommunityEventInviteLinkResponse:
+      type: object
+      required: [url, passcodeRequired]
+      properties:
+        url: { type: string, format: uri }
+        passcodeRequired: { type: boolean }
+    EventInviteResolveInput:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, minLength: 32, maxLength: 64 }
+        passcode: { type: string, minLength: 1, maxLength: 64 }
+    EventInviteSummary:
+      type: object
+      required: [id, title, startsAt, creatorName, rsvpCount]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"], format: uri }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: ["string", "null"], format: date-time }
+        location: { type: ["string", "null"] }
+        creatorName: { type: ["string", "null"] }
+        latitude: { type: ["number", "null"] }
+        longitude: { type: ["number", "null"] }
+        rsvpCount: { type: integer }
+    EventInviteResolveResponse:
+      type: object
+      required: [requiresPasscode, event]
+      properties:
+        requiresPasscode: { type: boolean }
+        event:
+          oneOf:
+            - $ref: "#/components/schemas/EventInviteSummary"
+            - type: "null"
+    EventInviteRsvpBody:
+      type: object
+      required: [token, status]
+      properties:
+        token: { type: string, minLength: 32, maxLength: 64 }
+        status: { type: string, enum: [going, maybe, not_going] }
+        passcode: { type: string, maxLength: 64 }
     CommunityEventRsvpBody:
       type: object
       required: [status]

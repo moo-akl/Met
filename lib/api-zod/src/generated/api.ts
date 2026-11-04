@@ -3511,6 +3511,10 @@ export const createCommunityEventBodyInviteeUidsItemMax = 128;
 
 export const createCommunityEventBodyInviteeUidsMax = 200;
 
+export const createCommunityEventBodyInviteLinkEnabledDefault = false;
+export const createCommunityEventBodyInvitePasscodeMin = 6;
+export const createCommunityEventBodyInvitePasscodeMax = 64;
+
 
 
 export const CreateCommunityEventBody = zod.object({
@@ -3527,7 +3531,9 @@ export const CreateCommunityEventBody = zod.object({
   "latitude": zod.number().min(createCommunityEventBodyLatitudeMin).max(createCommunityEventBodyLatitudeMax).nullish(),
   "longitude": zod.number().min(createCommunityEventBodyLongitudeMin).max(createCommunityEventBodyLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
-  "inviteeUids": zod.array(zod.string().min(1).max(createCommunityEventBodyInviteeUidsItemMax)).max(createCommunityEventBodyInviteeUidsMax).optional()
+  "inviteeUids": zod.array(zod.string().min(1).max(createCommunityEventBodyInviteeUidsItemMax)).max(createCommunityEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().default(createCommunityEventBodyInviteLinkEnabledDefault),
+  "invitePasscode": zod.string().min(createCommunityEventBodyInvitePasscodeMin).max(createCommunityEventBodyInvitePasscodeMax).nullish()
 })
 
 export const createCommunityEventResponseContactPhoneMax = 40;
@@ -3693,7 +3699,77 @@ export const GetCommunityEventForEditResponse = zod.object({
   "latitude": zod.number().min(getCommunityEventForEditResponseLatitudeMin).max(getCommunityEventForEditResponseLatitudeMax).nullish(),
   "longitude": zod.number().min(getCommunityEventForEditResponseLongitudeMin).max(getCommunityEventForEditResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
-  "inviteeUids": zod.array(zod.string().min(1).max(getCommunityEventForEditResponseInviteeUidsItemMax)).max(getCommunityEventForEditResponseInviteeUidsMax)
+  "inviteeUids": zod.array(zod.string().min(1).max(getCommunityEventForEditResponseInviteeUidsItemMax)).max(getCommunityEventForEditResponseInviteeUidsMax),
+  "inviteLinkEnabled": zod.boolean(),
+  "invitePasscodeRequired": zod.boolean()
+})
+
+
+/**
+ * @summary Get the owner's shareable invite link
+ */
+export const CreateCommunityEventInviteLinkParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const CreateCommunityEventInviteLinkResponse = zod.object({
+  "url": zod.string().url(),
+  "passcodeRequired": zod.boolean()
+})
+
+
+/**
+ * @summary Resolve a shareable event invitation
+ */
+export const resolveEventInviteBodyTokenMin = 32;
+export const resolveEventInviteBodyTokenMax = 64;
+
+export const resolveEventInviteBodyPasscodeMax = 64;
+
+
+
+export const ResolveEventInviteBody = zod.object({
+  "token": zod.string().min(resolveEventInviteBodyTokenMin).max(resolveEventInviteBodyTokenMax),
+  "passcode": zod.string().min(1).max(resolveEventInviteBodyPasscodeMax).optional()
+})
+
+export const ResolveEventInviteResponse = zod.object({
+  "requiresPasscode": zod.boolean(),
+  "event": zod.union([zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().url().nullish(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullish(),
+  "location": zod.string().nullish(),
+  "creatorName": zod.string().nullable(),
+  "latitude": zod.number().nullish(),
+  "longitude": zod.number().nullish(),
+  "rsvpCount": zod.number().int()
+}),zod.null()])
+})
+
+
+/**
+ * @summary RSVP to an event using its invitation link
+ */
+export const rsvpToEventInviteBodyTokenMin = 32;
+export const rsvpToEventInviteBodyTokenMax = 64;
+
+export const rsvpToEventInviteBodyPasscodeMax = 64;
+
+
+
+export const RsvpToEventInviteBody = zod.object({
+  "token": zod.string().min(rsvpToEventInviteBodyTokenMin).max(rsvpToEventInviteBodyTokenMax),
+  "status": zod.enum(['going', 'maybe', 'not_going']),
+  "passcode": zod.string().max(rsvpToEventInviteBodyPasscodeMax).optional()
+})
+
+export const RsvpToEventInviteResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.enum(['going', 'maybe', 'not_going'])
 })
 
 
@@ -3728,6 +3804,10 @@ export const updateCommunityEventBodyInviteeUidsItemMax = 128;
 
 export const updateCommunityEventBodyInviteeUidsMax = 200;
 
+export const updateCommunityEventBodyInviteLinkEnabledDefault = false;
+export const updateCommunityEventBodyInvitePasscodeMin = 6;
+export const updateCommunityEventBodyInvitePasscodeMax = 64;
+
 
 
 export const UpdateCommunityEventBody = zod.object({
@@ -3744,7 +3824,9 @@ export const UpdateCommunityEventBody = zod.object({
   "latitude": zod.number().min(updateCommunityEventBodyLatitudeMin).max(updateCommunityEventBodyLatitudeMax).nullish(),
   "longitude": zod.number().min(updateCommunityEventBodyLongitudeMin).max(updateCommunityEventBodyLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
-  "inviteeUids": zod.array(zod.string().min(1).max(updateCommunityEventBodyInviteeUidsItemMax)).max(updateCommunityEventBodyInviteeUidsMax).optional()
+  "inviteeUids": zod.array(zod.string().min(1).max(updateCommunityEventBodyInviteeUidsItemMax)).max(updateCommunityEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().default(updateCommunityEventBodyInviteLinkEnabledDefault),
+  "invitePasscode": zod.string().min(updateCommunityEventBodyInvitePasscodeMin).max(updateCommunityEventBodyInvitePasscodeMax).nullish()
 })
 
 export const updateCommunityEventResponseContactPhoneMax = 40;

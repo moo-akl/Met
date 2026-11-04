@@ -127,6 +127,8 @@ import {
   parseNetworkInviteFromUrl,
   routeDeepLink,
   consumePendingReferral,
+  setPendingEventInvite,
+  consumePendingEventInvite,
 } from "../../app/_layout";
 
 // ---------------------------------------------------------------------------
@@ -291,6 +293,7 @@ describe("routeDeepLink — screen routing", () => {
   // Drain any leftover referral from prior tests.
   beforeEach(() => {
     consumePendingReferral();
+    consumePendingEventInvite();
   });
 
   // ── /r/* referral links ──────────────────────────────────────────────────
@@ -320,6 +323,15 @@ describe("routeDeepLink — screen routing", () => {
       routeDeepLink("https://metapp.replit.app/r/AB2C3D", router, 0);
       consumePendingReferral(); // first call consumes it
       expect(consumePendingReferral()).toBeNull(); // second call returns null
+    });
+  });
+
+  describe("event invite sign-in return", () => {
+    it("keeps the invite token until sign-in routing consumes it", () => {
+      const token = "a".repeat(43);
+      setPendingEventInvite(token);
+      expect(consumePendingEventInvite()).toBe(token);
+      expect(consumePendingEventInvite()).toBeNull();
     });
   });
 

@@ -55,4 +55,6 @@ export interface CommunityEventManageResponse {
      * @items.maxLength 128
      */
   inviteeUids: string[];
+  inviteLinkEnabled: boolean;
+  invitePasscodeRequired: boolean;
 }

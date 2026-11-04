@@ -3,6 +3,7 @@ import {
   and,
   arrayContains,
   eq,
+  exists,
   gte,
   inArray,
   ne,
@@ -18,18 +19,34 @@ import {
   venueOwnerProfilesTable,
 } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
-import { createUserRateLimiter } from "../middlewares/rateLimit";
 import {
+  createIpRateLimiter,
+  createUserRateLimiter,
+} from "../middlewares/rateLimit";
+import {
+  CreateCommunityEventInviteLinkResponse,
   CreateCommunityEventBody,
   CreateCommunityEventResponse,
   GetCommunityEventForEditResponse,
   GetEventDetailsResponse,
+  ResolveEventInviteBody,
+  ResolveEventInviteResponse,
+  RsvpToEventInviteBody,
   SearchEventLocationsQueryParams,
   SearchEventLocationsResponse,
   UpdateCommunityEventBody,
   UpdateCommunityEventResponse,
 } from "@workspace/api-zod";
 import { searchPhotonLocations } from "../lib/eventLocationSearch";
+import {
+  buildEventInviteUrl,
+  createEventInviteLinkFields,
+  createEventInvitePasscodeFields,
+  decryptEventInviteToken,
+  hashEventInviteToken,
+  isValidEventInviteToken,
+  verifyEventInvitePasscode,
+} from "../lib/eventInviteLinks";
 import { z } from "zod";
 
 const router = Router();
@@ -42,6 +59,11 @@ const eventLocationSearchLimit = createUserRateLimiter({
   windowMs: 60_000,
   max: 30,
   name: "event-location-search",
+});
+const eventInviteResolveLimit = createIpRateLimiter({
+  windowMs: 60_000,
+  max: 20,
+  name: "event-invite-resolve",
 });
 
 const rsvpStatusSchema = z.enum(["going", "maybe", "not_going"]);
@@ -126,6 +148,17 @@ router.get("/events/feed", requireUid, async (req, res) => {
             eq(communityEventsTable.visibility, "public"),
             eq(communityEventsTable.ownerUid, uid),
             arrayContains(communityEventsTable.inviteeUids, [uid]),
+            exists(
+              db
+                .select({ id: communityEventRsvpsTable.id })
+                .from(communityEventRsvpsTable)
+                .where(
+                  and(
+                    eq(communityEventRsvpsTable.eventId, communityEventsTable.id),
+                    eq(communityEventRsvpsTable.userUid, uid),
+                  ),
+                ),
+            ),
           ),
         ),
       )
@@ -232,9 +265,44 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     return;
   }
   const inviteeUids = normalizeInvitees(parsed.data.inviteeUids, uid);
-  if (parsed.data.visibility === "invite_only" && inviteeUids.length === 0) {
-    res.status(400).json({ message: "Select at least one Connection for an invite-only event." });
+  const inviteLinkEnabled =
+    parsed.data.visibility === "invite_only" &&
+    parsed.data.inviteLinkEnabled === true;
+  const invitePasscode = parsed.data.invitePasscode?.trim() || null;
+  if (invitePasscode && !inviteLinkEnabled) {
+    res.status(400).json({ message: "Enable the invite link before adding a passcode." });
     return;
+  }
+  if (
+    parsed.data.visibility === "invite_only" &&
+    inviteeUids.length === 0 &&
+    !inviteLinkEnabled
+  ) {
+    res.status(400).json({
+      message: "Select a connection or enable a shareable invite link.",
+    });
+    return;
+  }
+  let inviteLinkFields: {
+    inviteTokenHash: string | null;
+    inviteTokenEncrypted: string | null;
+    invitePasscodeSalt: string | null;
+    invitePasscodeHash: string | null;
+  } = {
+    inviteTokenHash: null,
+    inviteTokenEncrypted: null,
+    invitePasscodeSalt: null,
+    invitePasscodeHash: null,
+  };
+  if (inviteLinkEnabled) {
+    try {
+      inviteLinkFields = createEventInviteLinkFields(invitePasscode);
+    } catch (error) {
+      res.status(400).json({
+        message: error instanceof Error ? error.message : "Invalid invite passcode.",
+      });
+      return;
+    }
   }
 
   const [event] = await db
@@ -255,6 +323,7 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
       locationLongitude: parsed.data.longitude ?? null,
       visibility: parsed.data.visibility,
       inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
+      ...inviteLinkFields,
     })
     .returning();
   const [profile] = await db
@@ -327,22 +396,34 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
       })
       .from(communityEventsTable)
       .leftJoin(profilesTable, eq(profilesTable.uid, communityEventsTable.ownerUid))
-      .where(and(eq(communityEventsTable.id, eventId), eq(communityEventsTable.isHidden, false)))
+      .where(
+        and(
+          eq(communityEventsTable.id, eventId),
+          eq(communityEventsTable.isHidden, false),
+          or(
+            eq(communityEventsTable.visibility, "public"),
+            eq(communityEventsTable.ownerUid, uid),
+            arrayContains(communityEventsTable.inviteeUids, [uid]),
+            exists(
+              db
+                .select({ id: communityEventRsvpsTable.id })
+                .from(communityEventRsvpsTable)
+                .where(
+                  and(
+                    eq(communityEventRsvpsTable.eventId, communityEventsTable.id),
+                    eq(communityEventRsvpsTable.userUid, uid),
+                  ),
+                ),
+            ),
+          ),
+        ),
+      )
       .limit(1);
     const event = row?.event;
     if (!event) {
       res.status(404).json({ message: "Event not found" });
       return;
     }
-    const canView =
-      event.visibility === "public" ||
-      event.ownerUid === uid ||
-      event.inviteeUids.includes(uid);
-    if (!canView) {
-      res.status(404).json({ message: "Event not found" });
-      return;
-    }
-
     const [rsvps, myRsvp] = await Promise.all([
       db
         .select({ status: communityEventRsvpsTable.status })
@@ -455,6 +536,95 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
   );
 });
 
+router.post(
+  "/event-invites/resolve",
+  eventInviteResolveLimit,
+  async (req, res): Promise<void> => {
+    const parsed = ResolveEventInviteBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid invitation link." });
+      return;
+    }
+    if (!isValidEventInviteToken(parsed.data.token)) {
+      res.status(404).json({ message: "Invitation not found." });
+      return;
+    }
+
+    const [row] = await db
+      .select({
+        event: communityEventsTable,
+        creatorName: profilesTable.displayName,
+      })
+      .from(communityEventsTable)
+      .leftJoin(
+        profilesTable,
+        eq(profilesTable.uid, communityEventsTable.ownerUid),
+      )
+      .where(
+        and(
+          eq(
+            communityEventsTable.inviteTokenHash,
+            hashEventInviteToken(parsed.data.token),
+          ),
+          eq(communityEventsTable.visibility, "invite_only"),
+          eq(communityEventsTable.isHidden, false),
+        ),
+      )
+      .limit(1);
+    if (!row) {
+      res.status(404).json({ message: "Invitation not found." });
+      return;
+    }
+
+    const event = row.event;
+    const requiresPasscode = Boolean(event.invitePasscodeHash);
+    if (requiresPasscode && !parsed.data.passcode) {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(ResolveEventInviteResponse.parse({ requiresPasscode, event: null }));
+      return;
+    }
+    if (
+      !verifyEventInvitePasscode(
+        parsed.data.passcode,
+        event.invitePasscodeSalt,
+        event.invitePasscodeHash,
+      )
+    ) {
+      res.status(401).json({ message: "That passcode does not match." });
+      return;
+    }
+
+    const rsvps = await db
+      .select({ status: communityEventRsvpsTable.status })
+      .from(communityEventRsvpsTable)
+      .where(
+        and(
+          eq(communityEventRsvpsTable.eventId, event.id),
+          ne(communityEventRsvpsTable.status, "not_going"),
+        ),
+      );
+    res.setHeader("Cache-Control", "no-store");
+    res.json(
+      ResolveEventInviteResponse.parse({
+        requiresPasscode,
+        event: {
+          id: event.id,
+          title: event.title,
+          description: event.description,
+          imageUrl: event.imageUrl,
+          startsAt: event.startsAt,
+          endsAt: event.endsAt,
+          location: event.location,
+          creatorName: row.creatorName ?? null,
+          latitude: event.locationLatitude,
+          longitude: event.locationLongitude,
+          rsvpCount: rsvps.length,
+        },
+      }),
+    );
+  },
+);
+
 router.get(
   "/community-events/:eventId/manage",
   requireUid,
@@ -497,8 +667,62 @@ router.get(
         longitude: event.locationLongitude,
         visibility: event.visibility,
         inviteeUids: event.inviteeUids,
+        inviteLinkEnabled: Boolean(event.inviteTokenHash),
+        invitePasscodeRequired: Boolean(event.invitePasscodeHash),
       }),
     );
+  },
+);
+
+router.post(
+  "/community-events/:eventId/invite-link",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const eventId = getEventId(req.params.eventId);
+    if (!eventId) {
+      res.status(400).json({ message: "Invalid event id" });
+      return;
+    }
+    const [event] = await db
+      .select()
+      .from(communityEventsTable)
+      .where(
+        and(
+          eq(communityEventsTable.id, eventId),
+          eq(communityEventsTable.ownerUid, uid),
+          eq(communityEventsTable.isHidden, false),
+        ),
+      )
+      .limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+    if (
+      event.visibility !== "invite_only" ||
+      !event.inviteTokenHash ||
+      !event.inviteTokenEncrypted
+    ) {
+      res.status(409).json({ message: "Invite link is disabled for this event." });
+      return;
+    }
+    try {
+      const token = decryptEventInviteToken(event.inviteTokenEncrypted);
+      res.setHeader("Cache-Control", "no-store");
+      res.json(
+        CreateCommunityEventInviteLinkResponse.parse({
+          url: buildEventInviteUrl(token),
+          passcodeRequired: Boolean(event.invitePasscodeHash),
+        }),
+      );
+    } catch (error) {
+      req.log?.error({ error, eventId }, "Could not decrypt community event invite link");
+      res.status(503).json({
+        message: "Invite link could not be loaded. Turn it off and on again to create a new link.",
+      });
+    }
   },
 );
 
@@ -531,10 +755,94 @@ router.put(
       return;
     }
     const inviteeUids = normalizeInvitees(parsed.data.inviteeUids, uid);
-    if (parsed.data.visibility === "invite_only" && inviteeUids.length === 0) {
-      res.status(400).json({ message: "Select at least one Connection for an invite-only event." });
+    const [existing] = await db
+      .select()
+      .from(communityEventsTable)
+      .where(
+        and(
+          eq(communityEventsTable.id, eventId),
+          eq(communityEventsTable.ownerUid, uid),
+          eq(communityEventsTable.isHidden, false),
+        ),
+      )
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ message: "Event not found" });
       return;
     }
+    const passcodeInput = parsed.data.invitePasscode;
+    const inviteLinkEnabled =
+      parsed.data.visibility === "invite_only" &&
+      (parsed.data.inviteLinkEnabled ?? Boolean(existing.inviteTokenHash));
+    const invitePasscode = passcodeInput?.trim() || null;
+    if (invitePasscode && !inviteLinkEnabled) {
+      res.status(400).json({ message: "Enable the invite link before adding a passcode." });
+      return;
+    }
+    if (
+      parsed.data.visibility === "invite_only" &&
+      inviteeUids.length === 0 &&
+      !inviteLinkEnabled
+    ) {
+      res.status(400).json({
+        message: "Select a connection or enable a shareable invite link.",
+      });
+      return;
+    }
+
+    let inviteLinkFields: {
+      inviteTokenHash: string | null;
+      inviteTokenEncrypted: string | null;
+      invitePasscodeSalt: string | null;
+      invitePasscodeHash: string | null;
+    };
+    if (!inviteLinkEnabled) {
+      inviteLinkFields = {
+        inviteTokenHash: null,
+        inviteTokenEncrypted: null,
+        invitePasscodeSalt: null,
+        invitePasscodeHash: null,
+      };
+    } else if (!existing.inviteTokenHash || !existing.inviteTokenEncrypted) {
+      try {
+        inviteLinkFields = createEventInviteLinkFields(invitePasscode);
+      } catch (error) {
+        res.status(400).json({
+          message: error instanceof Error ? error.message : "Invalid invite passcode.",
+        });
+        return;
+      }
+    } else if (passcodeInput !== undefined) {
+      if (!invitePasscode) {
+        inviteLinkFields = {
+          inviteTokenHash: existing.inviteTokenHash,
+          inviteTokenEncrypted: existing.inviteTokenEncrypted,
+          invitePasscodeSalt: null,
+          invitePasscodeHash: null,
+        };
+      } else {
+        try {
+          inviteLinkFields = {
+            inviteTokenHash: existing.inviteTokenHash,
+            inviteTokenEncrypted: existing.inviteTokenEncrypted,
+            ...createEventInvitePasscodeFields(invitePasscode),
+          };
+        } catch (error) {
+          res.status(400).json({
+            message: error instanceof Error ? error.message : "Invalid invite passcode.",
+          });
+          return;
+        }
+      }
+    } else {
+      inviteLinkFields = {
+        inviteTokenHash: existing.inviteTokenHash,
+        inviteTokenEncrypted: existing.inviteTokenEncrypted,
+        invitePasscodeSalt: existing.invitePasscodeSalt,
+        invitePasscodeHash: existing.invitePasscodeHash,
+      };
+    }
+
     const [event] = await db
       .update(communityEventsTable)
       .set({
@@ -552,6 +860,7 @@ router.put(
         locationLongitude: parsed.data.longitude ?? null,
         visibility: parsed.data.visibility,
         inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
+        ...inviteLinkFields,
         updatedAt: new Date(),
       })
       .where(
@@ -663,6 +972,63 @@ router.delete(
       return;
     }
     res.status(204).end();
+  },
+);
+
+router.post(
+  "/event-invites/rsvp",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const parsedBody = RsvpToEventInviteBody.safeParse(req.body);
+    if (!parsedBody.success || !isValidEventInviteToken(parsedBody.data.token)) {
+      res.status(400).json({ message: "Invalid event invitation." });
+      return;
+    }
+
+    const [event] = await db
+      .select()
+      .from(communityEventsTable)
+      .where(
+        and(
+          eq(
+            communityEventsTable.inviteTokenHash,
+            hashEventInviteToken(parsedBody.data.token),
+          ),
+          eq(communityEventsTable.visibility, "invite_only"),
+          eq(communityEventsTable.isHidden, false),
+        ),
+      )
+      .limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Invitation not found." });
+      return;
+    }
+    if (
+      !verifyEventInvitePasscode(
+        parsedBody.data.passcode,
+        event.invitePasscodeSalt,
+        event.invitePasscodeHash,
+      )
+    ) {
+      res.status(401).json({ message: "That passcode does not match." });
+      return;
+    }
+
+    await db
+      .insert(communityEventRsvpsTable)
+      .values({
+        eventId: event.id,
+        userUid: uid,
+        status: parsedBody.data.status,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [communityEventRsvpsTable.eventId, communityEventRsvpsTable.userUid],
+        set: { status: parsedBody.data.status, updatedAt: new Date() },
+      });
+    res.json({ success: true, status: parsedBody.data.status });
   },
 );
 

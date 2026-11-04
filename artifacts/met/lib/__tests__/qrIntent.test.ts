@@ -149,6 +149,7 @@ describe("profile gate branching", () => {
 
   it("never redirects away from /v", () => {
     expect(decideProfileGateRoute({ root: "v", authedUid: null, profile: null, permissionsCompleted: false })).toBeNull();
+    expect(decideProfileGateRoute({ root: "event-invite", authedUid: null, profile: null, permissionsCompleted: false })).toBeNull();
   });
   it("sends profile-less users to onboarding", () => {
     expect(decideProfileGateRoute({ root: "(tabs)", authedUid: null, profile: null, permissionsCompleted: false })).toBe("/onboarding");
