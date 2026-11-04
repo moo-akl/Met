@@ -89,7 +89,8 @@ export const vi: LocaleTree = {
       copyPasscode: "Sao chép mật mã",
       inviteLinkShareFailed: "Đã tạo sự kiện nhưng không thể chia sẻ liên kết. Hãy thử lại trong phần chi tiết sự kiện.",
       eventInvitation: "Lời mời sự kiện",
-      inviteUnavailable: "Lời mời này không khả dụng hoặc đã hết hạn.",
+      inviteUnavailable:
+        "Lời mời này không còn khả dụng hoặc đã hết hạn. Hãy nhờ người gửi chia sẻ liên kết mới.",
       inviteCouldNotLoad: "Không thể tải lời mời.",
       passcodeProtected: "Được bảo vệ bằng mật mã",
       passcodeIncorrect: "Mật mã không đúng. Hãy thử lại.",

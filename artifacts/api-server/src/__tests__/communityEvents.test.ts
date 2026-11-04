@@ -299,10 +299,45 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
         invitePasscode: null,
       })
       .expect(200);
-    await request(app)
+    const revokedInviteResponse = await request(app)
       .post("/api/event-invites/resolve")
       .send({ token, passcode: "frosty7" })
       .expect(404);
+    expect(revokedInviteResponse.body).toEqual({
+      message: "Invitation not found.",
+    });
+  });
+
+  it("returns a generic unavailable response after an event is removed", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Removed event invitation",
+        startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+        visibility: "invite_only",
+        inviteeUids: [],
+        inviteLinkEnabled: true,
+      })
+      .expect(201);
+    const eventId = created.body.id as number;
+
+    const sharedLink = await request(app)
+      .post(`/api/community-events/${eventId}/invite-link`)
+      .set(uidHeader(OWNER_UID))
+      .expect(200);
+    const token = new URL(sharedLink.body.url as string).pathname.split("/").pop()!;
+
+    await request(app)
+      .delete(`/api/community-events/${eventId}`)
+      .set(uidHeader(OWNER_UID))
+      .expect(204);
+
+    const response = await request(app)
+      .post("/api/event-invites/resolve")
+      .send({ token })
+      .expect(404);
+    expect(response.body).toEqual({ message: "Invitation not found." });
   });
 
   it("lets guests share and report public community events", async () => {

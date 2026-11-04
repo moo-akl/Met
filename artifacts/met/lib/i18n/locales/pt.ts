@@ -89,7 +89,8 @@ export const pt: LocaleTree = {
       copyPasscode: "Copiar código",
       inviteLinkShareFailed: "O evento foi criado, mas não foi possível compartilhar o link. Tente novamente nos detalhes do evento.",
       eventInvitation: "Convite para evento",
-      inviteUnavailable: "Este convite não está disponível ou expirou.",
+      inviteUnavailable:
+        "Este convite não está mais disponível ou expirou. Peça a quem enviou que compartilhe um link atualizado.",
       inviteCouldNotLoad: "Não foi possível carregar o convite.",
       passcodeProtected: "Protegido por código",
       passcodeIncorrect: "Esse código está incorreto. Tente novamente.",

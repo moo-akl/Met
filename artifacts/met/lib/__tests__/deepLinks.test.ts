@@ -129,6 +129,7 @@ import {
   consumePendingReferral,
   setPendingEventInvite,
   consumePendingEventInvite,
+  consumePendingEventInviteRoute,
 } from "../../app/_layout";
 
 // ---------------------------------------------------------------------------
@@ -327,11 +328,19 @@ describe("routeDeepLink — screen routing", () => {
   });
 
   describe("event invite sign-in return", () => {
-    it("keeps the invite token until sign-in routing consumes it", () => {
+    it("routes back to the same invite once sign-in completes", () => {
       const token = "a".repeat(43);
       setPendingEventInvite(token);
-      expect(consumePendingEventInvite()).toBe(token);
-      expect(consumePendingEventInvite()).toBeNull();
+      expect(consumePendingEventInviteRoute()).toBe(`/event-invite/${token}`);
+      expect(consumePendingEventInviteRoute()).toBeNull();
+    });
+
+    it("leaves direct invite links to Expo Router without adding a second navigation", async () => {
+      const router = { push: jest.fn() };
+      const token = "a".repeat(43);
+      routeDeepLink(`https://met-app.org/event-invite/${token}`, router, 0);
+      await flushTimers();
+      expect(router.push).not.toHaveBeenCalled();
     });
   });
 

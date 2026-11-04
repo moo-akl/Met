@@ -147,6 +147,10 @@ export function consumePendingEventInvite(): string | null {
   pendingEventInviteToken = null;
   return token;
 }
+export function consumePendingEventInviteRoute(): string | null {
+  const token = consumePendingEventInvite();
+  return token ? `/event-invite/${encodeURIComponent(token)}` : null;
+}
 
 export function parseReferralFromUrl(url: string | null): string | null {
   if (!url) return null;
@@ -380,9 +384,9 @@ function ProfileGate() {
   useEffect(() => {
     if (!ready) return;
     if (authedUid) {
-      const pendingInviteToken = consumePendingEventInvite();
-      if (pendingInviteToken) {
-        router.replace(`/event-invite/${pendingInviteToken}` as never);
+      const pendingInviteRoute = consumePendingEventInviteRoute();
+      if (pendingInviteRoute) {
+        router.replace(pendingInviteRoute as never);
         return;
       }
     }

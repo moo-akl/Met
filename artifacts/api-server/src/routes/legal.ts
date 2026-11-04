@@ -429,19 +429,20 @@ router.get("/event-invite/:token", (req: Request, res: Response) => {
       main{width:min(440px,calc(100% - 40px));padding:30px;border-radius:20px;background:white;box-shadow:0 12px 40px #132a1918;text-align:center}
       h1{font-size:25px;margin:0 0 10px}p{line-height:1.55;color:#58645e}
       a{display:inline-block;margin:8px;padding:12px 18px;border-radius:10px;background:#1a2421;color:white;text-decoration:none;font-weight:700}
+      .muted{font-size:13px}
     </style>
   </head>
   <body>
     <main>
       <h1>You’re invited</h1>
-      <p>Open this event invitation in Met, or install the app to view it and RSVP.</p>
-      <p><a href="${appUrl}">Open in Met</a></p>
-      <p><a href="${appStoreUrl}">App Store</a><a href="${playStoreUrl}">Google Play</a></p>
+      <p>If Met is already installed, tap Continue. Otherwise, install it using the store button for your device, then return to this page and tap Continue to open your invitation.</p>
+      <p><a href="${appStoreUrl}">Install from the App Store</a><a href="${playStoreUrl}">Install from Google Play</a></p>
+      <p><a href="${appUrl}">Continue to your invitation in Met</a></p>
+      <p class="muted">This page will not open the invitation automatically. If you lose this page, open the original invitation link again. Passcode-protected invitations will still ask for their passcode in Met.</p>
     </main>
   </body>
 </html>`);
 });
-
 // Venue QR check-in landing page.
 //
 // Primary path: a device with Met installed is intercepted by the OS via

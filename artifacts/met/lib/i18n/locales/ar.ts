@@ -89,7 +89,8 @@ export const ar: LocaleTree = {
       copyPasscode: "نسخ رمز المرور",
       inviteLinkShareFailed: "تم إنشاء الفعالية، لكن تعذرت مشاركة الرابط. حاول مرة أخرى من تفاصيل الفعالية.",
       eventInvitation: "دعوة إلى فعالية",
-      inviteUnavailable: "هذه الدعوة غير متاحة أو انتهت صلاحيتها.",
+      inviteUnavailable:
+        "لم تعد هذه الدعوة متاحة أو انتهت صلاحيتها. اطلب من المرسل إرسال رابط حالي.",
       inviteCouldNotLoad: "تعذر تحميل هذه الدعوة.",
       passcodeProtected: "محمي برمز مرور",
       passcodeIncorrect: "رمز المرور غير صحيح. حاول مرة أخرى.",

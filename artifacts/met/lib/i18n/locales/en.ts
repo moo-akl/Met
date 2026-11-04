@@ -89,7 +89,8 @@ export const en = {
       copyPasscode: "Copy passcode",
       inviteLinkShareFailed: "The event was created, but the invite link could not be shared. Try again from event details.",
       eventInvitation: "Event invitation",
-      inviteUnavailable: "This invitation is unavailable or has expired.",
+      inviteUnavailable:
+        "This invitation is no longer available or has expired. Ask the sender for a current link.",
       inviteCouldNotLoad: "Could not load this invitation.",
       passcodeProtected: "Passcode protected",
       passcodeIncorrect: "That passcode is incorrect. Try again.",

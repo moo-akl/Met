@@ -89,7 +89,8 @@ export const nl: LocaleTree = {
       copyPasscode: "Code kopiëren",
       inviteLinkShareFailed: "Het evenement is gemaakt, maar de link kon niet worden gedeeld. Probeer het opnieuw via de evenementdetails.",
       eventInvitation: "Evenementuitnodiging",
-      inviteUnavailable: "Deze uitnodiging is niet beschikbaar of verlopen.",
+      inviteUnavailable:
+        "Deze uitnodiging is niet meer beschikbaar of verlopen. Vraag de afzender om een actuele link.",
       inviteCouldNotLoad: "De uitnodiging kon niet worden geladen.",
       passcodeProtected: "Beveiligd met toegangscode",
       passcodeIncorrect: "Deze code klopt niet. Probeer het opnieuw.",

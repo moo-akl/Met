@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { classifyEventInviteResolveError } from "../../lib/eventInviteErrors";
 import { setPendingEventInvite } from "../_layout";
 import {
   getGetEventsFeedQueryKey,
@@ -62,12 +63,17 @@ export default function EventInviteScreen() {
         setRequiresPasscode(result.requiresPasscode);
         setEvent(result.event);
       } catch (cause) {
-        const message = cause instanceof Error ? cause.message.toLowerCase() : "";
-        setError(
-          message.includes("passcode")
-            ? t("tabs.events.passcodeIncorrect")
-            : t("tabs.events.inviteCouldNotLoad"),
-        );
+        const failure = classifyEventInviteResolveError(cause);
+        if (failure === "unavailable") {
+          setEvent(null);
+          setRequiresPasscode(false);
+          setPasscode("");
+          setError(t("tabs.events.inviteUnavailable"));
+        } else if (failure === "wrongPasscode") {
+          setError(t("tabs.events.passcodeIncorrect"));
+        } else {
+          setError(t("tabs.events.inviteCouldNotLoad"));
+        }
       } finally {
         setLoading(false);
       }
@@ -292,11 +298,11 @@ export default function EventInviteScreen() {
           </View>
         ) : (
           <Text style={[styles.message, { color: colors.mutedForeground }]}>
-            {t("tabs.events.inviteUnavailable")}
+            {error || t("tabs.events.inviteUnavailable")}
           </Text>
         )}
 
-        {error ? (
+        {error && (event || requiresPasscode) ? (
           <Text accessibilityRole="alert" style={[styles.error, { color: colors.destructive }]}>
             {error}
           </Text>

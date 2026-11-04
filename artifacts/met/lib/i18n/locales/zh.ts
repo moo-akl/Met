@@ -89,7 +89,7 @@ export const zh: LocaleTree = {
       copyPasscode: "复制密码",
       inviteLinkShareFailed: "活动已创建，但无法分享邀请链接。请在活动详情中重试。",
       eventInvitation: "活动邀请",
-      inviteUnavailable: "此邀请不可用或已过期。",
+      inviteUnavailable: "此邀请已不可用或已过期。请联系发送者获取当前链接。",
       inviteCouldNotLoad: "无法加载此邀请。",
       passcodeProtected: "密码保护",
       passcodeIncorrect: "密码不正确，请重试。",

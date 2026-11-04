@@ -74,3 +74,55 @@ describe("public privacy policy", () => {
     expect(res.text).not.toContain("military-grade");
   });
 });
+
+describe("event invitation installation handoff page", () => {
+  const token = "a".repeat(43);
+
+  it("offers an explicit continue action after installation without auto-opening the invite", async () => {
+    const res = await request(app).get(`/event-invite/${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.location).toBeUndefined();
+    expect(res.headers["cache-control"]).toContain("no-store");
+    expect(res.text).toContain(
+      "If Met is already installed, tap Continue. Otherwise, install it using the store button for your device, then return to this page and tap Continue to open your invitation.",
+    );
+    expect(res.text).toContain(
+      `<a href="met:///event-invite/${token}">Continue to your invitation in Met</a>`,
+    );
+    expect(res.text).toContain("Install from the App Store");
+    expect(res.text).toContain("Install from Google Play");
+    expect(res.text).not.toContain(`referrer=${token}`);
+    expect(res.text).toContain("open the original invitation link again");
+    expect(res.text).toContain("Passcode-protected invitations will still ask for their passcode in Met.");
+    expect(res.text).not.toContain("window.location");
+    expect(res.text).not.toContain("<meta http-equiv=\"refresh\"");
+  });
+
+  it("rejects malformed invitation tokens without rendering a continue link", async () => {
+    const res = await request(app).get("/event-invite/not-a-valid-token");
+
+    expect(res.status).toBe(404);
+    expect(res.text).toContain("Invitation not found.");
+    expect(res.text).not.toContain("met:///event-invite/");
+  });
+});
+
+describe("event invitation app-link associations", () => {
+  it("includes the invite route in the iOS universal-link association", async () => {
+    const res = await request(app).get("/.well-known/apple-app-site-association");
+
+    expect(res.status).toBe(200);
+    expect(res.body.applinks.details[0].paths).toContain("/event-invite/*");
+  });
+
+  it("serves the Android app association for Met", async () => {
+    const res = await request(app).get("/.well-known/assetlinks.json");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toMatchObject({
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: { namespace: "android_app", package_name: "app.met.founders" },
+    });
+  });
+});
