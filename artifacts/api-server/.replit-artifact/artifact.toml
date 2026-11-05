@@ -7,7 +7,7 @@ id = "3B4_FFSkEVBkAeYMFRJ2e"
 [[services]]
 localPort = 8080
 name = "API Server"
-paths = ["/api", "/support", "/privacy", "/venue-manager-terms", "/venue-manager-privacy", "/.well-known", "/v", "/event-invite"]
+paths = ["/api", "/support", "/privacy", "/venue-manager-terms", "/venue-manager-privacy", "/.well-known", "/v", "/event-invite", "/event-details"]
 
 [services.development]
 run = "pnpm --filter @workspace/api-server run dev"
