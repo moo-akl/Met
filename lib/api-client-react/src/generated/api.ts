@@ -63,12 +63,18 @@ import type {
   Encounter,
   EncounterWithProfile,
   Error,
+  EventAttendanceCorrectionResponse,
+  EventAttendeesResponse,
+  EventCheckinQrInput,
+  EventCheckinQrResponse,
+  EventCheckinResponse,
   EventFeedItem,
   EventFeedResponse,
   EventInviteResolveInput,
   EventInviteResolveResponse,
   EventInviteRsvpBody,
   EventLocationSearchResponse,
+  EventQrCheckinInput,
   GetVenueOwnerMapPoints200,
   GetVenueOwnerMeGuestsParams,
   GmailBounceReconciliationApplyInput,
@@ -90,6 +96,7 @@ import type {
   ListNetworksParams,
   ListVenueApplicationsParams,
   LogEncounter,
+  ManualEventCheckInInput,
   NativeBranchApplicationInput,
   NativeBranchApplicationSubmitted,
   NearbyEntry,
@@ -97,6 +104,7 @@ import type {
   NeighborhoodInfo,
   NetworkListEntry,
   NetworkMemberWithProfile,
+  NotificationPrefsInput,
   PresenceRecord,
   PreviewNewVenueOutreach200,
   Profile,
@@ -121,8 +129,10 @@ import type {
   SearchEventLocationsParams,
   SubmitAnswersRequest,
   SyncGmailVenueOutreachRepliesResult,
+  SyncMyNotificationPreferences200,
   SyncVenueOutreachBouncesInput,
   SyncVenueOutreachBouncesResult,
+  UndoEventCheckInInput,
   UpdateMemberRoleRequest,
   UpdateNetwork,
   UpdateNetworkMemberRole200,
@@ -227,10 +237,6 @@ import type {
 
 import { customFetch } from '../custom-fetch';
 import type { ErrorType , BodyType } from '../custom-fetch';
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-      type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
@@ -1069,6 +1075,94 @@ export const useUpsertMyProfile = <TError = ErrorType<Error>,
         TContext
       > => {
       return useMutation(getUpsertMyProfileMutationOptions(options), queryClient);
+    }
+
+export const getSyncMyNotificationPreferencesUrl = () => {
+
+
+
+
+  return `/api/profiles/me/notification-prefs`
+}
+
+/**
+ * @summary Update notification opt-out preferences
+ */
+export const syncMyNotificationPreferences = async (notificationPrefsInput: NotificationPrefsInput, options?: Parameters<typeof customFetch>[1]): Promise<SyncMyNotificationPreferences200> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SyncMyNotificationPreferences200>(getSyncMyNotificationPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(notificationPrefsInput)
+  }
+);}
+
+
+
+
+
+export const getSyncMyNotificationPreferencesMutationKey = () => ['syncMyNotificationPreferences'] as const;
+
+export const getSyncMyNotificationPreferencesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncMyNotificationPreferences>>, TError,SyncMyNotificationPreferencesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncMyNotificationPreferences>>, TError,SyncMyNotificationPreferencesMutationVariables, TContext> => {
+
+const mutationKey = getSyncMyNotificationPreferencesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncMyNotificationPreferences>>, SyncMyNotificationPreferencesMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  syncMyNotificationPreferences(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncMyNotificationPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof syncMyNotificationPreferences>>>
+    export type SyncMyNotificationPreferencesMutationBody = BodyType<NotificationPrefsInput>
+    export type SyncMyNotificationPreferencesMutationError = ErrorType<void>
+    export type SyncMyNotificationPreferencesMutationVariables = {data: BodyType<NotificationPrefsInput>}
+
+    /**
+ * @summary Update notification opt-out preferences
+ */
+export const useSyncMyNotificationPreferences = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncMyNotificationPreferences>>, TError,SyncMyNotificationPreferencesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof syncMyNotificationPreferences>>,
+        TError,
+        SyncMyNotificationPreferencesMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSyncMyNotificationPreferencesMutationOptions(options), queryClient);
     }
 
 export const getGetProfileUrl = (uid: string,) => {
@@ -8331,6 +8425,94 @@ export const useCreateCommunityEvent = <TError = ErrorType<unknown>,
       return useMutation(getCreateCommunityEventMutationOptions(options), queryClient);
     }
 
+export const getCheckInEventByQrUrl = () => {
+
+
+
+
+  return `/api/events/check-in/qr`
+}
+
+/**
+ * @summary Check in to a venue event using its event-specific QR code
+ */
+export const checkInEventByQr = async (eventQrCheckinInput: EventQrCheckinInput, options?: Parameters<typeof customFetch>[1]): Promise<EventCheckinResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventCheckinResponse>(getCheckInEventByQrUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(eventQrCheckinInput)
+  }
+);}
+
+
+
+
+
+export const getCheckInEventByQrMutationKey = () => ['checkInEventByQr'] as const;
+
+export const getCheckInEventByQrMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkInEventByQr>>, TError,CheckInEventByQrMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkInEventByQr>>, TError,CheckInEventByQrMutationVariables, TContext> => {
+
+const mutationKey = getCheckInEventByQrMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkInEventByQr>>, CheckInEventByQrMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  checkInEventByQr(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckInEventByQrMutationResult = NonNullable<Awaited<ReturnType<typeof checkInEventByQr>>>
+    export type CheckInEventByQrMutationBody = BodyType<EventQrCheckinInput>
+    export type CheckInEventByQrMutationError = ErrorType<void>
+    export type CheckInEventByQrMutationVariables = {data: BodyType<EventQrCheckinInput>}
+
+    /**
+ * @summary Check in to a venue event using its event-specific QR code
+ */
+export const useCheckInEventByQr = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkInEventByQr>>, TError,CheckInEventByQrMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof checkInEventByQr>>,
+        TError,
+        CheckInEventByQrMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCheckInEventByQrMutationOptions(options), queryClient);
+    }
+
 export const getGetEventDetailsUrl = (eventType: 'venue' | 'member',
     eventId: number,) => {
 
@@ -9594,6 +9776,392 @@ export const useDeleteVenueManagerEvent = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteVenueManagerEventMutationOptions(options), queryClient);
+    }
+
+export const getGetVenueManagerEventAttendeesUrl = (businessId: number,
+    eventId: number,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/attendees`
+}
+
+/**
+ * @summary List RSVP and checked-in attendees for a venue event
+ */
+export const getVenueManagerEventAttendees = async (businessId: number,
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<EventAttendeesResponse> => {
+
+  return customFetch<EventAttendeesResponse>(getGetVenueManagerEventAttendeesUrl(businessId,eventId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVenueManagerEventAttendeesQueryKey = (businessId: number,
+    eventId: number,) => {
+    return [
+    `/api/venue-manager/businesses/${businessId}/events/${eventId}/attendees`
+    ] as const;
+    }
+
+
+export const getGetVenueManagerEventAttendeesQueryOptions = <TData = Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError = ErrorType<void>>(businessId: number,
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVenueManagerEventAttendeesQueryKey(businessId,eventId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVenueManagerEventAttendees>>> = ({ signal }) => getVenueManagerEventAttendees(businessId,eventId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: businessId !== null && businessId !== undefined && eventId !== null && eventId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetVenueManagerEventAttendeesQueryResult = NonNullable<Awaited<ReturnType<typeof getVenueManagerEventAttendees>>>
+export type GetVenueManagerEventAttendeesQueryError = ErrorType<void>
+
+
+export function useGetVenueManagerEventAttendees<TData = Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError = ErrorType<void>>(
+ businessId: number,
+    eventId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueManagerEventAttendees>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueManagerEventAttendees>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueManagerEventAttendees<TData = Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError = ErrorType<void>>(
+ businessId: number,
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueManagerEventAttendees>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueManagerEventAttendees>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueManagerEventAttendees<TData = Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError = ErrorType<void>>(
+ businessId: number,
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List RSVP and checked-in attendees for a venue event
+ */
+
+export function useGetVenueManagerEventAttendees<TData = Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError = ErrorType<void>>(
+ businessId: number,
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerEventAttendees>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetVenueManagerEventAttendeesQueryOptions(businessId,eventId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getManuallyCheckInVenueEventAttendeeUrl = (businessId: number,
+    eventId: number,
+    uid: string,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/attendees/${uid}/manual-check-in`
+}
+
+/**
+ * @summary Record an authorized manual check-in with a reason
+ */
+export const manuallyCheckInVenueEventAttendee = async (businessId: number,
+    eventId: number,
+    uid: string,
+    manualEventCheckInInput: ManualEventCheckInInput, options?: Parameters<typeof customFetch>[1]): Promise<EventAttendanceCorrectionResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventAttendanceCorrectionResponse>(getManuallyCheckInVenueEventAttendeeUrl(businessId,eventId,uid),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(manualEventCheckInInput)
+  }
+);}
+
+
+
+
+
+export const getManuallyCheckInVenueEventAttendeeMutationKey = () => ['manuallyCheckInVenueEventAttendee'] as const;
+
+export const getManuallyCheckInVenueEventAttendeeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manuallyCheckInVenueEventAttendee>>, TError,ManuallyCheckInVenueEventAttendeeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof manuallyCheckInVenueEventAttendee>>, TError,ManuallyCheckInVenueEventAttendeeMutationVariables, TContext> => {
+
+const mutationKey = getManuallyCheckInVenueEventAttendeeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof manuallyCheckInVenueEventAttendee>>, ManuallyCheckInVenueEventAttendeeMutationVariables> = (props) => {
+          const {businessId,eventId,uid,data} = props ?? {};
+
+          return  manuallyCheckInVenueEventAttendee(businessId,eventId,uid,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ManuallyCheckInVenueEventAttendeeMutationResult = NonNullable<Awaited<ReturnType<typeof manuallyCheckInVenueEventAttendee>>>
+    export type ManuallyCheckInVenueEventAttendeeMutationBody = BodyType<ManualEventCheckInInput>
+    export type ManuallyCheckInVenueEventAttendeeMutationError = ErrorType<void>
+    export type ManuallyCheckInVenueEventAttendeeMutationVariables = {businessId: number;eventId: number;uid: string;data: BodyType<ManualEventCheckInInput>}
+
+    /**
+ * @summary Record an authorized manual check-in with a reason
+ */
+export const useManuallyCheckInVenueEventAttendee = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manuallyCheckInVenueEventAttendee>>, TError,ManuallyCheckInVenueEventAttendeeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof manuallyCheckInVenueEventAttendee>>,
+        TError,
+        ManuallyCheckInVenueEventAttendeeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getManuallyCheckInVenueEventAttendeeMutationOptions(options), queryClient);
+    }
+
+export const getUndoVenueEventAttendeeCheckInUrl = (businessId: number,
+    eventId: number,
+    uid: string,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/attendees/${uid}/undo-check-in`
+}
+
+/**
+ * @summary Remove an incorrect check-in with a recorded reason
+ */
+export const undoVenueEventAttendeeCheckIn = async (businessId: number,
+    eventId: number,
+    uid: string,
+    undoEventCheckInInput: UndoEventCheckInInput, options?: Parameters<typeof customFetch>[1]): Promise<EventAttendanceCorrectionResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventAttendanceCorrectionResponse>(getUndoVenueEventAttendeeCheckInUrl(businessId,eventId,uid),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(undoEventCheckInInput)
+  }
+);}
+
+
+
+
+
+export const getUndoVenueEventAttendeeCheckInMutationKey = () => ['undoVenueEventAttendeeCheckIn'] as const;
+
+export const getUndoVenueEventAttendeeCheckInMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof undoVenueEventAttendeeCheckIn>>, TError,UndoVenueEventAttendeeCheckInMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof undoVenueEventAttendeeCheckIn>>, TError,UndoVenueEventAttendeeCheckInMutationVariables, TContext> => {
+
+const mutationKey = getUndoVenueEventAttendeeCheckInMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof undoVenueEventAttendeeCheckIn>>, UndoVenueEventAttendeeCheckInMutationVariables> = (props) => {
+          const {businessId,eventId,uid,data} = props ?? {};
+
+          return  undoVenueEventAttendeeCheckIn(businessId,eventId,uid,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UndoVenueEventAttendeeCheckInMutationResult = NonNullable<Awaited<ReturnType<typeof undoVenueEventAttendeeCheckIn>>>
+    export type UndoVenueEventAttendeeCheckInMutationBody = BodyType<UndoEventCheckInInput>
+    export type UndoVenueEventAttendeeCheckInMutationError = ErrorType<void>
+    export type UndoVenueEventAttendeeCheckInMutationVariables = {businessId: number;eventId: number;uid: string;data: BodyType<UndoEventCheckInInput>}
+
+    /**
+ * @summary Remove an incorrect check-in with a recorded reason
+ */
+export const useUndoVenueEventAttendeeCheckIn = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof undoVenueEventAttendeeCheckIn>>, TError,UndoVenueEventAttendeeCheckInMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof undoVenueEventAttendeeCheckIn>>,
+        TError,
+        UndoVenueEventAttendeeCheckInMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUndoVenueEventAttendeeCheckInMutationOptions(options), queryClient);
+    }
+
+export const getGetVenueManagerEventCheckinQrUrl = (businessId: number,
+    eventId: number,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/check-in-qr`
+}
+
+/**
+ * @summary Get or rotate a venue event check-in QR link
+ */
+export const getVenueManagerEventCheckinQr = async (businessId: number,
+    eventId: number,
+    eventCheckinQrInput: EventCheckinQrInput, options?: Parameters<typeof customFetch>[1]): Promise<EventCheckinQrResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventCheckinQrResponse>(getGetVenueManagerEventCheckinQrUrl(businessId,eventId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(eventCheckinQrInput)
+  }
+);}
+
+
+
+
+
+export const getGetVenueManagerEventCheckinQrMutationKey = () => ['getVenueManagerEventCheckinQr'] as const;
+
+export const getGetVenueManagerEventCheckinQrMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getVenueManagerEventCheckinQr>>, TError,GetVenueManagerEventCheckinQrMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof getVenueManagerEventCheckinQr>>, TError,GetVenueManagerEventCheckinQrMutationVariables, TContext> => {
+
+const mutationKey = getGetVenueManagerEventCheckinQrMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getVenueManagerEventCheckinQr>>, GetVenueManagerEventCheckinQrMutationVariables> = (props) => {
+          const {businessId,eventId,data} = props ?? {};
+
+          return  getVenueManagerEventCheckinQr(businessId,eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetVenueManagerEventCheckinQrMutationResult = NonNullable<Awaited<ReturnType<typeof getVenueManagerEventCheckinQr>>>
+    export type GetVenueManagerEventCheckinQrMutationBody = BodyType<EventCheckinQrInput>
+    export type GetVenueManagerEventCheckinQrMutationError = ErrorType<void>
+    export type GetVenueManagerEventCheckinQrMutationVariables = {businessId: number;eventId: number;data: BodyType<EventCheckinQrInput>}
+
+    /**
+ * @summary Get or rotate a venue event check-in QR link
+ */
+export const useGetVenueManagerEventCheckinQr = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getVenueManagerEventCheckinQr>>, TError,GetVenueManagerEventCheckinQrMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof getVenueManagerEventCheckinQr>>,
+        TError,
+        GetVenueManagerEventCheckinQrMutationVariables,
+        TContext
+      > => {
+      return useMutation(getGetVenueManagerEventCheckinQrMutationOptions(options), queryClient);
     }
 
 export const getListVenueManagerRewardsUrl = (businessId: number,) => {

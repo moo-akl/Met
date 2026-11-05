@@ -69,6 +69,11 @@
             },
             {
               "scheme": "https",
+              "host": "met-app.org",
+              "pathPrefix": "/event-check-in"
+            },
+            {
+              "scheme": "https",
               "host": "metapp.replit.app",
               "pathPrefix": "/r"
             },
@@ -91,6 +96,11 @@
               "scheme": "https",
               "host": "metapp.replit.app",
               "pathPrefix": "/event-invite"
+            },
+            {
+              "scheme": "https",
+              "host": "metapp.replit.app",
+              "pathPrefix": "/event-check-in"
             },
             {
               "scheme": "https",

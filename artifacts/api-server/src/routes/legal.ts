@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, venueEventsTable, venueOwnerProfilesTable } from "@workspace/db";
 import { isValidEventInviteToken } from "../lib/eventInviteLinks";
+import { isValidEventCheckinToken } from "../lib/eventCheckinLinks";
 
 const CANONICAL_APP_ORIGIN = "https://met-app.org";
 const DEFAULT_EVENT_PREVIEW_IMAGE = `${CANONICAL_APP_ORIGIN}/opengraph.jpg`;
@@ -367,6 +368,8 @@ const appleAppSiteAssociation = JSON.stringify(
             "/event-invite/*",
             // Shared venue event detail links.
             "/event-details/*",
+            // Venue event QR check-in links.
+            "/event-check-in/*",
             // Venue-owner registration / dashboard entry point
             "/venue-owner",
             "/venue-owner/*",
@@ -444,6 +447,46 @@ router.get("/event-invite/:token", (req: Request, res: Response) => {
       <p><a href="${appStoreUrl}">Install from the App Store</a><a href="${playStoreUrl}">Install from Google Play</a></p>
       <p><a href="${appUrl}">Continue to your invitation in Met</a></p>
       <p class="muted">This page will not open the invitation automatically. If you lose this page, open the original invitation link again. Passcode-protected invitations will still ask for their passcode in Met.</p>
+    </main>
+  </body>
+</html>`);
+});
+
+router.get("/event-check-in/:token", (req: Request, res: Response) => {
+  const token = typeof req.params["token"] === "string" ? req.params["token"] : "";
+  if (!isValidEventCheckinToken(token)) {
+    res.status(404).type("text").send("Event check-in code not found.");
+    return;
+  }
+  const appStoreUrl =
+    "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926";
+  const playStoreUrl =
+    "https://play.google.com/store/apps/details?id=app.met.founders";
+  const appUrl = `met:///event-check-in/${encodeURIComponent(token)}`;
+  res
+    .status(200)
+    .type("html")
+    .set("Cache-Control", "no-store")
+    .send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Event check-in · Met</title>
+    <style>
+      body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f7f3;color:#1a2421;font:16px system-ui,sans-serif}
+      main{width:min(440px,calc(100% - 40px));padding:30px;border-radius:20px;background:white;box-shadow:0 12px 40px #132a1918;text-align:center}
+      h1{font-size:25px;margin:0 0 10px}p{line-height:1.55;color:#58645e}
+      a{display:inline-block;margin:8px;padding:12px 18px;border-radius:10px;background:#1a2421;color:white;text-decoration:none;font-weight:700}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Check in with Met</h1>
+      <p>Open this event check-in code in the Met app to record your attendance.</p>
+      <p><a href="${appStoreUrl}">App Store</a><a href="${playStoreUrl}">Google Play</a></p>
+      <p><a href="${appUrl}">Continue in Met</a></p>
     </main>
   </body>
 </html>`);

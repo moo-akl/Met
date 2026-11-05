@@ -790,7 +790,7 @@ export const nl: LocaleTree = {
     aboutContact: "Contact opnemen met support",
     aboutRate: "Met beoordelen",
     notifications: "Meldingen",
-    notificationsOn: "Dagelijkse samenvatting & herontmoetingsmeldingen",
+    notificationsOn: "Dagoverzicht, herontmoetingen en evenementen",
     notificationsOff: "Alle meldingen uit",
     notificationsFooter:
       "Met stuurt nooit marketingmeldingen — alleen de schakelaars hierboven.",
@@ -798,6 +798,8 @@ export const nl: LocaleTree = {
     dailyRecapSub:
       "Ochtendsamenvatting zoals \u201CGisteren kwam je 4 mensen tegen; 1 was je tweede keer.\u201D",
     reencounterNudges: "Herontmoetingsmeldingen",
+    notifyEventUpdates: "Herinneringen en wijzigingen",
+    notifyEventUpdatesSub: "Ontvang herinneringen 24 en 2 uur voor evenementen waarvoor je bent aangemeld, en meldingen bij wijzigingen.",
     notifyChat: "Chatberichten",
     notifyChatSub:
       "Ontvang een melding als een van je connecties je een nieuw bericht stuurt.",

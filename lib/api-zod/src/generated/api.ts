@@ -206,6 +206,21 @@ export const UpsertMyProfileResponse = zod.object({
 
 
 /**
+ * @summary Update notification opt-out preferences
+ */
+export const SyncMyNotificationPreferencesBody = zod.object({
+  "notifyNewEncounters": zod.boolean().optional(),
+  "notifyReencounter": zod.boolean().optional(),
+  "notifyChat": zod.boolean().optional(),
+  "notifyEventUpdates": zod.boolean().optional()
+})
+
+export const SyncMyNotificationPreferencesResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Get a profile by user id
  */
 export const GetProfileParams = zod.object({
@@ -3495,6 +3510,8 @@ export const createVenueOwnerEventBodyWebsiteUrlMax = 2000;
 export const createVenueOwnerEventBodyPublicEmailMax = 254;
 
 
+export const createVenueOwnerEventBodyReminderOffsetsHoursMax = 2;
+
 export const createVenueOwnerEventBodyInviteeUidsItemMax = 128;
 
 export const createVenueOwnerEventBodyInviteeUidsMax = 200;
@@ -3511,6 +3528,7 @@ export const CreateVenueOwnerEventBody = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(createVenueOwnerEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string().min(1).max(createVenueOwnerEventBodyInviteeUidsItemMax)).max(createVenueOwnerEventBodyInviteeUidsMax).optional()
@@ -3536,6 +3554,7 @@ export const CreateVenueOwnerEventResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
@@ -3564,6 +3583,8 @@ export const updateVenueOwnerEventBodyWebsiteUrlMax = 2000;
 export const updateVenueOwnerEventBodyPublicEmailMax = 254;
 
 
+export const updateVenueOwnerEventBodyReminderOffsetsHoursMax = 2;
+
 export const updateVenueOwnerEventBodyInviteeUidsItemMax = 128;
 
 export const updateVenueOwnerEventBodyInviteeUidsMax = 200;
@@ -3580,6 +3601,7 @@ export const UpdateVenueOwnerEventBody = zod.object({
   "startsAt": zod.coerce.date().optional(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(updateVenueOwnerEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string().min(1).max(updateVenueOwnerEventBodyInviteeUidsItemMax)).max(updateVenueOwnerEventBodyInviteeUidsMax).optional()
@@ -3605,6 +3627,7 @@ export const UpdateVenueOwnerEventResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
@@ -3747,6 +3770,28 @@ export const CreateCommunityEventResponse = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
   "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+})
+
+
+/**
+ * @summary Check in to a venue event using its event-specific QR code
+ */
+export const checkInEventByQrBodyTokenMin = 32;
+export const checkInEventByQrBodyTokenMax = 64;
+
+
+
+export const CheckInEventByQrBody = zod.object({
+  "token": zod.string().min(checkInEventByQrBodyTokenMin).max(checkInEventByQrBodyTokenMax)
+})
+
+export const CheckInEventByQrResponse = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "eventId": zod.number().int(),
+  "title": zod.string(),
+  "checkInMethod": zod.enum(['qr', 'location']),
+  "alreadyCheckedIn": zod.boolean(),
+  "checkedInAt": zod.coerce.date()
 })
 
 
@@ -4116,6 +4161,7 @@ export const ListVenueManagerEventsResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
@@ -4154,6 +4200,8 @@ export const createVenueManagerEventBodyWebsiteUrlMax = 2000;
 export const createVenueManagerEventBodyPublicEmailMax = 254;
 
 
+export const createVenueManagerEventBodyReminderOffsetsHoursMax = 2;
+
 export const createVenueManagerEventBodyInviteeUidsItemMax = 128;
 
 export const createVenueManagerEventBodyInviteeUidsMax = 200;
@@ -4170,6 +4218,7 @@ export const CreateVenueManagerEventBody = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(createVenueManagerEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string().min(1).max(createVenueManagerEventBodyInviteeUidsItemMax)).max(createVenueManagerEventBodyInviteeUidsMax).optional()
@@ -4195,6 +4244,7 @@ export const CreateVenueManagerEventResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
@@ -4235,6 +4285,8 @@ export const updateVenueManagerEventBodyWebsiteUrlMax = 2000;
 export const updateVenueManagerEventBodyPublicEmailMax = 254;
 
 
+export const updateVenueManagerEventBodyReminderOffsetsHoursMax = 2;
+
 export const updateVenueManagerEventBodyInviteeUidsItemMax = 128;
 
 export const updateVenueManagerEventBodyInviteeUidsMax = 200;
@@ -4251,6 +4303,7 @@ export const UpdateVenueManagerEventBody = zod.object({
   "startsAt": zod.coerce.date().optional(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(updateVenueManagerEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string().min(1).max(updateVenueManagerEventBodyInviteeUidsItemMax)).max(updateVenueManagerEventBodyInviteeUidsMax).optional()
@@ -4276,6 +4329,7 @@ export const UpdateVenueManagerEventResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
@@ -4306,6 +4360,157 @@ export const DeleteVenueManagerEventHeader = zod.object({
 })
 
 export const DeleteVenueManagerEventResponse = zod.void()
+
+
+/**
+ * @summary List RSVP and checked-in attendees for a venue event
+ */
+
+
+
+
+export const GetVenueManagerEventAttendeesParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const GetVenueManagerEventAttendeesResponse = zod.object({
+  "attendees": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().url().nullable(),
+  "checkInMethod": zod.enum(['qr', 'location', 'manual']),
+  "checkedInAt": zod.coerce.date(),
+  "checkedInByUid": zod.string().nullable(),
+  "manualReason": zod.string().nullable()
+})),
+  "rsvps": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().url().nullish(),
+  "status": zod.enum(['going', 'maybe', 'not_going'])
+})),
+  "corrections": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "action": zod.enum(['manual_check_in', 'undo_check_in']),
+  "previousMethod": zod.union([zod.literal('qr'),zod.literal('location'),zod.literal('manual'),zod.literal(null)]).nullable(),
+  "reason": zod.string(),
+  "actorUid": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
+  "notificationRuns": zod.array(zod.object({
+  "kind": zod.enum(['event_update', 'reminder_24h', 'reminder_2h']),
+  "status": zod.enum(['sending', 'sent', 'partial', 'failed']),
+  "recipientCount": zod.number().int(),
+  "sentCount": zod.number().int(),
+  "skippedCount": zod.number().int(),
+  "failedCount": zod.number().int(),
+  "startedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Record an authorized manual check-in with a reason
+ */
+
+
+export const manuallyCheckInVenueEventAttendeePathUidMax = 128;
+
+
+
+export const ManuallyCheckInVenueEventAttendeeParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1),
+  "uid": zod.coerce.string().min(1).max(manuallyCheckInVenueEventAttendeePathUidMax)
+})
+
+
+
+
+export const ManuallyCheckInVenueEventAttendeeHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1)
+})
+
+export const manuallyCheckInVenueEventAttendeeBodyReasonMin = 3;
+export const manuallyCheckInVenueEventAttendeeBodyReasonMax = 500;
+
+
+
+export const ManuallyCheckInVenueEventAttendeeBody = zod.object({
+  "reason": zod.string().min(manuallyCheckInVenueEventAttendeeBodyReasonMin).max(manuallyCheckInVenueEventAttendeeBodyReasonMax)
+})
+
+export const ManuallyCheckInVenueEventAttendeeResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Remove an incorrect check-in with a recorded reason
+ */
+
+
+export const undoVenueEventAttendeeCheckInPathUidMax = 128;
+
+
+
+export const UndoVenueEventAttendeeCheckInParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1),
+  "uid": zod.coerce.string().min(1).max(undoVenueEventAttendeeCheckInPathUidMax)
+})
+
+
+
+
+export const UndoVenueEventAttendeeCheckInHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1)
+})
+
+export const undoVenueEventAttendeeCheckInBodyReasonMin = 3;
+export const undoVenueEventAttendeeCheckInBodyReasonMax = 500;
+
+
+
+export const UndoVenueEventAttendeeCheckInBody = zod.object({
+  "reason": zod.string().min(undoVenueEventAttendeeCheckInBodyReasonMin).max(undoVenueEventAttendeeCheckInBodyReasonMax)
+})
+
+export const UndoVenueEventAttendeeCheckInResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get or rotate a venue event check-in QR link
+ */
+
+
+
+
+export const GetVenueManagerEventCheckinQrParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const GetVenueManagerEventCheckinQrHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1)
+})
+
+export const getVenueManagerEventCheckinQrBodyRotateDefault = false;
+
+export const GetVenueManagerEventCheckinQrBody = zod.object({
+  "rotate": zod.boolean().default(getVenueManagerEventCheckinQrBodyRotateDefault)
+})
+
+export const GetVenueManagerEventCheckinQrResponse = zod.object({
+  "url": zod.string().url()
+})
 
 
 /**
@@ -5109,6 +5314,7 @@ export const ListAdminManagedEventsResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
@@ -5134,6 +5340,8 @@ export const createAdminManagedEventBodyWebsiteUrlMax = 2000;
 export const createAdminManagedEventBodyPublicEmailMax = 254;
 
 
+export const createAdminManagedEventBodyReminderOffsetsHoursMax = 2;
+
 export const createAdminManagedEventBodyInviteeUidsItemMax = 128;
 
 export const createAdminManagedEventBodyInviteeUidsMax = 200;
@@ -5150,6 +5358,7 @@ export const CreateAdminManagedEventBody = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(createAdminManagedEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string().min(1).max(createAdminManagedEventBodyInviteeUidsItemMax)).max(createAdminManagedEventBodyInviteeUidsMax).optional()
@@ -5175,6 +5384,7 @@ export const CreateAdminManagedEventResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
@@ -5236,6 +5446,8 @@ export const updateAdminManagedEventBodyWebsiteUrlMax = 2000;
 export const updateAdminManagedEventBodyPublicEmailMax = 254;
 
 
+export const updateAdminManagedEventBodyReminderOffsetsHoursMax = 2;
+
 export const updateAdminManagedEventBodyInviteeUidsItemMax = 128;
 
 export const updateAdminManagedEventBodyInviteeUidsMax = 200;
@@ -5252,6 +5464,7 @@ export const UpdateAdminManagedEventBody = zod.object({
   "startsAt": zod.coerce.date().optional(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().min(1).nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(updateAdminManagedEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string().min(1).max(updateAdminManagedEventBodyInviteeUidsItemMax)).max(updateAdminManagedEventBodyInviteeUidsMax).optional()
@@ -5277,6 +5490,7 @@ export const UpdateAdminManagedEventResponse = zod.object({
   "startsAt": zod.coerce.date(),
   "endsAt": zod.coerce.date().nullish(),
   "capacityLimit": zod.number().int().nullish(),
+  "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])),
   "rsvpCount": zod.number().int().optional(),
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),

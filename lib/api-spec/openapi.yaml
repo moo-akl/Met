@@ -232,6 +232,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /profiles/me/notification-prefs:
+    patch:
+      operationId: syncMyNotificationPreferences
+      tags: [profiles]
+      summary: Update notification opt-out preferences
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPrefsInput"
+      responses:
+        "200":
+          description: Notification preferences updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success: { type: boolean }
+        "401": { description: Unauthorized }
+
   /profiles/{uid}:
     get:
       operationId: getProfile
@@ -2442,6 +2467,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/EventFeedItem"
 
+  /events/check-in/qr:
+    post:
+      operationId: checkInEventByQr
+      tags: [events]
+      summary: Check in to a venue event using its event-specific QR code
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventQrCheckinInput"
+      responses:
+        "200":
+          description: Verified event attendance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventCheckinResponse"
+        "403": { description: Event is outside its check-in window or is invitation-only }
+        "404": { description: Check-in code not found }
+
   /events/{eventType}/{eventId}:
     get:
       operationId: getEventDetails
@@ -2733,6 +2781,105 @@ paths:
         - $ref: "#/components/parameters/VenueManagerCsrf"
       responses:
         "204": { description: Event deleted }
+
+  /venue-manager/businesses/{businessId}/events/{eventId}/attendees:
+    get:
+      operationId: getVenueManagerEventAttendees
+      tags: [venue-manager]
+      summary: List RSVP and checked-in attendees for a venue event
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+      responses:
+        "200":
+          description: Verified attendees
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventAttendeesResponse"
+        "404": { description: Event not found }
+
+  /venue-manager/businesses/{businessId}/events/{eventId}/attendees/{uid}/manual-check-in:
+    post:
+      operationId: manuallyCheckInVenueEventAttendee
+      tags: [venue-manager]
+      summary: Record an authorized manual check-in with a reason
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - name: uid
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualEventCheckInInput"
+      responses:
+        "200":
+          description: Manual check-in recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventAttendanceCorrectionResponse"
+        "404": { description: Event or RSVP not found }
+        "409": { description: Attendee is already checked in }
+
+  /venue-manager/businesses/{businessId}/events/{eventId}/attendees/{uid}/undo-check-in:
+    post:
+      operationId: undoVenueEventAttendeeCheckIn
+      tags: [venue-manager]
+      summary: Remove an incorrect check-in with a recorded reason
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - name: uid
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UndoEventCheckInInput"
+      responses:
+        "200":
+          description: Check-in removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventAttendanceCorrectionResponse"
+        "404": { description: Event or check-in not found }
+
+  /venue-manager/businesses/{businessId}/events/{eventId}/check-in-qr:
+    post:
+      operationId: getVenueManagerEventCheckinQr
+      tags: [venue-manager]
+      summary: Get or rotate a venue event check-in QR link
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventCheckinQrInput"
+      responses:
+        "200":
+          description: Event check-in QR link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventCheckinQrResponse"
+        "404": { description: Event not found }
+        "409": { description: The event must be published first }
 
   /venue-manager/businesses/{businessId}/rewards:
     get:
@@ -5908,7 +6055,7 @@ components:
         url: { type: string }
     VenueManagerEvent:
       type: object
-      required: [id, title, startsAt, isPublished]
+      required: [id, title, startsAt, isPublished, reminderOffsetsHours]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -5920,6 +6067,10 @@ components:
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         capacityLimit: { type: ["integer", "null"] }
+        reminderOffsetsHours:
+          type: array
+          uniqueItems: true
+          items: { type: integer, enum: [24, 2] }
         rsvpCount: { type: integer }
         isPublished: { type: boolean }
         visibility: { type: string, enum: [public, invite_only] }
@@ -5970,6 +6121,11 @@ components:
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         capacityLimit: { type: ["integer", "null"], minimum: 1 }
+        reminderOffsetsHours:
+          type: array
+          uniqueItems: true
+          maxItems: 2
+          items: { type: integer, enum: [24, 2] }
         isPublished: { type: boolean }
         visibility: { type: string, enum: [public, invite_only] }
         inviteeUids:
@@ -5988,6 +6144,11 @@ components:
         startsAt: { type: string, format: date-time }
         endsAt: { type: ["string", "null"], format: date-time }
         capacityLimit: { type: ["integer", "null"], minimum: 1 }
+        reminderOffsetsHours:
+          type: array
+          uniqueItems: true
+          maxItems: 2
+          items: { type: integer, enum: [24, 2] }
         isPublished: { type: boolean }
         visibility: { type: string, enum: [public, invite_only] }
         inviteeUids:
@@ -6019,6 +6180,109 @@ components:
         visibility: { type: string, enum: [public, invite_only] }
         rsvpCount: { type: integer }
         myRsvp: { type: ["string", "null"], enum: [going, maybe, not_going, null] }
+    EventQrCheckinInput:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, minLength: 32, maxLength: 64 }
+    EventCheckinResponse:
+      type: object
+      required: [eventType, eventId, title, checkInMethod, alreadyCheckedIn, checkedInAt]
+      properties:
+        eventType: { type: string, enum: [venue, member] }
+        eventId: { type: integer }
+        title: { type: string }
+        checkInMethod: { type: string, enum: [qr, location] }
+        alreadyCheckedIn: { type: boolean }
+        checkedInAt: { type: string, format: date-time }
+    EventCheckinQrInput:
+      type: object
+      properties:
+        rotate: { type: boolean, default: false }
+    EventCheckinQrResponse:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
+    EventAttendee:
+      type: object
+      required: [uid, displayName, photoUrl, checkInMethod, checkedInAt, checkedInByUid, manualReason]
+      properties:
+        uid: { type: string }
+        displayName: { type: string }
+        photoUrl: { type: ["string", "null"], format: uri }
+        checkInMethod: { type: string, enum: [qr, location, manual] }
+        checkedInAt: { type: string, format: date-time }
+        checkedInByUid: { type: ["string", "null"] }
+        manualReason: { type: ["string", "null"] }
+    EventRsvp:
+      type: object
+      required: [uid, displayName, status]
+      properties:
+        uid: { type: string }
+        displayName: { type: string }
+        photoUrl: { type: ["string", "null"], format: uri }
+        status: { type: string, enum: [going, maybe, not_going] }
+    EventAttendanceCorrection:
+      type: object
+      required: [uid, displayName, action, previousMethod, reason, actorUid, createdAt]
+      properties:
+        uid: { type: string }
+        displayName: { type: string }
+        action: { type: string, enum: [manual_check_in, undo_check_in] }
+        previousMethod: { type: ["string", "null"], enum: [qr, location, manual, null] }
+        reason: { type: string }
+        actorUid: { type: string }
+        createdAt: { type: string, format: date-time }
+    EventNotificationRun:
+      type: object
+      required: [kind, status, recipientCount, sentCount, skippedCount, failedCount, startedAt]
+      properties:
+        kind: { type: string, enum: [event_update, reminder_24h, reminder_2h] }
+        status: { type: string, enum: [sending, sent, partial, failed] }
+        recipientCount: { type: integer }
+        sentCount: { type: integer }
+        skippedCount: { type: integer }
+        failedCount: { type: integer }
+        startedAt: { type: string, format: date-time }
+    EventAttendeesResponse:
+      type: object
+      required: [attendees, rsvps, corrections, notificationRuns]
+      properties:
+        attendees:
+          type: array
+          items: { $ref: "#/components/schemas/EventAttendee" }
+        rsvps:
+          type: array
+          items: { $ref: "#/components/schemas/EventRsvp" }
+        corrections:
+          type: array
+          items: { $ref: "#/components/schemas/EventAttendanceCorrection" }
+        notificationRuns:
+          type: array
+          items: { $ref: "#/components/schemas/EventNotificationRun" }
+    ManualEventCheckInInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
+    UndoEventCheckInInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
+    EventAttendanceCorrectionResponse:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
+    NotificationPrefsInput:
+      type: object
+      properties:
+        notifyNewEncounters: { type: boolean }
+        notifyReencounter: { type: boolean }
+        notifyChat: { type: boolean }
+        notifyEventUpdates: { type: boolean }
     EventFeedResponse:
       type: object
       required: [events]

@@ -824,7 +824,7 @@ export const en = {
     aboutContact: "Contact support",
     aboutRate: "Rate Met",
     notifications: "Notifications",
-    notificationsOn: "Daily recap & re-encounter nudges",
+    notificationsOn: "Daily recap, re-encounter & event alerts",
     notificationsOff: "All push notifications off",
     notificationsFooter:
       "Met never sends marketing pushes — only the toggles above.",
@@ -834,6 +834,8 @@ export const en = {
     reencounterNudges: "Re-encounter nudges",
     reencounterNudgesSub:
       "Notify me when I cross paths with someone for the 3rd time or more.",
+    notifyEventUpdates: "Event reminders & changes",
+    notifyEventUpdatesSub: "Get reminders 24 and 2 hours before events you RSVP to, and alerts when details change.",
     notifyChat: "Chat messages",
     notifyChatSub: "Get notified when your connections send you a new message.",
     visibleOnRadar: "Visible on Radar",

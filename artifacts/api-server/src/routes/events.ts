@@ -14,6 +14,7 @@ import {
   communityEventRsvpsTable,
   communityEventsTable,
   db,
+  eventAttendanceTable,
   profilesTable,
   venueEventRsvpsTable,
   venueEventsTable,
@@ -28,6 +29,8 @@ import {
   CreateCommunityEventInviteLinkResponse,
   CreateCommunityEventBody,
   CreateCommunityEventResponse,
+  CheckInEventByQrBody,
+  CheckInEventByQrResponse,
   GetCommunityEventForEditResponse,
   GetEventDetailsResponse,
   ResolveEventInviteBody,
@@ -48,6 +51,10 @@ import {
   isValidEventInviteToken,
   verifyEventInvitePasscode,
 } from "../lib/eventInviteLinks";
+import {
+  hashEventCheckinToken,
+  isValidEventCheckinToken,
+} from "../lib/eventCheckinLinks";
 import { z } from "zod";
 
 const router = Router();
@@ -66,6 +73,11 @@ const eventInviteResolveLimit = createIpRateLimiter({
   max: 20,
   name: "event-invite-resolve",
 });
+const eventCheckinLimit = createUserRateLimiter({
+  windowMs: 60_000,
+  max: 8,
+  name: "event-checkin",
+});
 
 const rsvpStatusSchema = z.enum(["going", "maybe", "not_going"]);
 
@@ -74,6 +86,63 @@ function getEventId(raw: string | string[] | undefined): number | null {
   if (!value || !/^\d+$/.test(value)) return null;
   const eventId = Number(value);
   return Number.isSafeInteger(eventId) && eventId > 0 ? eventId : null;
+}
+
+function eventCheckinOpen(startsAt: Date, endsAt: Date | null): boolean {
+  const now = Date.now();
+  const opensAt = startsAt.getTime() - 60 * 60_000;
+  const closesAt = (endsAt?.getTime() ?? startsAt.getTime() + 4 * 60 * 60_000) + 2 * 60 * 60_000;
+  return now >= opensAt && now <= closesAt;
+}
+
+async function insertVenueEventAttendance(eventId: number, userUid: string) {
+  const [inserted] = await db
+    .insert(eventAttendanceTable)
+    .values({ eventType: "venue", eventId, userUid, checkInMethod: "qr" })
+    .onConflictDoNothing({
+      target: [
+        eventAttendanceTable.eventType,
+        eventAttendanceTable.eventId,
+        eventAttendanceTable.userUid,
+      ],
+    })
+    .returning({ checkedInAt: eventAttendanceTable.checkedInAt });
+  if (inserted) return { alreadyCheckedIn: false, checkedInAt: inserted.checkedInAt };
+  const [existing] = await db
+    .select({ checkedInAt: eventAttendanceTable.checkedInAt })
+    .from(eventAttendanceTable)
+    .where(and(
+      eq(eventAttendanceTable.eventType, "venue"),
+      eq(eventAttendanceTable.eventId, eventId),
+      eq(eventAttendanceTable.userUid, userUid),
+    ))
+    .limit(1);
+  return {
+    alreadyCheckedIn: true,
+    checkedInAt: existing?.checkedInAt ?? new Date(),
+  };
+}
+
+async function attendeeCanAccessVenueEvent(
+  eventId: number,
+  uid: string,
+  visibility: string,
+  ownerUid: string,
+  inviteeUids: string[],
+): Promise<boolean> {
+  if (visibility === "public" || ownerUid === uid || inviteeUids.includes(uid)) {
+    return true;
+  }
+  const [rsvp] = await db
+    .select({ id: venueEventRsvpsTable.id })
+    .from(venueEventRsvpsTable)
+    .where(and(
+      eq(venueEventRsvpsTable.eventId, eventId),
+      eq(venueEventRsvpsTable.userUid, uid),
+      ne(venueEventRsvpsTable.status, "not_going"),
+    ))
+    .limit(1);
+  return Boolean(rsvp);
 }
 
 function validateEventTimes(
@@ -245,6 +314,56 @@ router.get("/events/feed", requireUid, async (req, res) => {
 
   res.json({ events });
 });
+
+router.post(
+  "/events/check-in/qr",
+  requireUid,
+  eventCheckinLimit,
+  async (req, res): Promise<void> => {
+    const parsed = CheckInEventByQrBody.safeParse(req.body);
+    if (!parsed.success || !isValidEventCheckinToken(parsed.data?.token ?? "")) {
+      res.status(400).json({ message: "This event check-in code is invalid." });
+      return;
+    }
+    const tokenHash = hashEventCheckinToken(parsed.data.token);
+    const [event] = await db
+      .select()
+      .from(venueEventsTable)
+      .where(and(
+        eq(venueEventsTable.checkinTokenHash, tokenHash),
+        eq(venueEventsTable.isPublished, true),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!event) {
+      res.status(404).json({ message: "This event check-in code is invalid or has been replaced." });
+      return;
+    }
+    if (!eventCheckinOpen(event.startsAt, event.endsAt)) {
+      res.status(403).json({ message: "Check-in is available near the event time." });
+      return;
+    }
+    if (!(await attendeeCanAccessVenueEvent(
+      event.id,
+      req.uid!,
+      event.visibility,
+      event.ownerUid,
+      event.inviteeUids,
+    ))) {
+      res.status(403).json({ message: "This event is invitation-only." });
+      return;
+    }
+    const attendance = await insertVenueEventAttendance(event.id, req.uid!);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(CheckInEventByQrResponse.parse({
+      eventType: "venue",
+      eventId: event.id,
+      title: event.title,
+      checkInMethod: "qr",
+      ...attendance,
+    }));
+  },
+);
 
 router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
   const uid = req.uid!;

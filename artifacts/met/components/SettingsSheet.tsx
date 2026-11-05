@@ -245,7 +245,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
   // Wrapper that updates AsyncStorage preferences AND syncs them server-side
   // so the server can suppress unwanted push notifications.
   const updateNotifPrefs = (
-    partial: Partial<Pick<typeof preferences, "notifyRecurringMeets" | "notifyChat">>,
+    partial: Partial<Pick<typeof preferences, "notifyRecurringMeets" | "notifyChat" | "notifyEventUpdates">>,
   ) => {
     updatePreferences(partial);
     if (!authedUid) return;
@@ -254,6 +254,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
       serverPrefs.notifyReencounter = partial.notifyRecurringMeets;
     if (partial.notifyChat !== undefined)
       serverPrefs.notifyChat = partial.notifyChat;
+    if (partial.notifyEventUpdates !== undefined)
+      serverPrefs.notifyEventUpdates = partial.notifyEventUpdates;
     if (Object.keys(serverPrefs).length > 0) {
       api.syncNotificationPrefs({ uid: authedUid }, serverPrefs).catch(() => {});
     }
@@ -615,7 +617,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 icon="bell"
                 label={t("settings.notifications")}
                 sub={
-                  preferences.notifyDailyRecap || preferences.notifyRecurringMeets
+                  preferences.notifyDailyRecap || preferences.notifyRecurringMeets || preferences.notifyEventUpdates
                     ? t("settings.notificationsOn")
                     : t("settings.notificationsOff")
                 }
@@ -1266,6 +1268,16 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 value={preferences.notifyChat}
                 onValueChange={(v) =>
                   updateNotifPrefs({ notifyChat: v })
+                }
+                colors={colors}
+              />
+              <ToggleRow
+                icon="calendar"
+                label={t("settings.notifyEventUpdates")}
+                sub={t("settings.notifyEventUpdatesSub")}
+                value={preferences.notifyEventUpdates}
+                onValueChange={(v) =>
+                  updateNotifPrefs({ notifyEventUpdates: v })
                 }
                 colors={colors}
               />

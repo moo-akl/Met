@@ -754,7 +754,7 @@ export const zh: LocaleTree = {
     aboutContact: "联系支持",
     aboutRate: "为 Met 评分",
     notifications: "通知",
-    notificationsOn: "每日回顾与重逢提醒",
+    notificationsOn: "每日回顾、重逢与活动提醒",
     notificationsOff: "所有推送通知已关闭",
     notificationsFooter:
       "Met 永不发送营销推送 — 只有上面的开关。",
@@ -763,6 +763,8 @@ export const zh: LocaleTree = {
       "上午摘要,例如「昨天你与 4 人擦肩,其中 1 位是第二次见」。",
     reencounterNudges: "重逢提醒",
     reencounterNudgesSub: "与某人擦肩第 3 次或更多时通知我。",
+    notifyEventUpdates: "活动提醒与变更",
+    notifyEventUpdatesSub: "在你已报名的活动开始前24小时和2小时提醒，并在活动信息变更时通知你。",
     notifyChat: "聊天消息",
     notifyChatSub: "当你的联系人发来新消息时收到通知。",
     visibleOnRadar: "雷达可见",

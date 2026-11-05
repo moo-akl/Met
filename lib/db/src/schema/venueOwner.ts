@@ -367,6 +367,14 @@ export const venueEventsTable = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true }),
     /** Maximum attendees (null = unlimited). */
     capacityLimit: integer("capacity_limit"),
+    /** Hours before start when RSVP reminder pushes should be sent. */
+    reminderOffsetsHours: integer("reminder_offsets_hours")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::integer[]`),
+    /** SHA-256 lookup digest; only the encrypted bearer token is stored. */
+    checkinTokenHash: text("checkin_token_hash"),
+    checkinTokenEncrypted: text("checkin_token_encrypted"),
     /** Public events appear in the Events feed; invite-only events require an explicit invite. */
     visibility: text("visibility").notNull().default("public"),
     /** Met users selected by the venue from its visitor list for invite-only events. */
@@ -387,6 +395,9 @@ export const venueEventsTable = pgTable(
     ownerUidIdx: index("venue_events_owner_uid_idx").on(t.ownerUid),
     placeIdIdx: index("venue_events_place_id_idx").on(t.placeId),
     startsAtIdx: index("venue_events_starts_at_idx").on(t.startsAt),
+    checkinTokenHashUniq: uniqueIndex("venue_events_checkin_token_hash_uniq").on(
+      t.checkinTokenHash,
+    ),
   }),
 );
 
@@ -507,6 +518,79 @@ export const communityEventRsvpsTable = pgTable(
     ),
     eventIdIdx: index("community_event_rsvps_event_id_idx").on(t.eventId),
     userUidIdx: index("community_event_rsvps_user_uid_idx").on(t.userUid),
+  }),
+);
+
+/**
+ * Verified event attendance. RSVP state is deliberately separate: this table
+ * is written only after an event QR scan or an on-site location check.
+ * eventType/eventId are polymorphic so the same list API can cover both event
+ * products without copying guest identity data into either event table.
+ */
+export const eventAttendanceTable = pgTable(
+  "event_attendance",
+  {
+    id: serial("id").primaryKey(),
+    eventType: text("event_type").notNull(),
+    eventId: integer("event_id").notNull(),
+    userUid: text("user_uid").notNull(),
+    checkInMethod: text("check_in_method").notNull(),
+    checkedInByUid: text("checked_in_by_uid"),
+    manualReason: text("manual_reason"),
+    checkedInAt: timestamp("checked_in_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    attendeeUnique: uniqueIndex("event_attendance_event_attendee_uniq").on(
+      t.eventType,
+      t.eventId,
+      t.userUid,
+    ),
+    eventIdx: index("event_attendance_event_idx").on(t.eventType, t.eventId),
+    userIdx: index("event_attendance_user_idx").on(t.userUid),
+  }),
+);
+
+export const eventAttendanceCorrectionsTable = pgTable(
+  "event_attendance_corrections",
+  {
+    id: serial("id").primaryKey(),
+    eventType: text("event_type").notNull(),
+    eventId: integer("event_id").notNull(),
+    userUid: text("user_uid").notNull(),
+    actorUid: text("actor_uid").notNull(),
+    action: text("action").$type<"manual_check_in" | "undo_check_in">().notNull(),
+    previousMethod: text("previous_method"),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    eventIdx: index("event_attendance_corrections_event_idx").on(t.eventType, t.eventId, t.createdAt),
+    attendeeIdx: index("event_attendance_corrections_attendee_idx").on(t.eventType, t.eventId, t.userUid, t.createdAt),
+  }),
+);
+
+export const venueEventNotificationRunsTable = pgTable(
+  "venue_event_notification_runs",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id").notNull(),
+    kind: text("kind").$type<"event_update" | "reminder_24h" | "reminder_2h">().notNull(),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+    status: text("status").$type<"sending" | "sent" | "partial" | "failed">().notNull().default("sending"),
+    recipientCount: integer("recipient_count").notNull().default(0),
+    sentCount: integer("sent_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    runUnique: uniqueIndex("venue_event_notification_runs_event_kind_schedule_uniq").on(t.eventId, t.kind, t.scheduledFor),
+    eventIdx: index("venue_event_notification_runs_event_idx").on(t.eventId, t.startedAt),
   }),
 );
 

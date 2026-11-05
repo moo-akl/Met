@@ -788,7 +788,7 @@ export const pt: LocaleTree = {
     aboutContact: "Falar com o suporte",
     aboutRate: "Avaliar o Met",
     notifications: "Notificações",
-    notificationsOn: "Resumo diário e lembretes de reencontro",
+    notificationsOn: "Resumo diário, reencontros e eventos",
     notificationsOff: "Todas as notificações desativadas",
     notificationsFooter:
       "Met nunca envia notificações de marketing — só os toggles acima.",
@@ -796,6 +796,8 @@ export const pt: LocaleTree = {
     dailyRecapSub:
       "Resumo da manhã estilo \u201COntem você cruzou com 4 pessoas; com 1 foi a 2ª vez.\u201D",
     reencounterNudges: "Lembretes de reencontro",
+    notifyEventUpdates: "Lembretes e alterações de eventos",
+    notifyEventUpdatesSub: "Receba lembretes 24 e 2 horas antes dos eventos confirmados e avisos quando houver alterações.",
     notifyChat: "Mensagens de chat",
     notifyChatSub:
       "Receba uma notificação quando as suas conexões enviarem uma nova mensagem.",

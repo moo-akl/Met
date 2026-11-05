@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { runDueVenueEventReminders } from "./lib/eventNotifications";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,11 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  const reminderSweep = () => {
+    void runDueVenueEventReminders().catch((error: unknown) => {
+      logger.error({ error }, "Venue event reminder sweep failed");
+    });
+  };
+  reminderSweep();
+  setInterval(reminderSweep, 60_000).unref();
 });

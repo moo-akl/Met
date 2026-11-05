@@ -8,11 +8,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { eq, inArray, like, sql } from "drizzle-orm";
+import { and, eq, inArray, like, sql } from "drizzle-orm";
 import {
   db,
+  eventAttendanceCorrectionsTable,
+  eventAttendanceTable,
   venueBusinessesTable,
   venueEventRsvpsTable,
+  venueEventNotificationRunsTable,
   venueEventsTable,
   venueManagerSessionsTable,
   venueManagersTable,
@@ -21,6 +24,7 @@ import {
   venueMembershipsTable,
   venueOwnerProfilesTable,
 } from "@workspace/db";
+import { runDueVenueEventReminders } from "../lib/eventNotifications";
 
 const firebaseAuthStubs = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -76,6 +80,15 @@ async function cleanup() {
       .where(inArray(venueEventsTable.placeId, placeIds));
     const eventIds = events.map((e) => e.id);
     if (eventIds.length) {
+      await db.delete(eventAttendanceTable).where(and(
+        eq(eventAttendanceTable.eventType, "venue"),
+        inArray(eventAttendanceTable.eventId, eventIds),
+      ));
+      await db.delete(eventAttendanceCorrectionsTable).where(and(
+        eq(eventAttendanceCorrectionsTable.eventType, "venue"),
+        inArray(eventAttendanceCorrectionsTable.eventId, eventIds),
+      ));
+      await db.delete(venueEventNotificationRunsTable).where(inArray(venueEventNotificationRunsTable.eventId, eventIds));
       await db.delete(venueEventRsvpsTable).where(inArray(venueEventRsvpsTable.eventId, eventIds));
       await db.delete(venueEventsTable).where(inArray(venueEventsTable.id, eventIds));
     }
@@ -178,6 +191,148 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       profile,
     };
   }
+
+  it("verifies a venue event QR code and records one guest check-in", async () => {
+    const { agent, csrf, business } = await claimOwner("qr-check-in");
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "Guest QR check-in",
+        startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        isPublished: true,
+      });
+    expect(created.status).toBe(201);
+    const eventId = Number(created.body.event.id);
+    await db.update(venueEventsTable)
+      .set({ startsAt: new Date(Date.now() - 5 * 60 * 1000) })
+      .where(eq(venueEventsTable.id, eventId));
+
+    const qr = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events/${eventId}/check-in-qr`)
+      .set("x-csrf-token", csrf)
+      .send({});
+    expect(qr.status).toBe(200);
+    const token = new URL(qr.body.url as string).pathname.split("/").pop();
+    expect(token).toMatch(/^[A-Za-z0-9_-]{32,64}$/);
+
+    const firstCheckIn = await api()
+      .post("/api/events/check-in/qr")
+      .set("x-test-uid", GUEST_UID)
+      .send({ token });
+    expect(firstCheckIn.status).toBe(200);
+    expect(firstCheckIn.body).toMatchObject({
+      eventType: "venue",
+      eventId,
+      title: "Guest QR check-in",
+      checkInMethod: "qr",
+      alreadyCheckedIn: false,
+    });
+
+    const duplicateCheckIn = await api()
+      .post("/api/events/check-in/qr")
+      .set("x-test-uid", GUEST_UID)
+      .send({ token });
+    expect(duplicateCheckIn.status).toBe(200);
+    expect(duplicateCheckIn.body.alreadyCheckedIn).toBe(true);
+
+    const attendance = await agent.get(`/api/venue-manager/businesses/${business.id}/events/${eventId}/attendees`);
+    expect(attendance.status).toBe(200);
+    expect(attendance.body.attendees).toHaveLength(1);
+    expect(attendance.body.attendees[0]).toMatchObject({
+      uid: GUEST_UID,
+      checkInMethod: "qr",
+    });
+  });
+
+  it("records manual check-in and undo reasons while keeping the RSVP roster separate", async () => {
+    const { agent, csrf, business } = await claimOwner("manual-check-in");
+    const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({ title: "Check-in corrections", startsAt, isPublished: true });
+    expect(created.status).toBe(201);
+    expect(created.body.event.reminderOffsetsHours).toEqual([24, 2]);
+    const eventId = Number(created.body.event.id);
+
+    await db.insert(venueEventRsvpsTable).values({
+      eventId,
+      userUid: GUEST_UID,
+      status: "going",
+    });
+    const route = `/api/venue-manager/businesses/${business.id}/events/${eventId}/attendees/${GUEST_UID}`;
+    const manual = await agent
+      .post(`${route}/manual-check-in`)
+      .set("x-csrf-token", csrf)
+      .send({ reason: "Staff verified the guest at the entrance" });
+    expect(manual.status).toBe(200);
+
+    const duplicate = await agent
+      .post(`${route}/manual-check-in`)
+      .set("x-csrf-token", csrf)
+      .send({ reason: "Duplicate check-in" });
+    expect(duplicate.status).toBe(409);
+
+    const attendance = await agent.get(`/api/venue-manager/businesses/${business.id}/events/${eventId}/attendees`);
+    expect(attendance.status).toBe(200);
+    expect(attendance.body.attendees).toHaveLength(1);
+    expect(attendance.body.attendees[0]).toMatchObject({
+      uid: GUEST_UID,
+      checkInMethod: "manual",
+      manualReason: "Staff verified the guest at the entrance",
+    });
+    expect(attendance.body.rsvps).toHaveLength(1);
+    expect(attendance.body.corrections).toHaveLength(1);
+
+    const undone = await agent
+      .post(`${route}/undo-check-in`)
+      .set("x-csrf-token", csrf)
+      .send({ reason: "Guest was checked in by mistake" });
+    expect(undone.status).toBe(200);
+
+    const afterUndo = await agent.get(`/api/venue-manager/businesses/${business.id}/events/${eventId}/attendees`);
+    expect(afterUndo.body.attendees).toHaveLength(0);
+    expect(afterUndo.body.corrections).toHaveLength(2);
+    expect(afterUndo.body.corrections[0]).toMatchObject({
+      uid: GUEST_UID,
+      action: "undo_check_in",
+      previousMethod: "manual",
+      reason: "Guest was checked in by mistake",
+    });
+  });
+
+  it("claims due 24-hour reminders once and records the notification result", async () => {
+    const { agent, csrf, business } = await claimOwner("reminder-run");
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "Reminder schedule",
+        startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        isPublished: true,
+      });
+    expect(created.status).toBe(201);
+    const eventId = Number(created.body.event.id);
+    const now = new Date();
+    await db.update(venueEventsTable)
+      .set({ startsAt: new Date(now.getTime() + 24 * 60 * 60 * 1000 - 5 * 60 * 1000) })
+      .where(eq(venueEventsTable.id, eventId));
+
+    await runDueVenueEventReminders(now);
+    await runDueVenueEventReminders(now);
+
+    const runs = await db.select()
+      .from(venueEventNotificationRunsTable)
+      .where(eq(venueEventNotificationRunsTable.eventId, eventId));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      kind: "reminder_24h",
+      status: "sent",
+      recipientCount: 0,
+      sentCount: 0,
+    });
+  });
 
   it("preserves imageUrl, description, and capacityLimit in the guest-facing event list", async () => {
     const { agent, csrf, business, profile } = await claimOwner("fields");

@@ -205,6 +205,9 @@ router.put("/profiles/me", requireUid, async (req, res) => {
               ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyChat"] === "boolean"
                 ? { notifyChat: (rawNotifPrefs as Record<string, unknown>)["notifyChat"] as boolean }
                 : {}),
+              ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyEventUpdates"] === "boolean"
+                ? { notifyEventUpdates: (rawNotifPrefs as Record<string, unknown>)["notifyEventUpdates"] as boolean }
+                : {}),
             }
           : undefined;
 
@@ -589,7 +592,7 @@ router.patch("/profiles/me/notification-prefs", requireUid, async (req, res) => 
   const uid = req.uid!;
   const body = req.body as Record<string, unknown>;
   const prefs: Record<string, boolean> = {};
-  const knownKeys = ["notifyNewEncounters", "notifyReencounter", "notifyChat"] as const;
+  const knownKeys = ["notifyNewEncounters", "notifyReencounter", "notifyChat", "notifyEventUpdates"] as const;
   for (const key of knownKeys) {
     if (typeof body[key] === "boolean") prefs[key] = body[key] as boolean;
   }

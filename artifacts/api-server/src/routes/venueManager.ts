@@ -19,6 +19,9 @@ import {
   venueOwnerProfilesTable,
   venueEventsTable,
   venueEventRsvpsTable,
+  eventAttendanceTable,
+  eventAttendanceCorrectionsTable,
+  venueEventNotificationRunsTable,
   venueRewardsTable,
   venueAnnouncementsTable,
   hubCheckinsTable,
@@ -34,6 +37,12 @@ import { adminAuth } from "../lib/firebaseAdmin";
 import { getVenueManagerFirebaseConfig } from "../lib/venueManagerFirebaseConfig";
 import { mirrorRevealRequest } from "../lib/firestoreMirror";
 import { sendPush } from "../lib/push";
+import { notifyVenueEventRsvps } from "../lib/eventNotifications";
+import {
+  buildEventCheckinUrl,
+  createEventCheckinLinkFields,
+  decryptEventCheckinToken,
+} from "../lib/eventCheckinLinks";
 
 const router: IRouter = Router();
 const COOKIE = "met_venue_manager";
@@ -398,6 +407,19 @@ async function requireBusinessRole(req: Request, res: Response, permitted: reado
 function serializeEvent(event: typeof venueEventsTable.$inferSelect) {
   const { ownerUid: _ownerUid, ...serialized } = event;
   return serialized;
+}
+
+function parseReminderOffsets(value: unknown, fallback: number[]): number[] | null {
+  if (value === undefined) return fallback;
+  if (
+    !Array.isArray(value) ||
+    value.length > 2 ||
+    value.some((offset) => offset !== 24 && offset !== 2) ||
+    new Set(value).size !== value.length
+  ) {
+    return null;
+  }
+  return value as number[];
 }
 
 async function validateVenueEventInvitees(placeId: string, value: unknown): Promise<string[] | null> {
@@ -977,6 +999,8 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   if (req.body?.endsAt !== undefined && req.body?.endsAt !== null && !endsAt) return void res.status(400).json({ message: "Use a valid event end time." });
   const capacityLimit = req.body?.capacityLimit === undefined ? undefined : req.body?.capacityLimit === null ? null : Number(req.body?.capacityLimit);
   if (capacityLimit !== undefined && capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) return void res.status(400).json({ message: "Capacity must be a positive whole number." });
+  const reminderOffsetsHours = parseReminderOffsets(req.body?.reminderOffsetsHours, [24, 2]);
+  if (!reminderOffsetsHours) return void res.status(400).json({ message: "Choose valid event reminder times." });
   const visibility = req.body?.visibility === undefined ? "public" : req.body.visibility;
   if (visibility !== "public" && visibility !== "invite_only") return void res.status(400).json({ message: "Choose public or invite-only visibility." });
   const inviteeUids = req.body?.inviteeUids === undefined ? [] : await validateVenueEventInvitees(business.business.placeId, req.body.inviteeUids);
@@ -985,7 +1009,7 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   const [event] = await db.insert(venueEventsTable).values({
     ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, startsAt, endsAt,
     description: optionalText(req.body?.description, 2000) ?? null, imageUrl: optionalText(req.body?.imageUrl, 2000) ?? null,
-    capacityLimit, isPublished: req.body?.isPublished !== false, visibility, inviteeUids,
+    capacityLimit, reminderOffsetsHours, isPublished: req.body?.isPublished !== false, visibility, inviteeUids,
   }).returning();
   res.status(201).json({ event: serializeEvent(event!) });
 });
@@ -1004,6 +1028,12 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
   if ((req.body?.startsAt !== undefined && !startsAt) || (req.body?.endsAt !== undefined && req.body.endsAt !== null && !endsAt)) return void res.status(400).json({ message: "Use valid event dates." });
   const capacityLimit = req.body?.capacityLimit === undefined ? undefined : req.body.capacityLimit === null ? null : Number(req.body.capacityLimit);
   if (capacityLimit !== undefined && capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) return void res.status(400).json({ message: "Capacity must be a positive whole number." });
+  const reminderOffsetsHours = req.body?.reminderOffsetsHours === undefined
+    ? undefined
+    : parseReminderOffsets(req.body.reminderOffsetsHours, []);
+  if (req.body?.reminderOffsetsHours !== undefined && !reminderOffsetsHours) {
+    return void res.status(400).json({ message: "Choose valid event reminder times." });
+  }
   const visibility = req.body?.visibility === undefined ? existing.visibility : req.body.visibility;
   if (visibility !== "public" && visibility !== "invite_only") return void res.status(400).json({ message: "Choose public or invite-only visibility." });
   const inviteeUids = req.body?.inviteeUids === undefined
@@ -1012,7 +1042,7 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
   if (!inviteeUids) return void res.status(400).json({ message: "Invitees must be visitors who have checked in at your venue." });
   if (visibility === "invite_only" && inviteeUids.length === 0) return void res.status(400).json({ message: "Select at least one visitor for an invite-only event." });
   const patch = Object.fromEntries(Object.entries({
-    title, startsAt, endsAt, capacityLimit,
+    title, startsAt, endsAt, capacityLimit, reminderOffsetsHours,
     description: optionalText(req.body?.description, 2000),
     imageUrl: optionalText(req.body?.imageUrl, 2000),
     isPublished: typeof req.body?.isPublished === "boolean" ? req.body.isPublished : undefined,
@@ -1020,7 +1050,272 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
     inviteeUids: visibility === "invite_only" ? inviteeUids : [],
   }).filter(([, value]) => value !== undefined));
   const [event] = await db.update(venueEventsTable).set({ ...patch, updatedAt: new Date() }).where(eq(venueEventsTable.id, eventId)).returning();
+  if (
+    existing.title !== event!.title ||
+    existing.description !== event!.description ||
+    existing.startsAt.getTime() !== event!.startsAt.getTime() ||
+    (existing.endsAt?.getTime() ?? null) !== (event!.endsAt?.getTime() ?? null) ||
+    existing.capacityLimit !== event!.capacityLimit ||
+    existing.visibility !== event!.visibility ||
+    existing.isPublished !== event!.isPublished
+  ) {
+    void notifyVenueEventRsvps({
+      eventId,
+      kind: "event_update",
+      scheduledFor: event!.updatedAt,
+      isCancelled: existing.isPublished && !event!.isPublished,
+    });
+  }
   res.json({ event: serializeEvent(event!) });
+});
+
+router.get("/venue-manager/businesses/:businessId/events/:eventId/attendees", requireSession, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) {
+    return void res.status(400).json({ message: "Invalid event." });
+  }
+  const [event] = await db.select({ id: venueEventsTable.id }).from(venueEventsTable)
+    .where(and(
+      eq(venueEventsTable.id, eventId),
+      eq(venueEventsTable.placeId, business.business.placeId),
+      eq(venueEventsTable.isHidden, false),
+    ))
+    .limit(1);
+  if (!event) return void res.status(404).json({ message: "Event not found." });
+  const attendees = await db
+    .select({
+      uid: eventAttendanceTable.userUid,
+      displayName: profilesTable.displayName,
+      photoUrl: profilesTable.photoUrl,
+      checkInMethod: eventAttendanceTable.checkInMethod,
+      checkedInByUid: eventAttendanceTable.checkedInByUid,
+      manualReason: eventAttendanceTable.manualReason,
+      checkedInAt: eventAttendanceTable.checkedInAt,
+    })
+    .from(eventAttendanceTable)
+    .leftJoin(profilesTable, eq(profilesTable.uid, eventAttendanceTable.userUid))
+    .where(and(
+      eq(eventAttendanceTable.eventType, "venue"),
+      eq(eventAttendanceTable.eventId, eventId),
+    ))
+    .orderBy(eventAttendanceTable.checkedInAt);
+  const rsvps = await db
+    .select({
+      uid: venueEventRsvpsTable.userUid,
+      displayName: profilesTable.displayName,
+      photoUrl: profilesTable.photoUrl,
+      status: venueEventRsvpsTable.status,
+    })
+    .from(venueEventRsvpsTable)
+    .leftJoin(profilesTable, eq(profilesTable.uid, venueEventRsvpsTable.userUid))
+    .where(eq(venueEventRsvpsTable.eventId, eventId))
+    .orderBy(desc(venueEventRsvpsTable.updatedAt));
+  const corrections = await db
+    .select({
+      uid: eventAttendanceCorrectionsTable.userUid,
+      displayName: profilesTable.displayName,
+      action: eventAttendanceCorrectionsTable.action,
+      previousMethod: eventAttendanceCorrectionsTable.previousMethod,
+      reason: eventAttendanceCorrectionsTable.reason,
+      actorUid: eventAttendanceCorrectionsTable.actorUid,
+      createdAt: eventAttendanceCorrectionsTable.createdAt,
+    })
+    .from(eventAttendanceCorrectionsTable)
+    .leftJoin(profilesTable, eq(profilesTable.uid, eventAttendanceCorrectionsTable.userUid))
+    .where(and(
+      eq(eventAttendanceCorrectionsTable.eventType, "venue"),
+      eq(eventAttendanceCorrectionsTable.eventId, eventId),
+    ))
+    .orderBy(desc(eventAttendanceCorrectionsTable.createdAt))
+    .limit(20);
+  const notificationRuns = await db
+    .select({
+      kind: venueEventNotificationRunsTable.kind,
+      status: venueEventNotificationRunsTable.status,
+      recipientCount: venueEventNotificationRunsTable.recipientCount,
+      sentCount: venueEventNotificationRunsTable.sentCount,
+      skippedCount: venueEventNotificationRunsTable.skippedCount,
+      failedCount: venueEventNotificationRunsTable.failedCount,
+      startedAt: venueEventNotificationRunsTable.startedAt,
+    })
+    .from(venueEventNotificationRunsTable)
+    .where(eq(venueEventNotificationRunsTable.eventId, eventId))
+    .orderBy(desc(venueEventNotificationRunsTable.startedAt))
+    .limit(10);
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    attendees: attendees.map((attendee) => ({
+      ...attendee,
+      displayName: attendee.displayName ?? "Met member",
+    })),
+    rsvps: rsvps.map((rsvp) => ({
+      ...rsvp,
+      displayName: rsvp.displayName ?? "Met member",
+    })),
+    corrections: corrections.map((correction) => ({
+      ...correction,
+      displayName: correction.displayName ?? "Met member",
+    })),
+    notificationRuns,
+  });
+});
+
+router.post("/venue-manager/businesses/:businessId/events/:eventId/attendees/:uid/manual-check-in", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  const uid = typeof req.params["uid"] === "string" ? req.params["uid"].trim() : "";
+  const reason = optionalText(req.body?.reason, 500);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1 || !uid || uid.length > 128) {
+    return void res.status(400).json({ message: "Invalid event attendee." });
+  }
+  if (!reason || reason.length < 3) {
+    return void res.status(400).json({ message: "Enter a reason with at least 3 characters." });
+  }
+  const [event] = await db.select({ id: venueEventsTable.id }).from(venueEventsTable)
+    .where(and(
+      eq(venueEventsTable.id, eventId),
+      eq(venueEventsTable.placeId, business.business.placeId),
+      eq(venueEventsTable.isHidden, false),
+    ))
+    .limit(1);
+  if (!event) return void res.status(404).json({ message: "Event not found." });
+  const [rsvp] = await db.select({ userUid: venueEventRsvpsTable.userUid }).from(venueEventRsvpsTable)
+    .where(and(
+      eq(venueEventRsvpsTable.eventId, eventId),
+      eq(venueEventRsvpsTable.userUid, uid),
+      inArray(venueEventRsvpsTable.status, ["going", "maybe"]),
+    ))
+    .limit(1);
+  if (!rsvp) return void res.status(404).json({ message: "A current RSVP is required for manual check-in." });
+
+  const actorUid = String(req.venueManagerSession!.managerId);
+  const inserted = await db.transaction(async (tx) => {
+    const [attendance] = await tx.insert(eventAttendanceTable).values({
+      eventType: "venue",
+      eventId,
+      userUid: uid,
+      checkInMethod: "manual",
+      checkedInByUid: actorUid,
+      manualReason: reason,
+    }).onConflictDoNothing().returning({ id: eventAttendanceTable.id });
+    if (!attendance) return false;
+    await tx.insert(eventAttendanceCorrectionsTable).values({
+      eventType: "venue",
+      eventId,
+      userUid: uid,
+      actorUid,
+      action: "manual_check_in",
+      reason,
+    });
+    return true;
+  });
+  if (!inserted) return void res.status(409).json({ message: "This attendee is already checked in." });
+  res.json({ success: true });
+});
+
+router.post("/venue-manager/businesses/:businessId/events/:eventId/attendees/:uid/undo-check-in", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  const uid = typeof req.params["uid"] === "string" ? req.params["uid"].trim() : "";
+  const reason = optionalText(req.body?.reason, 500);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1 || !uid || uid.length > 128) {
+    return void res.status(400).json({ message: "Invalid event attendee." });
+  }
+  if (!reason || reason.length < 3) {
+    return void res.status(400).json({ message: "Enter a reason with at least 3 characters." });
+  }
+  const [event] = await db.select({ id: venueEventsTable.id }).from(venueEventsTable)
+    .where(and(
+      eq(venueEventsTable.id, eventId),
+      eq(venueEventsTable.placeId, business.business.placeId),
+      eq(venueEventsTable.isHidden, false),
+    ))
+    .limit(1);
+  if (!event) return void res.status(404).json({ message: "Event not found." });
+
+  const actorUid = String(req.venueManagerSession!.managerId);
+  const removed = await db.transaction(async (tx) => {
+    const [attendance] = await tx.delete(eventAttendanceTable).where(and(
+      eq(eventAttendanceTable.eventType, "venue"),
+      eq(eventAttendanceTable.eventId, eventId),
+      eq(eventAttendanceTable.userUid, uid),
+    )).returning({ checkInMethod: eventAttendanceTable.checkInMethod });
+    if (!attendance) return false;
+    await tx.insert(eventAttendanceCorrectionsTable).values({
+      eventType: "venue",
+      eventId,
+      userUid: uid,
+      actorUid,
+      action: "undo_check_in",
+      previousMethod: attendance.checkInMethod,
+      reason,
+    });
+    return true;
+  });
+  if (!removed) return void res.status(404).json({ message: "No check-in was found to correct." });
+  res.json({ success: true });
+});
+
+router.post("/venue-manager/businesses/:businessId/events/:eventId/check-in-qr", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, roles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) {
+    return void res.status(400).json({ message: "Invalid event." });
+  }
+  const [event] = await db.select().from(venueEventsTable).where(and(
+    eq(venueEventsTable.id, eventId),
+    eq(venueEventsTable.placeId, business.business.placeId),
+    eq(venueEventsTable.isHidden, false),
+  )).limit(1);
+  if (!event) return void res.status(404).json({ message: "Event not found." });
+  if (!event.isPublished) {
+    return void res.status(409).json({ message: "Publish the event before displaying its check-in code." });
+  }
+  const rotate = req.body?.rotate === true;
+  try {
+    let token: string;
+    if (!rotate && event.checkinTokenEncrypted) {
+      token = decryptEventCheckinToken(event.checkinTokenEncrypted);
+    } else {
+      const fields = createEventCheckinLinkFields();
+      const [updated] = await db.update(venueEventsTable)
+        .set({
+          checkinTokenHash: fields.checkinTokenHash,
+          checkinTokenEncrypted: fields.checkinTokenEncrypted,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(venueEventsTable.id, eventId),
+          ...(rotate ? [] : [isNull(venueEventsTable.checkinTokenHash)]),
+        ))
+        .returning({ checkinTokenEncrypted: venueEventsTable.checkinTokenEncrypted });
+      if (updated) {
+        token = fields.token;
+      } else {
+        const [current] = await db.select({
+          checkinTokenEncrypted: venueEventsTable.checkinTokenEncrypted,
+        }).from(venueEventsTable).where(eq(venueEventsTable.id, eventId)).limit(1);
+        if (!current?.checkinTokenEncrypted) {
+          return void res.status(409).json({ message: "The event check-in code could not be saved." });
+        }
+        token = decryptEventCheckinToken(current.checkinTokenEncrypted);
+      }
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ url: buildEventCheckinUrl(token) });
+  } catch (error) {
+    req.log?.error({ error, eventId }, "Could not load venue manager event check-in QR");
+    res.status(503).json({ message: "The event check-in code could not be loaded." });
+  }
 });
 
 router.delete("/venue-manager/businesses/:businessId/events/:eventId", requireSession, requireCsrf, async (req, res): Promise<void> => {
@@ -1029,8 +1324,29 @@ router.delete("/venue-manager/businesses/:businessId/events/:eventId", requireSe
   const business = await businessWithProfile(membership.businessId);
   const eventId = Number(req.params["eventId"]);
   if (!business || !Number.isInteger(eventId)) return void res.status(400).json({ message: "Invalid event." });
-  const deleted = await db.delete(venueEventsTable).where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, business.business.placeId))).returning({ id: venueEventsTable.id });
-  if (!deleted.length) return void res.status(404).json({ message: "Event not found." });
+  const deleted = await db.transaction(async (tx) => {
+    const [event] = await tx.select({ id: venueEventsTable.id }).from(venueEventsTable).where(and(
+      eq(venueEventsTable.id, eventId),
+      eq(venueEventsTable.placeId, business.business.placeId),
+    )).limit(1);
+    if (!event) return false;
+    await tx.delete(eventAttendanceTable).where(and(
+      eq(eventAttendanceTable.eventType, "venue"),
+      eq(eventAttendanceTable.eventId, eventId),
+    ));
+    await tx.delete(eventAttendanceCorrectionsTable).where(and(
+      eq(eventAttendanceCorrectionsTable.eventType, "venue"),
+      eq(eventAttendanceCorrectionsTable.eventId, eventId),
+    ));
+    await tx.delete(venueEventNotificationRunsTable).where(eq(venueEventNotificationRunsTable.eventId, eventId));
+    await tx.delete(venueEventRsvpsTable).where(eq(venueEventRsvpsTable.eventId, eventId));
+    await tx.delete(venueEventsTable).where(and(
+      eq(venueEventsTable.id, eventId),
+      eq(venueEventsTable.placeId, business.business.placeId),
+    ));
+    return true;
+  });
+  if (!deleted) return void res.status(404).json({ message: "Event not found." });
   res.status(204).end();
 });
 

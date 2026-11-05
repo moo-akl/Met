@@ -83,6 +83,40 @@ type VenueGuest = {
   checkinCount: number;
   lastCheckinAt: string;
 };
+type VenueEventAttendee = {
+  uid: string;
+  displayName: string;
+  photoUrl: string | null;
+  checkInMethod: "qr" | "location" | "manual";
+  checkedInAt: string;
+  checkedInByUid: string | null;
+  manualReason: string | null;
+};
+type VenueEventRsvp = {
+  uid: string;
+  displayName: string;
+  photoUrl: string | null;
+  status: "going" | "maybe" | "not_going";
+};
+type VenueEventCorrection = {
+  uid: string;
+  displayName: string;
+  action: "manual_check_in" | "undo_check_in";
+  previousMethod: "qr" | "location" | "manual" | null;
+  reason: string;
+  actorUid: string;
+  createdAt: string;
+};
+type VenueEventNotificationRun = {
+  kind: "event_update" | "reminder_24h" | "reminder_2h";
+  status: "sending" | "sent" | "partial" | "failed";
+  recipientCount: number;
+  sentCount: number;
+  skippedCount: number;
+  failedCount: number;
+  startedAt: string;
+};
+type ReminderOffsetHours = 24 | 2;
 type ApiError = Error & { status?: number };
 
 async function firebaseManagerRequest(path: string, data: Record<string, string>): Promise<Session> {
@@ -1438,14 +1472,176 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
 
 function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
   const client = useQueryClient(); const events = useBusinessQuery<VenueManagerEventList>(getListVenueManagerEventsQueryOptions, business.businessId); const [editing, setEditing] = useState<VenueManagerEvent | "new" | null>(null); const [message, setMessage] = useState("");
+  const [attendanceEvent, setAttendanceEvent] = useState<VenueManagerEvent | null>(null);
   const save = useMutation({ mutationFn: ({ id, data }: { id?: number; data: VenueManagerEventInput | VenueManagerEventUpdate }) => id ? updateVenueManagerEvent(business.businessId, id, data as VenueManagerEventUpdate, csrf(csrfToken)) : createVenueManagerEvent(business.businessId, data as VenueManagerEventInput, csrf(csrfToken)), onSuccess: () => { invalidateVenueManagerData(); setEditing(null); }, onError: (error) => setMessage(apiError(error)) });
   const remove = useMutation({ mutationFn: (id: number) => deleteVenueManagerEvent(business.businessId, id, csrf(csrfToken)), onSuccess: () => invalidateVenueManagerData() });
-  return <><div className="vm-toolbar"><span>{events.data?.events.length ?? 0} events</span><button className="vm-primary compact" onClick={() => { setMessage(""); setEditing("new"); }}><Plus size={16} />New event</button></div>{events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small></div><div className="vm-item-actions"><button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}{editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data) => save.mutate({ id: editing === "new" ? undefined : editing.id, data })} businessId={business.businessId} csrfToken={csrfToken} />}</>;
+  return <>
+    <div className="vm-toolbar"><span>{events.data?.events.length ?? 0} events</span><button className="vm-primary compact" onClick={() => { setMessage(""); setEditing("new"); }}><Plus size={16} />New event</button></div>
+    {events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small></div><div className="vm-item-actions"><button data-testid={`button-event-attendance-${event.id}`} onClick={() => setAttendanceEvent(event)}><Users size={14} />Attendance</button><button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}
+    {editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data) => save.mutate({ id: editing === "new" ? undefined : editing.id, data })} businessId={business.businessId} csrfToken={csrfToken} />}
+    {attendanceEvent && <EventAttendanceModal event={attendanceEvent} businessId={business.businessId} csrfToken={csrfToken} onClose={() => setAttendanceEvent(null)} />}
+  </>;
+}
+
+function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event: VenueManagerEvent; businessId: number; csrfToken: string; onClose: () => void }) {
+  const [attendees, setAttendees] = useState<VenueEventAttendee[]>([]);
+  const [rsvps, setRsvps] = useState<VenueEventRsvp[]>([]);
+  const [corrections, setCorrections] = useState<VenueEventCorrection[]>([]);
+  const [notificationRuns, setNotificationRuns] = useState<VenueEventNotificationRun[]>([]);
+  const [qrUrl, setQrUrl] = useState("");
+  const [manualTargetUid, setManualTargetUid] = useState<string | null>(null);
+  const [manualReason, setManualReason] = useState("");
+  const [undoTargetUid, setUndoTargetUid] = useState<string | null>(null);
+  const [undoReason, setUndoReason] = useState("");
+  const [pending, setPending] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const loadAttendance = async () => {
+    const response = await fetch(`/api/venue-manager/businesses/${businessId}/events/${event.id}/attendees`, { credentials: "include" });
+    const data = await response.json() as {
+      attendees?: VenueEventAttendee[];
+      rsvps?: VenueEventRsvp[];
+      corrections?: VenueEventCorrection[];
+      notificationRuns?: VenueEventNotificationRun[];
+      message?: string;
+    };
+    if (!response.ok) throw new Error(data.message ?? "Could not load event attendance.");
+    setAttendees(data.attendees ?? []);
+    setRsvps(data.rsvps ?? []);
+    setCorrections(data.corrections ?? []);
+    setNotificationRuns(data.notificationRuns ?? []);
+  };
+
+  const loadQr = async (rotate = false) => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/venue-manager/businesses/${businessId}/events/${event.id}/check-in-qr`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({ rotate }),
+      });
+      const data = await response.json() as { url?: string; message?: string };
+      if (!response.ok || !data.url) throw new Error(data.message ?? "Could not load the event QR code.");
+      setQrUrl(data.url);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load the event QR code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    setPending(true);
+    void loadAttendance()
+      .catch((error: unknown) => {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load event attendance.");
+      })
+      .finally(() => { if (!cancelled) setPending(false); });
+    void loadQr();
+    return () => { cancelled = true; };
+  }, [businessId, event.id]);
+
+  const submitCorrection = async (uid: string, action: "manual-check-in" | "undo-check-in", reason: string) => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(
+        `/api/venue-manager/businesses/${businessId}/events/${event.id}/attendees/${encodeURIComponent(uid)}/${action}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+          body: JSON.stringify({ reason: reason.trim() }),
+        },
+      );
+      const data = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(data.message ?? "Could not save the check-in correction.");
+      setManualTargetUid(null);
+      setUndoTargetUid(null);
+      setManualReason("");
+      setUndoReason("");
+      await loadAttendance();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save the check-in correction.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const checkedIn = new Set(attendees.map((attendee) => attendee.uid));
+  const outstandingRsvps = rsvps.filter((rsvp) => rsvp.status !== "not_going" && !checkedIn.has(rsvp.uid));
+
+  return (
+    <Modal title="Event attendance" className="vm-print-modal" onClose={onClose}>
+      <div className="vm-stack">
+        <div className="vm-notice" role="status">Event QR check-ins are verified in Met and kept separate from RSVPs.</div>
+        {qrUrl ? (
+          <div className="vm-stack" style={{ alignItems: "center" }}>
+            <QRCode value={qrUrl} size={240} bgColor="#ffffff" fgColor="#111111" />
+            <small className="vm-event-qr-url">{qrUrl}</small>
+            <button type="button" className="vm-secondary" disabled={busy} onClick={() => {
+              if (window.confirm("Replace the event QR code? The current code will stop working immediately.")) void loadQr(true);
+            }}>Replace QR code</button>
+          </div>
+        ) : <button type="button" className="vm-primary" disabled={busy} onClick={() => void loadQr()}>{busy ? "Loading…" : "Create QR code"}</button>}
+        <section>
+          <h3>RSVP guests · {outstandingRsvps.length}</h3>
+          {pending ? <SectionLoading /> : outstandingRsvps.length ? <div className="vm-stack">
+            {outstandingRsvps.map((rsvp) => <div className="vm-item-card" key={rsvp.uid}>
+              <div><strong>{rsvp.displayName}</strong><small style={{ display: "block" }}>{rsvp.status === "maybe" ? "Maybe" : "Going"}</small></div>
+              {manualTargetUid === rsvp.uid ? <div className="vm-stack">
+                <label>Reason for manual check-in<input maxLength={500} value={manualReason} onChange={(change) => setManualReason(change.target.value)} /></label>
+                <div className="vm-form-actions">
+                  <button type="button" className="vm-secondary" onClick={() => setManualTargetUid(null)}>Cancel</button>
+                  <button type="button" className="vm-primary" disabled={busy || manualReason.trim().length < 3} onClick={() => void submitCorrection(rsvp.uid, "manual-check-in", manualReason)}>Save check-in</button>
+                </div>
+              </div> : <button type="button" disabled={busy} onClick={() => { setManualTargetUid(rsvp.uid); setUndoTargetUid(null); }}>Check in</button>}
+            </div>)}
+          </div> : <p className="vm-subtitle">No unchecked RSVPs.</p>}
+        </section>
+        <section>
+          <h3>Checked-in attendees · {attendees.length}</h3>
+          {pending ? <SectionLoading /> : attendees.length ? <div className="vm-stack">
+            {attendees.map((attendee) => <div className="vm-item-card" key={attendee.uid}>
+              <div><strong>{attendee.displayName}</strong><small style={{ display: "block" }}>{attendee.checkInMethod === "manual" ? "Manual" : "QR"} · {new Date(attendee.checkedInAt).toLocaleString()}</small>{attendee.manualReason && <small>Reason: {attendee.manualReason}</small>}</div>
+              {undoTargetUid === attendee.uid ? <div className="vm-stack">
+                <label>Reason for removing this check-in<input maxLength={500} value={undoReason} onChange={(change) => setUndoReason(change.target.value)} /></label>
+                <div className="vm-form-actions">
+                  <button type="button" className="vm-secondary" onClick={() => setUndoTargetUid(null)}>Cancel</button>
+                  <button type="button" className="vm-primary" disabled={busy || undoReason.trim().length < 3} onClick={() => void submitCorrection(attendee.uid, "undo-check-in", undoReason)}>Remove check-in</button>
+                </div>
+              </div> : <button type="button" className="vm-secondary" disabled={busy} onClick={() => { setUndoTargetUid(attendee.uid); setManualTargetUid(null); }}>Correct</button>}
+            </div>)}
+          </div> : <p className="vm-subtitle">No check-ins yet.</p>}
+        </section>
+        <section>
+          <h3>Guest notifications</h3>
+          <p className="vm-subtitle">Scheduled reminders: {event.reminderOffsetsHours?.length ? event.reminderOffsetsHours.map((hours) => `${hours}h`).join(" and ") : "off"}</p>
+          {notificationRuns.map((run, index) => <div className="vm-item-card" key={`${run.kind}-${run.startedAt}-${index}`}>
+            <div><strong>{run.kind === "event_update" ? "Event change" : run.kind === "reminder_24h" ? "24-hour reminder" : "2-hour reminder"}</strong><small style={{ display: "block" }}>{run.sentCount} sent · {run.skippedCount} skipped · {run.failedCount} failed</small></div>
+            <span>{run.status}</span>
+          </div>)}
+        </section>
+        {corrections.length > 0 && <section>
+          <h3>Recent check-in corrections</h3>
+          {corrections.map((correction, index) => <div className="vm-item-card" key={`${correction.uid}-${correction.createdAt}-${index}`}>
+            <div><strong>{correction.action === "manual_check_in" ? "Manual check-in" : "Check-in removed"} · {correction.displayName}</strong><small style={{ display: "block" }}>Staff ID {correction.actorUid} · {correction.reason} · {new Date(correction.createdAt).toLocaleString()}</small></div>
+          </div>)}
+        </section>}
+        {message && <div className="vm-notice error" role="alert">{message}</div>}
+      </div>
+    </Modal>
+  );
 }
 
 function EventModal({ event, message, pending, onClose, onSubmit, businessId, csrfToken }: { event?: VenueManagerEvent; message: string; pending: boolean; onClose: () => void; onSubmit: (data: VenueManagerEventInput | VenueManagerEventUpdate) => void; businessId: number; csrfToken: string }) {
   const [imageUrl, setImageUrl] = useState(event?.imageUrl ?? "");
   const [visibility, setVisibility] = useState<"public" | "invite_only">(event?.visibility ?? "public");
+  const [reminderOffsetsHours, setReminderOffsetsHours] = useState<ReminderOffsetHours[]>(event?.reminderOffsetsHours ?? [24, 2]);
   const [inviteeUids, setInviteeUids] = useState<string[]>(event?.inviteeUids ?? []);
   const [guests, setGuests] = useState<VenueGuest[]>([]);
   const [guestsLoading, setGuestsLoading] = useState(false);
@@ -1482,6 +1678,7 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
           startsAt: isoFromInput(f.get("startsAt")),
           endsAt: isoFromInput(f.get("endsAt")) || null,
           capacityLimit: f.get("capacityLimit") ? Number(f.get("capacityLimit")) : null,
+          reminderOffsetsHours,
           isPublished: f.get("isPublished") === "on",
           imageUrl: imageUrl || null,
           visibility,
@@ -1493,6 +1690,24 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
         <label>Starts<input name="startsAt" type="datetime-local" required defaultValue={dateTimeInput(event?.startsAt)} /></label>
         <label>Ends<input name="endsAt" type="datetime-local" defaultValue={dateTimeInput(event?.endsAt)} /></label>
         <label>Capacity<input name="capacityLimit" type="number" min="1" defaultValue={event?.capacityLimit ?? ""} /></label>
+        <div className="full">
+          <strong>RSVP reminders</strong>
+          <p className="vm-subtitle">Send push reminders to guests who are going or maybe. Guests can turn these off in Met settings.</p>
+          {([24, 2] as const).map((hours) => (
+            <label className="checkbox" key={hours}>
+              <input
+                type="checkbox"
+                checked={reminderOffsetsHours.includes(hours)}
+                onChange={(change) => setReminderOffsetsHours((current) =>
+                  change.target.checked
+                    ? [...new Set([...current, hours])].sort((a, b) => b - a)
+                    : current.filter((offset) => offset !== hours),
+                )}
+              />
+              {hours} hours before
+            </label>
+          ))}
+        </div>
         <label className="checkbox"><input name="isPublished" type="checkbox" defaultChecked={event?.isPublished ?? true} /> Publish this event</label>
         <label className="full">Visibility<select value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "invite_only")}><option value="public">Public — visible in Events</option><option value="invite_only">Invite-only — selected visitors only</option></select></label>
         {visibility === "invite_only" && <div className="full">

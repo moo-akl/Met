@@ -48,6 +48,7 @@ export const profilesTable = pgTable(
       notifyNewEncounters?: boolean;
       notifyReencounter?: boolean;
       notifyChat?: boolean;
+      notifyEventUpdates?: boolean;
     }>(),
     // Pioneer status — set to true for the first 500 users who register.
     // Grants 1.5× check-in multiplier and radar priority.

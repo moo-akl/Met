@@ -1048,6 +1048,7 @@ export const api = {
       notifyNewEncounters?: boolean;
       notifyReencounter?: boolean;
       notifyChat?: boolean;
+      notifyEventUpdates?: boolean;
     },
   ) =>
     request<{ success: boolean }>(

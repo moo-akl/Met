@@ -791,7 +791,7 @@ export const ar: LocaleTree = {
     aboutContact: "تواصل مع الدعم",
     aboutRate: "قيِّم Met",
     notifications: "الإشعارات",
-    notificationsOn: "ملخّص يومي وتنبيهات إعادة لقاء",
+    notificationsOn: "ملخّص يومي وتنبيهات اللقاءات والفعاليات",
     notificationsOff: "كل الإشعارات متوقّفة",
     notificationsFooter:
       "Met لا يرسل إشعارات تسويقية أبدًا — فقط الخيارات أعلاه.",
@@ -801,6 +801,8 @@ export const ar: LocaleTree = {
     reencounterNudges: "تنبيهات إعادة اللقاء",
     reencounterNudgesSub:
       "نبّهني حين تتقاطع دروبي مع شخص للمرة الثالثة فأكثر.",
+    notifyEventUpdates: "تذكيرات الفعاليات وتغييراتها",
+    notifyEventUpdatesSub: "تلقَّ تذكيرات قبل 24 و2 ساعة من الفعاليات التي سجلت فيها، وتنبيهات عند تغيير التفاصيل.",
     notifyChat: "رسائل المحادثة",
     notifyChatSub: "تلقّ إشعاراً حين يرسل إليك أحد معارفك رسالة جديدة.",
     visibleOnRadar: "ظاهر على الرادار",

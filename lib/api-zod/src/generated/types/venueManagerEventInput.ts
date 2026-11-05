@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenueManagerEventInputReminderOffsetsHoursItem } from './venueManagerEventInputReminderOffsetsHoursItem';
 import type { VenueManagerEventInputVisibility } from './venueManagerEventInputVisibility';
 
 export interface VenueManagerEventInput {
@@ -43,6 +44,8 @@ export interface VenueManagerEventInput {
      * @nullable
      */
   capacityLimit?: number | null;
+  /** @maxItems 2 */
+  reminderOffsetsHours?: VenueManagerEventInputReminderOffsetsHoursItem[];
   isPublished?: boolean;
   visibility?: VenueManagerEventInputVisibility;
   /**

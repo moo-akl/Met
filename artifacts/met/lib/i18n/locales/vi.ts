@@ -789,7 +789,7 @@ export const vi: LocaleTree = {
     aboutContact: "Liên hệ hỗ trợ",
     aboutRate: "Đánh giá Met",
     notifications: "Thông báo",
-    notificationsOn: "Tóm tắt mỗi ngày & nhắc gặp lại",
+    notificationsOn: "Tóm tắt, nhắc gặp lại và sự kiện",
     notificationsOff: "Tắt mọi thông báo đẩy",
     notificationsFooter:
       "Met không bao giờ gửi thông báo tiếp thị — chỉ những công tắc ở trên.",
@@ -797,6 +797,8 @@ export const vi: LocaleTree = {
     dailyRecapSub:
       "Tóm tắt buổi sáng kiểu \u201CHôm qua bạn đã đi ngang qua 4 người; 1 người là lần thứ 2.\u201D",
     reencounterNudges: "Nhắc gặp lại",
+    notifyEventUpdates: "Nhắc nhở và thay đổi sự kiện",
+    notifyEventUpdatesSub: "Nhận nhắc nhở trước 24 giờ và 2 giờ cho sự kiện bạn đã đăng ký, cùng thông báo khi có thay đổi.",
     notifyChat: "Tin nhắn chat",
     notifyChatSub:
       "Nhận thông báo khi kết nối của bạn gửi tin nhắn mới.",

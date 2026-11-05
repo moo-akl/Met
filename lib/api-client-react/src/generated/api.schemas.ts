@@ -1697,6 +1697,14 @@ export interface AdminManagedImageConfirmResponse {
   url: string;
 }
 
+export type VenueManagerEventReminderOffsetsHoursItem = typeof VenueManagerEventReminderOffsetsHoursItem[keyof typeof VenueManagerEventReminderOffsetsHoursItem];
+
+
+export const VenueManagerEventReminderOffsetsHoursItem = {
+  NUMBER_24: 24,
+  NUMBER_2: 2,
+} as const;
+
 export type VenueManagerEventVisibility = typeof VenueManagerEventVisibility[keyof typeof VenueManagerEventVisibility];
 
 
@@ -1732,6 +1740,7 @@ export interface VenueManagerEvent {
   endsAt?: string | null;
   /** @nullable */
   capacityLimit?: number | null;
+  reminderOffsetsHours: VenueManagerEventReminderOffsetsHoursItem[];
   rsvpCount?: number;
   isPublished: boolean;
   visibility?: VenueManagerEventVisibility;
@@ -1761,6 +1770,14 @@ export interface VenueGuestListResponse {
   guests: VenueGuestSummary[];
   total: number;
 }
+
+export type VenueManagerEventInputReminderOffsetsHoursItem = typeof VenueManagerEventInputReminderOffsetsHoursItem[keyof typeof VenueManagerEventInputReminderOffsetsHoursItem];
+
+
+export const VenueManagerEventInputReminderOffsetsHoursItem = {
+  NUMBER_24: 24,
+  NUMBER_2: 2,
+} as const;
 
 export type VenueManagerEventInputVisibility = typeof VenueManagerEventInputVisibility[keyof typeof VenueManagerEventInputVisibility];
 
@@ -1806,6 +1823,8 @@ export interface VenueManagerEventInput {
      * @nullable
      */
   capacityLimit?: number | null;
+  /** @maxItems 2 */
+  reminderOffsetsHours?: VenueManagerEventInputReminderOffsetsHoursItem[];
   isPublished?: boolean;
   visibility?: VenueManagerEventInputVisibility;
   /**
@@ -1815,6 +1834,14 @@ export interface VenueManagerEventInput {
      */
   inviteeUids?: string[];
 }
+
+export type VenueManagerEventUpdateReminderOffsetsHoursItem = typeof VenueManagerEventUpdateReminderOffsetsHoursItem[keyof typeof VenueManagerEventUpdateReminderOffsetsHoursItem];
+
+
+export const VenueManagerEventUpdateReminderOffsetsHoursItem = {
+  NUMBER_24: 24,
+  NUMBER_2: 2,
+} as const;
 
 export type VenueManagerEventUpdateVisibility = typeof VenueManagerEventUpdateVisibility[keyof typeof VenueManagerEventUpdateVisibility];
 
@@ -1860,6 +1887,8 @@ export interface VenueManagerEventUpdate {
      * @nullable
      */
   capacityLimit?: number | null;
+  /** @maxItems 2 */
+  reminderOffsetsHours?: VenueManagerEventUpdateReminderOffsetsHoursItem[];
   isPublished?: boolean;
   visibility?: VenueManagerEventUpdateVisibility;
   /**
@@ -1951,6 +1980,180 @@ export interface EventFeedItem {
   rsvpCount: number;
   /** @nullable */
   myRsvp?: EventFeedItemMyRsvp;
+}
+
+export interface EventQrCheckinInput {
+  /**
+     * @minLength 32
+     * @maxLength 64
+     */
+  token: string;
+}
+
+export type EventCheckinResponseEventType = typeof EventCheckinResponseEventType[keyof typeof EventCheckinResponseEventType];
+
+
+export const EventCheckinResponseEventType = {
+  venue: 'venue',
+  member: 'member',
+} as const;
+
+export type EventCheckinResponseCheckInMethod = typeof EventCheckinResponseCheckInMethod[keyof typeof EventCheckinResponseCheckInMethod];
+
+
+export const EventCheckinResponseCheckInMethod = {
+  qr: 'qr',
+  location: 'location',
+} as const;
+
+export interface EventCheckinResponse {
+  eventType: EventCheckinResponseEventType;
+  eventId: number;
+  title: string;
+  checkInMethod: EventCheckinResponseCheckInMethod;
+  alreadyCheckedIn: boolean;
+  checkedInAt: string;
+}
+
+export interface EventCheckinQrInput {
+  rotate?: boolean;
+}
+
+export interface EventCheckinQrResponse {
+  url: string;
+}
+
+export type EventAttendeeCheckInMethod = typeof EventAttendeeCheckInMethod[keyof typeof EventAttendeeCheckInMethod];
+
+
+export const EventAttendeeCheckInMethod = {
+  qr: 'qr',
+  location: 'location',
+  manual: 'manual',
+} as const;
+
+export interface EventAttendee {
+  uid: string;
+  displayName: string;
+  /** @nullable */
+  photoUrl: string | null;
+  checkInMethod: EventAttendeeCheckInMethod;
+  checkedInAt: string;
+  /** @nullable */
+  checkedInByUid: string | null;
+  /** @nullable */
+  manualReason: string | null;
+}
+
+export type EventRsvpStatus = typeof EventRsvpStatus[keyof typeof EventRsvpStatus];
+
+
+export const EventRsvpStatus = {
+  going: 'going',
+  maybe: 'maybe',
+  not_going: 'not_going',
+} as const;
+
+export interface EventRsvp {
+  uid: string;
+  displayName: string;
+  /** @nullable */
+  photoUrl?: string | null;
+  status: EventRsvpStatus;
+}
+
+export type EventAttendanceCorrectionAction = typeof EventAttendanceCorrectionAction[keyof typeof EventAttendanceCorrectionAction];
+
+
+export const EventAttendanceCorrectionAction = {
+  manual_check_in: 'manual_check_in',
+  undo_check_in: 'undo_check_in',
+} as const;
+
+/**
+ * @nullable
+ */
+export type EventAttendanceCorrectionPreviousMethod = typeof EventAttendanceCorrectionPreviousMethod[keyof typeof EventAttendanceCorrectionPreviousMethod] | null;
+
+
+export const EventAttendanceCorrectionPreviousMethod = {
+  qr: 'qr',
+  location: 'location',
+  manual: 'manual',
+} as const;
+
+export interface EventAttendanceCorrection {
+  uid: string;
+  displayName: string;
+  action: EventAttendanceCorrectionAction;
+  /** @nullable */
+  previousMethod: EventAttendanceCorrectionPreviousMethod;
+  reason: string;
+  actorUid: string;
+  createdAt: string;
+}
+
+export type EventNotificationRunKind = typeof EventNotificationRunKind[keyof typeof EventNotificationRunKind];
+
+
+export const EventNotificationRunKind = {
+  event_update: 'event_update',
+  reminder_24h: 'reminder_24h',
+  reminder_2h: 'reminder_2h',
+} as const;
+
+export type EventNotificationRunStatus = typeof EventNotificationRunStatus[keyof typeof EventNotificationRunStatus];
+
+
+export const EventNotificationRunStatus = {
+  sending: 'sending',
+  sent: 'sent',
+  partial: 'partial',
+  failed: 'failed',
+} as const;
+
+export interface EventNotificationRun {
+  kind: EventNotificationRunKind;
+  status: EventNotificationRunStatus;
+  recipientCount: number;
+  sentCount: number;
+  skippedCount: number;
+  failedCount: number;
+  startedAt: string;
+}
+
+export interface EventAttendeesResponse {
+  attendees: EventAttendee[];
+  rsvps: EventRsvp[];
+  corrections: EventAttendanceCorrection[];
+  notificationRuns: EventNotificationRun[];
+}
+
+export interface ManualEventCheckInInput {
+  /**
+     * @minLength 3
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+export interface UndoEventCheckInInput {
+  /**
+     * @minLength 3
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+export interface EventAttendanceCorrectionResponse {
+  success: boolean;
+}
+
+export interface NotificationPrefsInput {
+  notifyNewEncounters?: boolean;
+  notifyReencounter?: boolean;
+  notifyChat?: boolean;
+  notifyEventUpdates?: boolean;
 }
 
 export interface EventFeedResponse {
@@ -3662,6 +3865,10 @@ export interface SubmitAnswersRequest {
 export type VenueManagerCsrfParameter = string;
 
 export type CronSecretParameter = string;
+
+export type SyncMyNotificationPreferences200 = {
+  success: boolean;
+};
 
 export type NearbyPresenceParams = {
 lat: number;

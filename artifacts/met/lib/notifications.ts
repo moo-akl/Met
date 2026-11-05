@@ -160,11 +160,14 @@ export type NotifData = {
     | "venue_owner_approved"
     | "venue_owner_rejected"
     | "venue_owner_changes_requested"
-    | "venue_owner_withdrawn";
+    | "venue_owner_withdrawn"
+    | "venue_event_notification";
   fromUid?: string;
   encounterId?: string;
   chatPeerUid?: string;
   placeId?: string;
+  eventId?: string;
+  eventType?: "venue" | "member";
 };
 
 /**
@@ -204,6 +207,11 @@ export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
   if (data.type === "chat_message") {
     if (!data.chatPeerUid) return false;
     router.push(`/chat/${data.chatPeerUid}`);
+    return true;
+  }
+  if (data.type === "venue_event_notification") {
+    if (!data.eventId || data.eventType !== "venue") return false;
+    router.push(`/event-details/venue/${data.eventId}`);
     return true;
   }
   if (data.type === "reveal_accepted") {

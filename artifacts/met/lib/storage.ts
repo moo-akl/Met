@@ -65,6 +65,7 @@ export type Preferences = {
   notifyDailyRecap: boolean;
   notifyRecurringMeets: boolean;
   notifyChat: boolean;
+  notifyEventUpdates: boolean;
   autoCleanupDays: AutoCleanupDays;
 };
 
@@ -73,6 +74,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notifyDailyRecap: true,
   notifyRecurringMeets: true,
   notifyChat: true,
+  notifyEventUpdates: true,
   autoCleanupDays: 0,
 };
 
@@ -186,6 +188,10 @@ export async function loadPreferences(): Promise<Preferences> {
         typeof parsed.notifyChat === "boolean"
           ? parsed.notifyChat
           : DEFAULT_PREFERENCES.notifyChat,
+      notifyEventUpdates:
+        typeof parsed.notifyEventUpdates === "boolean"
+          ? parsed.notifyEventUpdates
+          : DEFAULT_PREFERENCES.notifyEventUpdates,
       autoCleanupDays: cleanup,
     };
   } catch {

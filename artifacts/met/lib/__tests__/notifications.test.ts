@@ -113,6 +113,24 @@ describe("routeNotifTap", () => {
     expect(push).toHaveBeenCalledWith("/chat/user-abc");
   });
 
+  it("routes venue event notifications to the event detail screen", () => {
+    const result = routeNotifTap({
+      type: "venue_event_notification",
+      eventType: "venue",
+      eventId: "42",
+    }, { push });
+    expect(result).toBe(true);
+    expect(push).toHaveBeenCalledWith("/event-details/venue/42");
+  });
+
+  it("does not route a venue event notification without an authorized event type and id", () => {
+    expect(routeNotifTap({
+      type: "venue_event_notification",
+      eventId: "42",
+    }, { push })).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("routes reveal_accepted to /connection/<fromUid>", () => {
     const data: NotifData = { type: "reveal_accepted", fromUid: "user-xyz" };
     const result = routeNotifTap(data, { push });
