@@ -5,6 +5,7 @@ import {
   createVenueManagerAnnouncement,
   VenueCategory,
   createVenueManagerEvent,
+  createVenueManagerEventInviteLink,
   createVenueManagerInvitation,
   createVenueManagerReward,
   deleteVenueManagerAnnouncement,
@@ -43,7 +44,7 @@ import {
   type VenueManagerRecentQrVerification,
 } from "@workspace/api-client-react";
 import QRCode from "react-qr-code";
-import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Printer, QrCode, RefreshCw, ScanLine, Search, Settings2, ShieldCheck, Trophy, Users, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Printer, QrCode, RefreshCw, ScanLine, Search, Settings2, ShieldCheck, Share2, Trophy, Users, X } from "lucide-react";
 import { normalizeVenuePlaceSearchResult, type PlaceResult, type VenuePlaceSearchItem } from "./lib/venuePlaceSearch";
 import { createPosterExportBlob, downloadBlob } from "./lib/posterExport";
 import { VenueQrPosterEditor, type VenueQrPosterDesign as PosterDesign } from "./components/VenueQrPosterEditor";
@@ -1473,12 +1474,61 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
 function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
   const client = useQueryClient(); const events = useBusinessQuery<VenueManagerEventList>(getListVenueManagerEventsQueryOptions, business.businessId); const [editing, setEditing] = useState<VenueManagerEvent | "new" | null>(null); const [message, setMessage] = useState("");
   const [attendanceEvent, setAttendanceEvent] = useState<VenueManagerEvent | null>(null);
-  const save = useMutation({ mutationFn: ({ id, data }: { id?: number; data: VenueManagerEventInput | VenueManagerEventUpdate }) => id ? updateVenueManagerEvent(business.businessId, id, data as VenueManagerEventUpdate, csrf(csrfToken)) : createVenueManagerEvent(business.businessId, data as VenueManagerEventInput, csrf(csrfToken)), onSuccess: () => { invalidateVenueManagerData(); setEditing(null); }, onError: (error) => setMessage(apiError(error)) });
+  const shareEvent = async (event: VenueManagerEvent) => {
+    try {
+      const invite = await createVenueManagerEventInviteLink(
+        business.businessId,
+        event.id,
+        csrf(csrfToken),
+      );
+      const invitationText = `You're invited to ${event.title}. Open your invitation in Met: ${invite.url}`;
+      if (typeof navigator.share === "function") {
+        try {
+          await navigator.share({
+            title: event.title,
+            text: invitationText,
+            url: invite.url,
+          });
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          await navigator.clipboard.writeText(invitationText);
+          setMessage("Invitation copied. Paste it into WhatsApp, Facebook, or another social app.");
+        }
+      } else {
+        try {
+          await navigator.clipboard.writeText(invitationText);
+          setMessage("Invitation copied. Paste it into WhatsApp, Facebook, or another social app.");
+        } catch {
+          window.prompt("Copy this invitation to share it:", invitationText);
+          setMessage("Copy the invitation and paste it into your social app.");
+        }
+      }
+      if (invite.passcodeRequired) {
+        setMessage("Send the passcode separately from the invitation link.");
+      }
+    } catch (error) {
+      setMessage(apiError(error));
+    }
+  };
+  const save = useMutation({
+    mutationFn: ({ id, data }: { id?: number; data: VenueManagerEventInput | VenueManagerEventUpdate; shareAfterSave?: boolean }) =>
+      id ? updateVenueManagerEvent(business.businessId, id, data as VenueManagerEventUpdate, csrf(csrfToken)) : createVenueManagerEvent(business.businessId, data as VenueManagerEventInput, csrf(csrfToken)),
+    onSuccess: async (result, variables) => {
+      invalidateVenueManagerData();
+      setEditing(null);
+      if (variables.shareAfterSave && result.event.visibility === "invite_only" && result.event.isPublished) {
+        await shareEvent(result.event as VenueManagerEvent);
+      } else if (variables.shareAfterSave) {
+        setMessage("Event saved as a draft. Publish it before sharing the invitation.");
+      }
+    },
+    onError: (error) => setMessage(apiError(error)),
+  });
   const remove = useMutation({ mutationFn: (id: number) => deleteVenueManagerEvent(business.businessId, id, csrf(csrfToken)), onSuccess: () => invalidateVenueManagerData() });
   return <>
     <div className="vm-toolbar"><span>{events.data?.events.length ?? 0} events</span><button className="vm-primary compact" onClick={() => { setMessage(""); setEditing("new"); }}><Plus size={16} />New event</button></div>
-    {events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small></div><div className="vm-item-actions"><button data-testid={`button-event-attendance-${event.id}`} onClick={() => setAttendanceEvent(event)}><Users size={14} />Attendance</button><button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}
-    {editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data) => save.mutate({ id: editing === "new" ? undefined : editing.id, data })} businessId={business.businessId} csrfToken={csrfToken} />}
+    {events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small></div><div className="vm-item-actions"><button data-testid={`button-event-attendance-${event.id}`} onClick={() => setAttendanceEvent(event)}><Users size={14} />Attendance</button>{event.visibility === "invite_only" && <button disabled={!event.isPublished} onClick={() => void shareEvent(event)}><Share2 size={14} />Share</button>}<button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}
+    {editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data, shareAfterSave) => save.mutate({ id: editing === "new" ? undefined : editing.id, data, shareAfterSave })} businessId={business.businessId} csrfToken={csrfToken} />}
     {attendanceEvent && <EventAttendanceModal event={attendanceEvent} businessId={business.businessId} csrfToken={csrfToken} onClose={() => setAttendanceEvent(null)} />}
   </>;
 }
@@ -1638,11 +1688,15 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
   );
 }
 
-function EventModal({ event, message, pending, onClose, onSubmit, businessId, csrfToken }: { event?: VenueManagerEvent; message: string; pending: boolean; onClose: () => void; onSubmit: (data: VenueManagerEventInput | VenueManagerEventUpdate) => void; businessId: number; csrfToken: string }) {
+function EventModal({ event, message, pending, onClose, onSubmit, businessId, csrfToken }: { event?: VenueManagerEvent; message: string; pending: boolean; onClose: () => void; onSubmit: (data: VenueManagerEventInput | VenueManagerEventUpdate, shareAfterSave?: boolean) => void; businessId: number; csrfToken: string }) {
   const [imageUrl, setImageUrl] = useState(event?.imageUrl ?? "");
   const [visibility, setVisibility] = useState<"public" | "invite_only">(event?.visibility ?? "public");
   const [reminderOffsetsHours, setReminderOffsetsHours] = useState<ReminderOffsetHours[]>(event?.reminderOffsetsHours ?? [24, 2]);
   const [inviteeUids, setInviteeUids] = useState<string[]>(event?.inviteeUids ?? []);
+  const hadPasscode = Boolean(event?.invitePasscodeRequired);
+  const [requireInvitePasscode, setRequireInvitePasscode] = useState(hadPasscode);
+  const [invitePasscode, setInvitePasscode] = useState("");
+  const [shareAfterSave, setShareAfterSave] = useState(!event);
   const [guests, setGuests] = useState<VenueGuest[]>([]);
   const [guestsLoading, setGuestsLoading] = useState(false);
   const [guestError, setGuestError] = useState("");
@@ -1668,8 +1722,9 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
       <form className="vm-form two-col" onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        if (visibility === "invite_only" && inviteeUids.length === 0) {
-          setGuestError("Choose at least one visitor for an invite-only event.");
+        if (visibility === "invite_only" && requireInvitePasscode &&
+          invitePasscode.trim().length < 6 && !hadPasscode) {
+          setGuestError("Enter a passcode with at least 6 characters.");
           return;
         }
         onSubmit({
@@ -1683,7 +1738,12 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
           imageUrl: imageUrl || null,
           visibility,
           inviteeUids: visibility === "invite_only" ? inviteeUids : [],
-        });
+          invitePasscode: visibility !== "invite_only"
+            ? null
+            : requireInvitePasscode
+              ? invitePasscode.trim() || undefined
+              : null,
+        }, visibility === "invite_only" && shareAfterSave);
       }}>
         {message && <div className="vm-notice error full">{message}</div>}
         <label className="full">Name<input name="title" required defaultValue={event?.title} /></label>
@@ -1709,13 +1769,13 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
           ))}
         </div>
         <label className="checkbox"><input name="isPublished" type="checkbox" defaultChecked={event?.isPublished ?? true} /> Publish this event</label>
-        <label className="full">Visibility<select value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "invite_only")}><option value="public">Public — visible in Events</option><option value="invite_only">Invite-only — selected visitors only</option></select></label>
+        <label className="full">Visibility<select value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "invite_only")}><option value="public">Public — visible in Events</option><option value="invite_only">Invite-only — share a private invitation link</option></select></label>
         {visibility === "invite_only" && <div className="full">
           <strong>Invite visitors</strong>
-          <p className="vm-subtitle">Only people who checked in at your venue can be invited.</p>
+          <p className="vm-subtitle">Select checked-in visitors or share the invitation link with guests on social media.</p>
           {guestsLoading && <SectionLoading />}
           {guestError && <div className="vm-notice error">{guestError}</div>}
-          {!guestsLoading && !guestError && guests.length === 0 && <Empty text="No visitors are available to invite yet." />}
+          {!guestsLoading && !guestError && guests.length === 0 && <p className="vm-subtitle">No checked-in visitors yet. You can still share the link.</p>}
           <div className="vm-stack">
             {guests.map((guest) => <label className="checkbox" key={guest.uid}>
               <input
@@ -1728,6 +1788,9 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
               {guest.displayName} · {guest.checkinCount} visits
             </label>)}
           </div>
+          <label className="checkbox"><input type="checkbox" checked={requireInvitePasscode} onChange={(e) => setRequireInvitePasscode(e.target.checked)} />Protect invitation link with a passcode</label>
+          {requireInvitePasscode && <label>Passcode {hadPasscode && <span className="vm-optional">leave blank to keep current</span>}<input type="password" value={invitePasscode} onChange={(e) => setInvitePasscode(e.target.value)} minLength={6} maxLength={64} placeholder="6–64 characters" /></label>}
+          {!event && <label className="checkbox"><input type="checkbox" checked={shareAfterSave} onChange={(e) => setShareAfterSave(e.target.checked)} />Share invitation after saving</label>}
         </div>}
         <label className="full">Description<textarea name="description" rows={4} defaultValue={event?.description ?? ""} /></label>
         <div className="full">

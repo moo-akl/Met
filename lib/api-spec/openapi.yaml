@@ -2435,6 +2435,28 @@ paths:
               schema:
                 $ref: "#/components/schemas/VenueManagerEventResponse"
 
+  /venue-owner/me/events/{eventId}/invite-link:
+    post:
+      operationId: createVenueOwnerEventInviteLink
+      tags: [venue-owner]
+      summary: Get a shareable invitation link for a venue event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Shareable invitation link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
+        "404":
+          description: Event not found
+        "409":
+          description: Event is not invitation-only
+
   /events/feed:
     get:
       operationId: getEventsFeed
@@ -2880,6 +2902,24 @@ paths:
                 $ref: "#/components/schemas/EventCheckinQrResponse"
         "404": { description: Event not found }
         "409": { description: The event must be published first }
+  /venue-manager/businesses/{businessId}/events/{eventId}/invite-link:
+    post:
+      operationId: createVenueManagerEventInviteLink
+      tags: [venue-manager]
+      summary: Get a shareable invitation link for a venue event
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "200":
+          description: Shareable invitation link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
+        "404": { description: Event not found }
+        "409": { description: Event is not published or invitation-only }
 
   /venue-manager/businesses/{businessId}/rewards:
     get:
@@ -6077,6 +6117,8 @@ components:
         inviteeUids:
           type: array
           items: { type: string }
+        inviteLinkEnabled: { type: boolean }
+        invitePasscodeRequired: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     VenueManagerEventList:
@@ -6132,6 +6174,8 @@ components:
           type: array
           maxItems: 200
           items: { type: string, minLength: 1, maxLength: 128 }
+        inviteLinkEnabled: { type: boolean }
+        invitePasscode: { type: ["string", "null"], minLength: 6, maxLength: 64 }
     VenueManagerEventUpdate:
       type: object
       properties:
@@ -6155,6 +6199,8 @@ components:
           type: array
           maxItems: 200
           items: { type: string, minLength: 1, maxLength: 128 }
+        inviteLinkEnabled: { type: boolean }
+        invitePasscode: { type: ["string", "null"], minLength: 6, maxLength: 64 }
     EventFeedItem:
       type: object
       required: [eventType, id, ownerUid, title, startsAt, visibility, rsvpCount, locationPlaceId]
@@ -6378,8 +6424,9 @@ components:
         passcode: { type: string, minLength: 1, maxLength: 64 }
     EventInviteSummary:
       type: object
-      required: [id, title, startsAt, creatorName, rsvpCount]
+      required: [eventType, id, title, startsAt, creatorName, rsvpCount]
       properties:
+        eventType: { type: string, enum: [venue, member] }
         id: { type: integer }
         title: { type: string }
         description: { type: ["string", "null"] }

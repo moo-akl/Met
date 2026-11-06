@@ -43,6 +43,12 @@ import {
   createEventCheckinLinkFields,
   decryptEventCheckinToken,
 } from "../lib/eventCheckinLinks";
+import {
+  buildEventInviteUrl,
+  createEventInviteLinkFields,
+  createEventInvitePasscodeFields,
+  decryptEventInviteToken,
+} from "../lib/eventInviteLinks";
 
 const router: IRouter = Router();
 const COOKIE = "met_venue_manager";
@@ -405,8 +411,19 @@ async function requireBusinessRole(req: Request, res: Response, permitted: reado
 }
 
 function serializeEvent(event: typeof venueEventsTable.$inferSelect) {
-  const { ownerUid: _ownerUid, ...serialized } = event;
-  return serialized;
+  const {
+    ownerUid: _ownerUid,
+    inviteTokenHash: _inviteTokenHash,
+    inviteTokenEncrypted: _inviteTokenEncrypted,
+    invitePasscodeSalt: _invitePasscodeSalt,
+    invitePasscodeHash: _invitePasscodeHash,
+    ...serialized
+  } = event;
+  return {
+    ...serialized,
+    inviteLinkEnabled: Boolean(event.inviteTokenHash),
+    invitePasscodeRequired: Boolean(event.invitePasscodeHash),
+  };
 }
 
 function parseReminderOffsets(value: unknown, fallback: number[]): number[] | null {
@@ -1005,11 +1022,22 @@ router.post("/venue-manager/businesses/:businessId/events", requireSession, requ
   if (visibility !== "public" && visibility !== "invite_only") return void res.status(400).json({ message: "Choose public or invite-only visibility." });
   const inviteeUids = req.body?.inviteeUids === undefined ? [] : await validateVenueEventInvitees(business.business.placeId, req.body.inviteeUids);
   if (!inviteeUids) return void res.status(400).json({ message: "Invitees must be visitors who have checked in at your venue." });
-  if (visibility === "invite_only" && inviteeUids.length === 0) return void res.status(400).json({ message: "Select at least one visitor for an invite-only event." });
+  const invitePasscode = typeof req.body?.invitePasscode === "string" ? req.body.invitePasscode.trim() : null;
+  if (invitePasscode && (invitePasscode.length < 6 || invitePasscode.length > 64)) return void res.status(400).json({ message: "Passcodes must be between 6 and 64 characters." });
+  if (visibility !== "invite_only" && invitePasscode) return void res.status(400).json({ message: "Passcodes are only available for invite-only events." });
+  let inviteLinkFields = {};
+  if (visibility === "invite_only") {
+    try {
+      inviteLinkFields = createEventInviteLinkFields(invitePasscode);
+    } catch (error) {
+      return void res.status(400).json({ message: error instanceof Error ? error.message : "Invalid invitation passcode." });
+    }
+  }
   const [event] = await db.insert(venueEventsTable).values({
     ownerUid: business.profile.ownerUid, placeId: business.business.placeId, title, startsAt, endsAt,
     description: optionalText(req.body?.description, 2000) ?? null, imageUrl: optionalText(req.body?.imageUrl, 2000) ?? null,
     capacityLimit, reminderOffsetsHours, isPublished: req.body?.isPublished !== false, visibility, inviteeUids,
+    ...inviteLinkFields,
   }).returning();
   res.status(201).json({ event: serializeEvent(event!) });
 });
@@ -1040,7 +1068,9 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
     ? existing.inviteeUids
     : await validateVenueEventInvitees(business.business.placeId, req.body.inviteeUids);
   if (!inviteeUids) return void res.status(400).json({ message: "Invitees must be visitors who have checked in at your venue." });
-  if (visibility === "invite_only" && inviteeUids.length === 0) return void res.status(400).json({ message: "Select at least one visitor for an invite-only event." });
+  const invitePasscode = typeof req.body?.invitePasscode === "string" ? req.body.invitePasscode.trim() : req.body?.invitePasscode === null ? null : undefined;
+  if (invitePasscode && (invitePasscode.length < 6 || invitePasscode.length > 64)) return void res.status(400).json({ message: "Passcodes must be between 6 and 64 characters." });
+  if (visibility !== "invite_only" && invitePasscode) return void res.status(400).json({ message: "Passcodes are only available for invite-only events." });
   const patch = Object.fromEntries(Object.entries({
     title, startsAt, endsAt, capacityLimit, reminderOffsetsHours,
     description: optionalText(req.body?.description, 2000),
@@ -1049,6 +1079,34 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
     visibility,
     inviteeUids: visibility === "invite_only" ? inviteeUids : [],
   }).filter(([, value]) => value !== undefined));
+  if (visibility !== "invite_only") {
+    Object.assign(patch, {
+      inviteTokenHash: null,
+      inviteTokenEncrypted: null,
+      invitePasscodeSalt: null,
+      invitePasscodeHash: null,
+    });
+  } else if (
+    existing.visibility !== "invite_only" ||
+    !existing.inviteTokenHash ||
+    !existing.inviteTokenEncrypted
+  ) {
+    try {
+      Object.assign(patch, createEventInviteLinkFields(invitePasscode));
+    } catch (error) {
+      return void res.status(400).json({ message: error instanceof Error ? error.message : "Invalid invitation passcode." });
+    }
+  } else if (invitePasscode !== undefined) {
+    if (!invitePasscode) {
+      Object.assign(patch, { invitePasscodeSalt: null, invitePasscodeHash: null });
+    } else {
+      try {
+        Object.assign(patch, createEventInvitePasscodeFields(invitePasscode));
+      } catch (error) {
+        return void res.status(400).json({ message: error instanceof Error ? error.message : "Invalid invitation passcode." });
+      }
+    }
+  }
   const [event] = await db.update(venueEventsTable).set({ ...patch, updatedAt: new Date() }).where(eq(venueEventsTable.id, eventId)).returning();
   if (
     existing.title !== event!.title ||
@@ -1315,6 +1373,48 @@ router.post("/venue-manager/businesses/:businessId/events/:eventId/check-in-qr",
   } catch (error) {
     req.log?.error({ error, eventId }, "Could not load venue manager event check-in QR");
     res.status(503).json({ message: "The event check-in code could not be loaded." });
+  }
+});
+
+router.post("/venue-manager/businesses/:businessId/events/:eventId/invite-link", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) return void res.status(400).json({ message: "Invalid event." });
+  const [event] = await db.select().from(venueEventsTable)
+    .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, business.business.placeId), eq(venueEventsTable.isHidden, false)))
+    .limit(1);
+  if (!event) return void res.status(404).json({ message: "Event not found." });
+  if (event.visibility !== "invite_only" || !event.isPublished) {
+    return void res.status(409).json({ message: "Publish an invitation-only event before sharing its link." });
+  }
+  try {
+    let token: string;
+    if (event.inviteTokenHash && event.inviteTokenEncrypted) {
+      token = decryptEventInviteToken(event.inviteTokenEncrypted);
+    } else {
+      const fields = createEventInviteLinkFields();
+      const [updated] = await db.update(venueEventsTable)
+        .set({ ...fields, updatedAt: new Date() })
+        .where(and(
+          eq(venueEventsTable.id, event.id),
+          eq(venueEventsTable.visibility, "invite_only"),
+          isNull(venueEventsTable.inviteTokenHash),
+        ))
+        .returning({ inviteTokenEncrypted: venueEventsTable.inviteTokenEncrypted });
+      const encrypted = updated?.inviteTokenEncrypted ?? event.inviteTokenEncrypted;
+      if (!encrypted) return void res.status(409).json({ message: "This event can no longer be shared." });
+      token = decryptEventInviteToken(encrypted);
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      url: buildEventInviteUrl(token),
+      passcodeRequired: Boolean(event.invitePasscodeHash),
+    });
+  } catch (error) {
+    req.log?.error({ error, eventId }, "Could not load venue manager event invite link");
+    res.status(503).json({ message: "Invite link could not be loaded. Edit the event to create a new link." });
   }
 });
 

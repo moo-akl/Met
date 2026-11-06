@@ -54,4 +54,11 @@ export interface VenueManagerEventUpdate {
      * @items.maxLength 128
      */
   inviteeUids?: string[];
+  inviteLinkEnabled?: boolean;
+  /**
+     * @minLength 6
+     * @maxLength 64
+     * @nullable
+     */
+  invitePasscode?: string | null;
 }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   and,
   arrayContains,
+  count,
   eq,
   exists,
   gte,
@@ -198,6 +199,17 @@ router.get("/events/feed", requireUid, async (req, res) => {
             eq(venueEventsTable.visibility, "public"),
             eq(venueEventsTable.ownerUid, uid),
             arrayContains(venueEventsTable.inviteeUids, [uid]),
+            exists(
+              db
+                .select({ id: venueEventRsvpsTable.id })
+                .from(venueEventRsvpsTable)
+                .where(
+                  and(
+                    eq(venueEventRsvpsTable.eventId, venueEventsTable.id),
+                    eq(venueEventRsvpsTable.userUid, uid),
+                  ),
+                ),
+            ),
           ),
         ),
       )
@@ -611,6 +623,17 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
           eq(venueEventsTable.visibility, "public"),
           eq(venueEventsTable.ownerUid, uid),
           arrayContains(venueEventsTable.inviteeUids, [uid]),
+          exists(
+            db
+              .select({ id: venueEventRsvpsTable.id })
+              .from(venueEventRsvpsTable)
+              .where(
+                and(
+                  eq(venueEventRsvpsTable.eventId, venueEventsTable.id),
+                  eq(venueEventRsvpsTable.userUid, uid),
+                ),
+              ),
+          ),
         ),
       ),
     )
@@ -695,7 +718,71 @@ router.post(
       )
       .limit(1);
     if (!row) {
-      res.status(404).json({ message: "Invitation not found." });
+      const [venueRow] = await db
+        .select({
+          event: venueEventsTable,
+          venueName: venueOwnerProfilesTable.businessName,
+          latitude: venueOwnerProfilesTable.lat,
+          longitude: venueOwnerProfilesTable.lng,
+        })
+        .from(venueEventsTable)
+        .innerJoin(
+          venueOwnerProfilesTable,
+          eq(venueOwnerProfilesTable.placeId, venueEventsTable.placeId),
+        )
+        .where(and(
+          eq(venueEventsTable.inviteTokenHash, hashEventInviteToken(parsed.data.token)),
+          eq(venueEventsTable.visibility, "invite_only"),
+          eq(venueEventsTable.isPublished, true),
+          eq(venueEventsTable.isHidden, false),
+          eq(venueOwnerProfilesTable.isApproved, true),
+          eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+        ))
+        .limit(1);
+      if (!venueRow) {
+        res.status(404).json({ message: "Invitation not found." });
+        return;
+      }
+      const event = venueRow.event;
+      const requiresPasscode = Boolean(event.invitePasscodeHash);
+      if (requiresPasscode && !parsed.data.passcode) {
+        res.setHeader("Cache-Control", "no-store");
+        res.json(ResolveEventInviteResponse.parse({ requiresPasscode, event: null }));
+        return;
+      }
+      if (!verifyEventInvitePasscode(
+        parsed.data.passcode,
+        event.invitePasscodeSalt,
+        event.invitePasscodeHash,
+      )) {
+        res.status(401).json({ message: "That passcode does not match." });
+        return;
+      }
+      const rsvps = await db
+        .select({ status: venueEventRsvpsTable.status })
+        .from(venueEventRsvpsTable)
+        .where(and(
+          eq(venueEventRsvpsTable.eventId, event.id),
+          ne(venueEventRsvpsTable.status, "not_going"),
+        ));
+      res.setHeader("Cache-Control", "no-store");
+      res.json(ResolveEventInviteResponse.parse({
+        requiresPasscode,
+        event: {
+          eventType: "venue",
+          id: event.id,
+          title: event.title,
+          description: event.description,
+          imageUrl: event.imageUrl,
+          startsAt: event.startsAt,
+          endsAt: event.endsAt,
+          location: venueRow.venueName,
+          creatorName: null,
+          latitude: venueRow.latitude != null ? Number(venueRow.latitude) : null,
+          longitude: venueRow.longitude != null ? Number(venueRow.longitude) : null,
+          rsvpCount: rsvps.length,
+        },
+      }));
       return;
     }
 
@@ -731,6 +818,7 @@ router.post(
       ResolveEventInviteResponse.parse({
         requiresPasscode,
         event: {
+          eventType: "member",
           id: event.id,
           title: event.title,
           description: event.description,
@@ -1177,33 +1265,78 @@ router.post(
         ),
       )
       .limit(1);
-    if (!event) {
-      res.status(404).json({ message: "Invitation not found." });
-      return;
-    }
-    if (
+    if (event && (
       !verifyEventInvitePasscode(
         parsedBody.data.passcode,
         event.invitePasscodeSalt,
         event.invitePasscodeHash,
       )
-    ) {
+    )) {
       res.status(401).json({ message: "That passcode does not match." });
       return;
     }
+    if (event) {
+      await db
+        .insert(communityEventRsvpsTable)
+        .values({
+          eventId: event.id,
+          userUid: uid,
+          status: parsedBody.data.status,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [communityEventRsvpsTable.eventId, communityEventRsvpsTable.userUid],
+          set: { status: parsedBody.data.status, updatedAt: new Date() },
+        });
+      res.json({ success: true, status: parsedBody.data.status });
+      return;
+    }
 
+    const [venueEvent] = await db
+      .select()
+      .from(venueEventsTable)
+      .where(and(
+        eq(venueEventsTable.inviteTokenHash, hashEventInviteToken(parsedBody.data.token)),
+        eq(venueEventsTable.visibility, "invite_only"),
+        eq(venueEventsTable.isPublished, true),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!venueEvent) {
+      res.status(404).json({ message: "Invitation not found." });
+      return;
+    }
+    if (!verifyEventInvitePasscode(
+      parsedBody.data.passcode,
+      venueEvent.invitePasscodeSalt,
+      venueEvent.invitePasscodeHash,
+    )) {
+      res.status(401).json({ message: "That passcode does not match." });
+      return;
+    }
     await db
-      .insert(communityEventRsvpsTable)
+      .insert(venueEventRsvpsTable)
       .values({
-        eventId: event.id,
+        eventId: venueEvent.id,
         userUid: uid,
         status: parsedBody.data.status,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [communityEventRsvpsTable.eventId, communityEventRsvpsTable.userUid],
+        target: [venueEventRsvpsTable.eventId, venueEventRsvpsTable.userUid],
         set: { status: parsedBody.data.status, updatedAt: new Date() },
       });
+    const [rsvpCount] = await db
+      .select({ value: count() })
+      .from(venueEventRsvpsTable)
+      .where(and(
+        eq(venueEventRsvpsTable.eventId, venueEvent.id),
+        ne(venueEventRsvpsTable.status, "not_going"),
+      ));
+    await db
+      .update(venueEventsTable)
+      .set({ rsvpCount: Number(rsvpCount?.value ?? 0), updatedAt: new Date() })
+      .where(eq(venueEventsTable.id, venueEvent.id));
     res.json({ success: true, status: parsedBody.data.status });
   },
 );

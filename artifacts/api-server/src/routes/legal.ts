@@ -420,17 +420,33 @@ router.get("/event-invite/:token", (req: Request, res: Response) => {
     "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926";
   const playStoreUrl =
     "https://play.google.com/store/apps/details?id=app.met.founders";
+  const userAgent = req.get("user-agent") ?? "";
+  const storeUrl = /iPhone|iPad|iPod/i.test(userAgent)
+    ? appStoreUrl
+    : /Android/i.test(userAgent)
+      ? playStoreUrl
+      : null;
+  if (storeUrl) {
+    res
+      .status(302)
+      .set("Cache-Control", "no-store")
+      .set("Referrer-Policy", "no-referrer")
+      .redirect(storeUrl);
+    return;
+  }
   const appUrl = `met:///event-invite/${encodeURIComponent(token)}`;
   res
     .status(200)
     .type("html")
     .set("Cache-Control", "no-store")
+    .set("Referrer-Policy", "no-referrer")
     .send(`<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
     <title>Event invitation · Met</title>
     <style>
       body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f7f3;color:#1a2421;font:16px system-ui,sans-serif}

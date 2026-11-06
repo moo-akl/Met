@@ -1745,6 +1745,8 @@ export interface VenueManagerEvent {
   isPublished: boolean;
   visibility?: VenueManagerEventVisibility;
   inviteeUids?: string[];
+  inviteLinkEnabled?: boolean;
+  invitePasscodeRequired?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1833,6 +1835,13 @@ export interface VenueManagerEventInput {
      * @items.maxLength 128
      */
   inviteeUids?: string[];
+  inviteLinkEnabled?: boolean;
+  /**
+     * @minLength 6
+     * @maxLength 64
+     * @nullable
+     */
+  invitePasscode?: string | null;
 }
 
 export type VenueManagerEventUpdateReminderOffsetsHoursItem = typeof VenueManagerEventUpdateReminderOffsetsHoursItem[keyof typeof VenueManagerEventUpdateReminderOffsetsHoursItem];
@@ -1897,6 +1906,13 @@ export interface VenueManagerEventUpdate {
      * @items.maxLength 128
      */
   inviteeUids?: string[];
+  inviteLinkEnabled?: boolean;
+  /**
+     * @minLength 6
+     * @maxLength 64
+     * @nullable
+     */
+  invitePasscode?: string | null;
 }
 
 export type EventFeedItemEventType = typeof EventFeedItemEventType[keyof typeof EventFeedItemEventType];
@@ -2368,7 +2384,16 @@ export interface EventInviteResolveInput {
   passcode?: string;
 }
 
+export type EventInviteSummaryEventType = typeof EventInviteSummaryEventType[keyof typeof EventInviteSummaryEventType];
+
+
+export const EventInviteSummaryEventType = {
+  venue: 'venue',
+  member: 'member',
+} as const;
+
 export interface EventInviteSummary {
+  eventType: EventInviteSummaryEventType;
   id: number;
   title: string;
   /** @nullable */

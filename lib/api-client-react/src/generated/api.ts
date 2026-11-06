@@ -238,6 +238,10 @@ import type {
 import { customFetch } from '../custom-fetch';
 import type { ErrorType , BodyType } from '../custom-fetch';
 
+type AwaitedInput<T> = PromiseLike<T> | T;
+
+      type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
+
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -8236,6 +8240,80 @@ export const useUpdateVenueOwnerEvent = <TError = ErrorType<unknown>,
       return useMutation(getUpdateVenueOwnerEventMutationOptions(options), queryClient);
     }
 
+export const getCreateVenueOwnerEventInviteLinkUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/venue-owner/me/events/${eventId}/invite-link`
+}
+
+/**
+ * @summary Get a shareable invitation link for a venue event
+ */
+export const createVenueOwnerEventInviteLink = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
+
+  return customFetch<CommunityEventInviteLinkResponse>(getCreateVenueOwnerEventInviteLinkUrl(eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateVenueOwnerEventInviteLinkMutationKey = () => ['createVenueOwnerEventInviteLink'] as const;
+
+export const getCreateVenueOwnerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueOwnerEventInviteLink>>, TError,CreateVenueOwnerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVenueOwnerEventInviteLink>>, TError,CreateVenueOwnerEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getCreateVenueOwnerEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVenueOwnerEventInviteLink>>, CreateVenueOwnerEventInviteLinkMutationVariables> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  createVenueOwnerEventInviteLink(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVenueOwnerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof createVenueOwnerEventInviteLink>>>
+
+    export type CreateVenueOwnerEventInviteLinkMutationError = ErrorType<void>
+    export type CreateVenueOwnerEventInviteLinkMutationVariables = {eventId: number}
+
+    /**
+ * @summary Get a shareable invitation link for a venue event
+ */
+export const useCreateVenueOwnerEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueOwnerEventInviteLink>>, TError,CreateVenueOwnerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createVenueOwnerEventInviteLink>>,
+        TError,
+        CreateVenueOwnerEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateVenueOwnerEventInviteLinkMutationOptions(options), queryClient);
+    }
+
 export const getGetEventsFeedUrl = () => {
 
 
@@ -10162,6 +10240,82 @@ export const useGetVenueManagerEventCheckinQr = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getGetVenueManagerEventCheckinQrMutationOptions(options), queryClient);
+    }
+
+export const getCreateVenueManagerEventInviteLinkUrl = (businessId: number,
+    eventId: number,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/invite-link`
+}
+
+/**
+ * @summary Get a shareable invitation link for a venue event
+ */
+export const createVenueManagerEventInviteLink = async (businessId: number,
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
+
+  return customFetch<CommunityEventInviteLinkResponse>(getCreateVenueManagerEventInviteLinkUrl(businessId,eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateVenueManagerEventInviteLinkMutationKey = () => ['createVenueManagerEventInviteLink'] as const;
+
+export const getCreateVenueManagerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, TError,CreateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, TError,CreateVenueManagerEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getCreateVenueManagerEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, CreateVenueManagerEventInviteLinkMutationVariables> = (props) => {
+          const {businessId,eventId} = props ?? {};
+
+          return  createVenueManagerEventInviteLink(businessId,eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVenueManagerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>>
+
+    export type CreateVenueManagerEventInviteLinkMutationError = ErrorType<void>
+    export type CreateVenueManagerEventInviteLinkMutationVariables = {businessId: number;eventId: number}
+
+    /**
+ * @summary Get a shareable invitation link for a venue event
+ */
+export const useCreateVenueManagerEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, TError,CreateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>,
+        TError,
+        CreateVenueManagerEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateVenueManagerEventInviteLinkMutationOptions(options), queryClient);
     }
 
 export const getListVenueManagerRewardsUrl = (businessId: number,) => {

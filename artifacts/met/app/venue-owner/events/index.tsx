@@ -5,11 +5,13 @@
  * Signal (light): #FAFAF8 editorial bg, rule-separated rows, #0D0D0D typography.
  */
 import React, { useCallback, useEffect, useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -22,6 +24,7 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
+import { useCreateVenueOwnerEventInviteLink } from "@workspace/api-client-react";
 
 const GREEN = "#00E87A";
 
@@ -34,6 +37,7 @@ export default function VenueOwnerEventsScreen() {
   const { profile, isLoading: ownerLoading, error: ownerError } = useVenueOwner();
   const [events, setEvents] = useState<VenueEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const createInviteLink = useCreateVenueOwnerEventInviteLink();
 
   // ── Venue theme tokens ──────────────────────────────────────────────────────
   const vBg         = isDark ? "#0A0518"                    : "#FAFAF8";
@@ -77,6 +81,29 @@ export default function VenueOwnerEventsScreen() {
         },
       },
     ]);
+  };
+
+  const handleShare = async (event: VenueEvent) => {
+    if (!authedUid || event.visibility !== "invite_only") return;
+    try {
+      const link = await createInviteLink.mutateAsync({ eventId: event.id });
+      await Share.share({
+        message: `${event.title}\n${link.url}`,
+        url: link.url,
+        title: event.title,
+      });
+      if (link.passcodeRequired) {
+        Alert.alert(
+          "Passcode protected",
+          "Send the passcode separately from the invitation link.",
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        "Could not share event",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    }
   };
 
   if (ownerLoading || loading) {
@@ -165,6 +192,8 @@ export default function VenueOwnerEventsScreen() {
                       endsAt: item.endsAt ?? "",
                       capacityLimit: item.capacityLimit != null ? String(item.capacityLimit) : "",
                       isPublished: String(item.isPublished),
+                      visibility: item.visibility,
+                      invitePasscodeRequired: String(item.invitePasscodeRequired),
                     },
                   })
                 }
@@ -173,6 +202,17 @@ export default function VenueOwnerEventsScreen() {
               >
                 <Text style={styles.editBtnText}>✏️</Text>
               </Pressable>
+              {item.visibility === "invite_only" ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Share invitation for ${item.title}`}
+                  onPress={() => void handleShare(item)}
+                  style={styles.editBtn}
+                  hitSlop={8}
+                >
+                  <Feather name="share-2" size={18} color={accent} />
+                </Pressable>
+              ) : null}
               <Pressable
                 onPress={() => handleDelete(item.id)}
                 style={styles.deleteBtn}

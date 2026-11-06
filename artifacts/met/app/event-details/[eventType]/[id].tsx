@@ -28,6 +28,7 @@ import {
   getGetEventsFeedQueryKey,
   useDeleteCommunityEvent,
   useCreateCommunityEventInviteLink,
+  useCreateVenueOwnerEventInviteLink,
   useReportCommunityEvent,
   useRsvpCommunityEvent,
   type EventFeedItem,
@@ -79,13 +80,14 @@ export default function EventDetailsScreen() {
   });
 
   const event = eventQuery.data;
-  const isOwner = Boolean(event && event.eventType === "member" && event.ownerUid === authedUid);
+  const isOwner = Boolean(event && event.ownerUid === authedUid);
   const location = event?.location ?? event?.venueName ?? null;
   const ownerManageQuery = useQuery({
     ...getGetCommunityEventForEditQueryOptions(isValidRoute ? eventId : 0),
     enabled: isOwner && event?.eventType === "member",
   });
   const shareInviteMutation = useCreateCommunityEventInviteLink();
+  const shareVenueInviteMutation = useCreateVenueOwnerEventInviteLink();
   const reportCommunityEvent = useReportCommunityEvent();
 
   const saveRsvp = async (status: RsvpStatus) => {
@@ -113,7 +115,9 @@ export default function EventDetailsScreen() {
 
   const canShareEvent = Boolean(
     event &&
-    (event.eventType === "venue" ||
+    (event.eventType === "venue"
+      ? event.visibility === "public" || isOwner
+      :
       event.visibility === "public" ||
       (isOwner && ownerManageQuery.data?.inviteLinkEnabled)),
   );
@@ -123,10 +127,9 @@ export default function EventDetailsScreen() {
     setActionError("");
     try {
       const link = event.eventType === "venue"
-        ? {
-            url: buildEventDetailsUrl("venue", event.id),
-            passcodeRequired: false,
-          }
+        ? event.visibility === "invite_only"
+          ? await shareVenueInviteMutation.mutateAsync({ eventId: event.id })
+          : { url: buildEventDetailsUrl("venue", event.id), passcodeRequired: false }
         : await shareInviteMutation.mutateAsync({ eventId: event.id });
       if (event.eventType === "venue" && !event.placeId) {
         throw new Error("This venue event does not have a shareable venue link.");

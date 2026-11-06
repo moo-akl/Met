@@ -97,7 +97,7 @@ export default function EventInviteScreen() {
         },
       });
       await queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() });
-      router.replace(`/event-details/member/${event.id}` as never);
+      router.replace(`/event-details/${event.eventType}/${event.id}` as never);
     } catch (cause) {
       setError(
         cause instanceof Error

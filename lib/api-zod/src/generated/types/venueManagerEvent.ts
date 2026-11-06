@@ -40,6 +40,8 @@ export interface VenueManagerEvent {
   isPublished: boolean;
   visibility?: VenueManagerEventVisibility;
   inviteeUids?: string[];
+  inviteLinkEnabled?: boolean;
+  invitePasscodeRequired?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

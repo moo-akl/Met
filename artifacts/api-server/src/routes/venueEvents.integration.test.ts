@@ -490,4 +490,80 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(events[0]!.imageUrl).toBe("https://example.com/updated-banner.png");
     expect(events[0]!.capacityLimit).toBe(100);
   });
+
+  it("shares invite-only venue events with an optional passcode and grants RSVP access", async () => {
+    const { agent, csrf, business } = await claimOwner("social-invite");
+    const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const created = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events`)
+      .set("x-csrf-token", csrf)
+      .send({
+        title: "Invite-only venue event",
+        startsAt,
+        visibility: "invite_only",
+        inviteeUids: [],
+        invitePasscode: "invite7",
+        isPublished: true,
+      });
+
+    expect(created.status).toBe(201);
+    const createdEvent = created.body.event as Record<string, unknown>;
+    expect(createdEvent.invitePasscodeHash).toBeUndefined();
+    expect(createdEvent.inviteTokenEncrypted).toBeUndefined();
+    expect(createdEvent.invitePasscodeRequired).toBe(true);
+    const eventId = Number(createdEvent.id);
+
+    const linkRes = await agent
+      .post(`/api/venue-manager/businesses/${business.id}/events/${eventId}/invite-link`)
+      .set("x-csrf-token", csrf);
+    expect(linkRes.status).toBe(200);
+    expect(linkRes.body.passcodeRequired).toBe(true);
+    const invitationUrl = new URL(linkRes.body.url as string);
+    const token = invitationUrl.pathname.split("/").at(-1);
+    expect(token).toBeTruthy();
+
+    const locked = await api().post("/api/event-invites/resolve").send({ token });
+    expect(locked.status).toBe(200);
+    expect(locked.body).toEqual({ requiresPasscode: true, event: null });
+
+    const wrongPasscode = await api()
+      .post("/api/event-invites/resolve")
+      .send({ token, passcode: "wrong7" });
+    expect(wrongPasscode.status).toBe(401);
+
+    const unlocked = await api()
+      .post("/api/event-invites/resolve")
+      .send({ token, passcode: "invite7" });
+    expect(unlocked.status).toBe(200);
+    expect(unlocked.body.event).toMatchObject({
+      eventType: "venue",
+      id: eventId,
+      title: "Invite-only venue event",
+    });
+
+    const rsvp = await api()
+      .post("/api/event-invites/rsvp")
+      .set("x-test-uid", GUEST_UID)
+      .send({ token, status: "going", passcode: "invite7" });
+    expect(rsvp.status).toBe(200);
+
+    const guestDetails = await api()
+      .get(`/api/events/venue/${eventId}`)
+      .set("x-test-uid", GUEST_UID);
+    expect(guestDetails.status).toBe(200);
+    expect(guestDetails.body).toMatchObject({
+      eventType: "venue",
+      id: eventId,
+      myRsvp: "going",
+    });
+
+    const guestFeed = await api()
+      .get("/api/events/feed")
+      .set("x-test-uid", GUEST_UID);
+    expect(guestFeed.body.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventType: "venue", id: eventId }),
+      ]),
+    );
+  });
 });

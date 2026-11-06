@@ -60,6 +60,8 @@ export default function EditVenueEventScreen() {
     endsAt?: string;
     capacityLimit?: string;
     isPublished?: string;
+    visibility?: string;
+    invitePasscodeRequired?: string;
   }>();
 
   const eventId = Number(params.id);
@@ -81,9 +83,17 @@ export default function EditVenueEventScreen() {
   );
   const [imageUploading, setImageUploading] = useState(false);
   const [isPublished, setIsPublished] = useState(params.isPublished === "true");
+  const [visibility, setVisibility] = useState<"public" | "invite_only">(
+    params.visibility === "invite_only" ? "invite_only" : "public",
+  );
+  const initiallyRequiresPasscode = params.invitePasscodeRequired === "true";
+  const [requireInvitePasscode, setRequireInvitePasscode] = useState(initiallyRequiresPasscode);
+  const [invitePasscode, setInvitePasscode] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = title.trim().length > 0;
+  const canSubmit = title.trim().length > 0 &&
+    (visibility !== "invite_only" || !requireInvitePasscode ||
+      invitePasscode.trim().length >= 6 || initiallyRequiresPasscode);
 
   // ── Venue theme tokens ──────────────────────────────────────────────────────
   const vBg          = isDark ? "#0A0518"                : "#FAFAF8";
@@ -144,6 +154,12 @@ export default function EditVenueEventScreen() {
         endsAt: endsAt ? endsAt.toISOString() : null,
         capacityLimit: capacityLimit.trim() ? Number(capacityLimit) : null,
         isPublished,
+        visibility,
+        invitePasscode: visibility !== "invite_only"
+          ? null
+          : requireInvitePasscode
+            ? invitePasscode.trim() || undefined
+            : null,
       });
       Alert.alert("Event updated!", undefined, [
         { text: "Done", onPress: () => router.back() },
@@ -253,6 +269,64 @@ export default function EditVenueEventScreen() {
           placeholder="100"
           vInput={vInput} vText={vText} vLabel={vLabel} vPlaceholder={vPlaceholder} accent={accent} />
 
+        <View>
+          <Text style={[styles.fieldLabel, { color: vLabel }]}>Who can see this event?</Text>
+          <View style={styles.visibilityRow}>
+            {(["public", "invite_only"] as const).map((option) => (
+              <Pressable
+                key={option}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: visibility === option }}
+                onPress={() => setVisibility(option)}
+                style={[
+                  styles.visibilityOption,
+                  {
+                    backgroundColor: visibility === option ? accent + "18" : vInput,
+                    borderColor: visibility === option ? accent : accent + "35",
+                  },
+                ]}
+              >
+                <Text style={[styles.visibilityTitle, { color: vText }]}>
+                  {option === "public" ? "Public" : "Invitation only"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {visibility === "invite_only" ? (
+          <View>
+            <View style={styles.toggleRow}>
+              <Text style={[styles.toggleLabel, { color: vToggleLabel }]}>Protect link with a passcode</Text>
+              <Switch
+                value={requireInvitePasscode}
+                onValueChange={setRequireInvitePasscode}
+                trackColor={{ false: isDark ? "#333" : "rgba(0,0,0,0.12)", true: accent + "80" }}
+                thumbColor={requireInvitePasscode ? accent : isDark ? "#888" : "#bbb"}
+              />
+            </View>
+            {requireInvitePasscode ? (
+              <>
+                <Field
+                  label="New passcode (leave blank to keep current)"
+                  value={invitePasscode}
+                  onChangeText={setInvitePasscode}
+                  placeholder="6–64 characters"
+                  autoCapitalize="none"
+                  vInput={vInput}
+                  vText={vText}
+                  vLabel={vLabel}
+                  vPlaceholder={vPlaceholder}
+                  accent={accent}
+                />
+                <Text style={[styles.toggleSub, { color: vToggleSub }]}>
+                  Send the passcode separately from the invitation link.
+                </Text>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Publish toggle */}
         <View style={[styles.toggleRow, { backgroundColor: vToggleBg, borderColor: vToggleBorder }]}>
           <View style={{ flex: 1 }}>
@@ -326,6 +400,9 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, padding: 14 },
   toggleLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   toggleSub: { fontSize: 12, marginTop: 2 },
+  visibilityRow: { gap: 9 },
+  visibilityOption: { borderWidth: 1, borderRadius: 12, padding: 12 },
+  visibilityTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   saveBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });

@@ -3516,6 +3516,9 @@ export const createVenueOwnerEventBodyInviteeUidsItemMax = 128;
 
 export const createVenueOwnerEventBodyInviteeUidsMax = 200;
 
+export const createVenueOwnerEventBodyInvitePasscodeMin = 6;
+export const createVenueOwnerEventBodyInvitePasscodeMax = 64;
+
 
 
 export const CreateVenueOwnerEventBody = zod.object({
@@ -3531,7 +3534,9 @@ export const CreateVenueOwnerEventBody = zod.object({
   "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(createVenueOwnerEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
-  "inviteeUids": zod.array(zod.string().min(1).max(createVenueOwnerEventBodyInviteeUidsItemMax)).max(createVenueOwnerEventBodyInviteeUidsMax).optional()
+  "inviteeUids": zod.array(zod.string().min(1).max(createVenueOwnerEventBodyInviteeUidsItemMax)).max(createVenueOwnerEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscode": zod.string().min(createVenueOwnerEventBodyInvitePasscodeMin).max(createVenueOwnerEventBodyInvitePasscodeMax).nullish()
 })
 
 export const createVenueOwnerEventResponseEventContactPhoneMax = 40;
@@ -3559,6 +3564,8 @@ export const CreateVenueOwnerEventResponse = zod.object({
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -3589,6 +3596,9 @@ export const updateVenueOwnerEventBodyInviteeUidsItemMax = 128;
 
 export const updateVenueOwnerEventBodyInviteeUidsMax = 200;
 
+export const updateVenueOwnerEventBodyInvitePasscodeMin = 6;
+export const updateVenueOwnerEventBodyInvitePasscodeMax = 64;
+
 
 
 export const UpdateVenueOwnerEventBody = zod.object({
@@ -3604,7 +3614,9 @@ export const UpdateVenueOwnerEventBody = zod.object({
   "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(updateVenueOwnerEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
-  "inviteeUids": zod.array(zod.string().min(1).max(updateVenueOwnerEventBodyInviteeUidsItemMax)).max(updateVenueOwnerEventBodyInviteeUidsMax).optional()
+  "inviteeUids": zod.array(zod.string().min(1).max(updateVenueOwnerEventBodyInviteeUidsItemMax)).max(updateVenueOwnerEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscode": zod.string().min(updateVenueOwnerEventBodyInvitePasscodeMin).max(updateVenueOwnerEventBodyInvitePasscodeMax).nullish()
 })
 
 export const updateVenueOwnerEventResponseEventContactPhoneMax = 40;
@@ -3632,9 +3644,27 @@ export const UpdateVenueOwnerEventResponse = zod.object({
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })
+})
+
+
+/**
+ * @summary Get a shareable invitation link for a venue event
+ */
+
+
+
+export const CreateVenueOwnerEventInviteLinkParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const CreateVenueOwnerEventInviteLinkResponse = zod.object({
+  "url": zod.string().url(),
+  "passcodeRequired": zod.boolean()
 })
 
 
@@ -3972,6 +4002,7 @@ export const ResolveEventInviteBody = zod.object({
 export const ResolveEventInviteResponse = zod.object({
   "requiresPasscode": zod.boolean(),
   "event": zod.union([zod.object({
+  "eventType": zod.enum(['venue', 'member']),
   "id": zod.number().int(),
   "title": zod.string(),
   "description": zod.string().nullish(),
@@ -4166,6 +4197,8 @@ export const ListVenueManagerEventsResponse = zod.object({
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -4206,6 +4239,9 @@ export const createVenueManagerEventBodyInviteeUidsItemMax = 128;
 
 export const createVenueManagerEventBodyInviteeUidsMax = 200;
 
+export const createVenueManagerEventBodyInvitePasscodeMin = 6;
+export const createVenueManagerEventBodyInvitePasscodeMax = 64;
+
 
 
 export const CreateVenueManagerEventBody = zod.object({
@@ -4221,7 +4257,9 @@ export const CreateVenueManagerEventBody = zod.object({
   "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(createVenueManagerEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
-  "inviteeUids": zod.array(zod.string().min(1).max(createVenueManagerEventBodyInviteeUidsItemMax)).max(createVenueManagerEventBodyInviteeUidsMax).optional()
+  "inviteeUids": zod.array(zod.string().min(1).max(createVenueManagerEventBodyInviteeUidsItemMax)).max(createVenueManagerEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscode": zod.string().min(createVenueManagerEventBodyInvitePasscodeMin).max(createVenueManagerEventBodyInvitePasscodeMax).nullish()
 })
 
 export const createVenueManagerEventResponseEventContactPhoneMax = 40;
@@ -4249,6 +4287,8 @@ export const CreateVenueManagerEventResponse = zod.object({
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -4291,6 +4331,9 @@ export const updateVenueManagerEventBodyInviteeUidsItemMax = 128;
 
 export const updateVenueManagerEventBodyInviteeUidsMax = 200;
 
+export const updateVenueManagerEventBodyInvitePasscodeMin = 6;
+export const updateVenueManagerEventBodyInvitePasscodeMax = 64;
+
 
 
 export const UpdateVenueManagerEventBody = zod.object({
@@ -4306,7 +4349,9 @@ export const UpdateVenueManagerEventBody = zod.object({
   "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(updateVenueManagerEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
-  "inviteeUids": zod.array(zod.string().min(1).max(updateVenueManagerEventBodyInviteeUidsItemMax)).max(updateVenueManagerEventBodyInviteeUidsMax).optional()
+  "inviteeUids": zod.array(zod.string().min(1).max(updateVenueManagerEventBodyInviteeUidsItemMax)).max(updateVenueManagerEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscode": zod.string().min(updateVenueManagerEventBodyInvitePasscodeMin).max(updateVenueManagerEventBodyInvitePasscodeMax).nullish()
 })
 
 export const updateVenueManagerEventResponseEventContactPhoneMax = 40;
@@ -4334,6 +4379,8 @@ export const UpdateVenueManagerEventResponse = zod.object({
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -4510,6 +4557,31 @@ export const GetVenueManagerEventCheckinQrBody = zod.object({
 
 export const GetVenueManagerEventCheckinQrResponse = zod.object({
   "url": zod.string().url()
+})
+
+
+/**
+ * @summary Get a shareable invitation link for a venue event
+ */
+
+
+
+
+export const CreateVenueManagerEventInviteLinkParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const CreateVenueManagerEventInviteLinkHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1)
+})
+
+export const CreateVenueManagerEventInviteLinkResponse = zod.object({
+  "url": zod.string().url(),
+  "passcodeRequired": zod.boolean()
 })
 
 
@@ -5319,6 +5391,8 @@ export const ListAdminManagedEventsResponse = zod.object({
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -5346,6 +5420,9 @@ export const createAdminManagedEventBodyInviteeUidsItemMax = 128;
 
 export const createAdminManagedEventBodyInviteeUidsMax = 200;
 
+export const createAdminManagedEventBodyInvitePasscodeMin = 6;
+export const createAdminManagedEventBodyInvitePasscodeMax = 64;
+
 
 
 export const CreateAdminManagedEventBody = zod.object({
@@ -5361,7 +5438,9 @@ export const CreateAdminManagedEventBody = zod.object({
   "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(createAdminManagedEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
-  "inviteeUids": zod.array(zod.string().min(1).max(createAdminManagedEventBodyInviteeUidsItemMax)).max(createAdminManagedEventBodyInviteeUidsMax).optional()
+  "inviteeUids": zod.array(zod.string().min(1).max(createAdminManagedEventBodyInviteeUidsItemMax)).max(createAdminManagedEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscode": zod.string().min(createAdminManagedEventBodyInvitePasscodeMin).max(createAdminManagedEventBodyInvitePasscodeMax).nullish()
 })
 
 export const createAdminManagedEventResponseEventContactPhoneMax = 40;
@@ -5389,6 +5468,8 @@ export const CreateAdminManagedEventResponse = zod.object({
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -5452,6 +5533,9 @@ export const updateAdminManagedEventBodyInviteeUidsItemMax = 128;
 
 export const updateAdminManagedEventBodyInviteeUidsMax = 200;
 
+export const updateAdminManagedEventBodyInvitePasscodeMin = 6;
+export const updateAdminManagedEventBodyInvitePasscodeMax = 64;
+
 
 
 export const UpdateAdminManagedEventBody = zod.object({
@@ -5467,7 +5551,9 @@ export const UpdateAdminManagedEventBody = zod.object({
   "reminderOffsetsHours": zod.array(zod.union([zod.literal(24),zod.literal(2)])).max(updateAdminManagedEventBodyReminderOffsetsHoursMax).optional(),
   "isPublished": zod.boolean().optional(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
-  "inviteeUids": zod.array(zod.string().min(1).max(updateAdminManagedEventBodyInviteeUidsItemMax)).max(updateAdminManagedEventBodyInviteeUidsMax).optional()
+  "inviteeUids": zod.array(zod.string().min(1).max(updateAdminManagedEventBodyInviteeUidsItemMax)).max(updateAdminManagedEventBodyInviteeUidsMax).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscode": zod.string().min(updateAdminManagedEventBodyInvitePasscodeMin).max(updateAdminManagedEventBodyInvitePasscodeMax).nullish()
 })
 
 export const updateAdminManagedEventResponseEventContactPhoneMax = 40;
@@ -5495,6 +5581,8 @@ export const UpdateAdminManagedEventResponse = zod.object({
   "isPublished": zod.boolean(),
   "visibility": zod.enum(['public', 'invite_only']).optional(),
   "inviteeUids": zod.array(zod.string()).optional(),
+  "inviteLinkEnabled": zod.boolean().optional(),
+  "invitePasscodeRequired": zod.boolean().optional(),
   "createdAt": zod.coerce.date().optional(),
   "updatedAt": zod.coerce.date().optional()
 })

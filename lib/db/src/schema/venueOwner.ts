@@ -379,6 +379,11 @@ export const venueEventsTable = pgTable(
     visibility: text("visibility").notNull().default("public"),
     /** Met users selected by the venue from its visitor list for invite-only events. */
     inviteeUids: text("invitee_uids").array().notNull().default(sql`ARRAY[]::text[]`),
+    /** SHA-256 lookup digest; the bearer token itself is encrypted at rest. */
+    inviteTokenHash: text("invite_token_hash"),
+    inviteTokenEncrypted: text("invite_token_encrypted"),
+    invitePasscodeSalt: text("invite_passcode_salt"),
+    invitePasscodeHash: text("invite_passcode_hash"),
     /** Denormalized going+maybe RSVP count — updated on each RSVP change. */
     rsvpCount: integer("rsvp_count").notNull().default(0),
     isPublished: boolean("is_published").notNull().default(true),
@@ -395,6 +400,9 @@ export const venueEventsTable = pgTable(
     ownerUidIdx: index("venue_events_owner_uid_idx").on(t.ownerUid),
     placeIdIdx: index("venue_events_place_id_idx").on(t.placeId),
     startsAtIdx: index("venue_events_starts_at_idx").on(t.startsAt),
+    inviteTokenHashUniq: uniqueIndex("venue_events_invite_token_hash_uniq").on(
+      t.inviteTokenHash,
+    ),
     checkinTokenHashUniq: uniqueIndex("venue_events_checkin_token_hash_uniq").on(
       t.checkinTokenHash,
     ),

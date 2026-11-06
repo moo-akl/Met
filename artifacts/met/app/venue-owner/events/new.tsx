@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Switch,
@@ -22,6 +23,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, ApiError } from "@/lib/api/client";
@@ -29,7 +31,10 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { DateTimePicker } from "@/components/DateTimePicker";
-import { useGetVenueOwnerMeGuests } from "@workspace/api-client-react";
+import {
+  useCreateVenueOwnerEventInviteLink,
+  useGetVenueOwnerMeGuests,
+} from "@workspace/api-client-react";
 import { prepareVenueEventImage } from "@/lib/venueEventImage";
 
 const GREEN = "#00E87A";
@@ -61,7 +66,10 @@ export default function NewVenueEventScreen() {
   const [isPublished, setIsPublished] = useState(true);
   const [visibility, setVisibility] = useState<"public" | "invite_only">("public");
   const [inviteeUids, setInviteeUids] = useState<string[]>([]);
+  const [requireInvitePasscode, setRequireInvitePasscode] = useState(false);
+  const [invitePasscode, setInvitePasscode] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const createInviteLink = useCreateVenueOwnerEventInviteLink();
   const guestsQuery = useGetVenueOwnerMeGuests(
     { period: "all", limit: 100, offset: 0 },
     { query: { enabled: visibility === "invite_only", staleTime: 30_000 } },
@@ -110,13 +118,14 @@ export default function NewVenueEventScreen() {
   };
 
   const canSubmit = title.trim().length > 0 &&
-    (visibility === "public" || inviteeUids.length > 0);
+    (visibility !== "invite_only" || !requireInvitePasscode ||
+      invitePasscode.trim().length >= 6);
 
   const handleCreate = async () => {
     if (!authedUid || !canSubmit || submitting) return;
     setSubmitting(true);
     try {
-      await api.createVenueEvent({ uid: authedUid }, {
+      const { event } = await api.createVenueEvent({ uid: authedUid }, {
         title: title.trim(),
         description: description.trim() || null,
         imageUrl: imageUrl.trim() || null,
@@ -131,8 +140,45 @@ export default function NewVenueEventScreen() {
         isPublished,
         visibility,
         inviteeUids: visibility === "invite_only" ? inviteeUids : [],
+        invitePasscode: visibility === "invite_only" && requireInvitePasscode
+          ? invitePasscode.trim()
+          : null,
       });
-      Alert.alert("Event created!", undefined, [{ text: "Done", onPress: () => router.back() }]);
+      if (visibility === "invite_only" && isPublished) {
+        try {
+          const link = await createInviteLink.mutateAsync({ eventId: event.id });
+          await Share.share({
+            message: `${title.trim()}\n${link.url}`,
+            url: link.url,
+            title: title.trim(),
+          });
+          if (link.passcodeRequired) {
+            Alert.alert(
+              "Passcode protected",
+              "Share this passcode separately from the invitation link.",
+              [
+                {
+                  text: "Copy passcode",
+                  onPress: () => void Clipboard.setStringAsync(invitePasscode.trim()),
+                },
+                { text: "Done" },
+              ],
+            );
+          }
+        } catch (shareError) {
+          Alert.alert(
+            "Event created",
+            shareError instanceof Error
+              ? `The event is saved, but the invitation link could not be shared: ${shareError.message}`
+              : "The event is saved, but the invitation link could not be shared.",
+          );
+        }
+      } else if (visibility === "invite_only") {
+        Alert.alert("Event saved as a draft", "Publish it before sharing the invitation link.");
+      } else {
+        Alert.alert("Event created!");
+      }
+      router.back();
     } catch (err) {
       Alert.alert("Error", err instanceof ApiError ? err.message : "Failed to create event");
     } finally {
@@ -216,7 +262,7 @@ export default function NewVenueEventScreen() {
                     {option === "public" ? "Public" : "Invitation only"}
                   </Text>
                   <Text style={[styles.visibilityDescription, { color: vMuted }]}>
-                    {option === "public" ? "Anyone can find this event." : "Only selected venue visitors can see it."}
+                    {option === "public" ? "Anyone can find this event." : "Invite selected visitors or share a private link."}
                   </Text>
                 </Pressable>
               );
@@ -228,7 +274,7 @@ export default function NewVenueEventScreen() {
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: vLabel }]}>Invite visitors</Text>
             <Text style={[styles.visibilityDescription, { color: vMuted }]}>
-              Choose people who have checked in at your venue.
+              Choose checked-in visitors, or share the event link with anyone you invite.
             </Text>
             {guestsQuery.isLoading ? (
               <ActivityIndicator color={accent} style={styles.guestLoading} />
@@ -238,7 +284,7 @@ export default function NewVenueEventScreen() {
               </Text>
             ) : (guestsQuery.data?.guests ?? []).length === 0 ? (
               <Text style={[styles.visibilityDescription, { color: vMuted }]}>
-                No checked-in visitors are available to invite yet.
+                No checked-in visitors yet. You can still share the invitation link.
               </Text>
             ) : (guestsQuery.data?.guests ?? []).map((guest) => {
               const selected = inviteeUids.includes(guest.uid);
@@ -259,6 +305,34 @@ export default function NewVenueEventScreen() {
                 </Pressable>
               );
             })}
+            <View style={[styles.toggleRow, { marginTop: 12 }]}>
+              <Text style={[styles.toggleLabel, { color: vToggleLabel }]}>Protect link with a passcode</Text>
+              <Switch
+                value={requireInvitePasscode}
+                onValueChange={setRequireInvitePasscode}
+                trackColor={{ false: isDark ? "#333" : "rgba(0,0,0,0.12)", true: accent + "80" }}
+                thumbColor={requireInvitePasscode ? accent : isDark ? "#888" : "#bbb"}
+              />
+            </View>
+            {requireInvitePasscode ? (
+              <>
+                <Field
+                  label="Passcode (6–64 characters)"
+                  value={invitePasscode}
+                  onChangeText={setInvitePasscode}
+                  placeholder="Create a passcode"
+                  autoCapitalize="none"
+                  vInput={vInput}
+                  vText={vText}
+                  vLabel={vLabel}
+                  vPlaceholder={vPlaceholder}
+                  accent={accent}
+                />
+                <Text style={[styles.visibilityDescription, { color: vMuted }]}>
+                  The invitation link will open in Met. Share the passcode separately.
+                </Text>
+              </>
+            ) : null}
           </View>
         ) : null}
 

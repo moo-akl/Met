@@ -43,6 +43,7 @@ import {
   eq,
   and,
   desc,
+  exists,
   gte,
   gt,
   lt,
@@ -92,6 +93,12 @@ import { getRegistrationDeadline, recordVenueInvitation } from "../lib/venueActi
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 import { adminAuth, adminStorage } from "../lib/firebaseAdmin";
 import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
+import {
+  buildEventInviteUrl,
+  createEventInviteLinkFields,
+  createEventInvitePasscodeFields,
+  decryptEventInviteToken,
+} from "../lib/eventInviteLinks";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   getSupportedImageContentType,
@@ -680,10 +687,19 @@ function serializePublicVenueEvent(event: typeof venueEventsTable.$inferSelect, 
   const {
     ownerUid: _ownerUid,
     inviteeUids: _inviteeUids,
+    inviteTokenHash: _inviteTokenHash,
+    inviteTokenEncrypted: _inviteTokenEncrypted,
+    invitePasscodeSalt: _invitePasscodeSalt,
+    invitePasscodeHash: _invitePasscodeHash,
     isHidden: _isHidden,
     ...publicEvent
   } = event;
-  return { ...publicEvent, imageUrl: resolveStorageUrl(baseUrl, publicEvent.imageUrl) };
+  return {
+    ...publicEvent,
+    inviteLinkEnabled: Boolean(event.inviteTokenHash),
+    invitePasscodeRequired: Boolean(event.invitePasscodeHash),
+    imageUrl: resolveStorageUrl(baseUrl, publicEvent.imageUrl),
+  };
 }
 
 function serializePublicVenueReward(reward: typeof venueRewardsTable.$inferSelect) {
@@ -2399,6 +2415,7 @@ router.post(
       isPublished: z.boolean().optional(),
       visibility: z.enum(["public", "invite_only"]).optional(),
       inviteeUids: z.array(z.string().min(1).max(128)).max(200).optional(),
+      invitePasscode: z.string().trim().min(6).max(64).nullable().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -2416,8 +2433,8 @@ router.post(
     const inviteeUids = visibility === "invite_only"
       ? [...new Set(parsed.data.inviteeUids ?? [])]
       : [];
-    if (visibility === "invite_only" && inviteeUids.length === 0) {
-      res.status(400).json({ message: "Select at least one visitor for an invite-only event." });
+    if (visibility !== "invite_only" && parsed.data.invitePasscode) {
+      res.status(400).json({ message: "Passcodes are only available for invite-only events." });
       return;
     }
     if (inviteeUids.length) {
@@ -2431,6 +2448,18 @@ router.post(
         .groupBy(hubCheckinsTable.userUid);
       if (verifiedGuests.length !== inviteeUids.length) {
         res.status(400).json({ message: "Invitees must be visitors who have checked in at your venue." });
+        return;
+      }
+    }
+
+    let inviteLinkFields = {};
+    if (visibility === "invite_only") {
+      try {
+        inviteLinkFields = createEventInviteLinkFields(parsed.data.invitePasscode);
+      } catch (error) {
+        res.status(400).json({
+          message: error instanceof Error ? error.message : "Invalid invitation passcode.",
+        });
         return;
       }
     }
@@ -2452,10 +2481,16 @@ router.post(
         isPublished: parsed.data.isPublished ?? true,
         visibility,
         inviteeUids,
+        ...inviteLinkFields,
       })
       .returning();
 
-    res.status(201).json({ event });
+    res.status(201).json({
+      event: serializePublicVenueEvent(
+        event!,
+        `${req.protocol}://${req.get("host")}`,
+      ),
+    });
   },
 );
 
@@ -2494,12 +2529,25 @@ router.get(
       .where(
         and(
           eq(venueEventsTable.placeId, placeId),
-          eq(venueEventsTable.isPublished, true),
           eq(venueEventsTable.isHidden, false),
           or(
-            eq(venueEventsTable.visibility, "public"),
             eq(venueEventsTable.ownerUid, uid),
-            arrayContains(venueEventsTable.inviteeUids, [uid]),
+            and(
+              eq(venueEventsTable.isPublished, true),
+              or(
+                eq(venueEventsTable.visibility, "public"),
+                arrayContains(venueEventsTable.inviteeUids, [uid]),
+                exists(
+                  db
+                    .select({ id: venueEventRsvpsTable.id })
+                    .from(venueEventRsvpsTable)
+                    .where(and(
+                      eq(venueEventRsvpsTable.eventId, venueEventsTable.id),
+                      eq(venueEventRsvpsTable.userUid, uid),
+                    )),
+                ),
+              ),
+            ),
           ),
         ),
       )
@@ -2549,6 +2597,7 @@ router.put(
       isPublished: z.boolean().optional(),
       visibility: z.enum(["public", "invite_only"]).optional(),
       inviteeUids: z.array(z.string().min(1).max(128)).max(200).optional(),
+      invitePasscode: z.string().trim().min(6).max(64).nullable().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -2560,8 +2609,8 @@ router.put(
     const nextInvitees = parsed.data.inviteeUids !== undefined
       ? [...new Set(parsed.data.inviteeUids)]
       : existing.inviteeUids;
-    if (nextVisibility === "invite_only" && nextInvitees.length === 0) {
-      res.status(400).json({ message: "Select at least one visitor for an invite-only event." });
+    if (nextVisibility !== "invite_only" && parsed.data.invitePasscode) {
+      res.status(400).json({ message: "Passcodes are only available for invite-only events." });
       return;
     }
     if (parsed.data.inviteeUids !== undefined && nextInvitees.length) {
@@ -2580,6 +2629,45 @@ router.put(
     }
 
     const updatePayload: Record<string, unknown> = { updatedAt: new Date() };
+    if (nextVisibility !== "invite_only") {
+      updatePayload["inviteTokenHash"] = null;
+      updatePayload["inviteTokenEncrypted"] = null;
+      updatePayload["invitePasscodeSalt"] = null;
+      updatePayload["invitePasscodeHash"] = null;
+    } else if (
+      existing.visibility !== "invite_only" ||
+      !existing.inviteTokenHash ||
+      !existing.inviteTokenEncrypted
+    ) {
+      try {
+        Object.assign(
+          updatePayload,
+          createEventInviteLinkFields(parsed.data.invitePasscode),
+        );
+      } catch (error) {
+        res.status(400).json({
+          message: error instanceof Error ? error.message : "Invalid invitation passcode.",
+        });
+        return;
+      }
+    } else if (parsed.data.invitePasscode !== undefined) {
+      if (!parsed.data.invitePasscode) {
+        updatePayload["invitePasscodeSalt"] = null;
+        updatePayload["invitePasscodeHash"] = null;
+      } else {
+        try {
+          Object.assign(
+            updatePayload,
+            createEventInvitePasscodeFields(parsed.data.invitePasscode),
+          );
+        } catch (error) {
+          res.status(400).json({
+            message: error instanceof Error ? error.message : "Invalid invitation passcode.",
+          });
+          return;
+        }
+      }
+    }
     if (parsed.data.title !== undefined) updatePayload["title"] = parsed.data.title;
     if (parsed.data.description !== undefined) updatePayload["description"] = parsed.data.description;
     if (parsed.data.imageUrl !== undefined) updatePayload["imageUrl"] = parsed.data.imageUrl;
@@ -2601,7 +2689,83 @@ router.put(
       .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, access.placeId)))
       .returning();
 
-    res.json({ event: updated });
+    res.json({
+      event: serializePublicVenueEvent(
+        updated!,
+        `${req.protocol}://${req.get("host")}`,
+      ),
+    });
+  },
+);
+
+router.post(
+  "/venue-owner/me/events/:id/invite-link",
+  requireUid,
+  venueOwnerWriteLimit,
+  async (req: Request, res: Response) => {
+    const eventId = Number(req.params["id"]);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"]);
+    if (!access) return;
+    const [event] = await db
+      .select()
+      .from(venueEventsTable)
+      .where(and(
+        eq(venueEventsTable.id, eventId),
+        eq(venueEventsTable.placeId, access.placeId),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    if (event.visibility !== "invite_only") {
+      res.status(409).json({ message: "Only invitation-only venue events have invite links." });
+      return;
+    }
+    if (!event.isPublished) {
+      res.status(409).json({ message: "Publish this event before sharing its invitation link." });
+      return;
+    }
+    try {
+      let token: string;
+      if (event.inviteTokenHash && event.inviteTokenEncrypted) {
+        token = decryptEventInviteToken(event.inviteTokenEncrypted);
+      } else {
+        const fields = createEventInviteLinkFields();
+        const [updated] = await db
+          .update(venueEventsTable)
+          .set({ ...fields, updatedAt: new Date() })
+          .where(and(
+            eq(venueEventsTable.id, event.id),
+            eq(venueEventsTable.visibility, "invite_only"),
+            isNull(venueEventsTable.inviteTokenHash),
+          ))
+          .returning({
+            inviteTokenEncrypted: venueEventsTable.inviteTokenEncrypted,
+          });
+        const encrypted = updated?.inviteTokenEncrypted ?? event.inviteTokenEncrypted;
+        if (!encrypted) {
+          res.status(409).json({ message: "This event can no longer be shared." });
+          return;
+        }
+        token = decryptEventInviteToken(encrypted);
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        url: buildEventInviteUrl(token),
+        passcodeRequired: Boolean(event.invitePasscodeHash),
+      });
+    } catch (error) {
+      req.log?.error({ error, eventId }, "Could not load venue event invite link");
+      res.status(503).json({
+        message: "Invite link could not be loaded. Edit the event to create a new link.",
+      });
+    }
   },
 );
 

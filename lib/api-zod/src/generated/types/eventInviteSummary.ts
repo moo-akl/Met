@@ -5,8 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { EventInviteSummaryEventType } from './eventInviteSummaryEventType';
 
 export interface EventInviteSummary {
+  eventType: EventInviteSummaryEventType;
   id: number;
   title: string;
   /** @nullable */

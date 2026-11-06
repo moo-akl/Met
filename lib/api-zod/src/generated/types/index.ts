@@ -85,6 +85,7 @@ export * from './eventInviteResolveResponse';
 export * from './eventInviteRsvpBody';
 export * from './eventInviteRsvpBodyStatus';
 export * from './eventInviteSummary';
+export * from './eventInviteSummaryEventType';
 export * from './eventLocationSearchResponse';
 export * from './eventLocationSearchResult';
 export * from './eventNotificationRun';

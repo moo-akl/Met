@@ -90,12 +90,31 @@ describe("public privacy policy", () => {
 describe("event invitation installation handoff page", () => {
   const token = "a".repeat(43);
 
+  it.each([
+    ["iPhone", "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"],
+    ["iPad", "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"],
+    ["Android", "https://play.google.com/store/apps/details?id=app.met.founders"],
+  ])("sends %s visitors directly to the matching app store", async (userAgent, storeUrl) => {
+    const res = await request(app)
+      .get(`/event-invite/${token}`)
+      .set("User-Agent", userAgent);
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(storeUrl);
+    expect(res.headers["cache-control"]).toContain("no-store");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
+    expect(res.headers.location).not.toContain(token);
+  });
+
   it("offers an explicit continue action after installation without auto-opening the invite", async () => {
-    const res = await request(app).get(`/event-invite/${token}`);
+    const res = await request(app)
+      .get(`/event-invite/${token}`)
+      .set("User-Agent", "Desktop");
 
     expect(res.status).toBe(200);
     expect(res.headers.location).toBeUndefined();
     expect(res.headers["cache-control"]).toContain("no-store");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
     expect(res.text).toContain(
       "If Met is already installed, tap Continue. Otherwise, install it using the store button for your device, then return to this page and tap Continue to open your invitation.",
     );

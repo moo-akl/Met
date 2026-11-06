@@ -219,6 +219,8 @@ export interface VenueEvent {
   endsAt: string | null;
   capacityLimit: number | null;
   visibility: "public" | "invite_only";
+  inviteLinkEnabled: boolean;
+  invitePasscodeRequired: boolean;
   rsvpCount: number;
   isPublished: boolean;
   createdAt: string;
@@ -1391,6 +1393,7 @@ export const api = {
       isPublished?: boolean;
       visibility?: "public" | "invite_only";
       inviteeUids?: string[];
+      invitePasscode?: string | null;
     },
   ) =>
     request<{ event: VenueEvent }>(
@@ -1425,6 +1428,7 @@ export const api = {
       isPublished?: boolean;
       visibility?: "public" | "invite_only";
       inviteeUids?: string[];
+      invitePasscode?: string | null;
     },
   ) =>
     request<{ event: VenueEvent }>(
