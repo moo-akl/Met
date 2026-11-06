@@ -28,6 +28,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api/client";
+import { checkInEventByQr } from "@workspace/api-client-react";
 import { recordNativeError } from "@/lib/diagnostics";
 import { markQrVerified } from "@/lib/qrVerificationState";
 import { isStoreScreenshotDemo, STORE_DEMO_PLACE_NAME } from "@/lib/storeVenueDemo";
@@ -47,7 +48,18 @@ function parseVenueQr(raw: string): { placeId: string; token: string } | null {
   }
 }
 
-type ScanStatus = "ok" | "wrong-venue" | "invalid" | "failed";
+function parseEventCheckinQr(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    const match = url.pathname.match(/\/event-check-in\/([^/?#]+)/);
+    const token = match?.[1] ? decodeURIComponent(match[1]) : null;
+    return token && /^[A-Za-z0-9_-]{32,64}$/.test(token) ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+type ScanStatus = "ok" | "event-ok" | "wrong-venue" | "invalid" | "failed";
 
 function StoreDemoCheckinScreen({
   venueName,
@@ -149,6 +161,7 @@ export default function VenueQrScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [successKind, setSuccessKind] = useState<"venue" | "event">("venue");
   const [busy, setBusy] = useState(false);
   const lockRef = useRef(false);
   const inFlightRef = useRef(false);
@@ -159,10 +172,11 @@ export default function VenueQrScanScreen() {
     async (data: string): Promise<ScanStatus> => {
       if (lockRef.current) return "failed";
 
+      const eventToken = parseEventCheckinQr(data);
       const parsed = parseVenueQr(data);
-      if (!parsed) return "invalid";
+      if (!parsed && !eventToken) return "invalid";
 
-      if (placeId && parsed.placeId !== placeId) return "wrong-venue";
+      if (parsed && placeId && parsed.placeId !== placeId) return "wrong-venue";
 
       lockRef.current = true;
       if (Platform.OS !== "web") {
@@ -172,11 +186,18 @@ export default function VenueQrScanScreen() {
       }
 
       try {
+        if (eventToken) {
+          await checkInEventByQr({ token: eventToken });
+          setSuccessKind("event");
+          return "event-ok";
+        }
+        if (!parsed) return "invalid";
         const result = await api.hubQrVerify(
           { uid: authedUid ?? "" },
           { placeId: parsed.placeId, token: parsed.token },
         );
         markQrVerified(parsed.placeId, result.streak);
+        setSuccessKind("venue");
         return "ok";
       } catch {
         lockRef.current = false;
@@ -195,7 +216,7 @@ export default function VenueQrScanScreen() {
 
       const status = await processQrData(data);
 
-      if (status === "ok") {
+      if (status === "ok" || status === "event-ok") {
         setSuccess(true);
         setTimeout(() => {
           if (router.canGoBack()) router.back();
@@ -228,7 +249,7 @@ export default function VenueQrScanScreen() {
         }
         for (const r of results) {
           const status = await processQrData(r.data);
-          if (status === "ok") {
+          if (status === "ok" || status === "event-ok") {
             setSuccess(true);
             setTimeout(() => {
               if (router.canGoBack()) router.back();
@@ -245,7 +266,7 @@ export default function VenueQrScanScreen() {
             return;
           }
         }
-        setError("Not a valid venue QR code. Make sure you're scanning the entrance code.");
+        setError("Not a valid Met QR code. Scan the event code or venue entrance code.");
       } catch (e) {
         recordNativeError("venueQrScan.scanFromURL", "runtime", e);
         setError("Couldn't read the photo. Please try again.");
@@ -311,7 +332,7 @@ export default function VenueQrScanScreen() {
             Camera Access Needed
           </Text>
           <Text style={[styles.permSub, { color: colors.mutedForeground }]}>
-            Allow camera access to scan the venue QR code and unlock your reward.
+            Allow camera access to scan an event or venue QR code.
           </Text>
           <View style={{ width: "100%", gap: 10, marginTop: 8 }}>
             <PrimaryButton
@@ -339,13 +360,19 @@ export default function VenueQrScanScreen() {
           <View style={[styles.iconCircle, { backgroundColor: "#DCFCE7" }]}>
             <Feather name="check-circle" size={64} color="#16A34A" />
           </View>
-          <Text style={styles.successTitle}>Reward Unlocked! 🎉</Text>
+          <Text style={styles.successTitle}>
+            {successKind === "event" ? "Attendance confirmed" : "Reward unlocked"}
+          </Text>
           <Text style={styles.successSub}>
-            You've verified your visit at{"\n"}
-            <Text style={{ fontFamily: "Inter_600SemiBold" }}>
-              {placeName ?? "this venue"}
-            </Text>
-            . Your reward is now available.
+            {successKind === "event"
+              ? "Your verified event attendance has been recorded."
+              : <>
+                  You've verified your visit at{"\n"}
+                  <Text style={{ fontFamily: "Inter_600SemiBold" }}>
+                    {placeName ?? "this venue"}
+                  </Text>
+                  . Your reward is now available.
+                </>}
           </Text>
         </View>
       ) : (

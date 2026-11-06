@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
+import * as Location from "expo-location";
 import {
   Alert,
   ActivityIndicator,
@@ -20,12 +21,14 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { api, ApiError } from "@/lib/api/client";
+import { getAppCheckToken } from "@/lib/firestore/client";
 import { buildEventDetailsUrl } from "@/lib/eventLinks";
 import {
   getGetEventDetailsQueryKey,
   getGetEventDetailsQueryOptions,
   getGetCommunityEventForEditQueryOptions,
   getGetEventsFeedQueryKey,
+  checkInEventByLocation,
   useDeleteCommunityEvent,
   useCreateCommunityEventInviteLink,
   useCreateVenueOwnerEventInviteLink,
@@ -60,6 +63,9 @@ export default function EventDetailsScreen() {
   const [reportPending, setReportPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rsvpPending, setRsvpPending] = useState(false);
+  const [checkinPending, setCheckinPending] = useState(false);
+  const [locationPermission, requestLocationPermission] =
+    Location.useForegroundPermissions();
   const eventQuery = useQuery({
     ...getGetEventDetailsQueryOptions(eventType, isValidRoute ? eventId : 0),
     enabled: isValidRoute,
@@ -113,6 +119,59 @@ export default function EventDetailsScreen() {
     }
   };
 
+  const checkInWithLocation = async () => {
+    if (!event || isOwner || event.latitude == null || event.longitude == null) return;
+    setCheckinPending(true);
+    setActionError("");
+    try {
+      let permission = locationPermission;
+      if (!permission?.granted) {
+        permission = await requestLocationPermission();
+      }
+      if (!permission?.granted) {
+        throw new Error("Allow location access to check in at this event.");
+      }
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+      const accuracy = position.coords.accuracy;
+      if (accuracy == null) {
+        throw new Error("Your location could not be verified. Scan the event QR code instead.");
+      }
+      const appCheckToken = await getAppCheckToken();
+      const result = await checkInEventByLocation(
+        event.eventType,
+        event.id,
+        {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy,
+          ...(typeof position.mocked === "boolean" ? { mocked: position.mocked } : {}),
+        },
+        {
+          headers: appCheckToken
+            ? { "X-Firebase-AppCheck": appCheckToken }
+            : {},
+        },
+      );
+      await queryClient.invalidateQueries({
+        queryKey: getGetEventDetailsQueryKey(event.eventType, event.id),
+      });
+      Alert.alert(
+        result.alreadyCheckedIn ? "Already checked in" : "Attendance confirmed",
+        result.alreadyCheckedIn
+          ? "Your attendance was already recorded for this event."
+          : `You're checked in to ${result.title}.`,
+      );
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Could not check in at this event.",
+      );
+    } finally {
+      setCheckinPending(false);
+    }
+  };
+
   const canShareEvent = Boolean(
     event &&
     (event.eventType === "venue"
@@ -120,6 +179,10 @@ export default function EventDetailsScreen() {
       :
       event.visibility === "public" ||
       (isOwner && ownerManageQuery.data?.inviteLinkEnabled)),
+  );
+  const canOpenPlanChat = Boolean(
+    event?.eventType === "member" &&
+      (isOwner || event.myRsvp === "going" || event.myRsvp === "maybe"),
   );
 
   const shareEvent = async () => {
@@ -333,6 +396,75 @@ export default function EventDetailsScreen() {
                 {event.description}
               </Text>
             ) : null}
+            <View style={[styles.attendanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.attendanceHeading}>
+                <View style={[styles.attendanceIcon, { backgroundColor: colors.primarySoft }]}>
+                  <Feather name="check-circle" size={18} color={colors.primary} />
+                </View>
+                <View style={styles.attendanceCopy}>
+                  <Text style={[styles.attendanceTitle, { color: colors.text }]}>
+                    {isOwner ? "Event attendance" : "Were you there?"}
+                  </Text>
+                  <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
+                    {isOwner
+                      ? "Verified check-ins are separate from RSVPs."
+                      : "Only a verified check-in counts as attendance."}
+                  </Text>
+                </View>
+              </View>
+              {isOwner ? (
+                <Pressable
+                  accessibilityRole="button"
+                  testID="button-manage-event-attendance"
+                  onPress={() => router.push({
+                    pathname: "/event-attendees/[eventType]/[id]",
+                    params: {
+                      eventType: event.eventType,
+                      id: String(event.id),
+                      title: event.title,
+                    },
+                  } as never)}
+                  style={[styles.attendanceButton, { backgroundColor: colors.primary }]}
+                >
+                  <Feather name="users" size={16} color={colors.primaryForeground} />
+                  <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
+                    Manage attendance
+                  </Text>
+                </Pressable>
+              ) : (
+                <View style={styles.attendanceActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    testID="button-scan-event-qr"
+                    onPress={() => router.push("/qr-scan" as never)}
+                    style={[styles.attendanceButton, { backgroundColor: colors.primary }]}
+                  >
+                    <Feather name="maximize" size={16} color={colors.primaryForeground} />
+                    <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
+                      Scan event QR
+                    </Text>
+                  </Pressable>
+                  {event.latitude != null && event.longitude != null ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="button-check-in-by-location"
+                      disabled={checkinPending}
+                      onPress={() => void checkInWithLocation()}
+                      style={[styles.attendanceButton, styles.attendanceButtonSecondary, { borderColor: colors.primary, opacity: checkinPending ? 0.65 : 1 }]}
+                    >
+                      {checkinPending ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Feather name="map-pin" size={16} color={colors.primary} />
+                      )}
+                      <Text style={[styles.attendanceButtonText, { color: colors.primary }]}>
+                        Check in by location
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              )}
+            </View>
             {event.contactPhone || event.websiteUrl || event.publicEmail ? (
               <View style={{ gap: 10, marginTop: 4 }}>
                 {event.contactPhone ? (
@@ -413,6 +545,24 @@ export default function EventDetailsScreen() {
                 })}
               </View>
             </View>
+
+            {canOpenPlanChat ? (
+              <Pressable
+                accessibilityRole="button"
+                testID="button-open-plan-chat"
+                onPress={() => router.push(`/event-chat/${event.id}` as never)}
+                style={[
+                  styles.shareButton,
+                  { borderColor: colors.border, backgroundColor: colors.card },
+                ]}
+              >
+                <Feather name="message-circle" size={17} color={colors.primary} />
+                <Text style={[styles.shareText, { color: colors.primary }]}>
+                  {t("tabs.events.planChat")}
+                </Text>
+                <Feather name="chevron-right" size={17} color={colors.primary} />
+              </Pressable>
+            ) : null}
 
             {canShareEvent ? (
               <Pressable
@@ -556,6 +706,16 @@ const styles = StyleSheet.create({
   locationText: { fontSize: 14, fontWeight: "600", marginTop: 3 },
   creator: { fontSize: 13, marginTop: 14 },
   description: { fontSize: 15, lineHeight: 23, marginTop: 18 },
+  attendanceCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 14, marginTop: 20 },
+  attendanceHeading: { flexDirection: "row", alignItems: "center", gap: 11 },
+  attendanceIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  attendanceCopy: { flex: 1, gap: 3 },
+  attendanceTitle: { fontSize: 15, fontWeight: "700" },
+  attendanceHint: { fontSize: 12, lineHeight: 17 },
+  attendanceActions: { gap: 8 },
+  attendanceButton: { minHeight: 44, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 12 },
+  attendanceButtonSecondary: { borderWidth: 1, backgroundColor: "transparent" },
+  attendanceButtonText: { fontSize: 13, fontWeight: "700" },
   rsvpSection: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 22, paddingTop: 16 },
   rsvpCount: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
   rsvpRow: { flexDirection: "row", gap: 8 },

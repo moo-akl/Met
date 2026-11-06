@@ -372,9 +372,6 @@ export const venueEventsTable = pgTable(
       .array()
       .notNull()
       .default(sql`ARRAY[]::integer[]`),
-    /** SHA-256 lookup digest; only the encrypted bearer token is stored. */
-    checkinTokenHash: text("checkin_token_hash"),
-    checkinTokenEncrypted: text("checkin_token_encrypted"),
     /** Public events appear in the Events feed; invite-only events require an explicit invite. */
     visibility: text("visibility").notNull().default("public"),
     /** Met users selected by the venue from its visitor list for invite-only events. */
@@ -384,6 +381,8 @@ export const venueEventsTable = pgTable(
     inviteTokenEncrypted: text("invite_token_encrypted"),
     invitePasscodeSalt: text("invite_passcode_salt"),
     invitePasscodeHash: text("invite_passcode_hash"),
+    checkinTokenHash: text("checkin_token_hash"),
+    checkinTokenEncrypted: text("checkin_token_encrypted"),
     /** Denormalized going+maybe RSVP count — updated on each RSVP change. */
     rsvpCount: integer("rsvp_count").notNull().default(0),
     isPublished: boolean("is_published").notNull().default(true),
@@ -486,6 +485,8 @@ export const communityEventsTable = pgTable(
     inviteTokenEncrypted: text("invite_token_encrypted"),
     invitePasscodeSalt: text("invite_passcode_salt"),
     invitePasscodeHash: text("invite_passcode_hash"),
+    checkinTokenHash: text("checkin_token_hash"),
+    checkinTokenEncrypted: text("checkin_token_encrypted"),
     isHidden: boolean("is_hidden").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -501,6 +502,53 @@ export const communityEventsTable = pgTable(
     inviteTokenHashUniq: uniqueIndex("community_events_invite_token_hash_uniq").on(
       t.inviteTokenHash,
     ),
+    checkinTokenHashUniq: uniqueIndex("community_events_checkin_token_hash_uniq").on(
+      t.checkinTokenHash,
+    ),
+  }),
+);
+
+export const communityEventPlanMessagesTable = pgTable(
+  "community_event_plan_messages",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => communityEventsTable.id, { onDelete: "cascade" }),
+    senderUid: text("sender_uid").notNull(),
+    message: text("message").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    eventCreatedIdx: index("community_event_plan_messages_event_created_idx").on(
+      t.eventId,
+      t.createdAt,
+    ),
+  }),
+);
+
+export const communityEventPlanNotificationPreferencesTable = pgTable(
+  "community_event_plan_notification_preferences",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => communityEventsTable.id, { onDelete: "cascade" }),
+    userUid: text("user_uid").notNull(),
+    muted: boolean("muted").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    eventUserUniq: uniqueIndex(
+      "community_event_plan_notification_preferences_event_user_uniq",
+    ).on(t.eventId, t.userUid),
   }),
 );
 
@@ -603,6 +651,9 @@ export const venueEventNotificationRunsTable = pgTable(
 );
 
 export type CommunityEvent = typeof communityEventsTable.$inferSelect;
+export type CommunityEventPlanMessage = typeof communityEventPlanMessagesTable.$inferSelect;
+export type CommunityEventPlanNotificationPreference =
+  typeof communityEventPlanNotificationPreferencesTable.$inferSelect;
 export type CommunityEventRsvp = typeof communityEventRsvpsTable.$inferSelect;
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   communityEventRsvpsTable,
+  communityEventPlanMessagesTable,
+  communityEventPlanNotificationPreferencesTable,
   communityEventsTable,
   db,
   profilesTable,
@@ -11,6 +13,16 @@ import {
 } from "@workspace/db";
 import eventsRouter from "../routes/events";
 import reportsRouter from "../routes/reports";
+
+const { mockSendPushWithStatus } = vi.hoisted(() => ({
+  mockSendPushWithStatus: vi.fn().mockResolvedValue({ sent: true }),
+}));
+
+vi.mock("../lib/push", () => ({
+  sendPush: vi.fn(),
+  sendPushWithStatus: mockSendPushWithStatus,
+  checkNearbyPushAllowed: vi.fn(() => true),
+}));
 
 vi.mock("../middlewares/rateLimit", () => ({
   createUserRateLimiter:
@@ -37,6 +49,7 @@ const testPrefix = `itest-event-${process.pid}`;
 const OWNER_UID = `${testPrefix}-owner`;
 const INVITEE_UID = `${testPrefix}-invitee`;
 const OTHER_UID = `${testPrefix}-other`;
+const MUTED_UID = `${testPrefix}-muted`;
 const app = express();
 app.use(express.json());
 app.use("/api", eventsRouter);
@@ -54,6 +67,20 @@ async function cleanup() {
 
   if (ownedEvents.length) {
     await db
+      .delete(communityEventPlanMessagesTable)
+      .where(inArray(
+        communityEventPlanMessagesTable.eventId,
+        ownedEvents.map(({ id }) => id),
+      ));
+    await db
+      .delete(communityEventPlanNotificationPreferencesTable)
+      .where(
+        inArray(
+          communityEventPlanNotificationPreferencesTable.eventId,
+          ownedEvents.map(({ id }) => id),
+        ),
+      );
+    await db
       .delete(venueContentReportsTable)
       .where(and(
         eq(venueContentReportsTable.entityType, "community_event"),
@@ -69,7 +96,7 @@ async function cleanup() {
     .where(eq(communityEventsTable.ownerUid, OWNER_UID));
   await db
     .delete(profilesTable)
-    .where(inArray(profilesTable.uid, [OWNER_UID, INVITEE_UID, OTHER_UID]));
+    .where(inArray(profilesTable.uid, [OWNER_UID, INVITEE_UID, OTHER_UID, MUTED_UID]));
 }
 
 describe.runIf(hasDatabase)("community event permissions and privacy", () => {
@@ -79,6 +106,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       { uid: OWNER_UID, displayName: "Event Owner", photoUrl: "https://example.com/owner.jpg" },
       { uid: INVITEE_UID, displayName: "Event Invitee", photoUrl: "https://example.com/invitee.jpg" },
       { uid: OTHER_UID, displayName: "Other Guest", photoUrl: "https://example.com/other.jpg" },
+      { uid: MUTED_UID, displayName: "Muted Guest", photoUrl: "https://example.com/muted.jpg" },
     ]);
   });
 
@@ -390,5 +418,245 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       placeId: "community-events",
       reason: "spam",
     });
+  });
+
+  it("shares plan conversations only with hosts and invited or attending members", async () => {
+    mockSendPushWithStatus.mockClear();
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Dinner with friends",
+        startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID, MUTED_UID],
+      })
+      .expect(201);
+    const eventId = created.body.id as number;
+
+    const initialChat = await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OWNER_UID))
+      .expect(200);
+    expect(initialChat.body.event).toMatchObject({
+      id: eventId,
+      title: "Dinner with friends",
+    });
+    expect(initialChat.body.notificationsMuted).toBe(false);
+    expect(initialChat.body.participants).toEqual([
+      expect.objectContaining({ uid: OWNER_UID, status: "host" }),
+    ]);
+
+    await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OTHER_UID))
+      .expect(404);
+    await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OTHER_UID))
+      .send({ text: "I should not see this" })
+      .expect(404);
+
+    await request(app)
+      .post(`/api/community-events/${eventId}/rsvp`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ status: "going" })
+      .expect(200);
+    await request(app)
+      .post(`/api/community-events/${eventId}/rsvp`)
+      .set(uidHeader(MUTED_UID))
+      .send({ status: "maybe" })
+      .expect(200);
+    await db
+      .update(profilesTable)
+      .set({
+        pushToken: "owner-token",
+        notificationPrefs: { notifyChat: true },
+      })
+      .where(eq(profilesTable.uid, OWNER_UID));
+    await db
+      .update(profilesTable)
+      .set({
+        pushToken: "invitee-token",
+        notificationPrefs: { notifyChat: true },
+      })
+      .where(eq(profilesTable.uid, INVITEE_UID));
+    await db
+      .update(profilesTable)
+      .set({
+        pushToken: "muted-token",
+        notificationPrefs: { notifyChat: false },
+      })
+      .where(eq(profilesTable.uid, MUTED_UID));
+
+    const ownerMessage = await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OWNER_UID))
+      .send({ text: "Let's meet at 7." })
+      .expect(201);
+    expect(ownerMessage.body.message).toMatchObject({
+      senderUid: OWNER_UID,
+      senderName: "Event Owner",
+      text: "Let's meet at 7.",
+    });
+    expect(mockSendPushWithStatus).toHaveBeenCalledTimes(1);
+    expect(mockSendPushWithStatus).toHaveBeenCalledWith("invitee-token", {
+      title: "New message in your plan",
+      body: "Open Met to view the conversation.",
+      data: {
+        type: "event_plan_message",
+        eventId: String(eventId),
+        eventType: "member",
+      },
+    });
+    expect(JSON.stringify(mockSendPushWithStatus.mock.calls[0]?.[1])).not.toContain(
+      "Let's meet at 7.",
+    );
+    expect(JSON.stringify(mockSendPushWithStatus.mock.calls[0]?.[1])).not.toContain(
+      "Dinner with friends",
+    );
+
+    mockSendPushWithStatus.mockClear();
+    await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ text: "Sounds good." })
+      .expect(201);
+    expect(mockSendPushWithStatus).toHaveBeenCalledTimes(1);
+    expect(mockSendPushWithStatus).toHaveBeenCalledWith("owner-token", {
+      title: "New message in your plan",
+      body: "Open Met to view the conversation.",
+      data: {
+        type: "event_plan_message",
+        eventId: String(eventId),
+        eventType: "member",
+      },
+    });
+
+    await request(app)
+      .put(`/api/community-events/${eventId}/plan-chat/notifications`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ muted: true })
+      .expect(200, { muted: true });
+    const mutedChat = await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200);
+    expect(mutedChat.body.notificationsMuted).toBe(true);
+    const [inviteePrefsAfterMute] = await db
+      .select({ notificationPrefs: profilesTable.notificationPrefs })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, INVITEE_UID))
+      .limit(1);
+    expect(inviteePrefsAfterMute?.notificationPrefs?.notifyChat).toBe(true);
+
+    const secondPlanCreated = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Coffee with friends",
+        startsAt: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+        visibility: "public",
+        inviteeUids: [],
+      })
+      .expect(201);
+    const secondEventId = secondPlanCreated.body.id as number;
+    await request(app)
+      .post(`/api/community-events/${secondEventId}/rsvp`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ status: "going" })
+      .expect(200);
+    const secondPlanChat = await request(app)
+      .get(`/api/community-events/${secondEventId}/plan-chat`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200);
+    expect(secondPlanChat.body.notificationsMuted).toBe(false);
+
+    mockSendPushWithStatus.mockClear();
+    await request(app)
+      .post(`/api/community-events/${secondEventId}/plan-chat`)
+      .set(uidHeader(OWNER_UID))
+      .send({ text: "The other plan still sends alerts." })
+      .expect(201);
+    expect(mockSendPushWithStatus).toHaveBeenCalledTimes(1);
+    expect(mockSendPushWithStatus).toHaveBeenCalledWith("invitee-token", {
+      title: "New message in your plan",
+      body: "Open Met to view the conversation.",
+      data: {
+        type: "event_plan_message",
+        eventId: String(secondEventId),
+        eventType: "member",
+      },
+    });
+
+    await request(app)
+      .put(`/api/community-events/${eventId}/plan-chat/notifications`)
+      .set(uidHeader(OTHER_UID))
+      .send({ muted: true })
+      .expect(404);
+
+    mockSendPushWithStatus.mockClear();
+    await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OWNER_UID))
+      .send({ text: "One plan is quiet now." })
+      .expect(201);
+    expect(mockSendPushWithStatus).not.toHaveBeenCalled();
+
+    await request(app)
+      .put(`/api/community-events/${eventId}/plan-chat/notifications`)
+      .set(uidHeader(INVITEE_UID))
+      .send({ muted: false })
+      .expect(200, { muted: false });
+    const unmutedChat = await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200);
+    expect(unmutedChat.body.notificationsMuted).toBe(false);
+
+    mockSendPushWithStatus.mockClear();
+    await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OWNER_UID))
+      .send({ text: "Alerts are back for this plan." })
+      .expect(201);
+    expect(mockSendPushWithStatus).toHaveBeenCalledTimes(1);
+    expect(mockSendPushWithStatus).toHaveBeenCalledWith("invitee-token", {
+      title: "New message in your plan",
+      body: "Open Met to view the conversation.",
+      data: {
+        type: "event_plan_message",
+        eventId: String(eventId),
+        eventType: "member",
+      },
+    });
+
+    const inviteeChat = await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200);
+    expect(inviteeChat.body.participants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ uid: OWNER_UID, status: "host" }),
+        expect.objectContaining({ uid: INVITEE_UID, status: "going" }),
+      ]),
+    );
+    expect(inviteeChat.body.messages.map((message: { text: string }) => message.text)).toEqual([
+      "Let's meet at 7.",
+      "Sounds good.",
+      "One plan is quiet now.",
+      "Alerts are back for this plan.",
+    ]);
+
+    await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OWNER_UID))
+      .send({ text: "   " })
+      .expect(400);
+    await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OWNER_UID))
+      .send({ text: "x".repeat(501) })
+      .expect(400);
   });
 });

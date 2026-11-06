@@ -392,6 +392,54 @@ export const CreateRevealRequestResponse = zod.object({
 
 
 /**
+ * @summary Preview the member who shared a personal connection invite
+ */
+export const getConnectionInvitePathCodeMin = 6;
+export const getConnectionInvitePathCodeMax = 6;
+
+
+export const getConnectionInvitePathCodeRegExp = new RegExp('^[A-HJ-NP-Z2-9]{6}$');
+
+
+export const GetConnectionInviteParams = zod.object({
+  "code": zod.coerce.string().min(getConnectionInvitePathCodeMin).max(getConnectionInvitePathCodeMax).regex(getConnectionInvitePathCodeRegExp)
+})
+
+export const GetConnectionInviteResponse = zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().nullable(),
+  "alreadyConnected": zod.boolean()
+})
+
+
+/**
+ * The authenticated member explicitly accepts the invite. The member who shared the link has already consented by sharing it; acceptance creates the connection in both directions.
+ * @summary Accept a personal connection invite shared by another member
+ */
+export const acceptConnectionInvitePathCodeMin = 6;
+export const acceptConnectionInvitePathCodeMax = 6;
+
+
+export const acceptConnectionInvitePathCodeRegExp = new RegExp('^[A-HJ-NP-Z2-9]{6}$');
+
+
+export const AcceptConnectionInviteParams = zod.object({
+  "code": zod.coerce.string().min(acceptConnectionInvitePathCodeMin).max(acceptConnectionInvitePathCodeMax).regex(acceptConnectionInvitePathCodeRegExp)
+})
+
+export const AcceptConnectionInviteResponse = zod.object({
+  "success": zod.boolean(),
+  "alreadyConnected": zod.boolean(),
+  "peer": zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().nullable()
+})
+})
+
+
+/**
  * Returns all reveal requests where the authenticated user is the
  * recipient and status is `pending`. Each entry includes the sender's
  * profile so the client can render the encounter without a separate
@@ -3488,7 +3536,7 @@ export const GetVenueOwnerMeGuestsResponse = zod.object({
   "guests": zod.array(zod.object({
   "uid": zod.string(),
   "displayName": zod.string(),
-  "photoUrl": zod.string().url().nullish(),
+  "photoUrl": zod.string().nullish(),
   "checkinCount": zod.number().int(),
   "lastCheckinAt": zod.coerce.date().optional()
 })),
@@ -3833,7 +3881,7 @@ export const CreateCommunityEventResponse = zod.object({
 
 
 /**
- * @summary Check in to a venue event using its event-specific QR code
+ * @summary Check in to an event using its event-specific QR code
  */
 export const checkInEventByQrBodyTokenMin = 32;
 export const checkInEventByQrBodyTokenMax = 64;
@@ -3898,6 +3946,105 @@ export const GetEventDetailsResponse = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
   "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+})
+
+
+/**
+ * @summary Check in to an event using the device's current location
+ */
+export const CheckInEventByLocationParams = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "eventId": zod.coerce.number().int()
+})
+
+export const checkInEventByLocationBodyLatitudeMin = -90;
+export const checkInEventByLocationBodyLatitudeMax = 90;
+
+export const checkInEventByLocationBodyLongitudeMin = -180;
+export const checkInEventByLocationBodyLongitudeMax = 180;
+
+export const checkInEventByLocationBodyAccuracyMin = 0;
+
+
+
+export const CheckInEventByLocationBody = zod.object({
+  "latitude": zod.number().min(checkInEventByLocationBodyLatitudeMin).max(checkInEventByLocationBodyLatitudeMax),
+  "longitude": zod.number().min(checkInEventByLocationBodyLongitudeMin).max(checkInEventByLocationBodyLongitudeMax),
+  "accuracy": zod.number().min(checkInEventByLocationBodyAccuracyMin),
+  "mocked": zod.boolean().optional()
+})
+
+export const CheckInEventByLocationResponse = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "eventId": zod.number().int(),
+  "title": zod.string(),
+  "checkInMethod": zod.enum(['qr', 'location']),
+  "alreadyCheckedIn": zod.boolean(),
+  "checkedInAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get or rotate the event-specific check-in QR link
+ */
+export const GetEventCheckinQrParams = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "eventId": zod.coerce.number().int()
+})
+
+export const getEventCheckinQrBodyRotateDefault = false;
+
+export const GetEventCheckinQrBody = zod.object({
+  "rotate": zod.boolean().default(getEventCheckinQrBodyRotateDefault)
+})
+
+export const GetEventCheckinQrResponse = zod.object({
+  "url": zod.string().url()
+})
+
+
+/**
+ * @summary List verified attendees for the event owner
+ */
+export const GetEventAttendeesParams = zod.object({
+  "eventType": zod.enum(['venue', 'member']),
+  "eventId": zod.coerce.number().int()
+})
+
+export const GetEventAttendeesResponse = zod.object({
+  "attendees": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().nullable(),
+  "checkInMethod": zod.enum(['qr', 'location', 'manual']),
+  "checkedInAt": zod.coerce.date(),
+  "checkedInByUid": zod.string().nullable(),
+  "manualReason": zod.string().nullable()
+})),
+  "rsvps": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().url().nullish(),
+  "status": zod.enum(['going', 'maybe', 'not_going'])
+})),
+  "corrections": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "action": zod.enum(['manual_check_in', 'undo_check_in']),
+  "previousMethod": zod.union([zod.literal('qr'),zod.literal('location'),zod.literal('manual'),zod.literal(null)]).nullable(),
+  "reason": zod.string(),
+  "actorUid": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
+  "notificationRuns": zod.array(zod.object({
+  "kind": zod.enum(['event_update', 'reminder_24h', 'reminder_2h']),
+  "status": zod.enum(['sending', 'sent', 'partial', 'failed']),
+  "recipientCount": zod.number().int(),
+  "sentCount": zod.number().int(),
+  "skippedCount": zod.number().int(),
+  "failedCount": zod.number().int(),
+  "startedAt": zod.coerce.date()
+}))
 })
 
 
@@ -3994,6 +4141,98 @@ export const CreateCommunityEventInviteLinkParams = zod.object({
 export const CreateCommunityEventInviteLinkResponse = zod.object({
   "url": zod.string().url(),
   "passcodeRequired": zod.boolean()
+})
+
+
+/**
+ * @summary Get an event conversation and its invited participants
+ */
+
+
+
+export const GetCommunityEventPlanChatParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const getCommunityEventPlanChatResponseMessagesItemTextMax = 500;
+
+
+
+export const GetCommunityEventPlanChatResponse = zod.object({
+  "event": zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "startsAt": zod.coerce.date(),
+  "location": zod.string().nullable()
+}),
+  "participants": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().url().nullable(),
+  "status": zod.enum(['host', 'going', 'maybe'])
+})),
+  "messages": zod.array(zod.object({
+  "id": zod.number().int(),
+  "senderUid": zod.string(),
+  "senderName": zod.string(),
+  "senderPhotoUrl": zod.string().nullable(),
+  "text": zod.string().max(getCommunityEventPlanChatResponseMessagesItemTextMax),
+  "createdAt": zod.coerce.date()
+})),
+  "notificationsMuted": zod.boolean()
+})
+
+
+/**
+ * @summary Mute or unmute notifications for one event plan
+ */
+
+
+
+export const SetCommunityEventPlanChatNotificationsParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const SetCommunityEventPlanChatNotificationsBody = zod.object({
+  "muted": zod.boolean()
+})
+
+export const SetCommunityEventPlanChatNotificationsResponse = zod.object({
+  "muted": zod.boolean()
+})
+
+
+/**
+ * @summary Send a message to an event conversation
+ */
+
+
+
+export const SendCommunityEventPlanChatMessageParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const sendCommunityEventPlanChatMessageBodyTextMax = 500;
+
+
+
+export const SendCommunityEventPlanChatMessageBody = zod.object({
+  "text": zod.string().min(1).max(sendCommunityEventPlanChatMessageBodyTextMax)
+})
+
+export const sendCommunityEventPlanChatMessageResponseMessageTextMax = 500;
+
+
+
+export const SendCommunityEventPlanChatMessageResponse = zod.object({
+  "message": zod.object({
+  "id": zod.number().int(),
+  "senderUid": zod.string(),
+  "senderName": zod.string(),
+  "senderPhotoUrl": zod.string().nullable(),
+  "text": zod.string().max(sendCommunityEventPlanChatMessageResponseMessageTextMax),
+  "createdAt": zod.coerce.date()
+})
 })
 
 
@@ -4188,6 +4427,35 @@ export const RsvpCommunityEventBody = zod.object({
 export const RsvpCommunityEventResponse = zod.object({
   "success": zod.boolean(),
   "status": zod.enum(['going', 'maybe', 'not_going'])
+})
+
+
+/**
+ * @summary List venue visitors and verified event attendees
+ */
+
+
+
+export const GetVenueManagerGuestsParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1)
+})
+
+export const GetVenueManagerGuestsResponse = zod.object({
+  "guests": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "checkinCount": zod.number().int(),
+  "lastCheckinAt": zod.coerce.date().optional()
+})),
+  "eventAttendees": zod.array(zod.object({
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().nullish(),
+  "checkinCount": zod.number().int(),
+  "lastCheckinAt": zod.coerce.date().optional()
+})),
+  "total": zod.number().int()
 })
 
 
@@ -4439,6 +4707,78 @@ export const DeleteVenueManagerEventResponse = zod.void()
 
 
 /**
+ * @summary Get a shareable invitation link for a venue event
+ */
+
+
+
+
+export const CreateVenueManagerEventInviteLinkParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const CreateVenueManagerEventInviteLinkHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1)
+})
+
+export const CreateVenueManagerEventInviteLinkResponse = zod.object({
+  "url": zod.string().url(),
+  "passcodeRequired": zod.boolean()
+})
+
+
+/**
+ * @summary Disable a venue event invitation link
+ */
+
+
+
+
+export const RevokeVenueManagerEventInviteLinkParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const RevokeVenueManagerEventInviteLinkHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1)
+})
+
+export const RevokeVenueManagerEventInviteLinkResponse = zod.void()
+
+
+/**
+ * @summary Replace a venue event invitation link
+ */
+
+
+
+
+export const RotateVenueManagerEventInviteLinkParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const RotateVenueManagerEventInviteLinkHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1)
+})
+
+export const RotateVenueManagerEventInviteLinkResponse = zod.object({
+  "url": zod.string().url(),
+  "passcodeRequired": zod.boolean()
+})
+
+
+/**
  * @summary List RSVP and checked-in attendees for a venue event
  */
 
@@ -4454,7 +4794,7 @@ export const GetVenueManagerEventAttendeesResponse = zod.object({
   "attendees": zod.array(zod.object({
   "uid": zod.string(),
   "displayName": zod.string(),
-  "photoUrl": zod.string().url().nullable(),
+  "photoUrl": zod.string().nullable(),
   "checkInMethod": zod.enum(['qr', 'location', 'manual']),
   "checkedInAt": zod.coerce.date(),
   "checkedInByUid": zod.string().nullable(),
@@ -4586,78 +4926,6 @@ export const GetVenueManagerEventCheckinQrBody = zod.object({
 
 export const GetVenueManagerEventCheckinQrResponse = zod.object({
   "url": zod.string().url()
-})
-
-
-/**
- * @summary Get a shareable invitation link for a venue event
- */
-
-
-
-
-export const CreateVenueManagerEventInviteLinkParams = zod.object({
-  "businessId": zod.coerce.number().int().min(1),
-  "eventId": zod.coerce.number().int().min(1)
-})
-
-
-
-
-export const CreateVenueManagerEventInviteLinkHeader = zod.object({
-  "X-CSRF-Token": zod.string().min(1)
-})
-
-export const CreateVenueManagerEventInviteLinkResponse = zod.object({
-  "url": zod.string().url(),
-  "passcodeRequired": zod.boolean()
-})
-
-
-/**
- * @summary Disable a venue event invitation link
- */
-
-
-
-
-export const RevokeVenueManagerEventInviteLinkParams = zod.object({
-  "businessId": zod.coerce.number().int().min(1),
-  "eventId": zod.coerce.number().int().min(1)
-})
-
-
-
-
-export const RevokeVenueManagerEventInviteLinkHeader = zod.object({
-  "X-CSRF-Token": zod.string().min(1)
-})
-
-export const RevokeVenueManagerEventInviteLinkResponse = zod.void()
-
-
-/**
- * @summary Replace a venue event invitation link
- */
-
-
-
-
-export const RotateVenueManagerEventInviteLinkParams = zod.object({
-  "businessId": zod.coerce.number().int().min(1),
-  "eventId": zod.coerce.number().int().min(1)
-})
-
-
-
-
-export const RotateVenueManagerEventInviteLinkHeader = zod.object({
-  "X-CSRF-Token": zod.string().min(1)
-})
-
-export const RotateVenueManagerEventInviteLinkResponse = zod.object({
-  "url": zod.string().url(),
-  "passcodeRequired": zod.boolean()
 })
 
 

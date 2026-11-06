@@ -124,9 +124,11 @@ jest.mock("@tanstack/react-query", () => ({
 import {
   isVenueOwnerUrl,
   parseReferralFromUrl,
+  parseConnectionInviteFromUrl,
   parseNetworkInviteFromUrl,
   routeDeepLink,
   consumePendingReferral,
+  consumePendingConnectionInviteRoute,
   setPendingEventInvite,
   consumePendingEventInvite,
   consumePendingEventInviteRoute,
@@ -324,6 +326,25 @@ describe("routeDeepLink — screen routing", () => {
       routeDeepLink("https://metapp.replit.app/r/AB2C3D", router, 0);
       consumePendingReferral(); // first call consumes it
       expect(consumePendingReferral()).toBeNull(); // second call returns null
+    });
+  });
+
+  describe("/connect/<code> connection invite links", () => {
+    it("parses the official universal link and normalizes the code", () => {
+      expect(parseConnectionInviteFromUrl("https://met-app.org/connect/ab2c3d"))
+        .toBe("AB2C3D");
+    });
+
+    it("stashes the invite route for return after sign-in", async () => {
+      const router = { push: jest.fn() };
+      routeDeepLink("https://met-app.org/connect/AB2C3D", router, 0);
+      await flushTimers();
+      expect(consumePendingConnectionInviteRoute()).toBe("/connect/AB2C3D");
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it("rejects malformed codes", () => {
+      expect(parseConnectionInviteFromUrl("https://met-app.org/connect/ABC123")).toBeNull();
     });
   });
 

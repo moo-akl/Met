@@ -5,6 +5,27 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface ConnectionInviteProfile {
+  uid: string;
+  displayName: string;
+  /** @nullable */
+  photoUrl: string | null;
+}
+
+export interface ConnectionInvitePreview {
+  uid: string;
+  displayName: string;
+  /** @nullable */
+  photoUrl: string | null;
+  alreadyConnected: boolean;
+}
+
+export interface AcceptConnectionInviteResult {
+  success: boolean;
+  alreadyConnected: boolean;
+  peer: ConnectionInviteProfile;
+}
+
 export interface SavedPlace {
   placeId: string;
   placeName: string;
@@ -1773,6 +1794,12 @@ export interface VenueGuestListResponse {
   total: number;
 }
 
+export interface VenueManagerGuestListResponse {
+  guests: VenueGuestSummary[];
+  eventAttendees: VenueGuestSummary[];
+  total: number;
+}
+
 export type VenueManagerEventInputReminderOffsetsHoursItem = typeof VenueManagerEventInputReminderOffsetsHoursItem[keyof typeof VenueManagerEventInputReminderOffsetsHoursItem];
 
 
@@ -2004,6 +2031,22 @@ export interface EventQrCheckinInput {
      * @maxLength 64
      */
   token: string;
+}
+
+export interface EventLocationCheckinInput {
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude: number;
+  /** @minimum 0 */
+  accuracy: number;
+  mocked?: boolean;
 }
 
 export type EventCheckinResponseEventType = typeof EventCheckinResponseEventType[keyof typeof EventCheckinResponseEventType];
@@ -2348,6 +2391,69 @@ export interface CommunityEventManageResponse {
 export interface CommunityEventInviteLinkResponse {
   url: string;
   passcodeRequired: boolean;
+}
+
+export type CommunityEventPlanChatParticipantStatus = typeof CommunityEventPlanChatParticipantStatus[keyof typeof CommunityEventPlanChatParticipantStatus];
+
+
+export const CommunityEventPlanChatParticipantStatus = {
+  host: 'host',
+  going: 'going',
+  maybe: 'maybe',
+} as const;
+
+export interface CommunityEventPlanChatParticipant {
+  uid: string;
+  displayName: string;
+  /** @nullable */
+  photoUrl: string | null;
+  status: CommunityEventPlanChatParticipantStatus;
+}
+
+export interface CommunityEventPlanChatMessage {
+  id: number;
+  senderUid: string;
+  senderName: string;
+  /** @nullable */
+  senderPhotoUrl: string | null;
+  /** @maxLength 500 */
+  text: string;
+  createdAt: string;
+}
+
+export type CommunityEventPlanChatResponseEvent = {
+  id: number;
+  title: string;
+  startsAt: string;
+  /** @nullable */
+  location: string | null;
+};
+
+export interface CommunityEventPlanChatResponse {
+  event: CommunityEventPlanChatResponseEvent;
+  participants: CommunityEventPlanChatParticipant[];
+  messages: CommunityEventPlanChatMessage[];
+  notificationsMuted: boolean;
+}
+
+export interface CommunityEventPlanChatNotificationsInput {
+  muted: boolean;
+}
+
+export interface CommunityEventPlanChatNotificationsResponse {
+  muted: boolean;
+}
+
+export interface CommunityEventPlanChatMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  text: string;
+}
+
+export interface CommunityEventPlanChatMessageResponse {
+  message: CommunityEventPlanChatMessage;
 }
 
 export type CommunityEventReportInputReason = typeof CommunityEventReportInputReason[keyof typeof CommunityEventReportInputReason];

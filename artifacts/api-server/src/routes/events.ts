@@ -1,8 +1,10 @@
 import { Router } from "express";
 import {
   and,
+  asc,
   arrayContains,
   count,
+  desc,
   eq,
   exists,
   gte,
@@ -13,6 +15,8 @@ import {
 } from "drizzle-orm";
 import {
   communityEventRsvpsTable,
+  communityEventPlanMessagesTable,
+  communityEventPlanNotificationPreferencesTable,
   communityEventsTable,
   db,
   eventAttendanceTable,
@@ -30,8 +34,21 @@ import {
   CreateCommunityEventInviteLinkResponse,
   CreateCommunityEventBody,
   CreateCommunityEventResponse,
+  GetCommunityEventPlanChatResponse,
+  SetCommunityEventPlanChatNotificationsBody,
+  SetCommunityEventPlanChatNotificationsResponse,
+  SendCommunityEventPlanChatMessageBody,
+  SendCommunityEventPlanChatMessageResponse,
+  CheckInEventByLocationBody,
+  CheckInEventByLocationParams,
+  CheckInEventByLocationResponse,
   CheckInEventByQrBody,
   CheckInEventByQrResponse,
+  GetEventAttendeesParams,
+  GetEventAttendeesResponse,
+  GetEventCheckinQrBody,
+  GetEventCheckinQrParams,
+  GetEventCheckinQrResponse,
   GetCommunityEventForEditResponse,
   GetEventDetailsResponse,
   ResolveEventInviteBody,
@@ -53,9 +70,14 @@ import {
   verifyEventInvitePasscode,
 } from "../lib/eventInviteLinks";
 import {
+  buildEventCheckinUrl,
+  createEventCheckinLinkFields,
+  decryptEventCheckinToken,
   hashEventCheckinToken,
   isValidEventCheckinToken,
 } from "../lib/eventCheckinLinks";
+import { notifyCommunityEventPlanMessage } from "../lib/eventNotifications";
+import { verifyAppCheckToken } from "../lib/firebaseAdmin";
 import { z } from "zod";
 
 const router = Router();
@@ -79,6 +101,11 @@ const eventCheckinLimit = createUserRateLimiter({
   max: 8,
   name: "event-checkin",
 });
+const eventPlanMessageLimit = createUserRateLimiter({
+  windowMs: 60_000,
+  max: 30,
+  name: "community-event-plan-message",
+});
 
 const rsvpStatusSchema = z.enum(["going", "maybe", "not_going"]);
 
@@ -89,6 +116,49 @@ function getEventId(raw: string | string[] | undefined): number | null {
   return Number.isSafeInteger(eventId) && eventId > 0 ? eventId : null;
 }
 
+type EventKind = "venue" | "member";
+
+async function getCommunityEventPlanChatContext(eventId: number, uid: string) {
+  const [event] = await db
+    .select()
+    .from(communityEventsTable)
+    .where(
+      and(
+        eq(communityEventsTable.id, eventId),
+        eq(communityEventsTable.isHidden, false),
+      ),
+    )
+    .limit(1);
+  if (!event) return null;
+
+  const rsvps = await db
+    .select({
+      userUid: communityEventRsvpsTable.userUid,
+      status: communityEventRsvpsTable.status,
+    })
+    .from(communityEventRsvpsTable)
+    .where(eq(communityEventRsvpsTable.eventId, eventId));
+  const canAccess =
+    event.ownerUid === uid ||
+    event.inviteeUids.includes(uid) ||
+    rsvps.some(
+      (rsvp) =>
+        rsvp.userUid === uid &&
+        (rsvp.status === "going" || rsvp.status === "maybe"),
+    );
+  return canAccess ? { event, rsvps } : null;
+}
+
+function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const dLat = radians(lat2 - lat1);
+  const dLng = radians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
+}
+
 function eventCheckinOpen(startsAt: Date, endsAt: Date | null): boolean {
   const now = Date.now();
   const opensAt = startsAt.getTime() - 60 * 60_000;
@@ -96,10 +166,15 @@ function eventCheckinOpen(startsAt: Date, endsAt: Date | null): boolean {
   return now >= opensAt && now <= closesAt;
 }
 
-async function insertVenueEventAttendance(eventId: number, userUid: string) {
+async function insertEventAttendance(
+  eventType: EventKind,
+  eventId: number,
+  userUid: string,
+  checkInMethod: "qr" | "location",
+) {
   const [inserted] = await db
     .insert(eventAttendanceTable)
-    .values({ eventType: "venue", eventId, userUid, checkInMethod: "qr" })
+    .values({ eventType, eventId, userUid, checkInMethod })
     .onConflictDoNothing({
       target: [
         eventAttendanceTable.eventType,
@@ -113,7 +188,7 @@ async function insertVenueEventAttendance(eventId: number, userUid: string) {
     .select({ checkedInAt: eventAttendanceTable.checkedInAt })
     .from(eventAttendanceTable)
     .where(and(
-      eq(eventAttendanceTable.eventType, "venue"),
+      eq(eventAttendanceTable.eventType, eventType),
       eq(eventAttendanceTable.eventId, eventId),
       eq(eventAttendanceTable.userUid, userUid),
     ))
@@ -122,28 +197,6 @@ async function insertVenueEventAttendance(eventId: number, userUid: string) {
     alreadyCheckedIn: true,
     checkedInAt: existing?.checkedInAt ?? new Date(),
   };
-}
-
-async function attendeeCanAccessVenueEvent(
-  eventId: number,
-  uid: string,
-  visibility: string,
-  ownerUid: string,
-  inviteeUids: string[],
-): Promise<boolean> {
-  if (visibility === "public" || ownerUid === uid || inviteeUids.includes(uid)) {
-    return true;
-  }
-  const [rsvp] = await db
-    .select({ id: venueEventRsvpsTable.id })
-    .from(venueEventRsvpsTable)
-    .where(and(
-      eq(venueEventRsvpsTable.eventId, eventId),
-      eq(venueEventRsvpsTable.userUid, uid),
-      ne(venueEventRsvpsTable.status, "not_going"),
-    ))
-    .limit(1);
-  return Boolean(rsvp);
 }
 
 function validateEventTimes(
@@ -326,56 +379,6 @@ router.get("/events/feed", requireUid, async (req, res) => {
 
   res.json({ events });
 });
-
-router.post(
-  "/events/check-in/qr",
-  requireUid,
-  eventCheckinLimit,
-  async (req, res): Promise<void> => {
-    const parsed = CheckInEventByQrBody.safeParse(req.body);
-    if (!parsed.success || !isValidEventCheckinToken(parsed.data?.token ?? "")) {
-      res.status(400).json({ message: "This event check-in code is invalid." });
-      return;
-    }
-    const tokenHash = hashEventCheckinToken(parsed.data.token);
-    const [event] = await db
-      .select()
-      .from(venueEventsTable)
-      .where(and(
-        eq(venueEventsTable.checkinTokenHash, tokenHash),
-        eq(venueEventsTable.isPublished, true),
-        eq(venueEventsTable.isHidden, false),
-      ))
-      .limit(1);
-    if (!event) {
-      res.status(404).json({ message: "This event check-in code is invalid or has been replaced." });
-      return;
-    }
-    if (!eventCheckinOpen(event.startsAt, event.endsAt)) {
-      res.status(403).json({ message: "Check-in is available near the event time." });
-      return;
-    }
-    if (!(await attendeeCanAccessVenueEvent(
-      event.id,
-      req.uid!,
-      event.visibility,
-      event.ownerUid,
-      event.inviteeUids,
-    ))) {
-      res.status(403).json({ message: "This event is invitation-only." });
-      return;
-    }
-    const attendance = await insertVenueEventAttendance(event.id, req.uid!);
-    res.setHeader("Cache-Control", "no-store");
-    res.json(CheckInEventByQrResponse.parse({
-      eventType: "venue",
-      eventId: event.id,
-      title: event.title,
-      checkInMethod: "qr",
-      ...attendance,
-    }));
-  },
-);
 
 router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
   const uid = req.uid!;
@@ -983,6 +986,218 @@ router.post(
   },
 );
 
+router.get(
+  "/community-events/:eventId/plan-chat",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const eventId = getEventId(req.params.eventId);
+    if (!eventId) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const context = await getCommunityEventPlanChatContext(eventId, req.uid!);
+    if (!context) {
+      res.status(404).json({ message: "Plan conversation not found." });
+      return;
+    }
+
+    const activeRsvps = context.rsvps.filter(
+      (rsvp) => rsvp.status === "going" || rsvp.status === "maybe",
+    );
+    const participantUids = [
+      ...new Set([context.event.ownerUid, ...activeRsvps.map((rsvp) => rsvp.userUid)]),
+    ];
+    const [profiles, messages, notificationPreference] = await Promise.all([
+      db
+        .select({
+          uid: profilesTable.uid,
+          displayName: profilesTable.displayName,
+          photoUrl: profilesTable.photoUrl,
+        })
+        .from(profilesTable)
+        .where(inArray(profilesTable.uid, participantUids)),
+      db
+        .select({
+          id: communityEventPlanMessagesTable.id,
+          senderUid: communityEventPlanMessagesTable.senderUid,
+          senderName: profilesTable.displayName,
+          senderPhotoUrl: profilesTable.photoUrl,
+          text: communityEventPlanMessagesTable.message,
+          createdAt: communityEventPlanMessagesTable.createdAt,
+        })
+        .from(communityEventPlanMessagesTable)
+        .leftJoin(
+          profilesTable,
+          eq(profilesTable.uid, communityEventPlanMessagesTable.senderUid),
+        )
+        .where(eq(communityEventPlanMessagesTable.eventId, eventId))
+        .orderBy(
+          desc(communityEventPlanMessagesTable.createdAt),
+          desc(communityEventPlanMessagesTable.id),
+        )
+        .limit(100),
+      db
+        .select({
+          muted: communityEventPlanNotificationPreferencesTable.muted,
+        })
+        .from(communityEventPlanNotificationPreferencesTable)
+        .where(
+          and(
+            eq(communityEventPlanNotificationPreferencesTable.eventId, eventId),
+            eq(communityEventPlanNotificationPreferencesTable.userUid, req.uid!),
+          ),
+        )
+        .limit(1)
+    ]);
+    const profilesByUid = new Map(profiles.map((profile) => [profile.uid, profile]));
+    const participants = participantUids.map((uid) => {
+      const rsvp = activeRsvps.find((item) => item.userUid === uid);
+      const profile = profilesByUid.get(uid);
+      return {
+        uid,
+        displayName: profile?.displayName || "Met member",
+        photoUrl: profile?.photoUrl ?? null,
+        status: uid === context.event.ownerUid ? "host" : rsvp?.status,
+      };
+    });
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json(
+      GetCommunityEventPlanChatResponse.parse({
+        event: {
+          id: context.event.id,
+          title: context.event.title,
+          startsAt: context.event.startsAt,
+          location: context.event.location,
+        },
+        participants,
+        notificationsMuted: notificationPreference[0]?.muted ?? false,
+        messages: messages.slice().reverse().map((message) => ({
+          ...message,
+          senderName: message.senderName || "Met member",
+          senderPhotoUrl: message.senderPhotoUrl ?? null,
+          createdAt: message.createdAt.toISOString(),
+        })),
+      }),
+    );
+  },
+);
+
+router.put(
+  "/community-events/:eventId/plan-chat/notifications",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const eventId = getEventId(req.params.eventId);
+    if (!eventId) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const parsed = SetCommunityEventPlanChatNotificationsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid notification preference." });
+      return;
+    }
+    const context = await getCommunityEventPlanChatContext(eventId, req.uid!);
+    if (!context) {
+      res.status(404).json({ message: "Plan conversation not found." });
+      return;
+    }
+
+    const now = new Date();
+    await db
+      .insert(communityEventPlanNotificationPreferencesTable)
+      .values({
+        eventId,
+        userUid: req.uid!,
+        muted: parsed.data.muted,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          communityEventPlanNotificationPreferencesTable.eventId,
+          communityEventPlanNotificationPreferencesTable.userUid,
+        ],
+        set: {
+          muted: parsed.data.muted,
+          updatedAt: now,
+        },
+      });
+
+    res.json(
+      SetCommunityEventPlanChatNotificationsResponse.parse({
+        muted: parsed.data.muted,
+      }),
+    );
+  },
+);
+
+router.post(
+  "/community-events/:eventId/plan-chat",
+  requireUid,
+  eventPlanMessageLimit,
+  async (req, res): Promise<void> => {
+    const eventId = getEventId(req.params.eventId);
+    if (!eventId) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const rawText = req.body?.text;
+    const parsed = SendCommunityEventPlanChatMessageBody.safeParse({
+      text: typeof rawText === "string" ? rawText.trim() : rawText,
+    });
+    if (!parsed.success) {
+      res.status(400).json({ message: "Enter a message up to 500 characters." });
+      return;
+    }
+    const context = await getCommunityEventPlanChatContext(eventId, req.uid!);
+    if (!context) {
+      res.status(404).json({ message: "Plan conversation not found." });
+      return;
+    }
+
+    const [message] = await db
+      .insert(communityEventPlanMessagesTable)
+      .values({
+        eventId,
+        senderUid: req.uid!,
+        message: parsed.data.text,
+      })
+      .returning();
+    const [sender] = await db
+      .select({
+        displayName: profilesTable.displayName,
+        photoUrl: profilesTable.photoUrl,
+      })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, req.uid!))
+      .limit(1);
+
+    await notifyCommunityEventPlanMessage({
+      eventId,
+      participantUids: [
+        context.event.ownerUid,
+        ...context.rsvps
+          .filter((rsvp) => rsvp.status === "going" || rsvp.status === "maybe")
+          .map((rsvp) => rsvp.userUid),
+      ],
+      senderUid: req.uid!,
+    });
+
+    res.status(201).json(
+      SendCommunityEventPlanChatMessageResponse.parse({
+        message: {
+          id: message.id,
+          senderUid: message.senderUid,
+          senderName: sender?.displayName || "Met member",
+          senderPhotoUrl: sender?.photoUrl ?? null,
+          text: message.message,
+          createdAt: message.createdAt.toISOString(),
+        },
+      }),
+    );
+  },
+);
+
 router.put(
   "/community-events/:eventId",
   requireUid,
@@ -1217,6 +1432,12 @@ router.delete(
       await tx
         .delete(communityEventRsvpsTable)
         .where(eq(communityEventRsvpsTable.eventId, eventId));
+      await tx
+        .delete(eventAttendanceTable)
+        .where(and(
+          eq(eventAttendanceTable.eventType, "member"),
+          eq(eventAttendanceTable.eventId, eventId),
+        ));
       const [removed] = await tx
         .delete(communityEventsTable)
         .where(
@@ -1382,6 +1603,380 @@ router.post(
         set: { status: parsed.data.status, updatedAt: new Date() },
       });
     res.json({ success: true, status: parsed.data.status });
+  },
+);
+
+async function attendeeCanAccessEvent(
+  eventType: EventKind,
+  eventId: number,
+  uid: string,
+  visibility: string,
+  ownerUid: string,
+  inviteeUids: string[],
+): Promise<boolean> {
+  if (visibility === "public" || ownerUid === uid || inviteeUids.includes(uid)) {
+    return true;
+  }
+  const rsvps = eventType === "venue" ? venueEventRsvpsTable : communityEventRsvpsTable;
+  const [rsvp] = await db
+    .select({ id: rsvps.id })
+    .from(rsvps)
+    .where(and(eq(rsvps.eventId, eventId), eq(rsvps.userUid, uid), ne(rsvps.status, "not_going")))
+    .limit(1);
+  return Boolean(rsvp);
+}
+
+router.post(
+  "/events/check-in/qr",
+  requireUid,
+  eventCheckinLimit,
+  async (req, res): Promise<void> => {
+    const parsed = CheckInEventByQrBody.safeParse(req.body);
+    if (!parsed.success || !isValidEventCheckinToken(parsed.data?.token ?? "")) {
+      res.status(400).json({ message: "This event check-in code is invalid." });
+      return;
+    }
+    const tokenHash = hashEventCheckinToken(parsed.data.token);
+    const [venueEvent] = await db
+      .select()
+      .from(venueEventsTable)
+      .where(and(
+        eq(venueEventsTable.checkinTokenHash, tokenHash),
+        eq(venueEventsTable.isPublished, true),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (venueEvent) {
+      if (!eventCheckinOpen(venueEvent.startsAt, venueEvent.endsAt)) {
+        res.status(403).json({ message: "Check-in is available near the event time." });
+        return;
+      }
+      if (!(await attendeeCanAccessEvent(
+        "venue",
+        venueEvent.id,
+        req.uid!,
+        venueEvent.visibility,
+        venueEvent.ownerUid,
+        venueEvent.inviteeUids,
+      ))) {
+        res.status(403).json({ message: "This event is invitation-only." });
+        return;
+      }
+      const attendance = await insertEventAttendance("venue", venueEvent.id, req.uid!, "qr");
+      res.json(CheckInEventByQrResponse.parse({
+        eventType: "venue",
+        eventId: venueEvent.id,
+        title: venueEvent.title,
+        checkInMethod: "qr",
+        ...attendance,
+      }));
+      return;
+    }
+
+    const [memberEvent] = await db
+      .select()
+      .from(communityEventsTable)
+      .where(and(
+        eq(communityEventsTable.checkinTokenHash, tokenHash),
+        eq(communityEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!memberEvent) {
+      res.status(404).json({ message: "This event check-in code is invalid or has been replaced." });
+      return;
+    }
+    if (!eventCheckinOpen(memberEvent.startsAt, memberEvent.endsAt)) {
+      res.status(403).json({ message: "Check-in is available near the event time." });
+      return;
+    }
+    if (!(await attendeeCanAccessEvent(
+      "member",
+      memberEvent.id,
+      req.uid!,
+      memberEvent.visibility,
+      memberEvent.ownerUid,
+      memberEvent.inviteeUids,
+    ))) {
+      res.status(403).json({ message: "This event is invitation-only." });
+      return;
+    }
+    const attendance = await insertEventAttendance("member", memberEvent.id, req.uid!, "qr");
+    res.json(CheckInEventByQrResponse.parse({
+      eventType: "member",
+      eventId: memberEvent.id,
+      title: memberEvent.title,
+      checkInMethod: "qr",
+      ...attendance,
+    }));
+  },
+);
+
+router.post(
+  "/events/:eventType/:eventId/check-in/location",
+  requireUid,
+  eventCheckinLimit,
+  async (req, res): Promise<void> => {
+    const params = CheckInEventByLocationParams.safeParse(req.params);
+    const parsed = CheckInEventByLocationBody.safeParse(req.body);
+    if (!params.success || !parsed.success) {
+      res.status(400).json({ message: "A valid event and current location are required." });
+      return;
+    }
+    const eventType = params.data.eventType;
+    const eventId = params.data.eventId;
+    if (process.env.NODE_ENV === "production") {
+      const appCheckToken = req.get("X-Firebase-AppCheck");
+      if (!appCheckToken || !(await verifyAppCheckToken(appCheckToken))) {
+        res.status(403).json({ message: "This device could not be verified. Scan the event QR code instead." });
+        return;
+      }
+    }
+    if (parsed.data.mocked) {
+      res.status(403).json({ message: "Simulated locations cannot be used to check in." });
+      return;
+    }
+    if (parsed.data.accuracy > 75) {
+      res.status(403).json({ message: "Your location is not precise enough. Scan the event QR code instead." });
+      return;
+    }
+
+    let event: {
+      id: number;
+      ownerUid: string;
+      title: string;
+      startsAt: Date;
+      endsAt: Date | null;
+      visibility: string;
+      inviteeUids: string[];
+      latitude: number | null;
+      longitude: number | null;
+    } | undefined;
+    if (eventType === "venue") {
+      const [row] = await db
+        .select({
+          id: venueEventsTable.id,
+          ownerUid: venueEventsTable.ownerUid,
+          title: venueEventsTable.title,
+          startsAt: venueEventsTable.startsAt,
+          endsAt: venueEventsTable.endsAt,
+          visibility: venueEventsTable.visibility,
+          inviteeUids: venueEventsTable.inviteeUids,
+          latitude: venueOwnerProfilesTable.lat,
+          longitude: venueOwnerProfilesTable.lng,
+        })
+        .from(venueEventsTable)
+        .innerJoin(venueOwnerProfilesTable, eq(venueOwnerProfilesTable.placeId, venueEventsTable.placeId))
+        .where(and(
+          eq(venueEventsTable.id, eventId),
+          eq(venueEventsTable.isPublished, true),
+          eq(venueEventsTable.isHidden, false),
+          eq(venueOwnerProfilesTable.isApproved, true),
+        ))
+        .limit(1);
+      event = row
+        ? { ...row, latitude: row.latitude == null ? null : Number(row.latitude), longitude: row.longitude == null ? null : Number(row.longitude) }
+        : undefined;
+    } else {
+      const [row] = await db
+        .select({
+          id: communityEventsTable.id,
+          ownerUid: communityEventsTable.ownerUid,
+          title: communityEventsTable.title,
+          startsAt: communityEventsTable.startsAt,
+          endsAt: communityEventsTable.endsAt,
+          visibility: communityEventsTable.visibility,
+          inviteeUids: communityEventsTable.inviteeUids,
+          latitude: communityEventsTable.locationLatitude,
+          longitude: communityEventsTable.locationLongitude,
+        })
+        .from(communityEventsTable)
+        .where(and(
+          eq(communityEventsTable.id, eventId),
+          eq(communityEventsTable.isHidden, false),
+        ))
+        .limit(1);
+      event = row;
+    }
+    if (!event) {
+      res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    if (!eventCheckinOpen(event.startsAt, event.endsAt)) {
+      res.status(403).json({ message: "Check-in is available near the event time." });
+      return;
+    }
+    if (!(await attendeeCanAccessEvent(
+      eventType,
+      eventId,
+      req.uid!,
+      event.visibility,
+      event.ownerUid,
+      event.inviteeUids,
+    ))) {
+      res.status(403).json({ message: "This event is invitation-only." });
+      return;
+    }
+    if (
+      event.latitude == null ||
+      event.longitude == null ||
+      !Number.isFinite(event.latitude) ||
+      !Number.isFinite(event.longitude)
+    ) {
+      res.status(409).json({ message: "This event does not have a verified location. Scan its QR code instead." });
+      return;
+    }
+    const distance = distanceMeters(
+      parsed.data.latitude,
+      parsed.data.longitude,
+      event.latitude,
+      event.longitude,
+    );
+    if (distance > 100 || distance + parsed.data.accuracy > 125) {
+      res.status(403).json({ message: "Move closer to the event location to check in, or scan its QR code." });
+      return;
+    }
+    const attendance = await insertEventAttendance(eventType, eventId, req.uid!, "location");
+    res.json(CheckInEventByLocationResponse.parse({
+      eventType,
+      eventId,
+      title: event.title,
+      checkInMethod: "location",
+      ...attendance,
+    }));
+  },
+);
+
+router.post(
+  "/events/:eventType/:eventId/check-in-qr",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const params = GetEventCheckinQrParams.safeParse(req.params);
+    const body = GetEventCheckinQrBody.safeParse(req.body ?? {});
+    if (!params.success || !body.success) {
+      res.status(400).json({ message: "Invalid event." });
+      return;
+    }
+    const { eventType, eventId } = params.data;
+    const rotate = body.data.rotate;
+    if (eventType === "venue") {
+      const [event] = await db.select().from(venueEventsTable).where(and(
+        eq(venueEventsTable.id, eventId),
+        eq(venueEventsTable.ownerUid, req.uid!),
+        eq(venueEventsTable.isHidden, false),
+      )).limit(1);
+      if (!event) {
+        res.status(404).json({ message: "Event not found." });
+        return;
+      }
+      try {
+        let token: string;
+        if (!rotate && event.checkinTokenEncrypted) {
+          token = decryptEventCheckinToken(event.checkinTokenEncrypted);
+        } else {
+          const fields = createEventCheckinLinkFields();
+          const [updated] = await db.update(venueEventsTable)
+            .set({
+              checkinTokenHash: fields.checkinTokenHash,
+              checkinTokenEncrypted: fields.checkinTokenEncrypted,
+              updatedAt: new Date(),
+            })
+            .where(eq(venueEventsTable.id, eventId))
+            .returning({ checkinTokenEncrypted: venueEventsTable.checkinTokenEncrypted });
+          if (!updated) {
+            res.status(409).json({ message: "The event check-in code could not be saved." });
+            return;
+          }
+          token = fields.token;
+        }
+        res.setHeader("Cache-Control", "no-store");
+        res.json(GetEventCheckinQrResponse.parse({ url: buildEventCheckinUrl(token) }));
+      } catch (error) {
+        req.log?.error({ error, eventId }, "Could not create venue event check-in QR");
+        res.status(503).json({ message: "The event check-in code could not be loaded." });
+      }
+      return;
+    }
+    const [event] = await db.select().from(communityEventsTable).where(and(
+      eq(communityEventsTable.id, eventId),
+      eq(communityEventsTable.ownerUid, req.uid!),
+      eq(communityEventsTable.isHidden, false),
+    )).limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    try {
+      let token: string;
+      if (!rotate && event.checkinTokenEncrypted) {
+        token = decryptEventCheckinToken(event.checkinTokenEncrypted);
+      } else {
+        const fields = createEventCheckinLinkFields();
+        const [updated] = await db.update(communityEventsTable)
+          .set({
+            checkinTokenHash: fields.checkinTokenHash,
+            checkinTokenEncrypted: fields.checkinTokenEncrypted,
+            updatedAt: new Date(),
+          })
+          .where(eq(communityEventsTable.id, eventId))
+          .returning({ checkinTokenEncrypted: communityEventsTable.checkinTokenEncrypted });
+        if (!updated) {
+          res.status(409).json({ message: "The event check-in code could not be saved." });
+          return;
+        }
+        token = fields.token;
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.json(GetEventCheckinQrResponse.parse({ url: buildEventCheckinUrl(token) }));
+    } catch (error) {
+      req.log?.error({ error, eventId }, "Could not create community event check-in QR");
+      res.status(503).json({ message: "The event check-in code could not be loaded." });
+    }
+  },
+);
+
+router.get(
+  "/events/:eventType/:eventId/attendees",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const params = GetEventAttendeesParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ message: "Invalid event." });
+      return;
+    }
+    const { eventType, eventId } = params.data;
+    const eventTable = eventType === "venue" ? venueEventsTable : communityEventsTable;
+    const [event] = await db.select({ id: eventTable.id }).from(eventTable).where(and(
+      eq(eventTable.id, eventId),
+      eq(eventTable.ownerUid, req.uid!),
+      eq(eventTable.isHidden, false),
+    )).limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    const attendees = await db
+      .select({
+        uid: eventAttendanceTable.userUid,
+        displayName: profilesTable.displayName,
+        photoUrl: profilesTable.photoUrl,
+        checkInMethod: eventAttendanceTable.checkInMethod,
+        checkedInAt: eventAttendanceTable.checkedInAt,
+      })
+      .from(eventAttendanceTable)
+      .leftJoin(profilesTable, eq(profilesTable.uid, eventAttendanceTable.userUid))
+      .where(and(
+        eq(eventAttendanceTable.eventType, eventType),
+        eq(eventAttendanceTable.eventId, eventId),
+      ))
+      .orderBy(eventAttendanceTable.checkedInAt);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(GetEventAttendeesResponse.parse({
+      attendees: attendees.map((attendee) => ({
+        ...attendee,
+        displayName: attendee.displayName ?? "Met member",
+      })),
+    }));
   },
 );
 

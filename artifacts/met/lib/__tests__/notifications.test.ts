@@ -123,6 +123,28 @@ describe("routeNotifTap", () => {
     expect(push).toHaveBeenCalledWith("/event-details/venue/42");
   });
 
+  it("routes event plan messages to the matching group chat", () => {
+    const result = routeNotifTap({
+      type: "event_plan_message",
+      eventId: "42",
+      eventType: "member",
+    }, { push });
+    expect(result).toBe(true);
+    expect(push).toHaveBeenCalledWith("/event-chat/42");
+  });
+
+  it.each([undefined, "", "0", "42/other", "9007199254740992"])(
+    "rejects an invalid event plan message route id (%s)",
+    (eventId) => {
+      const result = routeNotifTap({
+        type: "event_plan_message",
+        eventId,
+      }, { push });
+      expect(result).toBe(false);
+      expect(push).not.toHaveBeenCalled();
+    },
+  );
+
   it("does not route a venue event notification without an authorized event type and id", () => {
     expect(routeNotifTap({
       type: "venue_event_notification",

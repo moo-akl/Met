@@ -46,6 +46,7 @@ import {
 type Props = {
   mode: "create" | "edit";
   initial?: CommunityEventManageResponse;
+  planMode?: boolean;
 };
 
 function defaultStart(): Date {
@@ -55,7 +56,7 @@ function defaultStart(): Date {
   return date;
 }
 
-export default function CommunityEventForm({ mode, initial }: Props) {
+export default function CommunityEventForm({ mode, initial, planMode = false }: Props) {
   const isEditing = mode === "edit" && Boolean(initial);
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -81,10 +82,10 @@ export default function CommunityEventForm({ mode, initial }: Props) {
     initial ? new Date(initial.startsAt) : defaultStart(),
   );
   const [visibility, setVisibility] = useState<"public" | "invite_only">(
-    initial?.visibility ?? "public",
+    planMode ? "invite_only" : initial?.visibility ?? "public",
   );
   const [inviteLinkEnabled, setInviteLinkEnabled] = useState(
-    initial?.inviteLinkEnabled ?? false,
+    planMode || (initial?.inviteLinkEnabled ?? false),
   );
   const [requireInvitePasscode, setRequireInvitePasscode] = useState(
     initial?.invitePasscodeRequired ?? false,
@@ -372,7 +373,11 @@ export default function CommunityEventForm({ mode, initial }: Props) {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          {isEditing ? t("tabs.events.editEvent") : t("tabs.events.create")}
+          {isEditing
+            ? t("tabs.events.editEvent")
+            : planMode
+              ? t("tabs.events.quickPlan")
+              : t("tabs.events.create")}
         </Text>
         <View style={styles.back} />
       </View>
@@ -396,6 +401,26 @@ export default function CommunityEventForm({ mode, initial }: Props) {
             { color: colors.text, backgroundColor: colors.card, borderColor: colors.border },
           ]}
         />
+        {planMode ? (
+          <View
+            style={[
+              styles.planIntro,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Feather name="users" size={18} color={colors.primary} />
+            <View style={styles.planIntroCopy}>
+              <Text style={[styles.planIntroTitle, { color: colors.text }]}>
+                {t("tabs.events.quickPlanHint")}
+              </Text>
+              <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                {t("tabs.events.inviteLinkDescription")}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+        {!planMode ? (
+          <>
         <Text style={[styles.label, { color: colors.text }]}>
           {t("tabs.events.eventPhotoOptional")}
         </Text>
@@ -490,6 +515,8 @@ export default function CommunityEventForm({ mode, initial }: Props) {
           maxLength={254}
           style={[styles.input, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
         />
+          </>
+        ) : null}
         <Text style={[styles.label, { color: colors.text }]}>
           {t("tabs.events.details")}
         </Text>
@@ -596,6 +623,8 @@ export default function CommunityEventForm({ mode, initial }: Props) {
           isDark={isDark}
         />
 
+        {!planMode ? (
+          <>
         <Text style={[styles.label, { color: colors.text }]}>
           {t("tabs.events.visibility")}
         </Text>
@@ -743,6 +772,8 @@ export default function CommunityEventForm({ mode, initial }: Props) {
             ) : null}
           </View>
         ) : null}
+          </>
+        ) : null}
 
         {formError ? (
           <Text accessibilityRole="alert" style={[styles.error, { color: colors.destructive }]}>
@@ -762,7 +793,11 @@ export default function CommunityEventForm({ mode, initial }: Props) {
             <ActivityIndicator color={colors.primaryForeground} />
           ) : (
             <Text style={[styles.submitText, { color: colors.primaryForeground }]}>
-              {isEditing ? t("tabs.events.saveChanges") : t("tabs.events.submit")}
+              {isEditing
+                ? t("tabs.events.saveChanges")
+                : planMode
+                  ? t("tabs.events.quickPlan")
+                  : t("tabs.events.submit")}
             </Text>
           )}
         </Pressable>
@@ -785,6 +820,9 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700" },
   scroll: { flex: 1 },
   form: { padding: 18, gap: 10 },
+  planIntro: { borderWidth: 1, borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  planIntroCopy: { flex: 1 },
+  planIntroTitle: { fontSize: 14, fontWeight: "700", lineHeight: 20 },
   label: { fontSize: 14, fontWeight: "700", marginTop: 6 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   multiline: { minHeight: 94, textAlignVertical: "top" },

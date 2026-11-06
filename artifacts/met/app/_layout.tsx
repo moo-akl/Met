@@ -134,6 +134,7 @@ void initializeFirestore().catch((err) => {
 // universal link with `/r/CODE`) so onboarding can pre-fill it.
 let pendingDeepLinkReferral: string | null = null;
 let pendingEventInviteToken: string | null = null;
+let pendingConnectionInviteCode: string | null = null;
 export function consumePendingReferral(): string | null {
   const v = pendingDeepLinkReferral;
   pendingDeepLinkReferral = null;
@@ -152,6 +153,16 @@ export function consumePendingEventInviteRoute(): string | null {
   return token ? `/event-invite/${encodeURIComponent(token)}` : null;
 }
 
+export function setPendingConnectionInvite(code: string): void {
+  pendingConnectionInviteCode = code.toUpperCase();
+}
+
+export function consumePendingConnectionInviteRoute(): string | null {
+  const code = pendingConnectionInviteCode;
+  pendingConnectionInviteCode = null;
+  return code ? `/connect/${encodeURIComponent(code)}` : null;
+}
+
 export function parseReferralFromUrl(url: string | null): string | null {
   if (!url) return null;
   try {
@@ -160,6 +171,12 @@ export function parseReferralFromUrl(url: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+export function parseConnectionInviteFromUrl(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/\/connect\/([A-HJ-NP-Z2-9]{6})(?:[/?#]|$)/i);
+  return match?.[1]?.toUpperCase() ?? null;
 }
 
 export function parseNetworkInviteFromUrl(url: string | null): string | null {
@@ -197,7 +214,8 @@ export interface MinimalRouter {
  * Priority order (matches handleUrl in RootLayout):
  *   1. venue-owner URL  → /venue-owner (then authoritative lifecycle route)
  *   2. /r/<code>        → stash pendingDeepLinkReferral (no navigation; consumed at onboarding)
- *   3. /join/<code>     → /network/join/[code]
+ *   3. /connect/<code>  → stash pending connection invite (Expo Router owns the route)
+ *   4. /join/<code>     → /network/join/[code]
  *
  * Navigation is deferred by `delay` ms so the router is mounted before the
  * push fires (relevant for cold-start deep links).  Tests should pass delay=0.
@@ -229,6 +247,9 @@ export function routeDeepLink(
 
   const referral = parseReferralFromUrl(url);
   if (referral) pendingDeepLinkReferral = referral;
+
+  const connectionInviteCode = parseConnectionInviteFromUrl(url);
+  if (connectionInviteCode) setPendingConnectionInvite(connectionInviteCode);
 
   const networkCode = parseNetworkInviteFromUrl(url);
   if (networkCode) {
@@ -389,6 +410,13 @@ function ProfileGate() {
         router.replace(pendingInviteRoute as never);
         return;
       }
+      if (profile && permissionsCompleted) {
+        const pendingConnectionRoute = consumePendingConnectionInviteRoute();
+        if (pendingConnectionRoute) {
+          router.replace(pendingConnectionRoute as never);
+          return;
+        }
+      }
     }
     // Centralized decision (see lib/profileCompletion): /v owns its own
     // auth branching, incomplete private profiles may browse without the
@@ -483,7 +511,11 @@ function RootLayoutNav() {
       <Stack.Screen name="permissions" />
       <Stack.Screen name="v/[placeId]" options={{ animation: "fade" }} />
       <Stack.Screen name="event-invite/[token]" options={{ animation: "fade" }} />
-      <Stack.Screen name="venue-owner/index" />
+      <Stack.Screen
+        name="event-chat/[id]"
+        options={{ presentation: "card", animation: "slide_from_right" }}
+      />
+      <Stack.Screen name="venue-owner" />
       <Stack.Screen
         name="encounter/[id]"
         options={{ presentation: "card", animation: "slide_from_right" }}

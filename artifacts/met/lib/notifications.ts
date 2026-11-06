@@ -161,7 +161,8 @@ export type NotifData = {
     | "venue_owner_rejected"
     | "venue_owner_changes_requested"
     | "venue_owner_withdrawn"
-    | "venue_event_notification";
+    | "venue_event_notification"
+    | "event_plan_message";
   fromUid?: string;
   encounterId?: string;
   chatPeerUid?: string;
@@ -212,6 +213,17 @@ export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
   if (data.type === "venue_event_notification") {
     if (!data.eventId || data.eventType !== "venue") return false;
     router.push(`/event-details/venue/${data.eventId}`);
+    return true;
+  }
+  if (data.type === "event_plan_message") {
+    if (
+      !data.eventId ||
+      !/^[1-9]\d*$/.test(data.eventId) ||
+      !Number.isSafeInteger(Number(data.eventId))
+    ) {
+      return false;
+    }
+    router.push(`/event-chat/${data.eventId}`);
     return true;
   }
   if (data.type === "reveal_accepted") {

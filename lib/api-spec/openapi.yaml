@@ -20,6 +20,8 @@ tags:
     description: Mutual-reveal request lifecycle
   - name: referrals
     description: Referral / invite-a-friend operations
+  - name: connections
+    description: Mutual connections and personal connection invites
   - name: networks
     description: Community networks (university, work, neighborhood, custom)
 paths:
@@ -412,6 +414,82 @@ paths:
                 $ref: "#/components/schemas/Error"
         "404":
           description: Recipient profile not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /connections/invites/{code}:
+    parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: '^[A-HJ-NP-Z2-9]{6}$'
+    get:
+      operationId: getConnectionInvite
+      tags: [connections]
+      summary: Preview the member who shared a personal connection invite
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Public inviter details and existing connection state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionInvitePreview"
+        "400":
+          description: Invalid code, self-invite, or incomplete recipient profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Invite code not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /connections/invites/{code}/accept:
+    parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: '^[A-HJ-NP-Z2-9]{6}$'
+    post:
+      operationId: acceptConnectionInvite
+      tags: [connections]
+      summary: Accept a personal connection invite shared by another member
+      description: >
+        The authenticated member explicitly accepts the invite. The member who
+        shared the link has already consented by sharing it; acceptance creates
+        the connection in both directions.
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Connection created or already existed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptConnectionInviteResult"
+        "400":
+          description: Invalid code or self-invite
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Invite code not found
           content:
             application/json:
               schema:
@@ -2456,8 +2534,6 @@ paths:
           description: Event not found
         "409":
           description: Event is not invitation-only
-
-
     delete:
       operationId: revokeVenueOwnerEventInviteLink
       tags: [venue-owner]
@@ -2491,7 +2567,6 @@ paths:
                 $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
         "404": { description: Event not found }
         "409": { description: Event is not published or invitation-only }
-
 
   /events/feed:
     get:
@@ -2529,7 +2604,7 @@ paths:
     post:
       operationId: checkInEventByQr
       tags: [events]
-      summary: Check in to a venue event using its event-specific QR code
+      summary: Check in to an event using its event-specific QR code
       security:
         - MetUid: []
       requestBody:
@@ -2545,8 +2620,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EventCheckinResponse"
-        "403": { description: Event is outside its check-in window or is invitation-only }
-        "404": { description: Check-in code not found }
+        "403":
+          description: Event is outside its check-in window or is invitation-only
+        "404":
+          description: Check-in code not found
 
   /events/{eventType}/{eventId}:
     get:
@@ -2569,6 +2646,100 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EventFeedItem"
+
+  /events/{eventType}/{eventId}/check-in/location:
+    post:
+      operationId: checkInEventByLocation
+      tags: [events]
+      summary: Check in to an event using the device's current location
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventType
+          in: path
+          required: true
+          schema: { type: string, enum: [venue, member] }
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventLocationCheckinInput"
+      responses:
+        "200":
+          description: Verified event attendance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventCheckinResponse"
+        "403":
+          description: Location is not precise enough or is outside the event radius
+        "404":
+          description: Event not found
+        "409":
+          description: Event has no verified location
+
+  /events/{eventType}/{eventId}/check-in-qr:
+    post:
+      operationId: getEventCheckinQr
+      tags: [events]
+      summary: Get or rotate the event-specific check-in QR link
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventType
+          in: path
+          required: true
+          schema: { type: string, enum: [venue, member] }
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventCheckinQrInput"
+      responses:
+        "200":
+          description: Event QR link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventCheckinQrResponse"
+        "404":
+          description: Event not found
+
+  /events/{eventType}/{eventId}/attendees:
+    get:
+      operationId: getEventAttendees
+      tags: [events]
+      summary: List verified attendees for the event owner
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventType
+          in: path
+          required: true
+          schema: { type: string, enum: [venue, member] }
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Verified attendee list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventAttendeesResponse"
+        "404":
+          description: Event not found
 
   /event-locations/search:
     get:
@@ -2629,6 +2800,82 @@ paths:
           description: Event not found
         "409":
           description: Invite link is disabled
+
+  /community-events/{eventId}/plan-chat:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getCommunityEventPlanChat
+      tags: [events]
+      summary: Get an event conversation and its invited participants
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Conversation and participants
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventPlanChatResponse"
+        "400":
+          description: Invalid event id
+        "404":
+          description: Event not found or unavailable to the caller
+        "401":
+          description: Authentication required
+    put:
+      operationId: setCommunityEventPlanChatNotifications
+      tags: [events]
+      summary: Mute or unmute notifications for one event plan
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityEventPlanChatNotificationsInput"
+      responses:
+        "200":
+          description: Event-plan notification preference saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventPlanChatNotificationsResponse"
+        "400":
+          description: Invalid event id or preference
+        "404":
+          description: Event not found or unavailable to the caller
+        "401":
+          description: Authentication required
+    post:
+      operationId: sendCommunityEventPlanChatMessage
+      tags: [events]
+      summary: Send a message to an event conversation
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityEventPlanChatMessageInput"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventPlanChatMessageResponse"
+        "400":
+          description: Invalid event id or message is empty or exceeds 500 characters
+        "404":
+          description: Event not found or unavailable to the caller
+        "401":
+          description: Authentication required
 
   /community-event-reports:
     post:
@@ -2773,6 +3020,21 @@ paths:
                   success: { type: boolean }
                   status: { type: string, enum: [going, maybe, not_going] }
 
+  /venue-manager/businesses/{businessId}/guests:
+    get:
+      operationId: getVenueManagerGuests
+      tags: [venue-manager]
+      summary: List venue visitors and verified event attendees
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+      responses:
+        "200":
+          description: Venue visitors and event attendees
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueManagerGuestListResponse"
+
   /venue-manager/businesses/{businessId}/events:
     get:
       operationId: listVenueManagerEvents
@@ -2839,6 +3101,56 @@ paths:
         - $ref: "#/components/parameters/VenueManagerCsrf"
       responses:
         "204": { description: Event deleted }
+
+  /venue-manager/businesses/{businessId}/events/{eventId}/invite-link:
+    post:
+      operationId: createVenueManagerEventInviteLink
+      tags: [venue-manager]
+      summary: Get a shareable invitation link for a venue event
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "200":
+          description: Shareable invitation link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
+        "404": { description: Event not found }
+        "409": { description: Event is not published or invitation-only }
+    delete:
+      operationId: revokeVenueManagerEventInviteLink
+      tags: [venue-manager]
+      summary: Disable a venue event invitation link
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "204": { description: Invitation link disabled }
+        "404": { description: Event not found }
+        "409": { description: Event is not invitation-only }
+
+  /venue-manager/businesses/{businessId}/events/{eventId}/invite-link/rotate:
+    post:
+      operationId: rotateVenueManagerEventInviteLink
+      tags: [venue-manager]
+      summary: Replace a venue event invitation link
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "200":
+          description: Replacement invitation link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
+        "404": { description: Event not found }
+        "409": { description: Event is not published or invitation-only }
 
   /venue-manager/businesses/{businessId}/events/{eventId}/attendees:
     get:
@@ -2938,58 +3250,6 @@ paths:
                 $ref: "#/components/schemas/EventCheckinQrResponse"
         "404": { description: Event not found }
         "409": { description: The event must be published first }
-  /venue-manager/businesses/{businessId}/events/{eventId}/invite-link:
-    post:
-      operationId: createVenueManagerEventInviteLink
-      tags: [venue-manager]
-      summary: Get a shareable invitation link for a venue event
-      parameters:
-        - $ref: "#/components/parameters/VenueBusinessId"
-        - $ref: "#/components/parameters/VenueEventId"
-        - $ref: "#/components/parameters/VenueManagerCsrf"
-      responses:
-        "200":
-          description: Shareable invitation link
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
-        "404": { description: Event not found }
-        "409": { description: Event is not published or invitation-only }
-
-
-    delete:
-      operationId: revokeVenueManagerEventInviteLink
-      tags: [venue-manager]
-      summary: Disable a venue event invitation link
-      parameters:
-        - $ref: "#/components/parameters/VenueBusinessId"
-        - $ref: "#/components/parameters/VenueEventId"
-        - $ref: "#/components/parameters/VenueManagerCsrf"
-      responses:
-        "204": { description: Invitation link disabled }
-        "404": { description: Event not found }
-        "409": { description: Event is not invitation-only }
-
-  /venue-manager/businesses/{businessId}/events/{eventId}/invite-link/rotate:
-    post:
-      operationId: rotateVenueManagerEventInviteLink
-      tags: [venue-manager]
-      summary: Replace a venue event invitation link
-      parameters:
-        - $ref: "#/components/parameters/VenueBusinessId"
-        - $ref: "#/components/parameters/VenueEventId"
-        - $ref: "#/components/parameters/VenueManagerCsrf"
-      responses:
-        "200":
-          description: Replacement invitation link
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
-        "404": { description: Event not found }
-        "409": { description: Event is not published or invitation-only }
-
 
   /venue-manager/businesses/{businessId}/rewards:
     get:
@@ -5082,6 +5342,38 @@ components:
       name: met_venue_admin
       description: Signed Venue Admin session cookie
   schemas:
+    ConnectionInviteProfile:
+      type: object
+      required: [uid, displayName, photoUrl]
+      properties:
+        uid:
+          type: string
+        displayName:
+          type: string
+        photoUrl:
+          type: [string, "null"]
+    ConnectionInvitePreview:
+      type: object
+      required: [uid, displayName, photoUrl, alreadyConnected]
+      properties:
+        uid:
+          type: string
+        displayName:
+          type: string
+        photoUrl:
+          type: [string, "null"]
+        alreadyConnected:
+          type: boolean
+    AcceptConnectionInviteResult:
+      type: object
+      required: [success, alreadyConnected, peer]
+      properties:
+        success:
+          type: boolean
+        alreadyConnected:
+          type: boolean
+        peer:
+          $ref: "#/components/schemas/ConnectionInviteProfile"
     SavedPlace:
       type: object
       required: [placeId, placeName, savedAt, available]
@@ -6209,7 +6501,7 @@ components:
       properties:
         uid: { type: string }
         displayName: { type: string }
-        photoUrl: { type: ["string", "null"], format: uri }
+        photoUrl: { type: ["string", "null"] }
         checkinCount: { type: integer }
         lastCheckinAt: { type: string, format: date-time }
     VenueGuestListResponse:
@@ -6217,6 +6509,17 @@ components:
       required: [guests, total]
       properties:
         guests:
+          type: array
+          items: { $ref: "#/components/schemas/VenueGuestSummary" }
+        total: { type: integer }
+    VenueManagerGuestListResponse:
+      type: object
+      required: [guests, eventAttendees, total]
+      properties:
+        guests:
+          type: array
+          items: { $ref: "#/components/schemas/VenueGuestSummary" }
+        eventAttendees:
           type: array
           items: { $ref: "#/components/schemas/VenueGuestSummary" }
         total: { type: integer }
@@ -6301,6 +6604,14 @@ components:
       required: [token]
       properties:
         token: { type: string, minLength: 32, maxLength: 64 }
+    EventLocationCheckinInput:
+      type: object
+      required: [latitude, longitude, accuracy]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        accuracy: { type: number, minimum: 0 }
+        mocked: { type: boolean }
     EventCheckinResponse:
       type: object
       required: [eventType, eventId, title, checkInMethod, alreadyCheckedIn, checkedInAt]
@@ -6326,7 +6637,7 @@ components:
       properties:
         uid: { type: string }
         displayName: { type: string }
-        photoUrl: { type: ["string", "null"], format: uri }
+        photoUrl: { type: ["string", "null"] }
         checkInMethod: { type: string, enum: [qr, location, manual] }
         checkedInAt: { type: string, format: date-time }
         checkedInByUid: { type: ["string", "null"] }
@@ -6475,6 +6786,66 @@ components:
       properties:
         url: { type: string, format: uri }
         passcodeRequired: { type: boolean }
+    CommunityEventPlanChatParticipant:
+      type: object
+      required: [uid, displayName, photoUrl, status]
+      properties:
+        uid: { type: string }
+        displayName: { type: string }
+        photoUrl: { type: ["string", "null"], format: uri }
+        status: { type: string, enum: [host, going, maybe] }
+    CommunityEventPlanChatMessage:
+      type: object
+      required: [id, senderUid, senderName, senderPhotoUrl, text, createdAt]
+      properties:
+        id: { type: integer }
+        senderUid: { type: string }
+        senderName: { type: string }
+        senderPhotoUrl: { type: ["string", "null"] }
+        text: { type: string, maxLength: 500 }
+        createdAt: { type: string, format: date-time }
+    CommunityEventPlanChatResponse:
+      type: object
+      required: [event, participants, messages, notificationsMuted]
+      properties:
+        event:
+          type: object
+          required: [id, title, startsAt, location]
+          properties:
+            id: { type: integer }
+            title: { type: string }
+            startsAt: { type: string, format: date-time }
+            location: { type: ["string", "null"] }
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityEventPlanChatParticipant"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityEventPlanChatMessage"
+        notificationsMuted: { type: boolean }
+    CommunityEventPlanChatNotificationsInput:
+      type: object
+      required: [muted]
+      properties:
+        muted: { type: boolean }
+    CommunityEventPlanChatNotificationsResponse:
+      type: object
+      required: [muted]
+      properties:
+        muted: { type: boolean }
+    CommunityEventPlanChatMessageInput:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 500 }
+    CommunityEventPlanChatMessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          $ref: "#/components/schemas/CommunityEventPlanChatMessage"
     CommunityEventReportInput:
       type: object
       required: [eventId, reason]

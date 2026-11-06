@@ -13,6 +13,7 @@ type Action = {
   icon: IconName;
   onPress: () => void;
   badge?: number;
+  accessibilityLabel?: string;
 };
 
 type Visibility = {
@@ -145,6 +146,8 @@ export function AppHeader({
               key={i}
               onPress={a.onPress}
               hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={a.accessibilityLabel}
               style={({ pressed }) => [
                 styles.actionBtn,
                 { opacity: pressed ? 0.7 : 1 },

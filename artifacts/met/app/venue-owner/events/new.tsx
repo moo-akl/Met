@@ -9,11 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   Share,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -31,13 +28,12 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { DateTimePicker } from "@/components/DateTimePicker";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import {
   useCreateVenueOwnerEventInviteLink,
   useGetVenueOwnerMeGuests,
 } from "@workspace/api-client-react";
 import { prepareVenueEventImage } from "@/lib/venueEventImage";
-
-const GREEN = "#00E87A";
 
 function defaultStartsAt(): Date {
   const d = new Date();
@@ -75,16 +71,15 @@ export default function NewVenueEventScreen() {
     { query: { enabled: visibility === "invite_only", staleTime: 30_000 } },
   );
 
-  // ── Venue theme tokens ──────────────────────────────────────────────────────
-  const vBg          = isDark ? "#0A0518"                : "#FAFAF8";
-  const vInput       = isDark ? "#1A1A1E"                : "rgba(0,0,0,0.04)";
-  const vText        = isDark ? "#fff"                   : "#0D0D0D";
-  const vMuted       = isDark ? "rgba(255,255,255,0.4)"  : "rgba(0,0,0,0.38)";
-  const vLabel       = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)";
-  const vPlaceholder = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)";
-  const vToggleLabel = isDark ? "rgba(255,255,255,0.7)"  : "rgba(0,0,0,0.65)";
-  const vDisabledBtn = isDark ? "#333"                   : "rgba(0,0,0,0.1)";
-  const accent       = isDark ? colors.primary           : GREEN;
+  const vBg = colors.background;
+  const vInput = colors.card;
+  const vText = colors.text;
+  const vMuted = colors.mutedForeground;
+  const vLabel = colors.mutedForeground;
+  const vPlaceholder = colors.mutedForeground;
+  const vToggleLabel = colors.text;
+  const vDisabledBtn = colors.muted;
+  const accent = colors.primary;
 
   function handleEndsAtChange(date: Date) {
     setEndsAt(date);
@@ -189,15 +184,13 @@ export default function NewVenueEventScreen() {
   const endsAtValue = endsAt ?? new Date(startsAt.getTime() + 3 * 60 * 60 * 1000);
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: vBg }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <View style={[styles.root, { backgroundColor: vBg }]}>
       <VenueOwnerHeader title="New Event" onBack={() => router.back()} backLabel="Cancel" />
 
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+        bottomOffset={24}
         keyboardShouldPersistTaps="handled"
       >
         <Field label="Title *" value={title} onChangeText={setTitle} placeholder="Friday Night Quiz"
@@ -223,7 +216,10 @@ export default function NewVenueEventScreen() {
             <View style={styles.imagePreviewWrap}>
               <Image source={{ uri: imageUrl }} style={styles.imagePreview} resizeMode="cover" />
               <Pressable onPress={() => setImageUrl("")} style={styles.imageRemoveBtn}>
-                <Text style={styles.imageRemoveText}>✕ Remove</Text>
+                <View style={styles.imageRemoveContent}>
+                  <Feather name="x" size={14} color="#fff" />
+                  <Text style={styles.imageRemoveText}>Remove</Text>
+                </View>
               </Pressable>
             </View>
           ) : (
@@ -234,7 +230,12 @@ export default function NewVenueEventScreen() {
             >
               {imageUploading
                 ? <ActivityIndicator color={accent} />
-                : <Text style={[styles.imagePickerText, { color: vMuted }]}>＋ Add Cover Photo</Text>}
+                : (
+                  <View style={styles.imagePickerContent}>
+                    <Feather name="image" size={17} color={accent} />
+                    <Text style={[styles.imagePickerText, { color: accent }]}>Add cover photo</Text>
+                  </View>
+                )}
             </Pressable>
           )}
         </View>
@@ -394,11 +395,11 @@ export default function NewVenueEventScreen() {
           disabled={!canSubmit || submitting}
         >
           {submitting
-            ? <ActivityIndicator color={isDark ? "#fff" : "#0D0D0D"} />
-            : <Text style={[styles.submitBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>Create Event</Text>}
+            ? <ActivityIndicator color={canSubmit ? colors.primaryForeground : colors.mutedForeground} />
+            : <Text style={[styles.submitBtnText, { color: canSubmit ? colors.primaryForeground : colors.mutedForeground }]}>Create Event</Text>}
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollViewCompat>
+    </View>
   );
 }
 
@@ -437,11 +438,13 @@ const styles = StyleSheet.create({
   field: {},
   fieldLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
   fieldInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  imagePickerBtn: { borderWidth: 1, borderStyle: "dashed", borderRadius: 10, paddingVertical: 20, alignItems: "center", justifyContent: "center" },
-  imagePickerText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  imagePickerBtn: { borderWidth: 1, borderStyle: "dashed", borderRadius: 14, paddingVertical: 20, alignItems: "center", justifyContent: "center" },
+  imagePickerContent: { flexDirection: "row", alignItems: "center", gap: 8 },
+  imagePickerText: { fontSize: 14, fontFamily: "Inter_600SemiBold", textTransform: "capitalize" },
   imagePreviewWrap: { borderRadius: 10, overflow: "hidden", position: "relative" },
   imagePreview: { width: "100%", height: 160, borderRadius: 10 },
   imageRemoveBtn: { position: "absolute", top: 8, right: 8, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  imageRemoveContent: { flexDirection: "row", alignItems: "center", gap: 4 },
   imageRemoveText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   optionalRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   optionalBadge: { fontSize: 11, fontFamily: "Inter_400Regular" },

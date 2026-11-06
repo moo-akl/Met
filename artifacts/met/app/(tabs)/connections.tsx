@@ -3,10 +3,12 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Easing,
   Platform,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -33,6 +35,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 import { useT } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
+import { ensureMyCode } from "@/lib/referrals";
 import { visibleDiscoveryPeers } from "@/lib/discoveryVisibility";
 import { subscribeToChatMeta } from "@/lib/firestore/chat";
 import {
@@ -103,6 +106,28 @@ function ConnectionsScreen() {
 
   const unreadChatCount = useUnreadChatCount();
   const webBot = Platform.OS === "web" ? 34 : 0;
+
+  const handleInviteFriends = useCallback(async () => {
+    if (!authedUid) return;
+    try {
+      const codeCandidate = await ensureMyCode();
+      const { code } = await api.registerReferralCode(
+        { uid: authedUid },
+        codeCandidate,
+      );
+      if (!code) throw new Error("Your invite link is not available yet.");
+      const url = `https://met-app.org/connect/${encodeURIComponent(code)}`;
+      const message = `Connect with me on Met: ${url}`;
+      await Share.share({ title: "Connect with me on Met", message, url });
+    } catch (error) {
+      Alert.alert(
+        t("common.error"),
+        error instanceof Error
+          ? error.message
+          : "Could not share the invite. Please try again.",
+      );
+    }
+  }, [authedUid, t]);
 
   const handleScan = useCallback(() => {
     router.push("/scan");
@@ -316,6 +341,11 @@ function ConnectionsScreen() {
         title={`${t("appHeader.titleConnections")} (${connections.length})`}
         visibility={{ isVisible, onToggle: toggleVisibility }}
         actions={[
+          {
+            icon: "user-plus",
+            onPress: () => void handleInviteFriends(),
+            accessibilityLabel: t("referrals.title"),
+          },
           { icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount },
           { icon: "sliders", onPress: () => setSortMenuOpen(true) },
         ]}

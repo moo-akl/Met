@@ -25,6 +25,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AcceptConnectionInviteResult,
   AdminManagedAnnouncementInput,
   AdminManagedAnnouncementUpdate,
   AdminManagedImageConfirmInput,
@@ -50,9 +51,15 @@ import type {
   CommunityEventInput,
   CommunityEventInviteLinkResponse,
   CommunityEventManageResponse,
+  CommunityEventPlanChatMessageInput,
+  CommunityEventPlanChatMessageResponse,
+  CommunityEventPlanChatNotificationsInput,
+  CommunityEventPlanChatNotificationsResponse,
+  CommunityEventPlanChatResponse,
   CommunityEventReportInput,
   CommunityEventReportResponse,
   CommunityEventRsvpBody,
+  ConnectionInvitePreview,
   CreateAnnouncementRequest,
   CreateNetwork,
   CreateRevealRequest,
@@ -73,6 +80,7 @@ import type {
   EventInviteResolveInput,
   EventInviteResolveResponse,
   EventInviteRsvpBody,
+  EventLocationCheckinInput,
   EventLocationSearchResponse,
   EventQrCheckinInput,
   GetVenueOwnerMapPoints200,
@@ -187,6 +195,7 @@ import type {
   VenueManagerFirebaseLink,
   VenueManagerFirebaseProof,
   VenueManagerFirebaseRegistration,
+  VenueManagerGuestListResponse,
   VenueManagerInvitation,
   VenueManagerInvitationAcceptance,
   VenueManagerMemberList,
@@ -1729,6 +1738,182 @@ export const useCreateRevealRequest = <TError = ErrorType<Error>,
         TContext
       > => {
       return useMutation(getCreateRevealRequestMutationOptions(options), queryClient);
+    }
+
+export const getGetConnectionInviteUrl = (code: string,) => {
+
+
+
+
+  return `/api/connections/invites/${code}`
+}
+
+/**
+ * @summary Preview the member who shared a personal connection invite
+ */
+export const getConnectionInvite = async (code: string, options?: Parameters<typeof customFetch>[1]): Promise<ConnectionInvitePreview> => {
+
+  return customFetch<ConnectionInvitePreview>(getGetConnectionInviteUrl(code),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetConnectionInviteQueryKey = (code: string,) => {
+    return [
+    `/api/connections/invites/${code}`
+    ] as const;
+    }
+
+
+export const getGetConnectionInviteQueryOptions = <TData = Awaited<ReturnType<typeof getConnectionInvite>>, TError = ErrorType<Error>>(code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConnectionInvite>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetConnectionInviteQueryKey(code);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getConnectionInvite>>> = ({ signal }) => getConnectionInvite(code, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConnectionInvite>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetConnectionInviteQueryResult = NonNullable<Awaited<ReturnType<typeof getConnectionInvite>>>
+export type GetConnectionInviteQueryError = ErrorType<Error>
+
+
+export function useGetConnectionInvite<TData = Awaited<ReturnType<typeof getConnectionInvite>>, TError = ErrorType<Error>>(
+ code: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConnectionInvite>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getConnectionInvite>>,
+          TError,
+          Awaited<ReturnType<typeof getConnectionInvite>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetConnectionInvite<TData = Awaited<ReturnType<typeof getConnectionInvite>>, TError = ErrorType<Error>>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConnectionInvite>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getConnectionInvite>>,
+          TError,
+          Awaited<ReturnType<typeof getConnectionInvite>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetConnectionInvite<TData = Awaited<ReturnType<typeof getConnectionInvite>>, TError = ErrorType<Error>>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConnectionInvite>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Preview the member who shared a personal connection invite
+ */
+
+export function useGetConnectionInvite<TData = Awaited<ReturnType<typeof getConnectionInvite>>, TError = ErrorType<Error>>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConnectionInvite>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetConnectionInviteQueryOptions(code,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcceptConnectionInviteUrl = (code: string,) => {
+
+
+
+
+  return `/api/connections/invites/${code}/accept`
+}
+
+/**
+ * The authenticated member explicitly accepts the invite. The member who shared the link has already consented by sharing it; acceptance creates the connection in both directions.
+ * @summary Accept a personal connection invite shared by another member
+ */
+export const acceptConnectionInvite = async (code: string, options?: Parameters<typeof customFetch>[1]): Promise<AcceptConnectionInviteResult> => {
+
+  return customFetch<AcceptConnectionInviteResult>(getAcceptConnectionInviteUrl(code),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptConnectionInviteMutationKey = () => ['acceptConnectionInvite'] as const;
+
+export const getAcceptConnectionInviteMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptConnectionInvite>>, TError,AcceptConnectionInviteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptConnectionInvite>>, TError,AcceptConnectionInviteMutationVariables, TContext> => {
+
+const mutationKey = getAcceptConnectionInviteMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptConnectionInvite>>, AcceptConnectionInviteMutationVariables> = (props) => {
+          const {code} = props ?? {};
+
+          return  acceptConnectionInvite(code,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptConnectionInviteMutationResult = NonNullable<Awaited<ReturnType<typeof acceptConnectionInvite>>>
+
+    export type AcceptConnectionInviteMutationError = ErrorType<Error>
+    export type AcceptConnectionInviteMutationVariables = {code: string}
+
+    /**
+ * @summary Accept a personal connection invite shared by another member
+ */
+export const useAcceptConnectionInvite = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptConnectionInvite>>, TError,AcceptConnectionInviteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof acceptConnectionInvite>>,
+        TError,
+        AcceptConnectionInviteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAcceptConnectionInviteMutationOptions(options), queryClient);
     }
 
 export const getListInboundRevealsUrl = () => {
@@ -8660,7 +8845,7 @@ export const getCheckInEventByQrUrl = () => {
 }
 
 /**
- * @summary Check in to a venue event using its event-specific QR code
+ * @summary Check in to an event using its event-specific QR code
  */
 export const checkInEventByQr = async (eventQrCheckinInput: EventQrCheckinInput, options?: Parameters<typeof customFetch>[1]): Promise<EventCheckinResponse> => {
 
@@ -8726,7 +8911,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CheckInEventByQrMutationVariables = {data: BodyType<EventQrCheckinInput>}
 
     /**
- * @summary Check in to a venue event using its event-specific QR code
+ * @summary Check in to an event using its event-specific QR code
  */
 export const useCheckInEventByQr = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkInEventByQr>>, TError,CheckInEventByQrMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -8836,6 +9021,297 @@ export function useGetEventDetails<TData = Awaited<ReturnType<typeof getEventDet
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetEventDetailsQueryOptions(eventType,eventId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCheckInEventByLocationUrl = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+
+
+
+
+  return `/api/events/${eventType}/${eventId}/check-in/location`
+}
+
+/**
+ * @summary Check in to an event using the device's current location
+ */
+export const checkInEventByLocation = async (eventType: 'venue' | 'member',
+    eventId: number,
+    eventLocationCheckinInput: EventLocationCheckinInput, options?: Parameters<typeof customFetch>[1]): Promise<EventCheckinResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventCheckinResponse>(getCheckInEventByLocationUrl(eventType,eventId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(eventLocationCheckinInput)
+  }
+);}
+
+
+
+
+
+export const getCheckInEventByLocationMutationKey = () => ['checkInEventByLocation'] as const;
+
+export const getCheckInEventByLocationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkInEventByLocation>>, TError,CheckInEventByLocationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkInEventByLocation>>, TError,CheckInEventByLocationMutationVariables, TContext> => {
+
+const mutationKey = getCheckInEventByLocationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkInEventByLocation>>, CheckInEventByLocationMutationVariables> = (props) => {
+          const {eventType,eventId,data} = props ?? {};
+
+          return  checkInEventByLocation(eventType,eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckInEventByLocationMutationResult = NonNullable<Awaited<ReturnType<typeof checkInEventByLocation>>>
+    export type CheckInEventByLocationMutationBody = BodyType<EventLocationCheckinInput>
+    export type CheckInEventByLocationMutationError = ErrorType<void>
+    export type CheckInEventByLocationMutationVariables = {eventType: 'venue' | 'member';eventId: number;data: BodyType<EventLocationCheckinInput>}
+
+    /**
+ * @summary Check in to an event using the device's current location
+ */
+export const useCheckInEventByLocation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkInEventByLocation>>, TError,CheckInEventByLocationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof checkInEventByLocation>>,
+        TError,
+        CheckInEventByLocationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCheckInEventByLocationMutationOptions(options), queryClient);
+    }
+
+export const getGetEventCheckinQrUrl = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+
+
+
+
+  return `/api/events/${eventType}/${eventId}/check-in-qr`
+}
+
+/**
+ * @summary Get or rotate the event-specific check-in QR link
+ */
+export const getEventCheckinQr = async (eventType: 'venue' | 'member',
+    eventId: number,
+    eventCheckinQrInput: EventCheckinQrInput, options?: Parameters<typeof customFetch>[1]): Promise<EventCheckinQrResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventCheckinQrResponse>(getGetEventCheckinQrUrl(eventType,eventId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(eventCheckinQrInput)
+  }
+);}
+
+
+
+
+
+export const getGetEventCheckinQrMutationKey = () => ['getEventCheckinQr'] as const;
+
+export const getGetEventCheckinQrMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getEventCheckinQr>>, TError,GetEventCheckinQrMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof getEventCheckinQr>>, TError,GetEventCheckinQrMutationVariables, TContext> => {
+
+const mutationKey = getGetEventCheckinQrMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getEventCheckinQr>>, GetEventCheckinQrMutationVariables> = (props) => {
+          const {eventType,eventId,data} = props ?? {};
+
+          return  getEventCheckinQr(eventType,eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetEventCheckinQrMutationResult = NonNullable<Awaited<ReturnType<typeof getEventCheckinQr>>>
+    export type GetEventCheckinQrMutationBody = BodyType<EventCheckinQrInput>
+    export type GetEventCheckinQrMutationError = ErrorType<void>
+    export type GetEventCheckinQrMutationVariables = {eventType: 'venue' | 'member';eventId: number;data: BodyType<EventCheckinQrInput>}
+
+    /**
+ * @summary Get or rotate the event-specific check-in QR link
+ */
+export const useGetEventCheckinQr = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getEventCheckinQr>>, TError,GetEventCheckinQrMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof getEventCheckinQr>>,
+        TError,
+        GetEventCheckinQrMutationVariables,
+        TContext
+      > => {
+      return useMutation(getGetEventCheckinQrMutationOptions(options), queryClient);
+    }
+
+export const getGetEventAttendeesUrl = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+
+
+
+
+  return `/api/events/${eventType}/${eventId}/attendees`
+}
+
+/**
+ * @summary List verified attendees for the event owner
+ */
+export const getEventAttendees = async (eventType: 'venue' | 'member',
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<EventAttendeesResponse> => {
+
+  return customFetch<EventAttendeesResponse>(getGetEventAttendeesUrl(eventType,eventId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEventAttendeesQueryKey = (eventType: 'venue' | 'member',
+    eventId: number,) => {
+    return [
+    `/api/events/${eventType}/${eventId}/attendees`
+    ] as const;
+    }
+
+
+export const getGetEventAttendeesQueryOptions = <TData = Awaited<ReturnType<typeof getEventAttendees>>, TError = ErrorType<void>>(eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventAttendees>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEventAttendeesQueryKey(eventType,eventId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEventAttendees>>> = ({ signal }) => getEventAttendees(eventType,eventId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: eventType !== null && eventType !== undefined && eventId !== null && eventId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEventAttendees>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetEventAttendeesQueryResult = NonNullable<Awaited<ReturnType<typeof getEventAttendees>>>
+export type GetEventAttendeesQueryError = ErrorType<void>
+
+
+export function useGetEventAttendees<TData = Awaited<ReturnType<typeof getEventAttendees>>, TError = ErrorType<void>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventAttendees>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEventAttendees>>,
+          TError,
+          Awaited<ReturnType<typeof getEventAttendees>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEventAttendees<TData = Awaited<ReturnType<typeof getEventAttendees>>, TError = ErrorType<void>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventAttendees>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEventAttendees>>,
+          TError,
+          Awaited<ReturnType<typeof getEventAttendees>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEventAttendees<TData = Awaited<ReturnType<typeof getEventAttendees>>, TError = ErrorType<void>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventAttendees>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List verified attendees for the event owner
+ */
+
+export function useGetEventAttendees<TData = Awaited<ReturnType<typeof getEventAttendees>>, TError = ErrorType<void>>(
+ eventType: 'venue' | 'member',
+    eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventAttendees>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetEventAttendeesQueryOptions(eventType,eventId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -9129,6 +9605,285 @@ export const useCreateCommunityEventInviteLink = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateCommunityEventInviteLinkMutationOptions(options), queryClient);
+    }
+
+export const getGetCommunityEventPlanChatUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/plan-chat`
+}
+
+/**
+ * @summary Get an event conversation and its invited participants
+ */
+export const getCommunityEventPlanChat = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventPlanChatResponse> => {
+
+  return customFetch<CommunityEventPlanChatResponse>(getGetCommunityEventPlanChatUrl(eventId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommunityEventPlanChatQueryKey = (eventId: number,) => {
+    return [
+    `/api/community-events/${eventId}/plan-chat`
+    ] as const;
+    }
+
+
+export const getGetCommunityEventPlanChatQueryOptions = <TData = Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError = ErrorType<void>>(eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommunityEventPlanChatQueryKey(eventId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityEventPlanChat>>> = ({ signal }) => getCommunityEventPlanChat(eventId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: eventId !== null && eventId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCommunityEventPlanChatQueryResult = NonNullable<Awaited<ReturnType<typeof getCommunityEventPlanChat>>>
+export type GetCommunityEventPlanChatQueryError = ErrorType<void>
+
+
+export function useGetCommunityEventPlanChat<TData = Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError = ErrorType<void>>(
+ eventId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityEventPlanChat>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityEventPlanChat>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCommunityEventPlanChat<TData = Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError = ErrorType<void>>(
+ eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityEventPlanChat>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityEventPlanChat>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCommunityEventPlanChat<TData = Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError = ErrorType<void>>(
+ eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get an event conversation and its invited participants
+ */
+
+export function useGetCommunityEventPlanChat<TData = Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError = ErrorType<void>>(
+ eventId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityEventPlanChat>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCommunityEventPlanChatQueryOptions(eventId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetCommunityEventPlanChatNotificationsUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/plan-chat`
+}
+
+/**
+ * @summary Mute or unmute notifications for one event plan
+ */
+export const setCommunityEventPlanChatNotifications = async (eventId: number,
+    communityEventPlanChatNotificationsInput: CommunityEventPlanChatNotificationsInput, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventPlanChatNotificationsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CommunityEventPlanChatNotificationsResponse>(getSetCommunityEventPlanChatNotificationsUrl(eventId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(communityEventPlanChatNotificationsInput)
+  }
+);}
+
+
+
+
+
+export const getSetCommunityEventPlanChatNotificationsMutationKey = () => ['setCommunityEventPlanChatNotifications'] as const;
+
+export const getSetCommunityEventPlanChatNotificationsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, TError,SetCommunityEventPlanChatNotificationsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, TError,SetCommunityEventPlanChatNotificationsMutationVariables, TContext> => {
+
+const mutationKey = getSetCommunityEventPlanChatNotificationsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, SetCommunityEventPlanChatNotificationsMutationVariables> = (props) => {
+          const {eventId,data} = props ?? {};
+
+          return  setCommunityEventPlanChatNotifications(eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCommunityEventPlanChatNotificationsMutationResult = NonNullable<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>>
+    export type SetCommunityEventPlanChatNotificationsMutationBody = BodyType<CommunityEventPlanChatNotificationsInput>
+    export type SetCommunityEventPlanChatNotificationsMutationError = ErrorType<void>
+    export type SetCommunityEventPlanChatNotificationsMutationVariables = {eventId: number;data: BodyType<CommunityEventPlanChatNotificationsInput>}
+
+    /**
+ * @summary Mute or unmute notifications for one event plan
+ */
+export const useSetCommunityEventPlanChatNotifications = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, TError,SetCommunityEventPlanChatNotificationsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>,
+        TError,
+        SetCommunityEventPlanChatNotificationsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetCommunityEventPlanChatNotificationsMutationOptions(options), queryClient);
+    }
+
+export const getSendCommunityEventPlanChatMessageUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/plan-chat`
+}
+
+/**
+ * @summary Send a message to an event conversation
+ */
+export const sendCommunityEventPlanChatMessage = async (eventId: number,
+    communityEventPlanChatMessageInput: CommunityEventPlanChatMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventPlanChatMessageResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CommunityEventPlanChatMessageResponse>(getSendCommunityEventPlanChatMessageUrl(eventId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(communityEventPlanChatMessageInput)
+  }
+);}
+
+
+
+
+
+export const getSendCommunityEventPlanChatMessageMutationKey = () => ['sendCommunityEventPlanChatMessage'] as const;
+
+export const getSendCommunityEventPlanChatMessageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendCommunityEventPlanChatMessage>>, TError,SendCommunityEventPlanChatMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendCommunityEventPlanChatMessage>>, TError,SendCommunityEventPlanChatMessageMutationVariables, TContext> => {
+
+const mutationKey = getSendCommunityEventPlanChatMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendCommunityEventPlanChatMessage>>, SendCommunityEventPlanChatMessageMutationVariables> = (props) => {
+          const {eventId,data} = props ?? {};
+
+          return  sendCommunityEventPlanChatMessage(eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendCommunityEventPlanChatMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendCommunityEventPlanChatMessage>>>
+    export type SendCommunityEventPlanChatMessageMutationBody = BodyType<CommunityEventPlanChatMessageInput>
+    export type SendCommunityEventPlanChatMessageMutationError = ErrorType<void>
+    export type SendCommunityEventPlanChatMessageMutationVariables = {eventId: number;data: BodyType<CommunityEventPlanChatMessageInput>}
+
+    /**
+ * @summary Send a message to an event conversation
+ */
+export const useSendCommunityEventPlanChatMessage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendCommunityEventPlanChatMessage>>, TError,SendCommunityEventPlanChatMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendCommunityEventPlanChatMessage>>,
+        TError,
+        SendCommunityEventPlanChatMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendCommunityEventPlanChatMessageMutationOptions(options), queryClient);
     }
 
 export const getReportCommunityEventUrl = () => {
@@ -9647,6 +10402,107 @@ export const useRsvpCommunityEvent = <TError = ErrorType<unknown>,
       return useMutation(getRsvpCommunityEventMutationOptions(options), queryClient);
     }
 
+export const getGetVenueManagerGuestsUrl = (businessId: number,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/guests`
+}
+
+/**
+ * @summary List venue visitors and verified event attendees
+ */
+export const getVenueManagerGuests = async (businessId: number, options?: Parameters<typeof customFetch>[1]): Promise<VenueManagerGuestListResponse> => {
+
+  return customFetch<VenueManagerGuestListResponse>(getGetVenueManagerGuestsUrl(businessId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVenueManagerGuestsQueryKey = (businessId: number,) => {
+    return [
+    `/api/venue-manager/businesses/${businessId}/guests`
+    ] as const;
+    }
+
+
+export const getGetVenueManagerGuestsQueryOptions = <TData = Awaited<ReturnType<typeof getVenueManagerGuests>>, TError = ErrorType<unknown>>(businessId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerGuests>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVenueManagerGuestsQueryKey(businessId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVenueManagerGuests>>> = ({ signal }) => getVenueManagerGuests(businessId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: businessId !== null && businessId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerGuests>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetVenueManagerGuestsQueryResult = NonNullable<Awaited<ReturnType<typeof getVenueManagerGuests>>>
+export type GetVenueManagerGuestsQueryError = ErrorType<unknown>
+
+
+export function useGetVenueManagerGuests<TData = Awaited<ReturnType<typeof getVenueManagerGuests>>, TError = ErrorType<unknown>>(
+ businessId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerGuests>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueManagerGuests>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueManagerGuests>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueManagerGuests<TData = Awaited<ReturnType<typeof getVenueManagerGuests>>, TError = ErrorType<unknown>>(
+ businessId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerGuests>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueManagerGuests>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueManagerGuests>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueManagerGuests<TData = Awaited<ReturnType<typeof getVenueManagerGuests>>, TError = ErrorType<unknown>>(
+ businessId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerGuests>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List venue visitors and verified event attendees
+ */
+
+export function useGetVenueManagerGuests<TData = Awaited<ReturnType<typeof getVenueManagerGuests>>, TError = ErrorType<unknown>>(
+ businessId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueManagerGuests>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetVenueManagerGuestsQueryOptions(businessId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListVenueManagerEventsUrl = (businessId: number,) => {
 
 
@@ -10002,6 +10858,234 @@ export const useDeleteVenueManagerEvent = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteVenueManagerEventMutationOptions(options), queryClient);
+    }
+
+export const getCreateVenueManagerEventInviteLinkUrl = (businessId: number,
+    eventId: number,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/invite-link`
+}
+
+/**
+ * @summary Get a shareable invitation link for a venue event
+ */
+export const createVenueManagerEventInviteLink = async (businessId: number,
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
+
+  return customFetch<CommunityEventInviteLinkResponse>(getCreateVenueManagerEventInviteLinkUrl(businessId,eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateVenueManagerEventInviteLinkMutationKey = () => ['createVenueManagerEventInviteLink'] as const;
+
+export const getCreateVenueManagerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, TError,CreateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, TError,CreateVenueManagerEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getCreateVenueManagerEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, CreateVenueManagerEventInviteLinkMutationVariables> = (props) => {
+          const {businessId,eventId} = props ?? {};
+
+          return  createVenueManagerEventInviteLink(businessId,eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVenueManagerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>>
+
+    export type CreateVenueManagerEventInviteLinkMutationError = ErrorType<void>
+    export type CreateVenueManagerEventInviteLinkMutationVariables = {businessId: number;eventId: number}
+
+    /**
+ * @summary Get a shareable invitation link for a venue event
+ */
+export const useCreateVenueManagerEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, TError,CreateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>,
+        TError,
+        CreateVenueManagerEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateVenueManagerEventInviteLinkMutationOptions(options), queryClient);
+    }
+
+export const getRevokeVenueManagerEventInviteLinkUrl = (businessId: number,
+    eventId: number,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/invite-link`
+}
+
+/**
+ * @summary Disable a venue event invitation link
+ */
+export const revokeVenueManagerEventInviteLink = async (businessId: number,
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRevokeVenueManagerEventInviteLinkUrl(businessId,eventId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeVenueManagerEventInviteLinkMutationKey = () => ['revokeVenueManagerEventInviteLink'] as const;
+
+export const getRevokeVenueManagerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, TError,RevokeVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, TError,RevokeVenueManagerEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getRevokeVenueManagerEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, RevokeVenueManagerEventInviteLinkMutationVariables> = (props) => {
+          const {businessId,eventId} = props ?? {};
+
+          return  revokeVenueManagerEventInviteLink(businessId,eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeVenueManagerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>>
+
+    export type RevokeVenueManagerEventInviteLinkMutationError = ErrorType<void>
+    export type RevokeVenueManagerEventInviteLinkMutationVariables = {businessId: number;eventId: number}
+
+    /**
+ * @summary Disable a venue event invitation link
+ */
+export const useRevokeVenueManagerEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, TError,RevokeVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>,
+        TError,
+        RevokeVenueManagerEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeVenueManagerEventInviteLinkMutationOptions(options), queryClient);
+    }
+
+export const getRotateVenueManagerEventInviteLinkUrl = (businessId: number,
+    eventId: number,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/invite-link/rotate`
+}
+
+/**
+ * @summary Replace a venue event invitation link
+ */
+export const rotateVenueManagerEventInviteLink = async (businessId: number,
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
+
+  return customFetch<CommunityEventInviteLinkResponse>(getRotateVenueManagerEventInviteLinkUrl(businessId,eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRotateVenueManagerEventInviteLinkMutationKey = () => ['rotateVenueManagerEventInviteLink'] as const;
+
+export const getRotateVenueManagerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, TError,RotateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, TError,RotateVenueManagerEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getRotateVenueManagerEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, RotateVenueManagerEventInviteLinkMutationVariables> = (props) => {
+          const {businessId,eventId} = props ?? {};
+
+          return  rotateVenueManagerEventInviteLink(businessId,eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RotateVenueManagerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>>
+
+    export type RotateVenueManagerEventInviteLinkMutationError = ErrorType<void>
+    export type RotateVenueManagerEventInviteLinkMutationVariables = {businessId: number;eventId: number}
+
+    /**
+ * @summary Replace a venue event invitation link
+ */
+export const useRotateVenueManagerEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, TError,RotateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>,
+        TError,
+        RotateVenueManagerEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRotateVenueManagerEventInviteLinkMutationOptions(options), queryClient);
     }
 
 export const getGetVenueManagerEventAttendeesUrl = (businessId: number,
@@ -10388,234 +11472,6 @@ export const useGetVenueManagerEventCheckinQr = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getGetVenueManagerEventCheckinQrMutationOptions(options), queryClient);
-    }
-
-export const getCreateVenueManagerEventInviteLinkUrl = (businessId: number,
-    eventId: number,) => {
-
-
-
-
-  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/invite-link`
-}
-
-/**
- * @summary Get a shareable invitation link for a venue event
- */
-export const createVenueManagerEventInviteLink = async (businessId: number,
-    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
-
-  return customFetch<CommunityEventInviteLinkResponse>(getCreateVenueManagerEventInviteLinkUrl(businessId,eventId),
-  {
-    ...options,
-    method: 'POST'
-
-
-  }
-);}
-
-
-
-
-
-export const getCreateVenueManagerEventInviteLinkMutationKey = () => ['createVenueManagerEventInviteLink'] as const;
-
-export const getCreateVenueManagerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, TError,CreateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, TError,CreateVenueManagerEventInviteLinkMutationVariables, TContext> => {
-
-const mutationKey = getCreateVenueManagerEventInviteLinkMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, CreateVenueManagerEventInviteLinkMutationVariables> = (props) => {
-          const {businessId,eventId} = props ?? {};
-
-          return  createVenueManagerEventInviteLink(businessId,eventId,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CreateVenueManagerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>>
-
-    export type CreateVenueManagerEventInviteLinkMutationError = ErrorType<void>
-    export type CreateVenueManagerEventInviteLinkMutationVariables = {businessId: number;eventId: number}
-
-    /**
- * @summary Get a shareable invitation link for a venue event
- */
-export const useCreateVenueManagerEventInviteLink = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>, TError,CreateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createVenueManagerEventInviteLink>>,
-        TError,
-        CreateVenueManagerEventInviteLinkMutationVariables,
-        TContext
-      > => {
-      return useMutation(getCreateVenueManagerEventInviteLinkMutationOptions(options), queryClient);
-    }
-
-export const getRevokeVenueManagerEventInviteLinkUrl = (businessId: number,
-    eventId: number,) => {
-
-
-
-
-  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/invite-link`
-}
-
-/**
- * @summary Disable a venue event invitation link
- */
-export const revokeVenueManagerEventInviteLink = async (businessId: number,
-    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
-
-  return customFetch<void>(getRevokeVenueManagerEventInviteLinkUrl(businessId,eventId),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
-
-
-
-
-export const getRevokeVenueManagerEventInviteLinkMutationKey = () => ['revokeVenueManagerEventInviteLink'] as const;
-
-export const getRevokeVenueManagerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, TError,RevokeVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, TError,RevokeVenueManagerEventInviteLinkMutationVariables, TContext> => {
-
-const mutationKey = getRevokeVenueManagerEventInviteLinkMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, RevokeVenueManagerEventInviteLinkMutationVariables> = (props) => {
-          const {businessId,eventId} = props ?? {};
-
-          return  revokeVenueManagerEventInviteLink(businessId,eventId,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RevokeVenueManagerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>>
-
-    export type RevokeVenueManagerEventInviteLinkMutationError = ErrorType<void>
-    export type RevokeVenueManagerEventInviteLinkMutationVariables = {businessId: number;eventId: number}
-
-    /**
- * @summary Disable a venue event invitation link
- */
-export const useRevokeVenueManagerEventInviteLink = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, TError,RevokeVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>,
-        TError,
-        RevokeVenueManagerEventInviteLinkMutationVariables,
-        TContext
-      > => {
-      return useMutation(getRevokeVenueManagerEventInviteLinkMutationOptions(options), queryClient);
-    }
-
-export const getRotateVenueManagerEventInviteLinkUrl = (businessId: number,
-    eventId: number,) => {
-
-
-
-
-  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/invite-link/rotate`
-}
-
-/**
- * @summary Replace a venue event invitation link
- */
-export const rotateVenueManagerEventInviteLink = async (businessId: number,
-    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
-
-  return customFetch<CommunityEventInviteLinkResponse>(getRotateVenueManagerEventInviteLinkUrl(businessId,eventId),
-  {
-    ...options,
-    method: 'POST'
-
-
-  }
-);}
-
-
-
-
-
-export const getRotateVenueManagerEventInviteLinkMutationKey = () => ['rotateVenueManagerEventInviteLink'] as const;
-
-export const getRotateVenueManagerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, TError,RotateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, TError,RotateVenueManagerEventInviteLinkMutationVariables, TContext> => {
-
-const mutationKey = getRotateVenueManagerEventInviteLinkMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, RotateVenueManagerEventInviteLinkMutationVariables> = (props) => {
-          const {businessId,eventId} = props ?? {};
-
-          return  rotateVenueManagerEventInviteLink(businessId,eventId,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RotateVenueManagerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>>
-
-    export type RotateVenueManagerEventInviteLinkMutationError = ErrorType<void>
-    export type RotateVenueManagerEventInviteLinkMutationVariables = {businessId: number;eventId: number}
-
-    /**
- * @summary Replace a venue event invitation link
- */
-export const useRotateVenueManagerEventInviteLink = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, TError,RotateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>,
-        TError,
-        RotateVenueManagerEventInviteLinkMutationVariables,
-        TContext
-      > => {
-      return useMutation(getRotateVenueManagerEventInviteLinkMutationOptions(options), queryClient);
     }
 
 export const getListVenueManagerRewardsUrl = (businessId: number,) => {

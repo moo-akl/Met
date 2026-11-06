@@ -5,13 +5,11 @@
  * Signal (light): #FAFAF8 editorial bg, clean inputs, #0D0D0D typography.
  */
 import React, { useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,16 +23,19 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { DateTimePicker } from "@/components/DateTimePicker";
-
-const GREEN = "#00E87A";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 type RewardType = "free_drink" | "discount" | "experience" | "custom";
 
-const REWARD_TYPES: Array<{ value: RewardType; label: string; icon: string }> = [
-  { value: "free_drink", label: "Free Drink", icon: "🍹" },
-  { value: "discount", label: "Discount", icon: "💸" },
-  { value: "experience", label: "Experience", icon: "✨" },
-  { value: "custom", label: "Custom", icon: "🎁" },
+const REWARD_TYPES: Array<{
+  value: RewardType;
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+}> = [
+  { value: "free_drink", label: "Free Drink", icon: "coffee" },
+  { value: "discount", label: "Discount", icon: "percent" },
+  { value: "experience", label: "Experience", icon: "star" },
+  { value: "custom", label: "Custom", icon: "gift" },
 ];
 
 function startOfToday(): Date {
@@ -67,19 +68,18 @@ export default function NewVenueRewardScreen() {
   const [activateNow, setActivateNow] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // ── Venue theme tokens ──────────────────────────────────────────────────────
-  const vBg          = isDark ? "#0A0518"                : "#FAFAF8";
-  const vInput       = isDark ? "#1A1A1E"                : "rgba(0,0,0,0.04)";
-  const vTypeCard    = isDark ? "rgba(255,255,255,0.06)" : "#fff";
-  const vTypeBorder  = isDark ? "rgba(255,255,255,0.1)"  : "rgba(0,0,0,0.1)";
-  const vText        = isDark ? "#fff"                   : "#0D0D0D";
-  const vMuted       = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.38)";
-  const vLabel       = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)";
-  const vPlaceholder = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)";
-  const vDisabledBtn = isDark ? "#333"                   : "rgba(0,0,0,0.1)";
-  const vToggleBg    = isDark ? "rgba(255,255,255,0.06)" : "#fff";
-  const vToggleBorder= isDark ? "rgba(255,255,255,0.1)"  : "rgba(0,0,0,0.1)";
-  const accent       = isDark ? colors.primary           : GREEN;
+  const vBg = colors.background;
+  const vInput = colors.card;
+  const vTypeCard = colors.card;
+  const vTypeBorder = colors.border;
+  const vText = colors.text;
+  const vMuted = colors.mutedForeground;
+  const vLabel = colors.mutedForeground;
+  const vPlaceholder = colors.mutedForeground;
+  const vDisabledBtn = colors.muted;
+  const vToggleBg = colors.card;
+  const vToggleBorder = colors.border;
+  const accent = colors.primary;
 
   const canSubmit = title.trim().length > 0 && prizeDescription.trim().length > 0;
 
@@ -112,15 +112,13 @@ export default function NewVenueRewardScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: vBg }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <View style={[styles.root, { backgroundColor: vBg }]}>
       <VenueOwnerHeader title="New Reward" onBack={() => router.back()} backLabel="Cancel" />
 
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+        bottomOffset={24}
         keyboardShouldPersistTaps="handled"
       >
         {/* Reward type selector */}
@@ -134,12 +132,17 @@ export default function NewVenueRewardScreen() {
                 style={[
                   styles.typeBtn,
                   {
-                    backgroundColor: rewardType === rt.value ? accent + "20" : vTypeCard,
+                    backgroundColor: rewardType === rt.value ? colors.primarySoft : vTypeCard,
                     borderColor: rewardType === rt.value ? accent : vTypeBorder,
                   },
                 ]}
               >
-                <Text style={styles.typeIcon}>{rt.icon}</Text>
+                <Feather
+                  name={rt.icon}
+                  size={20}
+                  color={rewardType === rt.value ? accent : vMuted}
+                  style={styles.typeIcon}
+                />
                 <Text style={[styles.typeLabel, { color: rewardType === rt.value ? accent : vMuted }]}>
                   {rt.label}
                 </Text>
@@ -199,7 +202,7 @@ export default function NewVenueRewardScreen() {
             styles.activateCheck,
             { backgroundColor: activateNow ? accent : "transparent", borderColor: activateNow ? accent : vMuted },
           ]}>
-            {activateNow && <Text style={[styles.activateCheckMark, { color: isDark ? "#000" : "#fff" }]}>✓</Text>}
+            {activateNow && <Feather name="check" size={13} color={colors.primaryForeground} />}
           </View>
           <Text style={[styles.activateLabel, { color: activateNow ? (isDark ? "#fff" : "#0D0D0D") : vMuted }]}>
             Activate immediately
@@ -212,13 +215,13 @@ export default function NewVenueRewardScreen() {
           disabled={!canSubmit || submitting}
         >
           {submitting
-            ? <ActivityIndicator color={isDark ? "#fff" : "#0D0D0D"} />
-            : <Text style={[styles.submitBtnText, { color: isDark ? "#fff" : "#0D0D0D" }]}>
+            ? <ActivityIndicator color={canSubmit ? colors.primaryForeground : colors.mutedForeground} />
+            : <Text style={[styles.submitBtnText, { color: canSubmit ? colors.primaryForeground : colors.mutedForeground }]}>
                 {activateNow ? "Create & Activate" : "Save as Draft"}
               </Text>}
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollViewCompat>
+    </View>
   );
 }
 

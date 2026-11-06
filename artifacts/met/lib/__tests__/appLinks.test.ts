@@ -60,7 +60,21 @@ describe("event invitation app links", () => {
     );
   });
 
-  it("has Expo Router screens for invitation and event-detail links", () => {
+  it("registers the personal connection invite path on the production host", () => {
+    const configuredHosts = appConfig.expo.android.intentFilters.flatMap(
+      (filter) =>
+        filter.data
+          .filter((entry) => entry.pathPrefix === "/connect")
+          .map((entry) => entry.host),
+    );
+
+    expect(configuredHosts).toContain("met-app.org");
+  });
+
+  it("has Expo Router screens for invitations and event-detail links", () => {
+    expect(
+      existsSync(resolve(__dirname, "../../app/connect/[code].tsx")),
+    ).toBe(true);
     expect(
       existsSync(resolve(__dirname, "../../app/event-invite/[token].tsx")),
     ).toBe(true);

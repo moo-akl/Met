@@ -1,6 +1,7 @@
 import { and, eq, gt, inArray, lte } from "drizzle-orm";
 import {
   db,
+  communityEventPlanNotificationPreferencesTable,
   profilesTable,
   venueEventNotificationRunsTable,
   venueEventRsvpsTable,
@@ -13,6 +14,89 @@ export type VenueEventNotificationKind =
   | "event_update"
   | "reminder_24h"
   | "reminder_2h";
+
+/**
+ * Notify active participants when an event-scoped plan chat receives a
+ * message. Lock-screen copy stays generic so private event details and
+ * message text are never exposed outside Met.
+ */
+export async function notifyCommunityEventPlanMessage(input: {
+  eventId: number;
+  participantUids: string[];
+  senderUid: string;
+}): Promise<void> {
+  const recipientUids = [
+    ...new Set(
+      input.participantUids.filter(
+        (uid) => uid.length > 0 && uid !== input.senderUid,
+      ),
+    ),
+  ];
+  if (recipientUids.length === 0) return;
+
+  try {
+    const [recipients, mutedPreferences] = await Promise.all([
+      db
+        .select({
+          uid: profilesTable.uid,
+          pushToken: profilesTable.pushToken,
+          notificationPrefs: profilesTable.notificationPrefs,
+        })
+        .from(profilesTable)
+        .where(inArray(profilesTable.uid, recipientUids)),
+      db
+        .select({
+          userUid: communityEventPlanNotificationPreferencesTable.userUid,
+        })
+        .from(communityEventPlanNotificationPreferencesTable)
+        .where(
+          and(
+            eq(communityEventPlanNotificationPreferencesTable.eventId, input.eventId),
+            inArray(
+              communityEventPlanNotificationPreferencesTable.userUid,
+              recipientUids,
+            ),
+            eq(communityEventPlanNotificationPreferencesTable.muted, true),
+          ),
+        ),
+    ]);
+    const mutedUids = new Set(mutedPreferences.map((preference) => preference.userUid));
+    const eligible = recipients.filter(
+      (recipient) =>
+        !mutedUids.has(recipient.uid) &&
+        recipient.notificationPrefs?.notifyChat !== false &&
+        Boolean(recipient.pushToken),
+    );
+    if (eligible.length === 0) return;
+
+    const deliveries = await Promise.all(
+      eligible.map((recipient) =>
+        sendPushWithStatus(recipient.pushToken, {
+          title: "New message in your plan",
+          body: "Open Met to view the conversation.",
+          data: {
+            type: "event_plan_message",
+            eventId: String(input.eventId),
+            eventType: "member",
+          },
+        }),
+      ),
+    );
+    logger.info(
+      {
+        eventId: input.eventId,
+        eligibleCount: eligible.length,
+        sentCount: deliveries.filter((delivery) => delivery.sent).length,
+      },
+      "Community event plan message notifications processed",
+    );
+  } catch (error) {
+    logger.warn(
+      { error, eventId: input.eventId },
+      "Could not deliver community event plan message notifications",
+    );
+  }
+}
 
 const REMINDER_OFFSETS: ReadonlyArray<{
   hours: 24 | 2;
