@@ -23,6 +23,11 @@ export type EventInviteLinkFields = {
   invitePasscodeHash: string | null;
 };
 
+export type EventInviteTokenFields = Pick<
+  EventInviteLinkFields,
+  "inviteTokenHash" | "inviteTokenEncrypted"
+>;
+
 function getEncryptionKey(): Buffer {
   const sessionSecret = process.env["SESSION_SECRET"];
   if (!sessionSecret) {
@@ -80,7 +85,7 @@ function hashPasscode(passcode: string, salt: Buffer): Buffer {
 export function createEventInviteLinkFields(
   passcode?: string | null,
 ): EventInviteLinkFields {
-  const token = randomBytes(32).toString("base64url");
+  const tokenFields = createEventInviteTokenFields();
   const normalizedPasscode = passcode?.trim() || null;
   if (
     normalizedPasscode &&
@@ -90,12 +95,19 @@ export function createEventInviteLinkFields(
   }
   const passcodeSalt = normalizedPasscode ? randomBytes(16) : null;
   return {
-    inviteTokenHash: hashEventInviteToken(token),
-    inviteTokenEncrypted: encryptEventInviteToken(token),
+    ...tokenFields,
     invitePasscodeSalt: passcodeSalt?.toString("hex") ?? null,
     invitePasscodeHash: passcodeSalt && normalizedPasscode
       ? hashPasscode(normalizedPasscode, passcodeSalt).toString("hex")
       : null,
+  };
+}
+
+export function createEventInviteTokenFields(): EventInviteTokenFields {
+  const token = randomBytes(32).toString("base64url");
+  return {
+    inviteTokenHash: hashEventInviteToken(token),
+    inviteTokenEncrypted: encryptEventInviteToken(token),
   };
 }
 

@@ -492,7 +492,7 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
   });
 
   it("shares invite-only venue events with an optional passcode and grants RSVP access", async () => {
-    const { agent, csrf, business } = await claimOwner("social-invite");
+    const { agent, csrf, business, profile } = await claimOwner("social-invite");
     const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const created = await agent
       .post(`/api/venue-manager/businesses/${business.id}/events`)
@@ -563,6 +563,97 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(guestFeed.body.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ eventType: "venue", id: eventId }),
+      ]),
+    );
+
+    const managerInvitePath = `/api/venue-manager/businesses/${business.id}/events/${eventId}/invite-link`;
+    const managerRotation = await agent
+      .post(`${managerInvitePath}/rotate`)
+      .set("x-csrf-token", csrf);
+    expect(managerRotation.status).toBe(200);
+    expect(managerRotation.body.passcodeRequired).toBe(true);
+    const managerToken = new URL(managerRotation.body.url as string).pathname.split("/").at(-1)!;
+    expect(managerToken).not.toBe(token);
+
+    const oldLinkAfterManagerRotation = await api()
+      .post("/api/event-invites/resolve")
+      .send({ token, passcode: "invite7" });
+    expect(oldLinkAfterManagerRotation.status).toBe(404);
+    const oldLinkRsvpAfterRotation = await api()
+      .post("/api/event-invites/rsvp")
+      .set("x-test-uid", GUEST_UID)
+      .send({ token, status: "going", passcode: "invite7" });
+    expect(oldLinkRsvpAfterRotation.status).toBe(404);
+    const managerRotatedLink = await api()
+      .post("/api/event-invites/resolve")
+      .send({ token: managerToken, passcode: "invite7" });
+    expect(managerRotatedLink.status).toBe(200);
+
+    const ownerRotation = await api()
+      .post(`/api/venue-owner/me/events/${eventId}/invite-link/rotate`)
+      .set("x-test-uid", profile.ownerUid);
+    expect(ownerRotation.status).toBe(200);
+    expect(ownerRotation.body.passcodeRequired).toBe(true);
+    const ownerToken = new URL(ownerRotation.body.url as string).pathname.split("/").at(-1)!;
+    expect(ownerToken).not.toBe(managerToken);
+    expect((await api().post("/api/event-invites/resolve").send({ token: managerToken })).status).toBe(404);
+
+    const managerRevoke = await agent
+      .delete(managerInvitePath)
+      .set("x-csrf-token", csrf);
+    expect(managerRevoke.status).toBe(204);
+    for (const revokedToken of [token, managerToken, ownerToken]) {
+      expect(
+        (await api().post("/api/event-invites/resolve").send({ token: revokedToken, passcode: "invite7" })).status,
+      ).toBe(404);
+      expect(
+        (await api()
+          .post("/api/event-invites/rsvp")
+          .set("x-test-uid", GUEST_UID)
+          .send({ token: revokedToken, status: "going", passcode: "invite7" })).status,
+      ).toBe(404);
+    }
+
+    const eventEditAfterRevoke = await agent
+      .patch(`/api/venue-manager/businesses/${business.id}/events/${eventId}`)
+      .set("x-csrf-token", csrf)
+      .send({ description: "Updated after link revocation" });
+    expect(eventEditAfterRevoke.status).toBe(200);
+    expect(eventEditAfterRevoke.body.event.inviteLinkEnabled).toBe(false);
+
+    const recreatedLink = await agent
+      .post(managerInvitePath)
+      .set("x-csrf-token", csrf);
+    expect(recreatedLink.status).toBe(200);
+    expect(recreatedLink.body.passcodeRequired).toBe(true);
+    const recreatedToken = new URL(recreatedLink.body.url as string).pathname.split("/").at(-1)!;
+    expect(recreatedToken).not.toBe(ownerToken);
+    expect(
+      (await api().post("/api/event-invites/resolve").send({ token: recreatedToken })).body,
+    ).toEqual({ requiresPasscode: true, event: null });
+
+    const ownerRevoke = await api()
+      .delete(`/api/venue-owner/me/events/${eventId}/invite-link`)
+      .set("x-test-uid", profile.ownerUid);
+    expect(ownerRevoke.status).toBe(204);
+    expect(
+      (await api()
+        .post("/api/event-invites/resolve")
+        .send({ token: recreatedToken, passcode: "invite7" })).status,
+    ).toBe(404);
+    const retainedAttendance = await agent
+      .get(`/api/venue-manager/businesses/${business.id}/events/${eventId}/attendees`);
+    expect(retainedAttendance.status).toBe(200);
+    expect(retainedAttendance.body.rsvps).toHaveLength(1);
+    const eventAfterRevocation = await agent.get(`/api/venue-manager/businesses/${business.id}/events`);
+    expect(eventAfterRevocation.status).toBe(200);
+    expect(eventAfterRevocation.body.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: eventId,
+          inviteLinkEnabled: false,
+          rsvpCount: 1,
+        }),
       ]),
     );
   });

@@ -27,6 +27,8 @@ import {
   updateVenueManagerReward,
   updateVenueManagerRole,
   regenerateVenueManagerQrCode,
+  revokeVenueManagerEventInviteLink,
+  rotateVenueManagerEventInviteLink,
   type VenueManagerBusiness,
   type VenueManagerDashboard,
   type VenueManagerEvent,
@@ -44,7 +46,7 @@ import {
   type VenueManagerRecentQrVerification,
 } from "@workspace/api-client-react";
 import QRCode from "react-qr-code";
-import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Printer, QrCode, RefreshCw, ScanLine, Search, Settings2, ShieldCheck, Share2, Trophy, Users, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Building2, CalendarDays, ChevronDown, CircleUserRound, Clock, Copy, Download, Gift, Globe, LayoutDashboard, LogOut, Mail, MapPin, Phone, Plus, Printer, QrCode, RefreshCw, ScanLine, Search, Settings2, ShieldCheck, Share2, Trophy, Users, X } from "lucide-react";
 import { normalizeVenuePlaceSearchResult, type PlaceResult, type VenuePlaceSearchItem } from "./lib/venuePlaceSearch";
 import { createPosterExportBlob, downloadBlob } from "./lib/posterExport";
 import { VenueQrPosterEditor, type VenueQrPosterDesign as PosterDesign } from "./components/VenueQrPosterEditor";
@@ -1481,6 +1483,7 @@ function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
         event.id,
         csrf(csrfToken),
       );
+      invalidateVenueManagerData();
       const invitationText = `You're invited to ${event.title}. Open your invitation in Met: ${invite.url}`;
       if (typeof navigator.share === "function") {
         try {
@@ -1525,12 +1528,7 @@ function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
     onError: (error) => setMessage(apiError(error)),
   });
   const remove = useMutation({ mutationFn: (id: number) => deleteVenueManagerEvent(business.businessId, id, csrf(csrfToken)), onSuccess: () => invalidateVenueManagerData() });
-  return <>
-    <div className="vm-toolbar"><span>{events.data?.events.length ?? 0} events</span><button className="vm-primary compact" onClick={() => { setMessage(""); setEditing("new"); }}><Plus size={16} />New event</button></div>
-    {events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small></div><div className="vm-item-actions"><button data-testid={`button-event-attendance-${event.id}`} onClick={() => setAttendanceEvent(event)}><Users size={14} />Attendance</button>{event.visibility === "invite_only" && <button disabled={!event.isPublished} onClick={() => void shareEvent(event)}><Share2 size={14} />Share</button>}<button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}
-    {editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data, shareAfterSave) => save.mutate({ id: editing === "new" ? undefined : editing.id, data, shareAfterSave })} businessId={business.businessId} csrfToken={csrfToken} />}
-    {attendanceEvent && <EventAttendanceModal event={attendanceEvent} businessId={business.businessId} csrfToken={csrfToken} onClose={() => setAttendanceEvent(null)} />}
-  </>;
+   return <><div className="vm-toolbar"><span>{events.data?.events.length ?? 0} events</span><button data-testid="button-new-event" className="vm-primary compact" onClick={() => { setMessage(""); setEditing("new"); }}><Plus size={16} />New event</button></div>{message && !editing && <div className="vm-notice success" role="status">{message}</div>}{events.isLoading ? <SectionLoading /> : <div className="vm-stack">{(events.data?.events ?? []).map((event) => <article className="vm-item-card" key={event.id}><div className="vm-item-date">{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div><span className={`vm-status ${event.isPublished ? "live" : ""}`}>{event.isPublished ? "Published" : "Draft"}</span><h2>{event.title}</h2><p>{event.description || "No description yet."}</p><small>{new Date(event.startsAt).toLocaleString()} · {event.rsvpCount ?? 0} RSVPs</small>{event.visibility === "invite_only" && <small role="status" style={{ display: "block", marginTop: 5 }}>Invitation link {event.inviteLinkEnabled ? event.isPublished ? "active" : "enabled; event is a draft" : "disabled"}</small>}</div><div className="vm-item-actions"><button data-testid={`button-event-attendance-${event.id}`} onClick={() => setAttendanceEvent(event)}><Users size={14} />Attendance</button>{event.visibility === "invite_only" && <button disabled={!event.isPublished} onClick={() => void shareEvent(event)}><Share2 size={14} />{event.inviteLinkEnabled ? "Share" : "Create link"}</button>}<button onClick={() => { setMessage(""); setEditing(event); }}>Edit</button><button className="danger-text" onClick={() => { if (confirm("Delete this event?")) remove.mutate(event.id); }}>Delete</button></div></article>)}{!(events.data?.events ?? []).length && <Empty text="There are no events yet. Make the first one." />}</div>}{editing && <EventModal event={editing === "new" ? undefined : editing} message={message} pending={save.isPending} onClose={() => setEditing(null)} onSubmit={(data, shareAfterSave) => save.mutate({ id: editing === "new" ? undefined : editing.id, data, shareAfterSave })} businessId={business.businessId} csrfToken={csrfToken} />}{attendanceEvent && <EventAttendanceModal event={attendanceEvent} businessId={business.businessId} csrfToken={csrfToken} onClose={() => setAttendanceEvent(null)} />}</>;
 }
 
 function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event: VenueManagerEvent; businessId: number; csrfToken: string; onClose: () => void }) {
@@ -1696,10 +1694,81 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
   const hadPasscode = Boolean(event?.invitePasscodeRequired);
   const [requireInvitePasscode, setRequireInvitePasscode] = useState(hadPasscode);
   const [invitePasscode, setInvitePasscode] = useState("");
+  const [passcodeCopyMessage, setPasscodeCopyMessage] = useState("");
+  const [inviteLinkEnabled, setInviteLinkEnabled] = useState(Boolean(event?.inviteLinkEnabled));
+  const [inviteLinkPending, setInviteLinkPending] = useState(false);
+  const [inviteLinkMessage, setInviteLinkMessage] = useState("");
   const [shareAfterSave, setShareAfterSave] = useState(!event);
   const [guests, setGuests] = useState<VenueGuest[]>([]);
   const [guestsLoading, setGuestsLoading] = useState(false);
   const [guestError, setGuestError] = useState("");
+  const copyInvitePasscode = async () => {
+    const value = invitePasscode.trim();
+    if (value.length < 6) {
+      setPasscodeCopyMessage("Enter a passcode with at least 6 characters first.");
+      return;
+    }
+
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable.");
+      await navigator.clipboard.writeText(value);
+      setPasscodeCopyMessage("Passcode copied. Send it separately from the invitation link.");
+    } catch {
+      const promptResult = window.prompt("Copy this passcode and share it separately:", value);
+      setPasscodeCopyMessage(
+        !promptResult
+          ? "Passcode not copied. You can try again or copy it from the passcode field."
+          : "Copy the passcode from the prompt and send it separately from the invitation link.",
+      );
+    }
+  };
+  const manageInviteLink = async (action: "create" | "replace" | "disable") => {
+    if (!event || inviteLinkPending) return;
+    if (action === "replace" && !confirm("Replace this invitation link? Previously shared links will stop working, but the event and RSVP records will remain.")) return;
+    if (action === "disable" && !confirm("Disable this invitation link? Previously shared links will stop working. The event and RSVP records will remain.")) return;
+
+    setInviteLinkPending(true);
+    setInviteLinkMessage("");
+    try {
+      if (action === "disable") {
+        await revokeVenueManagerEventInviteLink(businessId, event.id, csrf(csrfToken));
+        setInviteLinkEnabled(false);
+        invalidateVenueManagerData();
+        setInviteLinkMessage("Invitation link disabled. The event and its RSVPs are unchanged.");
+        return;
+      }
+
+      const invite = action === "replace"
+        ? await rotateVenueManagerEventInviteLink(businessId, event.id, csrf(csrfToken))
+        : await createVenueManagerEventInviteLink(businessId, event.id, csrf(csrfToken));
+      setInviteLinkEnabled(true);
+      invalidateVenueManagerData();
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: event.title, text: event.title, url: invite.url });
+        } else {
+          await navigator.clipboard.writeText(invite.url);
+        }
+        setInviteLinkMessage(
+          invite.passcodeRequired
+            ? "Send the passcode separately from the invitation link."
+            : action === "replace"
+              ? "Invitation link replaced. Previously shared links no longer work."
+              : "Invitation link ready to share.",
+        );
+      } catch (shareError) {
+        if (shareError instanceof DOMException && shareError.name === "AbortError") {
+          setInviteLinkMessage("Link updated. Use Share from the event list to send the current invitation link.");
+        } else {
+          setInviteLinkMessage("Link updated, but sharing failed. Use Share from the event list to send the current invitation link.");
+        }
+      }
+    } catch (error) {
+      setInviteLinkMessage(apiError(error));
+    } finally {
+      setInviteLinkPending(false);
+    }
+  };
   useEffect(() => {
     if (visibility !== "invite_only") return;
     let cancelled = false;
@@ -1788,8 +1857,36 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
               {guest.displayName} · {guest.checkinCount} visits
             </label>)}
           </div>
+          {event && <div className="full">
+            <strong>Invitation link</strong>
+            <p className="vm-subtitle" role="status" style={{ margin: "6px 0 8px" }}>
+              {inviteLinkEnabled
+                ? event.isPublished
+                  ? "Active — anyone with the current link can open this invitation."
+                  : "Enabled, but unavailable while the event is a draft."
+                : "Disabled — previously shared links no longer work."}
+            </p>
+            {inviteLinkMessage && <div className={`vm-notice ${inviteLinkEnabled ? "success" : "warning"}`} role="status" style={{ marginBottom: 8 }}>{inviteLinkMessage}</div>}
+            {!event.isPublished && <p className="vm-subtitle" style={{ margin: "0 0 8px" }}>Publish the event before creating or replacing its link.</p>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {!inviteLinkEnabled
+                ? <button type="button" className="vm-secondary compact" data-testid="button-create-event-invite-link" disabled={!event.isPublished || inviteLinkPending} onClick={() => void manageInviteLink("create")}>{inviteLinkPending ? "Working…" : "Create link"}</button>
+                : <>
+                  <button type="button" className="vm-secondary compact" data-testid="button-replace-event-invite-link" disabled={!event.isPublished || inviteLinkPending} onClick={() => void manageInviteLink("replace")}>{inviteLinkPending ? "Working…" : "Replace link"}</button>
+                  <button type="button" className="vm-secondary compact danger-text" data-testid="button-disable-event-invite-link" disabled={inviteLinkPending} onClick={() => void manageInviteLink("disable")}>Disable link</button>
+                </>}
+            </div>
+          </div>}
           <label className="checkbox"><input type="checkbox" checked={requireInvitePasscode} onChange={(e) => setRequireInvitePasscode(e.target.checked)} />Protect invitation link with a passcode</label>
-          {requireInvitePasscode && <label>Passcode {hadPasscode && <span className="vm-optional">leave blank to keep current</span>}<input type="password" value={invitePasscode} onChange={(e) => setInvitePasscode(e.target.value)} minLength={6} maxLength={64} placeholder="6–64 characters" /></label>}
+          {requireInvitePasscode && <div className="full">
+            <label>Passcode {hadPasscode && <span className="vm-optional">leave blank to keep current</span>}<input type="password" value={invitePasscode} onChange={(e) => { setInvitePasscode(e.target.value); setPasscodeCopyMessage(""); }} minLength={6} maxLength={64} placeholder="6–64 characters" /></label>
+            {!hadPasscode && <p className="vm-subtitle" style={{ marginBottom: 8 }}>Copy it before saving; the passcode won’t be shown again.</p>}
+            {hadPasscode && !invitePasscode.trim() && <p className="vm-subtitle" style={{ marginBottom: 8 }}>The saved passcode is hidden. Enter a new one to replace and copy it.</p>}
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
+              <button type="button" className="vm-secondary" data-testid="button-copy-event-passcode" disabled={invitePasscode.trim().length < 6} onClick={() => void copyInvitePasscode()}><Copy size={14} />Copy passcode</button>
+              {passcodeCopyMessage && <span className="vm-subtitle" role="status" style={{ margin: 0 }}>{passcodeCopyMessage}</span>}
+            </div>
+          </div>}
           {!event && <label className="checkbox"><input type="checkbox" checked={shareAfterSave} onChange={(e) => setShareAfterSave(e.target.checked)} />Share invitation after saving</label>}
         </div>}
         <label className="full">Description<textarea name="description" rows={4} defaultValue={event?.description ?? ""} /></label>

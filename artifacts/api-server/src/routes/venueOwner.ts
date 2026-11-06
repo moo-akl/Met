@@ -97,6 +97,7 @@ import {
   buildEventInviteUrl,
   createEventInviteLinkFields,
   createEventInvitePasscodeFields,
+  createEventInviteTokenFields,
   decryptEventInviteToken,
 } from "../lib/eventInviteLinks";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -2634,11 +2635,7 @@ router.put(
       updatePayload["inviteTokenEncrypted"] = null;
       updatePayload["invitePasscodeSalt"] = null;
       updatePayload["invitePasscodeHash"] = null;
-    } else if (
-      existing.visibility !== "invite_only" ||
-      !existing.inviteTokenHash ||
-      !existing.inviteTokenEncrypted
-    ) {
+    } else if (existing.visibility !== "invite_only") {
       try {
         Object.assign(
           updatePayload,
@@ -2736,7 +2733,7 @@ router.post(
       if (event.inviteTokenHash && event.inviteTokenEncrypted) {
         token = decryptEventInviteToken(event.inviteTokenEncrypted);
       } else {
-        const fields = createEventInviteLinkFields();
+        const fields = createEventInviteTokenFields();
         const [updated] = await db
           .update(venueEventsTable)
           .set({ ...fields, updatedAt: new Date() })
@@ -2766,6 +2763,121 @@ router.post(
         message: "Invite link could not be loaded. Edit the event to create a new link.",
       });
     }
+  },
+);
+
+router.post(
+  "/venue-owner/me/events/:id/invite-link/rotate",
+  requireUid,
+  venueOwnerWriteLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const eventId = Number(req.params["id"]);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"]);
+    if (!access) return;
+    const [event] = await db
+      .select()
+      .from(venueEventsTable)
+      .where(and(
+        eq(venueEventsTable.id, eventId),
+        eq(venueEventsTable.placeId, access.placeId),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    if (event.visibility !== "invite_only" || !event.isPublished) {
+      res.status(409).json({
+        message: "Publish an invitation-only event before replacing its link.",
+      });
+      return;
+    }
+
+    try {
+      const fields = createEventInviteTokenFields();
+      const [updated] = await db
+        .update(venueEventsTable)
+        .set({ ...fields, updatedAt: new Date() })
+        .where(and(
+          eq(venueEventsTable.id, event.id),
+          eq(venueEventsTable.placeId, access.placeId),
+          eq(venueEventsTable.visibility, "invite_only"),
+          eq(venueEventsTable.isPublished, true),
+          eq(venueEventsTable.isHidden, false),
+        ))
+        .returning({
+          inviteTokenEncrypted: venueEventsTable.inviteTokenEncrypted,
+          invitePasscodeHash: venueEventsTable.invitePasscodeHash,
+        });
+      if (!updated?.inviteTokenEncrypted) {
+        res.status(409).json({ message: "This event can no longer be shared." });
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        url: buildEventInviteUrl(decryptEventInviteToken(updated.inviteTokenEncrypted)),
+        passcodeRequired: Boolean(updated.invitePasscodeHash),
+      });
+    } catch (error) {
+      req.log?.error({ error, eventId }, "Could not replace venue event invite link");
+      res.status(503).json({
+        message: "Invite link could not be replaced. Please try again.",
+      });
+    }
+  },
+);
+
+router.delete(
+  "/venue-owner/me/events/:id/invite-link",
+  requireUid,
+  venueOwnerWriteLimit,
+  async (req: Request, res: Response): Promise<void> => {
+    const eventId = Number(req.params["id"]);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const access = await requireVenueAccess(req, res, ["owner", "manager", "editor"]);
+    if (!access) return;
+    const [event] = await db
+      .select({
+        id: venueEventsTable.id,
+        visibility: venueEventsTable.visibility,
+      })
+      .from(venueEventsTable)
+      .where(and(
+        eq(venueEventsTable.id, eventId),
+        eq(venueEventsTable.placeId, access.placeId),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    if (event.visibility !== "invite_only") {
+      res.status(409).json({ message: "Only invitation-only events have invite links." });
+      return;
+    }
+    await db
+      .update(venueEventsTable)
+      .set({
+        inviteTokenHash: null,
+        inviteTokenEncrypted: null,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(venueEventsTable.id, event.id),
+        eq(venueEventsTable.placeId, access.placeId),
+        eq(venueEventsTable.visibility, "invite_only"),
+        eq(venueEventsTable.isHidden, false),
+      ));
+    res.sendStatus(204);
   },
 );
 

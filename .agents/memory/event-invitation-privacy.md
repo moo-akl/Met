@@ -7,6 +7,18 @@ Venue-owned invite-only events may be shared through bearer invitation links. Se
 
 Venue-owned and community-created invite-only events may use optional passcodes. Verify a passcode before showing event details, and require sign-in to RSVP. Do not expose invitation tokens or passcode hashes in public event/feed responses.
 
+Do not return a saved invitation passcode to venue owners. Owners can copy a passcode they entered in the current form session; copying an existing protected event's passcode requires entering a replacement first. Never include the passcode in the invitation URL or social-share payload.
+
+**Why:** Passcodes are intentionally non-retrievable, and sending one with its invitation link defeats the extra access check.
+
+**How to apply:** Keep saved passcodes out of API responses; offer copy only for a value explicitly entered in the current UI session, and share it separately from the invitation link.
+
+Disabling an invitation link should invalidate only its bearer token, preserving the configured passcode for a future link. Editing an invite-only event must not silently create a new link after revocation; only an explicit create or replace action should do that.
+
+**Why:** Revocation should invalidate a forwarded URL without weakening the event's access policy or undoing the venue owner's choice.
+
+**How to apply:** Keep link-token lifecycle operations separate from unrelated event edits, and preserve passcode settings when creating a replacement token.
+
 Public venue events share their event-details URL. Private venue invitations use `/event-invite/:token`, not the venue's QR check-in route. Keep `/v/:placeId` for check-in only.
 
 Social preview metadata is only public for published, visible events at approved venues with `public` visibility. Do not attach event title, date, venue, or image metadata to invite-only, hidden, unpublished, or unavailable events because preview crawlers are anonymous.

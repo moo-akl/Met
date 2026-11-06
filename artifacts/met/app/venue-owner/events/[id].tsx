@@ -8,6 +8,7 @@
  * pre-fills the form, and updates via PUT /api/venue-owner/me/events/:id.
  */
 import React, { useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +16,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Switch,
@@ -32,6 +34,11 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { prepareVenueEventImage } from "@/lib/venueEventImage";
+import {
+  useCreateVenueOwnerEventInviteLink,
+  useRevokeVenueOwnerEventInviteLink,
+  useRotateVenueOwnerEventInviteLink,
+} from "@workspace/api-client-react";
 
 const GREEN = "#00E87A";
 
@@ -61,6 +68,7 @@ export default function EditVenueEventScreen() {
     capacityLimit?: string;
     isPublished?: string;
     visibility?: string;
+    inviteLinkEnabled?: string;
     invitePasscodeRequired?: string;
   }>();
 
@@ -86,14 +94,92 @@ export default function EditVenueEventScreen() {
   const [visibility, setVisibility] = useState<"public" | "invite_only">(
     params.visibility === "invite_only" ? "invite_only" : "public",
   );
+  const [inviteLinkEnabled, setInviteLinkEnabled] = useState(params.inviteLinkEnabled === "true");
   const initiallyRequiresPasscode = params.invitePasscodeRequired === "true";
   const [requireInvitePasscode, setRequireInvitePasscode] = useState(initiallyRequiresPasscode);
   const [invitePasscode, setInvitePasscode] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const createInviteLink = useCreateVenueOwnerEventInviteLink();
+  const rotateInviteLink = useRotateVenueOwnerEventInviteLink();
+  const revokeInviteLink = useRevokeVenueOwnerEventInviteLink();
+  const inviteLinkPending = createInviteLink.isPending || rotateInviteLink.isPending || revokeInviteLink.isPending;
 
   const canSubmit = title.trim().length > 0 &&
     (visibility !== "invite_only" || !requireInvitePasscode ||
       invitePasscode.trim().length >= 6 || initiallyRequiresPasscode);
+
+  const manageInviteLink = async (action: "create" | "replace" | "disable") => {
+    if (!authedUid || !eventId || inviteLinkPending) return;
+    try {
+      if (action === "disable") {
+        await revokeInviteLink.mutateAsync({ eventId });
+        setInviteLinkEnabled(false);
+        Alert.alert(
+          "Invitation link disabled",
+          "Previously shared links no longer work. The event and its RSVPs remain.",
+        );
+        return;
+      }
+
+      const invite = action === "replace"
+        ? await rotateInviteLink.mutateAsync({ eventId })
+        : await createInviteLink.mutateAsync({ eventId });
+      setInviteLinkEnabled(true);
+
+      let shareResult: Awaited<ReturnType<typeof Share.share>> | undefined;
+      try {
+        shareResult = await Share.share({
+          message: `${title.trim()}\n${invite.url}`,
+          url: invite.url,
+          title: title.trim(),
+        });
+      } catch {
+        Alert.alert(
+          "Invitation link updated",
+          "The link is ready, but the share sheet could not open. Use Share from the Events screen to send it.",
+        );
+        return;
+      }
+
+      const wasDismissed = shareResult.action === Share.dismissedAction;
+      if (invite.passcodeRequired || action === "replace" || wasDismissed) {
+        const details = [
+          action === "replace" ? "The previous link no longer works." : "",
+          wasDismissed ? "Share the current link from the Events screen when you are ready." : "",
+          invite.passcodeRequired ? "Send the passcode separately from the invitation link." : "",
+        ].filter(Boolean).join(" ");
+        Alert.alert(action === "replace" ? "Invitation link replaced" : "Invitation link ready", details);
+      }
+    } catch (error) {
+      Alert.alert(
+        "Could not update invitation link",
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : "Please try again.",
+      );
+    }
+  };
+
+  const confirmInviteLinkAction = (action: "create" | "replace" | "disable") => {
+    if (action === "create") {
+      void manageInviteLink(action);
+      return;
+    }
+    Alert.alert(
+      action === "replace" ? "Replace invitation link?" : "Disable invitation link?",
+      action === "replace"
+        ? "Previously shared links will stop working. The event and its RSVPs remain."
+        : "Anyone with the current link will no longer be able to open the invitation or RSVP. The event and its RSVPs remain.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: action === "replace" ? "Replace link" : "Disable link",
+          style: action === "disable" ? "destructive" : "default",
+          onPress: () => void manageInviteLink(action),
+        },
+      ],
+    );
+  };
 
   // ── Venue theme tokens ──────────────────────────────────────────────────────
   const vBg          = isDark ? "#0A0518"                : "#FAFAF8";
@@ -327,6 +413,79 @@ export default function EditVenueEventScreen() {
           </View>
         ) : null}
 
+        {visibility === "invite_only" ? (
+          <View
+            style={[
+              styles.inviteLinkPanel,
+              { backgroundColor: vInput, borderColor: vToggleBorder },
+            ]}
+          >
+            <View style={styles.inviteLinkHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.toggleLabel, { color: vText }]}>Invitation link</Text>
+                <Text
+                  accessibilityRole="text"
+                  testID="venue-owner-event-invite-link-status"
+                  style={[styles.toggleSub, { color: inviteLinkEnabled ? accent : vMuted }]}
+                >
+                  {inviteLinkEnabled
+                    ? isPublished
+                      ? "Active — people with this link can open the invitation."
+                      : "Enabled, but unavailable until the event is published."
+                    : "Disabled — previously shared links no longer work."}
+                </Text>
+              </View>
+              <Feather name={inviteLinkEnabled ? "link-2" : "link"} size={18} color={inviteLinkEnabled ? accent : vMuted} />
+            </View>
+            <View style={styles.inviteLinkActions}>
+              {!inviteLinkEnabled ? (
+                <Pressable
+                  testID="venue-owner-event-invite-link-create"
+                  accessibilityRole="button"
+                  disabled={!isPublished || inviteLinkPending}
+                  onPress={() => confirmInviteLinkAction("create")}
+                  style={[styles.inviteLinkButton, { borderColor: accent, opacity: !isPublished || inviteLinkPending ? 0.55 : 1 }]}
+                >
+                  <Feather name="link" size={15} color={accent} />
+                  <Text style={[styles.inviteLinkButtonText, { color: accent }]}>
+                    {inviteLinkPending ? "Working…" : "Create link"}
+                  </Text>
+                </Pressable>
+              ) : (
+                <>
+                  <Pressable
+                    testID="venue-owner-event-invite-link-replace"
+                    accessibilityRole="button"
+                    disabled={!isPublished || inviteLinkPending}
+                    onPress={() => confirmInviteLinkAction("replace")}
+                    style={[styles.inviteLinkButton, { borderColor: accent, opacity: !isPublished || inviteLinkPending ? 0.55 : 1 }]}
+                  >
+                    <Feather name="refresh-cw" size={15} color={accent} />
+                    <Text style={[styles.inviteLinkButtonText, { color: accent }]}>
+                      {inviteLinkPending ? "Working…" : "Replace link"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    testID="venue-owner-event-invite-link-disable"
+                    accessibilityRole="button"
+                    disabled={inviteLinkPending}
+                    onPress={() => confirmInviteLinkAction("disable")}
+                    style={[styles.inviteLinkButton, { borderColor: colors.destructive, opacity: inviteLinkPending ? 0.55 : 1 }]}
+                  >
+                    <Feather name="x-circle" size={15} color={colors.destructive} />
+                    <Text style={[styles.inviteLinkButtonText, { color: colors.destructive }]}>Disable link</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+            {!isPublished ? (
+              <Text style={[styles.toggleSub, { color: vMuted }]}>
+                Publish the event before creating or replacing its link.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Publish toggle */}
         <View style={[styles.toggleRow, { backgroundColor: vToggleBg, borderColor: vToggleBorder }]}>
           <View style={{ flex: 1 }}>
@@ -400,6 +559,11 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, padding: 14 },
   toggleLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   toggleSub: { fontSize: 12, marginTop: 2 },
+  inviteLinkPanel: { gap: 12, borderWidth: 1, borderRadius: 12, padding: 14 },
+  inviteLinkHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  inviteLinkActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  inviteLinkButton: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  inviteLinkButtonText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   visibilityRow: { gap: 9 },
   visibilityOption: { borderWidth: 1, borderRadius: 12, padding: 12 },
   visibilityTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },

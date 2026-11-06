@@ -2457,6 +2457,42 @@ paths:
         "409":
           description: Event is not invitation-only
 
+
+    delete:
+      operationId: revokeVenueOwnerEventInviteLink
+      tags: [venue-owner]
+      summary: Disable a venue event invitation link
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "204": { description: Invitation link disabled }
+        "404": { description: Event not found }
+        "409": { description: Event is not invitation-only }
+
+  /venue-owner/me/events/{eventId}/invite-link/rotate:
+    post:
+      operationId: rotateVenueOwnerEventInviteLink
+      tags: [venue-owner]
+      summary: Replace a venue event invitation link
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Replacement invitation link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
+        "404": { description: Event not found }
+        "409": { description: Event is not published or invitation-only }
+
+
   /events/feed:
     get:
       operationId: getEventsFeed
@@ -2920,6 +2956,40 @@ paths:
                 $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
         "404": { description: Event not found }
         "409": { description: Event is not published or invitation-only }
+
+
+    delete:
+      operationId: revokeVenueManagerEventInviteLink
+      tags: [venue-manager]
+      summary: Disable a venue event invitation link
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "204": { description: Invitation link disabled }
+        "404": { description: Event not found }
+        "409": { description: Event is not invitation-only }
+
+  /venue-manager/businesses/{businessId}/events/{eventId}/invite-link/rotate:
+    post:
+      operationId: rotateVenueManagerEventInviteLink
+      tags: [venue-manager]
+      summary: Replace a venue event invitation link
+      parameters:
+        - $ref: "#/components/parameters/VenueBusinessId"
+        - $ref: "#/components/parameters/VenueEventId"
+        - $ref: "#/components/parameters/VenueManagerCsrf"
+      responses:
+        "200":
+          description: Replacement invitation link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventInviteLinkResponse"
+        "404": { description: Event not found }
+        "409": { description: Event is not published or invitation-only }
+
 
   /venue-manager/businesses/{businessId}/rewards:
     get:

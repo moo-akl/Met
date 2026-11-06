@@ -4,7 +4,7 @@
  * Aurora (dark):  deep #0A0518 bg, translucent glass cards, white typography.
  * Signal (light): #FAFAF8 editorial bg, rule-separated rows, #0D0D0D typography.
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
@@ -17,7 +17,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, type VenueEvent } from "@/lib/api/client";
 import { useColors } from "@/hooks/useColors";
@@ -60,9 +60,11 @@ export default function VenueOwnerEventsScreen() {
     }
   }, [authedUid, profile?.placeId]);
 
-  useEffect(() => {
-    if (!ownerLoading) void fetchEvents();
-  }, [ownerLoading, fetchEvents]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!ownerLoading) void fetchEvents();
+    }, [ownerLoading, fetchEvents]),
+  );
 
   const handleDelete = (eventId: number) => {
     Alert.alert("Delete Event", "This cannot be undone.", [
@@ -87,6 +89,9 @@ export default function VenueOwnerEventsScreen() {
     if (!authedUid || event.visibility !== "invite_only") return;
     try {
       const link = await createInviteLink.mutateAsync({ eventId: event.id });
+      setEvents((current) => current.map((item) =>
+        item.id === event.id ? { ...item, inviteLinkEnabled: true } : item,
+      ));
       await Share.share({
         message: `${event.title}\n${link.url}`,
         url: link.url,
@@ -174,6 +179,15 @@ export default function VenueOwnerEventsScreen() {
                 })}
               </Text>
               <Text style={[styles.cardRsvp, { color: vMuted }]}>{item.rsvpCount} RSVPs • {item.isPublished ? "Published" : "Draft"}</Text>
+              {item.visibility === "invite_only" ? (
+                <Text
+                  accessibilityRole="text"
+                  testID={`venue-event-invite-link-state-${item.id}`}
+                  style={[styles.inviteLinkStatus, { color: item.inviteLinkEnabled ? accent : vMuted }]}
+                >
+                  Invitation link {item.inviteLinkEnabled ? "active" : "disabled"}
+                </Text>
+              ) : null}
             </View>
             <View style={styles.cardActions}>
               <Pressable
@@ -193,6 +207,7 @@ export default function VenueOwnerEventsScreen() {
                       capacityLimit: item.capacityLimit != null ? String(item.capacityLimit) : "",
                       isPublished: String(item.isPublished),
                       visibility: item.visibility,
+                       inviteLinkEnabled: String(item.inviteLinkEnabled),
                       invitePasscodeRequired: String(item.invitePasscodeRequired),
                     },
                   })
@@ -205,12 +220,17 @@ export default function VenueOwnerEventsScreen() {
               {item.visibility === "invite_only" ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Share invitation for ${item.title}`}
+                  accessibilityLabel={`${item.inviteLinkEnabled ? "Share" : "Create"} invitation link for ${item.title}`}
+                  testID={`venue-event-share-link-${item.id}`}
+                  disabled={!item.isPublished || createInviteLink.isPending}
                   onPress={() => void handleShare(item)}
-                  style={styles.editBtn}
+                  style={styles.inviteListAction}
                   hitSlop={8}
                 >
-                  <Feather name="share-2" size={18} color={accent} />
+                  <Feather name={item.inviteLinkEnabled ? "share-2" : "link"} size={18} color={accent} />
+                  <Text style={[styles.inviteListActionText, { color: accent }]}>
+                    {item.inviteLinkEnabled ? "Share" : "Create"}
+                  </Text>
                 </Pressable>
               ) : null}
               <Pressable
@@ -252,7 +272,10 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
   cardDate: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 3 },
   cardRsvp: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  inviteLinkStatus: { fontSize: 11, fontFamily: "Inter_600SemiBold", marginTop: 4 },
   cardActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  inviteListAction: { flexDirection: "row", alignItems: "center", gap: 3, padding: 4 },
+  inviteListActionText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   editBtn: { padding: 4 },
   editBtnText: { fontSize: 16 },
   deleteBtn: { padding: 4 },

@@ -47,6 +47,7 @@ import {
   buildEventInviteUrl,
   createEventInviteLinkFields,
   createEventInvitePasscodeFields,
+  createEventInviteTokenFields,
   decryptEventInviteToken,
 } from "../lib/eventInviteLinks";
 
@@ -1086,11 +1087,7 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
       invitePasscodeSalt: null,
       invitePasscodeHash: null,
     });
-  } else if (
-    existing.visibility !== "invite_only" ||
-    !existing.inviteTokenHash ||
-    !existing.inviteTokenEncrypted
-  ) {
+  } else if (existing.visibility !== "invite_only") {
     try {
       Object.assign(patch, createEventInviteLinkFields(invitePasscode));
     } catch (error) {
@@ -1394,7 +1391,7 @@ router.post("/venue-manager/businesses/:businessId/events/:eventId/invite-link",
     if (event.inviteTokenHash && event.inviteTokenEncrypted) {
       token = decryptEventInviteToken(event.inviteTokenEncrypted);
     } else {
-      const fields = createEventInviteLinkFields();
+      const fields = createEventInviteTokenFields();
       const [updated] = await db.update(venueEventsTable)
         .set({ ...fields, updatedAt: new Date() })
         .where(and(
@@ -1416,6 +1413,103 @@ router.post("/venue-manager/businesses/:businessId/events/:eventId/invite-link",
     req.log?.error({ error, eventId }, "Could not load venue manager event invite link");
     res.status(503).json({ message: "Invite link could not be loaded. Edit the event to create a new link." });
   }
+});
+
+router.post("/venue-manager/businesses/:businessId/events/:eventId/invite-link/rotate", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) {
+    res.status(400).json({ message: "Invalid event." });
+    return;
+  }
+  const [event] = await db.select().from(venueEventsTable)
+    .where(and(
+      eq(venueEventsTable.id, eventId),
+      eq(venueEventsTable.placeId, business.business.placeId),
+      eq(venueEventsTable.isHidden, false),
+    ))
+    .limit(1);
+  if (!event) {
+    res.status(404).json({ message: "Event not found." });
+    return;
+  }
+  if (event.visibility !== "invite_only" || !event.isPublished) {
+    res.status(409).json({ message: "Publish an invitation-only event before replacing its link." });
+    return;
+  }
+
+  try {
+    const fields = createEventInviteTokenFields();
+    const [updated] = await db.update(venueEventsTable)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(and(
+        eq(venueEventsTable.id, event.id),
+        eq(venueEventsTable.placeId, business.business.placeId),
+        eq(venueEventsTable.visibility, "invite_only"),
+        eq(venueEventsTable.isPublished, true),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .returning({
+        inviteTokenEncrypted: venueEventsTable.inviteTokenEncrypted,
+        invitePasscodeHash: venueEventsTable.invitePasscodeHash,
+      });
+    if (!updated?.inviteTokenEncrypted) {
+      res.status(409).json({ message: "This event can no longer be shared." });
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      url: buildEventInviteUrl(decryptEventInviteToken(updated.inviteTokenEncrypted)),
+      passcodeRequired: Boolean(updated.invitePasscodeHash),
+    });
+  } catch (error) {
+    req.log?.error({ error, eventId }, "Could not replace venue manager event invite link");
+    res.status(503).json({ message: "Invite link could not be replaced. Please try again." });
+  }
+});
+
+router.delete("/venue-manager/businesses/:businessId/events/:eventId/invite-link", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) {
+    res.status(400).json({ message: "Invalid event." });
+    return;
+  }
+  const [event] = await db.select({
+    id: venueEventsTable.id,
+    visibility: venueEventsTable.visibility,
+  }).from(venueEventsTable)
+    .where(and(
+      eq(venueEventsTable.id, eventId),
+      eq(venueEventsTable.placeId, business.business.placeId),
+      eq(venueEventsTable.isHidden, false),
+    ))
+    .limit(1);
+  if (!event) {
+    res.status(404).json({ message: "Event not found." });
+    return;
+  }
+  if (event.visibility !== "invite_only") {
+    res.status(409).json({ message: "Only invitation-only events have invite links." });
+    return;
+  }
+  await db.update(venueEventsTable)
+    .set({
+      inviteTokenHash: null,
+      inviteTokenEncrypted: null,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(venueEventsTable.id, event.id),
+      eq(venueEventsTable.placeId, business.business.placeId),
+      eq(venueEventsTable.visibility, "invite_only"),
+      eq(venueEventsTable.isHidden, false),
+    ));
+  res.sendStatus(204);
 });
 
 router.delete("/venue-manager/businesses/:businessId/events/:eventId", requireSession, requireCsrf, async (req, res): Promise<void> => {

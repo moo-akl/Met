@@ -8314,6 +8314,154 @@ export const useCreateVenueOwnerEventInviteLink = <TError = ErrorType<void>,
       return useMutation(getCreateVenueOwnerEventInviteLinkMutationOptions(options), queryClient);
     }
 
+export const getRevokeVenueOwnerEventInviteLinkUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/venue-owner/me/events/${eventId}/invite-link`
+}
+
+/**
+ * @summary Disable a venue event invitation link
+ */
+export const revokeVenueOwnerEventInviteLink = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRevokeVenueOwnerEventInviteLinkUrl(eventId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeVenueOwnerEventInviteLinkMutationKey = () => ['revokeVenueOwnerEventInviteLink'] as const;
+
+export const getRevokeVenueOwnerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVenueOwnerEventInviteLink>>, TError,RevokeVenueOwnerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeVenueOwnerEventInviteLink>>, TError,RevokeVenueOwnerEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getRevokeVenueOwnerEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeVenueOwnerEventInviteLink>>, RevokeVenueOwnerEventInviteLinkMutationVariables> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  revokeVenueOwnerEventInviteLink(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeVenueOwnerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof revokeVenueOwnerEventInviteLink>>>
+
+    export type RevokeVenueOwnerEventInviteLinkMutationError = ErrorType<void>
+    export type RevokeVenueOwnerEventInviteLinkMutationVariables = {eventId: number}
+
+    /**
+ * @summary Disable a venue event invitation link
+ */
+export const useRevokeVenueOwnerEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVenueOwnerEventInviteLink>>, TError,RevokeVenueOwnerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revokeVenueOwnerEventInviteLink>>,
+        TError,
+        RevokeVenueOwnerEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeVenueOwnerEventInviteLinkMutationOptions(options), queryClient);
+    }
+
+export const getRotateVenueOwnerEventInviteLinkUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/venue-owner/me/events/${eventId}/invite-link/rotate`
+}
+
+/**
+ * @summary Replace a venue event invitation link
+ */
+export const rotateVenueOwnerEventInviteLink = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
+
+  return customFetch<CommunityEventInviteLinkResponse>(getRotateVenueOwnerEventInviteLinkUrl(eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRotateVenueOwnerEventInviteLinkMutationKey = () => ['rotateVenueOwnerEventInviteLink'] as const;
+
+export const getRotateVenueOwnerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateVenueOwnerEventInviteLink>>, TError,RotateVenueOwnerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rotateVenueOwnerEventInviteLink>>, TError,RotateVenueOwnerEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getRotateVenueOwnerEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rotateVenueOwnerEventInviteLink>>, RotateVenueOwnerEventInviteLinkMutationVariables> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  rotateVenueOwnerEventInviteLink(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RotateVenueOwnerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof rotateVenueOwnerEventInviteLink>>>
+
+    export type RotateVenueOwnerEventInviteLinkMutationError = ErrorType<void>
+    export type RotateVenueOwnerEventInviteLinkMutationVariables = {eventId: number}
+
+    /**
+ * @summary Replace a venue event invitation link
+ */
+export const useRotateVenueOwnerEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateVenueOwnerEventInviteLink>>, TError,RotateVenueOwnerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rotateVenueOwnerEventInviteLink>>,
+        TError,
+        RotateVenueOwnerEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRotateVenueOwnerEventInviteLinkMutationOptions(options), queryClient);
+    }
+
 export const getGetEventsFeedUrl = () => {
 
 
@@ -10316,6 +10464,158 @@ export const useCreateVenueManagerEventInviteLink = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateVenueManagerEventInviteLinkMutationOptions(options), queryClient);
+    }
+
+export const getRevokeVenueManagerEventInviteLinkUrl = (businessId: number,
+    eventId: number,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/invite-link`
+}
+
+/**
+ * @summary Disable a venue event invitation link
+ */
+export const revokeVenueManagerEventInviteLink = async (businessId: number,
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRevokeVenueManagerEventInviteLinkUrl(businessId,eventId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeVenueManagerEventInviteLinkMutationKey = () => ['revokeVenueManagerEventInviteLink'] as const;
+
+export const getRevokeVenueManagerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, TError,RevokeVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, TError,RevokeVenueManagerEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getRevokeVenueManagerEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, RevokeVenueManagerEventInviteLinkMutationVariables> = (props) => {
+          const {businessId,eventId} = props ?? {};
+
+          return  revokeVenueManagerEventInviteLink(businessId,eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeVenueManagerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>>
+
+    export type RevokeVenueManagerEventInviteLinkMutationError = ErrorType<void>
+    export type RevokeVenueManagerEventInviteLinkMutationVariables = {businessId: number;eventId: number}
+
+    /**
+ * @summary Disable a venue event invitation link
+ */
+export const useRevokeVenueManagerEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>, TError,RevokeVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revokeVenueManagerEventInviteLink>>,
+        TError,
+        RevokeVenueManagerEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeVenueManagerEventInviteLinkMutationOptions(options), queryClient);
+    }
+
+export const getRotateVenueManagerEventInviteLinkUrl = (businessId: number,
+    eventId: number,) => {
+
+
+
+
+  return `/api/venue-manager/businesses/${businessId}/events/${eventId}/invite-link/rotate`
+}
+
+/**
+ * @summary Replace a venue event invitation link
+ */
+export const rotateVenueManagerEventInviteLink = async (businessId: number,
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventInviteLinkResponse> => {
+
+  return customFetch<CommunityEventInviteLinkResponse>(getRotateVenueManagerEventInviteLinkUrl(businessId,eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRotateVenueManagerEventInviteLinkMutationKey = () => ['rotateVenueManagerEventInviteLink'] as const;
+
+export const getRotateVenueManagerEventInviteLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, TError,RotateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, TError,RotateVenueManagerEventInviteLinkMutationVariables, TContext> => {
+
+const mutationKey = getRotateVenueManagerEventInviteLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, RotateVenueManagerEventInviteLinkMutationVariables> = (props) => {
+          const {businessId,eventId} = props ?? {};
+
+          return  rotateVenueManagerEventInviteLink(businessId,eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RotateVenueManagerEventInviteLinkMutationResult = NonNullable<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>>
+
+    export type RotateVenueManagerEventInviteLinkMutationError = ErrorType<void>
+    export type RotateVenueManagerEventInviteLinkMutationVariables = {businessId: number;eventId: number}
+
+    /**
+ * @summary Replace a venue event invitation link
+ */
+export const useRotateVenueManagerEventInviteLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>, TError,RotateVenueManagerEventInviteLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rotateVenueManagerEventInviteLink>>,
+        TError,
+        RotateVenueManagerEventInviteLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRotateVenueManagerEventInviteLinkMutationOptions(options), queryClient);
     }
 
 export const getListVenueManagerRewardsUrl = (businessId: number,) => {

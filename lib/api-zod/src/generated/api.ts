@@ -3669,6 +3669,35 @@ export const CreateVenueOwnerEventInviteLinkResponse = zod.object({
 
 
 /**
+ * @summary Disable a venue event invitation link
+ */
+
+
+
+export const RevokeVenueOwnerEventInviteLinkParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const RevokeVenueOwnerEventInviteLinkResponse = zod.void()
+
+
+/**
+ * @summary Replace a venue event invitation link
+ */
+
+
+
+export const RotateVenueOwnerEventInviteLinkParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const RotateVenueOwnerEventInviteLinkResponse = zod.object({
+  "url": zod.string().url(),
+  "passcodeRequired": zod.boolean()
+})
+
+
+/**
  * @summary List public events and private events the caller may attend
  */
 export const getEventsFeedResponseEventsItemContactPhoneMax = 40;
@@ -4580,6 +4609,53 @@ export const CreateVenueManagerEventInviteLinkHeader = zod.object({
 })
 
 export const CreateVenueManagerEventInviteLinkResponse = zod.object({
+  "url": zod.string().url(),
+  "passcodeRequired": zod.boolean()
+})
+
+
+/**
+ * @summary Disable a venue event invitation link
+ */
+
+
+
+
+export const RevokeVenueManagerEventInviteLinkParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const RevokeVenueManagerEventInviteLinkHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1)
+})
+
+export const RevokeVenueManagerEventInviteLinkResponse = zod.void()
+
+
+/**
+ * @summary Replace a venue event invitation link
+ */
+
+
+
+
+export const RotateVenueManagerEventInviteLinkParams = zod.object({
+  "businessId": zod.coerce.number().int().min(1),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const RotateVenueManagerEventInviteLinkHeader = zod.object({
+  "X-CSRF-Token": zod.string().min(1)
+})
+
+export const RotateVenueManagerEventInviteLinkResponse = zod.object({
   "url": zod.string().url(),
   "passcodeRequired": zod.boolean()
 })
