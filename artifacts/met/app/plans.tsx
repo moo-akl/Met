@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { useEventReminderCleanup } from "@/hooks/useEventReminderCleanup";
 import { getGetEventsFeedQueryKey, useGetEventsFeed, type EventFeedItem } from "@workspace/api-client-react";
 
 export default function PlansScreen() {
@@ -23,6 +24,12 @@ export default function PlansScreen() {
       queryKey: [...getGetEventsFeedQueryKey(), authedUid ?? "signed-out"],
     },
   });
+  useEventReminderCleanup(
+    authedUid,
+    feed.data?.events ?? [],
+    feed.isSuccess && !feed.isFetching,
+    feed.refetch,
+  );
   const plans = useMemo(() => (feed.data?.events ?? [])
     .filter((event: EventFeedItem) =>
       event.eventType === "member" &&

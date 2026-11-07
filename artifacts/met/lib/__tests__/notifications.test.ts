@@ -133,6 +133,32 @@ describe("routeNotifTap", () => {
     expect(push).toHaveBeenCalledWith("/event-chat/42");
   });
 
+  it.each(["venue", "member"] as const)(
+    "routes a local reminder for a %s event to its details",
+    (eventType) => {
+      const result = routeNotifTap({
+        type: "event_reminder",
+        eventType,
+        eventId: "42",
+      }, { push });
+      expect(result).toBe(true);
+      expect(push).toHaveBeenCalledWith(`/event-details/${eventType}/42`);
+    },
+  );
+
+  it("rejects local reminder payloads without a valid event reference", () => {
+    expect(routeNotifTap({
+      type: "event_reminder",
+      eventType: "member",
+      eventId: "0",
+    }, { push })).toBe(false);
+    expect(routeNotifTap({
+      type: "event_reminder",
+      eventId: "42",
+    }, { push })).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it.each([undefined, "", "0", "42/other", "9007199254740992"])(
     "rejects an invalid event plan message route id (%s)",
     (eventId) => {

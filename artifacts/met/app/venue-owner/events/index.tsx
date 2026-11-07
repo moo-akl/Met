@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useApp } from "@/contexts/AppContext";
 import { api, type VenueEvent } from "@/lib/api/client";
+import { cancelEventReminder } from "@/lib/eventReminders";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
@@ -76,6 +77,7 @@ export default function VenueOwnerEventsScreen() {
           if (!authedUid) return;
           try {
             await api.deleteVenueEvent({ uid: authedUid }, eventId);
+            await cancelEventReminder(authedUid, "venue", eventId).catch(() => {});
             setEvents((prev) => prev.filter((e) => e.id !== eventId));
           } catch {
             Alert.alert("Error", "Failed to delete event");

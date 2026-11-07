@@ -18,6 +18,7 @@ import * as Location from "expo-location";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useEventReminderCleanup } from "@/hooks/useEventReminderCleanup";
 import { useT } from "@/lib/i18n";
 import { api, ApiError } from "@/lib/api/client";
 import {
@@ -58,7 +59,20 @@ function EventsScreen() {
   const [actionError, setActionError] = useState("");
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
-  const feed = useGetEventsFeed({ query: { staleTime: 30_000, refetchOnMount: "always" } });
+  const feed = useGetEventsFeed({
+    query: {
+      staleTime: 30_000,
+      refetchOnMount: "always",
+      enabled: !!authedUid,
+      queryKey: [...getGetEventsFeedQueryKey(), authedUid ?? "signed-out"],
+    },
+  });
+  useEventReminderCleanup(
+    authedUid,
+    feed.data?.events ?? [],
+    feed.isSuccess && !feed.isFetching,
+    feed.refetch,
+  );
   const memberRsvp = useRsvpCommunityEvent({
     mutation: {
       onSuccess: async () => {

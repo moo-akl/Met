@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import * as Location from "expo-location";
 import {
   Alert,
@@ -23,6 +23,8 @@ import { useT } from "@/lib/i18n";
 import { api, ApiError } from "@/lib/api/client";
 import { getAppCheckToken } from "@/lib/firestore/client";
 import { buildEventDetailsUrl } from "@/lib/eventLinks";
+import EventFollowThroughActions from "@/components/EventFollowThroughActions";
+import { cancelEventReminder } from "@/lib/eventReminders";
 import {
   getGetEventDetailsQueryKey,
   getGetEventDetailsQueryOptions,
@@ -70,11 +72,24 @@ export default function EventDetailsScreen() {
     ...getGetEventDetailsQueryOptions(eventType, isValidRoute ? eventId : 0),
     enabled: isValidRoute,
   });
+  useEffect(() => {
+    if (
+      !authedUid ||
+      !(eventQuery.error instanceof ApiError) ||
+      eventQuery.error.status !== 404
+    ) {
+      return;
+    }
+    void cancelEventReminder(authedUid, eventType, eventId).catch(() => {});
+  }, [authedUid, eventId, eventQuery.error, eventType]);
 
   const memberRsvp = useRsvpCommunityEvent();
   const deleteEvent = useDeleteCommunityEvent({
     mutation: {
       onSuccess: async () => {
+        if (authedUid) {
+          await cancelEventReminder(authedUid, "member", eventId).catch(() => {});
+        }
         await queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() });
         router.replace("/(tabs)/events" as never);
       },
@@ -396,6 +411,7 @@ export default function EventDetailsScreen() {
                 {event.description}
               </Text>
             ) : null}
+            <EventFollowThroughActions event={event} uid={authedUid ?? null} />
             <View style={[styles.attendanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.attendanceHeading}>
                 <View style={[styles.attendanceIcon, { backgroundColor: colors.primarySoft }]}>
