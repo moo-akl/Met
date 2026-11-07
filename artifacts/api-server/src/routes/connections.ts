@@ -1,12 +1,227 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { and, eq, or } from "drizzle-orm";
-import { db, revealRequestsTable, reviewsTable } from "@workspace/db";
+import {
+  db,
+  profilesTable,
+  referralCodesTable,
+  revealRequestsTable,
+  reviewsTable,
+} from "@workspace/db";
+import {
+  AcceptConnectionInviteResponse,
+  GetConnectionInviteResponse,
+} from "@workspace/api-zod";
 import { requireUid } from "../middlewares/requireUid";
-import { mirrorConnectionRemoval } from "../lib/firestoreMirror";
+import { createUserRateLimiter } from "../middlewares/rateLimit";
+import {
+  mirrorConnectionRemoval,
+  mirrorRevealStatus,
+} from "../lib/firestoreMirror";
 import { recalcUserRating } from "../lib/reviewRecalc";
+import { sendPush } from "../lib/push";
 
 const router: IRouter = Router();
+const connectionInviteReadLimit = createUserRateLimiter({
+  windowMs: 60_000,
+  max: 40,
+  name: "connection-invite-read",
+});
+const connectionInviteAcceptLimit = createUserRateLimiter({
+  windowMs: 60_000,
+  max: 20,
+  name: "connection-invite-accept",
+});
+const connectionInviteCode = z.string().regex(/^[A-HJ-NP-Z2-9]{6}$/);
+
+function normalizeConnectionInviteCode(codeParam: string | string[] | undefined) {
+  const value = Array.isArray(codeParam) ? codeParam[0] : codeParam;
+  return connectionInviteCode.safeParse((value ?? "").trim().toUpperCase());
+}
+
+async function findConnectionInvite(code: string) {
+  const [invite] = await db
+    .select({
+      uid: referralCodesTable.uid,
+      displayName: profilesTable.displayName,
+      photoUrl: profilesTable.photoUrl,
+    })
+    .from(referralCodesTable)
+    .innerJoin(profilesTable, eq(profilesTable.uid, referralCodesTable.uid))
+    .where(eq(referralCodesTable.code, code))
+    .limit(1);
+
+  return invite ?? null;
+}
+
+function areConnectedQuery(uidA: string, uidB: string) {
+  return and(
+    eq(revealRequestsTable.status, "accepted"),
+    or(
+      and(
+        eq(revealRequestsTable.senderUid, uidA),
+        eq(revealRequestsTable.recipientUid, uidB),
+      ),
+      and(
+        eq(revealRequestsTable.senderUid, uidB),
+        eq(revealRequestsTable.recipientUid, uidA),
+      ),
+    ),
+  );
+}
+
+router.get(
+  "/connections/invites/:code",
+  requireUid,
+  connectionInviteReadLimit,
+  async (req, res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    const callerUid = req.uid!;
+    const parsedCode = normalizeConnectionInviteCode(req.params.code);
+    if (!parsedCode.success) {
+      res.status(400).json({ message: "Invalid invite code" });
+      return;
+    }
+    const invite = await findConnectionInvite(parsedCode.data);
+    if (!invite) {
+      res.status(404).json({ message: "Invite code not found" });
+      return;
+    }
+    if (invite.uid === callerUid) {
+      res.status(400).json({ message: "You cannot accept your own invite" });
+      return;
+    }
+
+    const [connection] = await db
+      .select({ id: revealRequestsTable.id })
+      .from(revealRequestsTable)
+      .where(areConnectedQuery(callerUid, invite.uid))
+      .limit(1);
+
+    res.json(
+      GetConnectionInviteResponse.parse({
+        ...invite,
+        alreadyConnected: Boolean(connection),
+      }),
+    );
+  },
+);
+
+router.post(
+  "/connections/invites/:code/accept",
+  requireUid,
+  connectionInviteAcceptLimit,
+  async (req, res) => {
+    const recipientUid = req.uid!;
+    const parsedCode = normalizeConnectionInviteCode(req.params.code);
+    if (!parsedCode.success) {
+      res.status(400).json({ message: "Invalid invite code" });
+      return;
+    }
+    const invite = await findConnectionInvite(parsedCode.data);
+    if (!invite) {
+      res.status(404).json({ message: "Invite code not found" });
+      return;
+    }
+    if (invite.uid === recipientUid) {
+      res.status(400).json({ message: "You cannot accept your own invite" });
+      return;
+    }
+
+    const [recipientProfile] = await db
+      .select({ displayName: profilesTable.displayName })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, recipientUid))
+      .limit(1);
+    if (!recipientProfile) {
+      res.status(400).json({ message: "Complete your profile before accepting an invite" });
+      return;
+    }
+
+    const now = new Date();
+    const alreadyConnected = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: revealRequestsTable.id })
+        .from(revealRequestsTable)
+        .where(areConnectedQuery(recipientUid, invite.uid))
+        .limit(1);
+      if (existing) return true;
+
+      await tx
+        .insert(revealRequestsTable)
+        .values({
+          senderUid: invite.uid,
+          recipientUid,
+          status: "accepted",
+          respondedAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [
+            revealRequestsTable.senderUid,
+            revealRequestsTable.recipientUid,
+          ],
+          set: {
+            status: "accepted",
+            respondedAt: now,
+            updatedAt: now,
+          },
+        });
+
+      // An earlier request from the invitee is also covered by the newly
+      // accepted invite; do not leave a duplicate pending request in inbox.
+      await tx
+        .update(revealRequestsTable)
+        .set({ status: "accepted", respondedAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(revealRequestsTable.senderUid, recipientUid),
+            eq(revealRequestsTable.recipientUid, invite.uid),
+            eq(revealRequestsTable.status, "pending"),
+          ),
+        );
+      return false;
+    });
+
+    await Promise.all([
+      mirrorRevealStatus({
+        senderUid: invite.uid,
+        recipientUid,
+        status: "accepted",
+      }),
+      mirrorRevealStatus({
+        senderUid: recipientUid,
+        recipientUid: invite.uid,
+        status: "accepted",
+      }),
+    ]);
+
+    if (!alreadyConnected) {
+      const [inviterProfile] = await db
+        .select({ pushToken: profilesTable.pushToken })
+        .from(profilesTable)
+        .where(eq(profilesTable.uid, invite.uid))
+        .limit(1);
+      await sendPush(inviterProfile?.pushToken, {
+        title: `${recipientProfile.displayName} accepted your connection invite`,
+        body: "You're now connected — tap to say hi.",
+        data: { type: "reveal_accepted", fromUid: recipientUid },
+      });
+    }
+
+    res.json(
+      AcceptConnectionInviteResponse.parse({
+        success: true,
+        alreadyConnected,
+        peer: {
+          uid: invite.uid,
+          displayName: invite.displayName,
+          photoUrl: invite.photoUrl,
+        },
+      }),
+    );
+  },
+);
 
 const RemoveConnectionBody = z.object({
   peerUid: z.string().min(1),

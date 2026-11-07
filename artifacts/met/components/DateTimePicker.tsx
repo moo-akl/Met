@@ -1,7 +1,7 @@
 /**
  * Shared DateTimePicker component.
  *
- * iOS  — inline spinner wheel, toggled open/closed by tapping the row.
+ * iOS  — native inline calendar with a compact native time control.
  * Android — modal picker opened via DateTimePickerAndroid.open().
  *
  * Props:
@@ -31,6 +31,7 @@ import {
 import RNDateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
+import { useT } from "@/lib/i18n";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ export function DateTimePicker({
   isDark = true,
 }: DateTimePickerProps) {
   const [showIOS, setShowIOS] = useState(false);
+  const { t } = useT();
 
   const formatted =
     mode === "datetime" ? formatDatetime(value) : formatDate(value);
@@ -167,18 +169,45 @@ export function DateTimePicker({
       </Pressable>
 
       {showIOS && (
-        <View style={[styles.iosPickerWrap, { backgroundColor: rowBg }]}>
+        <View style={[styles.iosPickerWrap, { backgroundColor: rowBg, borderColor: primaryColor + "25" }]}>
           <RNDateTimePicker
+            testID={`date-time-picker-${mode}-calendar`}
             value={value}
-            mode={mode}
-            display="spinner"
+            mode="date"
+            display="inline"
             textColor={isDark ? "#fff" : "#0D0D0D"}
             themeVariant={isDark ? "dark" : "light"}
             onChange={(_evt, picked) => {
-              if (picked) onChange(picked);
+              if (!picked) return;
+              const combined = new Date(value);
+              combined.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
+              onChange(combined);
             }}
-            style={styles.iosPicker}
+            style={styles.iosCalendar}
           />
+          {mode === "datetime" ? (
+            <View style={[styles.iosTimeRow, { borderTopColor: primaryColor + "25" }]}>
+              <View style={styles.iosTimeLabel}>
+                <Feather name="clock" size={15} color={primaryColor} />
+                <Text style={[styles.iosTimeText, { color: valueColor }]}>{t("dateTime.time")}</Text>
+              </View>
+              <RNDateTimePicker
+                testID="date-time-picker-time"
+                value={value}
+                mode="time"
+                display="compact"
+                textColor={isDark ? "#fff" : "#0D0D0D"}
+                themeVariant={isDark ? "dark" : "light"}
+                onChange={(_evt, picked) => {
+                  if (!picked) return;
+                  const combined = new Date(value);
+                  combined.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
+                  onChange(combined);
+                }}
+                style={styles.iosTimePicker}
+              />
+            </View>
+          ) : null}
         </View>
       )}
     </View>
@@ -218,10 +247,23 @@ const styles = StyleSheet.create({
   },
   iosPickerWrap: {
     marginTop: 4,
-    borderRadius: 10,
+    borderRadius: 20,
+    borderWidth: 1,
     overflow: "hidden",
   },
-  iosPicker: {
-    height: 160,
+  iosCalendar: {
+    alignSelf: "center",
+    width: "100%",
   },
+  iosTimeRow: {
+    minHeight: 52,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  iosTimeLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
+  iosTimeText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  iosTimePicker: { minWidth: 90, height: 42 },
 });

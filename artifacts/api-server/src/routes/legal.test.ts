@@ -71,45 +71,11 @@ describe("hotspot installation handoff page", () => {
   });
 });
 
-describe("public privacy policy", () => {
-  it("serves the canonical policy with current visibility and review disclosures", async () => {
-    const res = await request(app).get("/privacy");
-
-    expect(res.status).toBe(200);
-    expect(res.headers.location).toBeUndefined();
-    expect(res.headers["content-type"]).toContain("text/html");
-    expect(res.text).toContain("Nearby visibility is an optional setting.");
-    expect(res.text).toContain("detect your phone over Bluetooth");
-    expect(res.text).toContain("GPS coordinates are not shared through this visibility feature.");
-    expect(res.text).toContain("Turning visibility off does not erase information already shared");
-    expect(res.text).toContain("approval is not a security or privacy guarantee.");
-    expect(res.text).not.toContain("military-grade");
-  });
-});
-
 describe("event invitation installation handoff page", () => {
   const token = "a".repeat(43);
 
-  it.each([
-    ["iPhone", "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"],
-    ["iPad", "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926"],
-    ["Android", "https://play.google.com/store/apps/details?id=app.met.founders"],
-  ])("sends %s visitors directly to the matching app store", async (userAgent, storeUrl) => {
-    const res = await request(app)
-      .get(`/event-invite/${token}`)
-      .set("User-Agent", userAgent);
-
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(storeUrl);
-    expect(res.headers["cache-control"]).toContain("no-store");
-    expect(res.headers["referrer-policy"]).toBe("no-referrer");
-    expect(res.headers.location).not.toContain(token);
-  });
-
   it("offers an explicit continue action after installation without auto-opening the invite", async () => {
-    const res = await request(app)
-      .get(`/event-invite/${token}`)
-      .set("User-Agent", "Desktop");
+    const res = await request(app).get(`/event-invite/${token}`);
 
     expect(res.status).toBe(200);
     expect(res.headers.location).toBeUndefined();
@@ -123,6 +89,7 @@ describe("event invitation installation handoff page", () => {
     );
     expect(res.text).toContain("Install from the App Store");
     expect(res.text).toContain("Install from Google Play");
+    expect(res.text).toContain('<meta name="referrer" content="no-referrer" />');
     expect(res.text).not.toContain(`referrer=${token}`);
     expect(res.text).toContain("open the original invitation link again");
     expect(res.text).toContain("Passcode-protected invitations will still ask for their passcode in Met.");
@@ -139,22 +106,19 @@ describe("event invitation installation handoff page", () => {
   });
 });
 
-describe("event invitation app-link associations", () => {
-  it("includes the invite route in the iOS universal-link association", async () => {
-    const res = await request(app).get("/.well-known/apple-app-site-association");
+describe("public privacy policy", () => {
+  it("serves the canonical policy with current visibility and review disclosures", async () => {
+    const res = await request(app).get("/privacy");
 
     expect(res.status).toBe(200);
-    expect(res.body.applinks.details[0].paths).toContain("/event-invite/*");
-  });
-
-  it("serves the Android app association for Met", async () => {
-    const res = await request(app).get("/.well-known/assetlinks.json");
-
-    expect(res.status).toBe(200);
-    expect(res.body[0]).toMatchObject({
-      relation: ["delegate_permission/common.handle_all_urls"],
-      target: { namespace: "android_app", package_name: "app.met.founders" },
-    });
+    expect(res.headers.location).toBeUndefined();
+    expect(res.headers["content-type"]).toContain("text/html");
+    expect(res.text).toContain("Nearby visibility is an optional setting.");
+    expect(res.text).toContain("detect your phone over Bluetooth");
+    expect(res.text).toContain("GPS coordinates are not shared through this visibility feature.");
+    expect(res.text).toContain("Turning visibility off does not erase information already shared");
+    expect(res.text).toContain("approval is not a security or privacy guarantee.");
+    expect(res.text).not.toContain("military-grade");
   });
 });
 
@@ -163,8 +127,10 @@ describe("venue event detail links", () => {
     const res = await request(app).get("/.well-known/apple-app-site-association");
 
     expect(res.status).toBe(200);
+    expect(res.body.applinks.details[0].paths).toContain("/connect/*");
     expect(res.body.applinks.details[0].paths).toContain("/event-details/*");
     expect(res.body.applinks.details[0].paths).toContain("/event-invite/*");
+    expect(res.body.applinks.details[0].paths).toContain("/event-check-in/*");
   });
 
   it("routes a shared event URL to the event, not the venue check-in", async () => {
@@ -266,5 +232,20 @@ describe("venue event detail links", () => {
     const res = await request(app).get(path);
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe("event invitation link associations", () => {
+  it("serves the Android app association for Met", async () => {
+    const res = await request(app).get("/.well-known/assetlinks.json");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toMatchObject({
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: {
+        namespace: "android_app",
+        package_name: "app.met.founders",
+      },
+    });
   });
 });

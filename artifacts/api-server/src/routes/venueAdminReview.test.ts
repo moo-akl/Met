@@ -294,6 +294,7 @@ vi.mock("@workspace/db", () => ({
   venueMembershipAuditTable: dbMocks.bizTable,
   venueEventsTable: dbMocks.contentTables.events,
   venueEventRsvpsTable: {},
+  eventAttendanceTable: { eventType: "eventType", eventId: "eventId" },
   venueRewardsTable: dbMocks.contentTables.rewards,
   venueAnnouncementsTable: dbMocks.contentTables.announcements,
   hubCheckinsTable: {},

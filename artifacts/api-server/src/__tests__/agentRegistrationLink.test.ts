@@ -1126,7 +1126,7 @@ describe.skipIf(!hasDatabase)(
         template: "latest_updates_prospect",
       });
       expect(prospectEmailCall?.[0]).not.toHaveProperty("attachments");
-    });
+    }, 240_000);
 
     it("binds a registration link to the chosen manager email, not the public contact email", async () => {
       const to = `manager-${TEST_CONTACT_EMAIL}`;

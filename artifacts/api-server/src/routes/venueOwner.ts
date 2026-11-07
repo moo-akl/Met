@@ -64,6 +64,7 @@ import {
   venueApplicationHistoryTable,
   venueEventsTable,
   venueEventRsvpsTable,
+  eventAttendanceTable,
   venueRewardsTable,
   venueAnnouncementsTable,
   venueContentReportsTable,
@@ -692,6 +693,8 @@ function serializePublicVenueEvent(event: typeof venueEventsTable.$inferSelect, 
     inviteTokenEncrypted: _inviteTokenEncrypted,
     invitePasscodeSalt: _invitePasscodeSalt,
     invitePasscodeHash: _invitePasscodeHash,
+    checkinTokenHash: _checkinTokenHash,
+    checkinTokenEncrypted: _checkinTokenEncrypted,
     isHidden: _isHidden,
     ...publicEvent
   } = event;
@@ -2430,6 +2433,13 @@ router.post(
       res.status(400).json({ message: "Event start time must be in the future." });
       return;
     }
+    if (
+      parsed.data.endsAt &&
+      new Date(parsed.data.endsAt) <= new Date(parsed.data.startsAt)
+    ) {
+      res.status(400).json({ message: "Event end time must be after the start time." });
+      return;
+    }
     const visibility = parsed.data.visibility ?? "public";
     const inviteeUids = visibility === "invite_only"
       ? [...new Set(parsed.data.inviteeUids ?? [])]
@@ -2603,6 +2613,19 @@ router.put(
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: "Invalid input", errors: parsed.error.issues });
+      return;
+    }
+
+    const nextStartsAt = parsed.data.startsAt
+      ? new Date(parsed.data.startsAt)
+      : existing.startsAt;
+    const nextEndsAt = parsed.data.endsAt !== undefined
+      ? parsed.data.endsAt
+        ? new Date(parsed.data.endsAt)
+        : null
+      : existing.endsAt;
+    if (nextEndsAt && nextEndsAt <= nextStartsAt) {
+      res.status(400).json({ message: "Event end time must be after the start time." });
       return;
     }
 
@@ -2910,6 +2933,10 @@ router.delete(
 
     // Cascade delete RSVPs then the event
     await db.delete(venueEventRsvpsTable).where(eq(venueEventRsvpsTable.eventId, eventId));
+    await db.delete(eventAttendanceTable).where(and(
+      eq(eventAttendanceTable.eventType, "venue"),
+      eq(eventAttendanceTable.eventId, eventId),
+    ));
     await db.delete(venueEventsTable).where(
       and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, access.placeId)),
     );
@@ -5405,7 +5432,7 @@ router.get(`${adminContentBase}/events`, requireAdminSession, async (req, res): 
   const events = await db.select().from(venueEventsTable)
     .where(and(eq(venueEventsTable.placeId, profile.placeId), eq(venueEventsTable.ownerUid, profile.ownerUid)))
     .orderBy(desc(venueEventsTable.startsAt));
-  res.json({ events: events.map(({ ownerUid: _ownerUid, ...event }) => event) });
+  res.json({ events: events.map(({ ownerUid: _ownerUid, checkinTokenHash: _checkinTokenHash, checkinTokenEncrypted: _checkinTokenEncrypted, ...event }) => event) });
 });
 router.post(`${adminContentBase}/events`, requireAdminSession, async (req, res): Promise<void> => {
   const profile = await adminContentVenue(req, res);
@@ -5417,7 +5444,7 @@ router.post(`${adminContentBase}/events`, requireAdminSession, async (req, res):
     ...data, ownerUid: profile.ownerUid, placeId: profile.placeId,
     endsAt: data.endsAt ?? null, isPublished: data.isPublished ?? false,
   }).returning();
-  const { ownerUid: _ownerUid, ...event } = created!;
+  const { ownerUid: _ownerUid, checkinTokenHash: _checkinTokenHash, checkinTokenEncrypted: _checkinTokenEncrypted, ...event } = created!;
   res.status(201).json({ event });
 });
 router.patch(`${adminContentBase}/events/:eventId`, requireAdminSession, async (req, res): Promise<void> => {
@@ -5433,7 +5460,7 @@ router.patch(`${adminContentBase}/events/:eventId`, requireAdminSession, async (
   if ((data.endsAt ?? existing.endsAt) && (data.endsAt ?? existing.endsAt)! <= (data.startsAt ?? existing.startsAt))
     return void res.status(400).json({ message: "Event must end after it starts." });
   const [updated] = await db.update(venueEventsTable).set({ ...data, updatedAt: new Date() }).where(scope).returning();
-  const { ownerUid: _ownerUid, ...event } = updated!;
+  const { ownerUid: _ownerUid, checkinTokenHash: _checkinTokenHash, checkinTokenEncrypted: _checkinTokenEncrypted, ...event } = updated!;
   res.json({ event });
 });
 router.delete(`${adminContentBase}/events/:eventId`, requireAdminSession, async (req, res): Promise<void> => {
@@ -5443,6 +5470,10 @@ router.delete(`${adminContentBase}/events/:eventId`, requireAdminSession, async 
   if (!eventId) return void res.status(400).json({ message: "Invalid event id." });
   const deleted = await db.delete(venueEventsTable).where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, profile.placeId), eq(venueEventsTable.ownerUid, profile.ownerUid))).returning({ id: venueEventsTable.id });
   if (!deleted.length) return void res.status(404).json({ message: "Event not found." });
+  await db.delete(eventAttendanceTable).where(and(
+    eq(eventAttendanceTable.eventType, "venue"),
+    eq(eventAttendanceTable.eventId, eventId),
+  ));
   res.status(204).end();
 });
 

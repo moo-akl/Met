@@ -346,6 +346,11 @@ function ConnectionsScreen() {
             onPress: () => void handleInviteFriends(),
             accessibilityLabel: t("referrals.title"),
           },
+          {
+            icon: "calendar",
+            onPress: () => router.push("/plans" as never),
+            accessibilityLabel: t("plans.openPlansA11y"),
+          },
           { icon: "mail", onPress: () => router.push("/inbox"), badge: unreadChatCount },
           { icon: "sliders", onPress: () => setSortMenuOpen(true) },
         ]}

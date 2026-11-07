@@ -248,7 +248,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       }
     }
     if (isEditing) router.back();
-    else router.replace("/(tabs)/events" as never);
+    else router.replace(planMode ? "/(tabs)/index" as never : "/(tabs)/events" as never);
   };
 
   const createEvent = useCreateCommunityEvent({

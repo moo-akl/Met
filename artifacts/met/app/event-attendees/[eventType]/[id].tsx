@@ -53,9 +53,11 @@ export default function EventAttendeesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { authedUid } = useApp();
+  const attendeeOptions = getGetEventAttendeesQueryOptions(eventType, validRoute ? eventId : 0);
   const attendeesQuery = useQuery({
-    ...getGetEventAttendeesQueryOptions(eventType, validRoute ? eventId : 0),
-    enabled: validRoute,
+    ...attendeeOptions,
+    queryKey: [...attendeeOptions.queryKey, authedUid ?? "signed-out"],
+    enabled: validRoute && !!authedUid,
     staleTime: 30_000,
   });
   const qrMutation = useGetEventCheckinQr();
@@ -182,15 +184,15 @@ export default function EventAttendeesScreen() {
         <View style={styles.headerButton} />
       </View>
 
-      {attendeesQuery.isLoading ? (
+      {!authedUid || attendeesQuery.isLoading ? (
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : attendeesQuery.isError ? (
         <View style={styles.loading}>
-          <Feather name="lock" size={28} color={colors.mutedForeground} />
+          <Feather name="alert-circle" size={28} color={colors.destructive} />
           <Text style={[styles.stateText, { color: colors.text }]}>
-            Only this event’s creator can view its attendance.
+            {safeAttendanceError(attendeesQuery.error)}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -462,6 +464,15 @@ export default function EventAttendeesScreen() {
       )}
     </View>
   );
+}
+
+function safeAttendanceError(error: unknown): string {
+  const raw = error instanceof Error ? error.message.trim() : "";
+  const safe = raw
+    .replace(/\b[a-zA-Z0-9_-]{20,}\b/g, "account")
+    .replace(/\b(?:uid|user id)\s*[:=]\s*[^\s,;]+/gi, "account")
+    .trim();
+  return safe || "Could not load attendance. Check your connection and try again.";
 }
 
 const styles = StyleSheet.create({

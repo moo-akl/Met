@@ -60,6 +60,7 @@ vi.mock("@workspace/db", () => ({
   },
   venueEventsTable: {},
   venueEventRsvpsTable: {},
+  eventAttendanceTable: { eventType: "eventType", eventId: "eventId" },
   venueRewardsTable: {},
   venueAnnouncementsTable: {},
   hubCheckinsTable: {},

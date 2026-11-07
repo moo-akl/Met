@@ -6599,6 +6599,7 @@ components:
         visibility: { type: string, enum: [public, invite_only] }
         rsvpCount: { type: integer }
         myRsvp: { type: ["string", "null"], enum: [going, maybe, not_going, null] }
+        isInvited: { type: boolean }
     EventQrCheckinInput:
       type: object
       required: [token]

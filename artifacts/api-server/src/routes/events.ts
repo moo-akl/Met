@@ -20,8 +20,10 @@ import {
   communityEventsTable,
   db,
   eventAttendanceTable,
+  eventAttendanceCorrectionsTable,
   profilesTable,
   venueEventRsvpsTable,
+  venueEventNotificationRunsTable,
   venueEventsTable,
   venueOwnerProfilesTable,
 } from "@workspace/db";
@@ -351,6 +353,7 @@ router.get("/events/feed", requireUid, async (req, res) => {
       visibility: event.visibility,
       rsvpCount: event.rsvpCount,
       myRsvp: myVenueRsvp.get(event.id) ?? null,
+      isInvited: event.inviteeUids.includes(uid),
     })),
     ...memberRows.map(({ event, creatorName }) => ({
       eventType: "member" as const,
@@ -374,6 +377,7 @@ router.get("/events/feed", requireUid, async (req, res) => {
       visibility: event.visibility,
       rsvpCount: memberRsvpCounts.get(event.id) ?? 0,
       myRsvp: myMemberRsvp.get(event.id) ?? null,
+      isInvited: event.inviteeUids.includes(uid),
     })),
   ].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 
@@ -598,6 +602,7 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         visibility: event.visibility,
         rsvpCount: rsvps.length,
         myRsvp: myRsvp[0]?.status ?? null,
+        isInvited: event.inviteeUids.includes(uid),
       }),
     );
     return;
@@ -678,6 +683,7 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
       visibility: row.event.visibility,
       rsvpCount: row.event.rsvpCount,
       myRsvp: myRsvp?.status ?? null,
+      isInvited: row.event.inviteeUids.includes(uid),
     }),
   );
 });
@@ -1961,6 +1967,8 @@ router.get(
         displayName: profilesTable.displayName,
         photoUrl: profilesTable.photoUrl,
         checkInMethod: eventAttendanceTable.checkInMethod,
+        checkedInByUid: eventAttendanceTable.checkedInByUid,
+        manualReason: eventAttendanceTable.manualReason,
         checkedInAt: eventAttendanceTable.checkedInAt,
       })
       .from(eventAttendanceTable)
@@ -1970,12 +1978,79 @@ router.get(
         eq(eventAttendanceTable.eventId, eventId),
       ))
       .orderBy(eventAttendanceTable.checkedInAt);
+    const rsvps = eventType === "venue"
+      ? await db
+        .select({
+          uid: venueEventRsvpsTable.userUid,
+          displayName: profilesTable.displayName,
+          photoUrl: profilesTable.photoUrl,
+          status: venueEventRsvpsTable.status,
+        })
+        .from(venueEventRsvpsTable)
+        .leftJoin(profilesTable, eq(profilesTable.uid, venueEventRsvpsTable.userUid))
+        .where(eq(venueEventRsvpsTable.eventId, eventId))
+        .orderBy(desc(venueEventRsvpsTable.updatedAt))
+      : await db
+        .select({
+          uid: communityEventRsvpsTable.userUid,
+          displayName: profilesTable.displayName,
+          photoUrl: profilesTable.photoUrl,
+          status: communityEventRsvpsTable.status,
+        })
+        .from(communityEventRsvpsTable)
+        .leftJoin(profilesTable, eq(profilesTable.uid, communityEventRsvpsTable.userUid))
+        .where(eq(communityEventRsvpsTable.eventId, eventId))
+        .orderBy(desc(communityEventRsvpsTable.updatedAt));
+    const corrections = await db
+      .select({
+        uid: eventAttendanceCorrectionsTable.userUid,
+        displayName: profilesTable.displayName,
+        action: eventAttendanceCorrectionsTable.action,
+        previousMethod: eventAttendanceCorrectionsTable.previousMethod,
+        reason: eventAttendanceCorrectionsTable.reason,
+        actorUid: eventAttendanceCorrectionsTable.actorUid,
+        createdAt: eventAttendanceCorrectionsTable.createdAt,
+      })
+      .from(eventAttendanceCorrectionsTable)
+      .leftJoin(profilesTable, eq(profilesTable.uid, eventAttendanceCorrectionsTable.userUid))
+      .where(and(
+        eq(eventAttendanceCorrectionsTable.eventType, eventType),
+        eq(eventAttendanceCorrectionsTable.eventId, eventId),
+      ))
+      .orderBy(desc(eventAttendanceCorrectionsTable.createdAt))
+      .limit(20);
+    // Community plans do not have scheduled notification runs.
+    const notificationRuns = eventType === "venue"
+      ? await db
+        .select({
+          kind: venueEventNotificationRunsTable.kind,
+          status: venueEventNotificationRunsTable.status,
+          recipientCount: venueEventNotificationRunsTable.recipientCount,
+          sentCount: venueEventNotificationRunsTable.sentCount,
+          skippedCount: venueEventNotificationRunsTable.skippedCount,
+          failedCount: venueEventNotificationRunsTable.failedCount,
+          startedAt: venueEventNotificationRunsTable.startedAt,
+        })
+        .from(venueEventNotificationRunsTable)
+        .where(eq(venueEventNotificationRunsTable.eventId, eventId))
+        .orderBy(desc(venueEventNotificationRunsTable.startedAt))
+        .limit(10)
+      : [];
     res.setHeader("Cache-Control", "no-store");
     res.json(GetEventAttendeesResponse.parse({
       attendees: attendees.map((attendee) => ({
         ...attendee,
         displayName: attendee.displayName ?? "Met member",
       })),
+      rsvps: rsvps.map((rsvp) => ({
+        ...rsvp,
+        displayName: rsvp.displayName ?? "Met member",
+      })),
+      corrections: corrections.map((correction) => ({
+        ...correction,
+        displayName: correction.displayName ?? "Met member",
+      })),
+      notificationRuns,
     }));
   },
 );

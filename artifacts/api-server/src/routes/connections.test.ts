@@ -8,6 +8,7 @@ const dbMocks = vi.hoisted(() => {
   const chain = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue([]),
     delete: vi.fn().mockReturnThis(),
@@ -15,17 +16,27 @@ const dbMocks = vi.hoisted(() => {
     values: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
+    onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
+    transaction: vi.fn(),
   };
   return { chain };
 });
 
 const recalcMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mirrorMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mirrorStatusMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock("@workspace/db", () => ({
   db: dbMocks.chain,
-  revealRequestsTable: {},
-  reviewsTable: {},
+  revealRequestsTable: { id: {}, senderUid: {}, recipientUid: {}, status: {} },
+  reviewsTable: { reviewerUid: {}, receiverUid: {} },
+  profilesTable: {
+    uid: {},
+    displayName: {},
+    photoUrl: {},
+    pushToken: {},
+  },
+  referralCodesTable: { uid: {}, code: {} },
   userStatsTable: {},
 }));
 
@@ -35,9 +46,9 @@ vi.mock("../lib/reviewRecalc", () => ({
 
 vi.mock("../lib/firestoreMirror", () => ({
   mirrorConnectionRemoval: mirrorMock,
+  mirrorRevealStatus: mirrorStatusMock,
   mirrorProfileToFirestore: vi.fn().mockResolvedValue(undefined),
   mirrorRevealRequest: vi.fn().mockResolvedValue(undefined),
-  mirrorRevealStatus: vi.fn().mockResolvedValue(undefined),
   recordSymmetricEncounter: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -79,6 +90,7 @@ vi.mock("../middlewares/requireUid", () => ({
 
 import request from "supertest";
 import app from "../app";
+import { sendPush } from "../lib/push";
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -98,6 +110,7 @@ beforeEach(() => {
 
   dbMocks.chain.select.mockReturnThis();
   dbMocks.chain.from.mockReturnThis();
+  dbMocks.chain.innerJoin.mockReturnThis();
   dbMocks.chain.where.mockReturnThis();
   dbMocks.chain.limit.mockResolvedValue([]);
   dbMocks.chain.delete.mockReturnThis();
@@ -105,9 +118,15 @@ beforeEach(() => {
   dbMocks.chain.values.mockReturnThis();
   dbMocks.chain.update.mockReturnThis();
   dbMocks.chain.set.mockReturnThis();
+  dbMocks.chain.onConflictDoUpdate.mockResolvedValue(undefined);
+  dbMocks.chain.transaction.mockImplementation(
+    async (callback: (tx: typeof dbMocks.chain) => unknown) =>
+      await callback(dbMocks.chain),
+  );
 
   recalcMock.mockResolvedValue(undefined);
   mirrorMock.mockResolvedValue(undefined);
+  mirrorStatusMock.mockResolvedValue(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -190,6 +209,103 @@ describe("POST /api/connections/remove", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
+  });
+});
+
+describe("connection invite links", () => {
+  it("previews only the inviter's public profile fields", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([
+        { uid: "bob", displayName: "Bob", photoUrl: "https://example.test/bob.jpg" },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const res = await request(app)
+      .get("/api/connections/invites/AB2C3D")
+      .set("Authorization", "Bearer test-token-alice");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      uid: "bob",
+      displayName: "Bob",
+      photoUrl: "https://example.test/bob.jpg",
+      alreadyConnected: false,
+    });
+  });
+
+  it("rejects malformed invite codes without querying profiles", async () => {
+    const res = await request(app)
+      .get("/api/connections/invites/ABC123")
+      .set("Authorization", "Bearer test-token-alice");
+
+    expect(res.status).toBe(400);
+    expect(dbMocks.chain.select).not.toHaveBeenCalled();
+  });
+
+  it("requires the recipient to explicitly accept before creating the connection", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([{ uid: "bob", displayName: "Bob", photoUrl: null }])
+      .mockResolvedValueOnce([{ displayName: "Alice" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ pushToken: "push-token" }]);
+
+    const res = await request(app)
+      .post("/api/connections/invites/AB2C3D/accept")
+      .set("Authorization", "Bearer test-token-alice");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      alreadyConnected: false,
+      peer: { uid: "bob", displayName: "Bob", photoUrl: null },
+    });
+    expect(dbMocks.chain.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        senderUid: "bob",
+        recipientUid: "alice",
+        status: "accepted",
+      }),
+    );
+    expect(mirrorStatusMock).toHaveBeenCalledWith({
+      senderUid: "bob",
+      recipientUid: "alice",
+      status: "accepted",
+    });
+    expect(mirrorStatusMock).toHaveBeenCalledWith({
+      senderUid: "alice",
+      recipientUid: "bob",
+      status: "accepted",
+    });
+    expect(sendPush).toHaveBeenCalledWith(
+      "push-token",
+      expect.objectContaining({ data: { type: "reveal_accepted", fromUid: "alice" } }),
+    );
+  });
+
+  it("rejects accepting your own invite", async () => {
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { uid: "alice", displayName: "Alice", photoUrl: null },
+    ]);
+
+    const res = await request(app)
+      .post("/api/connections/invites/AB2C3D/accept")
+      .set("Authorization", "Bearer test-token-alice");
+
+    expect(res.status).toBe(400);
+    expect(dbMocks.chain.transaction).not.toHaveBeenCalled();
+  });
+
+  it("does not create an orphan connection before profile setup", async () => {
+    dbMocks.chain.limit
+      .mockResolvedValueOnce([{ uid: "bob", displayName: "Bob", photoUrl: null }])
+      .mockResolvedValueOnce([]);
+
+    const res = await request(app)
+      .post("/api/connections/invites/AB2C3D/accept")
+      .set("Authorization", "Bearer test-token-alice");
+
+    expect(res.status).toBe(400);
+    expect(dbMocks.chain.transaction).not.toHaveBeenCalled();
   });
 });
 

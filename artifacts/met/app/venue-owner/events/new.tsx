@@ -112,7 +112,9 @@ export default function NewVenueEventScreen() {
     }
   };
 
-  const canSubmit = title.trim().length > 0 &&
+  const endTimeInvalid = endsAt !== null && endsAt.getTime() <= startsAt.getTime();
+  const canSubmit = !endTimeInvalid &&
+    title.trim().length > 0 &&
     (visibility !== "invite_only" || !requireInvitePasscode ||
       invitePasscode.trim().length >= 6);
 
@@ -373,6 +375,15 @@ export default function NewVenueEventScreen() {
             isDark={isDark}
             optional
           />
+          {endTimeInvalid && (
+            <Text
+              accessibilityRole="alert"
+              testID="venue-event-schedule-error"
+              style={{ color: "#B42318", fontSize: 12, marginTop: 6 }}
+            >
+              End date and time must be after the start date and time.
+            </Text>
+          )}
         </View>
 
         <Field label="Capacity Limit (optional)" value={capacityLimit} onChangeText={setCapacityLimit}

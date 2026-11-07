@@ -182,7 +182,7 @@ export default function EventDetailsScreen() {
   );
   const canOpenPlanChat = Boolean(
     event?.eventType === "member" &&
-      (isOwner || event.myRsvp === "going" || event.myRsvp === "maybe"),
+      (isOwner || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe"),
   );
 
   const shareEvent = async () => {

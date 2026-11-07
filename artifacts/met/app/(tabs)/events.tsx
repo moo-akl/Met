@@ -195,27 +195,6 @@ function EventsScreen() {
           <Feather name="chevron-right" size={19} color={colors.mutedForeground} />
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("tabs.events.quickPlan")}
-          testID="events-quick-plan"
-          onPress={() => router.push({ pathname: "/event-create", params: { mode: "plan" } } as never)}
-          style={[styles.quickPlanCard, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
-        >
-          <View style={[styles.quickPlanIcon, { backgroundColor: colors.primary }]}>
-            <Feather name="users" size={18} color={colors.primaryForeground} />
-          </View>
-          <View style={styles.quickPlanCopy}>
-            <Text style={[styles.quickPlanTitle, { color: colors.text }]}>
-              {t("tabs.events.quickPlan")}
-            </Text>
-            <Text style={[styles.networkDescription, { color: colors.mutedForeground }]}>
-              {t("tabs.events.quickPlanHint")}
-            </Text>
-          </View>
-          <Feather name="arrow-up-right" size={18} color={colors.primary} />
-        </Pressable>
-
         {actionError ? <Text accessibilityRole="alert" style={[styles.errorText, { color: colors.destructive }]}>{actionError}</Text> : null}
 
         {feed.isLoading ? (
@@ -332,20 +311,16 @@ const styles = StyleSheet.create({
   locationAction: { fontSize: 12, fontWeight: "700", marginTop: 6 },
   locationHint: { fontSize: 12, fontWeight: "600", marginTop: 6 },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  networkLink: { borderWidth: 1, borderRadius: 16, padding: 13, flexDirection: "row", alignItems: "center", gap: 12 },
+  networkLink: { borderWidth: 1, borderTopRightRadius: 26, borderBottomLeftRadius: 26, padding: 13, flexDirection: "row", alignItems: "center", gap: 12 },
   networkIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   networkCopy: { flex: 1 },
   networkTitle: { fontSize: 15, fontWeight: "700" },
   networkDescription: { fontSize: 12, marginTop: 3 },
-  quickPlanCard: { borderWidth: 1, borderRadius: 16, padding: 13, flexDirection: "row", alignItems: "center", gap: 12 },
-  quickPlanIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  quickPlanCopy: { flex: 1 },
-  quickPlanTitle: { fontSize: 15, fontWeight: "700" },
   errorText: { fontSize: 13, fontWeight: "600" },
   loading: { paddingVertical: 56, alignItems: "center" },
   emptyCard: { borderWidth: 1, borderRadius: 18, padding: 24, alignItems: "center", gap: 8 },
   emptyTitle: { fontSize: 17, fontWeight: "700", marginTop: 4 },
-  eventCard: { borderWidth: 1, borderRadius: 18, overflow: "hidden" },
+  eventCard: { borderBottomLeftRadius: 30, borderTopRightRadius: 30, overflow: "hidden", marginBottom: 8 },
   cover: { width: "100%", height: 170 },
   eventBody: { padding: 15 },
   badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },

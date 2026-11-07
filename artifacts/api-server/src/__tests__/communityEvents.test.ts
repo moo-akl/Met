@@ -8,6 +8,8 @@ import {
   communityEventPlanNotificationPreferencesTable,
   communityEventsTable,
   db,
+  eventAttendanceTable,
+  eventAttendanceCorrectionsTable,
   profilesTable,
   venueContentReportsTable,
 } from "@workspace/db";
@@ -89,6 +91,18 @@ async function cleanup() {
     await db
       .delete(communityEventRsvpsTable)
       .where(inArray(communityEventRsvpsTable.eventId, ownedEvents.map(({ id }) => id)));
+    await db
+      .delete(eventAttendanceCorrectionsTable)
+      .where(and(
+        eq(eventAttendanceCorrectionsTable.eventType, "member"),
+        inArray(eventAttendanceCorrectionsTable.eventId, ownedEvents.map(({ id }) => id)),
+      ));
+    await db
+      .delete(eventAttendanceTable)
+      .where(and(
+        eq(eventAttendanceTable.eventType, "member"),
+        inArray(eventAttendanceTable.eventId, ownedEvents.map(({ id }) => id)),
+      ));
   }
 
   await db
@@ -111,6 +125,68 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
   });
 
   afterAll(cleanup);
+
+  it("returns the complete owner-only attendee response for a community event", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Attendee response contract",
+        startsAt: "2030-06-01T12:00:00.000Z",
+        visibility: "public",
+        inviteeUids: [],
+      })
+      .expect(201);
+    const eventId = created.body.id as number;
+    await db.insert(communityEventRsvpsTable).values({
+      eventId,
+      userUid: INVITEE_UID,
+      status: "going",
+    });
+    await db.insert(eventAttendanceTable).values({
+      eventType: "member",
+      eventId,
+      userUid: INVITEE_UID,
+      checkInMethod: "manual",
+      checkedInByUid: OWNER_UID,
+      manualReason: "Verified at the entrance",
+    });
+    await db.insert(eventAttendanceCorrectionsTable).values({
+      eventType: "member",
+      eventId,
+      userUid: INVITEE_UID,
+      actorUid: OWNER_UID,
+      action: "manual_check_in",
+      previousMethod: null,
+      reason: "Verified at the entrance",
+    });
+
+    const response = await request(app)
+      .get(`/api/events/member/${eventId}/attendees`)
+      .set(uidHeader(OWNER_UID));
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body).toMatchObject({
+      attendees: [{
+        uid: INVITEE_UID,
+        checkInMethod: "manual",
+        checkedInByUid: OWNER_UID,
+        manualReason: "Verified at the entrance",
+      }],
+      rsvps: [{ uid: INVITEE_UID, status: "going" }],
+      corrections: [{
+        uid: INVITEE_UID,
+        actorUid: OWNER_UID,
+        action: "manual_check_in",
+        reason: "Verified at the entrance",
+      }],
+      notificationRuns: [],
+    });
+
+    await request(app)
+      .get(`/api/events/member/${eventId}/attendees`)
+      .set(uidHeader(OTHER_UID))
+      .expect(404);
+  });
 
   it("keeps invitees private and restricts management to the event owner", async () => {
     const eventBody = {
@@ -446,6 +522,35 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     expect(initialChat.body.participants).toEqual([
       expect.objectContaining({ uid: OWNER_UID, status: "host" }),
     ]);
+
+    const inviteeFeed = await request(app)
+      .get("/api/events/feed")
+      .set(uidHeader(INVITEE_UID))
+      .expect(200);
+    expect(inviteeFeed.body.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: "member",
+          id: eventId,
+          isInvited: true,
+          myRsvp: null,
+        }),
+      ]),
+    );
+    const inviteeDetails = await request(app)
+      .get(`/api/events/member/${eventId}`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200);
+    expect(inviteeDetails.body).toMatchObject({
+      id: eventId,
+      isInvited: true,
+      myRsvp: null,
+    });
+    const invitedChat = await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(INVITEE_UID))
+      .expect(200);
+    expect(invitedChat.body.event.id).toBe(eventId);
 
     await request(app)
       .get(`/api/community-events/${eventId}/plan-chat`)

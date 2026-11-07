@@ -3784,7 +3784,8 @@ export const GetEventsFeedResponse = zod.object({
   "longitude": zod.number().min(getEventsFeedResponseEventsItemLongitudeMin).max(getEventsFeedResponseEventsItemLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
-  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish(),
+  "isInvited": zod.boolean().optional()
 }))
 })
 
@@ -3876,7 +3877,8 @@ export const CreateCommunityEventResponse = zod.object({
   "longitude": zod.number().min(createCommunityEventResponseLongitudeMin).max(createCommunityEventResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
-  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish(),
+  "isInvited": zod.boolean().optional()
 })
 
 
@@ -3945,7 +3947,8 @@ export const GetEventDetailsResponse = zod.object({
   "longitude": zod.number().min(getEventDetailsResponseLongitudeMin).max(getEventDetailsResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
-  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish(),
+  "isInvited": zod.boolean().optional()
 })
 
 
@@ -4399,7 +4402,8 @@ export const UpdateCommunityEventResponse = zod.object({
   "longitude": zod.number().min(updateCommunityEventResponseLongitudeMin).max(updateCommunityEventResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
-  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish()
+  "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish(),
+  "isInvited": zod.boolean().optional()
 })
 
 

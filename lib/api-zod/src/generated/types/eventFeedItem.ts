@@ -62,4 +62,5 @@ export interface EventFeedItem {
   rsvpCount: number;
   /** @nullable */
   myRsvp?: EventFeedItemMyRsvp;
+  isInvited?: boolean;
 }

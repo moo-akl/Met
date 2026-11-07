@@ -245,6 +245,66 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     });
   });
 
+  it("rejects venue-owner event creation when the end is not after the start", async () => {
+    const { profile } = await makeBusiness("owner-invalid-end-create");
+    const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const response = await api()
+      .post("/api/venue-owner/me/events")
+      .set("x-test-uid", profile.ownerUid)
+      .send({
+        title: "Invalid schedule",
+        startsAt: startsAt.toISOString(),
+        endsAt: startsAt.toISOString(),
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe("Event end time must be after the start time.");
+  });
+
+  it("rejects invalid event updates and accepts an end after the start", async () => {
+    const { profile } = await makeBusiness("owner-invalid-end-update");
+    const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+    const created = await api()
+      .post("/api/venue-owner/me/events")
+      .set("x-test-uid", profile.ownerUid)
+      .send({
+        title: "Schedule update",
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+      });
+    expect(created.status).toBe(201);
+    const eventId = Number(created.body.event.id);
+    const route = `/api/venue-owner/me/events/${eventId}`;
+
+    const invalidStart = await api()
+      .put(route)
+      .set("x-test-uid", profile.ownerUid)
+      .send({ startsAt: new Date(endsAt.getTime() + 1).toISOString() });
+    expect(invalidStart.status).toBe(400);
+    expect(invalidStart.body.message).toBe("Event end time must be after the start time.");
+
+    const invalidEnd = await api()
+      .put(route)
+      .set("x-test-uid", profile.ownerUid)
+      .send({ endsAt: new Date(startsAt.getTime() - 1).toISOString() });
+    expect(invalidEnd.status).toBe(400);
+    expect(invalidEnd.body.message).toBe("Event end time must be after the start time.");
+
+    const nextStart = new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
+    const nextEnd = new Date(nextStart.getTime() + 60 * 60 * 1000);
+    const validUpdate = await api()
+      .put(route)
+      .set("x-test-uid", profile.ownerUid)
+      .send({
+        startsAt: nextStart.toISOString(),
+        endsAt: nextEnd.toISOString(),
+      });
+    expect(validUpdate.status).toBe(200);
+    expect(validUpdate.body.event.startsAt).toBe(nextStart.toISOString());
+    expect(validUpdate.body.event.endsAt).toBe(nextEnd.toISOString());
+  });
+
   it("records manual check-in and undo reasons while keeping the RSVP roster separate", async () => {
     const { agent, csrf, business } = await claimOwner("manual-check-in");
     const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();

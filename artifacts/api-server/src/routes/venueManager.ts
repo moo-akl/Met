@@ -39,17 +39,17 @@ import { mirrorRevealRequest } from "../lib/firestoreMirror";
 import { sendPush } from "../lib/push";
 import { notifyVenueEventRsvps } from "../lib/eventNotifications";
 import {
-  buildEventCheckinUrl,
-  createEventCheckinLinkFields,
-  decryptEventCheckinToken,
-} from "../lib/eventCheckinLinks";
-import {
   buildEventInviteUrl,
   createEventInviteLinkFields,
   createEventInvitePasscodeFields,
   createEventInviteTokenFields,
   decryptEventInviteToken,
 } from "../lib/eventInviteLinks";
+import {
+  buildEventCheckinUrl,
+  createEventCheckinLinkFields,
+  decryptEventCheckinToken,
+} from "../lib/eventCheckinLinks";
 
 const router: IRouter = Router();
 const COOKIE = "met_venue_manager";
@@ -418,6 +418,8 @@ function serializeEvent(event: typeof venueEventsTable.$inferSelect) {
     inviteTokenEncrypted: _inviteTokenEncrypted,
     invitePasscodeSalt: _invitePasscodeSalt,
     invitePasscodeHash: _invitePasscodeHash,
+    checkinTokenHash: _checkinTokenHash,
+    checkinTokenEncrypted: _checkinTokenEncrypted,
     ...serialized
   } = event;
   return {
@@ -446,15 +448,32 @@ async function validateVenueEventInvitees(placeId: string, value: unknown): Prom
   }
   const inviteeUids = [...new Set(value as string[])];
   if (!inviteeUids.length) return inviteeUids;
-  const verified = await db
-    .select({ uid: hubCheckinsTable.userUid })
-    .from(hubCheckinsTable)
-    .where(and(
-      eq(hubCheckinsTable.placeId, placeId),
-      inArray(hubCheckinsTable.userUid, inviteeUids),
-    ))
-    .groupBy(hubCheckinsTable.userUid);
-  return verified.length === inviteeUids.length ? inviteeUids : null;
+  const [venueVisitors, pastEventAttendees] = await Promise.all([
+    db
+      .select({ uid: hubCheckinsTable.userUid })
+      .from(hubCheckinsTable)
+      .where(and(
+        eq(hubCheckinsTable.placeId, placeId),
+        inArray(hubCheckinsTable.userUid, inviteeUids),
+      ))
+      .groupBy(hubCheckinsTable.userUid),
+    db
+      .select({ uid: eventAttendanceTable.userUid })
+      .from(eventAttendanceTable)
+      .innerJoin(venueEventsTable, eq(venueEventsTable.id, eventAttendanceTable.eventId))
+      .where(and(
+        eq(eventAttendanceTable.eventType, "venue"),
+        eq(venueEventsTable.placeId, placeId),
+        eq(venueEventsTable.isHidden, false),
+        inArray(eventAttendanceTable.userUid, inviteeUids),
+      ))
+      .groupBy(eventAttendanceTable.userUid),
+  ]);
+  const verifiedUids = new Set([
+    ...venueVisitors.map((row) => row.uid),
+    ...pastEventAttendees.map((row) => row.uid),
+  ]);
+  return inviteeUids.every((uid) => verifiedUids.has(uid)) ? inviteeUids : null;
 }
 
 function serializeReward(reward: typeof venueRewardsTable.$inferSelect) {
@@ -1124,6 +1143,145 @@ router.patch("/venue-manager/businesses/:businessId/events/:eventId", requireSes
   res.json({ event: serializeEvent(event!) });
 });
 
+router.post("/venue-manager/businesses/:businessId/events/:eventId/invite-link", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) return void res.status(400).json({ message: "Invalid event." });
+  const [event] = await db.select().from(venueEventsTable)
+    .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, business.business.placeId), eq(venueEventsTable.isHidden, false)))
+    .limit(1);
+  if (!event) return void res.status(404).json({ message: "Event not found." });
+  if (event.visibility !== "invite_only" || !event.isPublished) {
+    return void res.status(409).json({ message: "Publish an invitation-only event before sharing its link." });
+  }
+  try {
+    let token: string;
+    if (event.inviteTokenHash && event.inviteTokenEncrypted) {
+      token = decryptEventInviteToken(event.inviteTokenEncrypted);
+    } else {
+      const fields = createEventInviteTokenFields();
+      const [updated] = await db.update(venueEventsTable)
+        .set({ ...fields, updatedAt: new Date() })
+        .where(and(
+          eq(venueEventsTable.id, event.id),
+          eq(venueEventsTable.visibility, "invite_only"),
+          isNull(venueEventsTable.inviteTokenHash),
+        ))
+        .returning({ inviteTokenEncrypted: venueEventsTable.inviteTokenEncrypted });
+      const encrypted = updated?.inviteTokenEncrypted ?? event.inviteTokenEncrypted;
+      if (!encrypted) return void res.status(409).json({ message: "This event can no longer be shared." });
+      token = decryptEventInviteToken(encrypted);
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      url: buildEventInviteUrl(token),
+      passcodeRequired: Boolean(event.invitePasscodeHash),
+    });
+  } catch (error) {
+    req.log?.error({ error, eventId }, "Could not load venue manager event invite link");
+    res.status(503).json({ message: "Invite link could not be loaded. Edit the event to create a new link." });
+  }
+});
+
+router.post("/venue-manager/businesses/:businessId/events/:eventId/invite-link/rotate", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) {
+    res.status(400).json({ message: "Invalid event." });
+    return;
+  }
+  const [event] = await db.select().from(venueEventsTable)
+    .where(and(
+      eq(venueEventsTable.id, eventId),
+      eq(venueEventsTable.placeId, business.business.placeId),
+      eq(venueEventsTable.isHidden, false),
+    ))
+    .limit(1);
+  if (!event) {
+    res.status(404).json({ message: "Event not found." });
+    return;
+  }
+  if (event.visibility !== "invite_only" || !event.isPublished) {
+    res.status(409).json({ message: "Publish an invitation-only event before replacing its link." });
+    return;
+  }
+
+  try {
+    const fields = createEventInviteTokenFields();
+    const [updated] = await db.update(venueEventsTable)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(and(
+        eq(venueEventsTable.id, event.id),
+        eq(venueEventsTable.placeId, business.business.placeId),
+        eq(venueEventsTable.visibility, "invite_only"),
+        eq(venueEventsTable.isPublished, true),
+        eq(venueEventsTable.isHidden, false),
+      ))
+      .returning({
+        inviteTokenEncrypted: venueEventsTable.inviteTokenEncrypted,
+        invitePasscodeHash: venueEventsTable.invitePasscodeHash,
+      });
+    if (!updated?.inviteTokenEncrypted) {
+      res.status(409).json({ message: "This event can no longer be shared." });
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      url: buildEventInviteUrl(decryptEventInviteToken(updated.inviteTokenEncrypted)),
+      passcodeRequired: Boolean(updated.invitePasscodeHash),
+    });
+  } catch (error) {
+    req.log?.error({ error, eventId }, "Could not replace venue manager event invite link");
+    res.status(503).json({ message: "Invite link could not be replaced. Please try again." });
+  }
+});
+
+router.delete("/venue-manager/businesses/:businessId/events/:eventId/invite-link", requireSession, requireCsrf, async (req, res): Promise<void> => {
+  const membership = await requireBusinessRole(req, res, contentRoles);
+  if (!membership) return;
+  const business = await businessWithProfile(membership.businessId);
+  const eventId = Number(req.params["eventId"]);
+  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) {
+    res.status(400).json({ message: "Invalid event." });
+    return;
+  }
+  const [event] = await db.select({
+    id: venueEventsTable.id,
+    visibility: venueEventsTable.visibility,
+  }).from(venueEventsTable)
+    .where(and(
+      eq(venueEventsTable.id, eventId),
+      eq(venueEventsTable.placeId, business.business.placeId),
+      eq(venueEventsTable.isHidden, false),
+    ))
+    .limit(1);
+  if (!event) {
+    res.status(404).json({ message: "Event not found." });
+    return;
+  }
+  if (event.visibility !== "invite_only") {
+    res.status(409).json({ message: "Only invitation-only events have invite links." });
+    return;
+  }
+  await db.update(venueEventsTable)
+    .set({
+      inviteTokenHash: null,
+      inviteTokenEncrypted: null,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(venueEventsTable.id, event.id),
+      eq(venueEventsTable.placeId, business.business.placeId),
+      eq(venueEventsTable.visibility, "invite_only"),
+      eq(venueEventsTable.isHidden, false),
+    ));
+  res.sendStatus(204);
+});
+
 router.get("/venue-manager/businesses/:businessId/events/:eventId/attendees", requireSession, async (req, res): Promise<void> => {
   const membership = await requireBusinessRole(req, res, roles);
   if (!membership) return;
@@ -1373,145 +1531,6 @@ router.post("/venue-manager/businesses/:businessId/events/:eventId/check-in-qr",
   }
 });
 
-router.post("/venue-manager/businesses/:businessId/events/:eventId/invite-link", requireSession, requireCsrf, async (req, res): Promise<void> => {
-  const membership = await requireBusinessRole(req, res, contentRoles);
-  if (!membership) return;
-  const business = await businessWithProfile(membership.businessId);
-  const eventId = Number(req.params["eventId"]);
-  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) return void res.status(400).json({ message: "Invalid event." });
-  const [event] = await db.select().from(venueEventsTable)
-    .where(and(eq(venueEventsTable.id, eventId), eq(venueEventsTable.placeId, business.business.placeId), eq(venueEventsTable.isHidden, false)))
-    .limit(1);
-  if (!event) return void res.status(404).json({ message: "Event not found." });
-  if (event.visibility !== "invite_only" || !event.isPublished) {
-    return void res.status(409).json({ message: "Publish an invitation-only event before sharing its link." });
-  }
-  try {
-    let token: string;
-    if (event.inviteTokenHash && event.inviteTokenEncrypted) {
-      token = decryptEventInviteToken(event.inviteTokenEncrypted);
-    } else {
-      const fields = createEventInviteTokenFields();
-      const [updated] = await db.update(venueEventsTable)
-        .set({ ...fields, updatedAt: new Date() })
-        .where(and(
-          eq(venueEventsTable.id, event.id),
-          eq(venueEventsTable.visibility, "invite_only"),
-          isNull(venueEventsTable.inviteTokenHash),
-        ))
-        .returning({ inviteTokenEncrypted: venueEventsTable.inviteTokenEncrypted });
-      const encrypted = updated?.inviteTokenEncrypted ?? event.inviteTokenEncrypted;
-      if (!encrypted) return void res.status(409).json({ message: "This event can no longer be shared." });
-      token = decryptEventInviteToken(encrypted);
-    }
-    res.setHeader("Cache-Control", "no-store");
-    res.json({
-      url: buildEventInviteUrl(token),
-      passcodeRequired: Boolean(event.invitePasscodeHash),
-    });
-  } catch (error) {
-    req.log?.error({ error, eventId }, "Could not load venue manager event invite link");
-    res.status(503).json({ message: "Invite link could not be loaded. Edit the event to create a new link." });
-  }
-});
-
-router.post("/venue-manager/businesses/:businessId/events/:eventId/invite-link/rotate", requireSession, requireCsrf, async (req, res): Promise<void> => {
-  const membership = await requireBusinessRole(req, res, contentRoles);
-  if (!membership) return;
-  const business = await businessWithProfile(membership.businessId);
-  const eventId = Number(req.params["eventId"]);
-  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) {
-    res.status(400).json({ message: "Invalid event." });
-    return;
-  }
-  const [event] = await db.select().from(venueEventsTable)
-    .where(and(
-      eq(venueEventsTable.id, eventId),
-      eq(venueEventsTable.placeId, business.business.placeId),
-      eq(venueEventsTable.isHidden, false),
-    ))
-    .limit(1);
-  if (!event) {
-    res.status(404).json({ message: "Event not found." });
-    return;
-  }
-  if (event.visibility !== "invite_only" || !event.isPublished) {
-    res.status(409).json({ message: "Publish an invitation-only event before replacing its link." });
-    return;
-  }
-
-  try {
-    const fields = createEventInviteTokenFields();
-    const [updated] = await db.update(venueEventsTable)
-      .set({ ...fields, updatedAt: new Date() })
-      .where(and(
-        eq(venueEventsTable.id, event.id),
-        eq(venueEventsTable.placeId, business.business.placeId),
-        eq(venueEventsTable.visibility, "invite_only"),
-        eq(venueEventsTable.isPublished, true),
-        eq(venueEventsTable.isHidden, false),
-      ))
-      .returning({
-        inviteTokenEncrypted: venueEventsTable.inviteTokenEncrypted,
-        invitePasscodeHash: venueEventsTable.invitePasscodeHash,
-      });
-    if (!updated?.inviteTokenEncrypted) {
-      res.status(409).json({ message: "This event can no longer be shared." });
-      return;
-    }
-    res.setHeader("Cache-Control", "no-store");
-    res.json({
-      url: buildEventInviteUrl(decryptEventInviteToken(updated.inviteTokenEncrypted)),
-      passcodeRequired: Boolean(updated.invitePasscodeHash),
-    });
-  } catch (error) {
-    req.log?.error({ error, eventId }, "Could not replace venue manager event invite link");
-    res.status(503).json({ message: "Invite link could not be replaced. Please try again." });
-  }
-});
-
-router.delete("/venue-manager/businesses/:businessId/events/:eventId/invite-link", requireSession, requireCsrf, async (req, res): Promise<void> => {
-  const membership = await requireBusinessRole(req, res, contentRoles);
-  if (!membership) return;
-  const business = await businessWithProfile(membership.businessId);
-  const eventId = Number(req.params["eventId"]);
-  if (!business || !Number.isSafeInteger(eventId) || eventId < 1) {
-    res.status(400).json({ message: "Invalid event." });
-    return;
-  }
-  const [event] = await db.select({
-    id: venueEventsTable.id,
-    visibility: venueEventsTable.visibility,
-  }).from(venueEventsTable)
-    .where(and(
-      eq(venueEventsTable.id, eventId),
-      eq(venueEventsTable.placeId, business.business.placeId),
-      eq(venueEventsTable.isHidden, false),
-    ))
-    .limit(1);
-  if (!event) {
-    res.status(404).json({ message: "Event not found." });
-    return;
-  }
-  if (event.visibility !== "invite_only") {
-    res.status(409).json({ message: "Only invitation-only events have invite links." });
-    return;
-  }
-  await db.update(venueEventsTable)
-    .set({
-      inviteTokenHash: null,
-      inviteTokenEncrypted: null,
-      updatedAt: new Date(),
-    })
-    .where(and(
-      eq(venueEventsTable.id, event.id),
-      eq(venueEventsTable.placeId, business.business.placeId),
-      eq(venueEventsTable.visibility, "invite_only"),
-      eq(venueEventsTable.isHidden, false),
-    ));
-  res.sendStatus(204);
-});
-
 router.delete("/venue-manager/businesses/:businessId/events/:eventId", requireSession, requireCsrf, async (req, res): Promise<void> => {
   const membership = await requireBusinessRole(req, res, contentRoles);
   if (!membership) return;
@@ -1519,24 +1538,16 @@ router.delete("/venue-manager/businesses/:businessId/events/:eventId", requireSe
   const eventId = Number(req.params["eventId"]);
   if (!business || !Number.isInteger(eventId)) return void res.status(400).json({ message: "Invalid event." });
   const deleted = await db.transaction(async (tx) => {
-    const [event] = await tx.select({ id: venueEventsTable.id }).from(venueEventsTable).where(and(
-      eq(venueEventsTable.id, eventId),
-      eq(venueEventsTable.placeId, business.business.placeId),
-    )).limit(1);
-    if (!event) return false;
+    const removed = await tx.delete(venueEventsTable)
+      .where(and(
+        eq(venueEventsTable.id, eventId),
+        eq(venueEventsTable.placeId, business.business.placeId),
+      ))
+      .returning({ id: venueEventsTable.id });
+    if (!removed.length) return false;
     await tx.delete(eventAttendanceTable).where(and(
       eq(eventAttendanceTable.eventType, "venue"),
       eq(eventAttendanceTable.eventId, eventId),
-    ));
-    await tx.delete(eventAttendanceCorrectionsTable).where(and(
-      eq(eventAttendanceCorrectionsTable.eventType, "venue"),
-      eq(eventAttendanceCorrectionsTable.eventId, eventId),
-    ));
-    await tx.delete(venueEventNotificationRunsTable).where(eq(venueEventNotificationRunsTable.eventId, eventId));
-    await tx.delete(venueEventRsvpsTable).where(eq(venueEventRsvpsTable.eventId, eventId));
-    await tx.delete(venueEventsTable).where(and(
-      eq(venueEventsTable.id, eventId),
-      eq(venueEventsTable.placeId, business.business.placeId),
     ));
     return true;
   });
@@ -2558,10 +2569,65 @@ router.get("/venue-manager/businesses/:businessId/guests", requireSession, async
       .leftJoin(profilesTable, eq(hubCheckinsTable.userUid, profilesTable.uid))
       .where(fullWhere),
   ]);
+  const eventAttendanceDateWhere = sinceDate
+    ? and(
+        eq(eventAttendanceTable.eventType, "venue"),
+        eq(venueEventsTable.placeId, placeId),
+        eq(venueEventsTable.isHidden, false),
+        gte(eventAttendanceTable.checkedInAt, sinceDate),
+      )
+    : and(
+        eq(eventAttendanceTable.eventType, "venue"),
+        eq(venueEventsTable.placeId, placeId),
+        eq(venueEventsTable.isHidden, false),
+      );
+  const eventAttendanceWhere = nameFilter
+    ? and(eventAttendanceDateWhere, nameFilter)
+    : eventAttendanceDateWhere;
+  const eventAttendeeRows = await db
+    .select({
+      uid: eventAttendanceTable.userUid,
+      displayName: profilesTable.displayName,
+      photoUrl: profilesTable.photoUrl,
+      bio: profilesTable.bio,
+      interests: profilesTable.interests,
+      isPioneer: profilesTable.isPioneer,
+      checkinCount: count(eventAttendanceTable.id),
+      lastCheckinAt: sql<string>`MAX(${eventAttendanceTable.checkedInAt})`,
+    })
+    .from(eventAttendanceTable)
+    .innerJoin(venueEventsTable, eq(venueEventsTable.id, eventAttendanceTable.eventId))
+    .leftJoin(profilesTable, eq(eventAttendanceTable.userUid, profilesTable.uid))
+    .where(eventAttendanceWhere)
+    .groupBy(
+      eventAttendanceTable.userUid,
+      profilesTable.displayName,
+      profilesTable.photoUrl,
+      profilesTable.bio,
+      profilesTable.interests,
+      profilesTable.isPioneer,
+    )
+    .orderBy(
+      desc(count(eventAttendanceTable.id)),
+      desc(sql<string>`MAX(${eventAttendanceTable.checkedInAt})`),
+      eventAttendanceTable.userUid,
+    )
+    .limit(200);
 
   res.json({
     guests: guestRows.map((row, i) => ({
       rank: offset + i + 1,
+      uid: row.uid,
+      displayName: row.displayName ?? "Met member",
+      photoUrl: row.photoUrl ?? null,
+      bio: row.bio ?? null,
+      interests: row.interests ?? [],
+      isPioneer: row.isPioneer ?? false,
+      checkinCount: Number(row.checkinCount),
+      lastCheckinAt: row.lastCheckinAt,
+    })),
+    eventAttendees: eventAttendeeRows.map((row, i) => ({
+      rank: i + 1,
       uid: row.uid,
       displayName: row.displayName ?? "Met member",
       photoUrl: row.photoUrl ?? null,
@@ -2617,13 +2683,26 @@ router.post("/venue-manager/businesses/:businessId/guests/:uid/reveal", requireS
     .limit(1);
   if (!recipient) return void res.status(404).json({ message: "Guest profile not found." });
 
-  // Confirm the guest actually checked in at this venue — prevents messaging strangers.
+  // Check either a regular venue visit or an event-specific attendance record.
   const [checkin] = await db
     .select({ id: hubCheckinsTable.id })
     .from(hubCheckinsTable)
     .where(and(eq(hubCheckinsTable.placeId, placeId), eq(hubCheckinsTable.userUid, recipientUid)))
     .limit(1);
-  if (!checkin) return void res.status(400).json({ message: "This guest has not checked in at your venue." });
+  const [eventCheckin] = checkin ? [undefined] : await db
+    .select({ id: eventAttendanceTable.id })
+    .from(eventAttendanceTable)
+    .innerJoin(venueEventsTable, eq(venueEventsTable.id, eventAttendanceTable.eventId))
+    .where(and(
+      eq(eventAttendanceTable.eventType, "venue"),
+      eq(eventAttendanceTable.userUid, recipientUid),
+      eq(venueEventsTable.placeId, placeId),
+      eq(venueEventsTable.isHidden, false),
+    ))
+    .limit(1);
+  if (!checkin && !eventCheckin) {
+    return void res.status(400).json({ message: "This guest has not checked in at your venue or one of its events." });
+  }
 
   // Confirm the manager themselves has a Met profile so the reveal has a real sender.
   const [senderProfile] = await db

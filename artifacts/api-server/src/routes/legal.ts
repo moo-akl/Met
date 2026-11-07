@@ -362,14 +362,16 @@ const appleAppSiteAssociation = JSON.stringify(
           paths: [
             // Referral links  e.g. /r/ABC123
             "/r/*",
+            // Personal connection invites  e.g. /connect/ABC123
+            "/connect/*",
             // Network invite links  e.g. /join/CODE1234
             "/join/*",
             // Shareable community-event invitations  e.g. /event-invite/<token>
             "/event-invite/*",
-            // Shared venue event detail links.
-            "/event-details/*",
             // Venue event QR check-in links.
             "/event-check-in/*",
+            // Shared event detail links  e.g. /event-details/venue/123
+            "/event-details/*",
             // Venue-owner registration / dashboard entry point
             "/venue-owner",
             "/venue-owner/*",
@@ -420,20 +422,6 @@ router.get("/event-invite/:token", (req: Request, res: Response) => {
     "https://apps.apple.com/vn/app/met-city-social-hubs/id6764364926";
   const playStoreUrl =
     "https://play.google.com/store/apps/details?id=app.met.founders";
-  const userAgent = req.get("user-agent") ?? "";
-  const storeUrl = /iPhone|iPad|iPod/i.test(userAgent)
-    ? appStoreUrl
-    : /Android/i.test(userAgent)
-      ? playStoreUrl
-      : null;
-  if (storeUrl) {
-    res
-      .status(302)
-      .set("Cache-Control", "no-store")
-      .set("Referrer-Policy", "no-referrer")
-      .redirect(storeUrl);
-    return;
-  }
   const appUrl = `met:///event-invite/${encodeURIComponent(token)}`;
   res
     .status(200)

@@ -52,6 +52,7 @@ import {
 import { DISCOVERY_RANGE_METERS } from "@/lib/storage";
 import { useHubCheckin } from "@/hooks/useHubCheckin";
 import { SavePlaceButton } from "@/components/SavePlaceButton";
+import { HomePlanDiscovery } from "@/components/HomePlanDiscovery";
 import {
   isStoreScreenshotDemo,
   STORE_DEMO_PLACE_ID,
@@ -413,6 +414,7 @@ export default function HomeScreen() {
           title={isVisible ? t("home.beaconActive") : t("home.beaconOff")}
           subtitle={t("home.canopyPrivacy")}
         />
+        <HomePlanDiscovery />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Open saved places"

@@ -120,19 +120,26 @@ export default function EventChatScreen() {
           >
             <Feather name="arrow-left" size={22} color={colors.text} />
           </Pressable>
-          <View style={styles.headerCopy}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={planChat.data?.event?.title ? `Open details for ${planChat.data.event.title}` : t("tabs.events.detailsView")}
+            testID="button-open-plan-details"
+            disabled={!planChat.data?.event}
+            onPress={() => planChat.data?.event && router.push(`/event-details/member/${planChat.data.event.id}` as never)}
+            style={styles.headerCopy}
+          >
             <Text style={[styles.headerTitle, { color: colors.text }]}>
               {t("tabs.events.planChat")}
             </Text>
             {planChat.data?.event ? (
-              <Text
-                numberOfLines={1}
-                style={[styles.headerSubtitle, { color: colors.mutedForeground }]}
-              >
-                {planChat.data.event.title}
-              </Text>
+              <View style={styles.headerTitleLine}>
+                <Text numberOfLines={1} style={[styles.headerSubtitle, { color: colors.primary }]}>
+                  {planChat.data.event.title}
+                </Text>
+                <Feather name="chevron-down" size={14} color={colors.primary} />
+              </View>
             ) : null}
-          </View>
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
@@ -378,6 +385,7 @@ const styles = StyleSheet.create({
   headerAction: { alignItems: "center" },
   headerCopy: { flex: 1, alignItems: "center" },
   headerTitle: { fontSize: 17, fontWeight: "700" },
+  headerTitleLine: { maxWidth: "90%", flexDirection: "row", alignItems: "center", gap: 2, marginTop: 2 },
   headerSubtitle: { fontSize: 12, marginTop: 2, maxWidth: "90%" },
   eventInfo: {
     paddingHorizontal: 18,
