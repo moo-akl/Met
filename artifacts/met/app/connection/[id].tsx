@@ -356,7 +356,7 @@ function ConnectionScreen() {
                   { backgroundColor: colors.muted, borderColor: colors.border },
                 ]}
               >
-                <Text style={styles.mutualEmoji}>🤝</Text>
+                <Feather name="users" size={18} color={colors.primary} />
                 <Text style={[styles.mutualText, { color: colors.foreground }]}>
                   {mutualCount === 1 && mutualNames.length >= 1
                     ? `${mutualNames[0]} in common`
@@ -778,7 +778,8 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderTopLeftRadius: 20,
+    borderBottomRightRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
   },
   socialHintText: {
@@ -809,7 +810,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    borderRadius: 12,
+    borderTopLeftRadius: 22,
+    borderBottomRightRadius: 18,
     borderWidth: 1,
     padding: 12,
   },
@@ -834,7 +836,8 @@ const styles = StyleSheet.create({
     minHeight: 70,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderTopLeftRadius: 22,
+    borderBottomRightRadius: 18,
     borderWidth: 1,
     fontFamily: "Inter_400Regular",
     fontSize: 14,
@@ -842,7 +845,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   editorActions: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
-  editorBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  editorBtn: { minHeight: 40, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
   editorBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   tagChip: {
     flexDirection: "row",
@@ -891,7 +894,8 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 18,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderTopLeftRadius: 24,
+    borderBottomRightRadius: 18,
     maxWidth: 380,
   },
   reportToastText: {

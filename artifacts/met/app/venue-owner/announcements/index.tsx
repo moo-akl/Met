@@ -5,6 +5,7 @@
  * Signal (light): #FAFAF8 editorial bg, rule-separated rows, #0D0D0D typography.
  */
 import React, { useCallback, useEffect, useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
@@ -127,7 +128,7 @@ export default function VenueOwnerAnnouncementsScreen() {
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>📢</Text>
+            <Feather name="volume-2" size={38} color={accent} style={styles.emptyEmoji} />
             <Text style={[styles.emptyTitle, { color: vEmptyTitle }]}>No announcements yet</Text>
             <Text style={[styles.emptyText, { color: vEmpty }]}>Post updates, promos, or news for guests visiting your venue.</Text>
             <Pressable
@@ -160,7 +161,7 @@ export default function VenueOwnerAnnouncementsScreen() {
             <View style={{ flex: 1, gap: 4 }}>
               <View style={styles.cardTitleRow}>
                 {item.isPinned && (
-                  <Text style={styles.pinBadge}>📌</Text>
+                  <Feather name="map-pin" size={14} color={accent} style={styles.pinBadge} />
                 )}
                 <Text numberOfLines={1} style={[styles.cardTitle, { color: vText }]}>{item.title}</Text>
               </View>
@@ -179,7 +180,7 @@ export default function VenueOwnerAnnouncementsScreen() {
                 style={styles.deleteBtn}
                 hitSlop={8}
               >
-                <Text style={styles.deleteBtnText}>🗑</Text>
+                <Feather name="trash-2" size={18} color={vDate} />
               </Pressable>
             </View>
           </Pressable>
@@ -192,13 +193,14 @@ export default function VenueOwnerAnnouncementsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  addBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  addBtn: { minHeight: 40, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   addBtnText: { fontSize: 13, fontFamily: "Inter_700Bold" },
-  list: { padding: 16, gap: 10 },
+  list: { paddingHorizontal: 18, paddingVertical: 12, gap: 10 },
   card: {
     flexDirection: "row",
     alignItems: "flex-start",
-    borderRadius: 14,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 20,
     borderWidth: 1,
     padding: 14,
     gap: 12,
@@ -209,17 +211,16 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  pinBadge: { fontSize: 14 },
+  pinBadge: { marginRight: 2 },
   cardTitle: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
   cardBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
   cardDate: { fontSize: 11, fontFamily: "Inter_400Regular" },
   cardActions: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  deleteBtn: { paddingTop: 2 },
-  deleteBtnText: { fontSize: 18 },
+  deleteBtn: { minWidth: 40, minHeight: 40, alignItems: "center", justifyContent: "center" },
   emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 32 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
+  emptyEmoji: { marginBottom: 12 },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 8 },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", marginBottom: 20, lineHeight: 20 },
-  emptyBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
+  emptyBtn: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 10 },
   emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

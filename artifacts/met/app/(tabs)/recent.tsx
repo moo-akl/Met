@@ -179,7 +179,7 @@ function RecentScreen() {
       />
 
       {/* Radar panel */}
-      <View style={[styles.radarPanel, { borderBottomColor: colors.border }]}>
+      <View style={[styles.radarPanel, { backgroundColor: colors.primarySoft, borderBottomColor: colors.border }]}>
         <View style={styles.radarMeta}>
           <Text style={[styles.radarLabel, { color: colors.mutedForeground }]}>
             {"// ENCOUNTERS"}
@@ -370,9 +370,13 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   radarPanel: {
     paddingHorizontal: 20,
-    paddingBottom: 8,
-    paddingTop: 8,
-    borderBottomWidth: 1,
+    paddingBottom: 10,
+    paddingTop: 12,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 42,
+    borderBottomRightRadius: 28,
+    marginHorizontal: 12,
+    marginTop: 4,
   },
   radarMeta: {
     flexDirection: "row",
@@ -412,8 +416,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
     padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderTopLeftRadius: 30,
+    borderBottomRightRadius: 24,
+    borderWidth: 0,
     marginTop: 18,
   },
   limitIcon: {
@@ -448,8 +453,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 20,
+    borderWidth: 0,
     marginBottom: 12,
   },
   nudgeIcon: {
@@ -472,7 +478,7 @@ const styles = StyleSheet.create({
   nudgeBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 999,
   },
   nudgeBtnText: {
     color: "#FFFFFF",

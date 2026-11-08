@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { isPlanEvent } from "@/lib/eventFeedClassification";
 import { useEventReminderCleanup } from "@/hooks/useEventReminderCleanup";
 import { getGetEventsFeedQueryKey, useGetEventsFeed, type EventFeedItem } from "@workspace/api-client-react";
 
@@ -32,12 +33,16 @@ export default function PlansScreen() {
   );
   const plans = useMemo(() => (feed.data?.events ?? [])
     .filter((event: EventFeedItem) =>
-      event.eventType === "member" &&
-      (event.ownerUid === authedUid || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe"),
+      isPlanEvent(event) &&
+      (event.joinApprovalRequired || event.ownerUid === authedUid || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe" || event.myJoinRequestStatus === "pending"),
     )
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()), [feed.data?.events, authedUid]);
 
-  const openPlan = (event: EventFeedItem) => router.push(`/event-chat/${event.id}` as never);
+  const openPlan = (event: EventFeedItem) => router.push(
+    event.joinApprovalRequired
+      ? `/event-details/member/${event.id}` as never
+      : `/event-chat/${event.id}` as never,
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -81,19 +86,21 @@ export default function PlansScreen() {
           </View>
         ) : (
           <View style={styles.list}>
-            {plans.map((event, index) => {
+            {plans.map((event) => {
               const date = new Date(event.startsAt);
               const owner = event.ownerUid === authedUid;
               return (
                 <Pressable
                   key={`${event.eventType}:${event.id}`}
                   accessibilityRole="button"
-                  accessibilityLabel={t("plans.openChatTitleA11y", { title: event.title })}
+                  accessibilityLabel={event.joinApprovalRequired
+                    ? `${event.title}. ${t("tabs.events.detailsView")}`
+                    : t("plans.openChatTitleA11y", { title: event.title })}
                   testID={`plan-row-${event.id}`}
                   onPress={() => openPlan(event)}
-                  style={({ pressed }) => [styles.plan, { backgroundColor: index % 2 === 0 ? colors.card : colors.primarySoft, opacity: pressed ? 0.78 : 1 }]}
+                  style={({ pressed }) => [styles.plan, { borderBottomColor: colors.border, opacity: pressed ? 0.78 : 1 }]}
                 >
-                  <View style={[styles.dateBadge, { backgroundColor: index % 2 === 0 ? colors.primarySoft : colors.card }]}>
+                  <View style={[styles.dateBadge, { backgroundColor: colors.primarySoft }]}>
                     <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
                     <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
                   </View>
@@ -103,16 +110,22 @@ export default function PlansScreen() {
                     <Text style={[styles.host, { color: colors.primary }]}>
                       {owner
                         ? t("plans.hosting")
-                        : event.myRsvp === "going"
-                          ? t("tabs.events.going")
-                          : event.myRsvp === "maybe"
-                            ? t("tabs.events.interested")
-                            : event.myRsvp === "not_going"
-                              ? t("tabs.events.notGoing")
-                              : t("tabs.events.invited")}
+                        : event.myJoinRequestStatus === "pending"
+                          ? t("tabs.events.joinRequestPending")
+                          : event.myJoinRequestStatus === "declined"
+                            ? t("tabs.events.requestAgain")
+                          : event.myRsvp === "going"
+                            ? t("tabs.events.going")
+                            : event.myRsvp === "maybe"
+                              ? t("tabs.events.interested")
+                              : event.myRsvp === "not_going"
+                                ? t("tabs.events.notGoing")
+                                : event.joinApprovalRequired
+                                  ? t("tabs.events.requestToJoin")
+                                  : t("tabs.events.invited")}
                     </Text>
                   </View>
-                  <View style={styles.chatMark}><Feather name="message-circle" size={17} color={colors.primary} /><Feather name="arrow-up-right" size={14} color={colors.mutedForeground} /></View>
+                  <View style={styles.chatMark}><Feather name={event.joinApprovalRequired ? "map-pin" : "message-circle"} size={17} color={colors.primary} /><Feather name="arrow-up-right" size={14} color={colors.mutedForeground} /></View>
                 </Pressable>
               );
             })}
@@ -140,9 +153,9 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
   emptyAction: { marginTop: 8, minHeight: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 7 },
   actionText: { fontSize: 13, fontWeight: "700" },
-  list: { gap: 12 },
-  plan: { minHeight: 112, borderTopLeftRadius: 28, borderBottomRightRadius: 28, padding: 14, flexDirection: "row", alignItems: "center", gap: 13 },
-  dateBadge: { width: 54, height: 62, borderTopLeftRadius: 22, borderBottomRightRadius: 22, alignItems: "center", justifyContent: "center" },
+  list: { gap: 0, paddingLeft: 3 },
+  plan: { minHeight: 108, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 14, borderTopLeftRadius: 34 },
+  dateBadge: { width: 56, height: 64, borderTopLeftRadius: 28, borderBottomRightRadius: 28, alignItems: "center", justifyContent: "center" },
   month: { fontSize: 10, fontWeight: "700", letterSpacing: 1 },
   day: { fontSize: 23, fontWeight: "700", lineHeight: 28 },
   planCopy: { flex: 1, gap: 4 },

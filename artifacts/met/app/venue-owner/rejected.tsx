@@ -160,8 +160,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(239,68,68,0.07)",
     borderWidth: 1,
     borderColor: "rgba(239,68,68,0.25)",
-    borderRadius: 12,
-    padding: 16,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 20,
+    padding: 18,
     marginBottom: 24,
   },
   reasonLabel: {
@@ -191,7 +192,8 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(255,255,255,0.06)",
   },
   primaryBtn: {
-    borderRadius: 12,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 18,
     paddingVertical: 14,
     alignItems: "center",
   },

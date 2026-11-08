@@ -399,7 +399,7 @@ function ConnectionsScreen() {
                   style={[
                     styles.tickerRow,
                     {
-                      backgroundColor: colors.card,
+                      backgroundColor: "transparent",
                       borderColor: colors.border,
                       opacity: tickerOpacity,
                     },
@@ -502,14 +502,14 @@ function ConnectionsScreen() {
         contentContainerStyle={{
           paddingTop: 8,
           paddingBottom: insets.bottom + webBot + 100,
-          paddingHorizontal: 16,
+          paddingHorizontal: 20,
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         {recentEncounters.length > 0 ? (
           <View style={{ marginBottom: 20 }}>
-            <Text style={[styles.groupHeader, { color: colors.mutedForeground }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
               {t("connections.recentSection")}
             </Text>
             <View style={styles.list}>
@@ -528,7 +528,7 @@ function ConnectionsScreen() {
         {recentEncounters.length > 0 && connections.length > 0 ? (
           <View style={styles.sectionSplit}>
             <View style={[styles.sectionSplitLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.sectionSplitLabel, { color: colors.mutedForeground }]}>
+            <Text style={[styles.sectionSplitLabel, { color: colors.foreground }]}>
               {t("connections.connectionsSection")}
             </Text>
             <View style={[styles.sectionSplitLine, { backgroundColor: colors.border }]} />
@@ -578,7 +578,7 @@ function ConnectionsScreen() {
                   <Text
                     style={[
                       styles.groupHeader,
-                      { color: colors.mutedForeground },
+                      { color: colors.primary },
                     ]}
                   >
                     {group.label}
@@ -717,7 +717,7 @@ function ConnectionRow({
   })();
 
   // Override preview and timestamp with the actual last chat message when available.
-  // lastMessage.text is already formatted by sendMessage ("🎤 Voice message", "📷", or plain text).
+  // Last-message text is already formatted by sendMessage.
   if (chatLast) {
     const isMine = chatLast.from === myUid;
     preview = isMine
@@ -727,7 +727,7 @@ function ConnectionRow({
     previewColor = chatUnread ? colors.foreground : colors.mutedForeground;
   } else if (!om) {
     // No chat messages and no opening message — nudge the user to break the ice.
-    preview = "💬 Break the ice";
+    preview = "Break the ice";
     previewColor = colors.primary;
   }
 
@@ -895,8 +895,8 @@ const styles = StyleSheet.create({
   listWrapper: { flex: 1 },
   radarSection: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   radarCompact: {
@@ -942,11 +942,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     marginTop: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 4,
     paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    maxWidth: 320,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    maxWidth: "100%",
   },
   tickerText: {
     flex: 1,
@@ -957,7 +959,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 4,
     paddingBottom: 4,
   },
@@ -967,7 +969,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 12,
-    height: 40,
+    height: 44,
     borderRadius: 20,
     borderWidth: 1,
   },
@@ -982,7 +984,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 10,
-    height: 40,
+    minHeight: 44,
     borderRadius: 20,
     borderWidth: 1,
   },
@@ -991,13 +993,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   tagsRow: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 8,
     gap: 8,
   },
   tagPill: {
-    paddingHorizontal: 12,
-    height: 28,
+    paddingHorizontal: 13,
+    minHeight: 36,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
@@ -1008,15 +1010,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   groupHeader: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Inter_600SemiBold",
     fontSize: 11,
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 1.3,
     paddingHorizontal: 4,
-    paddingTop: 14,
-    paddingBottom: 6,
+    paddingTop: 18,
+    paddingBottom: 8,
   },
-  list: { paddingHorizontal: 4 },
+  sectionTitle: { fontFamily: "serif", fontSize: 23, fontWeight: "400", letterSpacing: -0.35, marginBottom: 9 },
+  list: { paddingHorizontal: 0 },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -1162,10 +1165,10 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
   },
   sectionSplitLabel: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 2,
+    fontFamily: "serif",
+    fontSize: 20,
+    fontWeight: "400",
+    letterSpacing: -0.25,
   },
 });
 

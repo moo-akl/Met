@@ -476,7 +476,8 @@ const qrDemoStyles = StyleSheet.create({
   scanCard: {
     alignItems: "center",
     padding: 13,
-    borderRadius: 20,
+    borderTopLeftRadius: 34,
+    borderBottomRightRadius: 26,
     backgroundColor: "#111723",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,.09)",
@@ -489,7 +490,7 @@ const qrDemoStyles = StyleSheet.create({
   qrFrame: {
     width: 204,
     height: 204,
-    borderRadius: 17,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",

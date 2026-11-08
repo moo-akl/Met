@@ -42,11 +42,12 @@ export default function EditCommunityEventScreen() {
       key={eventId}
       mode="edit"
       initial={eventQuery.data}
+      planMode={eventQuery.data.joinApprovalRequired}
     />
   );
 }
 
 const styles = StyleSheet.create({
-  state: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
+  state: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 30, paddingVertical: 28 },
   error: { fontSize: 15, fontWeight: "600", textAlign: "center" },
 });

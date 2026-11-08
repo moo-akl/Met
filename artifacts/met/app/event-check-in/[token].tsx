@@ -131,6 +131,6 @@ const styles = StyleSheet.create({
   iconCircle: { width: 82, height: 82, borderRadius: 41, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   title: { fontSize: 22, lineHeight: 28, fontWeight: "700", textAlign: "center" },
   copy: { fontSize: 14, lineHeight: 21, textAlign: "center", maxWidth: 320 },
-  button: { minHeight: 46, minWidth: 160, borderRadius: 13, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, marginTop: 12 },
+  button: { minHeight: 50, minWidth: 160, borderTopLeftRadius: 28, borderBottomRightRadius: 20, alignItems: "center", justifyContent: "center", paddingHorizontal: 20, marginTop: 12 },
   buttonText: { fontSize: 14, fontWeight: "700" },
 });

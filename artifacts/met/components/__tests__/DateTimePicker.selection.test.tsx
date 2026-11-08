@@ -91,8 +91,12 @@ jest.mock("@/components/KeyboardAwareScrollViewCompat", () => {
   return { KeyboardAwareScrollViewCompat: (props: Record<string, unknown>) => React.createElement(View, props) };
 });
 jest.mock("@/lib/venueEventImage", () => ({ prepareVenueEventImage: jest.fn() }));
+jest.mock("@/lib/eventReminders", () => ({ cancelEventReminder: jest.fn() }));
 jest.mock("expo-image-picker", () => ({ MediaTypeOptions: { Images: "Images" } }));
-jest.mock("expo-location", () => ({}));
+jest.mock("expo-location", () => ({
+  getForegroundPermissionsAsync: jest.fn().mockResolvedValue({ granted: false }),
+  requestForegroundPermissionsAsync: jest.fn().mockResolvedValue({ granted: false }),
+}));
 jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn() }));
 jest.mock("@/lib/api/client", () => ({
   api: {
@@ -133,6 +137,43 @@ beforeEach(() => {
 });
 
 describe("DateTimePicker platform behavior", () => {
+  it("requires a selected place before creating a public hangout", async () => {
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(
+        <CommunityEventForm mode="create" planMode />,
+      );
+    });
+
+    const titleInput = root.root.find(
+      (node) => node.props.placeholder === "tabs.events.eventName",
+    );
+    const locationInput = root.root.find(
+      (node) => node.props.accessibilityLabel === "tabs.events.location",
+    );
+    await act(async () => {
+      titleInput.props.onChangeText("Coffee after work");
+      locationInput.props.onChangeText("Lumphini Park");
+    });
+
+    await act(async () => {
+      const submit = root.root.findAll(
+        (node) => typeof node.props.onPress === "function" && node.props.disabled !== undefined,
+      ).at(-1)!;
+      submit.props.onPress();
+    });
+
+    expect(
+      root.root.find((node) =>
+        node.props.accessibilityRole === "alert" &&
+        node.props.children === "tabs.events.planPlaceSelectionRequired",
+      ),
+    ).toBeTruthy();
+    expect(mockCreateCommunityEvent).not.toHaveBeenCalled();
+    expect(root.root.findAll((node) => node.props.accessibilityRole === "radio")).toHaveLength(0);
+    act(() => root.unmount());
+  }, 15000);
+
   it("preserves the chosen time when the iOS calendar date changes and saves that exact value", async () => {
     let root!: renderer.ReactTestRenderer;
     act(() => {
@@ -167,8 +208,22 @@ describe("DateTimePicker platform behavior", () => {
 
     const pickedTime = new Date(2000, 0, 1, 21, 37, 0, 0);
     await act(async () => {
+      findByTestId(root, "date-time-picker-edit-time").props.onPress();
+    });
+    await act(async () => {
       findByTestId(root, "date-time-picker-time")
         .props.onChange({ type: "set" }, pickedTime);
+    });
+    const textBeforeSave = findByTestId(root, "date-time-picker-datetime")
+      .findAll((node) => typeof node.props.children === "string")
+      .map((node) => node.props.children)
+      .join(" ");
+    expect(textBeforeSave).toContain(initial.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }));
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time-save").props.onPress();
     });
 
     const expected = new Date(dateAfterSelection);
@@ -245,6 +300,41 @@ describe("DateTimePicker platform behavior", () => {
     });
     const expected = new Date(2031, 5, 14, 20, 15, 0, 0);
     expect(onChange).toHaveBeenCalledWith(expected);
+  });
+
+  it("discards an unconfirmed iOS time and closes the time sheet on cancel", async () => {
+    const onChange = jest.fn();
+    let root!: renderer.ReactTestRenderer;
+    const initial = new Date(2031, 5, 10, 18, 42, 0, 0);
+    act(() => {
+      root = renderer.create(
+        <DateTimePicker
+          label="Starts"
+          mode="datetime"
+          onChange={onChange}
+          primaryColor="#30a83c"
+          value={initial}
+        />,
+      );
+    });
+    await act(async () => {
+      findByTestId(root, "date-time-picker-datetime").props.onPress();
+    });
+    await act(async () => {
+      findByTestId(root, "date-time-picker-edit-time").props.onPress();
+    });
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time").props.onChange(
+        { type: "set" },
+        new Date(2000, 0, 1, 21, 10, 0, 0),
+      );
+    });
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time-cancel").props.onPress();
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(findByTestId(root, "date-time-picker-edit-time")).toBeTruthy();
+    expect(root.root.findAll((node) => node.props.testID === "date-time-picker-time").length).toBe(0);
   });
 
   it("saves the selected start and end values when creating a venue event", async () => {
@@ -376,10 +466,7 @@ describe("DateTimePicker platform behavior", () => {
       "venue-place",
     );
 
-    const editButton = listRoot.root.findAll((node) =>
-      typeof node.props.onPress === "function" &&
-      node.findAll((child) => child.props.children === "✏️").length > 0,
-    )[0]!;
+    const editButton = findByTestId(listRoot, "venue-owner-event-edit-84");
     await act(async () => {
       editButton.props.onPress();
     });
@@ -479,19 +566,22 @@ async function selectDateTime(
   await act(async () => {
     calendar.props.onChange({ type: "set" }, pickedDay);
   });
+  const pickedTime = new Date(2000, 0, 1, hours, minutes, 0, 0);
+  await act(async () => {
+    findByTestId(root, "date-time-picker-edit-time").props.onPress();
+  });
   const timePicker = root.root.findAll((node) =>
     node.props.testID === "date-time-picker-time" &&
     typeof node.props.onChange === "function",
   )[0]!;
-  const pickedTime = new Date(2000, 0, 1, hours, minutes, 0, 0);
   await act(async () => {
     timePicker.props.onChange({ type: "set" }, pickedTime);
   });
+  await act(async () => {
+    findByTestId(root, "date-time-picker-time-save").props.onPress();
+  });
   const expected = new Date(pickedDay);
   expected.setHours(hours, minutes, 0, 0);
-  await act(async () => {
-    row.props.onPress();
-  });
   return expected;
 }
 

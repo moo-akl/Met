@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -21,17 +21,21 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
 import {
+  getGetEventDetailsQueryKey,
+  getGetEventsFeedQueryKey,
   getGetEventAttendeesQueryOptions,
+  useDecideCommunityEventJoinRequest,
   useGetEventCheckinQr,
 } from "@workspace/api-client-react";
 
 type EventType = "venue" | "member";
 const EVENT_POSTER_THEMES = [
-  { id: "garden", label: "Garden", background: "#f8f7ef", border: "#dce8df", text: "#183c2f", accent: "#26735a", muted: "#557066" },
-  { id: "studio", label: "Studio", background: "#f5eee3", border: "#e2d0b8", text: "#253b35", accent: "#b46b43", muted: "#78644f" },
-  { id: "after-hours", label: "After hours", background: "#0f0f13", border: "#51452b", text: "#f8f5ef", accent: "#d7a449", muted: "#d7bd7d" },
+  { id: "garden", labelKey: "tabs.events.posterThemeGarden", background: "#f8f7ef", border: "#dce8df", text: "#183c2f", accent: "#26735a", muted: "#557066" },
+  { id: "studio", labelKey: "tabs.events.posterThemeStudio", background: "#f5eee3", border: "#e2d0b8", text: "#253b35", accent: "#b46b43", muted: "#78644f" },
+  { id: "after-hours", labelKey: "tabs.events.posterThemeAfterHours", background: "#0f0f13", border: "#51452b", text: "#f8f5ef", accent: "#d7a449", muted: "#d7bd7d" },
 ] as const;
 type EventPosterTheme = (typeof EVENT_POSTER_THEMES)[number]["id"];
 type EventPosterSettings = { theme: EventPosterTheme; message: string };
@@ -41,7 +45,12 @@ const DEFAULT_EVENT_POSTER_SETTINGS: EventPosterSettings = {
 };
 
 export default function EventAttendeesScreen() {
-  const params = useLocalSearchParams<{ eventType?: string; id?: string; title?: string }>();
+  const params = useLocalSearchParams<{
+    eventType?: string;
+    id?: string;
+    title?: string;
+    joinApprovalRequired?: string;
+  }>();
   const eventType = params.eventType === "venue" ? "venue" : "member";
   const eventId = Number(params.id);
   const validRoute =
@@ -52,6 +61,8 @@ export default function EventAttendeesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { t, lang } = useT();
   const { authedUid } = useApp();
   const attendeeOptions = getGetEventAttendeesQueryOptions(eventType, validRoute ? eventId : 0);
   const attendeesQuery = useQuery({
@@ -61,6 +72,7 @@ export default function EventAttendeesScreen() {
     staleTime: 30_000,
   });
   const qrMutation = useGetEventCheckinQr();
+  const decideJoinRequest = useDecideCommunityEventJoinRequest();
   const posterRef = useRef<View | null>(null);
   const posterKey = `${eventType}:${eventId}`;
   const [posterSettingsByEvent, setPosterSettingsByEvent] = useState<Record<string, EventPosterSettings>>({});
@@ -69,6 +81,10 @@ export default function EventAttendeesScreen() {
   const [posterPending, setPosterPending] = useState(false);
   const [pendingUid, setPendingUid] = useState<string | null>(null);
   const [requestedUids, setRequestedUids] = useState<string[]>([]);
+  const [requestAction, setRequestAction] = useState<{
+    id: number;
+    status: "accepted" | "declined";
+  } | null>(null);
 
   const loadQr = async (rotate = false) => {
     if (!validRoute) return;
@@ -90,8 +106,8 @@ export default function EventAttendeesScreen() {
       "Replace this QR code?",
       "The previous code will stop working immediately.",
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Replace code", onPress: () => void loadQr(true) },
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("tabs.events.replaceEventQr"), onPress: () => void loadQr(true) },
       ],
     );
   };
@@ -119,6 +135,8 @@ export default function EventAttendeesScreen() {
   };
 
   const attendees = attendeesQuery.data?.attendees ?? [];
+  const joinRequests = attendeesQuery.data?.joinRequests ?? [];
+  const showJoinRequests = eventType === "member" && params.joinApprovalRequired === "true";
   const eventTitle = typeof params.title === "string" && params.title.trim()
     ? params.title.trim()
     : "this event";
@@ -132,6 +150,32 @@ export default function EventAttendeesScreen() {
         ...patch,
       },
     }));
+  };
+
+  const decideRequest = async (requestId: number, status: "accepted" | "declined") => {
+    if (eventType !== "member" || requestAction) return;
+    setRequestAction({ id: requestId, status });
+    try {
+      await decideJoinRequest.mutateAsync({
+        eventId,
+        requestId,
+        data: { status },
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: attendeeOptions.queryKey }),
+        queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() }),
+        queryClient.invalidateQueries({
+          queryKey: getGetEventDetailsQueryKey(eventType, eventId),
+        }),
+      ]);
+    } catch (error) {
+      Alert.alert(
+        t("common.error"),
+        error instanceof Error ? error.message : "Could not update this join request.",
+      );
+    } finally {
+      setRequestAction(null);
+    }
   };
 
   const savePoster = async () => {
@@ -173,14 +217,16 @@ export default function EventAttendeesScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel={t("common.back")}
           testID="button-back-event-attendance"
           onPress={() => router.back()}
           style={styles.headerButton}
         >
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Event attendance</Text>
+        <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.text }]}>
+          {t("tabs.events.attendanceOwnerHeading")}
+        </Text>
         <View style={styles.headerButton} />
       </View>
 
@@ -196,11 +242,14 @@ export default function EventAttendeesScreen() {
           </Text>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={t("common.tryAgain")}
             testID="button-retry-event-attendees"
             onPress={() => void attendeesQuery.refetch()}
             style={[styles.primaryButton, { backgroundColor: colors.primary }]}
           >
-            <Text style={[styles.primaryButtonText, { color: colors.primaryForeground }]}>Try again</Text>
+            <Text style={[styles.primaryButtonText, { color: colors.primaryForeground }]}>
+              {t("common.tryAgain")}
+            </Text>
           </Pressable>
         </View>
       ) : (
@@ -212,13 +261,110 @@ export default function EventAttendeesScreen() {
           bottomOffset={20}
           keyboardDismissMode="on-drag"
         >
+          {showJoinRequests ? (
+            <View style={styles.attendeeSection}>
+              <View style={styles.listHeading}>
+                <View>
+                  <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>
+                    {t("tabs.events.joinRequests")}
+                  </Text>
+                  <Text style={[styles.caption, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.joinApprovalHint")}
+                  </Text>
+                </View>
+              </View>
+              {joinRequests.length === 0 ? (
+                <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name="user-plus" size={22} color={colors.mutedForeground} />
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.noJoinRequests")}
+                  </Text>
+                </View>
+              ) : (
+                joinRequests.map((request) => {
+                  const actionPending = requestAction?.id === request.id;
+                  return (
+                    <View
+                      key={request.id}
+                      testID={`row-join-request-${request.id}`}
+                      style={[styles.joinRequestRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    >
+                      <View style={styles.joinRequestIdentity}>
+                        {request.photoUrl ? (
+                          <Image source={{ uri: request.photoUrl }} style={styles.avatar} />
+                        ) : (
+                          <View style={[styles.avatarFallback, { backgroundColor: colors.primarySoft }]}>
+                            <Feather name="user" size={17} color={colors.primary} />
+                          </View>
+                        )}
+                        <View style={styles.attendeeCopy}>
+                          <Text style={[styles.attendeeName, { color: colors.text }]} numberOfLines={1}>
+                            {request.displayName}
+                          </Text>
+                          <Text style={[styles.caption, { color: colors.mutedForeground }]}>
+                            {new Date(request.createdAt).toLocaleString(lang)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.requestActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("tabs.events.acceptJoinRequest")}: ${request.displayName}`}
+                          testID={`button-accept-join-request-${request.id}`}
+                          disabled={requestAction !== null}
+                          onPress={() => void decideRequest(request.id, "accepted")}
+                          style={[
+                            styles.requestButton,
+                            { backgroundColor: colors.primary, opacity: requestAction && !actionPending ? 0.6 : 1 },
+                          ]}
+                        >
+                          {actionPending && requestAction?.status === "accepted" ? (
+                            <ActivityIndicator size="small" color={colors.primaryForeground} />
+                          ) : (
+                            <Text style={[styles.requestButtonText, { color: colors.primaryForeground }]}>
+                              {t("tabs.events.acceptJoinRequest")}
+                            </Text>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("tabs.events.declineJoinRequest")}: ${request.displayName}`}
+                          testID={`button-decline-join-request-${request.id}`}
+                          disabled={requestAction !== null}
+                          onPress={() => void decideRequest(request.id, "declined")}
+                          style={[
+                            styles.requestButton,
+                            {
+                              backgroundColor: "transparent",
+                              borderColor: colors.border,
+                              opacity: requestAction && !actionPending ? 0.6 : 1,
+                            },
+                          ]}
+                        >
+                          {actionPending && requestAction?.status === "declined" ? (
+                            <ActivityIndicator size="small" color={colors.primary} />
+                          ) : (
+                            <Text style={[styles.requestButtonText, { color: colors.text }]}>
+                              {t("tabs.events.declineJoinRequest")}
+                            </Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          ) : null}
           <View style={[styles.qrCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeading}>
               <View style={[styles.iconBox, { backgroundColor: colors.primarySoft }]}>
                 <Feather name="maximize" size={18} color={colors.primary} />
               </View>
               <View style={styles.headingCopy}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Event check-in QR</Text>
+                <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>
+                  {t("tabs.events.eventCheckinQrHeading")}
+                </Text>
                 <Text style={[styles.caption, { color: colors.mutedForeground }]}>
                   Guests scan this code in Met to record attendance.
                 </Text>
@@ -249,7 +395,12 @@ export default function EventAttendeesScreen() {
                     </Text>
                   ) : null}
                 </View>
-                <View style={[styles.posterCodeFrame, { borderColor: posterTheme.border }]}>
+                <View
+                  accessible
+                  accessibilityRole="image"
+                  accessibilityLabel={t("tabs.events.eventQrImageLabel", { title: eventTitle })}
+                  style={[styles.posterCodeFrame, { borderColor: posterTheme.border }]}
+                >
                   <QRCode value={qrUrl} size={176} color="black" backgroundColor="white" />
                 </View>
                 <Text style={[styles.posterFooter, { color: posterTheme.muted, borderTopColor: posterTheme.border }]}>
@@ -270,7 +421,9 @@ export default function EventAttendeesScreen() {
             {qrUrl ? (
               <View style={styles.posterCustomizer}>
                 <View style={styles.posterThemeHeading}>
-                  <Text style={[styles.posterControlLabel, { color: colors.text }]}>Poster theme</Text>
+                  <Text accessibilityRole="header" style={[styles.posterControlLabel, { color: colors.text }]}>
+                    {t("tabs.events.posterTheme")}
+                  </Text>
                   <Text style={[styles.caption, { color: colors.mutedForeground }]}>QR stays black on white.</Text>
                 </View>
                 <View style={styles.posterThemeOptions}>
@@ -280,6 +433,7 @@ export default function EventAttendeesScreen() {
                       <Pressable
                         key={theme.id}
                         accessibilityRole="button"
+                        accessibilityLabel={`${t("tabs.events.posterTheme")}: ${t(theme.labelKey)}`}
                         accessibilityState={{ selected }}
                         testID={`button-event-poster-theme-${theme.id}`}
                         onPress={() => updatePosterSettings({ theme: theme.id })}
@@ -294,14 +448,18 @@ export default function EventAttendeesScreen() {
                         <View style={[styles.posterThemeSwatch, { backgroundColor: theme.background, borderColor: theme.border }]}>
                           <View style={[styles.posterThemeSwatchAccent, { backgroundColor: theme.accent }]} />
                         </View>
-                        <Text style={[styles.posterThemeName, { color: colors.text }]}>{theme.label}</Text>
+                        <Text style={[styles.posterThemeName, { color: colors.text }]}>
+                          {t(theme.labelKey)}
+                        </Text>
                       </Pressable>
                     );
                   })}
                 </View>
-                <Text style={[styles.posterControlLabel, { color: colors.text }]}>Supporting message (optional)</Text>
+                <Text style={[styles.posterControlLabel, { color: colors.text }]}>
+                  {t("tabs.events.posterSupportingMessage")}
+                </Text>
                 <TextInput
-                  accessibilityLabel="Poster supporting message"
+                  accessibilityLabel={t("tabs.events.posterSupportingMessage")}
                   testID="input-event-poster-message"
                   value={posterSettings.message}
                   onChangeText={(message) => updatePosterSettings({ message })}
@@ -332,28 +490,35 @@ export default function EventAttendeesScreen() {
             <View style={styles.qrActions}>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={t(qrUrl ? "tabs.events.refreshEventQr" : "tabs.events.showEventQr")}
                 testID="button-show-event-qr"
                 disabled={qrMutation.isPending}
                 onPress={() => void loadQr(false)}
                 style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: qrMutation.isPending ? 0.6 : 1 }]}
               >
                 <Text style={[styles.primaryButtonText, { color: colors.primaryForeground }]}>
-                  {qrUrl ? "Refresh QR" : "Show QR"}
+                  {t(qrUrl ? "tabs.events.refreshEventQr" : "tabs.events.showEventQr")}
                 </Text>
               </Pressable>
               {qrUrl ? (
                 <>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={t("tabs.events.shareCheckinLink")}
                     testID="button-share-event-qr-link"
                     onPress={() => void Share.share({ message: qrUrl, url: qrUrl })}
                     style={[styles.secondaryButton, { borderColor: colors.border }]}
                   >
                     <Feather name="share-2" size={15} color={colors.text} />
-                    <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Share link</Text>
+                    <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
+                      {t("tabs.events.shareCheckinLink")}
+                    </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={t(posterPending
+                      ? "tabs.events.preparingCheckinPoster"
+                      : "tabs.events.saveCheckinPoster")}
                     accessibilityState={{ disabled: posterPending }}
                     testID="button-save-event-checkin-poster"
                     disabled={posterPending}
@@ -366,17 +531,22 @@ export default function EventAttendeesScreen() {
                       <Feather name="printer" size={15} color={colors.text} />
                     )}
                     <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
-                      {posterPending ? "Preparing poster…" : "Save / print poster"}
+                      {t(posterPending
+                        ? "tabs.events.preparingCheckinPoster"
+                        : "tabs.events.saveCheckinPoster")}
                     </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={t("tabs.events.replaceEventQr")}
                     testID="button-rotate-event-qr"
                     onPress={rotateQr}
                     style={[styles.secondaryButton, { borderColor: colors.border }]}
                   >
                     <Feather name="refresh-cw" size={15} color={colors.text} />
-                    <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Replace code</Text>
+                    <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
+                      {t("tabs.events.replaceEventQr")}
+                    </Text>
                   </Pressable>
                 </>
               ) : null}
@@ -386,14 +556,17 @@ export default function EventAttendeesScreen() {
           <View style={styles.attendeeSection}>
             <View style={styles.listHeading}>
               <View>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Checked-in attendees</Text>
+                <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>
+                  {t("tabs.events.checkedInAttendeesHeading")}
+                </Text>
                 <Text style={[styles.caption, { color: colors.mutedForeground }]}>
-                  {attendees.length} verified {attendees.length === 1 ? "check-in" : "check-ins"} · RSVPs are not included
+                  {t("tabs.events.verifiedCheckInsCount", { count: attendees.length })} ·{" "}
+                  {t("tabs.events.rsvpsNotIncluded")}
                 </Text>
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Refresh checked-in attendees"
+                accessibilityLabel={t("tabs.events.refreshCheckedInAttendees")}
                 testID="button-refresh-event-attendees"
                 onPress={() => void attendeesQuery.refetch()}
                 style={styles.refreshButton}
@@ -405,13 +578,21 @@ export default function EventAttendeesScreen() {
               <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Feather name="users" size={23} color={colors.mutedForeground} />
                 <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                  Verified check-ins will appear here after guests arrive.
+                  {t("tabs.events.noVerifiedCheckIns")}
                 </Text>
               </View>
             ) : (
               attendees.map((attendee) => {
                 const sent = requestedUids.includes(attendee.uid);
                 const isSelf = attendee.uid === authedUid;
+                const checkInMethod = attendee.checkInMethod === "qr"
+                  ? t("tabs.events.qrCheckinMethod")
+                  : t("tabs.events.locationCheckinMethod");
+                const checkInTime = new Date(attendee.checkedInAt).toLocaleString(lang);
+                const checkInStatus = t("tabs.events.checkedInAt", {
+                  method: checkInMethod,
+                  time: checkInTime,
+                });
                 return (
                   <View
                     key={attendee.uid}
@@ -426,17 +607,26 @@ export default function EventAttendeesScreen() {
                       </View>
                     )}
                     <View style={styles.attendeeCopy}>
-                      <Text style={[styles.attendeeName, { color: colors.text }]} numberOfLines={1}>
+                      <Text
+                        accessibilityRole="header"
+                        style={[styles.attendeeName, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
                         {attendee.displayName}
                       </Text>
-                      <Text style={[styles.caption, { color: colors.mutedForeground }]}>
-                        {attendee.checkInMethod === "qr" ? "QR check-in" : "Location check-in"} ·{" "}
-                        {new Date(attendee.checkedInAt).toLocaleString()}
+                      <Text
+                        accessibilityLabel={checkInStatus}
+                        style={[styles.caption, { color: colors.mutedForeground }]}
+                      >
+                        {checkInStatus}
                       </Text>
                     </View>
                     {!isSelf ? (
                       <Pressable
                         accessibilityRole="button"
+                        accessibilityLabel={t(sent
+                          ? "tabs.events.connectionRequestSent"
+                          : "tabs.events.connectToAttendee", { name: attendee.displayName })}
                         accessibilityState={{ disabled: sent || pendingUid === attendee.uid }}
                         testID={`button-connect-event-attendee-${attendee.uid}`}
                         disabled={sent || pendingUid !== null}
@@ -450,7 +640,9 @@ export default function EventAttendeesScreen() {
                           <ActivityIndicator size="small" color={colors.primary} />
                         ) : (
                           <Text style={[styles.connectText, { color: colors.primary }]}>
-                            {sent ? "Sent" : "Connect"}
+                            {t(sent
+                              ? "tabs.events.connectionSentAction"
+                              : "tabs.events.connectAction")}
                           </Text>
                         )}
                       </Pressable>
@@ -490,7 +682,7 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24 },
   stateText: { textAlign: "center", fontSize: 14, lineHeight: 20 },
   content: { padding: 16, gap: 22 },
-  qrCard: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 14 },
+  qrCard: { borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 22, padding: 16, gap: 14 },
   cardHeading: { flexDirection: "row", alignItems: "center", gap: 11 },
   iconBox: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   headingCopy: { flex: 1, gap: 3 },
@@ -509,7 +701,8 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: "#dce8df",
-    borderRadius: 16,
+    borderTopLeftRadius: 32,
+    borderBottomRightRadius: 24,
     backgroundColor: "white",
   },
   posterBrand: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -528,7 +721,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "#dce8df",
-    borderRadius: 14,
+    borderRadius: 22,
     backgroundColor: "white",
   },
   posterFooter: {
@@ -544,15 +737,15 @@ const styles = StyleSheet.create({
   posterThemeHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   posterControlLabel: { fontSize: 12, fontWeight: "700" },
   posterThemeOptions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  posterThemeOption: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, borderWidth: 1, borderRadius: 10 },
+  posterThemeOption: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 12, borderWidth: 1, borderRadius: 999 },
   posterThemeSwatch: { width: 18, height: 18, borderWidth: 1, borderRadius: 6, overflow: "hidden", justifyContent: "flex-end" },
   posterThemeSwatchAccent: { height: 4, width: "100%" },
   posterThemeName: { fontSize: 12, fontWeight: "600" },
-  posterMessageInput: { minHeight: 60, borderWidth: 1, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, fontSize: 13, lineHeight: 18, textAlignVertical: "top" },
+  posterMessageInput: { minHeight: 60, borderWidth: 1, borderTopLeftRadius: 20, borderBottomRightRadius: 18, paddingHorizontal: 14, paddingVertical: 10, fontSize: 13, lineHeight: 18, textAlignVertical: "top" },
   posterCustomizerFooter: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
-  primaryButton: { minHeight: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
+  primaryButton: { minHeight: 48, borderTopLeftRadius: 24, borderBottomRightRadius: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
   primaryButtonText: { fontSize: 13, fontWeight: "700" },
-  secondaryButton: { minHeight: 42, borderWidth: 1, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  secondaryButton: { minHeight: 46, borderWidth: 1, borderTopLeftRadius: 22, borderBottomRightRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   secondaryButtonText: { fontSize: 13, fontWeight: "600" },
   error: { fontSize: 13, lineHeight: 19 },
   attendeeSection: { gap: 10 },
@@ -560,7 +753,12 @@ const styles = StyleSheet.create({
   refreshButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   emptyCard: { minHeight: 100, borderWidth: 1, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 9, padding: 16 },
   emptyText: { textAlign: "center", fontSize: 13, lineHeight: 19 },
-  attendeeRow: { borderWidth: 1, borderRadius: 15, padding: 11, flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
+  attendeeRow: { borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, padding: 12, flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
+  joinRequestRow: { borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, padding: 12, gap: 12, marginTop: 8 },
+  joinRequestIdentity: { flexDirection: "row", alignItems: "center", gap: 10 },
+  requestActions: { flexDirection: "row", gap: 8 },
+  requestButton: { minHeight: 38, flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "transparent" },
+  requestButtonText: { fontSize: 12, fontWeight: "700" },
   avatar: { width: 42, height: 42, borderRadius: 21 },
   avatarFallback: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
   attendeeCopy: { flex: 1, gap: 3 },

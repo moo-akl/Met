@@ -49,6 +49,7 @@ export interface CommunityEventManageResponse {
      */
   longitude?: number | null;
   visibility: CommunityEventManageResponseVisibility;
+  joinApprovalRequired: boolean;
   /**
      * @maxItems 200
      * @items.minLength 1

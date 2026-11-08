@@ -3746,6 +3746,70 @@ export const RotateVenueOwnerEventInviteLinkResponse = zod.object({
 
 
 /**
+ * @summary Search and page public hangout plans
+ */
+export const getNearbyHangoutsQueryLocationQueryMax = 120;
+
+export const getNearbyHangoutsQueryDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getNearbyHangoutsQueryTimePeriodDefault = `any`;
+export const getNearbyHangoutsQuerySortModeDefault = `nearest`;
+export const getNearbyHangoutsQueryLatitudeMin = -90;
+export const getNearbyHangoutsQueryLatitudeMax = 90;
+
+export const getNearbyHangoutsQueryLongitudeMin = -180;
+export const getNearbyHangoutsQueryLongitudeMax = 180;
+
+export const getNearbyHangoutsQueryTimeZoneDefault = `UTC`;
+export const getNearbyHangoutsQueryTimeZoneMax = 100;
+
+export const getNearbyHangoutsQueryLimitDefault = 30;
+export const getNearbyHangoutsQueryLimitMax = 50;
+
+export const getNearbyHangoutsQueryOffsetDefault = 0;
+export const getNearbyHangoutsQueryOffsetMin = 0;
+
+
+
+export const GetNearbyHangoutsQueryParams = zod.object({
+  "locationQuery": zod.coerce.string().max(getNearbyHangoutsQueryLocationQueryMax).optional(),
+  "date": zod.coerce.string().regex(getNearbyHangoutsQueryDateRegExp).optional(),
+  "timePeriod": zod.enum(['any', 'morning', 'afternoon', 'evening', 'night']).default(getNearbyHangoutsQueryTimePeriodDefault),
+  "sortMode": zod.enum(['nearest', 'soonest']).default(getNearbyHangoutsQuerySortModeDefault),
+  "latitude": zod.coerce.number().min(getNearbyHangoutsQueryLatitudeMin).max(getNearbyHangoutsQueryLatitudeMax).optional(),
+  "longitude": zod.coerce.number().min(getNearbyHangoutsQueryLongitudeMin).max(getNearbyHangoutsQueryLongitudeMax).optional(),
+  "timeZone": zod.coerce.string().max(getNearbyHangoutsQueryTimeZoneMax).default(getNearbyHangoutsQueryTimeZoneDefault),
+  "limit": zod.coerce.number().int().min(1).max(getNearbyHangoutsQueryLimitMax).default(getNearbyHangoutsQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(getNearbyHangoutsQueryOffsetMin).default(getNearbyHangoutsQueryOffsetDefault)
+})
+
+export const getNearbyHangoutsResponseEventsItemLatitudeMin = -90;
+export const getNearbyHangoutsResponseEventsItemLatitudeMax = 90;
+
+export const getNearbyHangoutsResponseEventsItemLongitudeMin = -180;
+export const getNearbyHangoutsResponseEventsItemLongitudeMax = 180;
+
+export const getNearbyHangoutsResponseNextOffsetMin = 0;
+
+
+
+export const GetNearbyHangoutsResponse = zod.object({
+  "events": zod.array(zod.object({
+  "eventType": zod.enum(['member']),
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().url().nullable(),
+  "startsAt": zod.coerce.date(),
+  "location": zod.string().nullable(),
+  "latitude": zod.number().min(getNearbyHangoutsResponseEventsItemLatitudeMin).max(getNearbyHangoutsResponseEventsItemLatitudeMax).nullable(),
+  "longitude": zod.number().min(getNearbyHangoutsResponseEventsItemLongitudeMin).max(getNearbyHangoutsResponseEventsItemLongitudeMax).nullable(),
+  "creatorName": zod.string().nullable()
+})),
+  "nextOffset": zod.number().int().min(getNearbyHangoutsResponseNextOffsetMin).nullable()
+})
+
+
+/**
  * @summary List public events and private events the caller may attend
  */
 export const getEventsFeedResponseEventsItemContactPhoneMax = 40;
@@ -3759,6 +3823,8 @@ export const getEventsFeedResponseEventsItemLatitudeMax = 90;
 
 export const getEventsFeedResponseEventsItemLongitudeMin = -180;
 export const getEventsFeedResponseEventsItemLongitudeMax = 180;
+
+export const getEventsFeedResponseEventsItemPendingJoinRequestCountMin = 0;
 
 
 
@@ -3785,7 +3851,10 @@ export const GetEventsFeedResponse = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
   "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish(),
-  "isInvited": zod.boolean().optional()
+  "isInvited": zod.boolean().optional(),
+  "joinApprovalRequired": zod.boolean(),
+  "myJoinRequestStatus": zod.union([zod.literal('pending'),zod.literal('accepted'),zod.literal('declined'),zod.literal('withdrawn'),zod.literal(null)]).nullable(),
+  "pendingJoinRequestCount": zod.number().int().min(getEventsFeedResponseEventsItemPendingJoinRequestCountMin).optional()
 }))
 })
 
@@ -3821,7 +3890,7 @@ export const createCommunityEventBodyInviteLinkEnabledDefault = false;
 export const createCommunityEventBodyInvitePasscodeMin = 6;
 export const createCommunityEventBodyInvitePasscodeMax = 64;
 
-
+export const createCommunityEventBodyJoinApprovalRequiredDefault = false;
 
 export const CreateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(createCommunityEventBodyTitleMax),
@@ -3839,7 +3908,8 @@ export const CreateCommunityEventBody = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "inviteeUids": zod.array(zod.string().min(1).max(createCommunityEventBodyInviteeUidsItemMax)).max(createCommunityEventBodyInviteeUidsMax).optional(),
   "inviteLinkEnabled": zod.boolean().default(createCommunityEventBodyInviteLinkEnabledDefault),
-  "invitePasscode": zod.string().min(createCommunityEventBodyInvitePasscodeMin).max(createCommunityEventBodyInvitePasscodeMax).nullish()
+  "invitePasscode": zod.string().min(createCommunityEventBodyInvitePasscodeMin).max(createCommunityEventBodyInvitePasscodeMax).nullish(),
+  "joinApprovalRequired": zod.boolean().default(createCommunityEventBodyJoinApprovalRequiredDefault)
 })
 
 export const createCommunityEventResponseContactPhoneMax = 40;
@@ -3853,6 +3923,8 @@ export const createCommunityEventResponseLatitudeMax = 90;
 
 export const createCommunityEventResponseLongitudeMin = -180;
 export const createCommunityEventResponseLongitudeMax = 180;
+
+export const createCommunityEventResponsePendingJoinRequestCountMin = 0;
 
 
 
@@ -3878,7 +3950,10 @@ export const CreateCommunityEventResponse = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
   "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish(),
-  "isInvited": zod.boolean().optional()
+  "isInvited": zod.boolean().optional(),
+  "joinApprovalRequired": zod.boolean(),
+  "myJoinRequestStatus": zod.union([zod.literal('pending'),zod.literal('accepted'),zod.literal('declined'),zod.literal('withdrawn'),zod.literal(null)]).nullable(),
+  "pendingJoinRequestCount": zod.number().int().min(createCommunityEventResponsePendingJoinRequestCountMin).optional()
 })
 
 
@@ -3924,6 +3999,8 @@ export const getEventDetailsResponseLatitudeMax = 90;
 export const getEventDetailsResponseLongitudeMin = -180;
 export const getEventDetailsResponseLongitudeMax = 180;
 
+export const getEventDetailsResponsePendingJoinRequestCountMin = 0;
+
 
 
 export const GetEventDetailsResponse = zod.object({
@@ -3948,7 +4025,10 @@ export const GetEventDetailsResponse = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
   "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish(),
-  "isInvited": zod.boolean().optional()
+  "isInvited": zod.boolean().optional(),
+  "joinApprovalRequired": zod.boolean(),
+  "myJoinRequestStatus": zod.union([zod.literal('pending'),zod.literal('accepted'),zod.literal('declined'),zod.literal('withdrawn'),zod.literal(null)]).nullable(),
+  "pendingJoinRequestCount": zod.number().int().min(getEventDetailsResponsePendingJoinRequestCountMin).optional()
 })
 
 
@@ -4029,6 +4109,14 @@ export const GetEventAttendeesResponse = zod.object({
   "displayName": zod.string(),
   "photoUrl": zod.string().url().nullish(),
   "status": zod.enum(['going', 'maybe', 'not_going'])
+})),
+  "joinRequests": zod.array(zod.object({
+  "id": zod.number().int(),
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().url().nullable(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'withdrawn']),
+  "createdAt": zod.coerce.date()
 })),
   "corrections": zod.array(zod.object({
   "uid": zod.string(),
@@ -4128,6 +4216,7 @@ export const GetCommunityEventForEditResponse = zod.object({
   "latitude": zod.number().min(getCommunityEventForEditResponseLatitudeMin).max(getCommunityEventForEditResponseLatitudeMax).nullish(),
   "longitude": zod.number().min(getCommunityEventForEditResponseLongitudeMin).max(getCommunityEventForEditResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
+  "joinApprovalRequired": zod.boolean(),
   "inviteeUids": zod.array(zod.string().min(1).max(getCommunityEventForEditResponseInviteeUidsItemMax)).max(getCommunityEventForEditResponseInviteeUidsMax),
   "inviteLinkEnabled": zod.boolean(),
   "invitePasscodeRequired": zod.boolean()
@@ -4346,7 +4435,7 @@ export const updateCommunityEventBodyInviteLinkEnabledDefault = false;
 export const updateCommunityEventBodyInvitePasscodeMin = 6;
 export const updateCommunityEventBodyInvitePasscodeMax = 64;
 
-
+export const updateCommunityEventBodyJoinApprovalRequiredDefault = false;
 
 export const UpdateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(updateCommunityEventBodyTitleMax),
@@ -4364,7 +4453,8 @@ export const UpdateCommunityEventBody = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "inviteeUids": zod.array(zod.string().min(1).max(updateCommunityEventBodyInviteeUidsItemMax)).max(updateCommunityEventBodyInviteeUidsMax).optional(),
   "inviteLinkEnabled": zod.boolean().default(updateCommunityEventBodyInviteLinkEnabledDefault),
-  "invitePasscode": zod.string().min(updateCommunityEventBodyInvitePasscodeMin).max(updateCommunityEventBodyInvitePasscodeMax).nullish()
+  "invitePasscode": zod.string().min(updateCommunityEventBodyInvitePasscodeMin).max(updateCommunityEventBodyInvitePasscodeMax).nullish(),
+  "joinApprovalRequired": zod.boolean().default(updateCommunityEventBodyJoinApprovalRequiredDefault)
 })
 
 export const updateCommunityEventResponseContactPhoneMax = 40;
@@ -4378,6 +4468,8 @@ export const updateCommunityEventResponseLatitudeMax = 90;
 
 export const updateCommunityEventResponseLongitudeMin = -180;
 export const updateCommunityEventResponseLongitudeMax = 180;
+
+export const updateCommunityEventResponsePendingJoinRequestCountMin = 0;
 
 
 
@@ -4403,7 +4495,10 @@ export const UpdateCommunityEventResponse = zod.object({
   "visibility": zod.enum(['public', 'invite_only']),
   "rsvpCount": zod.number().int(),
   "myRsvp": zod.union([zod.literal('going'),zod.literal('maybe'),zod.literal('not_going'),zod.literal(null)]).nullish(),
-  "isInvited": zod.boolean().optional()
+  "isInvited": zod.boolean().optional(),
+  "joinApprovalRequired": zod.boolean(),
+  "myJoinRequestStatus": zod.union([zod.literal('pending'),zod.literal('accepted'),zod.literal('declined'),zod.literal('withdrawn'),zod.literal(null)]).nullable(),
+  "pendingJoinRequestCount": zod.number().int().min(updateCommunityEventResponsePendingJoinRequestCountMin).optional()
 })
 
 
@@ -4431,6 +4526,63 @@ export const RsvpCommunityEventBody = zod.object({
 export const RsvpCommunityEventResponse = zod.object({
   "success": zod.boolean(),
   "status": zod.enum(['going', 'maybe', 'not_going'])
+})
+
+
+/**
+ * @summary Request to join a public hangout plan
+ */
+
+
+
+export const RequestToJoinCommunityEventParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const RequestToJoinCommunityEventResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'withdrawn']),
+  "requestId": zod.number().int()
+})
+
+
+/**
+ * @summary Withdraw the caller's pending join request
+ */
+
+
+
+export const WithdrawCommunityEventJoinRequestParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const WithdrawCommunityEventJoinRequestResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'withdrawn']),
+  "requestId": zod.number().int()
+})
+
+
+/**
+ * @summary Accept or decline a join request as the event host
+ */
+
+
+
+
+export const DecideCommunityEventJoinRequestParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1),
+  "requestId": zod.coerce.number().int().min(1)
+})
+
+export const DecideCommunityEventJoinRequestBody = zod.object({
+  "status": zod.enum(['accepted', 'declined'])
+})
+
+export const DecideCommunityEventJoinRequestResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'withdrawn']),
+  "requestId": zod.number().int()
 })
 
 
@@ -4809,6 +4961,14 @@ export const GetVenueManagerEventAttendeesResponse = zod.object({
   "displayName": zod.string(),
   "photoUrl": zod.string().url().nullish(),
   "status": zod.enum(['going', 'maybe', 'not_going'])
+})),
+  "joinRequests": zod.array(zod.object({
+  "id": zod.number().int(),
+  "uid": zod.string(),
+  "displayName": zod.string(),
+  "photoUrl": zod.string().url().nullable(),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'withdrawn']),
+  "createdAt": zod.coerce.date()
 })),
   "corrections": zod.array(zod.object({
   "uid": zod.string(),

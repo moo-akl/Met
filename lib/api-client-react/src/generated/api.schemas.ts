@@ -1970,6 +1970,19 @@ export const EventFeedItemMyRsvp = {
   not_going: 'not_going',
 } as const;
 
+/**
+ * @nullable
+ */
+export type EventFeedItemMyJoinRequestStatus = typeof EventFeedItemMyJoinRequestStatus[keyof typeof EventFeedItemMyJoinRequestStatus] | null;
+
+
+export const EventFeedItemMyJoinRequestStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+  withdrawn: 'withdrawn',
+} as const;
+
 export interface EventFeedItem {
   eventType: EventFeedItemEventType;
   id: number;
@@ -2024,6 +2037,11 @@ export interface EventFeedItem {
   /** @nullable */
   myRsvp?: EventFeedItemMyRsvp;
   isInvited?: boolean;
+  joinApprovalRequired: boolean;
+  /** @nullable */
+  myJoinRequestStatus: EventFeedItemMyJoinRequestStatus;
+  /** @minimum 0 */
+  pendingJoinRequestCount?: number;
 }
 
 export interface EventQrCheckinInput {
@@ -2122,6 +2140,26 @@ export interface EventRsvp {
   status: EventRsvpStatus;
 }
 
+export type EventJoinRequestStatus = typeof EventJoinRequestStatus[keyof typeof EventJoinRequestStatus];
+
+
+export const EventJoinRequestStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+  withdrawn: 'withdrawn',
+} as const;
+
+export interface EventJoinRequest {
+  id: number;
+  uid: string;
+  displayName: string;
+  /** @nullable */
+  photoUrl: string | null;
+  status: EventJoinRequestStatus;
+  createdAt: string;
+}
+
 export type EventAttendanceCorrectionAction = typeof EventAttendanceCorrectionAction[keyof typeof EventAttendanceCorrectionAction];
 
 
@@ -2185,6 +2223,7 @@ export interface EventNotificationRun {
 export interface EventAttendeesResponse {
   attendees: EventAttendee[];
   rsvps: EventRsvp[];
+  joinRequests: EventJoinRequest[];
   corrections: EventAttendanceCorrection[];
   notificationRuns: EventNotificationRun[];
 }
@@ -2218,6 +2257,49 @@ export interface NotificationPrefsInput {
 
 export interface EventFeedResponse {
   events: EventFeedItem[];
+}
+
+export type NearbyHangoutItemEventType = typeof NearbyHangoutItemEventType[keyof typeof NearbyHangoutItemEventType];
+
+
+export const NearbyHangoutItemEventType = {
+  member: 'member',
+} as const;
+
+export interface NearbyHangoutItem {
+  eventType: NearbyHangoutItemEventType;
+  id: number;
+  title: string;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  imageUrl: string | null;
+  startsAt: string;
+  /** @nullable */
+  location: string | null;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  latitude: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  longitude: number | null;
+  /** @nullable */
+  creatorName: string | null;
+}
+
+export interface NearbyHangoutsResponse {
+  events: NearbyHangoutItem[];
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  nextOffset: number | null;
 }
 
 export type CommunityEventInputVisibility = typeof CommunityEventInputVisibility[keyof typeof CommunityEventInputVisibility];
@@ -2295,6 +2377,35 @@ export interface CommunityEventInput {
      * @nullable
      */
   invitePasscode?: string | null;
+  joinApprovalRequired?: boolean;
+}
+
+export type CommunityEventJoinRequestMutationResponseStatus = typeof CommunityEventJoinRequestMutationResponseStatus[keyof typeof CommunityEventJoinRequestMutationResponseStatus];
+
+
+export const CommunityEventJoinRequestMutationResponseStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+  withdrawn: 'withdrawn',
+} as const;
+
+export interface CommunityEventJoinRequestMutationResponse {
+  success: boolean;
+  status: CommunityEventJoinRequestMutationResponseStatus;
+  requestId: number;
+}
+
+export type CommunityEventJoinRequestDecisionInputStatus = typeof CommunityEventJoinRequestDecisionInputStatus[keyof typeof CommunityEventJoinRequestDecisionInputStatus];
+
+
+export const CommunityEventJoinRequestDecisionInputStatus = {
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export interface CommunityEventJoinRequestDecisionInput {
+  status: CommunityEventJoinRequestDecisionInputStatus;
 }
 
 export interface EventLocationSearchResult {
@@ -2379,6 +2490,7 @@ export interface CommunityEventManageResponse {
      */
   longitude?: number | null;
   visibility: CommunityEventManageResponseVisibility;
+  joinApprovalRequired: boolean;
   /**
      * @maxItems 200
      * @items.minLength 1
@@ -4138,6 +4250,61 @@ export const GetVenueOwnerMeGuestsPeriod = {
   all: 'all',
   month: 'month',
   week: 'week',
+} as const;
+
+export type GetNearbyHangoutsParams = {
+/**
+ * @maxLength 120
+ */
+locationQuery?: string;
+/**
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+date?: string;
+timePeriod?: GetNearbyHangoutsTimePeriod;
+sortMode?: GetNearbyHangoutsSortMode;
+/**
+ * @minimum -90
+ * @maximum 90
+ */
+latitude?: number;
+/**
+ * @minimum -180
+ * @maximum 180
+ */
+longitude?: number;
+/**
+ * @maxLength 100
+ */
+timeZone?: string;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type GetNearbyHangoutsTimePeriod = typeof GetNearbyHangoutsTimePeriod[keyof typeof GetNearbyHangoutsTimePeriod];
+
+
+export const GetNearbyHangoutsTimePeriod = {
+  any: 'any',
+  morning: 'morning',
+  afternoon: 'afternoon',
+  evening: 'evening',
+  night: 'night',
+} as const;
+
+export type GetNearbyHangoutsSortMode = typeof GetNearbyHangoutsSortMode[keyof typeof GetNearbyHangoutsSortMode];
+
+
+export const GetNearbyHangoutsSortMode = {
+  nearest: 'nearest',
+  soonest: 'soonest',
 } as const;
 
 export type SearchEventLocationsParams = {

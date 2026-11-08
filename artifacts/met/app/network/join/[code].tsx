@@ -302,7 +302,8 @@ const styles = StyleSheet.create({
   },
   errorCard: {
     width: "100%",
-    borderRadius: 16,
+    borderTopLeftRadius: 34,
+    borderBottomRightRadius: 24,
     borderWidth: 1,
     padding: 28,
     alignItems: "center",
@@ -320,7 +321,8 @@ const styles = StyleSheet.create({
   },
   successCard: {
     width: "100%",
-    borderRadius: 16,
+    borderTopLeftRadius: 38,
+    borderBottomRightRadius: 28,
     borderWidth: 1,
     padding: 28,
     alignItems: "center",
@@ -342,7 +344,7 @@ const styles = StyleSheet.create({
   doneBtn: {
     paddingHorizontal: 32,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 999,
     marginTop: 4,
   },
   doneBtnText: {
@@ -351,7 +353,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   networkCard: {
-    borderRadius: 16,
+    borderTopLeftRadius: 38,
+    borderBottomRightRadius: 26,
     borderWidth: 1,
     padding: 24,
     alignItems: "center",

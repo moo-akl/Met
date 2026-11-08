@@ -7,12 +7,14 @@
  */
 import type { EventAttendanceCorrection } from './eventAttendanceCorrection';
 import type { EventAttendee } from './eventAttendee';
+import type { EventJoinRequest } from './eventJoinRequest';
 import type { EventNotificationRun } from './eventNotificationRun';
 import type { EventRsvp } from './eventRsvp';
 
 export interface EventAttendeesResponse {
   attendees: EventAttendee[];
   rsvps: EventRsvp[];
+  joinRequests: EventJoinRequest[];
   corrections: EventAttendanceCorrection[];
   notificationRuns: EventNotificationRun[];
 }

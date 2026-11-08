@@ -50,6 +50,8 @@ import type {
   ClearFailedVenueOutreachResult,
   CommunityEventInput,
   CommunityEventInviteLinkResponse,
+  CommunityEventJoinRequestDecisionInput,
+  CommunityEventJoinRequestMutationResponse,
   CommunityEventManageResponse,
   CommunityEventPlanChatMessageInput,
   CommunityEventPlanChatMessageResponse,
@@ -83,6 +85,7 @@ import type {
   EventLocationCheckinInput,
   EventLocationSearchResponse,
   EventQrCheckinInput,
+  GetNearbyHangoutsParams,
   GetVenueOwnerMapPoints200,
   GetVenueOwnerMeGuestsParams,
   GmailBounceReconciliationApplyInput,
@@ -108,6 +111,7 @@ import type {
   NativeBranchApplicationInput,
   NativeBranchApplicationSubmitted,
   NearbyEntry,
+  NearbyHangoutsResponse,
   NearbyPresenceParams,
   NeighborhoodInfo,
   NetworkListEntry,
@@ -8647,6 +8651,114 @@ export const useRotateVenueOwnerEventInviteLink = <TError = ErrorType<void>,
       return useMutation(getRotateVenueOwnerEventInviteLinkMutationOptions(options), queryClient);
     }
 
+export const getGetNearbyHangoutsUrl = (params?: GetNearbyHangoutsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/events/hangouts/nearby?${stringifiedParams}` : `/api/events/hangouts/nearby`
+}
+
+/**
+ * @summary Search and page public hangout plans
+ */
+export const getNearbyHangouts = async (params?: GetNearbyHangoutsParams, options?: Parameters<typeof customFetch>[1]): Promise<NearbyHangoutsResponse> => {
+
+  return customFetch<NearbyHangoutsResponse>(getGetNearbyHangoutsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNearbyHangoutsQueryKey = (params?: GetNearbyHangoutsParams,) => {
+    return [
+    `/api/events/hangouts/nearby`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNearbyHangoutsQueryOptions = <TData = Awaited<ReturnType<typeof getNearbyHangouts>>, TError = ErrorType<void>>(params?: GetNearbyHangoutsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNearbyHangouts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNearbyHangoutsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNearbyHangouts>>> = ({ signal }) => getNearbyHangouts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNearbyHangouts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetNearbyHangoutsQueryResult = NonNullable<Awaited<ReturnType<typeof getNearbyHangouts>>>
+export type GetNearbyHangoutsQueryError = ErrorType<void>
+
+
+export function useGetNearbyHangouts<TData = Awaited<ReturnType<typeof getNearbyHangouts>>, TError = ErrorType<void>>(
+ params: undefined |  GetNearbyHangoutsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNearbyHangouts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getNearbyHangouts>>,
+          TError,
+          Awaited<ReturnType<typeof getNearbyHangouts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetNearbyHangouts<TData = Awaited<ReturnType<typeof getNearbyHangouts>>, TError = ErrorType<void>>(
+ params?: GetNearbyHangoutsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNearbyHangouts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getNearbyHangouts>>,
+          TError,
+          Awaited<ReturnType<typeof getNearbyHangouts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetNearbyHangouts<TData = Awaited<ReturnType<typeof getNearbyHangouts>>, TError = ErrorType<void>>(
+ params?: GetNearbyHangoutsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNearbyHangouts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Search and page public hangout plans
+ */
+
+export function useGetNearbyHangouts<TData = Awaited<ReturnType<typeof getNearbyHangouts>>, TError = ErrorType<void>>(
+ params?: GetNearbyHangoutsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNearbyHangouts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetNearbyHangoutsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetEventsFeedUrl = () => {
 
 
@@ -10400,6 +10512,245 @@ export const useRsvpCommunityEvent = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRsvpCommunityEventMutationOptions(options), queryClient);
+    }
+
+export const getRequestToJoinCommunityEventUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/join-requests`
+}
+
+/**
+ * @summary Request to join a public hangout plan
+ */
+export const requestToJoinCommunityEvent = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventJoinRequestMutationResponse> => {
+
+  return customFetch<CommunityEventJoinRequestMutationResponse>(getRequestToJoinCommunityEventUrl(eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRequestToJoinCommunityEventMutationKey = () => ['requestToJoinCommunityEvent'] as const;
+
+export const getRequestToJoinCommunityEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestToJoinCommunityEvent>>, TError,RequestToJoinCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestToJoinCommunityEvent>>, TError,RequestToJoinCommunityEventMutationVariables, TContext> => {
+
+const mutationKey = getRequestToJoinCommunityEventMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestToJoinCommunityEvent>>, RequestToJoinCommunityEventMutationVariables> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  requestToJoinCommunityEvent(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestToJoinCommunityEventMutationResult = NonNullable<Awaited<ReturnType<typeof requestToJoinCommunityEvent>>>
+
+    export type RequestToJoinCommunityEventMutationError = ErrorType<void>
+    export type RequestToJoinCommunityEventMutationVariables = {eventId: number}
+
+    /**
+ * @summary Request to join a public hangout plan
+ */
+export const useRequestToJoinCommunityEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestToJoinCommunityEvent>>, TError,RequestToJoinCommunityEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof requestToJoinCommunityEvent>>,
+        TError,
+        RequestToJoinCommunityEventMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestToJoinCommunityEventMutationOptions(options), queryClient);
+    }
+
+export const getWithdrawCommunityEventJoinRequestUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/join-requests`
+}
+
+/**
+ * @summary Withdraw the caller's pending join request
+ */
+export const withdrawCommunityEventJoinRequest = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventJoinRequestMutationResponse> => {
+
+  return customFetch<CommunityEventJoinRequestMutationResponse>(getWithdrawCommunityEventJoinRequestUrl(eventId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getWithdrawCommunityEventJoinRequestMutationKey = () => ['withdrawCommunityEventJoinRequest'] as const;
+
+export const getWithdrawCommunityEventJoinRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawCommunityEventJoinRequest>>, TError,WithdrawCommunityEventJoinRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawCommunityEventJoinRequest>>, TError,WithdrawCommunityEventJoinRequestMutationVariables, TContext> => {
+
+const mutationKey = getWithdrawCommunityEventJoinRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawCommunityEventJoinRequest>>, WithdrawCommunityEventJoinRequestMutationVariables> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  withdrawCommunityEventJoinRequest(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawCommunityEventJoinRequestMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawCommunityEventJoinRequest>>>
+
+    export type WithdrawCommunityEventJoinRequestMutationError = ErrorType<void>
+    export type WithdrawCommunityEventJoinRequestMutationVariables = {eventId: number}
+
+    /**
+ * @summary Withdraw the caller's pending join request
+ */
+export const useWithdrawCommunityEventJoinRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawCommunityEventJoinRequest>>, TError,WithdrawCommunityEventJoinRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawCommunityEventJoinRequest>>,
+        TError,
+        WithdrawCommunityEventJoinRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getWithdrawCommunityEventJoinRequestMutationOptions(options), queryClient);
+    }
+
+export const getDecideCommunityEventJoinRequestUrl = (eventId: number,
+    requestId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/join-requests/${requestId}`
+}
+
+/**
+ * @summary Accept or decline a join request as the event host
+ */
+export const decideCommunityEventJoinRequest = async (eventId: number,
+    requestId: number,
+    communityEventJoinRequestDecisionInput: CommunityEventJoinRequestDecisionInput, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventJoinRequestMutationResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CommunityEventJoinRequestMutationResponse>(getDecideCommunityEventJoinRequestUrl(eventId,requestId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(communityEventJoinRequestDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getDecideCommunityEventJoinRequestMutationKey = () => ['decideCommunityEventJoinRequest'] as const;
+
+export const getDecideCommunityEventJoinRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideCommunityEventJoinRequest>>, TError,DecideCommunityEventJoinRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideCommunityEventJoinRequest>>, TError,DecideCommunityEventJoinRequestMutationVariables, TContext> => {
+
+const mutationKey = getDecideCommunityEventJoinRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideCommunityEventJoinRequest>>, DecideCommunityEventJoinRequestMutationVariables> = (props) => {
+          const {eventId,requestId,data} = props ?? {};
+
+          return  decideCommunityEventJoinRequest(eventId,requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideCommunityEventJoinRequestMutationResult = NonNullable<Awaited<ReturnType<typeof decideCommunityEventJoinRequest>>>
+    export type DecideCommunityEventJoinRequestMutationBody = BodyType<CommunityEventJoinRequestDecisionInput>
+    export type DecideCommunityEventJoinRequestMutationError = ErrorType<void>
+    export type DecideCommunityEventJoinRequestMutationVariables = {eventId: number;requestId: number;data: BodyType<CommunityEventJoinRequestDecisionInput>}
+
+    /**
+ * @summary Accept or decline a join request as the event host
+ */
+export const useDecideCommunityEventJoinRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideCommunityEventJoinRequest>>, TError,DecideCommunityEventJoinRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof decideCommunityEventJoinRequest>>,
+        TError,
+        DecideCommunityEventJoinRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDecideCommunityEventJoinRequestMutationOptions(options), queryClient);
     }
 
 export const getGetVenueManagerGuestsUrl = (businessId: number,) => {

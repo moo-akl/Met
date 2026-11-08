@@ -6,6 +6,7 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "noEmit": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,

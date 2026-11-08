@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   body: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, textAlign: "center", maxWidth: 320 },
   note: {
     flexDirection: "row", gap: 10, alignItems: "flex-start", borderWidth: 1,
-    borderRadius: 14, padding: 14, marginTop: 8, maxWidth: 340,
+    borderTopLeftRadius: 26, borderBottomRightRadius: 18, padding: 16, marginTop: 8, maxWidth: 340,
   },
   noteText: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 13, lineHeight: 19 },
   actions: { gap: 10 },

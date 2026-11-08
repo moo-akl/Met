@@ -5,6 +5,7 @@
  * Signal (light): #FAFAF8 editorial bg, rule-separated rows, #0D0D0D typography.
  */
 import React, { useCallback, useEffect, useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
@@ -135,7 +136,7 @@ export default function VenueOwnerRewardsScreen() {
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>🎁</Text>
+            <Feather name="gift" size={38} color={accent} style={styles.emptyEmoji} />
             <Text style={[styles.emptyText, { color: vEmpty }]}>No reward campaigns yet</Text>
             <Pressable
               onPress={() => router.push("/venue-owner/rewards/new" as never)}
@@ -161,7 +162,10 @@ export default function VenueOwnerRewardsScreen() {
                 {new Date(item.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </Text>
               {item.winnerUid && (
-                <Text style={[styles.winnerLabel, { color: isDark ? "#FFD700" : "#B45309" }]}>🏆 Winner selected</Text>
+                <View style={styles.winnerRow}>
+                  <Feather name="award" size={14} color={isDark ? "#FFD700" : "#B45309"} />
+                  <Text style={[styles.winnerLabel, { color: isDark ? "#FFD700" : "#B45309" }]}>Winner selected</Text>
+                </View>
               )}
             </View>
             <View style={styles.cardActions}>
@@ -185,11 +189,11 @@ export default function VenueOwnerRewardsScreen() {
                 hitSlop={8}
                 style={styles.editBtn}
               >
-                <Text style={styles.editBtnText}>✏️</Text>
+                  <Feather name="edit-2" size={16} color={accent} />
               </Pressable>
               {item.status === "active" && (
                 <Pressable onPress={() => handleCancel(item.id)} hitSlop={8} style={styles.cancelBtn}>
-                  <Text style={[styles.cancelBtnText, { color: vMuted }]}>✕</Text>
+                  <Feather name="x" size={18} color={vMuted} />
                 </Pressable>
               )}
             </View>
@@ -203,11 +207,12 @@ export default function VenueOwnerRewardsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  addBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  addBtn: { minHeight: 40, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   addBtnText: { fontSize: 13, fontFamily: "Inter_700Bold" },
-  list: { padding: 16, gap: 10 },
+  list: { paddingHorizontal: 18, paddingVertical: 12, gap: 10 },
   card: {
-    borderRadius: 14,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 20,
     borderWidth: 1,
     padding: 14,
     flexDirection: "row",
@@ -220,18 +225,17 @@ const styles = StyleSheet.create({
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   cardTitle: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  statusChip: { fontSize: 11, fontFamily: "Inter_600SemiBold", borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, textTransform: "uppercase" },
+  statusChip: { fontSize: 11, fontFamily: "Inter_600SemiBold", borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, textTransform: "uppercase" },
   cardPrize: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 4 },
   cardDates: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  winnerLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 4 },
+  winnerRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 },
+  winnerLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   cardActions: { flexDirection: "column", alignItems: "center", gap: 4 },
-  editBtn: { padding: 4 },
-  editBtnText: { fontSize: 16 },
-  cancelBtn: { padding: 4 },
-  cancelBtnText: { fontSize: 18 },
+  editBtn: { minWidth: 40, minHeight: 40, alignItems: "center", justifyContent: "center" },
+  cancelBtn: { minWidth: 40, minHeight: 40, alignItems: "center", justifyContent: "center" },
   emptyState: { alignItems: "center", paddingTop: 60 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
+  emptyEmoji: { marginBottom: 12 },
   emptyText: { fontSize: 16, marginBottom: 20, fontFamily: "Inter_400Regular" },
-  emptyBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
+  emptyBtn: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 10 },
   emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

@@ -68,17 +68,13 @@ test("formatted and personalized email templates survive saving and reopening", 
   await page.getByTestId("input-email-template-subject").fill("Your next visit");
 
   const editor = page.getByRole("textbox", { name: "Email body" });
-  await editor.click();
-  await page.keyboard.press("Control+A");
-  await page.keyboard.type("Welcome to Met");
-  await page.keyboard.press("Enter");
-  await page.keyboard.type("Get started with these steps:");
-  await page.keyboard.press("Enter");
-  await page.keyboard.type("First visit");
-  await page.keyboard.press("Enter");
-  await page.keyboard.type("Second visit");
-  await page.keyboard.press("Enter");
-  await page.keyboard.type("Read the guide");
+  await editor.fill([
+    "Welcome to Met",
+    "Get started with these steps:",
+    "First visit",
+    "Second visit",
+    "Read the guide",
+  ].join("\n"));
 
   await selectText(editor, "Welcome to Met");
   await page.getByRole("button", { name: "Bold" }).click();
@@ -167,7 +163,7 @@ test("editing an existing formatted template preserves formatting and personaliz
   const editor = page.getByRole("textbox", { name: "Email body" });
   await expect(editor.locator("h2")).toHaveText("Welcome to Met");
   await selectText(editor, "Welcome to Met");
-  await page.keyboard.type("Welcome back to Met");
+  await page.keyboard.insertText("Welcome back to Met");
 
   const updateResponse = page.waitForResponse((response) =>
     response.url().includes(`${templatesPath}/${templateId}`) && response.request().method() === "PUT",

@@ -36,11 +36,11 @@ import { useT } from "@/lib/i18n";
 
 // ─── Nav sections ─────────────────────────────────────────────────────────────
 const SECTIONS = [
-  { icon: "👥", label: "Guests",        sub: "See who's coming back — connect personally", route: "/venue-owner/guests",           glowColor: "rgba(96,165,250,0.5)"  },
-  { icon: "📅", label: "Events",        sub: "Create & manage events",                     route: "/venue-owner/events",            glowColor: "rgba(167,139,250,0.5)" },
-  { icon: "🎁", label: "Rewards",       sub: "Run reward campaigns",                       route: "/venue-owner/rewards",           glowColor: "rgba(52,211,153,0.5)"  },
-  { icon: "📢", label: "Announcements", sub: "Post updates to guests",                     route: "/venue-owner/announcements",     glowColor: "rgba(251,191,36,0.5)"  },
-  { icon: "✏️", label: "Edit Profile",  sub: "Name, photos, description",                  route: "/venue-owner/profile/edit",      glowColor: "rgba(244,114,182,0.5)" },
+  { icon: "users", label: "Guests",        sub: "See who's coming back — connect personally", route: "/venue-owner/guests",           glowColor: "rgba(96,165,250,0.5)"  },
+  { icon: "calendar", label: "Events",        sub: "Create & manage events",                     route: "/venue-owner/events",            glowColor: "rgba(167,139,250,0.5)" },
+  { icon: "gift", label: "Rewards",       sub: "Run reward campaigns",                       route: "/venue-owner/rewards",           glowColor: "rgba(52,211,153,0.5)"  },
+  { icon: "volume-2", label: "Announcements", sub: "Post updates to guests",                     route: "/venue-owner/announcements",     glowColor: "rgba(251,191,36,0.5)"  },
+  { icon: "edit-3", label: "Edit Profile",  sub: "Name, photos, description",                  route: "/venue-owner/profile/edit",      glowColor: "rgba(244,114,182,0.5)" },
 ];
 
 const GREEN = "#00E87A"; // Signal accent
@@ -308,7 +308,8 @@ function AuroraScreen({
                 backgroundColor: "rgba(255,255,255,0.06)",
                 borderWidth: Platform.OS === "android" ? 1.5 : 1,
                 borderColor: Platform.OS === "android" ? s.androidBorderColor : s.borderColor,
-                borderRadius: 18,
+                borderTopLeftRadius: 28,
+                borderBottomRightRadius: 20,
                 paddingVertical: 14,
                 paddingHorizontal: 8,
                 alignItems: "center",
@@ -340,7 +341,7 @@ function AuroraScreen({
               })}
             >
               <View style={{
-                width: 54, height: 54, borderRadius: 17,
+                 width: 54, height: 54, borderTopLeftRadius: 22, borderBottomRightRadius: 18,
                 backgroundColor: "rgba(255,255,255,0.07)",
                 borderWidth: Platform.OS === "android" ? 1.5 : 1,
                 borderColor: Platform.OS === "android" ? s.glowColor : "rgba(255,255,255,0.12)",
@@ -349,7 +350,7 @@ function AuroraScreen({
                 shadowColor: s.glowColor, shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 1, shadowRadius: 10, elevation: 3,
               }}>
-                <Text style={{ fontSize: 22 }}>{s.icon}</Text>
+                <Feather name={s.icon as React.ComponentProps<typeof Feather>["name"]} size={22} color="#D7F1DE" />
               </View>
               <Text style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Inter_600SemiBold", fontSize: 10 }}>
                 {s.label.split(" ")[0]}
@@ -385,9 +386,9 @@ function AuroraScreen({
           {/* Tools + view page */}
           {[
             { icon: "map-pin", iconType: "feather" as const, label: branchesTitle, sub: branchesSummary, accent: "#34D399", onPress: onManageBranches },
-            { icon: "👥", label: inviteLoading ? "Generating link…" : "Invite Staff", sub: "One-time registration link", accent: "#A78BFA", onPress: onInviteStaff },
-            { icon: "🖨️", label: "QR Check-in Kit", sub: "Print a table tent for your venue", accent: "#34D399", onPress: onOpenQrKit },
-            { icon: "👁",  label: "View public page", sub: "See how guests discover you", accent: "#60A5FA", onPress: onViewPage },
+            { icon: "user-plus", label: inviteLoading ? "Generating link…" : "Invite Staff", sub: "One-time registration link", accent: "#A78BFA", onPress: onInviteStaff },
+            { icon: "printer", label: "QR Check-in Kit", sub: "Print a table tent for your venue", accent: "#34D399", onPress: onOpenQrKit },
+            { icon: "eye",  label: "View public page", sub: "See how guests discover you", accent: "#60A5FA", onPress: onViewPage },
           ].map((item, i) => (
             <Pressable
               key={item.label}
@@ -408,11 +409,7 @@ function AuroraScreen({
                 opacity: pressed ? 0.7 : 1,
               })}
             >
-              {"iconType" in item && item.iconType === "feather" ? (
-                <Feather name="map-pin" size={20} color={item.accent} />
-              ) : (
-                <Text style={{ fontSize: 20 }}>{item.icon}</Text>
-              )}
+              <Feather name={item.icon as React.ComponentProps<typeof Feather>["name"]} size={20} color={item.accent} />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: "rgba(255,255,255,0.88)", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{item.label}</Text>
                 <Text style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 2 }}>{item.sub}</Text>
@@ -432,7 +429,8 @@ function GlassCard({ children }: { children: React.ReactNode }) {
     <View style={{
       borderWidth: 1,
       borderColor: "rgba(255,255,255,0.1)",
-      borderRadius: 24,
+      borderTopLeftRadius: 34,
+      borderBottomRightRadius: 26,
       overflow: "hidden",
       marginBottom: 8,
       // Inner highlight
@@ -447,8 +445,8 @@ function GlassCard({ children }: { children: React.ReactNode }) {
 
   if (Platform.OS === "ios") {
     return (
-      <BlurView intensity={18} tint="dark" style={{ borderRadius: 24, overflow: "hidden", marginBottom: 8 }}>
-        <View style={{ backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", borderRadius: 24 }}>
+      <BlurView intensity={18} tint="dark" style={{ borderTopLeftRadius: 34, borderBottomRightRadius: 26, overflow: "hidden", marginBottom: 8 }}>
+        <View style={{ backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", borderTopLeftRadius: 34, borderBottomRightRadius: 26 }}>
           {children}
         </View>
       </BlurView>
@@ -458,7 +456,7 @@ function GlassCard({ children }: { children: React.ReactNode }) {
   // BlurView falls back to a plain View on Android so we use a more opaque
   // dark background + a slightly lighter border to give the card visual depth.
   return (
-    <View style={{ backgroundColor: "rgba(15,8,35,0.88)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)", borderRadius: 24, overflow: "hidden", marginBottom: 8 }}>
+    <View style={{ backgroundColor: "rgba(15,8,35,0.88)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)", borderTopLeftRadius: 34, borderBottomRightRadius: 26, overflow: "hidden", marginBottom: 8 }}>
       {children}
     </View>
   );
@@ -612,13 +610,13 @@ function QrModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }} onPress={onClose}>
         <Pressable onPress={(e) => e.stopPropagation()}>
-          <View style={{ backgroundColor: "#1A1A1E", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, alignItems: "center", gap: 14 }}>
+          <View style={{ backgroundColor: "#1A1A1E", borderTopLeftRadius: 34, borderTopRightRadius: 34, borderBottomRightRadius: 5, padding: 28, alignItems: "center", gap: 14 }}>
             <View style={{ width: 40, height: 4, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 2 }} />
             <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 18 }}>Check-in QR Kit</Text>
             <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, textAlign: "center", fontFamily: "Inter_400Regular" }}>
               Display at your venue so guests can check in with their camera
             </Text>
-            <View style={{ backgroundColor: "#fff", padding: 16, borderRadius: 16, minHeight: 252, alignItems: "center", justifyContent: "center" }}>
+            <View style={{ backgroundColor: "#fff", padding: 16, borderTopLeftRadius: 26, borderBottomRightRadius: 20, minHeight: 252, alignItems: "center", justifyContent: "center" }}>
               {qrUrlLoading || !qrUrl
                 ? <ActivityIndicator size="large" color="#111" style={{ width: 220, height: 220 }} />
                 : (
@@ -635,7 +633,7 @@ function QrModal({
             <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, fontFamily: "Inter_400Regular" }}>{venueName}</Text>
             <Pressable
               onPress={onSave}
-              style={({ pressed }) => ({ backgroundColor: primaryColor, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 13, width: "100%", alignItems: "center", opacity: pressed ? 0.85 : 1 })}
+              style={({ pressed }) => ({ backgroundColor: primaryColor, borderTopLeftRadius: 26, borderBottomRightRadius: 18, paddingHorizontal: 24, paddingVertical: 13, width: "100%", alignItems: "center", opacity: pressed ? 0.85 : 1 })}
             >
               <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Save QR as Photo</Text>
             </Pressable>

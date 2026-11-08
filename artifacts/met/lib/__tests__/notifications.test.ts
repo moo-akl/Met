@@ -133,6 +133,70 @@ describe("routeNotifTap", () => {
     expect(push).toHaveBeenCalledWith("/event-chat/42");
   });
 
+  it("routes hangout join requests to host request management", () => {
+    const result = routeNotifTap({
+      type: "hangout_join_request",
+      eventType: "member",
+      eventId: "42",
+    }, { push });
+    expect(result).toBe(true);
+    expect(push).toHaveBeenCalledWith(
+      "/event-attendees/member/42?joinApprovalRequired=true",
+    );
+  });
+
+  it.each(["accepted", "declined"] as const)(
+    "routes a hangout join %s update to event details",
+    (requestStatus) => {
+      const result = routeNotifTap({
+        type: "hangout_join_decision",
+        eventType: "member",
+        eventId: "42",
+        requestStatus,
+      }, { push });
+      expect(result).toBe(true);
+      expect(push).toHaveBeenCalledWith("/event-details/member/42");
+    },
+  );
+
+  it("routes hangout updates to the plan details", () => {
+    expect(routeNotifTap({
+      type: "hangout_updated",
+      eventType: "member",
+      eventId: "42",
+    }, { push })).toBe(true);
+    expect(push).toHaveBeenCalledWith("/event-details/member/42");
+  });
+
+  it("routes hangout cancellations to the plans list", () => {
+    expect(routeNotifTap({
+      type: "hangout_cancelled",
+      eventType: "member",
+      eventId: "42",
+    }, { push })).toBe(true);
+    expect(push).toHaveBeenCalledWith("/plans");
+  });
+
+  it("rejects invalid hangout join notification routes", () => {
+    expect(routeNotifTap({
+      type: "hangout_join_request",
+      eventType: "venue",
+      eventId: "42",
+    }, { push })).toBe(false);
+    expect(routeNotifTap({
+      type: "hangout_join_decision",
+      eventType: "member",
+      eventId: "42",
+      requestStatus: "pending" as "accepted" | "declined",
+    }, { push })).toBe(false);
+    expect(routeNotifTap({
+      type: "hangout_join_request",
+      eventType: "member",
+      eventId: "42/other",
+    }, { push })).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it.each(["venue", "member"] as const)(
     "routes a local reminder for a %s event to its details",
     (eventType) => {

@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   caption: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24, lineHeight: 21 },
   message: { padding: 24, alignItems: "center", gap: 12, textAlign: "center" },
   emptyTitle: { fontSize: 21, fontFamily: "Inter_600SemiBold" },
-  row: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 20, padding: 8, marginBottom: 12 },
+  row: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 22, padding: 8, marginBottom: 12 },
   place: { flex: 1, padding: 10, minHeight: 64, gap: 6 },
   name: { fontFamily: "Inter_600SemiBold", fontSize: 17 },
 });

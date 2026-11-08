@@ -2568,6 +2568,48 @@ paths:
         "404": { description: Event not found }
         "409": { description: Event is not published or invitation-only }
 
+  /events/hangouts/nearby:
+    get:
+      operationId: getNearbyHangouts
+      tags: [events]
+      summary: Search and page public hangout plans
+      parameters:
+        - in: query
+          name: locationQuery
+          schema: { type: string, maxLength: 120 }
+        - in: query
+          name: date
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - in: query
+          name: timePeriod
+          schema: { type: string, enum: [any, morning, afternoon, evening, night], default: any }
+        - in: query
+          name: sortMode
+          schema: { type: string, enum: [nearest, soonest], default: nearest }
+        - in: query
+          name: latitude
+          schema: { type: number, minimum: -90, maximum: 90 }
+        - in: query
+          name: longitude
+          schema: { type: number, minimum: -180, maximum: 180 }
+        - in: query
+          name: timeZone
+          schema: { type: string, maxLength: 100, default: UTC }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 30 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: A page of matching public hangout plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NearbyHangoutsResponse"
+        "400": { description: Invalid search or pagination parameters }
+
   /events/feed:
     get:
       operationId: getEventsFeed
@@ -3019,6 +3061,87 @@ paths:
                 properties:
                   success: { type: boolean }
                   status: { type: string, enum: [going, maybe, not_going] }
+
+  /community-events/{eventId}/join-requests:
+    post:
+      operationId: requestToJoinCommunityEvent
+      tags: [events]
+      summary: Request to join a public hangout plan
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Existing request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventJoinRequestMutationResponse"
+        "201":
+          description: Join request submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventJoinRequestMutationResponse"
+        "403": { description: The plan does not accept join requests }
+        "404": { description: Event not found }
+    delete:
+      operationId: withdrawCommunityEventJoinRequest
+      tags: [events]
+      summary: Withdraw the caller's pending join request
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Join request withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventJoinRequestMutationResponse"
+        "404": { description: Pending request not found }
+        "409": { description: An accepted request cannot be withdrawn }
+
+  /community-events/{eventId}/join-requests/{requestId}:
+    patch:
+      operationId: decideCommunityEventJoinRequest
+      tags: [events]
+      summary: Accept or decline a join request as the event host
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityEventJoinRequestDecisionInput"
+      responses:
+        "200":
+          description: Join request decision saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventJoinRequestMutationResponse"
+        "403": { description: Only the event host can decide requests }
+        "404": { description: Join request not found }
+        "409": { description: Join request is no longer pending }
 
   /venue-manager/businesses/{businessId}/guests:
     get:
@@ -6576,7 +6699,7 @@ components:
         invitePasscode: { type: ["string", "null"], minLength: 6, maxLength: 64 }
     EventFeedItem:
       type: object
-      required: [eventType, id, ownerUid, title, startsAt, visibility, rsvpCount, locationPlaceId]
+      required: [eventType, id, ownerUid, title, startsAt, visibility, rsvpCount, locationPlaceId, joinApprovalRequired, myJoinRequestStatus]
       properties:
         eventType: { type: string, enum: [venue, member] }
         id: { type: integer }
@@ -6600,6 +6723,9 @@ components:
         rsvpCount: { type: integer }
         myRsvp: { type: ["string", "null"], enum: [going, maybe, not_going, null] }
         isInvited: { type: boolean }
+        joinApprovalRequired: { type: boolean }
+        myJoinRequestStatus: { type: ["string", "null"], enum: [pending, accepted, declined, withdrawn, null] }
+        pendingJoinRequestCount: { type: integer, minimum: 0 }
     EventQrCheckinInput:
       type: object
       required: [token]
@@ -6651,6 +6777,16 @@ components:
         displayName: { type: string }
         photoUrl: { type: ["string", "null"], format: uri }
         status: { type: string, enum: [going, maybe, not_going] }
+    EventJoinRequest:
+      type: object
+      required: [id, uid, displayName, photoUrl, status, createdAt]
+      properties:
+        id: { type: integer }
+        uid: { type: string }
+        displayName: { type: string }
+        photoUrl: { type: ["string", "null"], format: uri }
+        status: { type: string, enum: [pending, accepted, declined, withdrawn] }
+        createdAt: { type: string, format: date-time }
     EventAttendanceCorrection:
       type: object
       required: [uid, displayName, action, previousMethod, reason, actorUid, createdAt]
@@ -6675,7 +6811,7 @@ components:
         startedAt: { type: string, format: date-time }
     EventAttendeesResponse:
       type: object
-      required: [attendees, rsvps, corrections, notificationRuns]
+      required: [attendees, rsvps, joinRequests, corrections, notificationRuns]
       properties:
         attendees:
           type: array
@@ -6683,6 +6819,9 @@ components:
         rsvps:
           type: array
           items: { $ref: "#/components/schemas/EventRsvp" }
+        joinRequests:
+          type: array
+          items: { $ref: "#/components/schemas/EventJoinRequest" }
         corrections:
           type: array
           items: { $ref: "#/components/schemas/EventAttendanceCorrection" }
@@ -6718,6 +6857,28 @@ components:
         events:
           type: array
           items: { $ref: "#/components/schemas/EventFeedItem" }
+    NearbyHangoutItem:
+      type: object
+      required: [eventType, id, title, description, imageUrl, startsAt, location, latitude, longitude, creatorName]
+      properties:
+        eventType: { type: string, enum: [member] }
+        id: { type: integer }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"], format: uri }
+        startsAt: { type: string, format: date-time }
+        location: { type: ["string", "null"] }
+        latitude: { type: ["number", "null"], minimum: -90, maximum: 90 }
+        longitude: { type: ["number", "null"], minimum: -180, maximum: 180 }
+        creatorName: { type: ["string", "null"] }
+    NearbyHangoutsResponse:
+      type: object
+      required: [events, nextOffset]
+      properties:
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/NearbyHangoutItem" }
+        nextOffset: { type: ["integer", "null"], minimum: 0 }
     CommunityEventInput:
       type: object
       required: [title, startsAt, visibility]
@@ -6741,6 +6902,19 @@ components:
           items: { type: string, minLength: 1, maxLength: 128 }
         inviteLinkEnabled: { type: boolean, default: false }
         invitePasscode: { type: ["string", "null"], minLength: 6, maxLength: 64 }
+        joinApprovalRequired: { type: boolean, default: false }
+    CommunityEventJoinRequestMutationResponse:
+      type: object
+      required: [success, status, requestId]
+      properties:
+        success: { type: boolean }
+        status: { type: string, enum: [pending, accepted, declined, withdrawn] }
+        requestId: { type: integer }
+    CommunityEventJoinRequestDecisionInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [accepted, declined] }
     EventLocationSearchResult:
       type: object
       required: [placeId, label, name, latitude, longitude]
@@ -6759,7 +6933,7 @@ components:
           items: { $ref: "#/components/schemas/EventLocationSearchResult" }
     CommunityEventManageResponse:
       type: object
-      required: [id, title, startsAt, visibility, inviteeUids, inviteLinkEnabled, invitePasscodeRequired]
+      required: [id, title, startsAt, visibility, inviteeUids, inviteLinkEnabled, invitePasscodeRequired, joinApprovalRequired]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -6775,6 +6949,7 @@ components:
         latitude: { type: ["number", "null"], minimum: -90, maximum: 90 }
         longitude: { type: ["number", "null"], minimum: -180, maximum: 180 }
         visibility: { type: string, enum: [public, invite_only] }
+        joinApprovalRequired: { type: boolean }
         inviteeUids:
           type: array
           maxItems: 200

@@ -580,7 +580,7 @@ export default function VenueOwnerSetupScreen() {
                 />
               ) : (
                 <Text style={[styles.docPickerLabel, { color: colors.mutedForeground }]}>
-                  📎  Tap to pick a photo of your document
+                  Tap to pick a photo of your document
                 </Text>
               )}
               {verificationDocThumb && !uploadingDoc && (
@@ -753,11 +753,11 @@ const styles = StyleSheet.create({
   searchError: { color: "#FCA5A5", fontSize: 13, fontFamily: "Inter_400Regular" },
   errorBox: { gap: 8, marginBottom: 12 },
   retryText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  resultCard: { backgroundColor: "#19191D", borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", borderRadius: 10, padding: 13, gap: 4 },
+  resultCard: { backgroundColor: "#19191D", borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", borderTopLeftRadius: 24, borderBottomRightRadius: 18, padding: 15, gap: 5 },
   resultName: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
   resultAddress: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
   resultCategory: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 2 },
-  selectedCard: { backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderRadius: 10, padding: 13, gap: 4 },
+  selectedCard: { backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, padding: 15, gap: 5 },
   selectedLabel: { color: "rgba(255,255,255,0.48)", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.7 },
   selectedName: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
   selectedAddress: { color: "rgba(255,255,255,0.58)", fontSize: 13, fontFamily: "Inter_400Regular" },
@@ -773,7 +773,8 @@ const styles = StyleSheet.create({
   fieldInput: {
     backgroundColor: "#1A1A1E",
     borderWidth: 1,
-    borderRadius: 10,
+    borderTopLeftRadius: 22,
+    borderBottomRightRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: "#fff",
@@ -783,7 +784,8 @@ const styles = StyleSheet.create({
   // ── Document upload (Step 3) ───────────────────────────────────────────────
   docPickerBtn: {
     borderWidth: 1.5,
-    borderRadius: 12,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 20,
     borderStyle: "dashed",
     padding: 16,
     alignItems: "center",
@@ -817,7 +819,8 @@ const styles = StyleSheet.create({
 
   infoBox: {
     backgroundColor: "rgba(255,204,0,0.08)",
-    borderRadius: 10,
+    borderTopLeftRadius: 24,
+    borderBottomRightRadius: 18,
     borderWidth: 1,
     borderColor: "rgba(255,204,0,0.2)",
     padding: 14,

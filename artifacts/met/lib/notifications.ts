@@ -163,6 +163,10 @@ export type NotifData = {
     | "venue_owner_withdrawn"
     | "venue_event_notification"
     | "event_plan_message"
+    | "hangout_join_request"
+    | "hangout_join_decision"
+    | "hangout_updated"
+    | "hangout_cancelled"
     | "event_reminder";
   fromUid?: string;
   encounterId?: string;
@@ -170,6 +174,7 @@ export type NotifData = {
   placeId?: string;
   eventId?: string;
   eventType?: "venue" | "member";
+  requestStatus?: "accepted" | "declined";
 };
 
 /**
@@ -225,6 +230,38 @@ export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
       return false;
     }
     router.push(`/event-chat/${data.eventId}`);
+    return true;
+  }
+  if (
+    data.type === "hangout_join_request" ||
+    data.type === "hangout_join_decision" ||
+    data.type === "hangout_updated" ||
+    data.type === "hangout_cancelled"
+  ) {
+    if (
+      !data.eventId ||
+      !/^[1-9]\d*$/.test(data.eventId) ||
+      !Number.isSafeInteger(Number(data.eventId)) ||
+      data.eventType !== "member"
+    ) {
+      return false;
+    }
+    if (data.type === "hangout_join_request") {
+      router.push(
+        `/event-attendees/member/${data.eventId}?joinApprovalRequired=true`,
+      );
+      return true;
+    }
+    if (data.type === "hangout_cancelled") {
+      router.push("/plans");
+      return true;
+    }
+    if (data.type === "hangout_updated") {
+      router.push(`/event-details/member/${data.eventId}`);
+      return true;
+    }
+    if (data.requestStatus !== "accepted" && data.requestStatus !== "declined") return false;
+    router.push(`/event-details/member/${data.eventId}`);
     return true;
   }
   if (data.type === "event_reminder") {

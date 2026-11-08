@@ -1229,7 +1229,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   feedSkeletonCard: {
-    borderRadius: 16,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 16,
     marginBottom: 12,
@@ -1271,7 +1272,8 @@ const styles = StyleSheet.create({
   heroIconWrap: {
     width: 80,
     height: 80,
-    borderRadius: 22,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
@@ -1299,7 +1301,8 @@ const styles = StyleSheet.create({
   heroCta: { marginTop: 14, paddingHorizontal: 24, width: "100%" },
   heroCtaBtn: {
     borderWidth: 1,
-    borderRadius: 12,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 18,
     paddingVertical: 11,
     alignItems: "center",
     justifyContent: "center",
@@ -1331,7 +1334,8 @@ const styles = StyleSheet.create({
 
   // ── Feed ─────────────────────────────────────────────────────────────────
   feedEmptyCard: {
-    borderRadius: 16,
+    borderTopLeftRadius: 34,
+    borderBottomRightRadius: 26,
     borderWidth: 1,
     alignItems: "center",
     padding: 40,

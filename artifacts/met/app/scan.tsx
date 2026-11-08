@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   scanIllustration: {
     width: 140,
     height: 140,
-    borderRadius: 70,
+    borderRadius: 48,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
   permIcon: {
     width: 84,
     height: 84,
-    borderRadius: 42,
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,

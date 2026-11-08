@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
   tierToggle: {
     flexDirection: "row",
     padding: 4,
-    borderRadius: 14,
+    borderRadius: 24,
     gap: 4,
   },
   tierToggleBtn: {
@@ -796,7 +796,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 999,
   },
   tierToggleText: {
     fontFamily: "Inter_700Bold",
@@ -842,7 +842,8 @@ const styles = StyleSheet.create({
   planCard: {
     flex: 1,
     padding: 14,
-    borderRadius: 14,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 20,
     gap: 4,
   },
   planHeader: {

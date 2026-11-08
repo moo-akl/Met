@@ -28,6 +28,7 @@ const personalizationFields = [
   ["recipientEmail", "Recipient email"],
   ["venueManagerUrl", "Venue Manager link"],
   ["applicationUrl", "Application invitation link"],
+  ["venueFitReason", "Venue-specific reason"],
 ] as const;
 
 function allowedUrl(value: string, isImage: boolean): boolean {

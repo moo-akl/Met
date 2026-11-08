@@ -2216,14 +2216,14 @@ const styles = StyleSheet.create({
   introIconWrap: {
     width: 140,
     height: 140,
-    borderRadius: 70,
+    borderRadius: 48,
     alignItems: "center",
     justifyContent: "center",
   },
   verifyIconWrap: {
     width: 96,
     height: 96,
-    borderRadius: 48,
+    borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
@@ -2302,7 +2302,7 @@ const styles = StyleSheet.create({
   photoFrame: {
     width: 220,
     height: 220,
-    borderRadius: 110,
+    borderRadius: 76,
     borderWidth: 2,
     overflow: "hidden",
     alignItems: "center",

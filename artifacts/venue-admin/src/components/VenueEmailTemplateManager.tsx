@@ -13,12 +13,28 @@ const previewValues: Record<string, string> = {
   businessName: "Example Venue", recipientEmail: "manager@example.com",
   venueManagerUrl: "https://met-app.org/venue-manager",
   applicationUrl: "https://met-app.org/venue-manager/apply#invite=preview-only",
+  venueFitReason: "your regular events give local guests a reason to return",
 };
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 }
-export function templatePreview(body: string, format: string): string {
-  const sample = body.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => previewValues[key] ?? `{{${key}}}`);
+export function templatePreview(body: string, format: string, overrides: Record<string, string> = {}, bulkInvitation = false): string {
+  if (bulkInvitation) {
+    const opening = "We’d love to invite you and your venue to use Met.";
+    if (format === "html") {
+      const greeting = /(<p\b[^>]*>)\s*(?:<(?:strong|b|span)\b[^>]*>\s*)*(?:Hello|Hi|Dear)\b[\s\S]*?<\/p>/i;
+      body = greeting.test(body) ? body.replace(greeting, (_match, tag: string) => `${tag}${opening}</p>`)
+        : /<body\b[^>]*>/i.test(body) ? body.replace(/<body\b[^>]*>/i, (tag) => `${tag}<p>${opening}</p>`) : `<p>${opening}</p>${body}`;
+    } else {
+      const greeting = /^(?:Hello|Hi|Dear)\b[^\r\n]*(?:\r?\n|$)/i;
+      body = greeting.test(body) ? body.replace(greeting, `${opening}\n`) : `${opening}\n\n${body}`;
+    }
+  }
+  const values = { ...previewValues, ...overrides };
+  const sample = body.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => {
+    const value = values[key] ?? `{{${key}}}`;
+    return format === "html" ? escapeHtml(value) : value;
+  });
   const content = format === "html" ? sample : `<div style="font:15px/1.7 Arial,sans-serif;padding:24px;white-space:pre-wrap;">${escapeHtml(sample)}</div>`;
   // Preview cannot run scripts, submit forms, or navigate the admin window.
   return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">${content}`;

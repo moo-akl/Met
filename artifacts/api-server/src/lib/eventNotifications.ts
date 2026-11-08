@@ -98,6 +98,132 @@ export async function notifyCommunityEventPlanMessage(input: {
   }
 }
 
+type CommunityEventJoinDecision = "accepted" | "declined";
+type CommunityEventNotificationType =
+  | "hangout_join_request"
+  | "hangout_join_decision"
+  | "hangout_updated"
+  | "hangout_cancelled";
+
+async function notifyCommunityEventJoinRecipient(input: {
+  eventId: number;
+  recipientUid: string;
+  type: CommunityEventNotificationType;
+  requesterUid?: string;
+  requestStatus?: CommunityEventJoinDecision;
+}): Promise<void> {
+  try {
+    const [recipient] = await db
+      .select({
+        pushToken: profilesTable.pushToken,
+        notificationPrefs: profilesTable.notificationPrefs,
+      })
+      .from(profilesTable)
+      .where(eq(profilesTable.uid, input.recipientUid))
+      .limit(1);
+    if (
+      !recipient?.pushToken ||
+      recipient.notificationPrefs?.notifyEventUpdates === false
+    ) {
+      return;
+    }
+
+    const isHostRequest = input.type === "hangout_join_request";
+    let title: string;
+    let body: string;
+    if (isHostRequest) {
+      const [requester] = input.requesterUid
+        ? await db
+            .select({ displayName: profilesTable.displayName })
+            .from(profilesTable)
+            .where(eq(profilesTable.uid, input.requesterUid))
+            .limit(1)
+        : [];
+      const requesterName = requester?.displayName
+        ?.replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 60) || "Someone";
+      title = "New hangout join request";
+      body = `${requesterName} asked to join your plan. Open Met to review.`;
+    } else if (input.type === "hangout_join_decision") {
+      title = input.requestStatus === "accepted"
+        ? "Your hangout request was accepted"
+        : "Your hangout request was declined";
+      body = input.requestStatus === "accepted"
+        ? "You can now join the hangout. Open Met for details."
+        : "Open Met to explore other hangouts.";
+    } else if (input.type === "hangout_updated") {
+      title = "Hangout plan updated";
+      body = "A hangout you joined has changed. Open Met for details.";
+    } else {
+      title = "Hangout plan cancelled";
+      body = "A hangout you joined was cancelled. Open Met to see your plans.";
+    }
+
+    await sendPushWithStatus(recipient.pushToken, {
+      title,
+      body,
+      data: {
+        type: input.type,
+        eventId: String(input.eventId),
+        eventType: "member",
+        ...(input.requestStatus ? { requestStatus: input.requestStatus } : {}),
+      },
+    });
+    logger.info(
+      { eventId: input.eventId, notificationType: input.type },
+      "Community event join notification processed",
+    );
+  } catch (error) {
+    logger.warn(
+      { error, eventId: input.eventId, notificationType: input.type },
+      "Could not deliver community event join notification",
+    );
+  }
+}
+
+export async function notifyCommunityEventJoinRequest(input: {
+  eventId: number;
+  hostUid: string;
+  requesterUid: string;
+}): Promise<void> {
+  await notifyCommunityEventJoinRecipient({
+    ...input,
+    recipientUid: input.hostUid,
+    type: "hangout_join_request",
+  });
+}
+
+export async function notifyCommunityEventJoinDecision(input: {
+  eventId: number;
+  requesterUid: string;
+  status: CommunityEventJoinDecision;
+}): Promise<void> {
+  await notifyCommunityEventJoinRecipient({
+    eventId: input.eventId,
+    recipientUid: input.requesterUid,
+    type: "hangout_join_decision",
+    requestStatus: input.status,
+  });
+}
+
+export async function notifyCommunityEventChange(input: {
+  eventId: number;
+  recipientUids: string[];
+  type: "hangout_updated" | "hangout_cancelled";
+}): Promise<void> {
+  const recipientUids = [...new Set(input.recipientUids.filter(Boolean))];
+  await Promise.all(
+    recipientUids.map((recipientUid) =>
+      notifyCommunityEventJoinRecipient({
+        eventId: input.eventId,
+        recipientUid,
+        type: input.type,
+      }),
+    ),
+  );
+}
+
 const REMINDER_OFFSETS: ReadonlyArray<{
   hours: 24 | 2;
   kind: "reminder_24h" | "reminder_2h";

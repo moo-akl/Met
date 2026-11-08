@@ -157,7 +157,7 @@ export default function VenueOwnerEventsScreen() {
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>📅</Text>
+            <Feather name="calendar" size={38} color={accent} style={styles.emptyEmoji} />
             <Text style={[styles.emptyText, { color: vEmpty }]}>No events yet</Text>
             <Pressable
               onPress={() => router.push("/venue-owner/events/new" as never)}
@@ -193,6 +193,7 @@ export default function VenueOwnerEventsScreen() {
             </View>
             <View style={styles.cardActions}>
               <Pressable
+                testID={`venue-owner-event-edit-${item.id}`}
                 onPress={() =>
                   router.push({
                     pathname: `/venue-owner/events/${item.id}` as never,
@@ -217,7 +218,7 @@ export default function VenueOwnerEventsScreen() {
                 style={styles.editBtn}
                 hitSlop={8}
               >
-                <Text style={styles.editBtnText}>✏️</Text>
+                <Feather name="edit-2" size={16} color={vMuted} />
               </Pressable>
               {item.visibility === "invite_only" ? (
                 <Pressable
@@ -240,7 +241,7 @@ export default function VenueOwnerEventsScreen() {
                 style={styles.deleteBtn}
                 hitSlop={8}
               >
-                <Text style={styles.deleteBtnText}>🗑</Text>
+                <Feather name="trash-2" size={18} color={vMuted} />
               </Pressable>
             </View>
             {/* Signal mode: thin bottom separator between rows */}
@@ -255,13 +256,14 @@ export default function VenueOwnerEventsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  addBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  addBtn: { minHeight: 40, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   addBtnText: { fontSize: 13, fontFamily: "Inter_700Bold" },
-  list: { padding: 16, gap: 10 },
+  list: { paddingHorizontal: 18, paddingVertical: 12, gap: 10 },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 14,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 20,
     borderWidth: 1,
     padding: 14,
     // Aurora glow
@@ -280,11 +282,10 @@ const styles = StyleSheet.create({
   inviteListActionText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   editBtn: { padding: 4 },
   editBtnText: { fontSize: 16 },
-  deleteBtn: { padding: 4 },
-  deleteBtnText: { fontSize: 18 },
+  deleteBtn: { minWidth: 40, minHeight: 40, alignItems: "center", justifyContent: "center" },
   emptyState: { alignItems: "center", paddingTop: 60 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
+  emptyEmoji: { marginBottom: 12 },
   emptyText: { fontSize: 16, fontFamily: "Inter_400Regular", marginBottom: 20 },
-  emptyBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
+  emptyBtn: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 10 },
   emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

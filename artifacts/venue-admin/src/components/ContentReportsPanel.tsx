@@ -16,7 +16,7 @@ import { formatDistanceToNow } from "date-fns";
 interface ContentReport {
   id: number;
   reporterUid: string;
-  entityType: "event" | "announcement" | "venue" | "guestbook";
+  entityType: "event" | "community_event" | "announcement" | "venue" | "guestbook";
   entityId: number;
   placeId: string;
   reason: string;
@@ -38,6 +38,7 @@ async function apiFetch(path: string, opts?: RequestInit) {
 
 const ENTITY_ICONS: Record<string, React.ReactNode> = {
   event: <Calendar className="w-3.5 h-3.5" />,
+  community_event: <Calendar className="w-3.5 h-3.5" />,
   announcement: <MessageSquare className="w-3.5 h-3.5" />,
   venue: <Building2 className="w-3.5 h-3.5" />,
   guestbook: <MessageSquare className="w-3.5 h-3.5" />,
@@ -64,7 +65,7 @@ export default function ContentReportsPanel() {
   const [actioning, setActioning] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<"open" | "actioned" | "dismissed" | "all">("open");
-  const [entityFilter, setEntityFilter] = useState<"all" | "event" | "announcement" | "venue" | "guestbook">("all");
+  const [entityFilter, setEntityFilter] = useState<"all" | "event" | "community_event" | "announcement" | "venue" | "guestbook">("all");
 
   const selectedReport = reports.find((r) => r.id === selectedId) ?? null;
 
@@ -133,6 +134,7 @@ export default function ContentReportsPanel() {
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="event">Events</SelectItem>
+                <SelectItem value="community_event">Community events</SelectItem>
                 <SelectItem value="announcement">Announcements</SelectItem>
                 <SelectItem value="venue">Venues</SelectItem>
                 <SelectItem value="guestbook">Guestbook memories</SelectItem>
@@ -173,9 +175,9 @@ export default function ContentReportsPanel() {
                     <span className={`inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded border ${STATUS_COLORS[r.status]}`}>
                       {r.status}
                     </span>
-                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground capitalize">
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                       {ENTITY_ICONS[r.entityType]}
-                      {r.entityType}
+                      {r.entityType === "community_event" ? "Community event" : r.entityType}
                     </span>
                     {r.contentIsHidden && (
                       <span title="Content is currently hidden">
@@ -212,9 +214,9 @@ export default function ContentReportsPanel() {
                 <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded border ${STATUS_COLORS[selectedReport.status]}`}>
                   {selectedReport.status}
                 </span>
-                <span className="text-xs text-muted-foreground capitalize inline-flex items-center gap-1">
+                <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
                   {ENTITY_ICONS[selectedReport.entityType]}
-                  {selectedReport.entityType} report
+                  {selectedReport.entityType === "community_event" ? "Community event" : selectedReport.entityType} report
                 </span>
               </div>
               <h2 className="text-lg font-bold text-foreground">
@@ -235,7 +237,9 @@ export default function ContentReportsPanel() {
             {/* Report details */}
             <div className="rounded-lg border border-border bg-muted/20 divide-y divide-border text-sm">
               <Row label="Reason" value={REASON_LABELS[selectedReport.reason] ?? selectedReport.reason} />
-              <Row label="Place ID" value={selectedReport.placeId} mono />
+              {selectedReport.entityType === "community_event"
+                ? <Row label="Source" value="Community event" />
+                : <Row label="Place ID" value={selectedReport.placeId} mono />}
               {selectedReport.entityId > 0 && (
                 <Row label="Content ID" value={String(selectedReport.entityId)} mono />
               )}

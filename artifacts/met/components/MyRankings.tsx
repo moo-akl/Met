@@ -43,7 +43,7 @@ export function MyRankings({ data, isLoading, error, onRetry }: Props) {
     <View
       style={[
         styles.container,
-        { backgroundColor: colors.card, borderColor: colors.border },
+        { backgroundColor: "transparent", borderColor: colors.border },
       ]}
     >
       <View style={styles.header}>
@@ -149,6 +149,7 @@ function RankRow({
         styles.row,
         {
           backgroundColor: pressed ? colors.primarySoft : "transparent",
+          borderBottomColor: colors.border,
           transform: [{ scale: pressed ? 0.99 : 1 }],
         },
       ]}
@@ -203,14 +204,15 @@ function RankRow({
 }
 
 const styles = StyleSheet.create({
-  container: { borderRadius: 22, borderWidth: 1, marginHorizontal: 16, marginTop: 15, overflow: "hidden" },
-  header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 13 },
+  container: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, marginHorizontal: 20, marginTop: 22, overflow: "visible" },
+  header: { paddingHorizontal: 0, paddingTop: 15, paddingBottom: 12 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 11 },
   headerIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   title: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    lineHeight: 21,
+    fontSize: 20,
+    fontFamily: "serif",
+    fontWeight: "400",
+    lineHeight: 24,
   },
   subtitle: {
     fontSize: 11, marginTop: 3,
@@ -232,7 +234,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 11, paddingHorizontal: 7, borderRadius: 15,
+    paddingVertical: 11, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   badge: {
     width: 36,

@@ -29,10 +29,10 @@ import {
 type Category = "university" | "work" | "neighborhood" | "custom";
 
 const CAT_COLORS: Record<string, string> = {
-  university: "#3b82f6",
-  work: "#8b5cf6",
-  neighborhood: "#22c55e",
-  custom: "#f59e0b",
+  university: "#4F806B",
+  work: "#55745D",
+  neighborhood: "#3DCC44",
+  custom: "#B7793D",
 };
 
 const CATEGORIES: Array<{ key: Category | null; labelKey: string }> = [
@@ -88,7 +88,7 @@ function NetworkCard({
       style={({ pressed }) => [
         styles.card,
         {
-          backgroundColor: colors.card,
+          backgroundColor: "transparent",
           borderColor: colors.border,
           opacity: pressed ? 0.85 : 1,
         },
@@ -475,10 +475,11 @@ function NetworksScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  tabRow: { flexDirection: "row", borderBottomWidth: 1 },
+  tabRow: { flexDirection: "row", marginHorizontal: 18, borderBottomWidth: 1 },
   tabBtn: {
     flex: 1,
     alignItems: "center",
+    minHeight: 48,
     paddingVertical: 12,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
@@ -491,7 +492,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 24,
     borderWidth: 1,
     gap: 8,
   },
@@ -501,26 +502,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     padding: 0,
   },
-  chips: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  chips: { paddingHorizontal: 16, paddingVertical: 11, gap: 8 },
   chip: {
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    minHeight: 36,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
   },
   chipText: { fontFamily: "Inter_500Medium", fontSize: 13 },
-  list: { paddingTop: 8, paddingHorizontal: 16, gap: 10 },
+  list: { paddingTop: 8, paddingHorizontal: 20, gap: 0 },
   card: {
     flexDirection: "row",
-    alignItems: "stretch",
-    borderRadius: 14,
-    borderWidth: 1,
+    alignItems: "center",
+    minHeight: 94,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopLeftRadius: 28,
     overflow: "hidden",
   },
   cardAccent: {
     width: 4,
+    height: 48,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    marginRight: 4,
   },
-  cardBody: { flex: 1, paddingVertical: 14, paddingHorizontal: 12, gap: 5 },
+  cardBody: { flex: 1, paddingVertical: 16, paddingHorizontal: 12, gap: 5 },
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   cardName: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 15 },
   cardDesc: { fontFamily: "Inter_400Regular", fontSize: 13, lineHeight: 18 },
@@ -533,10 +540,10 @@ const styles = StyleSheet.create({
     gap: 3,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 999,
   },
   approvalText: { fontFamily: "Inter_400Regular", fontSize: 10 },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  badge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
   badgeText: { fontFamily: "Inter_500Medium", fontSize: 11 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyWrap: {
@@ -546,7 +553,7 @@ const styles = StyleSheet.create({
     padding: 32,
     gap: 16,
   },
-  createBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  createBtn: { minHeight: 46, paddingHorizontal: 24, paddingVertical: 12, borderTopLeftRadius: 24, borderBottomRightRadius: 24 },
   createBtnText: {
     color: "#fff",
     fontFamily: "Inter_600SemiBold",
@@ -561,7 +568,8 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: "100%",
-    borderRadius: 20,
+    borderTopLeftRadius: 34,
+    borderBottomRightRadius: 24,
     borderWidth: 1,
     padding: 24,
     gap: 16,
@@ -573,7 +581,7 @@ const styles = StyleSheet.create({
   },
   codeInput: {
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontFamily: "Inter_500Medium",
@@ -583,7 +591,7 @@ const styles = StyleSheet.create({
   },
   modalJoinBtn: {
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 999,
     alignItems: "center",
   },
   modalJoinBtnText: {

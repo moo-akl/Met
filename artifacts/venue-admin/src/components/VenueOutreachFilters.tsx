@@ -6,6 +6,7 @@ import { DEFAULT_WORKLIST_FILTERS, type WorklistFilters, type WorklistSort } fro
 
 export function emailTemplateLabel(value: string): string {
   const labels: Record<string, string> = {
+    global_venue_prospect: "Personalized venue invitation",
     latest_updates_prospect: "Latest updates — contacted venues",
     latest_updates: "Latest updates — venue managers",
     preapproval_video_application: "Video introduction & application",
@@ -13,6 +14,7 @@ export function emailTemplateLabel(value: string): string {
     registration: "Registration link",
     met_launch_with_links: "Met launch with download links",
     met_launch_without_links: "Met launch without download links",
+    met_u_foot_traffic_legacy: "Met - U · Foot traffic & visitor legacy",
   };
   return labels[value] ?? value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -24,7 +26,18 @@ type Props = {
   onSortChange: (sort: WorklistSort) => void;
   templates: string[];
   templateLabels?: Record<string, string>;
-  counts: { total: number; attention: number; followup: number };
+  counts: {
+    total: number;
+    worklist: number;
+    archived: number;
+    replied: number;
+    interested: number;
+    rejected: number;
+    noReply: number;
+    attention: number;
+    failed: number;
+    followup: number;
+  };
   resultCount: number;
 };
 
@@ -35,7 +48,7 @@ export default function VenueOutreachFilters({ filters, onChange, sort, onSortCh
     { key: "lastTemplate", title: "Last email template sent", testId: "select-outreach-last-template-filter",
       options: [["all", "All templates"], ["none", "No successful email"], ...templates.map((template): [string, string] => [template, templateLabels[template] ?? emailTemplateLabel(template)])] },
     { key: "status", title: "Latest delivery status", testId: "select-outreach-status-filter",
-      options: [["all", "All delivery states"], ["sent", "Sent"], ["sending", "Sending"], ["delivery_uncertain", "Check Gmail Sent"], ["failed", "Failed"]] },
+      options: [["all", "All delivery states"], ["sent", "Sent"], ["sending", "Sending"], ["delivery_uncertain", "Check Gmail Sent"], ["failed", "Failed"], ["bounced", "Bounced"]] },
     { key: "application", title: "Application", testId: "select-outreach-application-filter",
       options: [["all", "All applications"], ["linked", "Has an application"], ["unlinked", "No application"], ["approved", "Approved"]] },
     { key: "agent", title: "Assigned agent", testId: "select-outreach-agent-filter",
@@ -46,12 +59,21 @@ export default function VenueOutreachFilters({ filters, onChange, sort, onSortCh
       options: [["all", "All link states"], ["none", "No link"], ["active", "Active"], ["expired", "Expired"], ["used", "Used"], ["superseded", "Superseded"], ["unknown", "Unknown"]] },
     { key: "kind", title: "Email history includes", testId: "select-outreach-kind-filter",
       options: [["all", "All email types"], ["new_venue_outreach", "Venue outreach"], ["contact_request", "Contact request"], ["registration_invite", "Registration invitation"], ["manager_announcement", "Announcement"]] },
+    { key: "manualInterest", title: "Manual interest", testId: "select-outreach-manual-interest-filter",
+      options: [["all", "All classifications"], ["top_interest", "Top interest"], ["interest", "Interest"], ["no_interest", "No interest"], ["unclassified", "Not classified"]] },
   ];
   const activeFields = fields.filter((field) => filters[field.key] !== "all");
   const views = [
-    { value: "all" as const, label: "All invited venues", count: counts.total },
+    { value: "worklist" as const, label: "Active worklist", count: counts.worklist },
+    { value: "archived" as const, label: "Archived — keep history", count: counts.archived },
+    { value: "all" as const, label: "All history", count: counts.total },
+    { value: "replied" as const, label: "Replied", count: counts.replied },
+    { value: "interested" as const, label: "Interested replies", count: counts.interested },
+    { value: "rejected" as const, label: "Rejected replies", count: counts.rejected },
+    { value: "no_reply" as const, label: "Didn't reply", count: counts.noReply },
     { value: "followup" as const, label: "Follow-ups due", count: counts.followup },
     { value: "attention" as const, label: "Email problems", count: counts.attention },
+    { value: "failed" as const, label: "Failed sends", count: counts.failed },
   ];
   return (
     <div className="border-b border-slate-300/80 p-4 sm:p-5">
@@ -79,6 +101,7 @@ export default function VenueOutreachFilters({ filters, onChange, sort, onSortCh
           Sort by
           <select value={sort} onChange={(event) => onSortChange(event.target.value as WorklistSort)}
             data-testid="select-outreach-sort" className="mt-1.5 block h-10 max-w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
+            <option value="replied">Replies first</option>
             <option value="recent">Last emailed — newest first</option>
             <option value="venue">Venue name — A to Z</option>
             <option value="followup">Follow-up date — soonest first</option>
@@ -114,7 +137,7 @@ export default function VenueOutreachFilters({ filters, onChange, sort, onSortCh
             <X className="h-3 w-3" />
           </button>
         ))}
-        {(activeFields.length > 0 || filters.search || filters.view !== "all") && (
+        {(activeFields.length > 0 || filters.search || filters.view !== DEFAULT_WORKLIST_FILTERS.view) && (
           <button type="button" onClick={() => onChange({ ...DEFAULT_WORKLIST_FILTERS })}
             data-testid="button-clear-outreach-filters" className="font-semibold underline underline-offset-2">Clear filters</button>
         )}

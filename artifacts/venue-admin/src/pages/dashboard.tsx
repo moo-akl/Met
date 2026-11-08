@@ -84,7 +84,10 @@ import { Label } from "@/components/ui/label";
 import AgentsPanel from "@/components/AgentsPanel";
 import ContentReportsPanel from "@/components/ContentReportsPanel";
 import AdminManagedVenuePanel from "@/components/AdminManagedVenuePanel";
+import { OpenStreetMapAttractionImportDialog } from "@/components/OpenStreetMapAttractionImportDialog";
 import VenueActivationPolicyPanel from "@/components/VenueActivationPolicyPanel";
+import VenueIntroProfilesPanel from "@/components/VenueIntroProfilesPanel";
+import VenueRegistrationDraftsDialog from "@/components/VenueRegistrationDraftsDialog";
 
 function isApiError(error: unknown): error is Error & { status: number, data: unknown } {
   return error instanceof Error && 'status' in error;
@@ -205,6 +208,7 @@ export default function Dashboard() {
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [osmAttractionImportOpen, setOsmAttractionImportOpen] = useState(false);
   const [venueQuery, setVenueQuery] = useState("");
   const [venueResults, setVenueResults] = useState<VenueSearchPlace[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<VenueSearchPlace | null>(null);
@@ -307,9 +311,10 @@ export default function Dashboard() {
 
   // Sales-agent management
   const [adminView, setAdminView] = useState<
-    "applications" | "agents" | "content-reports" | "outreach-history"
+    "applications" | "agents" | "content-reports" | "outreach-history" | "intro-profiles"
   >("applications");
   const [outreachHistorySearch, setOutreachHistorySearch] = useState("");
+  const [registrationDraftDialogOpen, setRegistrationDraftDialogOpen] = useState(false);
   const [assignAgentOpen, setAssignAgentOpen] = useState(false);
   const [assignableAgents, setAssignableAgents] = useState<Array<{ id: number; displayName: string; email: string }>>([]);
   const [loadingAssignableAgents, setLoadingAssignableAgents] = useState(false);
@@ -1156,6 +1161,19 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
+      <OpenStreetMapAttractionImportDialog
+        open={osmAttractionImportOpen}
+        onOpenChange={setOsmAttractionImportOpen}
+        onImported={() => {
+          setAdminView("applications");
+          setFilterStatus("approved");
+          setFilterSource("all");
+          void queryClient.invalidateQueries({
+            queryKey: getListVenueApplicationsQueryKey(listParams),
+          });
+        }}
+      />
+
       <Dialog open={outreachOpen} onOpenChange={(open) => {
         if (outreachSending) return;
         setOutreachOpen(open);
@@ -1562,6 +1580,10 @@ export default function Dashboard() {
           onSend={sendVenueInvite}
         />
       )}
+      <VenueRegistrationDraftsDialog
+        open={registrationDraftDialogOpen}
+        onOpenChange={setRegistrationDraftDialogOpen}
+      />
 
       {/* Sidebar List */}
       <div className="w-full md:w-[400px] flex-shrink-0 border-r border-border bg-muted/20 flex flex-col h-full z-10 relative">
@@ -1613,6 +1635,9 @@ export default function Dashboard() {
               <Button variant={adminView === "content-reports" ? "secondary" : "ghost"} size="sm" onClick={() => setAdminView("content-reports")} data-testid="nav-content-reports" aria-current={adminView === "content-reports" ? "page" : undefined}>
                 <Flag className="mr-1.5 h-4 w-4" />Content Reports
               </Button>
+              <Button variant={adminView === "intro-profiles" ? "secondary" : "ghost"} size="sm" onClick={() => setAdminView("intro-profiles")} data-testid="nav-intro-profiles" aria-current={adminView === "intro-profiles" ? "page" : undefined}>
+                <FileText className="mr-1.5 h-4 w-4" />Intro Profiles
+              </Button>
             </nav>
           </div>
           <div className="flex gap-2 px-4 pb-3">
@@ -1623,6 +1648,30 @@ export default function Dashboard() {
             <Button size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => setOutreachOpen(true)} data-testid="button-invite-venue">
               <Mail className="w-4 h-4" />
               Invite venue
+            </Button>
+          </div>
+          <div className="px-4 pb-3">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full gap-1.5"
+              onClick={() => setOsmAttractionImportOpen(true)}
+              data-testid="button-import-osm-attractions"
+            >
+              <MapPin className="h-4 w-4" />
+              Import tourist attractions
+            </Button>
+          </div>
+          <div className="px-4 pb-3">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full gap-1.5"
+              onClick={() => setRegistrationDraftDialogOpen(true)}
+              data-testid="open-registration-drafts"
+            >
+              <Mail className="w-4 h-4" />
+              Prepare registration drafts
             </Button>
           </div>
             <div className="px-4 pb-3">
@@ -2575,6 +2624,53 @@ export default function Dashboard() {
           </div>
           <div className="flex-1 overflow-hidden">
             <AgentsPanel />
+          </div>
+        </div>
+      )}
+
+      {adminView === "intro-profiles" && (
+        <div className="absolute inset-0 z-20 flex flex-col bg-background">
+          <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-card shrink-0">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setAdminView("applications")}
+                title="Back to Applications"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <div className="flex items-center gap-2 font-bold tracking-tight text-lg">
+                <div className="w-8 h-8 bg-primary text-primary-foreground rounded flex items-center justify-center">
+                  <FileText className="w-4 h-4" />
+                </div>
+                Venue Introduction Profiles
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setPasswordDialogOpen(true)}
+                title="Change password"
+              >
+                <KeyRound className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={handleLogout}
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <VenueIntroProfilesPanel />
           </div>
         </div>
       )}

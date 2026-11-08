@@ -1,7 +1,7 @@
 /**
  * Shared DateTimePicker component.
  *
- * iOS  — native inline calendar with a compact native time control.
+ * iOS  — native inline calendar with an in-app time sheet that requires Save.
  * Android — modal picker opened via DateTimePickerAndroid.open().
  *
  * Props:
@@ -22,6 +22,7 @@
 import React, { useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import {
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -31,6 +32,7 @@ import {
 import RNDateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useT } from "@/lib/i18n";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -90,10 +92,32 @@ export function DateTimePicker({
   isDark = true,
 }: DateTimePickerProps) {
   const [showIOS, setShowIOS] = useState(false);
+  const [showTimeModal, setShowTimeModal] = useState(false);
+  const [timeDraft, setTimeDraft] = useState<Date>(value);
+  const insets = useSafeAreaInsets();
   const { t } = useT();
 
   const formatted =
     mode === "datetime" ? formatDatetime(value) : formatDate(value);
+  const formattedTime = value.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const openTimePicker = () => {
+    setTimeDraft(new Date(value));
+    setShowTimeModal(true);
+  };
+
+  const closeTimePicker = () => setShowTimeModal(false);
+
+  const saveTime = () => {
+    const combined = new Date(value);
+    combined.setHours(timeDraft.getHours(), timeDraft.getMinutes(), 0, 0);
+    onChange(combined);
+    setShowTimeModal(false);
+    setShowIOS(false);
+  };
 
   // ── Android ───────────────────────────────────────────────────────────────
   if (Platform.OS === "android") {
@@ -191,25 +215,81 @@ export function DateTimePicker({
                 <Feather name="clock" size={15} color={primaryColor} />
                 <Text style={[styles.iosTimeText, { color: valueColor }]}>{t("dateTime.time")}</Text>
               </View>
-              <RNDateTimePicker
-                testID="date-time-picker-time"
-                value={value}
-                mode="time"
-                display="compact"
-                textColor={isDark ? "#fff" : "#0D0D0D"}
-                themeVariant={isDark ? "dark" : "light"}
-                onChange={(_evt, picked) => {
-                  if (!picked) return;
-                  const combined = new Date(value);
-                  combined.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
-                  onChange(combined);
-                }}
-                style={styles.iosTimePicker}
-              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t("dateTime.time")}, ${formattedTime}`}
+                testID="date-time-picker-edit-time"
+                onPress={openTimePicker}
+                style={styles.timeValueButton}
+              >
+                <Text style={[styles.iosTimeText, { color: valueColor }]}>{formattedTime}</Text>
+                <Feather name="edit-2" size={14} color={primaryColor} />
+              </Pressable>
             </View>
           ) : null}
         </View>
       )}
+      {mode === "datetime" ? (
+        <Modal
+          animationType="slide"
+          transparent
+          visible={showTimeModal}
+          onRequestClose={closeTimePicker}
+          testID="date-time-picker-time-modal"
+        >
+          <View style={styles.modalRoot}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("common.cancel")}
+              testID="date-time-picker-time-backdrop"
+              onPress={closeTimePicker}
+              style={styles.modalBackdrop}
+            />
+            <View
+              style={[
+                styles.timeSheet,
+                {
+                  backgroundColor: rowBg,
+                  borderColor: primaryColor + "35",
+                  paddingBottom: Math.max(insets.bottom, 18),
+                },
+              ]}
+            >
+              <View style={styles.timeSheetHeader}>
+                <Pressable
+                  accessibilityRole="button"
+                  testID="date-time-picker-time-cancel"
+                  onPress={closeTimePicker}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.timeSheetAction, { color: labelColor }]}>{t("common.cancel")}</Text>
+                </Pressable>
+                <Text style={[styles.timeSheetTitle, { color: valueColor }]}>{t("dateTime.time")}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  testID="date-time-picker-time-save"
+                  onPress={saveTime}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.timeSheetAction, { color: primaryColor }]}>{t("common.save")}</Text>
+                </Pressable>
+              </View>
+              <RNDateTimePicker
+                testID="date-time-picker-time"
+                value={timeDraft}
+                mode="time"
+                display="spinner"
+                textColor={isDark ? "#fff" : "#0D0D0D"}
+                themeVariant={isDark ? "dark" : "light"}
+                onChange={(_evt, picked) => {
+                  if (picked) setTimeDraft(new Date(picked));
+                }}
+                style={styles.iosTimePicker}
+              />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -265,5 +345,23 @@ const styles = StyleSheet.create({
   },
   iosTimeLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
   iosTimeText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  iosTimePicker: { minWidth: 90, height: 42 },
+  timeValueButton: { flexDirection: "row", alignItems: "center", gap: 9, minHeight: 44, paddingHorizontal: 8 },
+  modalRoot: { flex: 1, justifyContent: "flex-end" },
+  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
+  timeSheet: {
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 22,
+    paddingTop: 14,
+  },
+  timeSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 42,
+  },
+  timeSheetTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  timeSheetAction: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  iosTimePicker: { alignSelf: "center", width: "100%", height: 190 },
 });

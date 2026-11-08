@@ -131,8 +131,8 @@ function InboxScreen() {
               const mediaType = lm["mediaType"];
 
               let preview = rawText;
-              if (!rawText && mediaType === "audio") preview = "🎤 Voice message";
-              else if (!rawText && mediaType === "image") preview = "📷 Photo";
+              if (!rawText && mediaType === "audio") preview = "Voice message";
+              else if (!rawText && mediaType === "image") preview = "Photo";
 
               const lra = d["lastReadAt"] as Record<string, unknown> | undefined;
               const readAt = toMs(lra?.[authedUid]);
@@ -434,8 +434,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 4,
+    paddingVertical: 16,
+    paddingHorizontal: 6,
   },
   body: { flex: 1, gap: 4 },
   topLine: {

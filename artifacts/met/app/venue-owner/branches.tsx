@@ -335,7 +335,8 @@ const styles = StyleSheet.create({
   branchCard: {
     minHeight: 86,
     borderWidth: 1,
-    borderRadius: 16,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 20,
     padding: 13,
     flexDirection: "row",
     alignItems: "center",
@@ -373,7 +374,8 @@ const styles = StyleSheet.create({
   emptyCard: {
     borderWidth: 1,
     borderStyle: "dashed",
-    borderRadius: 14,
+    borderTopLeftRadius: 24,
+    borderBottomRightRadius: 18,
     padding: 16,
   },
   emptyText: {
@@ -381,7 +383,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontFamily: "Inter_400Regular",
   },
-  applicationCard: { borderWidth: 1, borderRadius: 14, padding: 14 },
+  applicationCard: { borderWidth: 1, borderTopLeftRadius: 26, borderBottomRightRadius: 18, padding: 16 },
   applicationTop: { flexDirection: "row", alignItems: "center", gap: 10 },
   status: {
     fontSize: 9,
@@ -399,7 +401,8 @@ const styles = StyleSheet.create({
   },
   addButton: {
     minHeight: 52,
-    borderRadius: 15,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 20,
     marginTop: 15,
     paddingHorizontal: 16,
     flexDirection: "row",
@@ -416,5 +419,5 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   errorText: { textAlign: "center", fontSize: 14, lineHeight: 20 },
-  retryButton: { paddingHorizontal: 18, paddingVertical: 10, borderWidth: 1, borderRadius: 10 },
+  retryButton: { minHeight: 44, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 1, borderRadius: 999 },
 });

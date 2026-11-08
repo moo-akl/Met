@@ -3,14 +3,31 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListVenueEmailTemplates,
   getListVenueEmailTemplatesQueryKey,
+  clearFailedVenueOutreach,
+  syncGmailVenueOutreachBounces,
   sendManualVenueEmail,
   type VenueEmailTemplate,
   getGetVenueOutreachHistoryQueryKey,
+  getListVenueApplicationsQueryKey,
   useGetVenueOutreachHistory,
   useUpdateVenueOutreachPlaceId,
   useUpdateVenueOutreachFollowUp,
+  useUpdateVenueOutreachManualInterest,
+  useCreateVenueOutreachManualReplyEvent,
+  useDeleteVenueOutreachHistory,
+  useDeleteAdminVenue,
+  useLinkGmailBounceToVenueOutreach,
+  useUpdateVenueOutreachEmailSuppression,
+  usePreviewGmailVenueOutreachBounceReconciliation,
+  useApplyGmailVenueOutreachBounceReconciliation,
+  useSyncGmailVenueOutreachReplies,
+  useClassifyPendingVenueOutreachReplies,
   type VenueOutreachHistoryEntry,
+  type VenueOutreachHistoryResponse,
   type VenueOutreachPlaceIdInput,
+  type SyncVenueOutreachBouncesResult,
+  type LinkGmailBounceToVenueOutreachInput,
+  type GmailBounceReconciliationPreviewResult,
 } from "@workspace/api-client-react";
 import {
   AlertCircle,
@@ -27,6 +44,7 @@ import {
   Send,
   ShieldCheck,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -34,13 +52,32 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DEFAULT_WORKLIST_FILTERS, dedupeRecipientEmails, dedupeVenueHistory, filterVenueGroups, isFollowUpDue, lastSuccessfulEmail, sendVenueBatch, sortVenueGroups, venueApplication, type WorklistSort } from "@/components/venue-outreach-worklist";
+import {
+  VenueNoReplyCampaignLauncher,
+  VenueProspectCampaignLauncher,
+} from "@/components/GlobalVenueProspectsDialog";
+import { DEFAULT_WORKLIST_FILTERS, dedupeRecipientEmails, dedupeVenueHistory, filterVenueGroups, getVenueSendErrorMessage, hasConfirmedReply, hasManualReplyConfirmation, hasPersonalizedApproach, hasApplicationOrRegistrationInProgress, isConfirmedVenueSendFailure, isFollowUpDue, lastSuccessfulEmail, latestGmailReply, latestManualReplyEvent, manualReplyHistory, sendVenueBatch, shouldContinueVenueBatchAfterFailure, sortVenueGroups, venueApplication, type VenueGroup, type WorklistSort } from "@/components/venue-outreach-worklist";
 import VenueOutreachFilters, { emailTemplateLabel } from "@/components/VenueOutreachFilters";
 import VenueEmailTemplateManager, { templatePreview } from "@/components/VenueEmailTemplateManager";
+import PastedVenueEmailDialog from "@/components/PastedVenueEmailDialog";
 
 type Props = { onClose: () => void; initialSearch?: string };
 type TemplateValue = string;
 type FollowUpDraft = { note: string; dueDate: string };
+type VenueDeleteDialogState =
+  | { kind: "outreach-history"; group: VenueGroup }
+  | { kind: "venue-profile"; profileId: number; businessName: string; groupKey: string };
+type BounceLinkNotice = {
+  kind: "unmatched" | "ambiguous";
+  gmailMessageId: string;
+  gmailThreadId: string | null;
+  recipientEmail: string;
+  originalSentAt: string | null;
+  status: string | null;
+  reason: string;
+  matchingReason?: SyncVenueOutreachBouncesResult["unmatchedNotices"][number]["matchingReason"];
+  candidateIds?: string[];
+};
 
 function prettify(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -65,7 +102,19 @@ function deliveryLabel(status: VenueOutreachHistoryEntry["deliveryStatus"]): str
     sent: "Sent",
     delivery_uncertain: "Check Sent",
     failed: "Failed",
+    bounced: "Bounced",
   }[status];
+}
+
+function unmatchedMatchingReasonLabel(
+  reason: SyncVenueOutreachBouncesResult["unmatchedNotices"][number]["matchingReason"],
+): string {
+  return {
+    missing_original_message_id: "The original message ID is missing, so this notice could not be matched to a send.",
+    no_eligible_send_candidate: "No eligible send record was found for this notice.",
+    recipient_mismatch: "The notice recipient does not match the original send.",
+    multiple_recipients: "The notice covers multiple recipients and needs manual review.",
+  }[reason];
 }
 
 function deliveryClasses(status: VenueOutreachHistoryEntry["deliveryStatus"]): string {
@@ -74,6 +123,7 @@ function deliveryClasses(status: VenueOutreachHistoryEntry["deliveryStatus"]): s
     sent: "border-emerald-200 bg-emerald-50 text-emerald-700",
     delivery_uncertain: "border-amber-200 bg-amber-50 text-amber-800",
     failed: "border-rose-200 bg-rose-50 text-rose-700",
+    bounced: "border-red-300 bg-red-50 text-red-800",
   }[status];
 }
 
@@ -240,6 +290,14 @@ type VenueSearchPlace = {
 function canEditPlaceId(entry: VenueOutreachHistoryEntry): boolean {
   const id = Number(entry.id);
   return Number.isSafeInteger(id) && id > 0 && String(id) === entry.id;
+}
+
+function canLinkBounceToEntry(entry: VenueOutreachHistoryEntry): boolean {
+  const id = Number(entry.id);
+  return Number.isSafeInteger(id) &&
+    id > 0 &&
+    String(id) === entry.id &&
+    ["sent", "delivery_uncertain", "sending"].includes(entry.deliveryStatus);
 }
 
 function OutreachPlaceDialog({
@@ -430,20 +488,33 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
   const [selectedEntry, setSelectedEntry] = useState<VenueOutreachHistoryEntry | null>(null);
   const [placeIdEntry, setPlaceIdEntry] = useState<VenueOutreachHistoryEntry | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
-  const [sort, setSort] = useState<WorklistSort>("recent");
+  const [sort, setSort] = useState<WorklistSort>("replied");
   const [followUpDrafts, setFollowUpDrafts] = useState<Record<string, FollowUpDraft>>({});
   const [savingFollowUpKey, setSavingFollowUpKey] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [bulkTemplate, setBulkTemplate] = useState<TemplateValue>("contact_request");
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [pastedListOpen, setPastedListOpen] = useState(false);
+  const [clearFailedOpen, setClearFailedOpen] = useState(false);
+  const [clearFailedBusy, setClearFailedBusy] = useState(false);
+  const [bounceSyncBusy, setBounceSyncBusy] = useState(false);
+  const [bounceSyncResult, setBounceSyncResult] = useState<SyncVenueOutreachBouncesResult | null>(null);
+  const [bounceReconciliationOpen, setBounceReconciliationOpen] = useState(false);
+  const [bounceReconciliationPreview, setBounceReconciliationPreview] = useState<GmailBounceReconciliationPreviewResult | null>(null);
+  const [classificationConfirmOpen, setClassificationConfirmOpen] = useState(false);
+  const [bounceLinkNotice, setBounceLinkNotice] = useState<BounceLinkNotice | null>(null);
+  const [bounceLinkSendId, setBounceLinkSendId] = useState("");
   const [onePerAddress, setOnePerAddress] = useState(true);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkSending, setBulkSending] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ completed: number; current: number; total: number } | null>(null);
-  const [bulkResult, setBulkResult] = useState<{ sent: number; failed: number; notAttempted: number; detail: string } | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ sent: number; rejected: number; uncertain: number; notAttempted: number; detail: string } | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<VenueDeleteDialogState | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
 
   const historyQuery = useGetVenueOutreachHistory({
-    query: { queryKey: getGetVenueOutreachHistoryQueryKey() },
+    query: { queryKey: getGetVenueOutreachHistoryQueryKey(), staleTime: 0, refetchOnMount: "always" },
+    request: { cache: "no-store" },
   });
   const templatesQuery = useListVenueEmailTemplates({
     query: { queryKey: getListVenueEmailTemplatesQueryKey(), staleTime: 0, refetchOnMount: "always" },
@@ -457,14 +528,46 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
     }
   }, [templatesQuery.data, bulkTemplate, templatesQuery.isSuccess]);
   const followUpMutation = useUpdateVenueOutreachFollowUp();
+  const manualInterestMutation = useUpdateVenueOutreachManualInterest();
+  const manualReplyMutation = useCreateVenueOutreachManualReplyEvent();
   const placeIdMutation = useUpdateVenueOutreachPlaceId();
+  const bounceLinkMutation = useLinkGmailBounceToVenueOutreach();
+  const suppressionMutation = useUpdateVenueOutreachEmailSuppression();
+  const bounceReconciliationPreviewMutation = usePreviewGmailVenueOutreachBounceReconciliation();
+  const bounceReconciliationApplyMutation = useApplyGmailVenueOutreachBounceReconciliation();
+  const gmailRepliesMutation = useSyncGmailVenueOutreachReplies();
+  const classifyRepliesMutation = useClassifyPendingVenueOutreachReplies();
+  const outreachHistoryDeleteMutation = useDeleteVenueOutreachHistory();
+  const venueDeleteMutation = useDeleteAdminVenue();
   const entries = historyQuery.data?.emails ?? [];
+  const suppressedEmails = historyQuery.data?.suppressedEmails ?? [];
+  const suppressedEmailSet = new Set(suppressedEmails.map((email) => email.trim().toLowerCase()));
+  const isEmailSuppressed = (email: string) => suppressedEmailSet.has(email.trim().toLowerCase());
+  const eligibleBounceEntries = entries.filter(canLinkBounceToEntry);
+  const linkableBounceEntries = bounceLinkNotice
+    ? eligibleBounceEntries.filter((entry) =>
+        entry.recipientEmail.trim().toLowerCase() === bounceLinkNotice.recipientEmail.trim().toLowerCase() &&
+        (bounceLinkNotice.kind !== "ambiguous" || bounceLinkNotice.candidateIds?.includes(entry.id) === true))
+    : [];
+  const selectedBounceEntry = linkableBounceEntries.find((entry) => entry.id === bounceLinkSendId) ?? null;
+  const failedEmailCount = entries.filter((entry) =>
+    entry.deliveryStatus === "failed" && entry.sentAt === null,
+  ).length;
+  const bouncedEmailCount = entries.filter((entry) => entry.deliveryStatus === "bounced").length;
+  const cleanupEmailCount = failedEmailCount + bouncedEmailCount;
+  const pendingDeliveryCount = entries.filter((entry) =>
+    entry.deliveryStatus === "sending" || entry.deliveryStatus === "delivery_uncertain",
+  ).length;
   const templateLabels = {
     ...Object.fromEntries(entries.filter((entry) => entry.templateName).map((entry) => [entry.template, entry.templateName!])),
     ...Object.fromEntries(emailTemplates.map((template) => [template.id, template.name])),
   };
 
   const venueGroups = useMemo(() => dedupeVenueHistory(entries), [entries]);
+  const bouncedGroups = useMemo(
+    () => venueGroups.filter((group) => group.latest.deliveryStatus === "bounced"),
+    [venueGroups],
+  );
   const filteredGroups = useMemo(
     () => sortVenueGroups(filterVenueGroups(venueGroups, filters), sort),
     [venueGroups, filters, sort],
@@ -473,9 +576,11 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
     .sort((a, b) => emailTemplateLabel(a).localeCompare(emailTemplateLabel(b))), [entries]);
 
   const selectedGroups = venueGroups.filter((group) => selectedKeys.includes(group.key));
+  const blockedSelectedCount = selectedGroups.filter((group) => isEmailSuppressed(group.latest.recipientEmail)).length;
   const visibleKeys = new Set(filteredGroups.map((group) => group.key));
   const hiddenSelectedCount = selectedGroups.filter((group) => !visibleKeys.has(group.key)).length;
-  const recipientsForBulk = onePerAddress ? dedupeRecipientEmails(selectedGroups) : selectedGroups;
+  const recipientsForBulk = (onePerAddress ? dedupeRecipientEmails(selectedGroups) : selectedGroups)
+    .filter((group) => !isEmailSuppressed(group.latest.recipientEmail));
   const allVenuesSelected = venueGroups.length > 0 && venueGroups.every((group) => selectedKeys.includes(group.key));
   const selectVisible = () => setSelectedKeys((current) => {
     const visible = filteredGroups.map((group) => group.key);
@@ -491,30 +596,112 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
     setSelectedKeys(allVenuesSelected ? [] : venueGroups.map((group) => group.key));
     setBulkResult(null);
   };
+  const selectBouncedForRetry = () => {
+    setFilters({ ...DEFAULT_WORKLIST_FILTERS, view: "all", status: "bounced" });
+    setSelectedKeys(bouncedGroups.map((group) => group.key));
+    setBulkTemplate("");
+    setOnePerAddress(true);
+    setBulkResult(null);
+    if (bouncedGroups.length > 0) {
+      toast({
+        title: "Bounced recipients selected",
+        description: "Choose one shared template, then review the recipients and confirm the bulk send.",
+      });
+    }
+  };
 
   const sendManual = async (entry: VenueOutreachHistoryEntry, recipientEmail: string, templateId: string) => {
+    const retryOfLogId = Number(entry.id);
+    const isSameAddressRetry = entry.deliveryStatus === "bounced" &&
+      Number.isSafeInteger(retryOfLogId) &&
+      retryOfLogId > 0 &&
+      entry.recipientEmail.trim().toLowerCase() === recipientEmail.trim().toLowerCase();
     const sent = await sendManualVenueEmail({
       businessName: entry.businessName, recipientEmail, templateId,
       ...(entry.placeId ? { placeId: entry.placeId } : {}),
       ...(entry.venueOwnerProfileId != null ? { venueOwnerProfileId: entry.venueOwnerProfileId } : {}),
+      ...(isSameAddressRetry ? { retryOfLogId } : {}),
     });
     if (!sent.emailSent) throw new Error(`Delivery was not confirmed for ${recipientEmail}.`);
+  };
+
+  const setEmailSuppression = async (email: string, suppressed: boolean) => {
+    try {
+      const result = await suppressionMutation.mutateAsync({ data: { email, suppressed } });
+      queryClient.setQueryData<VenueOutreachHistoryResponse>(
+        getGetVenueOutreachHistoryQueryKey(),
+        (current) => current
+          ? {
+              ...current,
+              suppressedEmails: result.suppressed
+                ? [...new Set([...current.suppressedEmails, result.email])]
+                : current.suppressedEmails.filter((blocked) => blocked !== result.email),
+            }
+          : current,
+      );
+      toast({
+        title: result.suppressed ? "Future emails stopped" : "Email allowed again",
+        description: result.suppressed
+          ? `${result.email} is blocked from future Venue Admin outreach. Past email history is unchanged.`
+          : `${result.email} can be used for Venue Admin outreach again.`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Email setting not changed",
+        description: error instanceof Error ? error.message : "The email outreach setting could not be updated.",
+      });
+    }
+  };
+
+  const emailSuppressionButton = (email: string, testId: string) => {
+    const suppressed = isEmailSuppressed(email);
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        data-testid={testId}
+        onClick={() => void setEmailSuppression(email, !suppressed)}
+        disabled={suppressionMutation.isPending}
+        className="ml-2 h-7 px-2 text-xs"
+      >
+        {suppressionMutation.isPending
+          ? "Saving…"
+          : suppressed
+            ? "Allow future emails"
+            : "Stop future emails"}
+      </Button>
+    );
   };
 
   const runBulkSend = async () => {
     const recipients = recipientsForBulk.map((group) => group.latest);
     setBulkSending(true);
     setBulkProgress({ completed: 0, current: 1, total: recipients.length });
+    let currentEmail = "";
     try {
       const result = await sendVenueBatch(recipients,
-        (entry) => sendManual(entry, entry.recipientEmail, bulkTemplate), setBulkProgress);
+        (entry) => {
+          currentEmail = entry.recipientEmail;
+          return sendManual(entry, entry.recipientEmail, bulkTemplate);
+        }, setBulkProgress, Infinity, shouldContinueVenueBatchAfterFailure);
       await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
       setBulkConfirmOpen(false);
+      const terminalIsConfirmedNotSent = Boolean(result.error && isConfirmedVenueSendFailure(result.error));
+      const rejectionDetails = result.continuedFailures.map(({ recipient, error }) =>
+        `Rejected before sending to ${recipient.recipientEmail}: ${getVenueSendErrorMessage(error)}. The batch continued.`,
+      );
+      const stoppedDetail = result.error
+        ? terminalIsConfirmedNotSent
+          ? `The request for ${currentEmail} was rejected before sending: ${getVenueSendErrorMessage(result.error)}. Later recipients were not attempted.`
+          : `Delivery to ${currentEmail} was not confirmed. Check Gmail Sent before retrying this address; later recipients were not attempted.`
+        : "";
       setBulkResult({
         sent: result.sentCount,
-        failed: result.failedCount,
+        rejected: result.continuedFailures.length + (terminalIsConfirmedNotSent ? 1 : 0),
+        uncertain: result.error && !terminalIsConfirmedNotSent ? 1 : 0,
         notAttempted: result.notAttemptedCount,
-        detail: result.error instanceof Error ? result.error.message : result.error ? "The send stopped because delivery was not confirmed." : "",
+        detail: [...rejectionDetails, stoppedDetail].filter(Boolean).join(" "),
       });
       setSelectedKeys([]);
     } finally {
@@ -523,12 +710,87 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
     }
   };
 
+  const runGmailReplySync = async () => {
+    try {
+      const result = await gmailRepliesMutation.mutateAsync();
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+      const replyNoun = result.matchedReplyCount === 1 ? "reply" : "replies";
+      const pendingClassification = result.classificationPendingCount === 1
+        ? " 1 reply is awaiting optional AI classification."
+        : result.classificationPendingCount > 1
+          ? ` ${result.classificationPendingCount} replies are awaiting optional AI classification.`
+          : " No replies are awaiting AI classification.";
+      toast({
+        title: "Gmail metadata sync complete",
+        description: `Scanned ${result.scannedCount} messages and matched ${result.matchedReplyCount} ${replyNoun}. No AI classification was run.${pendingClassification}${result.truncated ? " The 1,000-message limit was reached; some older replies may not have been checked." : ""}`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Gmail replies could not be checked",
+        description: error instanceof Error
+          ? error.message
+          : "Check the connected Gmail access and try again.",
+      });
+    }
+  };
+
+  const runClassifyPendingReplies = async () => {
+    setClassificationConfirmOpen(false);
+    try {
+      const result = await classifyRepliesMutation.mutateAsync();
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+      const pending = result.classificationPendingCount === 1
+        ? "1 reply remains pending."
+        : `${result.classificationPendingCount} replies remain pending.`;
+      const failures = result.classificationFailedCount > 0
+        ? ` ${result.classificationFailedCount} failed and can be retried.`
+        : "";
+      const deferred = result.deferredCount > 0
+        ? ` ${result.deferredCount} were deferred by the per-run limit.`
+        : "";
+      toast({
+        title: "AI reply classification complete",
+        description: `Attempted ${result.attemptedReplyCount}; classified ${result.classifiedReplyCount}. ${pending}${failures}${deferred}`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "AI reply classification could not be completed",
+        description: error instanceof Error
+          ? error.message
+          : "Try again later.",
+      });
+    }
+  };
+
   const counts = useMemo(() => ({
     total: venueGroups.length,
-    followup: venueGroups.filter((group) => isFollowUpDue(group)).length,
-    attention: venueGroups.filter((group) =>
-      group.latest.deliveryStatus === "delivery_uncertain" || group.latest.deliveryStatus === "failed",
+    worklist: venueGroups.filter((group) =>
+      hasApplicationOrRegistrationInProgress(group) || hasPersonalizedApproach(group),
     ).length,
+    archived: venueGroups.filter((group) =>
+      !hasApplicationOrRegistrationInProgress(group) && !hasPersonalizedApproach(group),
+    ).length,
+    replied: venueGroups.filter(hasConfirmedReply).length,
+    interested: venueGroups.filter((group) =>
+      latestGmailReply(group)?.gmailReplyClassification === "interested",
+    ).length,
+    rejected: venueGroups.filter((group) =>
+      latestGmailReply(group)?.gmailReplyClassification === "rejected",
+    ).length,
+    noReply: venueGroups.filter((group) =>
+      lastSuccessfulEmail(group) !== null && !hasConfirmedReply(group),
+    ).length,
+    followup: venueGroups.filter((group) => isFollowUpDue(group)).length,
+    attention: venueGroups.filter((group) => group.events.some((entry) =>
+      entry.deliveryStatus === "delivery_uncertain" ||
+      entry.deliveryStatus === "failed" ||
+      entry.deliveryStatus === "bounced",
+    )).length,
+    failed: venueGroups.filter((group) => group.events.some((entry) =>
+      entry.deliveryStatus === "failed" || entry.deliveryStatus === "bounced",
+    )).length,
   }), [venueGroups]);
 
   const handleResend = async (
@@ -587,6 +849,114 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
     }
   };
 
+  const saveManualInterest = async (
+    entry: VenueOutreachHistoryEntry,
+    manualInterestLevel: VenueOutreachHistoryEntry["manualInterestLevel"],
+  ) => {
+    try {
+      await manualInterestMutation.mutateAsync({
+        data: { venueKey: entry.venueKey, manualInterestLevel },
+      });
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Classification not saved",
+        description: error instanceof Error ? error.message : "The manual interest label could not be saved.",
+      });
+    }
+  };
+
+  const saveManualReply = async (
+    entry: VenueOutreachHistoryEntry,
+    action: "mark_replied" | "undo_mark",
+  ) => {
+    try {
+      await manualReplyMutation.mutateAsync({
+        data: { venueKey: entry.venueKey, action },
+      });
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+      toast({
+        title: action === "mark_replied" ? "Reply marked" : "Reply mark undone",
+        description: action === "mark_replied"
+          ? `${entry.businessName} will be excluded from no-reply follow-ups.`
+          : `The manual reply mark for ${entry.businessName} was removed.`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Reply status not saved",
+        description: error instanceof Error
+          ? error.message
+          : "The manual reply status could not be saved.",
+      });
+    }
+  };
+
+  const openDeleteDialog = (dialog: VenueDeleteDialogState) => {
+    setDeleteConfirmName("");
+    setDeleteDialog(dialog);
+  };
+
+  const closeDeleteDialog = () => {
+    if (outreachHistoryDeleteMutation.isPending || venueDeleteMutation.isPending) return;
+    setDeleteConfirmName("");
+    setDeleteDialog(null);
+  };
+
+  const removeOutreachHistory = async () => {
+    if (deleteDialog?.kind !== "outreach-history" ||
+      deleteConfirmName.trim() !== deleteDialog.group.latest.businessName.trim()) return;
+    try {
+      const result = await outreachHistoryDeleteMutation.mutateAsync({
+        data: {
+          venueKey: deleteDialog.group.key,
+          eventIds: deleteDialog.group.events.map((event) => event.id),
+          confirm: true,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+      setSelectedKeys((current) => current.filter((key) => key !== deleteDialog.group.key));
+      setDeleteDialog(null);
+      setDeleteConfirmName("");
+      toast({
+        title: "Outreach history removed",
+        description: `${result.deletedEmailCount} records removed. ${result.revokedInvitationCount} invitation links revoked. The venue and application were kept; Gmail messages and email blocks remain unchanged.`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Outreach history not removed",
+        description: getVenueSendErrorMessage(error),
+      });
+    }
+  };
+
+  const permanentlyDeleteVenue = async () => {
+    if (deleteDialog?.kind !== "venue-profile" ||
+      deleteConfirmName.trim() !== deleteDialog.businessName.trim()) return;
+    try {
+      const result = await venueDeleteMutation.mutateAsync({ id: deleteDialog.profileId });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getListVenueApplicationsQueryKey() }),
+      ]);
+      setSelectedKeys((current) => current.filter((key) => key !== deleteDialog.groupKey));
+      setDeleteDialog(null);
+      setDeleteConfirmName("");
+      toast({
+        title: "Venue permanently deleted",
+        description: `${deleteDialog.businessName} and its associated venue data were deleted. ${result.message}`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Venue was not deleted",
+        description: getVenueSendErrorMessage(error),
+      });
+    }
+  };
+
   const savePlaceId = async (entry: VenueOutreachHistoryEntry, placeId: string | null) => {
     if (!canEditPlaceId(entry)) return;
     const input: VenueOutreachPlaceIdInput = { placeId };
@@ -610,6 +980,179 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
   };
 
   const clearFilters = () => setFilters({ ...DEFAULT_WORKLIST_FILTERS });
+  const runClearFailed = async () => {
+    if (clearFailedBusy || cleanupEmailCount === 0) return;
+    setClearFailedBusy(true);
+    try {
+      const result = await clearFailedVenueOutreach({
+        confirm: true,
+        expectedFailedEmailCount: failedEmailCount,
+        expectedBouncedEmailCount: bouncedEmailCount,
+      });
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+      setSelectedKeys([]);
+      setClearFailedOpen(false);
+      toast({
+        title: "Failed and bounced records cleared",
+        description: `${result.clearedBouncedEmailCount} bounced and ${result.clearedFailedEmailCount} confirmed unsent records were removed from Venue Admin. Gmail messages remain in Gmail.`,
+      });
+    } catch (error) {
+      await historyQuery.refetch();
+      toast({
+        variant: "destructive",
+        title: "Cleanup was not completed",
+        description: error instanceof Error ? error.message : "The Venue Admin records could not be cleared.",
+      });
+    } finally {
+      setClearFailedBusy(false);
+    }
+  };
+
+  const runGmailBounceSync = async () => {
+    if (bounceSyncBusy) return;
+    setBounceSyncBusy(true);
+    setBounceSyncResult(null);
+    try {
+      const result = await syncGmailVenueOutreachBounces({ confirm: true });
+      setBounceSyncResult(result);
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+      toast({
+        title: "Gmail bounce sync complete",
+        description: `${result.matchedCount} matched; ${result.repeatBouncesClearedCount} repeat bounces cleared; ${result.ambiguousCount} need review; ${result.unmatchedCount} actionable notices are unmatched; ${result.noHistoryCount} notices have no outreach-history match.`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Gmail bounce sync failed",
+        description: error instanceof Error
+          ? error.message
+          : "Could not read Gmail delivery notices. Check the connected Gmail access and try again.",
+      });
+    } finally {
+      setBounceSyncBusy(false);
+    }
+  };
+
+  const runGmailBounceReconciliationPreview = async () => {
+    if (bounceReconciliationPreviewMutation.isPending || bounceReconciliationApplyMutation.isPending) return;
+    const sourceToken = bounceSyncResult?.reconciliationSourceToken;
+    if (!sourceToken) {
+      toast({
+        variant: "destructive",
+        title: "Sync Gmail bounces first",
+        description: "Run a fresh Gmail bounce sync, then review the candidate links from that scan.",
+      });
+      return;
+    }
+    try {
+      const preview = await bounceReconciliationPreviewMutation.mutateAsync({
+        data: { confirm: true, sourceToken },
+      });
+      setBounceReconciliationPreview(preview);
+      setBounceReconciliationOpen(true);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not verify Gmail bounce links",
+        description: error instanceof Error
+          ? error.message
+          : "Gmail and outreach history could not be checked. No records were changed.",
+      });
+    }
+  };
+
+  const applyGmailBounceReconciliation = async () => {
+    if (
+      !bounceReconciliationPreview ||
+      bounceReconciliationPreview.verifiedCandidateCount < 1 ||
+      bounceReconciliationApplyMutation.isPending
+    ) return;
+    try {
+      const result = await bounceReconciliationApplyMutation.mutateAsync({
+        data: {
+          planToken: bounceReconciliationPreview.planToken,
+          confirm: true,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+      setBounceSyncResult(null);
+      setBounceReconciliationOpen(false);
+      setBounceReconciliationPreview(null);
+      toast({
+        title: "Gmail bounce reconciliation complete",
+        description: `${result.appliedCount} verified ${result.appliedCount === 1 ? "send was" : "sends were"} updated. Other notices and send records were left unchanged.`,
+      });
+    } catch (error) {
+      setBounceReconciliationPreview(null);
+      setBounceReconciliationOpen(false);
+      toast({
+        variant: "destructive",
+        title: "Reconciliation not applied",
+        description: error instanceof Error
+          ? error.message
+          : "A notice or send changed after preview. No records were changed; create a fresh preview.",
+      });
+    }
+  };
+
+  const linkBounceToSend = async () => {
+    if (!bounceLinkNotice || !selectedBounceEntry || bounceLinkMutation.isPending) return;
+    const id = Number(selectedBounceEntry.id);
+    if (!Number.isSafeInteger(id) || id <= 0) return;
+    const input: LinkGmailBounceToVenueOutreachInput = {
+      gmailMessageId: bounceLinkNotice.gmailMessageId,
+      confirm: true,
+    };
+    try {
+      const result = await bounceLinkMutation.mutateAsync({ id, data: input });
+      setBounceSyncResult((current) => current ? {
+        ...current,
+        matchedCount: current.matchedCount + (result.repeatBounceCleared ? 0 : 1),
+        repeatBouncesClearedCount: current.repeatBouncesClearedCount +
+          (result.repeatBounceCleared ? 1 : 0),
+        ...(bounceLinkNotice.kind === "ambiguous"
+          ? {
+              ambiguousCount: Math.max(0, current.ambiguousCount - 1),
+              ambiguousMatches: current.ambiguousMatches.filter(
+                (notice) => notice.gmailMessageId !== bounceLinkNotice.gmailMessageId,
+              ),
+            }
+          : {
+              unmatchedCount: Math.max(0, current.unmatchedCount - 1),
+              unmatchedByReason: bounceLinkNotice.matchingReason
+                ? {
+                    ...current.unmatchedByReason,
+                    [bounceLinkNotice.matchingReason]: Math.max(
+                      0,
+                      current.unmatchedByReason[bounceLinkNotice.matchingReason] - 1,
+                    ),
+                  }
+                : current.unmatchedByReason,
+              unmatchedNotices: current.unmatchedNotices.filter(
+                (notice) => notice.gmailMessageId !== bounceLinkNotice.gmailMessageId,
+              ),
+            }),
+      } : current);
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+      toast({
+        title: result.repeatBounceCleared ? "Repeat bounce cleared from Venue Admin" : "Gmail notice linked",
+        description: result.repeatBounceCleared
+          ? `The retry and earlier bounced history for ${bounceLinkNotice.recipientEmail} were cleared from Venue Admin. Gmail messages were left untouched.`
+          : `The bounce notice for ${bounceLinkNotice.recipientEmail} was linked to ${selectedBounceEntry.businessName}.`,
+      });
+      setBounceLinkNotice(null);
+      setBounceLinkSendId("");
+    } catch (error) {
+      await queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() });
+      toast({
+        variant: "destructive",
+        title: "Gmail notice not linked",
+        description: error instanceof Error
+          ? error.message
+          : "The send is no longer eligible or the notice was already linked. Refresh the history and review again.",
+      });
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] bg-[#e9e7e2] text-slate-950" data-testid="panel-venue-outreach-history">
@@ -661,7 +1204,7 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#9b6b37]">Tracked sends</p>
             <h2 className="font-serif text-3xl tracking-[-0.04em] text-[#1f2938] sm:text-[38px]">Invited venues</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              One row per venue, with every prior email kept in its history. Delivery state is shown; opens and reads are not tracked.
+              One row per venue, with every prior email kept in its history. The active worklist keeps venues with an application or registration in progress and venues sent a personalized invitation; archived history is never deleted.
             </p>
           </div>
           <div className="flex gap-2 self-start lg:self-end">
@@ -706,7 +1249,83 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
               <span className="text-xs text-slate-500">Any template · any venue · no batch-size limit</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <VenueProspectCampaignLauncher
+                disabled={bulkSending || templatesQuery.isLoading || templatesQuery.isError || historyQuery.isLoading || historyQuery.isError}
+                onOpen={() => void templatesQuery.refetch()}
+                templates={emailTemplates}
+                history={entries}
+                suppressedEmails={suppressedEmails}
+                onSent={() => queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() })}
+              />
+              <VenueNoReplyCampaignLauncher
+                disabled={bulkSending || templatesQuery.isLoading || templatesQuery.isError || historyQuery.isLoading || historyQuery.isError}
+                onOpen={async () => {
+                  const [templateResult, historyResult] = await Promise.all([
+                    templatesQuery.refetch(),
+                    historyQuery.refetch(),
+                  ]);
+                  if (templateResult.isError || historyResult.isError) {
+                    throw new Error("Could not refresh templates or outreach history. Retry before preparing the campaign.");
+                  }
+                }}
+                templates={emailTemplates}
+                history={entries}
+                suppressedEmails={suppressedEmails}
+                onSent={() => queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() })}
+              />
+              <Button type="button" variant="outline" data-testid="button-paste-email-list" onClick={() => setPastedListOpen(true)} disabled={bulkSending || templatesQuery.isLoading || templatesQuery.isError}>Send pasted list</Button>
               <Button type="button" variant="outline" onClick={() => setTemplateManagerOpen(true)} disabled={bulkSending || templatesQuery.isLoading || templatesQuery.isError} data-testid="button-manage-email-templates">Manage templates</Button>
+              <Button type="button" variant="outline" data-testid="button-sync-gmail-replies" onClick={() => void runGmailReplySync()}
+                disabled={bulkSending || !!resendingId || bounceSyncBusy || clearFailedBusy || gmailRepliesMutation.isPending || classifyRepliesMutation.isPending || followUpMutation.isPending || placeIdMutation.isPending || bounceReconciliationPreviewMutation.isPending || bounceReconciliationApplyMutation.isPending}>
+                {gmailRepliesMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                {gmailRepliesMutation.isPending ? "Checking Gmail replies…" : "Sync Gmail replies"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="button-classify-gmail-replies"
+                onClick={() => setClassificationConfirmOpen(true)}
+                disabled={bulkSending || !!resendingId || bounceSyncBusy || clearFailedBusy || gmailRepliesMutation.isPending || classifyRepliesMutation.isPending || followUpMutation.isPending || placeIdMutation.isPending || bounceReconciliationPreviewMutation.isPending || bounceReconciliationApplyMutation.isPending}
+              >
+                {classifyRepliesMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                {classifyRepliesMutation.isPending ? "Classifying replies…" : "Classify pending replies with AI"}
+              </Button>
+              <Button type="button" variant="outline" data-testid="button-sync-gmail-bounces" onClick={() => void runGmailBounceSync()}
+                disabled={bulkSending || !!resendingId || bounceSyncBusy || clearFailedBusy || followUpMutation.isPending || placeIdMutation.isPending || bounceReconciliationPreviewMutation.isPending || bounceReconciliationApplyMutation.isPending}>
+                {bounceSyncBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                {bounceSyncBusy ? "Checking Gmail…" : "Sync Gmail bounces"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="button-preview-gmail-bounce-reconciliation"
+                onClick={() => void runGmailBounceReconciliationPreview()}
+                disabled={!bounceSyncResult?.reconciliationSourceToken || bulkSending || !!resendingId || bounceSyncBusy || clearFailedBusy || followUpMutation.isPending || placeIdMutation.isPending || bounceReconciliationPreviewMutation.isPending || bounceReconciliationApplyMutation.isPending}
+              >
+                {bounceReconciliationPreviewMutation.isPending
+                  ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  : <ShieldCheck className="mr-2 h-4 w-4" />}
+                {bounceReconciliationPreviewMutation.isPending
+                  ? "Verifying Gmail…"
+                  : bounceSyncResult?.reconciliationSourceToken
+                    ? "Review stale Gmail links"
+                    : bounceSyncResult
+                      ? "Review unavailable"
+                      : "Sync Gmail to review stale links"}
+              </Button>
+              <Button type="button" variant="outline" data-testid="button-clear-bounced-failed-outreach" onClick={() => setClearFailedOpen(true)}
+                disabled={bulkSending || !!resendingId || bounceSyncBusy || clearFailedBusy || followUpMutation.isPending || placeIdMutation.isPending}>
+                Clear bounced + failed ({cleanupEmailCount})
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="button-select-bounced-for-retry"
+                onClick={selectBouncedForRetry}
+                disabled={bouncedGroups.length === 0 || bulkSending || !!resendingId || bounceSyncBusy || templatesQuery.isError || templatesQuery.isLoading}
+              >
+                Select bounced for retry ({bouncedGroups.length})
+              </Button>
               <select aria-label="Shared bulk template" data-testid="select-bulk-template" value={bulkTemplate} disabled={bulkSending || templatesQuery.isLoading}
                 onChange={(event) => { setBulkTemplate(event.target.value); setBulkConfirmOpen(false); }}
                 className="h-9 max-w-[270px] rounded-md border border-slate-300 bg-white px-2 text-xs">
@@ -718,6 +1337,187 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
               </Button>
             </div>
           </div>
+          <p className="border-b border-slate-200 bg-white px-5 py-2 text-xs text-slate-500">
+            Gmail sync reads notices and updates matched Venue Admin records; it never deletes Gmail messages. “Review stale Gmail links” still verifies the original Sent message before a separate confirmation. Select bounced recipients to prepare a bulk retry with one shared template; a retry bounce clears the related Venue Admin rows on the next sync.
+          </p>
+          {bounceSyncResult && (
+            <div
+              role="status"
+              data-testid="status-gmail-bounce-sync"
+              className={`border-b px-5 py-3 text-sm ${
+                bounceSyncResult.ambiguousCount > 0 || bounceSyncResult.unmatchedCount > 0 || bounceSyncResult.truncated
+                  ? "border-amber-200 bg-amber-50 text-amber-950"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-950"
+              }`}
+            >
+              <p>
+                Checked {bounceSyncResult.scannedCount} Gmail messages: {bounceSyncResult.matchedCount} confirmed failures matched, {bounceSyncResult.repeatBouncesClearedCount} repeat bounces cleared from Venue Admin, {bounceSyncResult.ambiguousCount} ambiguous, {bounceSyncResult.unmatchedCount} actionable unmatched, {bounceSyncResult.noHistoryCount} with no Venue Admin email-history match.
+              </p>
+              {bounceSyncResult.unmatchedCount > 0 && (
+                <p className="mt-1 text-xs">
+                  Actionable unmatched reasons: missing original ID {bounceSyncResult.unmatchedByReason.missing_original_message_id} · no eligible send {bounceSyncResult.unmatchedByReason.no_eligible_send_candidate} · recipient mismatch {bounceSyncResult.unmatchedByReason.recipient_mismatch} · multiple recipients {bounceSyncResult.unmatchedByReason.multiple_recipients}.
+                </p>
+              )}
+              {bounceSyncResult.unmatchedByReason.no_eligible_send_candidate > 0 && (
+                <div
+                  className="mt-3 rounded-md border border-amber-200 bg-white/80 p-3"
+                  data-testid="notice-stale-gmail-links"
+                >
+                  <p className="text-xs leading-5">
+                    “No eligible send” means this sync could not match a notice’s original Message-ID to an active outreach row. The standard sync does not search Gmail Sent for a replacement, so some notices may have stale stored IDs. The separate review checks Gmail Sent, recipient, and send time, and only allows changes if all 136 one-to-one matches verify; it will not bulk-link all unmatched notices.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="button-review-stale-links-from-sync"
+                    onClick={() => void runGmailBounceReconciliationPreview()}
+                    disabled={!bounceSyncResult.reconciliationSourceToken || bulkSending || !!resendingId || bounceSyncBusy || clearFailedBusy || followUpMutation.isPending || placeIdMutation.isPending || bounceReconciliationPreviewMutation.isPending || bounceReconciliationApplyMutation.isPending}
+                    className="mt-2 h-8 border-amber-300 bg-white text-xs"
+                  >
+                    {bounceSyncResult.reconciliationSourceToken
+                      ? `Review the ${bounceSyncResult.reconciliationCandidateCount}-row set`
+                      : bounceSyncResult.truncated
+                        ? "This Gmail scan reached its message limit, so no review token was created."
+                        : bounceSyncResult.reconciliationCandidateCount > 250
+                          ? "The safe review limit is 250 candidate messages."
+                          : "This scan returned no reviewable stale-link candidates."}
+                  </Button>
+                </div>
+              )}
+              {cleanupEmailCount > 0 && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-white/70 p-3">
+                  <p className="text-xs">
+                    {bouncedEmailCount} bounced and {failedEmailCount} confirmed unsent failed records are ready to clear from Venue Admin. Use the cleanup action above.
+                  </p>
+                </div>
+              )}
+              {bounceSyncResult.ambiguousMatches.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  <p className="font-semibold">Review these ambiguous notices; no send records were changed:</p>
+                  <ul className="list-disc space-y-1 pl-5 text-xs">
+                    {bounceSyncResult.ambiguousMatches.map((item, index) => (
+                      <li key={`${item.recipientEmail}-${item.originalSentAt ?? index}`}>
+                        {item.recipientEmail} · original send {formatDate(item.originalSentAt)} · possible matches: {item.candidates.map((candidate) => `${candidate.businessName} (${formatDate(candidate.createdAt)})`).join(", ")} · {item.gmailThreadId ? <a href={`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(item.gmailThreadId)}`} target="_blank" rel="noreferrer" className="font-medium underline">Open notice in Gmail</a> : <span className="text-slate-500">Gmail conversation link unavailable</span>}
+                        {emailSuppressionButton(item.recipientEmail, `button-suppress-ambiguous-email-${index}`)}
+                        {item.candidates.length > 0 && eligibleBounceEntries.some((entry) =>
+                          item.candidates.some((candidate) =>
+                            candidate.id === entry.id &&
+                            entry.recipientEmail.trim().toLowerCase() === item.recipientEmail.trim().toLowerCase())) && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            data-testid={`button-link-ambiguous-gmail-notice-${index}`}
+                            className="ml-2 h-7 border-amber-300 bg-white px-2 text-xs text-amber-950 hover:bg-amber-100"
+                            onClick={() => {
+                              setBounceLinkSendId("");
+                              setBounceLinkNotice({
+                                kind: "ambiguous",
+                                gmailMessageId: item.gmailMessageId,
+                                gmailThreadId: item.gmailThreadId,
+                                recipientEmail: item.recipientEmail,
+                                originalSentAt: item.originalSentAt,
+                                status: null,
+                                reason: "",
+                                candidateIds: item.candidates.map((candidate) => candidate.id),
+                              });
+                            }}
+                          >
+                            Choose send…
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {bounceSyncResult.unmatchedNotices.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="font-semibold">Review these unmatched notices; no send records were changed:</p>
+                  <ul className="list-disc space-y-1 pl-5 text-xs">
+                    {bounceSyncResult.unmatchedNotices.map((notice, index) => (
+                      <li key={`${notice.gmailMessageId}-${index}`}>
+                        {notice.recipientEmail} · original send {formatDate(notice.originalSentAt)}
+                        {notice.status ? ` · ${notice.status}` : ""}
+                        {notice.reason ? ` · ${notice.reason}` : ""}
+                        {` · ${unmatchedMatchingReasonLabel(notice.matchingReason)}`}
+                        {" · "}
+                        {notice.gmailThreadId ? <a href={`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(notice.gmailThreadId)}`} target="_blank" rel="noreferrer" className="font-medium underline">Open notice in Gmail</a> : <span className="text-slate-500">Gmail conversation link unavailable</span>}
+                        {emailSuppressionButton(notice.recipientEmail, `button-suppress-unmatched-email-${index}`)}
+                        {!["multiple_recipients", "recipient_mismatch"].includes(notice.matchingReason) &&
+                          notice.originalSentAt !== null &&
+                          eligibleBounceEntries.some((entry) => entry.recipientEmail.trim().toLowerCase() === notice.recipientEmail.trim().toLowerCase()) && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            data-testid={`button-review-link-gmail-notice-${index}`}
+                            className="ml-2 h-7 border-amber-300 bg-white px-2 text-xs text-amber-950 hover:bg-amber-100"
+                            onClick={() => {
+                              setBounceLinkSendId("");
+                              setBounceLinkNotice({ kind: "unmatched", ...notice });
+                            }}
+                          >
+                            Link to send…
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {bounceSyncResult.noHistoryCount > 0 && (
+                <details className="mt-3 rounded-md border border-slate-200 bg-white/80 p-3 text-xs text-slate-700">
+                  <summary className="cursor-pointer font-semibold text-slate-800">
+                    {bounceSyncResult.noHistoryCount} notices have no matching Venue Admin email history and are outside the action queue
+                  </summary>
+                  <ul className="mt-2 space-y-1">
+                    {bounceSyncResult.noHistoryNotices.map((notice, index) => (
+                      <li key={`${notice.gmailMessageId}-${index}`}>
+                        {notice.recipientEmail} · {notice.status ?? "No status"} · {notice.reason || "No diagnostic"}
+                        {" · "}
+                        {notice.gmailThreadId
+                          ? <a href={`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(notice.gmailThreadId)}`} target="_blank" rel="noreferrer" className="font-medium underline">Open in Gmail</a>
+                          : <span className="text-slate-500">Gmail conversation link unavailable</span>}
+                      </li>
+                    ))}
+                  </ul>
+                  {bounceSyncResult.noHistoryCount > bounceSyncResult.noHistoryNotices.length && (
+                    <p className="mt-2">Showing the first {bounceSyncResult.noHistoryNotices.length}.</p>
+                  )}
+                </details>
+              )}
+              {bounceSyncResult.unmatchedCount > bounceSyncResult.unmatchedNotices.length && (
+                <p className="mt-2 text-xs">Only the first {bounceSyncResult.unmatchedNotices.length} unmatched notices are listed here.</p>
+              )}
+              {bounceSyncResult.ambiguousCount > bounceSyncResult.ambiguousMatches.length && (
+                <p className="mt-2 text-xs">Only the first {bounceSyncResult.ambiguousMatches.length} ambiguous notices are listed here.</p>
+              )}
+              {bounceSyncResult.truncated && (
+                <p className="mt-2 text-xs">The scan reached its 1,000-message limit. Older notices were not checked.</p>
+              )}
+            </div>
+          )}
+          {suppressedEmails.length > 0 && (
+            <div className="border-b border-amber-200 bg-amber-50/70 px-5 py-3" data-testid="section-suppressed-outreach-emails">
+              <p className="text-sm font-semibold text-amber-950">Future outreach blocked for {suppressedEmails.length} {suppressedEmails.length === 1 ? "address" : "addresses"}</p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {suppressedEmails.map((email) => (
+                  <li key={email} className="flex items-center gap-2 rounded-md border border-amber-200 bg-white px-2.5 py-1.5 text-xs text-slate-800">
+                    <span>{email}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      data-testid={`button-allow-email-${encodeURIComponent(email)}`}
+                      onClick={() => void setEmailSuppression(email, false)}
+                      disabled={suppressionMutation.isPending}
+                      className="h-6 px-1.5 text-xs text-[#25324a]"
+                    >
+                      Allow again
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-5 py-2 text-xs text-slate-600">
             <span>All application and delivery states can be selected. Selecting a template never clears your selection.</span>
             <label className="flex items-center gap-2"><input type="checkbox" data-testid="checkbox-one-per-address" checked={onePerAddress} onChange={(event) => setOnePerAddress(event.target.checked)} disabled={bulkSending} />One email per address</label>
@@ -782,6 +1582,22 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
                   const entry = group.latest;
                   const lastSent = lastSuccessfulEmail(group);
                   const application = venueApplication(group);
+                  const reply = latestGmailReply(group);
+                  const manualReplyEvent = latestManualReplyEvent(group);
+                  const manualReplyEvents = manualReplyHistory(group);
+                  const manualReplyConfirmed = hasManualReplyConfirmation(group);
+                  const profileIds = [...new Set(group.events
+                    .map((event) => event.venueOwnerProfileId)
+                    .filter((id): id is number => id !== null))];
+                  const replyClassificationLabel = reply?.gmailReplyClassification === "interested"
+                    ? "Interested"
+                    : reply?.gmailReplyClassification === "rejected"
+                      ? "Rejected"
+                      : reply?.gmailReplyClassification === "other"
+                        ? "Other reply"
+                        : reply?.gmailReplyClassification === "uncertain"
+                          ? "Needs review"
+                          : "Awaiting classification";
                   return (
                     <div key={group.key} data-testid={`row-outreach-${entry.id}`} className="border-b border-slate-200/80 last:border-b-0">
                     <div className="grid grid-cols-[32px_1.25fr_1.45fr_1.2fr_1fr_1fr_106px] items-center gap-4 px-5 py-4 hover:bg-white/45">
@@ -795,6 +1611,37 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
                         <p className="mt-1 truncate text-[11px] text-slate-600" data-testid={`text-outreach-agent-${entry.id}`}>
                           Agent: {entry.assignedAgentName ?? (entry.assignedAgentId == null ? "Unassigned" : `Agent #${entry.assignedAgentId}`)}
                         </p>
+                        <label className="mt-2 block text-[10px] font-medium text-slate-600">
+                          Manual interest
+                          <select
+                            aria-label={`Manual interest for ${entry.businessName}`}
+                            data-testid={`select-manual-interest-${entry.id}`}
+                            value={entry.manualInterestLevel ?? ""}
+                            disabled={manualInterestMutation.isPending}
+                            onChange={(event) => {
+                              const value = event.target.value as VenueOutreachHistoryEntry["manualInterestLevel"] | "";
+                              void saveManualInterest(entry, value || null);
+                            }}
+                            className="ml-2 h-7 rounded-md border border-slate-300 bg-white px-2 text-[11px] text-slate-700 disabled:opacity-60"
+                          >
+                            <option value="">Not classified</option>
+                            <option value="top_interest">Top interest</option>
+                            <option value="interest">Interest</option>
+                            <option value="no_interest">No interest</option>
+                          </select>
+                        </label>
+                        {(!reply || manualReplyConfirmed) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            data-testid={`button-manual-reply-${entry.id}`}
+                            disabled={manualReplyMutation.isPending}
+                            onClick={() => void saveManualReply(entry, manualReplyConfirmed ? "undo_mark" : "mark_replied")}
+                            className="mt-1 h-7 justify-start px-0 text-[11px] font-semibold text-[#256b58] hover:bg-transparent hover:underline disabled:opacity-50"
+                          >
+                            {manualReplyConfirmed ? "Undo reply mark" : "Mark as replied"}
+                          </Button>
+                        )}
                         {canEditPlaceId(entry) && (
                           <Button
                             type="button"
@@ -810,10 +1657,32 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm text-slate-700" data-testid={`text-outreach-recipient-${entry.id}`}>{entry.recipientEmail}</p>
+                        {isEmailSuppressed(entry.recipientEmail) && <p className="mt-1 text-[11px] font-medium text-amber-800">Future outreach blocked for this address</p>}
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm text-slate-700">{lastSent ? formatDate(lastSent.sentAt ?? lastSent.createdAt) : "No successful email"}</p>
                         <p className="mt-1 text-[11px] text-slate-500" data-testid={`text-outreach-template-${entry.id}`}>{lastSent ? templateLabels[lastSent.template] ?? emailTemplateLabel(lastSent.template) : "—"}</p>
+                        {reply && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            {reply.gmailThreadId
+                              ? <a href={`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(reply.gmailThreadId)}`} target="_blank" rel="noreferrer" data-testid={`link-outreach-gmail-reply-${entry.id}`} className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 underline underline-offset-2">Replied via Gmail · {formatDate(reply.gmailRepliedAt)}</a>
+                              : <p data-testid={`text-outreach-gmail-reply-${entry.id}`} className="text-[11px] font-semibold text-emerald-800">Replied via Gmail · {formatDate(reply.gmailRepliedAt)}</p>}
+                            <span data-testid={`badge-outreach-reply-classification-${entry.id}`}
+                              className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                              {replyClassificationLabel}
+                            </span>
+                          </div>
+                        )}
+                        {manualReplyEvent && (
+                          <p
+                            data-testid={`text-outreach-manual-reply-${entry.id}`}
+                            title={`Recorded by ${manualReplyEvent.actorUid}`}
+                            className={`mt-1 text-[11px] font-semibold ${manualReplyConfirmed ? "text-emerald-800" : "text-slate-500"}`}
+                          >
+                            {manualReplyConfirmed ? "Admin confirmed reply" : "Manual reply mark undone"} · {formatDate(manualReplyEvent.createdAt)}
+                          </p>
+                        )}
+                        {lastSent && !reply && !manualReplyConfirmed && <p data-testid={`text-outreach-no-reply-${entry.id}`} className="mt-1 text-[11px] text-slate-500">No reply recorded</p>}
                       </div>
                       <div className="min-w-0">
                         <p className={`text-sm ${isFollowUpDue(group) ? "font-semibold text-amber-800" : "text-slate-700"}`}>
@@ -823,7 +1692,7 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
                       </div>
                       <div>
                         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${deliveryClasses(entry.deliveryStatus)}`} data-testid={`status-outreach-delivery-${entry.id}`}>
-                          {entry.deliveryStatus === "sent" ? <CheckCircle2 className="h-3 w-3" /> : entry.deliveryStatus === "delivery_uncertain" ? <Clock3 className="h-3 w-3" /> : null}
+                          {entry.deliveryStatus === "sent" ? <CheckCircle2 className="h-3 w-3" /> : entry.deliveryStatus === "delivery_uncertain" ? <Clock3 className="h-3 w-3" /> : entry.deliveryStatus === "bounced" ? <AlertCircle className="h-3 w-3" /> : null}
                           {deliveryLabel(entry.deliveryStatus)}
                         </span>
                         <p className="mt-1 text-[11px] text-slate-500">{formatDate(entry.createdAt)}</p>
@@ -852,9 +1721,14 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
                             <div>
                               <span className="font-semibold text-slate-800">{prettify(event.kind)} · {templateLabels[event.template] ?? emailTemplateLabel(event.template)}</span><span className="ml-2 text-slate-500">{event.recipientEmail} · {formatDate(event.createdAt)}</span>
                               {event.linkStatus !== "none" && <p className={`mt-1 ${linkClasses(event.linkStatus)}`}>Invitation link: {linkLabel(event.linkStatus)}{event.expiresAt ? ` · expires ${formatDate(event.expiresAt)}` : ""}</p>}
+                              {event.deliveryStatus === "bounced" && (
+                                <p className="mt-1 max-w-xl text-red-800" data-testid={`text-outreach-bounce-reason-${event.id}`}>
+                                  Gmail reported {event.deliveryFailureStatus ?? "a delivery failure"}{event.deliveryFailureReason ? ` · ${event.deliveryFailureReason}` : ""}.
+                                </p>
+                              )}
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className={`font-semibold ${event.deliveryStatus === "sent" ? "text-emerald-700" : event.deliveryStatus === "delivery_uncertain" ? "text-amber-800" : "text-slate-600"}`}>{deliveryLabel(event.deliveryStatus)}</span>
+                              <span className={`font-semibold ${event.deliveryStatus === "sent" ? "text-emerald-700" : event.deliveryStatus === "delivery_uncertain" ? "text-amber-800" : event.deliveryStatus === "bounced" ? "text-red-800" : "text-slate-600"}`}>{deliveryLabel(event.deliveryStatus)}</span>
                               {canEditPlaceId(event) && (
                                 <Button
                                   type="button"
@@ -866,11 +1740,66 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
                                   {event.placeId ? "Change location" : "Set location"}
                                 </Button>
                               )}
+                              {emailSuppressionButton(event.recipientEmail, `button-suppress-history-email-${event.id}`)}
                               <Button type="button" variant="ghost" data-testid={`button-resend-outreach-timeline-${event.id}`} onClick={() => setSelectedEntry(event)} disabled={bulkSending || !!resendingId || templatesQuery.isError || templatesQuery.isLoading} className="h-7 px-2 text-xs">Email</Button>
                             </div>
                           </li>
                         ))}
                       </ol>
+                      {manualReplyEvents.length > 0 && (
+                        <section
+                          aria-label={`Manual reply audit for ${entry.businessName}`}
+                          data-testid={`list-manual-reply-audit-${entry.id}`}
+                          className="mb-3 rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2"
+                        >
+                          <p className="text-[11px] font-semibold text-emerald-900">Manual reply status history</p>
+                          <ol className="mt-1 space-y-1">
+                            {manualReplyEvents.map((event) => (
+                              <li key={event.id} className="text-[11px] text-emerald-900">
+                                {event.action === "mark_replied" ? "Marked as replied" : "Reply mark undone"} · {formatDate(event.createdAt)} · {event.actorUid}
+                              </li>
+                            ))}
+                          </ol>
+                        </section>
+                      )}
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3">
+                        <p className="max-w-xl text-[11px] leading-5 text-slate-500">
+                          Remove only these outreach records, or permanently delete a linked venue profile and its associated data.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            data-testid={`button-remove-outreach-history-${entry.id}`}
+                            disabled={bulkSending || group.events.length > 5000}
+                            title={group.events.length > 5000 ? "Refresh the history before removing this large group." : undefined}
+                            onClick={() => openDeleteDialog({ kind: "outreach-history", group })}
+                            className="h-8 gap-1.5 border-rose-200 bg-white px-2.5 text-xs text-rose-800 hover:bg-rose-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Remove outreach history
+                          </Button>
+                          {profileIds.map((profileId) => (
+                            <Button
+                              key={profileId}
+                              type="button"
+                              variant="destructive"
+                              data-testid={`button-delete-outreach-venue-${entry.id}-${profileId}`}
+                              disabled={bulkSending}
+                              onClick={() => openDeleteDialog({
+                                kind: "venue-profile",
+                                profileId,
+                                businessName: entry.businessName,
+                                groupKey: group.key,
+                              })}
+                              className="h-8 gap-1.5 px-2.5 text-xs"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              {profileIds.length === 1 ? "Permanently delete venue" : `Delete venue profile #${profileId}`}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
                     </details>
                     <details data-testid={`details-venue-follow-up-${entry.id}`} className="group border-t border-slate-200/70 bg-white/55 px-5 py-2">
                       <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-xs font-semibold text-[#25324a]">
@@ -952,12 +1881,20 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
         }}
         onResend={handleResend}
       />
-      <VenueEmailTemplateManager open={templateManagerOpen} onOpenChange={setTemplateManagerOpen} templates={emailTemplates}
+      <VenueEmailTemplateManager open={templateManagerOpen} onOpenChange={(open) => {
+        setTemplateManagerOpen(open);
+        if (open) void templatesQuery.refetch();
+      }} templates={emailTemplates}
         onChanged={async (templateId) => {
           setBulkConfirmOpen(false);
           await queryClient.invalidateQueries({ queryKey: getListVenueEmailTemplatesQueryKey() });
           if (templateId) setBulkTemplate(templateId);
         }} />
+      <PastedVenueEmailDialog open={pastedListOpen} onOpenChange={(open) => {
+        setPastedListOpen(open);
+        if (open) void templatesQuery.refetch();
+      }} templates={emailTemplates}
+        onSent={() => queryClient.invalidateQueries({ queryKey: getGetVenueOutreachHistoryQueryKey() })} />
       <OutreachPlaceDialog
         entry={placeIdEntry}
         open={Boolean(placeIdEntry)}
@@ -967,12 +1904,298 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
         }}
         onSave={(entry, placeId) => void savePlaceId(entry, placeId)}
       />
+      <Dialog
+        open={deleteDialog !== null}
+        onOpenChange={(open) => { if (!open) closeDeleteDialog(); }}
+      >
+        <DialogContent className="max-h-[90dvh] overflow-y-auto border-slate-200 bg-[#fbfaf8] sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-800">
+              <Trash2 className="h-5 w-5" />
+              {deleteDialog?.kind === "outreach-history" ? "Remove outreach history?" : "Permanently delete venue?"}
+            </DialogTitle>
+            <DialogDescription>
+              {deleteDialog?.kind === "outreach-history"
+                ? `This permanently removes ${deleteDialog.group.events.length} Venue Admin history records for ${deleteDialog.group.latest.businessName}, including follow-up details and the manual interest label. Any active invitation links attached to these records will be revoked. The venue profile and application remain.`
+                : `This permanently deletes ${deleteDialog?.businessName ?? "this venue"} and its associated venue data, including its profile and application history. This cannot be undone.`}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteDialog?.kind === "outreach-history" && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+              Gmail messages are not deleted, and email blocks remain in place. This action removes the records from Venue Admin only.
+            </p>
+          )}
+          <div className="space-y-2 py-2">
+            <Label htmlFor="confirm-venue-outreach-delete" className="text-xs font-bold uppercase tracking-wider">
+              Type the venue name to confirm
+            </Label>
+            <Input
+              id="confirm-venue-outreach-delete"
+              data-testid="input-confirm-venue-outreach-delete"
+              placeholder={deleteDialog?.kind === "outreach-history"
+                ? deleteDialog.group.latest.businessName
+                : deleteDialog?.businessName ?? ""}
+              value={deleteConfirmName}
+              onChange={(event) => setDeleteConfirmName(event.target.value)}
+              autoComplete="off"
+              disabled={outreachHistoryDeleteMutation.isPending || venueDeleteMutation.isPending}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              data-testid="button-cancel-venue-outreach-delete"
+              onClick={closeDeleteDialog}
+              disabled={outreachHistoryDeleteMutation.isPending || venueDeleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            {deleteDialog?.kind === "outreach-history" ? (
+              <Button
+                type="button"
+                variant="destructive"
+                data-testid="button-confirm-remove-outreach-history"
+                onClick={() => void removeOutreachHistory()}
+                disabled={
+                  outreachHistoryDeleteMutation.isPending ||
+                  historyQuery.isFetching ||
+                  deleteConfirmName.trim() !== deleteDialog.group.latest.businessName.trim()
+                }
+              >
+                {outreachHistoryDeleteMutation.isPending ? "Removing…" : "Remove history"}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="destructive"
+                data-testid="button-confirm-permanent-venue-delete"
+                onClick={() => void permanentlyDeleteVenue()}
+                disabled={
+                  venueDeleteMutation.isPending ||
+                  deleteConfirmName.trim() !== (deleteDialog?.businessName ?? "").trim()
+                }
+              >
+                {venueDeleteMutation.isPending ? "Deleting…" : "Delete venue"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={bounceReconciliationOpen}
+        onOpenChange={(open) => {
+          if (bounceReconciliationApplyMutation.isPending) return;
+          setBounceReconciliationOpen(open);
+          if (!open) setBounceReconciliationPreview(null);
+        }}
+      >
+        <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto border-slate-200 bg-[#fbfaf8]">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-[#25324a]">Review verified Gmail links</DialogTitle>
+            <DialogDescription>
+              This read-only preview includes only one-to-one matches confirmed against Gmail Sent, the recipient, and send time. The apply plan expires {bounceReconciliationPreview ? formatDate(bounceReconciliationPreview.expiresAt) : "soon"}.
+            </DialogDescription>
+          </DialogHeader>
+          {bounceReconciliationPreview && (
+            <div className="space-y-3">
+              <p role="status" data-testid="status-gmail-bounce-reconciliation-preview" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                {bounceReconciliationPreview.verifiedCandidateCount === 0
+                  ? "No verified stale links were found. No records have been changed."
+                  : `${bounceReconciliationPreview.verifiedCandidateCount} verified ${bounceReconciliationPreview.verifiedCandidateCount === 1 ? "send is" : "sends are"} ready for review. The server scanned ${bounceReconciliationPreview.scannedCount} Gmail messages.`}
+              </p>
+              {bounceReconciliationPreview.candidates.length > 0 && (
+                <div className="max-h-[50dvh] overflow-y-auto rounded-md border border-slate-200 bg-white">
+                  <ol className="divide-y divide-slate-100 text-sm" data-testid="list-gmail-bounce-reconciliation-candidates">
+                    {bounceReconciliationPreview.candidates.map((candidate) => (
+                      <li key={candidate.logId} data-testid={`row-gmail-bounce-reconciliation-${candidate.logId}`} className="grid gap-1 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                        <span className="font-medium text-slate-900">{candidate.businessName}</span>
+                        <span className="text-slate-700">{candidate.recipientEmail}</span>
+                        <span className="text-xs text-slate-500 sm:col-span-2">
+                          Original send: {formatDate(candidate.originalSentAt)} · Admin record: {formatDate(candidate.sentAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              <p className="text-xs leading-5 text-slate-600">
+                Applying replaces each listed row’s stored RFC Message-ID and marks that same row bounced. If any notice, Sent message, or row changed after preview, the server aborts the entire update. Ambiguous, unmatched, and no-history notices are not included.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="button-cancel-gmail-bounce-reconciliation"
+              onClick={() => {
+                setBounceReconciliationOpen(false);
+                setBounceReconciliationPreview(null);
+              }}
+              disabled={bounceReconciliationApplyMutation.isPending}
+            >
+              Cancel
+            </Button>
+            {bounceReconciliationPreview && bounceReconciliationPreview.verifiedCandidateCount > 0 && (
+              <Button
+                type="button"
+                data-testid="button-confirm-gmail-bounce-reconciliation"
+                onClick={() => void applyGmailBounceReconciliation()}
+                disabled={bounceReconciliationApplyMutation.isPending}
+                className="bg-[#25324a] text-white hover:bg-[#1d283c]"
+              >
+                {bounceReconciliationApplyMutation.isPending
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Revalidating and applying…</>
+                  : `Confirm: update ${bounceReconciliationPreview.verifiedCandidateCount} ${bounceReconciliationPreview.verifiedCandidateCount === 1 ? "send" : "sends"}`}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(bounceLinkNotice)}
+        onOpenChange={(open) => {
+          if (!open && !bounceLinkMutation.isPending) {
+            setBounceLinkNotice(null);
+            setBounceLinkSendId("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl border-slate-200 bg-[#fbfaf8]">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-[#25324a]">Review Gmail notice link</DialogTitle>
+            <DialogDescription>
+              Confirm the notice and send record before changing the delivery history. The notice can only be linked once.
+            </DialogDescription>
+          </DialogHeader>
+          {bounceLinkNotice && (
+            <div className="space-y-4">
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                <p className="font-semibold">Gmail notice recipient</p>
+                <p className="mt-1">{bounceLinkNotice.recipientEmail}</p>
+                <p className="mt-1 text-xs">
+                  {bounceLinkNotice.kind === "ambiguous"
+                    ? "This notice matched multiple sends. Choose only after reviewing the send details."
+                    : unmatchedMatchingReasonLabel(bounceLinkNotice.matchingReason!)}
+                </p>
+                <p className="mt-1 text-xs">Original send: {formatDate(bounceLinkNotice.originalSentAt)}</p>
+                {bounceLinkNotice.status && <p className="mt-1 text-xs">Status: {bounceLinkNotice.status}</p>}
+                {bounceLinkNotice.reason && <p className="mt-1 text-xs">Reason: {bounceLinkNotice.reason}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="select-gmail-bounce-send">Choose an eligible send</Label>
+                <select
+                  id="select-gmail-bounce-send"
+                  data-testid="select-gmail-bounce-send"
+                  value={bounceLinkSendId}
+                  onChange={(event) => setBounceLinkSendId(event.target.value)}
+                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-200"
+                >
+                  <option value="">Choose a send record</option>
+                  {linkableBounceEntries.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.businessName} · {entry.recipientEmail} · {formatDate(entry.sentAt ?? entry.createdAt)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedBounceEntry && (
+                <div className="rounded-md border border-slate-200 bg-white p-3 text-sm">
+                  <p className="font-semibold text-slate-900">Selected send</p>
+                  <dl className="mt-2 grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1 text-slate-700">
+                    <dt>Venue</dt><dd>{selectedBounceEntry.businessName}</dd>
+                    <dt>Recipient</dt><dd>{selectedBounceEntry.recipientEmail}</dd>
+                    <dt>Template</dt><dd>{selectedBounceEntry.templateName ?? emailTemplateLabel(selectedBounceEntry.template)}</dd>
+                    <dt>Sent</dt><dd>{formatDate(selectedBounceEntry.sentAt ?? selectedBounceEntry.createdAt)}</dd>
+                    <dt>Delivery state</dt><dd>{deliveryLabel(selectedBounceEntry.deliveryStatus)}</dd>
+                  </dl>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setBounceLinkNotice(null);
+                setBounceLinkSendId("");
+              }}
+              disabled={bounceLinkMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              data-testid="button-confirm-link-gmail-notice"
+              onClick={() => void linkBounceToSend()}
+              disabled={!selectedBounceEntry || bounceLinkMutation.isPending}
+              className="bg-[#25324a] text-white hover:bg-[#1d283c]"
+            >
+              {bounceLinkMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Linking…</> : "Confirm link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={clearFailedOpen} onOpenChange={(open) => !clearFailedBusy && setClearFailedOpen(open)}>
+        <DialogContent className="max-w-lg border-slate-200 bg-[#fbfaf8]">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-[#25324a]">{cleanupEmailCount > 0 ? "Clear bounced and failed records?" : "Review failed and bounced records"}</DialogTitle>
+            <DialogDescription>
+              {cleanupEmailCount > 0
+                ? `This permanently removes ${bouncedEmailCount} bounced record${bouncedEmailCount === 1 ? "" : "s"} and ${failedEmailCount} confirmed failed attempt${failedEmailCount === 1 ? "" : "s"} with no recorded send time from Venue Admin.`
+                : "No confirmed bounced or unsent failed records are currently available to clear from Venue Admin."}
+            </DialogDescription>
+          </DialogHeader>
+          {historyQuery.isError && <p role="alert" className="text-sm text-rose-700">History could not be loaded. Refresh before clearing any records.</p>}
+          <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+            <p>{pendingDeliveryCount} sending or uncertain {pendingDeliveryCount === 1 ? "attempt is" : "attempts are"} not included because delivery may have occurred. Successful send history and venue applications are also preserved.</p>
+            <p>Used invitation links and email suppressions remain. Unused invitation links referenced only by the removed records may be deleted. Known Gmail bounce IDs are retained so sync does not add those notices back.</p>
+          </div>
+          <p className="text-sm text-slate-600" data-testid="text-gmail-cleanup-unavailable">This action clears Venue Admin records only. The bounce notices and original sent messages remain in Gmail.</p>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => void historyQuery.refetch()} disabled={clearFailedBusy || historyQuery.isFetching}>{historyQuery.isFetching ? "Refreshing…" : "Refresh count"}</Button>
+            <Button type="button" variant="outline" data-testid="button-cancel-clear-outreach-records" onClick={() => setClearFailedOpen(false)} disabled={clearFailedBusy}>{cleanupEmailCount > 0 ? "Cancel" : "Close"}</Button>
+            {cleanupEmailCount > 0 && <Button type="button" data-testid="button-confirm-clear-outreach-records" onClick={() => void runClearFailed()} disabled={clearFailedBusy || historyQuery.isFetching || historyQuery.isError} className="bg-rose-700 text-white hover:bg-rose-800">
+              {clearFailedBusy ? "Clearing…" : `Clear ${cleanupEmailCount} records`}
+            </Button>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={classificationConfirmOpen} onOpenChange={(open) => !classifyRepliesMutation.isPending && setClassificationConfirmOpen(open)}>
+        <DialogContent className="max-w-lg border-slate-200 bg-[#fbfaf8]">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-[#25324a]">Classify pending replies with AI?</DialogTitle>
+            <DialogDescription>
+              This reads matched reply text and sends it to the AI classifier. It may use Replit credits. Gmail metadata sync above never reads or sends message text.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setClassificationConfirmOpen(false)} disabled={classifyRepliesMutation.isPending}>Cancel</Button>
+            <Button
+              type="button"
+              data-testid="button-confirm-classify-gmail-replies"
+              onClick={() => void runClassifyPendingReplies()}
+              disabled={classifyRepliesMutation.isPending}
+              className="bg-[#25324a] text-white hover:bg-[#1d283c]"
+            >
+              {classifyRepliesMutation.isPending ? "Classifying…" : "Continue with AI"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={bulkConfirmOpen} onOpenChange={(open) => !bulkSending && setBulkConfirmOpen(open)}>
         <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto border-slate-200 bg-[#fbfaf8]">
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-[#25324a]">Confirm recipients before sending</DialogTitle>
-            <DialogDescription>One “{selectedTemplate?.name}” email will be sent to each recipient below. Sends run one at a time and stop at the first failure or uncertain delivery. Keep this page open until the batch finishes.</DialogDescription>
+            <DialogDescription>One “{selectedTemplate?.name}” email will be sent to each recipient below. Confirmed pre-send rejections are skipped; the batch stops if delivery is uncertain. Keep this page open until it finishes.</DialogDescription>
           </DialogHeader>
+          {filters.status === "bounced" && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
+              This retry sends to the current email addresses shown below. Verify the recipients before confirming; a repeat bounce will clear their bounced Venue Admin history on the next Gmail sync.
+            </p>
+          )}
           {selectedTemplate && <details className="rounded-md border border-slate-200 bg-white p-3">
             <summary className="cursor-pointer text-sm font-semibold">Preview email · {selectedTemplate.subject}</summary>
             <iframe title="Selected email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={templatePreview(selectedTemplate.body, selectedTemplate.format)} className="mt-3 h-72 w-full border-0" />
@@ -989,6 +2212,7 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
           )}
           {selectedGroups.some((group) => ["sending", "delivery_uncertain"].includes(group.latest.deliveryStatus)) && <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Some selected venues have sending or unconfirmed emails. You may still send, but check Gmail Sent first to avoid duplicates.</p>}
           <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" data-testid="text-bulk-recipient-count">{recipientsForBulk.length} emails · {selectedGroups.length} venues selected{hiddenSelectedCount > 0 ? ` · ${hiddenSelectedCount} hidden by filters` : ""}</p>
+          {blockedSelectedCount > 0 && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950" data-testid="text-bulk-blocked-count">{blockedSelectedCount} selected {blockedSelectedCount === 1 ? "venue has" : "venues have"} an email address blocked from future outreach and will be skipped.</p>}
           <div className="max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white p-3">
             <ol className="space-y-2 text-sm" data-testid="list-bulk-recipients">
               {recipientsForBulk.map((group, index) => (
@@ -1011,7 +2235,7 @@ export default function VenueOutreachHistoryPanel({ onClose, initialSearch = "" 
       </Dialog>
       {bulkResult && (
         <div role={bulkResult.detail ? "alert" : "status"} data-testid="status-bulk-send-result" className={`mt-4 rounded-lg border px-4 py-3 text-sm ${bulkResult.detail ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-300 bg-emerald-50 text-emerald-950"}`}>
-          <strong>Batch finished: {bulkResult.sent} sent, {bulkResult.failed} failed or uncertain, {bulkResult.notAttempted} not attempted.</strong>
+          <strong>Batch finished: {bulkResult.sent} sent, {bulkResult.rejected} rejected before sending, {bulkResult.uncertain} needing a check, {bulkResult.notAttempted} not attempted.</strong>
           {bulkResult.detail && <span className="ml-2">{bulkResult.detail}</span>}
         </div>
       )}

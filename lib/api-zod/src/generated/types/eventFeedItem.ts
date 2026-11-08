@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EventFeedItemEventType } from './eventFeedItemEventType';
+import type { EventFeedItemMyJoinRequestStatus } from './eventFeedItemMyJoinRequestStatus';
 import type { EventFeedItemMyRsvp } from './eventFeedItemMyRsvp';
 import type { EventFeedItemVisibility } from './eventFeedItemVisibility';
 
@@ -63,4 +64,9 @@ export interface EventFeedItem {
   /** @nullable */
   myRsvp?: EventFeedItemMyRsvp;
   isInvited?: boolean;
+  joinApprovalRequired: boolean;
+  /** @nullable */
+  myJoinRequestStatus: EventFeedItemMyJoinRequestStatus;
+  /** @minimum 0 */
+  pendingJoinRequestCount?: number;
 }

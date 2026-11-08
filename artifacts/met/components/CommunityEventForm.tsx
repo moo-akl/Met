@@ -82,10 +82,10 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
     initial ? new Date(initial.startsAt) : defaultStart(),
   );
   const [visibility, setVisibility] = useState<"public" | "invite_only">(
-    planMode ? "invite_only" : initial?.visibility ?? "public",
+    planMode ? "public" : initial?.visibility ?? "public",
   );
   const [inviteLinkEnabled, setInviteLinkEnabled] = useState(
-    planMode || (initial?.inviteLinkEnabled ?? false),
+    initial?.inviteLinkEnabled ?? false,
   );
   const [requireInvitePasscode, setRequireInvitePasscode] = useState(
     initial?.invitePasscodeRequired ?? false,
@@ -283,6 +283,22 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       setFormError(t("tabs.events.eventNameRequired"));
       return;
     }
+    if (planMode && !location.trim()) {
+      setFormError(t("tabs.events.planLocationRequired"));
+      return;
+    }
+    const unchangedLegacyPlanLocation = Boolean(
+      isEditing &&
+      initial &&
+      !initial.locationPlaceId &&
+      initial.latitude == null &&
+      initial.longitude == null &&
+      initial.location === (location.trim() || null),
+    );
+    if (planMode && !selectedPlace && !unchangedLegacyPlanLocation) {
+      setFormError(t("tabs.events.planPlaceSelectionRequired"));
+      return;
+    }
     if (!Number.isFinite(startsAt.getTime()) || startsAt.getTime() <= Date.now()) {
       setFormError(t("tabs.events.eventDateMustBeFuture"));
       return;
@@ -336,6 +352,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       visibility,
       inviteeUids: visibility === "invite_only" ? inviteeUids : [],
       inviteLinkEnabled: visibility === "invite_only" && inviteLinkEnabled,
+      ...(!isEditing ? { joinApprovalRequired: planMode } : {}),
       invitePasscode:
         visibility !== "invite_only" || !inviteLinkEnabled || !requireInvitePasscode
           ? null
@@ -414,7 +431,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
                 {t("tabs.events.quickPlanHint")}
               </Text>
               <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-                {t("tabs.events.inviteLinkDescription")}
+                {t("tabs.events.joinApprovalHint")}
               </Text>
             </View>
           </View>
@@ -543,7 +560,11 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
             setSelectedPlace(null);
           }}
           onFocus={() => void captureLocationForNearbySuggestions()}
-          placeholder={t("tabs.events.locationSearchHint")}
+          placeholder={t(
+            planMode
+              ? "tabs.events.planLocationSearchHint"
+              : "tabs.events.locationSearchHint",
+          )}
           placeholderTextColor={colors.mutedForeground}
           maxLength={200}
           style={[
@@ -577,7 +598,11 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
             ) : null}
             {!locationSearch.isFetching && matchingLocations.length === 0 ? (
               <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-                {t("tabs.events.noPlaceResults")}
+                {t(
+                  planMode
+                    ? "tabs.events.planPlaceSelectionRequired"
+                    : "tabs.events.noPlaceResults",
+                )}
               </Text>
             ) : null}
             {matchingLocations.map((place) => (
@@ -608,7 +633,11 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
           </View>
         ) : (
           <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-            {t("tabs.events.locationSearchHelper")}
+            {t(
+              planMode
+                ? "tabs.events.planPlaceSelectionRequired"
+                : "tabs.events.locationSearchHelper",
+            )}
           </Text>
         )}
 
@@ -819,16 +848,16 @@ const styles = StyleSheet.create({
   back: { width: 40, height: 40, justifyContent: "center" },
   headerTitle: { fontSize: 18, fontWeight: "700" },
   scroll: { flex: 1 },
-  form: { padding: 18, gap: 10 },
-  planIntro: { borderWidth: 1, borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  form: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 18, gap: 12 },
+  planIntro: { borderWidth: 1, borderTopLeftRadius: 28, borderBottomRightRadius: 20, padding: 16, flexDirection: "row", alignItems: "flex-start", gap: 12, marginVertical: 3 },
   planIntroCopy: { flex: 1 },
   planIntroTitle: { fontSize: 14, fontWeight: "700", lineHeight: 20 },
   label: { fontSize: 14, fontWeight: "700", marginTop: 6 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  multiline: { minHeight: 94, textAlignVertical: "top" },
+  input: { minHeight: 50, borderWidth: 1, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 13, fontSize: 15 },
+  multiline: { minHeight: 104, textAlignVertical: "top", borderTopLeftRadius: 22, borderBottomRightRadius: 22 },
   selectedLocation: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 2 },
   selectedLocationText: { fontSize: 12, fontWeight: "600", flex: 1 },
-  locationResults: { borderWidth: 1, borderRadius: 13, overflow: "hidden" },
+  locationResults: { borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 20, overflow: "hidden" },
   searchStatus: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12 },
   locationResult: {
     minHeight: 56,
@@ -844,11 +873,11 @@ const styles = StyleSheet.create({
   locationResultLabel: { fontSize: 12, lineHeight: 17, marginTop: 2 },
   attribution: { fontSize: 10, paddingHorizontal: 12, paddingVertical: 8 },
   visibilityRow: { gap: 10 },
-  visibilityOption: { borderWidth: 1, borderRadius: 14, padding: 13 },
+  visibilityOption: { borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, padding: 15 },
   visibilityTitle: { fontSize: 14, fontWeight: "700" },
   visibilityText: { fontSize: 12, lineHeight: 17, marginTop: 4 },
   matchesSection: { marginTop: 6 },
-  inviteLinkCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 12, marginTop: 4 },
+  inviteLinkCard: { borderWidth: 1, borderTopLeftRadius: 26, borderBottomRightRadius: 20, padding: 15, gap: 14, marginTop: 4 },
   inviteLinkRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   inviteLinkCopy: { flex: 1, gap: 4 },
   inviteLinkTitle: { fontSize: 14, fontWeight: "700" },
@@ -864,6 +893,6 @@ const styles = StyleSheet.create({
   },
   matchName: { fontSize: 14, fontWeight: "500" },
   error: { fontSize: 13, fontWeight: "600", marginTop: 6 },
-  submit: { minHeight: 48, borderRadius: 13, alignItems: "center", justifyContent: "center", marginTop: 10 },
+  submit: { minHeight: 52, borderTopLeftRadius: 28, borderBottomRightRadius: 28, alignItems: "center", justifyContent: "center", marginTop: 12 },
   submitText: { fontSize: 15, fontWeight: "700" },
 });

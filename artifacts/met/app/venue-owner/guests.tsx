@@ -9,6 +9,7 @@
  * through the Met app.
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
@@ -241,7 +242,7 @@ export default function VenueOwnerGuestsScreen() {
           onEndReachedThreshold={0.3}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>👥</Text>
+              <Feather name="users" size={38} color={accent} style={styles.emptyEmoji} />
               <Text style={[styles.emptyText, { color: vMuted }]}>
                 {debouncedSearch.trim()
                   ? "No guests match your search."
@@ -277,7 +278,7 @@ export default function VenueOwnerGuestsScreen() {
               <View style={styles.guestInfo}>
                 <View style={styles.nameRow}>
                   <Text style={[styles.guestName, { color: vText }]} numberOfLines={1}>{item.displayName}</Text>
-                  {item.isPioneer && <Text style={styles.pioneerStar}>⭐</Text>}
+                  {item.isPioneer && <Feather name="star" size={13} color={isDark ? "#FFD166" : "#A66B16"} />}
                 </View>
                 <Text style={[styles.guestMeta, { color: vMuted }]}>
                   {item.checkinCount} {item.checkinCount === 1 ? "visit" : "visits"}
@@ -287,7 +288,7 @@ export default function VenueOwnerGuestsScreen() {
                 {item.qrVerifiedCount > 0 ? (
                   <Text style={[styles.qrBadge, { color: isDark ? "#4ADE80" : "#16A34A" }]}>✓ Scanned QR</Text>
                 ) : (
-                  <Text style={[styles.proximityBadge, { color: vMuted }]}>📡 Nearby only</Text>
+                  <Text style={[styles.proximityBadge, { color: vMuted }]}>Nearby only</Text>
                 )}
               </View>
 
@@ -347,7 +348,10 @@ export default function VenueOwnerGuestsScreen() {
                   {/* Name + pioneer */}
                   <Text style={[styles.drawerName, { color: vText }]}>{selected.displayName}</Text>
                   {selected.isPioneer && (
-                    <Text style={[styles.drawerPioneer, { color: "#FBBF24" }]}>⭐ Pioneer member</Text>
+                    <View style={styles.pioneerLabel}>
+                      <Feather name="star" size={13} color="#FBBF24" />
+                      <Text style={[styles.drawerPioneer, { color: "#FBBF24" }]}>Pioneer member</Text>
+                    </View>
                   )}
 
                   {/* Visit stats */}
@@ -366,7 +370,7 @@ export default function VenueOwnerGuestsScreen() {
                     </Text>
                   ) : (
                     <Text style={[styles.drawerProximityBadge, { color: vMuted }]}>
-                      📡 Detected nearby — hasn't scanned QR yet
+                      Detected nearby — hasn't scanned QR yet
                     </Text>
                   )}
 
@@ -483,7 +487,7 @@ const styles = StyleSheet.create({
   },
   periodBtn: {
     flex: 1,
-    borderRadius: 8,
+    borderRadius: 999,
     borderWidth: 1,
     paddingVertical: 7,
     alignItems: "center",
@@ -497,7 +501,7 @@ const styles = StyleSheet.create({
   searchWrap: { paddingHorizontal: 16, paddingVertical: 10 },
   searchInput: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 24,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
@@ -517,7 +521,8 @@ const styles = StyleSheet.create({
   guestRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 14,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 20,
     borderWidth: 1,
     padding: 12,
     gap: 12,
@@ -546,7 +551,7 @@ const styles = StyleSheet.create({
   sentBadge: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   chevron: { fontSize: 22, fontFamily: "Inter_400Regular" },
   emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 32 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
+  emptyEmoji: { marginBottom: 12 },
   emptyText: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center" },
 
   // Sheet / drawer
@@ -568,6 +573,7 @@ const styles = StyleSheet.create({
   drawerAvatarInitial: { fontSize: 36, fontFamily: "Inter_700Bold" },
   drawerName: { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
   drawerPioneer: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  pioneerLabel: { flexDirection: "row", alignItems: "center", gap: 5 },
   drawerStats: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
   drawerQrBadge: { fontSize: 13, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   drawerProximityBadge: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
@@ -575,17 +581,18 @@ const styles = StyleSheet.create({
   interestsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center" },
   interestChip: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   interestText: { fontSize: 12, fontFamily: "Inter_500Medium" },
 
   // Reveal CTA
-  sentBox: { borderWidth: 1, borderRadius: 12, padding: 14, width: "100%", alignItems: "center" },
+  sentBox: { borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, padding: 16, width: "100%", alignItems: "center" },
   sentBoxText: { fontSize: 14, fontFamily: "Inter_500Medium", textAlign: "center" },
   revealBtn: {
-    borderRadius: 12,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 18,
     paddingVertical: 14,
     width: "100%",
     alignItems: "center",

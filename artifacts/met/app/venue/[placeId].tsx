@@ -83,11 +83,11 @@ const DAYS = [
   "sunday","monday","tuesday","wednesday","thursday","friday","saturday",
 ] as const;
 
-const REWARD_ICON: Record<string, string> = {
-  free_drink: "🍹",
-  discount:   "💸",
-  experience: "✨",
-  custom:     "🎁",
+const REWARD_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
+  free_drink: "coffee",
+  discount:   "percent",
+  experience: "star",
+  custom:     "gift",
 };
 
 // Gradient avatar colours for leaderboard positions
@@ -181,7 +181,7 @@ function WinnerModal({
   const insets   = useSafeAreaInsets();
   const { isDark } = useTheme();
   const countdown = useCountdown(reward.endDate);
-  const icon     = REWARD_ICON[reward.rewardType] ?? "🎁";
+  const icon     = REWARD_ICON[reward.rewardType] ?? "gift";
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -192,17 +192,17 @@ function WinnerModal({
         {/* Prize card — soft canopy wash */}
         <View style={[wm.prizeCard, isDark && wm.darkPrizeCard]}>
           <View style={wm.prizeBody}>
-            <Text style={wm.prizeIcon}>{icon}</Text>
+            <Feather name={icon} size={34} color={isDark ? "#C6E5C9" : themeColors.light.primary} />
             <Text style={[wm.prizeTitle, isDark && wm.darkTitle]}>{reward.title}</Text>
             <Text style={[wm.prizeDesc, isDark && wm.darkBody]}>{reward.prizeDescription}</Text>
             {reward.description ? (
               <Text style={[wm.prizeExtra, isDark && wm.darkBody]}>{reward.description}</Text>
             ) : null}
             <View style={wm.metaRow}>
-              <Text style={wm.prizeCountdown}>⏱ {countdown}</Text>
+              <Text style={wm.prizeCountdown}>{countdown}</Text>
               <View style={[wm.typePill]}>
                 <Text style={wm.typePillText}>
-                  {REWARD_ICON[reward.rewardType] ?? "🎁"} {reward.rewardType.replace("_", " ")}
+                  {reward.rewardType.replace("_", " ")}
                 </Text>
               </View>
             </View>
@@ -286,9 +286,9 @@ const wm = StyleSheet.create({
 // ─── "Be the Winner" card ────────────────────────────────────────────────────
 
 const STATUS_BADGE: Record<RewardStatus, { label: string; bg: string; text: string }> = {
-  Active:   { label: "🟢 Active",   bg: "#ECFDF5", text: "#065F46" },
-  Upcoming: { label: "🟡 Upcoming", bg: "#FEFCE8", text: "#92400E" },
-  Ended:    { label: "⬜ Ended",    bg: "#F3F4F6", text: "#6B7280" },
+  Active:   { label: "Active",   bg: "#ECFDF5", text: "#065F46" },
+  Upcoming: { label: "Upcoming", bg: "#FEFCE8", text: "#92400E" },
+  Ended:    { label: "Ended",    bg: "#F3F4F6", text: "#6B7280" },
 };
 
 function BeTheWinnerCard({
@@ -302,7 +302,7 @@ function BeTheWinnerCard({
 }) {
   const { isDark } = useTheme();
   const countdown = useCountdown(reward.endDate);
-  const icon      = REWARD_ICON[reward.rewardType] ?? "🎁";
+  const icon      = REWARD_ICON[reward.rewardType] ?? "gift";
   const badge     = STATUS_BADGE[statusLabel];
 
   return (
@@ -320,7 +320,7 @@ function BeTheWinnerCard({
       <View style={bw.body}>
         <View style={bw.topRow}>
           <View style={[bw.iconCircle, isDark && bw.iconCircleDark]}>
-            <Text style={bw.iconEmoji}>{icon}</Text>
+            <Feather name={icon} size={21} color={isDark ? "#C6E5C9" : themeColors.light.primary} />
           </View>
           <View style={[bw.statusPill, { backgroundColor: badge.bg }]}>
             <Text style={[bw.statusPillText, { color: badge.text }]}>{badge.label}</Text>
@@ -1261,7 +1261,7 @@ export default function VenueProfileScreen() {
               <View style={styles.lbGrid}>
                 {topVisitors.map((v, i) => (
                   <View key={v.uid} style={[styles.lbCard, isDark && styles.lbCardDark, cardShadow]}>
-                    <Text style={styles.lbMedal}>{["🥇","🥈","🥉"][i]}</Text>
+                    <Text style={styles.lbMedal}>{i + 1}</Text>
                     {v.photoUrl ? (
                       <Image source={{ uri: v.photoUrl }} style={styles.lbAvatar} contentFit="cover" transition={150} />
                     ) : (
@@ -1457,7 +1457,7 @@ export default function VenueProfileScreen() {
               <View style={[styles.infoCard, cardShadow]}>
                 {todayLabel && (
                   <View style={[styles.infoRow, { borderTopWidth: 0 }]}>
-                    <Text style={styles.infoIcon}>🕐</Text>
+                    <Feather name="clock" size={16} color={TEXT2} style={styles.infoIcon} />
                     <Text style={styles.infoText}>
                       {todayEntry
                         ? <><Text style={{ fontFamily: "Inter_600SemiBold" }}>Open today</Text>: {todayLabel}</>
@@ -1472,7 +1472,7 @@ export default function VenueProfileScreen() {
                     onPress={() => void Linking.openURL(`tel:${profile.phone}`)}
                     accessibilityRole="link"
                   >
-                    <Text style={styles.infoIcon}>📞</Text>
+                    <Feather name="phone" size={16} color={TEXT2} style={styles.infoIcon} />
                     <Text style={[styles.infoText, styles.infoLink]}>{profile.phone}</Text>
                   </Pressable>
                 )}
@@ -1484,7 +1484,7 @@ export default function VenueProfileScreen() {
                     )}
                     accessibilityRole="link"
                   >
-                    <Text style={styles.infoIcon}>🌐</Text>
+                    <Feather name="globe" size={16} color={TEXT2} style={styles.infoIcon} />
                     <Text style={[styles.infoText, styles.infoLink]} numberOfLines={1}>
                       {profile.websiteUrl}
                     </Text>
@@ -1496,7 +1496,7 @@ export default function VenueProfileScreen() {
                     onPress={() => void Linking.openURL(`mailto:${profile.publicEmail}`)}
                     accessibilityRole="link"
                   >
-                    <Text style={styles.infoIcon}>✉️</Text>
+                    <Feather name="mail" size={16} color={TEXT2} style={styles.infoIcon} />
                     <Text style={[styles.infoText, styles.infoLink]} numberOfLines={1}>
                       {profile.publicEmail}
                     </Text>
@@ -1563,7 +1563,7 @@ export default function VenueProfileScreen() {
                   end={{ x: 1, y: 1 }}
                   style={[styles.eventDetailHero, { alignItems: "center", justifyContent: "center" }]}
                 >
-                  <Text style={{ fontSize: 52 }}>🎉</Text>
+                  <Feather name="check-circle" size={44} color={themeColors.light.primary} />
                 </LinearGradient>
               )}
 
@@ -1692,9 +1692,9 @@ const canopyVenue = StyleSheet.create({
   verified: { flexDirection: "row", alignItems: "center", gap: 4 },
   verifiedText: { color: CORAL, fontSize: 10, fontFamily: "Inter_500Medium" },
   actions: { flexDirection: "row", gap: 8, marginBottom: 6 },
-  primaryButton: { flex: 1.2, minHeight: 50, paddingHorizontal: 12, borderRadius: 15, backgroundColor: themeColors.light.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  primaryButton: { flex: 1.2, minHeight: 50, paddingHorizontal: 12, borderTopLeftRadius: 26, borderBottomRightRadius: 18, backgroundColor: themeColors.light.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   primaryButtonText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: TEXT },
-  directionsButton: { flex: 1, minHeight: 50, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: BORDER, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  directionsButton: { flex: 1, minHeight: 50, paddingHorizontal: 12, borderTopLeftRadius: 26, borderBottomRightRadius: 18, borderWidth: 1, borderColor: BORDER, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
   directionsText: { fontFamily: "Inter_500Medium", fontSize: 12, color: TEXT },
   tabs: { flexDirection: "row", gap: 24, borderBottomWidth: 1, borderBottomColor: BORDER, marginBottom: 16 },
   tab: { minHeight: 48, paddingHorizontal: 2, justifyContent: "center", borderBottomWidth: 3, borderBottomColor: "transparent" },
@@ -1714,7 +1714,7 @@ const styles = StyleSheet.create({
   errorBack: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
   // ── Hero ──────────────────────────────────────────────────────────────────
-  hero: { height: 232, marginHorizontal: 16, borderRadius: 20, overflow: "hidden" },
+  hero: { height: 232, marginHorizontal: 16, borderTopLeftRadius: 38, borderBottomRightRadius: 28, overflow: "hidden" },
   demoHero: { height: 286 },
   heroCover: { width: "100%", height: 232 },
   demoHeroCover: { height: 286 },
@@ -1799,8 +1799,9 @@ const styles = StyleSheet.create({
   },
   eventDetailSheet: {
     backgroundColor: CARD,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
+    borderBottomRightRadius: 4,
     overflow: "hidden",
     marginTop: "auto",
   },

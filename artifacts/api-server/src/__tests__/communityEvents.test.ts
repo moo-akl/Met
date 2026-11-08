@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   communityEventRsvpsTable,
+  communityEventJoinRequestsTable,
   communityEventPlanMessagesTable,
   communityEventPlanNotificationPreferencesTable,
   communityEventsTable,
@@ -69,6 +70,12 @@ async function cleanup() {
 
   if (ownedEvents.length) {
     await db
+      .delete(communityEventJoinRequestsTable)
+      .where(inArray(
+        communityEventJoinRequestsTable.eventId,
+        ownedEvents.map(({ id }) => id),
+      ));
+    await db
       .delete(communityEventPlanMessagesTable)
       .where(inArray(
         communityEventPlanMessagesTable.eventId,
@@ -125,6 +132,96 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
   });
 
   afterAll(cleanup);
+
+  it("searches and pages matching public hangouts beyond the old feed cap", async () => {
+    await db
+      .insert(communityEventsTable)
+      .values([
+        ...Array.from({ length: 105 }, (_, index) => ({
+          ownerUid: OWNER_UID,
+          title: `Nearby paging fixture ${index}`,
+          startsAt: new Date(Date.UTC(2032, 5, 1, 8, index)),
+          location: index === 104 ? "Target Pavilion" : `Test Place ${index}`,
+          locationPlaceId: `nearby-paging-${index}`,
+          locationLatitude: 13.7563 + index * 0.001,
+          locationLongitude: 100.5018,
+          visibility: "public",
+          joinApprovalRequired: true,
+        })),
+        {
+          ownerUid: OWNER_UID,
+          title: "Nearby private plan",
+          startsAt: new Date(Date.UTC(2032, 5, 1, 8, 0)),
+          location: "Target Pavilion",
+          visibility: "invite_only",
+          joinApprovalRequired: true,
+        },
+        {
+          ownerUid: OWNER_UID,
+          title: "Nearby ordinary event",
+          startsAt: new Date(Date.UTC(2032, 5, 1, 8, 0)),
+          location: "Target Pavilion",
+          visibility: "public",
+          joinApprovalRequired: false,
+        },
+      ]);
+
+    const requestPage = (offset: number) =>
+      request(app)
+        .get("/api/events/hangouts/nearby")
+        .set(uidHeader(OTHER_UID))
+        .query({
+          limit: 50,
+          offset,
+          sortMode: "soonest",
+          timePeriod: "morning",
+          date: "2032-06-01",
+          timeZone: "UTC",
+        })
+        .expect(200);
+
+    const firstPage = await requestPage(0);
+    const secondPage = await requestPage(50);
+    const thirdPage = await requestPage(100);
+    const pagedEvents = [
+      ...firstPage.body.events,
+      ...secondPage.body.events,
+      ...thirdPage.body.events,
+    ];
+    expect(firstPage.body.nextOffset).toBe(50);
+    expect(secondPage.body.nextOffset).toBe(100);
+    expect(thirdPage.body.nextOffset).toBeNull();
+    expect(pagedEvents).toHaveLength(105);
+    expect(new Set(pagedEvents.map((event: { id: number }) => event.id)).size).toBe(105);
+    expect(pagedEvents[0].title).toBe("Nearby paging fixture 0");
+    expect(pagedEvents.at(-1).title).toBe("Nearby paging fixture 104");
+
+    const locationSearch = await request(app)
+      .get("/api/events/hangouts/nearby")
+      .set(uidHeader(OTHER_UID))
+      .query({
+        locationQuery: "Target",
+        date: "2032-06-01",
+        timePeriod: "morning",
+        timeZone: "UTC",
+      })
+      .expect(200);
+    expect(locationSearch.body.events).toHaveLength(1);
+    expect(locationSearch.body.events[0].title).toBe("Nearby paging fixture 104");
+
+    const nearest = await request(app)
+      .get("/api/events/hangouts/nearby")
+      .set(uidHeader(OTHER_UID))
+      .query({
+        latitude: 13.7563,
+        longitude: 100.5018,
+        limit: 5,
+        date: "2032-06-01",
+        timeZone: "UTC",
+      })
+      .expect(200);
+    expect(nearest.body.events[0].title).toBe("Nearby paging fixture 0");
+  });
 
   it("returns the complete owner-only attendee response for a community event", async () => {
     const created = await request(app)
@@ -186,6 +283,640 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .get(`/api/events/member/${eventId}/attendees`)
       .set(uidHeader(OTHER_UID))
       .expect(404);
+  });
+
+  it("requires host approval before a public hangout can be joined", async () => {
+    await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Hangout without a selected place",
+        startsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+        location: "Lumphini Park",
+        visibility: "public",
+        joinApprovalRequired: true,
+        inviteeUids: [],
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toBe("Choose a place from the location search results.");
+      });
+
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Picnic by the lake",
+        description: "Bring a snack and say hello.",
+        startsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+        location: "Lumphini Park",
+        locationPlaceId: "hangout-test-place",
+        latitude: 13.7563,
+        longitude: 100.5018,
+        visibility: "public",
+        joinApprovalRequired: true,
+        inviteeUids: [],
+      })
+      .expect(201);
+    const eventId = created.body.id as number;
+    expect(created.body).toMatchObject({
+      joinApprovalRequired: true,
+      myJoinRequestStatus: null,
+    });
+    await request(app)
+      .get(`/api/community-events/${eventId}/manage`)
+      .set(uidHeader(OWNER_UID))
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.joinApprovalRequired).toBe(true);
+      });
+
+    await request(app)
+      .put(`/api/community-events/${eventId}`)
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Private version",
+        startsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toBe("Hangout plans must remain public.");
+      });
+
+    await request(app)
+      .post(`/api/community-events/${eventId}/rsvp`)
+      .set(uidHeader(OTHER_UID))
+      .send({ status: "going" })
+      .expect(403);
+
+    const joinRequest = await request(app)
+      .post(`/api/community-events/${eventId}/join-requests`)
+      .set(uidHeader(OTHER_UID))
+      .expect(201);
+    expect(joinRequest.body).toMatchObject({ success: true, status: "pending" });
+    const requestId = joinRequest.body.requestId as number;
+
+    await request(app)
+      .post(`/api/community-events/${eventId}/join-requests`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ requestId, status: "pending" });
+      });
+
+    const requesterFeed = await request(app)
+      .get("/api/events/feed")
+      .set(uidHeader(OTHER_UID))
+      .expect(200);
+    expect(requesterFeed.body.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: eventId,
+          joinApprovalRequired: true,
+          myJoinRequestStatus: "pending",
+        }),
+      ]),
+    );
+
+    await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OTHER_UID))
+      .expect(404);
+    await request(app)
+      .post(`/api/events/member/${eventId}/check-in/location`)
+      .set(uidHeader(OTHER_UID))
+      .send({ latitude: 13.7563, longitude: 100.5018, accuracy: 10 })
+      .expect(403);
+    const pendingAttendance = await db
+      .select()
+      .from(eventAttendanceTable)
+      .where(and(
+        eq(eventAttendanceTable.eventId, eventId),
+        eq(eventAttendanceTable.userUid, OTHER_UID),
+      ));
+    expect(pendingAttendance).toHaveLength(0);
+    const hostRequests = await request(app)
+      .get(`/api/events/member/${eventId}/attendees`)
+      .set(uidHeader(OWNER_UID))
+      .expect(200);
+    expect(hostRequests.body.joinRequests).toEqual([
+      expect.objectContaining({
+        id: requestId,
+        uid: OTHER_UID,
+        displayName: "Other Guest",
+        status: "pending",
+      }),
+    ]);
+
+    await request(app)
+      .patch(`/api/community-events/${eventId}/join-requests/${requestId}`)
+      .set(uidHeader(OTHER_UID))
+      .send({ status: "accepted" })
+      .expect(403);
+    await request(app)
+      .patch(`/api/community-events/${eventId}/join-requests/${requestId}`)
+      .set(uidHeader(OWNER_UID))
+      .send({ status: "accepted" })
+      .expect(200);
+
+    const [acceptedRsvp] = await db
+      .select()
+      .from(communityEventRsvpsTable)
+      .where(and(
+        eq(communityEventRsvpsTable.eventId, eventId),
+        eq(communityEventRsvpsTable.userUid, OTHER_UID),
+      ))
+      .limit(1);
+    expect(acceptedRsvp?.status).toBe("going");
+
+    const acceptedDetails = await request(app)
+      .get(`/api/events/member/${eventId}`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200);
+    expect(acceptedDetails.body).toMatchObject({
+      myJoinRequestStatus: "accepted",
+      myRsvp: "going",
+    });
+    await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200);
+    await request(app)
+      .delete(`/api/community-events/${eventId}/join-requests`)
+      .set(uidHeader(OTHER_UID))
+      .expect(409);
+  });
+
+  it("sends one host alert per new request and updates requesters on decisions", async () => {
+    await db.update(profilesTable)
+      .set({ pushToken: "owner-token" })
+      .where(eq(profilesTable.uid, OWNER_UID));
+    await db.update(profilesTable)
+      .set({ pushToken: "other-token" })
+      .where(eq(profilesTable.uid, OTHER_UID));
+    await db.update(profilesTable)
+      .set({ pushToken: "invitee-token" })
+      .where(eq(profilesTable.uid, INVITEE_UID));
+    mockSendPushWithStatus.mockClear();
+
+    try {
+      const created = await request(app)
+        .post("/api/events")
+        .set(uidHeader(OWNER_UID))
+        .send({
+          title: "Notification test hangout",
+          startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+          location: "Lumphini Park",
+          locationPlaceId: "notification-test-place",
+          latitude: 13.7563,
+          longitude: 100.5018,
+          visibility: "public",
+          joinApprovalRequired: true,
+          inviteeUids: [],
+        })
+        .expect(201);
+      const eventId = created.body.id as number;
+
+      const otherRequest = await request(app)
+        .post(`/api/community-events/${eventId}/join-requests`)
+        .set(uidHeader(OTHER_UID))
+        .expect(201);
+      const inviteeRequest = await request(app)
+        .post(`/api/community-events/${eventId}/join-requests`)
+        .set(uidHeader(INVITEE_UID))
+        .expect(201);
+
+      expect(mockSendPushWithStatus).toHaveBeenCalledTimes(2);
+      expect(mockSendPushWithStatus).toHaveBeenNthCalledWith(1, "owner-token", {
+        title: "New hangout join request",
+        body: "Other Guest asked to join your plan. Open Met to review.",
+        data: {
+          type: "hangout_join_request",
+          eventId: String(eventId),
+          eventType: "member",
+        },
+      });
+
+      await request(app)
+        .post(`/api/community-events/${eventId}/join-requests`)
+        .set(uidHeader(OTHER_UID))
+        .expect(200);
+      expect(mockSendPushWithStatus).toHaveBeenCalledTimes(2);
+
+      await request(app)
+        .patch(`/api/community-events/${eventId}/join-requests/${otherRequest.body.requestId}`)
+        .set(uidHeader(OWNER_UID))
+        .send({ status: "accepted" })
+        .expect(200);
+      await request(app)
+        .patch(`/api/community-events/${eventId}/join-requests/${otherRequest.body.requestId}`)
+        .set(uidHeader(OWNER_UID))
+        .send({ status: "accepted" })
+        .expect(200);
+      expect(mockSendPushWithStatus).toHaveBeenCalledTimes(3);
+      await request(app)
+        .patch(`/api/community-events/${eventId}/join-requests/${inviteeRequest.body.requestId}`)
+        .set(uidHeader(OWNER_UID))
+        .send({ status: "declined" })
+        .expect(200);
+
+      expect(mockSendPushWithStatus).toHaveBeenCalledTimes(4);
+      expect(mockSendPushWithStatus).toHaveBeenNthCalledWith(3, "other-token", {
+        title: "Your hangout request was accepted",
+        body: "You can now join the hangout. Open Met for details.",
+        data: {
+          type: "hangout_join_decision",
+          eventId: String(eventId),
+          eventType: "member",
+          requestStatus: "accepted",
+        },
+      });
+      expect(mockSendPushWithStatus).toHaveBeenNthCalledWith(4, "invitee-token", {
+        title: "Your hangout request was declined",
+        body: "Open Met to explore other hangouts.",
+        data: {
+          type: "hangout_join_decision",
+          eventId: String(eventId),
+          eventType: "member",
+          requestStatus: "declined",
+        },
+      });
+
+      await request(app)
+        .post(`/api/community-events/${eventId}/join-requests`)
+        .set(uidHeader(INVITEE_UID))
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({
+            requestId: inviteeRequest.body.requestId,
+            status: "pending",
+          });
+        });
+      await request(app)
+        .post(`/api/community-events/${eventId}/join-requests`)
+        .set(uidHeader(INVITEE_UID))
+        .expect(200);
+      expect(mockSendPushWithStatus).toHaveBeenCalledTimes(5);
+      expect(mockSendPushWithStatus).toHaveBeenNthCalledWith(5, "owner-token", {
+        title: "New hangout join request",
+        body: "Event Invitee asked to join your plan. Open Met to review.",
+        data: {
+          type: "hangout_join_request",
+          eventId: String(eventId),
+          eventType: "member",
+        },
+      });
+    } finally {
+      await db.update(profilesTable)
+        .set({ pushToken: null })
+        .where(inArray(profilesTable.uid, [OWNER_UID, OTHER_UID, INVITEE_UID]));
+      mockSendPushWithStatus.mockClear();
+    }
+  });
+
+  it("sends only one host alert for simultaneous requests from the same member", async () => {
+    await db.update(profilesTable)
+      .set({ pushToken: "owner-token", notificationPrefs: null })
+      .where(eq(profilesTable.uid, OWNER_UID));
+    mockSendPushWithStatus.mockClear();
+
+    try {
+      const created = await request(app)
+        .post("/api/events")
+        .set(uidHeader(OWNER_UID))
+        .send({
+          title: "Concurrent request test",
+          startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+          location: "Lumphini Park",
+          locationPlaceId: "same-member-concurrent-place",
+          latitude: 13.7563,
+          longitude: 100.5018,
+          visibility: "public",
+          joinApprovalRequired: true,
+          inviteeUids: [],
+        })
+        .expect(201);
+      const eventId = created.body.id as number;
+      const submitRequest = () =>
+        request(app)
+          .post(`/api/community-events/${eventId}/join-requests`)
+          .set(uidHeader(OTHER_UID));
+
+      const [first, second] = await Promise.all([
+        submitRequest(),
+        submitRequest(),
+      ]);
+
+      expect([first.status, second.status].sort()).toEqual([200, 201]);
+      expect(first.body).toMatchObject({ success: true, status: "pending" });
+      expect(second.body).toMatchObject({ success: true, status: "pending" });
+      expect(first.body.requestId).toBe(second.body.requestId);
+
+      const records = await db
+        .select()
+        .from(communityEventJoinRequestsTable)
+        .where(and(
+          eq(communityEventJoinRequestsTable.eventId, eventId),
+          eq(communityEventJoinRequestsTable.userUid, OTHER_UID),
+        ));
+      expect(records).toHaveLength(1);
+      expect(records[0]?.status).toBe("pending");
+
+      expect(mockSendPushWithStatus).toHaveBeenCalledTimes(1);
+      expect(mockSendPushWithStatus).toHaveBeenCalledWith("owner-token", {
+        title: "New hangout join request",
+        body: "Other Guest asked to join your plan. Open Met to review.",
+        data: {
+          type: "hangout_join_request",
+          eventId: String(eventId),
+          eventType: "member",
+        },
+      });
+    } finally {
+      await db.update(profilesTable)
+        .set({ pushToken: null, notificationPrefs: null })
+        .where(eq(profilesTable.uid, OWNER_UID));
+      mockSendPushWithStatus.mockClear();
+    }
+  });
+
+  it("sends one host alert for each simultaneous request from different members", async () => {
+    await db.update(profilesTable)
+      .set({ pushToken: "owner-token", notificationPrefs: null })
+      .where(eq(profilesTable.uid, OWNER_UID));
+    mockSendPushWithStatus.mockClear();
+
+    try {
+      const created = await request(app)
+        .post("/api/events")
+        .set(uidHeader(OWNER_UID))
+        .send({
+          title: "Concurrent member requests test",
+          startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+          location: "Lumphini Park",
+          locationPlaceId: "different-member-concurrent-place",
+          latitude: 13.7563,
+          longitude: 100.5018,
+          visibility: "public",
+          joinApprovalRequired: true,
+          inviteeUids: [],
+        })
+        .expect(201);
+      const eventId = created.body.id as number;
+      const submitRequest = (uid: string) =>
+        request(app)
+          .post(`/api/community-events/${eventId}/join-requests`)
+          .set(uidHeader(uid));
+
+      const [otherResponse, inviteeResponse] = await Promise.all([
+        submitRequest(OTHER_UID),
+        submitRequest(INVITEE_UID),
+      ]);
+
+      expect(otherResponse.status).toBe(201);
+      expect(inviteeResponse.status).toBe(201);
+      expect(otherResponse.body).toMatchObject({ success: true, status: "pending" });
+      expect(inviteeResponse.body).toMatchObject({ success: true, status: "pending" });
+      expect(otherResponse.body.requestId).not.toBe(inviteeResponse.body.requestId);
+
+      const records = await db
+        .select()
+        .from(communityEventJoinRequestsTable)
+        .where(and(
+          eq(communityEventJoinRequestsTable.eventId, eventId),
+          inArray(communityEventJoinRequestsTable.userUid, [OTHER_UID, INVITEE_UID]),
+        ));
+      expect(records).toHaveLength(2);
+      expect(records).toEqual(expect.arrayContaining([
+        expect.objectContaining({ userUid: OTHER_UID, status: "pending" }),
+        expect.objectContaining({ userUid: INVITEE_UID, status: "pending" }),
+      ]));
+
+      const hostAlert = {
+        title: "New hangout join request",
+        body: "Someone asked to join your plan. Open Met to review.",
+        data: {
+          type: "hangout_join_request",
+          eventId: String(eventId),
+          eventType: "member",
+        },
+      };
+      expect(mockSendPushWithStatus).toHaveBeenCalledTimes(2);
+      expect(mockSendPushWithStatus).toHaveBeenCalledWith("owner-token", {
+        ...hostAlert,
+        body: "Other Guest asked to join your plan. Open Met to review.",
+      });
+      expect(mockSendPushWithStatus).toHaveBeenCalledWith("owner-token", {
+        ...hostAlert,
+        body: "Event Invitee asked to join your plan. Open Met to review.",
+      });
+    } finally {
+      await db.update(profilesTable)
+        .set({ pushToken: null, notificationPrefs: null })
+        .where(eq(profilesTable.uid, OWNER_UID));
+      mockSendPushWithStatus.mockClear();
+    }
+  });
+
+  it("alerts accepted guests when their hangout changes or is cancelled", async () => {
+    await db.update(profilesTable)
+      .set({ pushToken: "other-token", notificationPrefs: null })
+      .where(eq(profilesTable.uid, OTHER_UID));
+    mockSendPushWithStatus.mockClear();
+
+    try {
+      const startsAt = new Date(Date.now() + 86_400_000);
+      const created = await request(app)
+        .post("/api/events")
+        .set(uidHeader(OWNER_UID))
+        .send({
+          title: "Hangout update notification test",
+          startsAt: startsAt.toISOString(),
+          location: "Lumphini Park",
+          locationPlaceId: "hangout-change-notification-place",
+          latitude: 13.7563,
+          longitude: 100.5018,
+          visibility: "public",
+          joinApprovalRequired: true,
+          inviteeUids: [],
+        })
+        .expect(201);
+      const eventId = created.body.id as number;
+      const joinRequest = await request(app)
+        .post(`/api/community-events/${eventId}/join-requests`)
+        .set(uidHeader(OTHER_UID))
+        .expect(201);
+      await request(app)
+        .patch(`/api/community-events/${eventId}/join-requests/${joinRequest.body.requestId}`)
+        .set(uidHeader(OWNER_UID))
+        .send({ status: "accepted" })
+        .expect(200);
+      mockSendPushWithStatus.mockClear();
+
+      await request(app)
+        .put(`/api/community-events/${eventId}`)
+        .set(uidHeader(OWNER_UID))
+        .send({
+          title: "Updated hangout notification test",
+          startsAt: startsAt.toISOString(),
+          location: "Lumphini Park",
+          locationPlaceId: "hangout-change-notification-place",
+          latitude: 13.7563,
+          longitude: 100.5018,
+          visibility: "public",
+          inviteeUids: [],
+        })
+        .expect(200);
+      expect(mockSendPushWithStatus).toHaveBeenCalledTimes(1);
+      expect(mockSendPushWithStatus).toHaveBeenCalledWith("other-token", {
+        title: "Hangout plan updated",
+        body: "A hangout you joined has changed. Open Met for details.",
+        data: {
+          type: "hangout_updated",
+          eventId: String(eventId),
+          eventType: "member",
+        },
+      });
+
+      mockSendPushWithStatus.mockClear();
+      await request(app)
+        .delete(`/api/community-events/${eventId}`)
+        .set(uidHeader(OWNER_UID))
+        .expect(204);
+      expect(mockSendPushWithStatus).toHaveBeenCalledTimes(1);
+      expect(mockSendPushWithStatus).toHaveBeenCalledWith("other-token", {
+        title: "Hangout plan cancelled",
+        body: "A hangout you joined was cancelled. Open Met to see your plans.",
+        data: {
+          type: "hangout_cancelled",
+          eventId: String(eventId),
+          eventType: "member",
+        },
+      });
+    } finally {
+      await db.update(profilesTable)
+        .set({ pushToken: null, notificationPrefs: null })
+        .where(eq(profilesTable.uid, OTHER_UID));
+      mockSendPushWithStatus.mockClear();
+    }
+  });
+
+  it("respects disabled event-update preferences for hosts and requesters", async () => {
+    await db.update(profilesTable)
+      .set({
+        pushToken: "owner-token",
+        notificationPrefs: { notifyEventUpdates: false },
+      })
+      .where(eq(profilesTable.uid, OWNER_UID));
+    await db.update(profilesTable)
+      .set({
+        pushToken: "other-token",
+        notificationPrefs: { notifyEventUpdates: false },
+      })
+      .where(eq(profilesTable.uid, OTHER_UID));
+    mockSendPushWithStatus.mockClear();
+
+    try {
+      const created = await request(app)
+        .post("/api/events")
+        .set(uidHeader(OWNER_UID))
+        .send({
+          title: "Quiet hangout notifications",
+          startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+          location: "Lumphini Park",
+          locationPlaceId: "quiet-notifications-place",
+          latitude: 13.7563,
+          longitude: 100.5018,
+          visibility: "public",
+          joinApprovalRequired: true,
+          inviteeUids: [],
+        })
+        .expect(201);
+      const eventId = created.body.id as number;
+      const joinRequest = await request(app)
+        .post(`/api/community-events/${eventId}/join-requests`)
+        .set(uidHeader(OTHER_UID))
+        .expect(201);
+      expect(mockSendPushWithStatus).not.toHaveBeenCalled();
+
+      await request(app)
+        .patch(`/api/community-events/${eventId}/join-requests/${joinRequest.body.requestId}`)
+        .set(uidHeader(OWNER_UID))
+        .send({ status: "accepted" })
+        .expect(200);
+      expect(mockSendPushWithStatus).not.toHaveBeenCalled();
+
+      const [savedRequest] = await db
+        .select()
+        .from(communityEventJoinRequestsTable)
+        .where(eq(communityEventJoinRequestsTable.id, joinRequest.body.requestId));
+      const [savedRsvp] = await db
+        .select()
+        .from(communityEventRsvpsTable)
+        .where(and(
+          eq(communityEventRsvpsTable.eventId, eventId),
+          eq(communityEventRsvpsTable.userUid, OTHER_UID),
+        ));
+      expect(savedRequest?.status).toBe("accepted");
+      expect(savedRsvp?.status).toBe("going");
+    } finally {
+      await db.update(profilesTable)
+        .set({ pushToken: null, notificationPrefs: null })
+        .where(inArray(profilesTable.uid, [OWNER_UID, OTHER_UID]));
+      mockSendPushWithStatus.mockClear();
+    }
+  });
+
+  it("saves join requests and decisions when recipients have no push token", async () => {
+    await db.update(profilesTable)
+      .set({ pushToken: null, notificationPrefs: null })
+      .where(inArray(profilesTable.uid, [OWNER_UID, OTHER_UID]));
+    mockSendPushWithStatus.mockClear();
+
+    const created = await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Hangout without push tokens",
+        startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+        location: "Lumphini Park",
+        locationPlaceId: "no-push-token-place",
+        latitude: 13.7563,
+        longitude: 100.5018,
+        visibility: "public",
+        joinApprovalRequired: true,
+        inviteeUids: [],
+      })
+      .expect(201);
+    const eventId = created.body.id as number;
+    const joinRequest = await request(app)
+      .post(`/api/community-events/${eventId}/join-requests`)
+      .set(uidHeader(OTHER_UID))
+      .expect(201);
+    expect(mockSendPushWithStatus).not.toHaveBeenCalled();
+
+    await request(app)
+      .patch(`/api/community-events/${eventId}/join-requests/${joinRequest.body.requestId}`)
+      .set(uidHeader(OWNER_UID))
+      .send({ status: "accepted" })
+      .expect(200);
+    expect(mockSendPushWithStatus).not.toHaveBeenCalled();
+
+    const [savedRequest] = await db
+      .select()
+      .from(communityEventJoinRequestsTable)
+      .where(eq(communityEventJoinRequestsTable.id, joinRequest.body.requestId));
+    const [savedRsvp] = await db
+      .select()
+      .from(communityEventRsvpsTable)
+      .where(and(
+        eq(communityEventRsvpsTable.eventId, eventId),
+        eq(communityEventRsvpsTable.userUid, OTHER_UID),
+      ));
+    expect(savedRequest?.status).toBe("accepted");
+    expect(savedRsvp?.status).toBe("going");
   });
 
   it("keeps invitees private and restricts management to the event owner", async () => {

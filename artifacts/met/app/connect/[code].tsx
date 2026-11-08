@@ -304,7 +304,8 @@ const styles = StyleSheet.create({
   card: {
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: 24,
+    borderTopLeftRadius: 38,
+    borderBottomRightRadius: 28,
     padding: 24,
     gap: 14,
   },
@@ -347,7 +348,8 @@ const styles = StyleSheet.create({
   primaryButton: {
     minHeight: 50,
     alignSelf: "stretch",
-    borderRadius: 15,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

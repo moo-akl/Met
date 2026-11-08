@@ -478,6 +478,7 @@ export const communityEventsTable = pgTable(
     locationLongitude: doublePrecision("location_longitude"),
     /** 'public' or 'invite_only' */
     visibility: text("visibility").notNull().default("public"),
+    joinApprovalRequired: boolean("join_approval_required").notNull().default(false),
     /** Explicitly invited Met matches for invite-only events. */
     inviteeUids: text("invitee_uids").array().notNull().default(sql`ARRAY[]::text[]`),
     /** SHA-256 lookup digest; the bearer token itself is encrypted at rest. */
@@ -577,6 +578,41 @@ export const communityEventRsvpsTable = pgTable(
   }),
 );
 
+export const communityEventJoinRequestsTable = pgTable(
+  "community_event_join_requests",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => communityEventsTable.id, { onDelete: "cascade" }),
+    userUid: text("user_uid").notNull(),
+    status: text("status")
+      .$type<"pending" | "accepted" | "declined" | "withdrawn">()
+      .notNull()
+      .default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => ({
+    eventUserUniq: uniqueIndex("community_event_join_requests_event_user_uniq").on(
+      t.eventId,
+      t.userUid,
+    ),
+    eventStatusCreatedIdx: index(
+      "community_event_join_requests_event_status_created_idx",
+    ).on(t.eventId, t.status, t.createdAt),
+    userStatusIdx: index("community_event_join_requests_user_status_idx").on(
+      t.userUid,
+      t.status,
+    ),
+  }),
+);
+
 /**
  * Verified event attendance. RSVP state is deliberately separate: this table
  * is written only after an event QR scan or an on-site location check.
@@ -655,6 +691,8 @@ export type CommunityEventPlanMessage = typeof communityEventPlanMessagesTable.$
 export type CommunityEventPlanNotificationPreference =
   typeof communityEventPlanNotificationPreferencesTable.$inferSelect;
 export type CommunityEventRsvp = typeof communityEventRsvpsTable.$inferSelect;
+export type CommunityEventJoinRequest =
+  typeof communityEventJoinRequestsTable.$inferSelect;
 
 // ---------------------------------------------------------------------------
 // venue_rewards

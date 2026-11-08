@@ -1032,8 +1032,9 @@ const styles = StyleSheet.create({
     paddingTop: 22,
     gap: 14,
     marginTop: -16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
+    borderBottomRightRadius: 4,
   },
   avatarRow: {
     alignItems: "center",
@@ -1061,7 +1062,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    borderRadius: 12,
+    borderTopLeftRadius: 22,
+    borderBottomRightRadius: 18,
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -1090,7 +1092,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   lockCard: {
-    borderRadius: 16,
+    borderTopLeftRadius: 30,
+    borderBottomRightRadius: 22,
     borderWidth: 1,
     paddingVertical: 22,
     paddingHorizontal: 20,
@@ -1110,7 +1113,8 @@ const styles = StyleSheet.create({
   },
   revealNoteCard: {
     width: "100%",
-    borderRadius: 12,
+    borderTopLeftRadius: 24,
+    borderBottomRightRadius: 18,
     borderWidth: 1,
     padding: 12,
     marginTop: 10,
@@ -1149,7 +1153,8 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 16,
     paddingHorizontal: 16,
-    borderRadius: 14,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 20,
   },
   mapIconWrap: {
     width: 36,
@@ -1181,8 +1186,9 @@ const styles = StyleSheet.create({
   sheetCard: {
     paddingHorizontal: 22,
     paddingTop: 12,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderBottomRightRadius: 4,
     gap: 14,
   },
   sheetGrabber: {

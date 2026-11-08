@@ -1474,8 +1474,7 @@ function VenueProfile({ business, csrfToken }: { business: VenueManagerBusiness;
 }
 
 function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfToken: string }) {
-  const client = useQueryClient(); const events = useBusinessQuery<VenueManagerEventList>(getListVenueManagerEventsQueryOptions, business.businessId); const [editing, setEditing] = useState<VenueManagerEvent | "new" | null>(null); const [message, setMessage] = useState("");
-  const [attendanceEvent, setAttendanceEvent] = useState<VenueManagerEvent | null>(null);
+  const events = useBusinessQuery<VenueManagerEventList>(getListVenueManagerEventsQueryOptions, business.businessId); const [editing, setEditing] = useState<VenueManagerEvent | "new" | null>(null); const [attendanceEvent, setAttendanceEvent] = useState<VenueManagerEvent | null>(null); const [message, setMessage] = useState("");
   const shareEvent = async (event: VenueManagerEvent) => {
     try {
       const invite = await createVenueManagerEventInviteLink(
@@ -1484,32 +1483,17 @@ function Events({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
         csrf(csrfToken),
       );
       invalidateVenueManagerData();
-      const invitationText = `You're invited to ${event.title}. Open your invitation in Met: ${invite.url}`;
-      if (typeof navigator.share === "function") {
-        try {
-          await navigator.share({
-            title: event.title,
-            text: invitationText,
-            url: invite.url,
-          });
-        } catch (error) {
-          if (error instanceof DOMException && error.name === "AbortError") return;
-          await navigator.clipboard.writeText(invitationText);
-          setMessage("Invitation copied. Paste it into WhatsApp, Facebook, or another social app.");
-        }
+      if (navigator.share) {
+        await navigator.share({ title: event.title, text: event.title, url: invite.url });
       } else {
-        try {
-          await navigator.clipboard.writeText(invitationText);
-          setMessage("Invitation copied. Paste it into WhatsApp, Facebook, or another social app.");
-        } catch {
-          window.prompt("Copy this invitation to share it:", invitationText);
-          setMessage("Copy the invitation and paste it into your social app.");
-        }
+        await navigator.clipboard.writeText(invite.url);
+        setMessage("Invitation link copied. Send it to guests through social media.");
       }
       if (invite.passcodeRequired) {
         setMessage("Send the passcode separately from the invitation link.");
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       setMessage(apiError(error));
     }
   };
@@ -1537,16 +1521,47 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
   const [corrections, setCorrections] = useState<VenueEventCorrection[]>([]);
   const [notificationRuns, setNotificationRuns] = useState<VenueEventNotificationRun[]>([]);
   const [qrUrl, setQrUrl] = useState("");
+  const [posterTheme, setPosterTheme] = useState<"garden" | "studio" | "after-hours">("garden");
+  const [posterMessage, setPosterMessage] = useState("Scan to check in with Met");
+  const [rsvpSearch, setRsvpSearch] = useState("");
   const [manualTargetUid, setManualTargetUid] = useState<string | null>(null);
   const [manualReason, setManualReason] = useState("");
   const [undoTargetUid, setUndoTargetUid] = useState<string | null>(null);
   const [undoReason, setUndoReason] = useState("");
   const [pending, setPending] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [qrPending, setQrPending] = useState(false);
+  const [pendingUid, setPendingUid] = useState<string | null>(null);
+  const [correctionPendingUid, setCorrectionPendingUid] = useState<string | null>(null);
+  const [requestedUids, setRequestedUids] = useState<string[]>([]);
   const [message, setMessage] = useState("");
 
-  const loadAttendance = async () => {
-    const response = await fetch(`/api/venue-manager/businesses/${businessId}/events/${event.id}/attendees`, { credentials: "include" });
+  const loadQr = async (rotate = false) => {
+    setQrPending(true);
+    setMessage("");
+    try {
+      const response = await fetch(
+        `/api/venue-manager/businesses/${businessId}/events/${event.id}/check-in-qr`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+          body: JSON.stringify({ rotate }),
+        },
+      );
+      const data = await response.json() as { url?: string; message?: string };
+      if (!response.ok || !data.url) throw new Error(data.message ?? "Could not load the event QR code.");
+      setQrUrl(data.url);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load the event QR code.");
+    } finally {
+      setQrPending(false);
+    }
+  };
+
+  const readAttendance = async () => {
+    const response = await fetch(`/api/venue-manager/businesses/${businessId}/events/${event.id}/attendees`, {
+      credentials: "include",
+    });
     const data = await response.json() as {
       attendees?: VenueEventAttendee[];
       rsvps?: VenueEventRsvp[];
@@ -1555,36 +1570,21 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
       message?: string;
     };
     if (!response.ok) throw new Error(data.message ?? "Could not load event attendance.");
+    return data;
+  };
+  const applyAttendance = (data: Awaited<ReturnType<typeof readAttendance>>) => {
     setAttendees(data.attendees ?? []);
     setRsvps(data.rsvps ?? []);
     setCorrections(data.corrections ?? []);
     setNotificationRuns(data.notificationRuns ?? []);
   };
-
-  const loadQr = async (rotate = false) => {
-    setBusy(true);
-    setMessage("");
-    try {
-      const response = await fetch(`/api/venue-manager/businesses/${businessId}/events/${event.id}/check-in-qr`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
-        body: JSON.stringify({ rotate }),
-      });
-      const data = await response.json() as { url?: string; message?: string };
-      if (!response.ok || !data.url) throw new Error(data.message ?? "Could not load the event QR code.");
-      setQrUrl(data.url);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not load the event QR code.");
-    } finally {
-      setBusy(false);
-    }
-  };
+  const refreshAttendance = async () => applyAttendance(await readAttendance());
 
   useEffect(() => {
     let cancelled = false;
     setPending(true);
-    void loadAttendance()
+    readAttendance()
+      .then((data) => { if (!cancelled) applyAttendance(data); })
       .catch((error: unknown) => {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load event attendance.");
       })
@@ -1593,93 +1593,337 @@ function EventAttendanceModal({ event, businessId, csrfToken, onClose }: { event
     return () => { cancelled = true; };
   }, [businessId, event.id]);
 
-  const submitCorrection = async (uid: string, action: "manual-check-in" | "undo-check-in", reason: string) => {
-    setBusy(true);
+  const sendRequest = async (uid: string) => {
+    if (pendingUid) return;
+    setPendingUid(uid);
     setMessage("");
     try {
       const response = await fetch(
-        `/api/venue-manager/businesses/${businessId}/events/${event.id}/attendees/${encodeURIComponent(uid)}/${action}`,
+        `/api/venue-manager/businesses/${businessId}/guests/${encodeURIComponent(uid)}/reveal`,
         {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
-          body: JSON.stringify({ reason: reason.trim() }),
+          body: JSON.stringify({ message: `We met at ${event.title}. Would you like to connect?` }),
         },
       );
       const data = await response.json() as { message?: string };
-      if (!response.ok) throw new Error(data.message ?? "Could not save the check-in correction.");
-      setManualTargetUid(null);
-      setUndoTargetUid(null);
-      setManualReason("");
-      setUndoReason("");
-      await loadAttendance();
+      if (!response.ok) throw new Error(data.message ?? "Could not send the connection request.");
+      setRequestedUids((current) => [...new Set([...current, uid])]);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not save the check-in correction.");
+      setMessage(error instanceof Error ? error.message : "Could not send the connection request.");
     } finally {
-      setBusy(false);
+      setPendingUid(null);
     }
   };
 
-  const checkedIn = new Set(attendees.map((attendee) => attendee.uid));
-  const outstandingRsvps = rsvps.filter((rsvp) => rsvp.status !== "not_going" && !checkedIn.has(rsvp.uid));
+  const submitManualCheckIn = async (uid: string) => {
+    if (correctionPendingUid) return;
+    setCorrectionPendingUid(uid);
+    setMessage("");
+    try {
+      const response = await fetch(
+        `/api/venue-manager/businesses/${businessId}/events/${event.id}/attendees/${encodeURIComponent(uid)}/manual-check-in`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+          body: JSON.stringify({ reason: manualReason.trim() }),
+        },
+      );
+      const data = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(data.message ?? "Could not record the manual check-in.");
+      setManualTargetUid(null);
+      setManualReason("");
+      await refreshAttendance();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not record the manual check-in.");
+    } finally {
+      setCorrectionPendingUid(null);
+    }
+  };
+
+  const submitUndoCheckIn = async (uid: string) => {
+    if (correctionPendingUid) return;
+    setCorrectionPendingUid(uid);
+    setMessage("");
+    try {
+      const response = await fetch(
+        `/api/venue-manager/businesses/${businessId}/events/${event.id}/attendees/${encodeURIComponent(uid)}/undo-check-in`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+          body: JSON.stringify({ reason: undoReason.trim() }),
+        },
+      );
+      const data = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(data.message ?? "Could not correct the check-in.");
+      setUndoTargetUid(null);
+      setUndoReason("");
+      await refreshAttendance();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not correct the check-in.");
+    } finally {
+      setCorrectionPendingUid(null);
+    }
+  };
+
+  const posterThemeClass = posterTheme === "after-hours"
+    ? "vm-checkin-poster--midnight"
+    : `vm-event-checkin-poster--${posterTheme}`;
+  const checkedInUids = new Set(attendees.map((attendee) => attendee.uid));
+  const visibleRsvps = rsvps.filter((rsvp) =>
+    rsvp.status !== "not_going" &&
+    !checkedInUids.has(rsvp.uid) &&
+    rsvp.displayName.toLowerCase().includes(rsvpSearch.trim().toLowerCase()),
+  );
 
   return (
     <Modal title="Event attendance" className="vm-print-modal" onClose={onClose}>
       <div className="vm-stack">
-        <div className="vm-notice" role="status">Event QR check-ins are verified in Met and kept separate from RSVPs.</div>
+        <div className="vm-notice" role="status">
+          Show this event-specific QR code at the event. Verified check-ins are separate from RSVPs.
+        </div>
         {qrUrl ? (
-          <div className="vm-stack" style={{ alignItems: "center" }}>
-            <QRCode value={qrUrl} size={240} bgColor="#ffffff" fgColor="#111111" />
+          <div className="vm-print-modal-content">
+            <div className="vm-event-poster-controls">
+              <label>
+                Poster theme
+                <select
+                  aria-label="Event poster theme"
+                  data-testid="select-event-poster-theme"
+                  value={posterTheme}
+                  onChange={(change) => setPosterTheme(change.target.value as typeof posterTheme)}
+                >
+                  <option value="garden">Garden</option>
+                  <option value="studio">Studio</option>
+                  <option value="after-hours">After hours</option>
+                </select>
+              </label>
+              <label>
+                Supporting message (optional)
+                <input
+                  aria-label="Poster supporting message"
+                  data-testid="input-event-poster-message"
+                  maxLength={80}
+                  value={posterMessage}
+                  onChange={(change) => setPosterMessage(change.target.value)}
+                  placeholder="Add a short check-in instruction"
+                />
+                <small>{posterMessage.length}/80</small>
+              </label>
+              <p>Poster-only settings; event title and QR link stay unchanged. QR stays black on white.</p>
+            </div>
+            <article id="vm-print-poster" className={`vm-checkin-poster vm-event-checkin-poster ${posterThemeClass}`}>
+              <div className="vm-poster-brand">
+                <span className="vm-poster-mark">m</span>
+                <span>MET EVENT CHECK-IN</span>
+              </div>
+              <div className="vm-poster-heading">
+                <p className="vm-poster-eyebrow">EVENT CHECK-IN</p>
+                <h1>{event.title}</h1>
+                <p className="vm-poster-checkin">Check in for this event</p>
+              </div>
+              <div className="vm-poster-qr">
+                <QRCode value={qrUrl} size={320} bgColor="#ffffff" fgColor="#111111" />
+              </div>
+              <div className="vm-poster-message">
+                {posterMessage.trim() ? <p>{posterMessage.trim()}</p> : null}
+                <span>Open Met to record your attendance</span>
+              </div>
+              <div className="vm-poster-footer">{new Date(event.startsAt).toLocaleString()}</div>
+            </article>
+            <div className="vm-print-actions">
+              <button
+                type="button"
+                className="vm-primary"
+                data-testid="button-print-event-checkin-poster"
+                onClick={() => window.print()}
+              >
+                <Printer size={14} /> Print / Save as PDF
+              </button>
+            </div>
             <small className="vm-event-qr-url">{qrUrl}</small>
-            <button type="button" className="vm-secondary" disabled={busy} onClick={() => {
-              if (window.confirm("Replace the event QR code? The current code will stop working immediately.")) void loadQr(true);
-            }}>Replace QR code</button>
           </div>
-        ) : <button type="button" className="vm-primary" disabled={busy} onClick={() => void loadQr()}>{busy ? "Loading…" : "Create QR code"}</button>}
+        ) : null}
+        <div className="vm-form-actions">
+          {qrUrl && <button type="button" className="vm-secondary" disabled={qrPending} data-testid="button-rotate-event-checkin-qr" onClick={() => {
+            if (window.confirm("Replace the event QR code? The current code will stop working immediately.")) void loadQr(true);
+          }}>Replace QR code</button>}
+          {!qrUrl && <button type="button" className="vm-primary" disabled={qrPending} data-testid="button-create-event-checkin-qr" onClick={() => void loadQr(false)}>{qrPending ? "Loading…" : "Create QR code"}</button>}
+        </div>
         <section>
-          <h3>RSVP guests · {outstandingRsvps.length}</h3>
-          {pending ? <SectionLoading /> : outstandingRsvps.length ? <div className="vm-stack">
-            {outstandingRsvps.map((rsvp) => <div className="vm-item-card" key={rsvp.uid}>
-              <div><strong>{rsvp.displayName}</strong><small style={{ display: "block" }}>{rsvp.status === "maybe" ? "Maybe" : "Going"}</small></div>
-              {manualTargetUid === rsvp.uid ? <div className="vm-stack">
-                <label>Reason for manual check-in<input maxLength={500} value={manualReason} onChange={(change) => setManualReason(change.target.value)} /></label>
-                <div className="vm-form-actions">
-                  <button type="button" className="vm-secondary" onClick={() => setManualTargetUid(null)}>Cancel</button>
-                  <button type="button" className="vm-primary" disabled={busy || manualReason.trim().length < 3} onClick={() => void submitCorrection(rsvp.uid, "manual-check-in", manualReason)}>Save check-in</button>
+          <h3 style={{ marginBottom: 6 }}>RSVP guests · {rsvps.filter((rsvp) => rsvp.status !== "not_going").length}</h3>
+          <p className="vm-subtitle">Search current RSVPs to record a staff check-in. A reason is saved with each correction.</p>
+          <input
+            type="search"
+            aria-label="Search event RSVPs"
+            data-testid="input-event-rsvp-search"
+            value={rsvpSearch}
+            onChange={(change) => setRsvpSearch(change.target.value)}
+            placeholder="Search RSVP guests"
+          />
+          {pending ? <SectionLoading /> : visibleRsvps.length ? (
+            <div className="vm-stack" style={{ marginTop: 10 }}>
+              {visibleRsvps.map((rsvp) => (
+                <div key={rsvp.uid} className="vm-item-card">
+                  <div className="vm-item-date"><Users size={16} /></div>
+                  <div style={{ flex: 1 }}>
+                    <strong>{rsvp.displayName}</strong>
+                    <small style={{ display: "block" }}>{rsvp.status === "maybe" ? "Maybe" : "Going"}</small>
+                    {manualTargetUid === rsvp.uid && (
+                      <div className="vm-stack" style={{ marginTop: 8 }}>
+                        <label>
+                          Reason for manual check-in
+                          <input
+                            data-testid="input-manual-checkin-reason"
+                            maxLength={500}
+                            value={manualReason}
+                            onChange={(change) => setManualReason(change.target.value)}
+                            placeholder="For example, staff verified attendance"
+                          />
+                        </label>
+                        <div className="vm-form-actions">
+                          <button type="button" className="vm-secondary" onClick={() => setManualTargetUid(null)}>Cancel</button>
+                          <button
+                            type="button"
+                            className="vm-primary"
+                            data-testid={`button-save-manual-checkin-${rsvp.uid}`}
+                            disabled={manualReason.trim().length < 3 || correctionPendingUid === rsvp.uid}
+                            onClick={() => void submitManualCheckIn(rsvp.uid)}
+                          >
+                            {correctionPendingUid === rsvp.uid ? "Saving…" : "Save check-in"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {manualTargetUid !== rsvp.uid && (
+                    <button
+                      type="button"
+                      data-testid={`button-manual-checkin-${rsvp.uid}`}
+                      disabled={Boolean(correctionPendingUid)}
+                      onClick={() => {
+                        setManualTargetUid(rsvp.uid);
+                        setManualReason("");
+                        setUndoTargetUid(null);
+                      }}
+                    >
+                      Check in
+                    </button>
+                  )}
                 </div>
-              </div> : <button type="button" disabled={busy} onClick={() => { setManualTargetUid(rsvp.uid); setUndoTargetUid(null); }}>Check in</button>}
-            </div>)}
-          </div> : <p className="vm-subtitle">No unchecked RSVPs.</p>}
+              ))}
+            </div>
+          ) : <p className="vm-subtitle">No un-checked-in RSVPs match this search.</p>}
         </section>
         <section>
-          <h3>Checked-in attendees · {attendees.length}</h3>
-          {pending ? <SectionLoading /> : attendees.length ? <div className="vm-stack">
-            {attendees.map((attendee) => <div className="vm-item-card" key={attendee.uid}>
-              <div><strong>{attendee.displayName}</strong><small style={{ display: "block" }}>{attendee.checkInMethod === "manual" ? "Manual" : "QR"} · {new Date(attendee.checkedInAt).toLocaleString()}</small>{attendee.manualReason && <small>Reason: {attendee.manualReason}</small>}</div>
-              {undoTargetUid === attendee.uid ? <div className="vm-stack">
-                <label>Reason for removing this check-in<input maxLength={500} value={undoReason} onChange={(change) => setUndoReason(change.target.value)} /></label>
-                <div className="vm-form-actions">
-                  <button type="button" className="vm-secondary" onClick={() => setUndoTargetUid(null)}>Cancel</button>
-                  <button type="button" className="vm-primary" disabled={busy || undoReason.trim().length < 3} onClick={() => void submitCorrection(attendee.uid, "undo-check-in", undoReason)}>Remove check-in</button>
+          <h3 style={{ marginBottom: 6 }}>Checked-in attendees · {attendees.length}</h3>
+          {pending ? <SectionLoading /> : attendees.length ? (
+            <div className="vm-stack">
+              {attendees.map((attendee) => (
+                <div key={attendee.uid} className="vm-item-card">
+                  <div className="vm-item-date"><Users size={16} /></div>
+                  <div style={{ flex: 1 }}>
+                    <strong>{attendee.displayName}</strong>
+                    <small style={{ display: "block" }}>
+                      {attendee.checkInMethod === "qr" ? "QR" : attendee.checkInMethod === "manual" ? "Manual" : "Location"} · {new Date(attendee.checkedInAt).toLocaleString()}
+                    </small>
+                    {attendee.manualReason && <small style={{ display: "block" }}>Reason: {attendee.manualReason}</small>}
+                    {undoTargetUid === attendee.uid && (
+                      <div className="vm-stack" style={{ marginTop: 8 }}>
+                        <label>
+                          Reason for removing this check-in
+                          <input
+                            data-testid="input-undo-checkin-reason"
+                            maxLength={500}
+                            value={undoReason}
+                            onChange={(change) => setUndoReason(change.target.value)}
+                            placeholder="Explain the correction"
+                          />
+                        </label>
+                        <div className="vm-form-actions">
+                          <button type="button" className="vm-secondary" onClick={() => setUndoTargetUid(null)}>Cancel</button>
+                          <button
+                            type="button"
+                            className="vm-primary"
+                            data-testid={`button-save-undo-checkin-${attendee.uid}`}
+                            disabled={undoReason.trim().length < 3 || correctionPendingUid === attendee.uid}
+                            onClick={() => void submitUndoCheckIn(attendee.uid)}
+                          >
+                            {correctionPendingUid === attendee.uid ? "Saving…" : "Remove check-in"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    data-testid={`button-event-attendee-connect-${attendee.uid}`}
+                    disabled={Boolean(pendingUid) || requestedUids.includes(attendee.uid)}
+                    onClick={() => void sendRequest(attendee.uid)}
+                  >
+                    {pendingUid === attendee.uid ? "Sending…" : requestedUids.includes(attendee.uid) ? "Request sent" : "Connect"}
+                  </button>
+                  {undoTargetUid !== attendee.uid && (
+                    <button
+                      type="button"
+                      className="vm-secondary"
+                      data-testid={`button-undo-checkin-${attendee.uid}`}
+                      disabled={Boolean(correctionPendingUid)}
+                      onClick={() => {
+                        setUndoTargetUid(attendee.uid);
+                        setUndoReason("");
+                        setManualTargetUid(null);
+                      }}
+                    >
+                      Correct
+                    </button>
+                  )}
                 </div>
-              </div> : <button type="button" className="vm-secondary" disabled={busy} onClick={() => { setUndoTargetUid(attendee.uid); setManualTargetUid(null); }}>Correct</button>}
-            </div>)}
-          </div> : <p className="vm-subtitle">No check-ins yet.</p>}
+              ))}
+            </div>
+          ) : <p className="vm-subtitle">No check-ins yet. RSVPs are listed separately above.</p>}
         </section>
         <section>
-          <h3>Guest notifications</h3>
-          <p className="vm-subtitle">Scheduled reminders: {event.reminderOffsetsHours?.length ? event.reminderOffsetsHours.map((hours) => `${hours}h`).join(" and ") : "off"}</p>
-          {notificationRuns.map((run, index) => <div className="vm-item-card" key={`${run.kind}-${run.startedAt}-${index}`}>
-            <div><strong>{run.kind === "event_update" ? "Event change" : run.kind === "reminder_24h" ? "24-hour reminder" : "2-hour reminder"}</strong><small style={{ display: "block" }}>{run.sentCount} sent · {run.skippedCount} skipped · {run.failedCount} failed</small></div>
-            <span>{run.status}</span>
-          </div>)}
+          <h3 style={{ marginBottom: 6 }}>Guest notifications</h3>
+          <p className="vm-subtitle">
+            Scheduled reminders: {event.reminderOffsetsHours.length
+              ? event.reminderOffsetsHours.map((hours) => `${hours}h`).join(" and ")
+              : "off"}
+          </p>
+          {notificationRuns.length ? (
+            <div className="vm-stack">
+              {notificationRuns.map((run, index) => (
+                <div className="vm-item-card" key={`${run.kind}-${run.startedAt}-${index}`}>
+                  <div>
+                    <strong>{run.kind === "event_update" ? "Event change" : run.kind === "reminder_24h" ? "24-hour reminder" : "2-hour reminder"}</strong>
+                    <small style={{ display: "block" }}>
+                      {run.sentCount} accepted by push · {run.skippedCount} skipped · {run.failedCount} failed · {new Date(run.startedAt).toLocaleString()}
+                    </small>
+                  </div>
+                  <span>{run.status}</span>
+                </div>
+              ))}
+            </div>
+          ) : <p className="vm-subtitle">No event reminders or change alerts have been sent yet.</p>}
         </section>
-        {corrections.length > 0 && <section>
-          <h3>Recent check-in corrections</h3>
-          {corrections.map((correction, index) => <div className="vm-item-card" key={`${correction.uid}-${correction.createdAt}-${index}`}>
-            <div><strong>{correction.action === "manual_check_in" ? "Manual check-in" : "Check-in removed"} · {correction.displayName}</strong><small style={{ display: "block" }}>Staff ID {correction.actorUid} · {correction.reason} · {new Date(correction.createdAt).toLocaleString()}</small></div>
-          </div>)}
-        </section>}
+        {corrections.length > 0 && (
+          <section>
+            <h3 style={{ marginBottom: 6 }}>Recent check-in corrections</h3>
+            <div className="vm-stack">
+              {corrections.map((correction, index) => (
+                <div className="vm-item-card" key={`${correction.uid}-${correction.createdAt}-${index}`}>
+                  <div>
+                    <strong>{correction.action === "manual_check_in" ? "Manual check-in" : "Check-in removed"} · {correction.displayName}</strong>
+                    <small style={{ display: "block" }}>Staff ID {correction.actorUid} · {correction.reason} · {new Date(correction.createdAt).toLocaleString()}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         {message && <div className="vm-notice error" role="alert">{message}</div>}
       </div>
     </Modal>
@@ -1777,9 +2021,17 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
     fetch(`/api/venue-manager/businesses/${businessId}/guests?period=all&limit=100&offset=0`, { credentials: "include" })
       .then(async (response) => {
         if (!response.ok) throw new Error("Could not load this venue’s visitor list.");
-        return response.json() as Promise<{ guests?: VenueGuest[] }>;
+        return response.json() as Promise<{ guests?: VenueGuest[]; eventAttendees?: VenueGuest[] }>;
       })
-      .then((data) => { if (!cancelled) setGuests(data.guests ?? []); })
+      .then((data) => {
+        if (cancelled) return;
+        const merged = new Map<string, VenueGuest>();
+        for (const guest of [...(data.guests ?? []), ...(data.eventAttendees ?? [])]) {
+          const current = merged.get(guest.uid);
+          if (!current || guest.checkinCount > current.checkinCount) merged.set(guest.uid, guest);
+        }
+        setGuests([...merged.values()]);
+      })
       .catch((error: unknown) => {
         if (!cancelled) setGuestError(error instanceof Error ? error.message : "Could not load visitors.");
       })
@@ -1841,7 +2093,7 @@ function EventModal({ event, message, pending, onClose, onSubmit, businessId, cs
         <label className="full">Visibility<select value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "invite_only")}><option value="public">Public — visible in Events</option><option value="invite_only">Invite-only — share a private invitation link</option></select></label>
         {visibility === "invite_only" && <div className="full">
           <strong>Invite visitors</strong>
-          <p className="vm-subtitle">Select checked-in visitors or share the invitation link with guests on social media.</p>
+          <p className="vm-subtitle">Select venue visitors or people who checked in at a past event. You can also share the invitation link.</p>
           {guestsLoading && <SectionLoading />}
           {guestError && <div className="vm-notice error">{guestError}</div>}
           {!guestsLoading && !guestError && guests.length === 0 && <p className="vm-subtitle">No checked-in visitors yet. You can still share the link.</p>}

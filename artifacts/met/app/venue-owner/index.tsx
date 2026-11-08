@@ -12,11 +12,11 @@ export default function VenueOwnerIndexScreen() {
   const colors = useColors();
   const { error, refetch } = useVenueOwner();
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <VenueOwnerHeader title="Venue Owner Portal" />
       {error ? (
         <>
-          <Text style={styles.errorText}>
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
             We couldn’t check your venue application. Your application has not changed.
           </Text>
           <Pressable onPress={refetch}>
@@ -35,10 +35,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0F0F12",
   },
   errorText: {
-    color: "rgba(255,255,255,0.75)",
     fontFamily: "Inter_400Regular",
     fontSize: 15,
     lineHeight: 22,

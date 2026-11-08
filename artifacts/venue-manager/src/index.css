@@ -219,9 +219,28 @@
 .vm-poster-shortcuts>span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .vm-poster-shortcuts svg{color:#d7a449}
 .vm-poster-shortcuts i{width:1px;height:14px;background:rgba(215,164,73,.45)}
+.vm-event-checkin-poster{gap:10px}
+.vm-event-checkin-poster .vm-poster-heading h1{overflow-wrap:anywhere}
+.vm-event-poster-controls{display:grid;grid-template-columns:minmax(150px,.7fr) minmax(0,1.3fr);gap:10px;width:min(100%,560px)}
+.vm-event-poster-controls label{display:flex;flex-direction:column;gap:6px;color:#3d5148;font-size:12px;font-weight:600}
+.vm-event-poster-controls label small{align-self:flex-end;color:#819188;font-size:10px;font-weight:400}
+.vm-event-poster-controls select,.vm-event-poster-controls input{width:100%;min-width:0;border:1px solid #cad8d0;border-radius:8px;padding:9px 10px;background:#fffefa;color:#1c2521;font-size:13px}
+.vm-event-poster-controls p{grid-column:1/-1;margin:0;color:#6b7c73;font-size:11px;line-height:1.4}
+.vm-event-checkin-poster--studio{border-color:#d8c6ad;background:radial-gradient(ellipse at 50% 43%,#fff9ee 0,transparent 51%),#f5eee3;color:#253b35}
+.vm-event-checkin-poster--studio:before{border-color:#e5d4bd}
+.vm-event-checkin-poster--studio .vm-poster-brand{color:#78644f}
+.vm-event-checkin-poster--studio .vm-poster-mark{background:#b46b43}
+.vm-event-checkin-poster--studio .vm-poster-eyebrow{color:#8a674f}
+.vm-event-checkin-poster--studio .vm-poster-heading h1,.vm-event-checkin-poster--studio .vm-poster-message p{color:#253b35}
+.vm-event-checkin-poster--studio .vm-poster-checkin{color:#b46b43}
+.vm-event-checkin-poster--studio .vm-poster-qr{border-color:#e2d0b8}
+.vm-event-checkin-poster--studio .vm-poster-footer{border-color:#e3d2bd;color:#78644f}
+.vm-event-checkin-poster.vm-checkin-poster--midnight .vm-poster-brand{color:#e2b754}
+.vm-event-checkin-poster.vm-checkin-poster--midnight .vm-poster-message p{color:#f8f6f1}
+.vm-event-qr-url{max-width:560px;color:#6b7c73;font-size:10px;line-height:1.4;text-align:center;overflow-wrap:anywhere}
 .vm-print-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:9px;width:min(100%,560px)}
 .vm-print-actions .vm-primary,.vm-print-actions .vm-secondary{padding:9px 13px;font-size:13px}
-@media(max-width:520px){.vm-poster-design-choices{grid-template-columns:1fr}.vm-poster-design-option{padding:7px 9px}.vm-design-swatch{width:32px;height:42px}.vm-checkin-poster{gap:10px;padding:28px 24px 22px}.vm-poster-qr{width:min(85%,300px)}.vm-checkin-poster--midnight .vm-poster-qr{width:min(88%,315px)}.vm-poster-message p{font-size:15px}.vm-poster-shortcuts{gap:7px;font-size:9px}.vm-print-actions>*{flex:1}}
+@media(max-width:520px){.vm-poster-design-choices{grid-template-columns:1fr}.vm-poster-design-option{padding:7px 9px}.vm-design-swatch{width:32px;height:42px}.vm-checkin-poster{gap:10px;padding:28px 24px 22px}.vm-poster-qr{width:min(85%,300px)}.vm-checkin-poster--midnight .vm-poster-qr{width:min(88%,315px)}.vm-poster-message p{font-size:15px}.vm-poster-shortcuts{gap:7px;font-size:9px}.vm-print-actions>*{flex:1}.vm-event-poster-controls{grid-template-columns:1fr}}
 @media print{
   @page{size:A4 portrait;margin:0}
   html,body,#root{width:210mm;height:297mm;min-height:0!important;margin:0!important;background:#fff!important}
@@ -237,6 +256,7 @@
   .vm-poster-heading{margin-top:3mm}
   .vm-poster-eyebrow{font-size:8pt}
   .vm-poster-heading h1{font-size:28pt}
+  .vm-event-checkin-poster .vm-poster-heading h1{font-size:24pt}
   .vm-poster-checkin{font-size:12pt}
   .vm-poster-qr{width:134mm;padding:3mm;border-radius:4mm}
   .vm-poster-message p{font-size:17pt}

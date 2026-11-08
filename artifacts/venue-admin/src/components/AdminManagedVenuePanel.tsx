@@ -147,7 +147,21 @@ export default function AdminManagedVenuePanel({ profileId }: { profileId: numbe
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2"><Label htmlFor="managed-phone">Public phone</Label><Input id="managed-phone" maxLength={60} value={details.phone} onChange={(e) => setField("phone", e.target.value)} /></div>
-            <div className="space-y-2"><Label htmlFor="managed-email">Public email</Label><Input id="managed-email" type="email" maxLength={320} value={details.publicEmail} onChange={(e) => setField("publicEmail", e.target.value)} /></div>
+            <div className="space-y-2">
+              <Label htmlFor="managed-email">Public email</Label>
+              <div className="flex gap-2">
+                <Input id="managed-email" type="email" maxLength={320} value={details.publicEmail} onChange={(e) => setField("publicEmail", e.target.value)} />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setField("publicEmail", "")}
+                  disabled={!details.publicEmail.trim() || save.isPending}
+                >
+                  Remove email
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Save the venue after removing it to clear the public listing.</p>
+            </div>
           </div>
           <div className="space-y-2"><Label htmlFor="managed-website">Website URL</Label><Input id="managed-website" type="url" placeholder="https://" maxLength={2000} value={details.websiteUrl} onChange={(e) => setField("websiteUrl", e.target.value)} /></div>
           <div className="grid gap-4 sm:grid-cols-2">

@@ -419,7 +419,7 @@ export default function HomeScreen() {
           accessibilityRole="button"
           accessibilityLabel="Open saved places"
           onPress={() => router.push("/saved-places")}
-          style={({ pressed }) => [canopyHome.place, { backgroundColor: card, borderColor: border, minHeight: 58, opacity: pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}
+          style={({ pressed }) => [canopyHome.place, { backgroundColor: "transparent", borderColor: border, borderTopWidth: StyleSheet.hairlineWidth, minHeight: 58, opacity: pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}
         >
           <Feather name="bookmark" size={20} color={colors.primary} />
           <Text style={[canopyHome.placeName, { color: text, flex: 1 }]}>Saved places</Text>
@@ -512,7 +512,7 @@ export default function HomeScreen() {
           </Pressable>
         )}
         {hubState && !hubState.isMock && !hubState.isRegisteredVenue && (
-          <View style={[canopyHome.place, { backgroundColor: card, borderColor: border }]}>
+          <View style={[canopyHome.place, { backgroundColor: "transparent", borderColor: border }]}>
             <View style={[canopyHome.placeIcon, { backgroundColor: colors.primarySoft }]}>
               <Feather name="map-pin" size={21} color={text} />
             </View>
@@ -531,7 +531,7 @@ export default function HomeScreen() {
             {featuredPlaces.isLoading && (
               <View style={styles.featuredSkeletonRow} accessibilityLabel="Loading nearby places">
                 {[0, 1].map((item) => (
-                  <View key={item} style={[styles.featuredSkeleton, { backgroundColor: card, borderColor: border }]}>
+                  <View key={item} style={[styles.featuredSkeleton, { backgroundColor: "transparent", borderColor: border }]}>
                     <View style={[styles.featuredSkeletonIcon, { backgroundColor: colors.primarySoft }]} />
                     <View style={{ flex: 1, gap: 7 }}>
                       <View style={[styles.featuredSkeletonLine, { backgroundColor: colors.primarySoft }]} />
@@ -545,7 +545,7 @@ export default function HomeScreen() {
               <Pressable
                 onPress={() => void featuredPlaces.refetch()}
                 accessibilityRole="button"
-                style={({ pressed }) => [canopyHome.place, { borderColor: border, backgroundColor: card, opacity: pressed ? 0.82 : 1 }]}
+                style={({ pressed }) => [canopyHome.place, { borderColor: border, backgroundColor: "transparent", opacity: pressed ? 0.82 : 1 }]}
               >
                 <View style={[styles.retryPlaceIcon, { backgroundColor: colors.primarySoft }]}>
                   <Feather name="refresh-cw" size={16} color={colors.primary} />
@@ -557,45 +557,41 @@ export default function HomeScreen() {
                 <Feather name="arrow-right" size={16} color={muted} />
               </Pressable>
             )}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+            <View style={canopyHome.nearbyList}>
               {nearestPlaces.map((venue) => (
-                <View key={venue.placeId} style={{ width: 280 }}>
-                <Pressable accessibilityRole="button" onPress={() => router.push(`/venue/${venue.placeId}`)} style={({ pressed }) => [canopyHome.place, { width: 280, marginHorizontal: 0, marginBottom: 0, borderColor: border, backgroundColor: card, opacity: pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}>
-                  {venue.logoUrl
-                    ? <Image source={{ uri: venue.logoUrl }} style={canopyHome.placeIcon} contentFit="cover" />
-                    : <View style={[canopyHome.placeIcon, { backgroundColor: colors.primarySoft }]}><Feather name="map-pin" size={22} color={text} /></View>}
-                  <View style={{ flex: 1 }}><Text numberOfLines={1} style={[canopyHome.placeName, { color: text }]}>{venue.businessName}</Text><Text numberOfLines={1} style={[canopyHome.caption, { color: muted }]}>{venue.tagline || venue.placeName}</Text></View>
-                  <Feather name="arrow-right" size={16} color={text} />
-                </Pressable>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 }}>
+                <View key={venue.placeId} style={[canopyHome.nearbyRow, { borderColor: border }]}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Directions to ${venue.businessName}`}
-                    onPress={() => void openVenueDirections(venue.placeId, venue.businessName || venue.placeName)}
-                    style={({ pressed }) => ({
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      minHeight: 38,
-                      paddingHorizontal: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.primarySoft,
-                      opacity: pressed ? 0.75 : 1,
-                    })}
+                    accessibilityLabel={`Open ${venue.businessName}`}
+                    onPress={() => router.push(`/venue/${venue.placeId}`)}
+                    style={({ pressed }) => [canopyHome.nearbyPlace, { opacity: pressed ? 0.72 : 1 }]}
                   >
-                    <Feather name="navigation" size={15} color={colors.primary} />
-                    <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>
-                      Directions
-                    </Text>
+                    {venue.logoUrl
+                      ? <Image source={{ uri: venue.logoUrl }} style={canopyHome.nearbyIcon} contentFit="cover" />
+                      : <View style={[canopyHome.nearbyIcon, { backgroundColor: colors.primarySoft }]}><Feather name="map-pin" size={17} color={colors.primary} /></View>}
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={1} style={[canopyHome.placeName, { color: text }]}>{venue.businessName}</Text>
+                      <Text numberOfLines={1} style={[canopyHome.caption, { color: muted }]}>{venue.tagline || venue.placeName}</Text>
+                    </View>
+                    <Feather name="chevron-right" size={17} color={muted} />
                   </Pressable>
-                  <SavePlaceButton placeId={venue.placeId} placeName={venue.businessName} />
-                </View>
+                  <View style={canopyHome.nearbyActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Directions to ${venue.businessName}`}
+                      onPress={() => void openVenueDirections(venue.placeId, venue.businessName || venue.placeName)}
+                      style={({ pressed }) => [canopyHome.textAction, { opacity: pressed ? 0.65 : 1 }]}
+                    >
+                      <Feather name="navigation" size={13} color={colors.primary} />
+                      <Text style={[canopyHome.textActionLabel, { color: colors.primary }]}>Directions</Text>
+                    </Pressable>
+                    <SavePlaceButton placeId={venue.placeId} placeName={venue.businessName} />
+                  </View>
                 </View>
               ))}
-            </ScrollView>
+            </View>
             {featuredPlaces.isSuccess && featuredPlaces.data.venues.length === 0 && (
-              <View style={[styles.featuredEmpty, { backgroundColor: card, borderColor: border }]}>
+              <View style={[styles.featuredEmpty, { backgroundColor: "transparent", borderColor: border }]}>
                 <View style={[styles.retryPlaceIcon, { backgroundColor: colors.primarySoft }]}>
                   <Feather name="map" size={16} color={colors.primary} />
                 </View>
@@ -646,8 +642,8 @@ export default function HomeScreen() {
             }}
             accessibilityRole="button"
             style={({ pressed }) => [
-              styles.quickActionCard,
-              { backgroundColor: card, borderColor: border, opacity: pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
+              styles.quickActionLink,
+              { borderColor: border, opacity: pressed ? 0.72 : 1 },
             ]}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: colors.primarySoft }]}>
@@ -670,7 +666,7 @@ export default function HomeScreen() {
         />
 
         {/* ── This Week ────────────────────────────────────────────── */}
-        <View style={[styles.weeklyCard, { backgroundColor: card, borderColor: border }]}>
+        <View style={[styles.weeklyCard, { backgroundColor: "transparent", borderColor: border }]}>
           <View style={styles.weeklyHeader}>
             <View style={[styles.weeklyIcon, { backgroundColor: colors.primarySoft }]}>
               <Feather name="activity" size={17} color={colors.primary} />
@@ -690,7 +686,7 @@ export default function HomeScreen() {
               accessibilityLabel={t("home.newPeopleA11y", { count: weekly.newPeople })}
               style={({ pressed }) => [
                 styles.weeklyCell,
-                { backgroundColor: colors.background, opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
+                { backgroundColor: "transparent", opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
               ]}
             >
               <View style={styles.weeklyCellTop}>
@@ -708,7 +704,7 @@ export default function HomeScreen() {
               accessibilityLabel={t("home.crossedAgainA11y", { count: weekly.repeats })}
               style={({ pressed }) => [
                 styles.weeklyCell,
-                { backgroundColor: colors.background, opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
+                { backgroundColor: "transparent", opacity: pressed ? 0.78 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
               ]}
             >
               <View style={styles.weeklyCellTop}>
@@ -1017,15 +1013,22 @@ const storeDemoCompactStyles = StyleSheet.create({
 });
 
 const canopyHome = StyleSheet.create({
-  intro: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 16 },
+  intro: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 22 },
   eyebrow: { fontFamily: "Inter_600SemiBold", fontSize: 10, letterSpacing: 1.5, marginBottom: 7 },
-  title: { fontFamily: "Inter_600SemiBold", fontSize: 31, lineHeight: 35, letterSpacing: -1.3 },
-  count: { fontFamily: "Inter_600SemiBold", fontSize: 31, letterSpacing: -1 },
+  title: { fontFamily: "serif", fontSize: 32, lineHeight: 36, letterSpacing: -0.8 },
+  count: { fontFamily: "serif", fontSize: 31, letterSpacing: -1 },
   caption: { fontFamily: "Inter_400Regular", fontSize: 10, lineHeight: 15 },
-  place: { marginHorizontal: 16, marginBottom: 9, borderWidth: 1, borderRadius: 20, padding: 13, flexDirection: "row", alignItems: "center", gap: 12 },
-  placeIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  placeName: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginTop: 3 },
-  placesLabel: { marginHorizontal: 20, fontFamily: "Inter_600SemiBold", fontSize: 10, letterSpacing: 1.1, marginBottom: 8, textTransform: "uppercase" },
+  place: { marginHorizontal: 20, marginBottom: 0, borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingVertical: 12, paddingHorizontal: 0, flexDirection: "row", alignItems: "center", gap: 12 },
+  placeIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  placeName: { fontFamily: "serif", fontSize: 17, marginTop: 3 },
+  placesLabel: { marginHorizontal: 20, fontFamily: "Inter_600SemiBold", fontSize: 10, letterSpacing: 1.3, marginBottom: 8, textTransform: "uppercase" },
+  nearbyList: { marginHorizontal: 20 },
+  nearbyRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 9 },
+  nearbyPlace: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10 },
+  nearbyIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  nearbyActions: { minHeight: 38, paddingLeft: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  textAction: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4 },
+  textActionLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
   emptyPlaces: { marginHorizontal: 20, fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 18 },
 });
 
@@ -1037,7 +1040,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12,
     marginHorizontal: 20, marginTop: 16,
     paddingVertical: 12, paddingHorizontal: 14,
-    borderRadius: 14, borderWidth: 1,
+    borderTopLeftRadius: 26, borderBottomRightRadius: 18, borderWidth: 1,
   },
   permAlertIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   bannerAvatars: { flexDirection: "row", alignItems: "center" },
@@ -1046,28 +1049,29 @@ const styles = StyleSheet.create({
   bannerSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
 
   lowerSectionHeader: { marginHorizontal: 20, marginTop: 19, marginBottom: 11, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  lowerSectionTitle: { fontFamily: "Inter_600SemiBold", fontSize: 19, letterSpacing: -0.45 },
+  lowerSectionTitle: { fontFamily: "serif", fontSize: 21, fontWeight: "400", letterSpacing: -0.35 },
   lowerSectionSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 },
-  quickActionsRow: { flexDirection: "row", marginHorizontal: 16, gap: 10 },
+  quickActionsRow: { flexDirection: "column", marginHorizontal: 20, gap: 2 },
   quickActionCard: {
-    flex: 1, minHeight: 82, alignItems: "center", gap: 10, padding: 12, flexDirection: "row",
-    borderRadius: 19, borderWidth: 1,
+    minHeight: 60, alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row",
+    borderRadius: 3, borderWidth: 0,
   },
   checkinAction: { borderWidth: 0 },
+  quickActionLink: { minHeight: 58, alignItems: "center", gap: 10, paddingHorizontal: 0, paddingVertical: 8, flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth },
   quickActionIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   quickActionCopy: { flex: 1, gap: 4 },
   quickActionLabel: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   quickActionHint: { fontFamily: "Inter_400Regular", fontSize: 10, opacity: 0.82 },
   featuredSkeletonRow: { flexDirection: "row", paddingHorizontal: 16, gap: 10, marginBottom: 8 },
-  featuredSkeleton: { width: 246, minHeight: 78, borderWidth: 1, borderRadius: 20, padding: 12, flexDirection: "row", alignItems: "center", gap: 11 },
+  featuredSkeleton: { width: 246, minHeight: 64, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 11 },
   featuredSkeletonIcon: { width: 48, height: 48, borderRadius: 15, opacity: 0.75 },
   featuredSkeletonLine: { height: 10, width: "74%", borderRadius: 5, opacity: 0.8 },
   featuredSkeletonShort: { height: 8, width: "48%", borderRadius: 4, opacity: 0.6 },
   retryPlaceIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  featuredEmpty: { marginHorizontal: 16, padding: 13, borderRadius: 18, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 11 },
+  featuredEmpty: { marginHorizontal: 20, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, flexDirection: "row", alignItems: "center", gap: 11 },
   weeklyCard: {
-    marginHorizontal: 16, marginTop: 15, padding: 16,
-    borderRadius: 22, borderWidth: 1,
+    marginHorizontal: 20, marginTop: 22, paddingVertical: 15,
+    borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   weeklyHeader: { flexDirection: "row", alignItems: "center", gap: 11, marginBottom: 15 },
   weeklyIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
@@ -1075,18 +1079,18 @@ const styles = StyleSheet.create({
   weeklySubtitle: { fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 3 },
   weeklyWindow: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
   weeklyWindowText: { fontFamily: "Inter_700Bold", fontSize: 9, letterSpacing: 0.8 },
-  weeklyRow: { flexDirection: "row", gap: 9 },
-  weeklyCell: { flex: 1, minHeight: 106, alignItems: "flex-start", gap: 3, padding: 12, borderRadius: 16 },
+  weeklyRow: { flexDirection: "row", gap: 0 },
+  weeklyCell: { flex: 1, minHeight: 94, alignItems: "flex-start", gap: 3, paddingVertical: 10, paddingHorizontal: 12 },
   weeklyCellTop: { width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
-  weeklyValue: { fontFamily: "Inter_700Bold", fontSize: 27 },
+  weeklyValue: { fontFamily: "serif", fontSize: 29 },
   weeklyLabel: { fontFamily: "Inter_400Regular", fontSize: 11 },
   weeklyHint: {
     fontFamily: "Inter_400Regular", fontSize: 11, lineHeight: 16,
     marginTop: 13, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth,
   },
   referralCard: {
-    marginHorizontal: 16, marginTop: 14, borderRadius: 20, borderWidth: 1,
-    paddingVertical: 15, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: 20, marginTop: 18, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 13, paddingHorizontal: 0, flexDirection: "row", alignItems: "center", gap: 12,
   },
   referralIconWrap: { width: 42, height: 42, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   referralTitle: { fontFamily: "Inter_600SemiBold", fontSize: 14 },

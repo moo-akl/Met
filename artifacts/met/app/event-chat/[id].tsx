@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
   messageContent: { maxWidth: "82%", gap: 3 },
   messageContentMine: { alignItems: "flex-end" },
   senderName: { fontSize: 11, marginLeft: 4 },
-  messageBubble: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  messageBubble: { borderWidth: 1, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 },
   messageText: { fontSize: 14, lineHeight: 19 },
   messageTime: { fontSize: 10, marginHorizontal: 5 },
   composer: {
@@ -438,6 +438,6 @@ const styles = StyleSheet.create({
   sendError: { fontSize: 12, marginBottom: 6 },
   state: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 12 },
   stateText: { fontSize: 14, lineHeight: 20, textAlign: "center" },
-  retryButton: { minHeight: 42, paddingHorizontal: 18, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  retryButton: { minHeight: 46, paddingHorizontal: 20, borderTopLeftRadius: 24, borderBottomRightRadius: 18, alignItems: "center", justifyContent: "center" },
   retryText: { fontSize: 14, fontWeight: "700" },
 });

@@ -8,13 +8,17 @@ import {
   eq,
   exists,
   gte,
+  ilike,
   inArray,
   isNull,
+  lt,
   ne,
   or,
+  sql,
 } from "drizzle-orm";
 import {
   communityEventRsvpsTable,
+  communityEventJoinRequestsTable,
   communityEventPlanMessagesTable,
   communityEventPlanNotificationPreferencesTable,
   communityEventsTable,
@@ -48,11 +52,19 @@ import {
   CheckInEventByQrResponse,
   GetEventAttendeesParams,
   GetEventAttendeesResponse,
+  GetNearbyHangoutsQueryParams,
   GetEventCheckinQrBody,
   GetEventCheckinQrParams,
   GetEventCheckinQrResponse,
   GetCommunityEventForEditResponse,
   GetEventDetailsResponse,
+  RequestToJoinCommunityEventParams,
+  RequestToJoinCommunityEventResponse,
+  WithdrawCommunityEventJoinRequestParams,
+  WithdrawCommunityEventJoinRequestResponse,
+  DecideCommunityEventJoinRequestParams,
+  DecideCommunityEventJoinRequestBody,
+  DecideCommunityEventJoinRequestResponse,
   ResolveEventInviteBody,
   ResolveEventInviteResponse,
   RsvpToEventInviteBody,
@@ -78,7 +90,12 @@ import {
   hashEventCheckinToken,
   isValidEventCheckinToken,
 } from "../lib/eventCheckinLinks";
-import { notifyCommunityEventPlanMessage } from "../lib/eventNotifications";
+import {
+  notifyCommunityEventChange,
+  notifyCommunityEventJoinDecision,
+  notifyCommunityEventJoinRequest,
+  notifyCommunityEventPlanMessage,
+} from "../lib/eventNotifications";
 import { verifyAppCheckToken } from "../lib/firebaseAdmin";
 import { z } from "zod";
 
@@ -227,6 +244,107 @@ function normalizeInvitees(inviteeUids: string[] | undefined, uid: string) {
   return [...new Set(inviteeUids ?? [])].filter((inviteeUid) => inviteeUid !== uid);
 }
 
+router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
+  const parsed = GetNearbyHangoutsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ message: "Invalid nearby hangout search parameters." });
+    return;
+  }
+  const query = parsed.data;
+  if ((query.latitude == null) !== (query.longitude == null)) {
+    res.status(400).json({ message: "Provide both latitude and longitude." });
+    return;
+  }
+  if (query.date) {
+    const date = new Date(`${query.date}T00:00:00.000Z`);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== query.date) {
+      res.status(400).json({ message: "Invalid date." });
+      return;
+    }
+  }
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: query.timeZone });
+  } catch {
+    res.status(400).json({ message: "Invalid time zone." });
+    return;
+  }
+
+  const conditions = [
+    eq(communityEventsTable.isHidden, false),
+    eq(communityEventsTable.visibility, "public"),
+    eq(communityEventsTable.joinApprovalRequired, true),
+    gte(communityEventsTable.startsAt, new Date()),
+    query.locationQuery
+      ? ilike(
+          communityEventsTable.location,
+          `%${query.locationQuery.replace(/[\\%_]/g, "\\$&")}%`,
+        )
+      : undefined,
+  ];
+  if (query.date) {
+    conditions.push(
+      sql`(${communityEventsTable.startsAt} AT TIME ZONE ${query.timeZone})::date = ${query.date}::date`,
+    );
+  }
+  if (query.timePeriod !== "any") {
+    const localHour = sql<number>`EXTRACT(HOUR FROM ${communityEventsTable.startsAt} AT TIME ZONE ${query.timeZone})`;
+    const timeCondition =
+      query.timePeriod === "morning"
+        ? and(gte(localHour, 5), lt(localHour, 12))
+        : query.timePeriod === "afternoon"
+          ? and(gte(localHour, 12), lt(localHour, 17))
+          : query.timePeriod === "evening"
+            ? and(gte(localHour, 17), lt(localHour, 22))
+            : or(gte(localHour, 22), lt(localHour, 5));
+    conditions.push(timeCondition);
+  }
+
+  const hasLocation =
+    query.latitude != null && query.longitude != null;
+  const distanceExpression = hasLocation
+    ? sql<number>`6371000 * acos(LEAST(1, GREATEST(-1,
+        cos(radians(${query.latitude})) * cos(radians(${communityEventsTable.locationLatitude})) *
+        cos(radians(${communityEventsTable.locationLongitude}) - radians(${query.longitude})) +
+        sin(radians(${query.latitude})) * sin(radians(${communityEventsTable.locationLatitude}))
+      )))`
+    : null;
+  const orderBy =
+    query.sortMode === "nearest" && distanceExpression
+      ? [
+          asc(distanceExpression),
+          asc(communityEventsTable.startsAt),
+          asc(communityEventsTable.id),
+        ]
+      : [asc(communityEventsTable.startsAt), asc(communityEventsTable.id)];
+  const rows = await db
+    .select({
+      id: communityEventsTable.id,
+      title: communityEventsTable.title,
+      description: communityEventsTable.description,
+      imageUrl: communityEventsTable.imageUrl,
+      startsAt: communityEventsTable.startsAt,
+      location: communityEventsTable.location,
+      latitude: communityEventsTable.locationLatitude,
+      longitude: communityEventsTable.locationLongitude,
+      creatorName: profilesTable.displayName,
+    })
+    .from(communityEventsTable)
+    .leftJoin(profilesTable, eq(profilesTable.uid, communityEventsTable.ownerUid))
+    .where(and(...conditions))
+    .orderBy(...orderBy)
+    .limit(query.limit + 1)
+    .offset(query.offset);
+
+  const hasMore = rows.length > query.limit;
+  res.json({
+    events: rows.slice(0, query.limit).map((event) => ({
+      eventType: "member" as const,
+      ...event,
+    })),
+    nextOffset: hasMore ? query.offset + query.limit : null,
+  });
+});
+
 router.get("/events/feed", requireUid, async (req, res) => {
   const uid = req.uid!;
   const now = new Date();
@@ -305,7 +423,7 @@ router.get("/events/feed", requireUid, async (req, res) => {
 
   const venueIds = venueRows.map(({ event }) => event.id);
   const memberIds = memberRows.map(({ event }) => event.id);
-  const [venueRsvps, memberRsvps] = await Promise.all([
+  const [venueRsvps, memberRsvps, myMemberJoinRequests] = await Promise.all([
     venueIds.length
       ? db
           .select({ eventId: venueEventRsvpsTable.eventId, status: venueEventRsvpsTable.status })
@@ -318,11 +436,26 @@ router.get("/events/feed", requireUid, async (req, res) => {
           .from(communityEventRsvpsTable)
           .where(inArray(communityEventRsvpsTable.eventId, memberIds))
       : Promise.resolve([]),
+    memberIds.length
+      ? db
+          .select({
+            eventId: communityEventJoinRequestsTable.eventId,
+            status: communityEventJoinRequestsTable.status,
+          })
+          .from(communityEventJoinRequestsTable)
+          .where(and(
+            inArray(communityEventJoinRequestsTable.eventId, memberIds),
+            eq(communityEventJoinRequestsTable.userUid, uid),
+          ))
+      : Promise.resolve([]),
   ]);
 
   const myVenueRsvp = new Map(venueRsvps.map((rsvp) => [rsvp.eventId, rsvp.status]));
   const memberRsvpCounts = new Map<number, number>();
   const myMemberRsvp = new Map<number, string>();
+  const myMemberJoinRequest = new Map(
+    myMemberJoinRequests.map((request) => [request.eventId, request.status]),
+  );
   for (const rsvp of memberRsvps) {
     if (rsvp.status !== "not_going") {
       memberRsvpCounts.set(rsvp.eventId, (memberRsvpCounts.get(rsvp.eventId) ?? 0) + 1);
@@ -354,6 +487,8 @@ router.get("/events/feed", requireUid, async (req, res) => {
       rsvpCount: event.rsvpCount,
       myRsvp: myVenueRsvp.get(event.id) ?? null,
       isInvited: event.inviteeUids.includes(uid),
+      joinApprovalRequired: false,
+      myJoinRequestStatus: null,
     })),
     ...memberRows.map(({ event, creatorName }) => ({
       eventType: "member" as const,
@@ -378,6 +513,8 @@ router.get("/events/feed", requireUid, async (req, res) => {
       rsvpCount: memberRsvpCounts.get(event.id) ?? 0,
       myRsvp: myMemberRsvp.get(event.id) ?? null,
       isInvited: event.inviteeUids.includes(uid),
+      joinApprovalRequired: event.joinApprovalRequired,
+      myJoinRequestStatus: myMemberJoinRequest.get(event.id) ?? null,
     })),
   ].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 
@@ -404,6 +541,19 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     return;
   }
   const inviteeUids = normalizeInvitees(parsed.data.inviteeUids, uid);
+  const joinApprovalRequired = parsed.data.joinApprovalRequired === true;
+  if (joinApprovalRequired && parsed.data.visibility !== "public") {
+    res.status(400).json({ message: "Join requests require a public hangout plan." });
+    return;
+  }
+  if (joinApprovalRequired && !parsed.data.location?.trim()) {
+    res.status(400).json({ message: "Add a location for this hangout plan." });
+    return;
+  }
+  if (joinApprovalRequired && (!hasPlaceId || !hasLatitude || !hasLongitude)) {
+    res.status(400).json({ message: "Choose a place from the location search results." });
+    return;
+  }
   const inviteLinkEnabled =
     parsed.data.visibility === "invite_only" &&
     parsed.data.inviteLinkEnabled === true;
@@ -461,6 +611,7 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
       locationLatitude: parsed.data.latitude ?? null,
       locationLongitude: parsed.data.longitude ?? null,
       visibility: parsed.data.visibility,
+      joinApprovalRequired,
       inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
       ...inviteLinkFields,
     })
@@ -493,6 +644,9 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     visibility: event.visibility,
     rsvpCount: 0,
     myRsvp: null,
+    joinApprovalRequired: event.joinApprovalRequired,
+    myJoinRequestStatus: null,
+    pendingJoinRequestCount: 0,
   });
   res.status(201).json(response);
 });
@@ -563,7 +717,7 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
       res.status(404).json({ message: "Event not found" });
       return;
     }
-    const [rsvps, myRsvp] = await Promise.all([
+    const [rsvps, myRsvp, myJoinRequest] = await Promise.all([
       db
         .select({ status: communityEventRsvpsTable.status })
         .from(communityEventRsvpsTable)
@@ -578,7 +732,26 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
           ),
         )
         .limit(1),
+      db
+        .select({ status: communityEventJoinRequestsTable.status })
+        .from(communityEventJoinRequestsTable)
+        .where(and(
+          eq(communityEventJoinRequestsTable.eventId, event.id),
+          eq(communityEventJoinRequestsTable.userUid, uid),
+        ))
+        .limit(1),
     ]);
+    let pendingJoinRequestCount: number | undefined;
+    if (event.ownerUid === uid && event.joinApprovalRequired) {
+      const [pendingCount] = await db
+        .select({ value: count() })
+        .from(communityEventJoinRequestsTable)
+        .where(and(
+          eq(communityEventJoinRequestsTable.eventId, event.id),
+          eq(communityEventJoinRequestsTable.status, "pending"),
+        ));
+      pendingJoinRequestCount = Number(pendingCount?.value ?? 0);
+    }
     res.json(
       GetEventDetailsResponse.parse({
         eventType: "member",
@@ -603,6 +776,9 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         rsvpCount: rsvps.length,
         myRsvp: myRsvp[0]?.status ?? null,
         isInvited: event.inviteeUids.includes(uid),
+        joinApprovalRequired: event.joinApprovalRequired,
+        myJoinRequestStatus: myJoinRequest[0]?.status ?? null,
+        pendingJoinRequestCount,
       }),
     );
     return;
@@ -684,6 +860,8 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
       rsvpCount: row.event.rsvpCount,
       myRsvp: myRsvp?.status ?? null,
       isInvited: row.event.inviteeUids.includes(uid),
+      joinApprovalRequired: false,
+      myJoinRequestStatus: null,
     }),
   );
 });
@@ -887,6 +1065,7 @@ router.get(
         latitude: event.locationLatitude,
         longitude: event.locationLongitude,
         visibility: event.visibility,
+        joinApprovalRequired: event.joinApprovalRequired,
         inviteeUids: event.inviteeUids,
         inviteLinkEnabled: Boolean(event.inviteTokenHash),
         invitePasscodeRequired: Boolean(event.invitePasscodeHash),
@@ -1248,6 +1427,53 @@ router.put(
       res.status(404).json({ message: "Event not found" });
       return;
     }
+    if (existing.joinApprovalRequired && parsed.data.visibility !== "public") {
+      res.status(400).json({ message: "Hangout plans must remain public." });
+      return;
+    }
+    const nextLocation = parsed.data.location?.trim() || null;
+    const nextLocationPlaceId = parsed.data.locationPlaceId ?? null;
+    const nextLatitude = parsed.data.latitude ?? null;
+    const nextLongitude = parsed.data.longitude ?? null;
+    const hangoutLocationChanged =
+      nextLocation !== existing.location ||
+      nextLocationPlaceId !== existing.locationPlaceId ||
+      nextLatitude !== existing.locationLatitude ||
+      nextLongitude !== existing.locationLongitude;
+    if (
+      existing.joinApprovalRequired &&
+      hangoutLocationChanged &&
+      (!nextLocationPlaceId || nextLatitude == null || nextLongitude == null)
+    ) {
+      res.status(400).json({ message: "Choose a place from the location search results." });
+      return;
+    }
+    const hasChanges =
+      parsed.data.title !== existing.title ||
+      (parsed.data.description ?? null) !== existing.description ||
+      (parsed.data.imageUrl ?? null) !== existing.imageUrl ||
+      (parsed.data.contactPhone?.trim() || null) !== existing.contactPhone ||
+      (parsed.data.websiteUrl?.trim() || null) !== existing.websiteUrl ||
+      (parsed.data.publicEmail?.trim() || null) !== existing.publicEmail ||
+      times.startsAt.getTime() !== existing.startsAt.getTime() ||
+      (times.endsAt?.getTime() ?? null) !== (existing.endsAt?.getTime() ?? null) ||
+      nextLocation !== existing.location ||
+      nextLocationPlaceId !== existing.locationPlaceId ||
+      nextLatitude !== existing.locationLatitude ||
+      nextLongitude !== existing.locationLongitude ||
+      parsed.data.visibility !== existing.visibility;
+    const acceptedGuestUids =
+      existing.joinApprovalRequired && hasChanges
+        ? (
+            await db
+              .select({ userUid: communityEventJoinRequestsTable.userUid })
+              .from(communityEventJoinRequestsTable)
+              .where(and(
+                eq(communityEventJoinRequestsTable.eventId, eventId),
+                eq(communityEventJoinRequestsTable.status, "accepted"),
+              ))
+          ).map(({ userUid }) => userUid)
+        : [];
     const passcodeInput = parsed.data.invitePasscode;
     const inviteLinkEnabled =
       parsed.data.visibility === "invite_only" &&
@@ -1357,6 +1583,13 @@ router.put(
       res.status(404).json({ message: "Event not found" });
       return;
     }
+    if (acceptedGuestUids.length > 0) {
+      await notifyCommunityEventChange({
+        eventId,
+        recipientUids: acceptedGuestUids,
+        type: "hangout_updated",
+      });
+    }
     const [profile, rsvps, myRsvp] = await Promise.all([
       db
         .select({ displayName: profilesTable.displayName })
@@ -1406,6 +1639,8 @@ router.put(
         visibility: event.visibility,
         rsvpCount: rsvps.length,
         myRsvp: myRsvp[0]?.status ?? null,
+        joinApprovalRequired: event.joinApprovalRequired,
+        myJoinRequestStatus: null,
       }),
     );
   },
@@ -1424,7 +1659,10 @@ router.delete(
     }
     const deleted = await db.transaction(async (tx) => {
       const [event] = await tx
-        .select({ id: communityEventsTable.id })
+        .select({
+          id: communityEventsTable.id,
+          joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+        })
         .from(communityEventsTable)
         .where(
           and(
@@ -1434,7 +1672,18 @@ router.delete(
           ),
         )
         .limit(1);
-      if (!event) return false;
+      if (!event) return null;
+      const acceptedGuestUids = event.joinApprovalRequired
+        ? (
+            await tx
+              .select({ userUid: communityEventJoinRequestsTable.userUid })
+              .from(communityEventJoinRequestsTable)
+              .where(and(
+                eq(communityEventJoinRequestsTable.eventId, eventId),
+                eq(communityEventJoinRequestsTable.status, "accepted"),
+              ))
+          ).map(({ userUid }) => userUid)
+        : [];
       await tx
         .delete(communityEventRsvpsTable)
         .where(eq(communityEventRsvpsTable.eventId, eventId));
@@ -1453,11 +1702,18 @@ router.delete(
           ),
         )
         .returning({ id: communityEventsTable.id });
-      return Boolean(removed);
+      return removed ? acceptedGuestUids : null;
     });
     if (!deleted) {
       res.status(404).json({ message: "Event not found" });
       return;
+    }
+    if (deleted.length > 0) {
+      await notifyCommunityEventChange({
+        eventId,
+        recipientUids: deleted,
+        type: "hangout_cancelled",
+      });
     }
     res.status(204).end();
   },
@@ -1593,6 +1849,21 @@ router.post(
       res.status(404).json({ message: "Event not found" });
       return;
     }
+    if (event.joinApprovalRequired && event.ownerUid !== uid && !event.inviteeUids.includes(uid)) {
+      const [acceptedRequest] = await db
+        .select({ id: communityEventJoinRequestsTable.id })
+        .from(communityEventJoinRequestsTable)
+        .where(and(
+          eq(communityEventJoinRequestsTable.eventId, eventId),
+          eq(communityEventJoinRequestsTable.userUid, uid),
+          eq(communityEventJoinRequestsTable.status, "accepted"),
+        ))
+        .limit(1);
+      if (!acceptedRequest) {
+        res.status(403).json({ message: "The host must accept your request before you can RSVP." });
+        return;
+      }
+    }
     const canAttend =
       event.visibility === "public" ||
       event.ownerUid === uid ||
@@ -1612,6 +1883,313 @@ router.post(
   },
 );
 
+router.post(
+  "/community-events/:eventId/join-requests",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const params = RequestToJoinCommunityEventParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const eventId = params.data.eventId;
+    const uid = req.uid!;
+    const [event] = await db
+      .select({
+        ownerUid: communityEventsTable.ownerUid,
+        visibility: communityEventsTable.visibility,
+        joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+        startsAt: communityEventsTable.startsAt,
+      })
+      .from(communityEventsTable)
+      .where(and(
+        eq(communityEventsTable.id, eventId),
+        eq(communityEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    if (!event.joinApprovalRequired || event.visibility !== "public") {
+      res.status(403).json({ message: "This event does not accept join requests." });
+      return;
+    }
+    if (event.ownerUid === uid) {
+      res.status(400).json({ message: "The host cannot request to join their own plan." });
+      return;
+    }
+    if (event.startsAt <= new Date()) {
+      res.status(409).json({ message: "This hangout has already started." });
+      return;
+    }
+
+    const now = new Date();
+    const result = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(communityEventJoinRequestsTable)
+        .where(and(
+          eq(communityEventJoinRequestsTable.eventId, eventId),
+          eq(communityEventJoinRequestsTable.userUid, uid),
+        ))
+        .limit(1);
+      if (existing?.status === "pending" || existing?.status === "accepted") {
+        return {
+          requestId: existing.id,
+          status: existing.status,
+          created: false,
+          notifyHost: false,
+        };
+      }
+      if (existing) {
+        const [updated] = await tx
+          .update(communityEventJoinRequestsTable)
+          .set({
+            status: "pending",
+            createdAt: now,
+            updatedAt: now,
+            decidedAt: null,
+          })
+          .where(eq(communityEventJoinRequestsTable.id, existing.id))
+          .returning({ id: communityEventJoinRequestsTable.id });
+        return updated
+          ? {
+              requestId: updated.id,
+              status: "pending" as const,
+              created: false,
+              notifyHost: true,
+            }
+          : null;
+      }
+      const [created] = await tx
+        .insert(communityEventJoinRequestsTable)
+        .values({
+          eventId,
+          userUid: uid,
+          status: "pending",
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing({
+          target: [
+            communityEventJoinRequestsTable.eventId,
+            communityEventJoinRequestsTable.userUid,
+          ],
+        })
+        .returning({ id: communityEventJoinRequestsTable.id });
+      if (created) {
+        return {
+          requestId: created.id,
+          status: "pending" as const,
+          created: true,
+          notifyHost: true,
+        };
+      }
+      const [racedRequest] = await tx
+        .select({
+          id: communityEventJoinRequestsTable.id,
+          status: communityEventJoinRequestsTable.status,
+        })
+        .from(communityEventJoinRequestsTable)
+        .where(and(
+          eq(communityEventJoinRequestsTable.eventId, eventId),
+          eq(communityEventJoinRequestsTable.userUid, uid),
+        ))
+        .limit(1);
+      return racedRequest
+        ? {
+            requestId: racedRequest.id,
+            status: racedRequest.status,
+            created: false,
+            notifyHost: false,
+          }
+        : null;
+    });
+    if (!result) {
+      res.status(409).json({ message: "The join request could not be saved. Try again." });
+      return;
+    }
+    if (result.notifyHost && result.status === "pending") {
+      await notifyCommunityEventJoinRequest({
+        eventId,
+        hostUid: event.ownerUid,
+        requesterUid: uid,
+      });
+    }
+    res.status(result.created ? 201 : 200).json(
+      RequestToJoinCommunityEventResponse.parse({
+        success: true,
+        status: result.status,
+        requestId: result.requestId,
+      }),
+    );
+  },
+);
+
+router.delete(
+  "/community-events/:eventId/join-requests",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const params = WithdrawCommunityEventJoinRequestParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const [request] = await db
+      .select({
+        id: communityEventJoinRequestsTable.id,
+        status: communityEventJoinRequestsTable.status,
+      })
+      .from(communityEventJoinRequestsTable)
+      .where(and(
+        eq(communityEventJoinRequestsTable.eventId, params.data.eventId),
+        eq(communityEventJoinRequestsTable.userUid, req.uid!),
+      ))
+      .limit(1);
+    if (!request) {
+      res.status(404).json({ message: "Pending join request not found." });
+      return;
+    }
+    if (request.status === "accepted") {
+      res.status(409).json({ message: "An accepted request cannot be withdrawn." });
+      return;
+    }
+    if (request.status !== "pending" && request.status !== "withdrawn") {
+      res.status(409).json({ message: "Only a pending request can be withdrawn." });
+      return;
+    }
+    if (request.status === "pending") {
+      await db
+        .update(communityEventJoinRequestsTable)
+        .set({ status: "withdrawn", updatedAt: new Date(), decidedAt: null })
+        .where(and(
+          eq(communityEventJoinRequestsTable.id, request.id),
+          eq(communityEventJoinRequestsTable.status, "pending"),
+        ));
+    }
+    res.json(
+      WithdrawCommunityEventJoinRequestResponse.parse({
+        success: true,
+        status: "withdrawn",
+        requestId: request.id,
+      }),
+    );
+  },
+);
+
+router.patch(
+  "/community-events/:eventId/join-requests/:requestId",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const params = DecideCommunityEventJoinRequestParams.safeParse(req.params);
+    const parsed = DecideCommunityEventJoinRequestBody.safeParse(req.body);
+    if (!params.success || !parsed.success) {
+      res.status(400).json({ message: "Invalid join request decision." });
+      return;
+    }
+    const { eventId, requestId } = params.data;
+    const [event] = await db
+      .select({
+        ownerUid: communityEventsTable.ownerUid,
+        joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+      })
+      .from(communityEventsTable)
+      .where(and(
+        eq(communityEventsTable.id, eventId),
+        eq(communityEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!event) {
+      res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    if (event.ownerUid !== req.uid) {
+      res.status(403).json({ message: "Only the event host can decide requests." });
+      return;
+    }
+    if (!event.joinApprovalRequired) {
+      res.status(409).json({ message: "This event does not accept join requests." });
+      return;
+    }
+    const [request] = await db
+      .select()
+      .from(communityEventJoinRequestsTable)
+      .where(and(
+        eq(communityEventJoinRequestsTable.id, requestId),
+        eq(communityEventJoinRequestsTable.eventId, eventId),
+      ))
+      .limit(1);
+    if (!request) {
+      res.status(404).json({ message: "Join request not found." });
+      return;
+    }
+    const status = parsed.data.status;
+    if (request.status === status) {
+      res.json(
+        DecideCommunityEventJoinRequestResponse.parse({
+          success: true,
+          status,
+          requestId,
+        }),
+      );
+      return;
+    }
+    if (request.status !== "pending") {
+      res.status(409).json({ message: "This join request is no longer pending." });
+      return;
+    }
+
+    const now = new Date();
+    const updated = await db.transaction(async (tx) => {
+      const [decision] = await tx
+        .update(communityEventJoinRequestsTable)
+        .set({ status, updatedAt: now, decidedAt: now })
+        .where(and(
+          eq(communityEventJoinRequestsTable.id, requestId),
+          eq(communityEventJoinRequestsTable.eventId, eventId),
+          eq(communityEventJoinRequestsTable.status, "pending"),
+        ))
+        .returning({ id: communityEventJoinRequestsTable.id });
+      if (!decision) return false;
+      if (status === "accepted") {
+        await tx
+          .insert(communityEventRsvpsTable)
+          .values({
+            eventId,
+            userUid: request.userUid,
+            status: "going",
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: [communityEventRsvpsTable.eventId, communityEventRsvpsTable.userUid],
+            set: { status: "going", updatedAt: now },
+          });
+      }
+      return true;
+    });
+    if (!updated) {
+      res.status(409).json({ message: "This join request is no longer pending." });
+      return;
+    }
+    await notifyCommunityEventJoinDecision({
+      eventId,
+      requesterUid: request.userUid,
+      status,
+    });
+    res.json(
+      DecideCommunityEventJoinRequestResponse.parse({
+        success: true,
+        status,
+        requestId,
+      }),
+    );
+  },
+);
+
 async function attendeeCanAccessEvent(
   eventType: EventKind,
   eventId: number,
@@ -1619,10 +2197,12 @@ async function attendeeCanAccessEvent(
   visibility: string,
   ownerUid: string,
   inviteeUids: string[],
+  joinApprovalRequired = false,
 ): Promise<boolean> {
-  if (visibility === "public" || ownerUid === uid || inviteeUids.includes(uid)) {
+  if (ownerUid === uid || inviteeUids.includes(uid)) {
     return true;
   }
+  if (visibility === "public" && !joinApprovalRequired) return true;
   const rsvps = eventType === "venue" ? venueEventRsvpsTable : communityEventRsvpsTable;
   const [rsvp] = await db
     .select({ id: rsvps.id })
@@ -1702,6 +2282,7 @@ router.post(
       memberEvent.visibility,
       memberEvent.ownerUid,
       memberEvent.inviteeUids,
+        memberEvent.joinApprovalRequired,
     ))) {
       res.status(403).json({ message: "This event is invitation-only." });
       return;
@@ -1754,6 +2335,7 @@ router.post(
       endsAt: Date | null;
       visibility: string;
       inviteeUids: string[];
+      joinApprovalRequired: boolean;
       latitude: number | null;
       longitude: number | null;
     } | undefined;
@@ -1780,7 +2362,12 @@ router.post(
         ))
         .limit(1);
       event = row
-        ? { ...row, latitude: row.latitude == null ? null : Number(row.latitude), longitude: row.longitude == null ? null : Number(row.longitude) }
+        ? {
+            ...row,
+            joinApprovalRequired: false,
+            latitude: row.latitude == null ? null : Number(row.latitude),
+            longitude: row.longitude == null ? null : Number(row.longitude),
+          }
         : undefined;
     } else {
       const [row] = await db
@@ -1792,6 +2379,7 @@ router.post(
           endsAt: communityEventsTable.endsAt,
           visibility: communityEventsTable.visibility,
           inviteeUids: communityEventsTable.inviteeUids,
+          joinApprovalRequired: communityEventsTable.joinApprovalRequired,
           latitude: communityEventsTable.locationLatitude,
           longitude: communityEventsTable.locationLongitude,
         })
@@ -1818,6 +2406,7 @@ router.post(
       event.visibility,
       event.ownerUid,
       event.inviteeUids,
+      event.joinApprovalRequired,
     ))) {
       res.status(403).json({ message: "This event is invitation-only." });
       return;
@@ -2001,6 +2590,24 @@ router.get(
         .leftJoin(profilesTable, eq(profilesTable.uid, communityEventRsvpsTable.userUid))
         .where(eq(communityEventRsvpsTable.eventId, eventId))
         .orderBy(desc(communityEventRsvpsTable.updatedAt));
+    const joinRequests = eventType === "member"
+      ? await db
+        .select({
+          id: communityEventJoinRequestsTable.id,
+          uid: communityEventJoinRequestsTable.userUid,
+          displayName: profilesTable.displayName,
+          photoUrl: profilesTable.photoUrl,
+          status: communityEventJoinRequestsTable.status,
+          createdAt: communityEventJoinRequestsTable.createdAt,
+        })
+        .from(communityEventJoinRequestsTable)
+        .leftJoin(profilesTable, eq(profilesTable.uid, communityEventJoinRequestsTable.userUid))
+        .where(and(
+          eq(communityEventJoinRequestsTable.eventId, eventId),
+          eq(communityEventJoinRequestsTable.status, "pending"),
+        ))
+        .orderBy(asc(communityEventJoinRequestsTable.createdAt))
+      : [];
     const corrections = await db
       .select({
         uid: eventAttendanceCorrectionsTable.userUid,
@@ -2045,6 +2652,10 @@ router.get(
       rsvps: rsvps.map((rsvp) => ({
         ...rsvp,
         displayName: rsvp.displayName ?? "Met member",
+      })),
+      joinRequests: joinRequests.map((request) => ({
+        ...request,
+        displayName: request.displayName ?? "Met member",
       })),
       corrections: corrections.map((correction) => ({
         ...correction,

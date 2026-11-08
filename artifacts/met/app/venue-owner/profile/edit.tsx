@@ -8,6 +8,7 @@
  * cover photo, logo, contact details, and opening hours.
  */
 import React, { useCallback, useEffect, useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
@@ -284,7 +285,7 @@ export default function VenueOwnerProfileEditScreen() {
                 <Text style={[styles.changeLabel, { color: accent }]}>Tap to change</Text>
               </>
             ) : (
-              <Text style={[styles.pickerHint, { color: vMuted }]}>📷  Tap to upload a cover photo (16:9)</Text>
+              <Text style={[styles.pickerHint, { color: vMuted }]}>Tap to upload a cover photo (16:9)</Text>
             )}
           </Pressable>
         </View>
@@ -310,7 +311,7 @@ export default function VenueOwnerProfileEditScreen() {
               ) : logoUrl ? (
                 <Image source={{ uri: logoUrl }} style={styles.logoPreview} resizeMode="cover" />
               ) : (
-                <Text style={styles.logoPlaceholder}>🏷️</Text>
+                <Feather name="tag" size={25} color={vMuted} />
               )}
             </Pressable>
             <View style={{ flex: 1 }}>
@@ -490,7 +491,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { flex: 1 },
-  content: { padding: 20, gap: 20 },
+  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24, gap: 24 },
   section: { gap: 8 },
   sectionLabel: {
     fontSize: 12,
@@ -500,7 +501,8 @@ const styles = StyleSheet.create({
   },
   photoPicker: {
     borderWidth: 1.5,
-    borderRadius: 12,
+    borderTopLeftRadius: 30,
+    borderBottomRightRadius: 22,
     borderStyle: "dashed",
     overflow: "hidden",
     minHeight: 130,
@@ -515,7 +517,8 @@ const styles = StyleSheet.create({
   logoPicker: {
     width: 72,
     height: 72,
-    borderRadius: 14,
+    borderTopLeftRadius: 22,
+    borderBottomRightRadius: 18,
     borderWidth: 1.5,
     borderStyle: "dashed",
     overflow: "hidden",
@@ -529,7 +532,8 @@ const styles = StyleSheet.create({
   logoHintSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
   fieldInput: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderTopLeftRadius: 22,
+    borderBottomRightRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
@@ -547,7 +551,8 @@ const styles = StyleSheet.create({
   },
   hoursCard: {
     borderWidth: 1,
-    borderRadius: 12,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 20,
     overflow: "hidden",
   },
   dayRow: {
@@ -563,7 +568,7 @@ const styles = StyleSheet.create({
   timeInput: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 7,
     fontSize: 14,
@@ -573,7 +578,8 @@ const styles = StyleSheet.create({
   closedLabel: { fontSize: 13, fontFamily: "Inter_400Regular", fontStyle: "italic" },
   hoursHint: { fontSize: 12, fontFamily: "Inter_400Regular" },
   saveBtn: {
-    borderRadius: 12,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 18,
     paddingVertical: 15,
     alignItems: "center",
     marginTop: 4,

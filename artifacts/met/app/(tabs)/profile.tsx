@@ -509,10 +509,10 @@ export default function ProfileScreen() {
       <KeyboardAwareScrollView
         ref={scrollViewRef}
         contentContainerStyle={{
-          paddingTop: 24,
+          paddingTop: 20,
           paddingBottom: insets.bottom + webBot + 120,
-          paddingHorizontal: 24,
-          gap: 20,
+          paddingHorizontal: 20,
+          gap: 30,
         }}
         bottomOffset={20}
         keyboardShouldPersistTaps="handled"
@@ -706,7 +706,7 @@ export default function ProfileScreen() {
                     style={{
                       flex: 1,
                       aspectRatio: 1,
-                      borderRadius: 10,
+                      borderRadius: 999,
                       borderWidth: 1.5,
                       borderColor: s.done ? colors.primary : colors.primary + "35",
                       backgroundColor: s.done ? colors.primary + "22" : "transparent",
@@ -761,7 +761,7 @@ export default function ProfileScreen() {
             style={({ pressed }) => [
               styles.businessSwitcher,
               {
-                backgroundColor: colors.card,
+                backgroundColor: "transparent",
                 borderColor: colors.primary + "50",
                 opacity: pressed ? 0.8 : 1,
               },
@@ -796,7 +796,7 @@ export default function ProfileScreen() {
         >
           <Animated.View
             style={{
-              borderRadius: 70,
+              borderRadius: 50,
               borderWidth: 2,
               borderColor: highlightTarget === "photo" ? highlightBorderColor : "transparent",
               padding: 1,
@@ -807,7 +807,7 @@ export default function ProfileScreen() {
             style={styles.photoTarget}
           >
             {isPioneer && !editing && photoUri ? (
-              <GoldShimmerBorder size={130}>
+              <GoldShimmerBorder size={90}>
                 <Image
                   source={{ uri: photoUri }}
                   style={styles.photoImg}
@@ -857,6 +857,7 @@ export default function ProfileScreen() {
           {editing ? (
             <Animated.View
               style={{
+                width: "100%",
                 borderRadius: 16,
                 borderWidth: 2,
                 borderColor: highlightTarget === "name" ? highlightBorderColor : "transparent",
@@ -879,7 +880,7 @@ export default function ProfileScreen() {
               />
             </Animated.View>
           ) : (
-            <View style={{ alignItems: "center", gap: 6 }}>
+            <View style={{ alignItems: "flex-start", gap: 6, flex: 1, minWidth: 0 }}>
               <UserNameHeader
                 name={profile?.name ?? ""}
                 nameStyle={[styles.name, { color: colors.foreground }]}
@@ -978,6 +979,7 @@ export default function ProfileScreen() {
           {editing ? (
             <Animated.View
               style={{
+                width: "100%",
                 borderRadius: 16,
                 borderWidth: 2,
                 borderColor: highlightTarget === "bio" ? highlightBorderColor : "transparent",
@@ -1011,7 +1013,7 @@ export default function ProfileScreen() {
         <View style={styles.photosSection}>
           <View style={styles.photosHeader}>
             <Text
-              style={[styles.sectionLabel, { color: colors.mutedForeground }]}
+              style={[styles.sectionLabel, { color: colors.primary }]}
             >
               {t("profile.photos")}
             </Text>
@@ -1189,25 +1191,25 @@ export default function ProfileScreen() {
               const rank = trophy.rank as 1 | 2 | 3;
               const RANK_CONFIG = {
                 1: {
-                  bg: "#FFF8E1",
+                  bg: isDark ? "#342D1B" : "#FFF8E1",
                   border: "#FFD700",
                   accent: "#B8860B",
                   label: "CHAMPION",
-                  icon: "🏆",
+                  icon: "award",
                 },
                 2: {
-                  bg: "#F5F5F5",
+                  bg: isDark ? "#29302C" : "#F5F5F5",
                   border: "#C0C0C0",
                   accent: "#707070",
                   label: "RUNNER-UP",
-                  icon: "🥈",
+                  icon: "star",
                 },
                 3: {
-                  bg: "#FBF0E8",
+                  bg: isDark ? "#35281F" : "#FBF0E8",
                   border: "#CD7F32",
                   accent: "#8B4513",
                   label: "3RD PLACE",
-                  icon: "🥉",
+                  icon: "award",
                 },
               } as const;
               const cfg = RANK_CONFIG[rank] ?? RANK_CONFIG[3];
@@ -1222,14 +1224,26 @@ export default function ProfileScreen() {
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 12,
-                    backgroundColor: cfg.bg,
-                    borderWidth: 1.5,
-                    borderColor: cfg.border,
-                    borderRadius: 14,
-                    padding: 14,
+                    backgroundColor: "transparent",
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderColor: colors.border,
+                    borderRadius: 0,
+                    paddingVertical: 12,
+                    paddingHorizontal: 4,
                   }}
                 >
-                  <Text style={{ fontSize: 32 }}>{cfg.icon}</Text>
+                  <View
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 23,
+                      backgroundColor: cfg.border + "30",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Feather name={cfg.icon} size={22} color={cfg.accent} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text
                       style={{
@@ -1243,7 +1257,7 @@ export default function ProfileScreen() {
                       {cfg.label}
                     </Text>
                     <Text
-                      style={{ fontFamily: "Inter_700Bold", fontSize: 15, color: "#1a1a1a" }}
+                       style={{ fontFamily: "Inter_700Bold", fontSize: 15, color: colors.foreground }}
                       numberOfLines={1}
                     >
                       {trophy.placeName ?? trophy.placeId}
@@ -1276,7 +1290,7 @@ export default function ProfileScreen() {
                 }
                 style={[
                   styles.upgradeBanner,
-                  { backgroundColor: colors.card, borderColor: colors.border },
+                  { backgroundColor: "transparent", borderColor: colors.border },
                 ]}
               >
                 <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium" }}>
@@ -1299,7 +1313,7 @@ export default function ProfileScreen() {
                   paddingHorizontal: 4,
                 }}
               >
-                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                <Text style={[styles.sectionLabel, { color: colors.primary }]}>
                   {t("profile.socialHandles")}
                 </Text>
               </Animated.View>
@@ -1361,7 +1375,7 @@ export default function ProfileScreen() {
         {editing ? (
           <View style={{ gap: 12 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+              <Text style={[styles.sectionLabel, { color: colors.primary }]}>
                 {t("encounter.interestsLabel")}
               </Text>
               <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>
@@ -1551,11 +1565,12 @@ export default function ProfileScreen() {
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
-            backgroundColor: colors.card,
-            borderRadius: 14,
-            borderWidth: 1,
+            backgroundColor: "transparent",
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderBottomWidth: StyleSheet.hairlineWidth,
             borderColor: colors.border,
-            paddingHorizontal: 16,
+            borderRadius: 0,
+            paddingHorizontal: 0,
             paddingVertical: 14,
           }}
         >
@@ -1630,12 +1645,12 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  photoArea: { alignItems: "center", gap: 12 },
+  photoArea: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 12, rowGap: 14 },
   photoTarget: { position: "relative" },
   photoFrame: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     borderWidth: 1,
     overflow: "hidden",
     alignItems: "center",
@@ -1653,8 +1668,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   name: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 24,
+    fontFamily: "serif",
+    fontWeight: "400",
+    fontSize: 26,
     marginTop: 4,
   },
   pioneerBadge: {
@@ -1701,11 +1717,11 @@ const styles = StyleSheet.create({
     color: "#FFD700",
   },
   bio: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    textAlign: "center",
+    fontFamily: "serif",
+    fontSize: 15,
+    textAlign: "left",
     lineHeight: 20,
-    maxWidth: 300,
+    width: "100%",
   },
   nameInput: {
     height: 50,
@@ -1715,8 +1731,9 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     fontSize: 18,
     marginTop: 4,
-    minWidth: 220,
-    textAlign: "center",
+    minWidth: 0,
+    width: "100%",
+    textAlign: "left",
   },
   bioInput: {
     minHeight: 70,
@@ -1727,7 +1744,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     fontFamily: "Inter_500Medium",
     fontSize: 14,
-    minWidth: 280,
+    minWidth: 0,
+    width: "100%",
+    textAlign: "left",
     textAlignVertical: "top",
   },
   divider: { height: 1 },
@@ -1750,9 +1769,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: 0,
+    paddingVertical: 13,
+    paddingHorizontal: 2,
   },
   upgradeBannerLeft: {
     flexDirection: "row",
@@ -1770,10 +1791,10 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   photoTile: {
-    width: 78,
-    height: 78,
-    borderRadius: 14,
-    borderWidth: 1,
+    width: 82,
+    height: 96,
+    borderRadius: 4,
+    borderWidth: 0,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
@@ -1826,7 +1847,7 @@ const styles = StyleSheet.create({
   searchInput: {
     height: 44,
     paddingHorizontal: 14,
-    borderRadius: 12,
+    borderRadius: 22,
     borderWidth: 1,
     fontFamily: "Inter_400Regular",
     fontSize: 14,
@@ -1865,9 +1886,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: 0,
+    paddingVertical: 13,
+    paddingHorizontal: 2,
   },
   businessSwitcherIcon: {
     width: 38,

@@ -8,6 +8,7 @@
  * pre-fills the form, and updates via PUT /api/venue-owner/me/rewards/:id.
  */
 import React, { useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
@@ -34,11 +35,11 @@ const GREEN = "#00E87A";
 type RewardType = "free_drink" | "discount" | "experience" | "custom";
 type RewardStatus = "draft" | "active" | "cancelled";
 
-const REWARD_TYPES: Array<{ value: RewardType; label: string; icon: string }> = [
-  { value: "free_drink", label: "Free Drink", icon: "🍹" },
-  { value: "discount", label: "Discount", icon: "💸" },
-  { value: "experience", label: "Experience", icon: "✨" },
-  { value: "custom", label: "Custom", icon: "🎁" },
+const REWARD_TYPES: Array<{ value: RewardType; label: string; icon: React.ComponentProps<typeof Feather>["name"] }> = [
+  { value: "free_drink", label: "Free Drink", icon: "coffee" },
+  { value: "discount", label: "Discount", icon: "percent" },
+  { value: "experience", label: "Experience", icon: "star" },
+  { value: "custom", label: "Custom", icon: "gift" },
 ];
 
 function startOfToday(): Date {
@@ -163,7 +164,7 @@ export default function EditVenueRewardScreen() {
                   },
                 ]}
               >
-                <Text style={styles.typeIcon}>{rt.icon}</Text>
+                <Feather name={rt.icon} size={18} color={rewardType === rt.value ? accent : vMuted} />
                 <Text style={[styles.typeLabel, { color: rewardType === rt.value ? accent : vMuted }]}>
                   {rt.label}
                 </Text>
@@ -265,16 +266,16 @@ function Field({
 const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { flex: 1 },
-  content: { padding: 24, gap: 18 },
+  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24, gap: 20 },
   fieldLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 },
-  fieldInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular" },
+  fieldInput: { minHeight: 50, borderWidth: 1, borderTopLeftRadius: 22, borderBottomRightRadius: 16, paddingHorizontal: 16, paddingVertical: 13, fontSize: 15, fontFamily: "Inter_400Regular" },
   typeRow: { flexDirection: "row", gap: 8 },
-  typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: "center", gap: 3 },
+  typeBtn: { flex: 1, minHeight: 64, borderWidth: 1.5, borderTopLeftRadius: 24, borderBottomRightRadius: 18, paddingVertical: 12, alignItems: "center", gap: 3 },
   typeIcon: { fontSize: 20 },
   typeLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   btnRow: { flexDirection: "row", gap: 10, alignItems: "center" },
-  activateBtn: { borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, alignItems: "center" },
+  activateBtn: { minHeight: 48, borderWidth: 1.5, borderRadius: 999, paddingVertical: 14, paddingHorizontal: 18, alignItems: "center" },
   activateBtnText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+  saveBtn: { minHeight: 50, borderTopLeftRadius: 26, borderBottomRightRadius: 18, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
   saveBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });

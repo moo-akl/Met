@@ -424,7 +424,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   section: {
-    borderRadius: 16,
+    borderTopLeftRadius: 30,
+    borderBottomRightRadius: 22,
     borderWidth: 1,
     padding: 16,
     gap: 10,
@@ -445,7 +446,8 @@ const styles = StyleSheet.create({
   slot: {
     flex: 1,
     height: 64,
-    borderRadius: 14,
+    borderTopLeftRadius: 20,
+    borderBottomRightRadius: 16,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -504,7 +506,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     borderWidth: 1,
-    borderRadius: 12,
+    borderTopLeftRadius: 24,
+    borderBottomRightRadius: 18,
     paddingVertical: 12,
   },
   simulateText: {

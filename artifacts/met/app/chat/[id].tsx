@@ -51,6 +51,14 @@ import {
 
 const MAX_CHARS = 500;
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+const REACTION_ICONS: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
+  "👍": "thumbs-up",
+  "❤️": "heart",
+  "😂": "smile",
+  "😮": "alert-circle",
+  "😢": "frown",
+  "🔥": "zap",
+};
 
 // Custom recording preset — same quality as HIGH_QUALITY but with metering
 // disabled. The metering timer in expo-av fires on a background thread; if it
@@ -145,7 +153,7 @@ function ReplyQuote({
 }) {
   const isLightTheme = colors.primary === "#3DCC44";
   const quoteText =
-    replyTo.mediaType === "image" && !replyTo.text ? "📷 Photo" : replyTo.text;
+    replyTo.mediaType === "image" && !replyTo.text ? "Photo" : replyTo.text;
   return (
     <View
       style={[
@@ -232,7 +240,11 @@ function ReactionBadges({
               },
             ]}
           >
-            <Text style={styles.reactionEmoji}>{emoji}</Text>
+            <Feather
+              name={REACTION_ICONS[emoji] ?? "message-circle"}
+              size={13}
+              color={iMine ? colors.primary : colors.mutedForeground}
+            />
             <Text
               style={[
                 styles.reactionCount,
@@ -452,7 +464,7 @@ function MessageBubble({
                 },
               ]}
             >
-              🗑 Message deleted
+              Message deleted
             </Text>
           ) : (
             <>
@@ -614,7 +626,11 @@ function MessageActionMenu({
                       },
                     ]}
                   >
-                    <Text style={styles.menuReactionEmoji}>{emoji}</Text>
+                    <Feather
+                      name={REACTION_ICONS[emoji]}
+                      size={22}
+                      color={alreadyReacted ? colors.primary : colors.foreground}
+                    />
                   </Pressable>
                 );
               })}
@@ -1068,7 +1084,7 @@ function ChatScreen() {
 
     if (!threshold) {
       Alert.alert(
-        "Keep chatting! 💬",
+        "Keep chatting!",
         "The more you connect, the more accurate your rating will be. You can rate after 10 messages or once you've met in person.",
         [{ text: "Got it" }],
       );
@@ -1141,14 +1157,14 @@ function ChatScreen() {
       undefined,
       [
         {
-          text: "We met in real life! 🤝",
+          text: "We met in real life!",
           onPress: () => {
             if (!myUid || !peerUid) return;
             api.markAsMet({ uid: myUid }, peerUid).then(() => {
               setConnectionQuality((q) =>
                 q ? { ...q, hasMetInRealLife: true } : q,
               );
-              Alert.alert("Marked as met! ✅", "Your connection is now verified as a real-life meeting.");
+              Alert.alert("Marked as met!", "Your connection is now verified as a real-life meeting.");
             }).catch(() => {});
           },
         },
@@ -1478,9 +1494,9 @@ function ChatScreen() {
                 numberOfLines={1}
               >
                 {replyingTo.mediaType === "image" && !replyingTo.text
-                  ? "📷 Photo"
+                  ? "Photo"
                   : replyingTo.mediaType === "audio" && !replyingTo.text
-                    ? "🎤 Voice message"
+                    ? "Voice message"
                     : replyingTo.text}
               </Text>
             </View>
@@ -1845,8 +1861,8 @@ const styles = StyleSheet.create({
   bubbleContentRight: { alignItems: "flex-end" },
   bubbleContentLeft: { alignItems: "flex-start", marginLeft: 4 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, marginBottom: 3 },
-  bubbleMine: { borderRadius: 20, borderBottomRightRadius: 5 },
-  bubbleTheirs: { borderRadius: 20, borderBottomLeftRadius: 5 },
+  bubbleMine: { borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: 5 },
+  bubbleTheirs: { borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomRightRadius: 22, borderBottomLeftRadius: 5 },
   bubbleDeleted: { opacity: 0.7 },
   bubbleText: {
     fontFamily: "Inter_400Regular",
@@ -1900,7 +1916,7 @@ const styles = StyleSheet.create({
     gap: 3,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 12,
+    borderRadius: 999,
     borderWidth: 1,
   },
   reactionEmoji: { fontSize: 13 },
@@ -1967,7 +1983,8 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
-    borderRadius: 22,
+    borderTopLeftRadius: 24,
+    borderBottomRightRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
     paddingVertical: 8,

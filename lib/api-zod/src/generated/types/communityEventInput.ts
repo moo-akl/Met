@@ -74,4 +74,5 @@ export interface CommunityEventInput {
      * @nullable
      */
   invitePasscode?: string | null;
+  joinApprovalRequired?: boolean;
 }

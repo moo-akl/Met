@@ -36,6 +36,8 @@ import {
   useCreateVenueOwnerEventInviteLink,
   useReportCommunityEvent,
   useRsvpCommunityEvent,
+  useRequestToJoinCommunityEvent,
+  useWithdrawCommunityEventJoinRequest,
   type EventFeedItem,
 } from "@workspace/api-client-react";
 
@@ -59,12 +61,13 @@ export default function EventDetailsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { t } = useT();
+  const { t, lang } = useT();
   const { authedUid } = useApp();
   const [actionError, setActionError] = useState("");
   const [reportPending, setReportPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rsvpPending, setRsvpPending] = useState(false);
+  const [joinRequestPending, setJoinRequestPending] = useState(false);
   const [checkinPending, setCheckinPending] = useState(false);
   const [locationPermission, requestLocationPermission] =
     Location.useForegroundPermissions();
@@ -84,6 +87,8 @@ export default function EventDetailsScreen() {
   }, [authedUid, eventId, eventQuery.error, eventType]);
 
   const memberRsvp = useRsvpCommunityEvent();
+  const requestToJoin = useRequestToJoinCommunityEvent();
+  const withdrawJoinRequest = useWithdrawCommunityEventJoinRequest();
   const deleteEvent = useDeleteCommunityEvent({
     mutation: {
       onSuccess: async () => {
@@ -102,6 +107,15 @@ export default function EventDetailsScreen() {
 
   const event = eventQuery.data;
   const isOwner = Boolean(event && event.ownerUid === authedUid);
+  const canAccessHangout = Boolean(
+    event &&
+      (!event.joinApprovalRequired ||
+        isOwner ||
+        event.isInvited ||
+        event.myJoinRequestStatus === "accepted" ||
+        event.myRsvp === "going" ||
+        event.myRsvp === "maybe"),
+  );
   const location = event?.location ?? event?.venueName ?? null;
   const ownerManageQuery = useQuery({
     ...getGetCommunityEventForEditQueryOptions(isValidRoute ? eventId : 0),
@@ -134,8 +148,36 @@ export default function EventDetailsScreen() {
     }
   };
 
+  const updateJoinRequest = async () => {
+    if (event?.eventType !== "member" || isOwner) return;
+    const withdrawing = event.myJoinRequestStatus === "pending";
+    setJoinRequestPending(true);
+    setActionError("");
+    try {
+      if (withdrawing) {
+        await withdrawJoinRequest.mutateAsync({ eventId: event.id });
+      } else {
+        await requestToJoin.mutateAsync({ eventId: event.id });
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetEventsFeedQueryKey() }),
+        queryClient.invalidateQueries({
+          queryKey: getGetEventDetailsQueryKey(event.eventType, event.id),
+        }),
+      ]);
+    } catch (error) {
+      setActionError(
+        error instanceof ApiError
+          ? error.message
+          : "Could not update your join request.",
+      );
+    } finally {
+      setJoinRequestPending(false);
+    }
+  };
+
   const checkInWithLocation = async () => {
-    if (!event || isOwner || event.latitude == null || event.longitude == null) return;
+    if (!event || isOwner || !canAccessHangout || event.latitude == null || event.longitude == null) return;
     setCheckinPending(true);
     setActionError("");
     try {
@@ -199,6 +241,16 @@ export default function EventDetailsScreen() {
     event?.eventType === "member" &&
       (isOwner || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe"),
   );
+  const canRsvpDirectly = Boolean(
+    event &&
+      (!event.joinApprovalRequired ||
+        isOwner ||
+        event.isInvited ||
+        event.myJoinRequestStatus === "accepted"),
+  );
+  const manageEventLabel = event?.joinApprovalRequired
+    ? `${t("tabs.events.joinRequests")}${event.pendingJoinRequestCount ? ` (${event.pendingJoinRequestCount})` : ""}`
+    : t("tabs.events.manageAttendance");
 
   const shareEvent = async () => {
     if (!event || !canShareEvent) return;
@@ -214,7 +266,7 @@ export default function EventDetailsScreen() {
       }
       const details = [
         event.title,
-        new Date(event.startsAt).toLocaleString(),
+        new Date(event.startsAt).toLocaleString(lang),
         location,
       ].filter(Boolean).join("\n");
       await Share.share({
@@ -311,7 +363,7 @@ export default function EventDetailsScreen() {
         >
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
+        <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.text }]}>
           {t("tabs.events.detailsView")}
         </Text>
         {isOwner && event ? (
@@ -367,18 +419,18 @@ export default function EventDetailsScreen() {
                 </Text>
               ) : null}
             </View>
-            <Text style={[styles.title, { color: colors.text }]}>{event.title}</Text>
+            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{event.title}</Text>
             <View style={styles.metaRow}>
               <Feather name="clock" size={16} color={colors.mutedForeground} />
               <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                {new Date(event.startsAt).toLocaleString()}
+                {new Date(event.startsAt).toLocaleString(lang)}
               </Text>
             </View>
             {event.endsAt ? (
               <View style={styles.metaRow}>
                 <Feather name="clock" size={16} color={colors.mutedForeground} />
                 <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-                  {new Date(event.endsAt).toLocaleString()}
+                  {new Date(event.endsAt).toLocaleString(lang)}
                 </Text>
               </View>
             ) : null}
@@ -412,25 +464,31 @@ export default function EventDetailsScreen() {
               </Text>
             ) : null}
             <EventFollowThroughActions event={event} uid={authedUid ?? null} />
+            {(isOwner || canAccessHangout) ? (
             <View style={[styles.attendanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.attendanceHeading}>
                 <View style={[styles.attendanceIcon, { backgroundColor: colors.primarySoft }]}>
                   <Feather name="check-circle" size={18} color={colors.primary} />
                 </View>
                 <View style={styles.attendanceCopy}>
-                  <Text style={[styles.attendanceTitle, { color: colors.text }]}>
-                    {isOwner ? "Event attendance" : "Were you there?"}
+                  <Text accessibilityRole="header" style={[styles.attendanceTitle, { color: colors.text }]}>
+                    {isOwner
+                      ? event.joinApprovalRequired
+                        ? t("tabs.events.joinRequests")
+                        : t("tabs.events.attendanceOwnerHeading")
+                      : t("tabs.events.attendanceGuestHeading")}
                   </Text>
                   <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
                     {isOwner
-                      ? "Verified check-ins are separate from RSVPs."
-                      : "Only a verified check-in counts as attendance."}
+                      ? t("tabs.events.attendanceOwnerHint")
+                      : t("tabs.events.attendanceGuestHint")}
                   </Text>
                 </View>
               </View>
               {isOwner ? (
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel={manageEventLabel}
                   testID="button-manage-event-attendance"
                   onPress={() => router.push({
                     pathname: "/event-attendees/[eventType]/[id]",
@@ -438,31 +496,34 @@ export default function EventDetailsScreen() {
                       eventType: event.eventType,
                       id: String(event.id),
                       title: event.title,
+                      joinApprovalRequired: String(event.joinApprovalRequired),
                     },
                   } as never)}
                   style={[styles.attendanceButton, { backgroundColor: colors.primary }]}
                 >
                   <Feather name="users" size={16} color={colors.primaryForeground} />
                   <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
-                    Manage attendance
+                    {manageEventLabel}
                   </Text>
                 </Pressable>
               ) : (
                 <View style={styles.attendanceActions}>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={t("tabs.events.scanEventQr")}
                     testID="button-scan-event-qr"
                     onPress={() => router.push("/qr-scan" as never)}
                     style={[styles.attendanceButton, { backgroundColor: colors.primary }]}
                   >
                     <Feather name="maximize" size={16} color={colors.primaryForeground} />
                     <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
-                      Scan event QR
+                      {t("tabs.events.scanEventQr")}
                     </Text>
                   </Pressable>
                   {event.latitude != null && event.longitude != null ? (
                     <Pressable
                       accessibilityRole="button"
+                      accessibilityLabel={t("tabs.events.checkInByLocation")}
                       testID="button-check-in-by-location"
                       disabled={checkinPending}
                       onPress={() => void checkInWithLocation()}
@@ -474,15 +535,19 @@ export default function EventDetailsScreen() {
                         <Feather name="map-pin" size={16} color={colors.primary} />
                       )}
                       <Text style={[styles.attendanceButtonText, { color: colors.primary }]}>
-                        Check in by location
+                        {t("tabs.events.checkInByLocation")}
                       </Text>
                     </Pressable>
                   ) : null}
                 </View>
               )}
             </View>
+            ) : null}
             {event.contactPhone || event.websiteUrl || event.publicEmail ? (
               <View style={{ gap: 10, marginTop: 4 }}>
+                <Text accessibilityRole="header" style={[styles.contactHeading, { color: colors.text }]}>
+                  {t("tabs.events.contactHeading")}
+                </Text>
                 {event.contactPhone ? (
                   <Pressable
                     accessibilityRole="link"
@@ -518,7 +583,11 @@ export default function EventDetailsScreen() {
               </View>
             ) : null}
 
+            {canRsvpDirectly ? (
             <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
+              <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
+                {t("tabs.events.rsvpHeading")}
+              </Text>
               <Text style={[styles.rsvpCount, { color: colors.mutedForeground }]}>
                 {event.rsvpCount} · {t("tabs.events.going")}
               </Text>
@@ -533,6 +602,7 @@ export default function EventDetailsScreen() {
                     <Pressable
                       key={status}
                       accessibilityRole="button"
+                      accessibilityLabel={`${event.title}, ${label}`}
                       accessibilityState={{ selected }}
                       disabled={rsvpPending}
                       onPress={() => void saveRsvp(status)}
@@ -561,10 +631,59 @@ export default function EventDetailsScreen() {
                 })}
               </View>
             </View>
+            ) : (
+              <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
+                <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
+                  {t("tabs.events.joinRequests")}
+                </Text>
+                {event.myJoinRequestStatus === "pending" ? (
+                  <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.joinRequestPending")}
+                  </Text>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={event.myJoinRequestStatus === "pending"
+                    ? t("tabs.events.cancelJoinRequest")
+                    : event.myJoinRequestStatus === "declined"
+                      ? t("tabs.events.requestAgain")
+                      : t("tabs.events.requestToJoin")}
+                  testID="button-request-to-join"
+                  disabled={joinRequestPending}
+                  onPress={() => void updateJoinRequest()}
+                  style={[
+                    styles.attendanceButton,
+                    {
+                      backgroundColor: colors.primary,
+                      opacity: joinRequestPending ? 0.65 : 1,
+                      alignSelf: "flex-start",
+                    },
+                  ]}
+                >
+                  {joinRequestPending ? (
+                    <ActivityIndicator size="small" color={colors.primaryForeground} />
+                  ) : (
+                    <Feather
+                      name={event.myJoinRequestStatus === "pending" ? "x" : "user-plus"}
+                      size={16}
+                      color={colors.primaryForeground}
+                    />
+                  )}
+                  <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
+                    {event.myJoinRequestStatus === "pending"
+                      ? t("tabs.events.cancelJoinRequest")
+                      : event.myJoinRequestStatus === "declined"
+                        ? t("tabs.events.requestAgain")
+                        : t("tabs.events.requestToJoin")}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
 
             {canOpenPlanChat ? (
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={t("tabs.events.planChat")}
                 testID="button-open-plan-chat"
                 onPress={() => router.push(`/event-chat/${event.id}` as never)}
                 style={[
@@ -583,7 +702,7 @@ export default function EventDetailsScreen() {
             {canShareEvent ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={t("common.share")}
+                accessibilityLabel={`${t("common.share")}: ${event.title}`}
                 disabled={shareInviteMutation.isPending}
                 onPress={() => void shareEvent()}
                 style={[
@@ -607,14 +726,20 @@ export default function EventDetailsScreen() {
             {!isOwner ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Report this event"
+                accessibilityLabel={
+                  reportPending
+                    ? t("tabs.events.reportPending")
+                    : t("tabs.events.reportEvent")
+                }
                 disabled={reportPending}
                 onPress={showEventReportOptions}
                 style={[styles.reportButton, { opacity: reportPending ? 0.6 : 1 }]}
               >
                 <Feather name="flag" size={14} color={colors.mutedForeground} />
                 <Text style={[styles.reportText, { color: colors.mutedForeground }]}>
-                  {reportPending ? "Submitting report…" : "Report this event"}
+                  {reportPending
+                    ? t("tabs.events.reportPending")
+                    : t("tabs.events.reportEvent")}
                 </Text>
               </Pressable>
             ) : null}
@@ -632,6 +757,7 @@ export default function EventDetailsScreen() {
                     <View style={styles.confirmButtons}>
                       <Pressable
                         accessibilityRole="button"
+                        accessibilityLabel={t("common.cancel")}
                         onPress={() => setConfirmDelete(false)}
                         style={[styles.confirmButton, { backgroundColor: colors.muted }]}
                       >
@@ -641,6 +767,7 @@ export default function EventDetailsScreen() {
                       </Pressable>
                       <Pressable
                         accessibilityRole="button"
+                        accessibilityLabel={t("tabs.events.deleteEvent")}
                         disabled={deleteEvent.isPending}
                         onPress={doDelete}
                         style={[styles.confirmButton, { backgroundColor: colors.destructive }]}
@@ -658,6 +785,7 @@ export default function EventDetailsScreen() {
                 ) : (
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={t("tabs.events.deleteEvent")}
                     onPress={() => setConfirmDelete(true)}
                     style={[styles.deleteButton, { borderColor: colors.destructive }]}
                   >
@@ -708,7 +836,8 @@ const styles = StyleSheet.create({
   meta: { fontSize: 14, lineHeight: 20, flex: 1 },
   locationRow: {
     borderWidth: 1,
-    borderRadius: 15,
+    borderTopLeftRadius: 26,
+    borderBottomRightRadius: 18,
     minHeight: 70,
     flexDirection: "row",
     alignItems: "center",
@@ -722,29 +851,31 @@ const styles = StyleSheet.create({
   locationText: { fontSize: 14, fontWeight: "600", marginTop: 3 },
   creator: { fontSize: 13, marginTop: 14 },
   description: { fontSize: 15, lineHeight: 23, marginTop: 18 },
-  attendanceCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 14, marginTop: 20 },
+  contactHeading: { fontSize: 16, fontWeight: "700", marginBottom: 2 },
+  attendanceCard: { borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 22, padding: 16, gap: 14, marginTop: 20 },
   attendanceHeading: { flexDirection: "row", alignItems: "center", gap: 11 },
   attendanceIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   attendanceCopy: { flex: 1, gap: 3 },
   attendanceTitle: { fontSize: 15, fontWeight: "700" },
   attendanceHint: { fontSize: 12, lineHeight: 17 },
   attendanceActions: { gap: 8 },
-  attendanceButton: { minHeight: 44, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 12 },
+  attendanceButton: { minHeight: 48, borderTopLeftRadius: 24, borderBottomRightRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 14 },
   attendanceButtonSecondary: { borderWidth: 1, backgroundColor: "transparent" },
   attendanceButtonText: { fontSize: 13, fontWeight: "700" },
   rsvpSection: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 22, paddingTop: 16 },
+  rsvpHeading: { fontSize: 17, fontWeight: "700", marginBottom: 10 },
   rsvpCount: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
   rsvpRow: { flexDirection: "row", gap: 8 },
-  rsvpButton: { flex: 1, minHeight: 42, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderRadius: 12 },
+  rsvpButton: { flex: 1, minHeight: 46, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderRadius: 999 },
   rsvpButtonText: { fontSize: 12, fontWeight: "700" },
   ownerActions: { marginTop: 18 },
-  shareButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 },
+  shareButton: { minHeight: 48, borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 },
   shareText: { fontSize: 14, fontWeight: "700" },
   reportButton: { minHeight: 36, flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 7, marginBottom: 10 },
   reportText: { fontSize: 13, fontWeight: "600" },
-  deleteButton: { minHeight: 44, borderWidth: 1, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  deleteButton: { minHeight: 48, borderWidth: 1, borderTopLeftRadius: 24, borderBottomRightRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   deleteText: { fontSize: 14, fontWeight: "700" },
-  confirmCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
+  confirmCard: { borderWidth: 1, borderTopLeftRadius: 26, borderBottomRightRadius: 18, padding: 16, gap: 8 },
   confirmTitle: { fontSize: 15, fontWeight: "700" },
   confirmBody: { fontSize: 13, lineHeight: 19 },
   confirmButtons: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 4 },
