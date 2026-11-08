@@ -280,7 +280,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
     setFormError("");
     if (imageUploading) return;
     if (!title.trim()) {
-      setFormError(t("tabs.events.eventNameRequired"));
+      setFormError(t(planMode ? "tabs.events.hangoutNameRequired" : "tabs.events.eventNameRequired"));
       return;
     }
     if (planMode && !location.trim()) {
@@ -405,12 +405,12 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
         keyboardShouldPersistTaps="handled"
       >
         <Text style={[styles.label, { color: colors.text }]}>
-          {t("tabs.events.eventName")}
+          {t(planMode ? "tabs.events.hangoutName" : "tabs.events.eventName")}
         </Text>
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder={t("tabs.events.eventName")}
+          placeholder={t(planMode ? "tabs.events.hangoutName" : "tabs.events.eventName")}
           placeholderTextColor={colors.mutedForeground}
           maxLength={120}
           style={[
@@ -535,12 +535,12 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
           </>
         ) : null}
         <Text style={[styles.label, { color: colors.text }]}>
-          {t("tabs.events.details")}
+          {t(planMode ? "tabs.events.hangoutDescription" : "tabs.events.details")}
         </Text>
         <TextInput
           value={description}
           onChangeText={setDescription}
-          placeholder={t("tabs.events.details")}
+          placeholder={t(planMode ? "tabs.events.hangoutDescription" : "tabs.events.details")}
           placeholderTextColor={colors.mutedForeground}
           multiline
           maxLength={2000}

@@ -7,7 +7,6 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
-import { isPlanEvent } from "@/lib/eventFeedClassification";
 import { getGetEventsFeedQueryKey, useGetEventsFeed, type EventFeedItem } from "@workspace/api-client-react";
 
 function dateLabel(value: string) {
@@ -35,93 +34,138 @@ export function HomePlanDiscovery() {
     const events = feed.data?.events ?? [];
     return events
       .filter((event: EventFeedItem) =>
-        isPlanEvent(event) &&
-        (event.joinApprovalRequired || event.ownerUid === authedUid || event.myRsvp === "going" || event.myRsvp === "maybe"),
+        event.eventType === "member" &&
+        event.visibility === "invite_only" &&
+        (event.ownerUid === authedUid || event.myRsvp === "going" || event.myRsvp === "maybe"),
       )
       .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
       .slice(0, 3);
   }, [feed.data?.events, authedUid]);
+  const hangouts = useMemo(() => {
+    const events = feed.data?.events ?? [];
+    return events
+      .filter((event: EventFeedItem) =>
+        event.eventType === "member" &&
+        event.visibility === "public" &&
+        event.joinApprovalRequired,
+      )
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
+      .slice(0, 3);
+  }, [feed.data?.events]);
 
   return (
-    <View style={styles.section}>
-      <View style={styles.headingRow}>
-        <View>
-          <Text style={[styles.kicker, { color: colors.primary }]}>{t("plans.homeKicker")}</Text>
-          <Text style={[styles.heading, { color: colors.text }]}>{t("plans.homeTitle")}</Text>
+    <>
+      <View style={styles.section}>
+        <View style={styles.headingRow}>
+          <View>
+            <Text style={[styles.kicker, { color: colors.primary }]}>{t("plans.homeKicker")}</Text>
+            <Text style={[styles.heading, { color: colors.text }]}>{t("plans.homeTitle")}</Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("plans.seeAllA11y")}
+            testID="home-see-all-plans"
+            hitSlop={8}
+            onPress={() => router.push("/plans" as never)}
+            style={styles.seeAll}
+          >
+            <Text style={[styles.seeAllText, { color: colors.primary }]}>{t("plans.all")}</Text>
+            <Feather name="arrow-up-right" size={16} color={colors.primary} />
+          </Pressable>
         </View>
+        <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground }]}>
+          {t("plans.homeSubtitle")}
+        </Text>
+        {!authedUid || feed.isLoading ? (
+          <View style={styles.loading} accessibilityLabel={t("plans.loading")}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[styles.muted, { color: colors.mutedForeground }]}>{t("plans.loading")}</Text>
+          </View>
+        ) : feed.isError ? (
+          <Pressable accessibilityRole="button" testID="home-plans-retry" onPress={() => void feed.refetch()} style={styles.inlineState}>
+            <Feather name="refresh-cw" size={15} color={colors.primary} />
+            <Text style={[styles.muted, { color: colors.mutedForeground }]}>{t("plans.loadError")}</Text>
+          </Pressable>
+        ) : plans.length ? (
+          <View style={styles.planList}>
+            {plans.map((plan, index) => (
+              <HomeEventRow key={`${plan.eventType}:${plan.id}`} event={plan} index={index} />
+            ))}
+          </View>
+        ) : (
+          <View style={[styles.empty, { borderColor: colors.border }]}>
+            <View style={styles.emptyMark}><Feather name="users" size={17} color={colors.primary} /></View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("plans.emptyTitle")}</Text>
+            <Text style={[styles.muted, { color: colors.mutedForeground }]}>{t("plans.emptyBody")}</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.headingRow}>
+          <View>
+            <Text style={[styles.kicker, { color: colors.primary }]}>{t("tabs.events.public")}</Text>
+            <Text style={[styles.heading, { color: colors.text }]}>{t("tabs.events.nearbyTab")}</Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("tabs.events.allHangouts")}
+            testID="home-hangouts-nearby"
+            hitSlop={8}
+            onPress={() => router.push({
+              pathname: "/(tabs)/events",
+              params: { view: "hangouts" },
+            } as never)}
+            style={styles.seeAll}
+          >
+            <Text style={[styles.seeAllText, { color: colors.primary }]}>{t("tabs.events.allHangouts")}</Text>
+            <Feather name="arrow-up-right" size={16} color={colors.primary} />
+          </Pressable>
+        </View>
+        <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground }]}>
+          {t("tabs.events.nearbySubtitle")}
+        </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t("plans.seeAllA11y")}
-          testID="home-see-all-plans"
-          hitSlop={8}
-          onPress={() => router.push("/plans" as never)}
-          style={styles.seeAll}
+          accessibilityLabel={t("tabs.events.quickPlan")}
+          testID="home-create-hangout"
+          onPress={() => router.push({ pathname: "/event-create", params: { mode: "plan" } } as never)}
+          style={({ pressed }) => [styles.create, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
         >
-          <Text style={[styles.seeAllText, { color: colors.primary }]}>{t("plans.all")}</Text>
-          <Feather name="arrow-up-right" size={16} color={colors.primary} />
+          <View style={[styles.createIcon, { backgroundColor: colors.primarySoft }]}>
+            <Feather name="plus" size={18} color={colors.primary} />
+          </View>
+          <View style={styles.createCopy}>
+            <Text style={[styles.createTitle, { color: colors.primary }]}>{t("plans.create")}</Text>
+            <Text style={[styles.createSub, { color: colors.mutedForeground }]}>{t("plans.createSubtitle")}</Text>
+          </View>
+          <Feather name="arrow-up-right" size={18} color={colors.primary} />
         </Pressable>
+        {!feed.isError && hangouts.length ? (
+          <View style={styles.planList}>
+            {hangouts.map((hangout, index) => (
+              <HomeEventRow
+                key={`${hangout.eventType}:${hangout.id}`}
+                event={hangout}
+                index={index}
+                isHangout
+              />
+            ))}
+          </View>
+        ) : null}
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t("tabs.events.nearbyTab")}
-        testID="home-hangouts-nearby"
-        onPress={() => router.push({
-          pathname: "/(tabs)/events",
-          params: { view: "hangouts" },
-        } as never)}
-        style={({ pressed }) => [
-          styles.nearbyLink,
-          { borderColor: colors.border, opacity: pressed ? 0.78 : 1 },
-        ]}
-      >
-        <View style={[styles.nearbyIcon, { backgroundColor: colors.primarySoft }]}>
-          <Feather name="map-pin" size={18} color={colors.primary} />
-        </View>
-        <View style={styles.nearbyCopy}>
-          <Text style={[styles.nearbyTitle, { color: colors.text }]}>{t("tabs.events.nearbyTab")}</Text>
-          <Text style={[styles.nearbySubtitle, { color: colors.mutedForeground }]}>{t("tabs.events.nearbySubtitle")}</Text>
-        </View>
-        <Feather name="arrow-up-right" size={17} color={colors.primary} />
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t("plans.createA11y")}
-        testID="home-create-plan"
-        onPress={() => router.push({ pathname: "/event-create", params: { mode: "plan" } } as never)}
-        style={({ pressed }) => [styles.create, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
-      >
-        <View style={[styles.createIcon, { backgroundColor: colors.primarySoft }]}><Feather name="plus" size={18} color={colors.primary} /></View>
-        <View style={styles.createCopy}>
-          <Text style={[styles.createTitle, { color: colors.primary }]}>{t("plans.create")}</Text>
-          <Text style={[styles.createSub, { color: colors.mutedForeground }]}>{t("plans.createSubtitle")}</Text>
-        </View>
-        <Feather name="arrow-up-right" size={18} color={colors.primary} />
-      </Pressable>
-      {!authedUid || feed.isLoading ? (
-        <View style={styles.loading} accessibilityLabel={t("plans.loading")}>
-          <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={[styles.muted, { color: colors.mutedForeground }]}>{t("plans.loading")}</Text>
-        </View>
-      ) : feed.isError ? (
-        <Pressable accessibilityRole="button" testID="home-plans-retry" onPress={() => void feed.refetch()} style={styles.inlineState}>
-          <Feather name="refresh-cw" size={15} color={colors.primary} />
-          <Text style={[styles.muted, { color: colors.mutedForeground }]}>{t("plans.loadError")}</Text>
-        </Pressable>
-      ) : plans.length ? (
-        <View style={styles.planList}>
-          {plans.map((plan, index) => <PlanRow key={`${plan.eventType}:${plan.id}`} event={plan} index={index} />)}
-        </View>
-      ) : (
-        <View style={[styles.empty, { borderColor: colors.border }]}>
-          <View style={styles.emptyMark}><Feather name="sun" size={17} color={colors.primary} /></View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("plans.emptyTitle")}</Text>
-          <Text style={[styles.muted, { color: colors.mutedForeground }]}>{t("plans.emptyBody")}</Text>
-        </View>
-      )}
-    </View>
+    </>
   );
 
-  function PlanRow({ event, index }: { event: EventFeedItem; index: number }) {
+  function HomeEventRow({
+    event,
+    index,
+    isHangout = false,
+  }: {
+    event: EventFeedItem;
+    index: number;
+    isHangout?: boolean;
+  }) {
     const date = dateLabel(event.startsAt);
     const attending = event.ownerUid === authedUid
       ? t("plans.hosting")
@@ -133,18 +177,18 @@ export function HomePlanDiscovery() {
             ? t("tabs.events.going")
             : event.myRsvp === "maybe"
               ? t("tabs.events.interested")
-              : event.joinApprovalRequired
+              : isHangout
                 ? t("tabs.events.requestToJoin")
                 : t("plans.hosting");
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={event.joinApprovalRequired
+        accessibilityLabel={isHangout
           ? `${event.title}. ${t("tabs.events.detailsView")}`
           : t("plans.openChatA11y", { title: event.title })}
-        testID={`home-plan-${event.id}`}
+        testID={`home-${isHangout ? "hangout" : "plan"}-${event.id}`}
         onPress={() => router.push(
-          event.joinApprovalRequired
+          isHangout
             ? `/event-details/member/${event.id}` as never
             : `/event-chat/${event.id}` as never,
         )}
@@ -166,7 +210,7 @@ export function HomePlanDiscovery() {
         </View>
         <View style={styles.status}>
           <Text style={[styles.statusText, { color: colors.primary }]}>{attending}</Text>
-          <Feather name={event.joinApprovalRequired ? "arrow-up-right" : "message-circle"} size={16} color={colors.primary} />
+          <Feather name={isHangout ? "arrow-up-right" : "message-circle"} size={16} color={colors.primary} />
         </View>
       </Pressable>
     );
@@ -176,11 +220,7 @@ export function HomePlanDiscovery() {
 const styles = StyleSheet.create({
   section: { marginTop: 24, marginBottom: 18 },
   headingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingHorizontal: 18, marginBottom: 13 },
-  nearbyLink: { minHeight: 62, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, marginHorizontal: 18, marginBottom: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 },
-  nearbyIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  nearbyCopy: { flex: 1, gap: 3 },
-  nearbyTitle: { fontSize: 14, fontWeight: "700" },
-  nearbySubtitle: { fontSize: 11, lineHeight: 15 },
+  sectionSubtitle: { fontSize: 12, lineHeight: 18, marginHorizontal: 18, marginTop: -5, marginBottom: 10 },
   kicker: { fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 4 },
   heading: { fontFamily: "serif", fontSize: 24, fontWeight: "400", letterSpacing: -0.4 },
   seeAll: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 3 },

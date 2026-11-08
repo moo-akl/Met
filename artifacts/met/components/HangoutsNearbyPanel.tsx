@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -80,10 +80,31 @@ export function HangoutsNearbyPanel({
 }: Props) {
   const colors = useColors();
   const { t, lang } = useT();
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   return (
     <View style={styles.content}>
       <View style={[styles.filters, { borderColor: colors.border, backgroundColor: colors.card }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("tabs.events.filterToggle")}
+          accessibilityState={{ expanded: filtersExpanded }}
+          testID="hangouts-filter-toggle"
+          onPress={() => setFiltersExpanded((expanded) => !expanded)}
+          style={styles.filterToggle}
+        >
+          <Feather name="sliders" size={16} color={colors.primary} />
+          <Text style={[styles.filterToggleTitle, { color: colors.text }]}>
+            {t("tabs.events.filterToggle")}
+          </Text>
+          <Text numberOfLines={1} style={[styles.filterToggleSummary, { color: colors.mutedForeground }]}>
+            {sortMode === "nearest" ? t("tabs.events.sortNearest") : t("tabs.events.sortSoonest")}
+            {hasFilters ? ` · ${t("tabs.events.filtersActive")}` : ""}
+          </Text>
+          <Feather name={filtersExpanded ? "chevron-up" : "chevron-down"} size={17} color={colors.mutedForeground} />
+        </Pressable>
+        {filtersExpanded ? (
+          <View style={styles.filterOptions}>
         <View style={[styles.filterInput, { borderColor: colors.border, backgroundColor: colors.background }]}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
@@ -236,6 +257,8 @@ export function HangoutsNearbyPanel({
             {t("tabs.events.nearestUsesTimeUntilLocation")}
           </Text>
         ) : null}
+          </View>
+        ) : null}
       </View>
 
       {isLoading && hangouts.length === 0 ? (
@@ -337,7 +360,11 @@ export function HangoutsNearbyPanel({
 
 const styles = StyleSheet.create({
   content: { gap: 14 },
-  filters: { borderWidth: 1, borderRadius: 18, padding: 14, gap: 13 },
+  filters: { borderWidth: 1, borderRadius: 18, padding: 14 },
+  filterToggle: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 9 },
+  filterToggleTitle: { fontSize: 13, fontWeight: "700" },
+  filterToggleSummary: { flex: 1, fontSize: 11, textAlign: "right" },
+  filterOptions: { gap: 13, paddingTop: 14 },
   filterInput: { minHeight: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 9 },
   inputText: { flex: 1, minWidth: 0, paddingVertical: 9, fontSize: 14 },
   locationDateRow: { flexDirection: "row", alignItems: "center", gap: 8 },

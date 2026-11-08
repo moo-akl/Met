@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, Text } from "react-native";
 import renderer, { act } from "react-test-renderer";
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 
@@ -146,8 +146,17 @@ describe("DateTimePicker platform behavior", () => {
     });
 
     const titleInput = root.root.find(
-      (node) => node.props.placeholder === "tabs.events.eventName",
+      (node) => node.props.placeholder === "tabs.events.hangoutName",
     );
+    expect(
+      root.root.find((node) => node.props.placeholder === "tabs.events.hangoutDescription"),
+    ).toBeTruthy();
+    expect(
+      root.root.findAllByType(Text).filter((node) =>
+        node.props.children === "tabs.events.hangoutName" ||
+        node.props.children === "tabs.events.hangoutDescription",
+      ),
+    ).toHaveLength(2);
     const locationInput = root.root.find(
       (node) => node.props.accessibilityLabel === "tabs.events.location",
     );

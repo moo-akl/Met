@@ -10,6 +10,7 @@ import EventsScreen from "@/app/(tabs)/events";
 const mockPush = jest.fn();
 const mockSetParams = jest.fn();
 const mockQueryClient = { invalidateQueries: jest.fn() };
+let mockEventsFeed: unknown[] = [];
 let mockRouteParams: Record<string, string> = {};
 let mockAppStateChange: ((state: AppStateStatus) => void) | undefined;
 
@@ -61,7 +62,7 @@ jest.mock("@workspace/api-client-react", () => ({
   getGetEventsFeedQueryKey: () => ["events-feed"],
   getGetNearbyHangoutsQueryKey: () => ["nearby-hangouts"],
   useGetEventsFeed: () => ({
-    data: { events: [] },
+    data: { events: mockEventsFeed },
     isLoading: false,
     isError: false,
     isSuccess: true,
@@ -97,7 +98,13 @@ jest.mock("@/lib/api/client", () => ({
   ApiError: class ApiError extends Error {},
 }));
 
-describe("Hangouts Nearby entry and filters", () => {
+function expandHangoutFilters(root: renderer.ReactTestRenderer) {
+  act(() => {
+    root.root.findByProps({ testID: "hangouts-filter-toggle" }).props.onPress();
+  });
+}
+
+describe("Hangouts entry and filters", () => {
   beforeEach(() => {
     jest.restoreAllMocks();
     mockAppStateChange = undefined;
@@ -109,6 +116,7 @@ describe("Hangouts Nearby entry and filters", () => {
     mockPush.mockClear();
     mockSetParams.mockClear();
     mockQueryClient.invalidateQueries.mockClear();
+    mockEventsFeed = [];
     mockRouteParams = {};
     (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
       granted: false,
@@ -130,12 +138,13 @@ describe("Hangouts Nearby entry and filters", () => {
     });
   });
 
-  it("opens Hangouts Nearby from the home discovery card", () => {
+  it("opens Hangouts from the home section", () => {
     let root!: renderer.ReactTestRenderer;
     act(() => {
       root = renderer.create(<HomePlanDiscovery />);
     });
 
+    expect(root.root.findByProps({ testID: "home-create-hangout" })).toBeTruthy();
     act(() => {
       root.root.findByProps({ testID: "home-hangouts-nearby" }).props.onPress();
     });
@@ -144,6 +153,44 @@ describe("Hangouts Nearby entry and filters", () => {
       pathname: "/(tabs)/events",
       params: { view: "hangouts" },
     });
+    act(() => root.unmount());
+  });
+
+  it("keeps friend plans and public hangouts in separate Home sections", () => {
+    mockEventsFeed = [
+      {
+        id: 71,
+        eventType: "member",
+        visibility: "invite_only",
+        joinApprovalRequired: false,
+        ownerUid: "test-user",
+        myRsvp: null,
+        myJoinRequestStatus: null,
+        title: "Dinner with friends",
+        startsAt: "2030-05-01T18:00:00.000Z",
+        location: "Riverside",
+      },
+      {
+        id: 72,
+        eventType: "member",
+        visibility: "public",
+        joinApprovalRequired: true,
+        ownerUid: "another-user",
+        myRsvp: null,
+        myJoinRequestStatus: "pending",
+        title: "Public park walk",
+        startsAt: "2030-05-02T18:00:00.000Z",
+        location: "City park",
+      },
+    ];
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(<HomePlanDiscovery />);
+    });
+
+    expect(root.root.findByProps({ testID: "home-plan-71" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "home-hangout-72" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "home-plan-72" })).toHaveLength(0);
     act(() => root.unmount());
   });
 
@@ -159,6 +206,9 @@ describe("Hangouts Nearby entry and filters", () => {
     });
 
     expect(mockSetParams).toHaveBeenCalledWith({ view: "hangouts" });
+    expect(root.root.findByProps({ testID: "hangouts-filter-toggle" }).props.accessibilityState.expanded)
+      .toBe(false);
+    expandHangoutFilters(root);
     expect(root.root.findByProps({ testID: "hangouts-use-location" })).toBeTruthy();
     act(() => root.unmount());
 
@@ -167,6 +217,7 @@ describe("Hangouts Nearby entry and filters", () => {
       root = renderer.create(<EventsScreen />);
       await Promise.resolve();
     });
+    expandHangoutFilters(root);
     expect(root.root.findByProps({ testID: "hangouts-use-location" })).toBeTruthy();
     act(() => root.unmount());
   });
@@ -179,6 +230,9 @@ describe("Hangouts Nearby entry and filters", () => {
       root = renderer.create(<EventsScreen />);
       await Promise.resolve();
     });
+    expect(root.root.findByProps({ testID: "hangouts-filter-toggle" })).toBeTruthy();
+    expect(root.root.findAllByType(TextInput)).toHaveLength(0);
+    expandHangoutFilters(root);
 
     expect(
       root.root.findAllByType(TextInput).some((input) => input.props.value === ""),
@@ -226,6 +280,7 @@ describe("Hangouts Nearby entry and filters", () => {
       root = renderer.create(<EventsScreen />);
       await Promise.resolve();
     });
+    expandHangoutFilters(root);
 
     expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
       .toBe("tabs.events.openLocationSettings");
@@ -283,6 +338,7 @@ describe("Hangouts Nearby entry and filters", () => {
       root = renderer.create(<EventsScreen />);
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
+    expandHangoutFilters(root);
     expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
       .toBe("tabs.events.updateLocation");
 
@@ -318,6 +374,7 @@ describe("Hangouts Nearby entry and filters", () => {
       root = renderer.create(<EventsScreen />);
       await Promise.resolve();
     });
+    expandHangoutFilters(root);
 
     await act(async () => {
       root.root.findByProps({ testID: "hangouts-use-location" }).props.onPress();
@@ -381,6 +438,8 @@ describe("Hangouts Nearby entry and filters", () => {
         />,
       );
     });
+    expect(root.root.findAllByType(TextInput)).toHaveLength(0);
+    expandHangoutFilters(root);
 
     act(() => {
       root.root.findByProps({ testID: "hangouts-location-search" }).props.onChangeText("Riverside");
