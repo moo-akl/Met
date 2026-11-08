@@ -2158,6 +2158,7 @@ export interface EventJoinRequest {
   photoUrl: string | null;
   status: EventJoinRequestStatus;
   createdAt: string;
+  isVerifiedExplorer: boolean;
 }
 
 export type EventAttendanceCorrectionAction = typeof EventAttendanceCorrectionAction[keyof typeof EventAttendanceCorrectionAction];

@@ -15,4 +15,5 @@ export interface EventJoinRequest {
   photoUrl: string | null;
   status: EventJoinRequestStatus;
   createdAt: Date;
+  isVerifiedExplorer: boolean;
 }

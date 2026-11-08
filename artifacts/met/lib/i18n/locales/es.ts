@@ -116,6 +116,7 @@ export const es: LocaleTree = {
       quickPlan: "Quedada",
       quickPlanHint: "Escribe tu propia idea, elige una hora y un lugar, y revisa las solicitudes para unirse.",
       joinApprovalHint: "Cualquiera puede ver el plan y el lugar exacto. Tú decides quién se une.",
+      explorerRequestOrderHint: "Las personas Exploradoras verificadas aparecen primero, pero tú decides si aceptas cada solicitud.",
       planLocationRequired: "Añade una ubicación para tu plan.",
       planLocationSearchHint: "Busca y selecciona un lugar para tu plan.",
       planPlaceSelectionRequired: "Elige un lugar de los resultados para añadir un punto al mapa.",
@@ -1570,5 +1571,8 @@ export const es: LocaleTree = {
     howScoreNote: "Las puntuaciones se actualizan a diario. Los mejores contribuidores ganan premios sorpresa cada mes.",
   },
 
+  verifiedExplorer: {
+    title: "Explorador verificado",
+  },
   interestLabels: interestLocales.es,
 };

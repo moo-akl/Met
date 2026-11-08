@@ -271,6 +271,9 @@ export default function EventAttendeesScreen() {
                   <Text style={[styles.caption, { color: colors.mutedForeground }]}>
                     {t("tabs.events.joinApprovalHint")}
                   </Text>
+                  <Text testID="text-explorer-request-order-hint" style={[styles.caption, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.explorerRequestOrderHint")}
+                  </Text>
                 </View>
               </View>
               {joinRequests.length === 0 ? (
@@ -301,6 +304,14 @@ export default function EventAttendeesScreen() {
                           <Text style={[styles.attendeeName, { color: colors.text }]} numberOfLines={1}>
                             {request.displayName}
                           </Text>
+                          {request.isVerifiedExplorer ? (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <Feather name="compass" size={12} color={colors.primary} />
+                              <Text style={{ color: colors.primary, fontSize: 10, fontFamily: "Inter_600SemiBold" }}>
+                                {t("verifiedExplorer.title")}
+                              </Text>
+                            </View>
+                          ) : null}
                           <Text style={[styles.caption, { color: colors.mutedForeground }]}>
                             {new Date(request.createdAt).toLocaleString(lang)}
                           </Text>

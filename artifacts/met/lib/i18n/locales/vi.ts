@@ -116,6 +116,7 @@ export const vi: LocaleTree = {
       quickPlan: "Buổi gặp",
       quickPlanHint: "Viết ý tưởng của bạn, chọn thời gian và địa điểm, rồi xem các yêu cầu tham gia.",
       joinApprovalHint: "Mọi người đều thấy kế hoạch và địa điểm chính xác. Bạn quyết định ai được tham gia.",
+      explorerRequestOrderHint: "Nhà thám hiểm đã xác minh được hiển thị trước, nhưng bạn vẫn quyết định có chấp nhận từng yêu cầu hay không.",
       planLocationRequired: "Thêm địa điểm cho kế hoạch gặp mặt.",
       planLocationSearchHint: "Tìm và chọn địa điểm cho kế hoạch gặp mặt.",
       planPlaceSelectionRequired: "Chọn một địa điểm trong kết quả để thêm ghim bản đồ.",
@@ -1578,5 +1579,8 @@ export const vi: LocaleTree = {
     howScoreNote: "Điểm được cập nhật hàng ngày. Người đóng góp hàng đầu nhận phần thưởng bất ngờ mỗi tháng.",
   },
 
+  verifiedExplorer: {
+    title: "Người khám phá đã xác minh",
+  },
   interestLabels: interestLocales.vi,
 };

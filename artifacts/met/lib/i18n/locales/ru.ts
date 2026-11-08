@@ -116,6 +116,7 @@ export const ru: LocaleTree = {
       quickPlan: "Встреча",
       quickPlanHint: "Опишите свою идею, выберите время и место, затем рассмотрите заявки на участие.",
       joinApprovalHint: "Все видят план и точное место. Вы решаете, кого принять.",
+      explorerRequestOrderHint: "Проверенные исследователи отображаются первыми, но вы по-прежнему решаете, принять ли каждую заявку.",
       planLocationRequired: "Укажите место встречи.",
       planLocationSearchHint: "Найдите и выберите место для встречи.",
       planPlaceSelectionRequired: "Выберите место из результатов поиска, чтобы добавить точку на карту.",
@@ -1583,5 +1584,8 @@ export const ru: LocaleTree = {
     howScoreNote: "Очки обновляются каждый день. Лучшие участники каждый месяц получают неожиданные призы.",
   },
 
+  verifiedExplorer: {
+    title: "Проверенный исследователь",
+  },
   interestLabels: interestLocales.ru,
 };

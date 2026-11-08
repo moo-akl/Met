@@ -116,6 +116,7 @@ export const ar: LocaleTree = {
       quickPlan: "لقاء",
       quickPlanHint: "اكتب فكرتك واختر الوقت والمكان، ثم راجع طلبات الانضمام.",
       joinApprovalHint: "يمكن للجميع رؤية الخطة والموقع الدقيق، وأنت تقرر من ينضم.",
+      explorerRequestOrderHint: "يظهر المستكشفون المعتمدون أولاً، لكنك ما زلت تقرر قبول كل طلب.",
       planLocationRequired: "أضف موقعًا لخطة اللقاء.",
       planLocationSearchHint: "ابحث عن مكان واختره لخطة اللقاء.",
       planPlaceSelectionRequired: "اختر مكانًا من نتائج البحث لإضافة دبوس على الخريطة.",
@@ -1579,5 +1580,8 @@ export const ar: LocaleTree = {
     howScoreNote: "تُحدَّث النقاط يومياً. أفضل المساهمين يفوزون بمكافآت مفاجئة كل شهر.",
   },
 
+  verifiedExplorer: {
+    title: "المستكشف الموثّق",
+  },
   interestLabels: interestLocales.ar,
 };

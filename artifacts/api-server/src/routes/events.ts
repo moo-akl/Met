@@ -97,6 +97,7 @@ import {
   notifyCommunityEventPlanMessage,
 } from "../lib/eventNotifications";
 import { verifyAppCheckToken } from "../lib/firebaseAdmin";
+import { getVerifiedExplorerStatuses } from "../lib/verifiedExplorer";
 import { z } from "zod";
 
 const router = Router();
@@ -2608,6 +2609,15 @@ router.get(
         ))
         .orderBy(asc(communityEventJoinRequestsTable.createdAt))
       : [];
+    const explorerStatuses = await getVerifiedExplorerStatuses(
+      joinRequests.map((request) => request.uid),
+    );
+    const prioritizedJoinRequests = [...joinRequests].sort((a, b) => {
+      const aIsExplorer = explorerStatuses.get(a.uid)?.isVerifiedExplorer ?? false;
+      const bIsExplorer = explorerStatuses.get(b.uid)?.isVerifiedExplorer ?? false;
+      return Number(bIsExplorer) - Number(aIsExplorer) ||
+        a.createdAt.getTime() - b.createdAt.getTime();
+    });
     const corrections = await db
       .select({
         uid: eventAttendanceCorrectionsTable.userUid,
@@ -2653,9 +2663,11 @@ router.get(
         ...rsvp,
         displayName: rsvp.displayName ?? "Met member",
       })),
-      joinRequests: joinRequests.map((request) => ({
+      joinRequests: prioritizedJoinRequests.map((request) => ({
         ...request,
         displayName: request.displayName ?? "Met member",
+        isVerifiedExplorer:
+          explorerStatuses.get(request.uid)?.isVerifiedExplorer ?? false,
       })),
       corrections: corrections.map((correction) => ({
         ...correction,

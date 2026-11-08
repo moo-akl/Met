@@ -116,6 +116,7 @@ export const zh: LocaleTree = {
       quickPlan: "聚会",
       quickPlanHint: "写下你的想法，选择时间和地点，然后审核加入申请。",
       joinApprovalHint: "所有人都能看到计划和确切地点，由你决定接受谁加入。",
+      explorerRequestOrderHint: "已验证探索者会优先显示，但每个申请仍由你决定是否接受。",
       planLocationRequired: "请为聚会计划添加地点。",
       planLocationSearchHint: "搜索并选择聚会计划的地点。",
       planPlaceSelectionRequired: "请从搜索结果中选择地点，以添加地图标记。",
@@ -1530,5 +1531,8 @@ export const zh: LocaleTree = {
     howScoreNote: "积分每日更新。顶级贡献者每月将赢得惊喜奖励。",
   },
 
+  verifiedExplorer: {
+    title: "认证探索者",
+  },
   interestLabels: interestLocales.zh,
 };

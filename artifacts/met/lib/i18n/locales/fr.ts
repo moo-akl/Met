@@ -116,6 +116,7 @@ export const fr: LocaleTree = {
       quickPlan: "Sortie",
       quickPlanHint: "Décrivez votre idée, choisissez une heure et un lieu, puis examinez les demandes de participation.",
       joinApprovalHint: "Tout le monde voit le plan et le lieu exact. Vous décidez qui participe.",
+      explorerRequestOrderHint: "Les Explorateurs vérifiés apparaissent en premier, mais vous décidez toujours d'accepter ou non chaque demande.",
       planLocationRequired: "Ajoutez un lieu pour votre sortie.",
       planLocationSearchHint: "Recherchez et sélectionnez un lieu pour votre sortie.",
       planPlaceSelectionRequired: "Choisissez un lieu dans les résultats pour ajouter un repère sur la carte.",
@@ -1586,5 +1587,8 @@ export const fr: LocaleTree = {
     howScoreNote: "Les scores sont mis à jour chaque jour. Les meilleurs contributeurs gagnent des récompenses surprises chaque mois.",
   },
 
+  verifiedExplorer: {
+    title: "Explorateur vérifié",
+  },
   interestLabels: interestLocales.fr,
 };

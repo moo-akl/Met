@@ -116,6 +116,7 @@ export const nl: LocaleTree = {
       quickPlan: "Hangout",
       quickPlanHint: "Schrijf je eigen idee, kies een tijd en plek en bekijk verzoeken om mee te doen.",
       joinApprovalHint: "Iedereen ziet het plan en de exacte plek. Jij beslist wie mag meedoen.",
+      explorerRequestOrderHint: "Geverifieerde Explorers staan bovenaan, maar jij beslist nog steeds of je elk verzoek accepteert.",
       planLocationRequired: "Voeg een locatie toe aan je hangoutplan.",
       planLocationSearchHint: "Zoek en selecteer een plek voor je hangout.",
       planPlaceSelectionRequired: "Kies een plek uit de zoekresultaten om een kaartpin toe te voegen.",
@@ -1578,5 +1579,8 @@ export const nl: LocaleTree = {
     howScoreNote: "Scores worden dagelijks bijgewerkt. Beste bijdragers winnen elke maand verrassende beloningen.",
   },
 
+  verifiedExplorer: {
+    title: "Geverifieerde ontdekker",
+  },
   interestLabels: interestLocales.nl,
 };

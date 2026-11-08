@@ -118,6 +118,7 @@ export const en = {
       quickPlan: "Hangout",
       quickPlanHint: "Write your own idea, choose a time and place, and review requests to join.",
       joinApprovalHint: "Anyone can see the plan and exact place. You approve who joins.",
+      explorerRequestOrderHint: "Verified Explorers appear first, but you still decide whether to accept each request.",
       planLocationRequired: "Add a location for your hangout plan.",
       planLocationSearchHint: "Search and select a place for your hangout.",
       planPlaceSelectionRequired: "Choose a place from the search results to add a map pin.",
@@ -1200,6 +1201,9 @@ export const en = {
     timeDaysAgo: "{{count}} days ago",
   },
 
+  verifiedExplorer: {
+    title: "Verified Explorer",
+  },
   interestLabels: interestLocales.en,
 
   referrals: {

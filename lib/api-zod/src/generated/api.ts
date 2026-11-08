@@ -4116,7 +4116,8 @@ export const GetEventAttendeesResponse = zod.object({
   "displayName": zod.string(),
   "photoUrl": zod.string().url().nullable(),
   "status": zod.enum(['pending', 'accepted', 'declined', 'withdrawn']),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "isVerifiedExplorer": zod.boolean()
 })),
   "corrections": zod.array(zod.object({
   "uid": zod.string(),

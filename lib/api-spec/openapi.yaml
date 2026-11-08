@@ -6779,7 +6779,7 @@ components:
         status: { type: string, enum: [going, maybe, not_going] }
     EventJoinRequest:
       type: object
-      required: [id, uid, displayName, photoUrl, status, createdAt]
+      required: [id, uid, displayName, photoUrl, status, createdAt, isVerifiedExplorer]
       properties:
         id: { type: integer }
         uid: { type: string }
@@ -6787,6 +6787,7 @@ components:
         photoUrl: { type: ["string", "null"], format: uri }
         status: { type: string, enum: [pending, accepted, declined, withdrawn] }
         createdAt: { type: string, format: date-time }
+        isVerifiedExplorer: { type: boolean }
     EventAttendanceCorrection:
       type: object
       required: [uid, displayName, action, previousMethod, reason, actorUid, createdAt]
