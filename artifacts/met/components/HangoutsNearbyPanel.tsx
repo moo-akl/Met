@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -81,9 +81,47 @@ export function HangoutsNearbyPanel({
   const colors = useColors();
   const { t, lang } = useT();
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [keywordQuery, setKeywordQuery] = useState("");
+  const normalizedKeywordQuery = keywordQuery.trim().toLowerCase();
+  const filteredHangouts = useMemo(() => {
+    if (!normalizedKeywordQuery) return hangouts;
+    return hangouts.filter((event) =>
+      [event.title, event.location, event.description, event.creatorName]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedKeywordQuery),
+    );
+  }, [hangouts, normalizedKeywordQuery]);
 
   return (
     <View style={styles.content}>
+      <View style={[styles.filterInput, { borderColor: colors.border, backgroundColor: colors.card }]}>
+        <Feather name="search" size={16} color={colors.mutedForeground} />
+        <TextInput
+          accessibilityLabel={t("tabs.events.hangoutKeywordSearch")}
+          testID="hangouts-keyword-search"
+          value={keywordQuery}
+          onChangeText={setKeywordQuery}
+          placeholder={t("tabs.events.hangoutKeywordSearch")}
+          placeholderTextColor={colors.mutedForeground}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          style={[styles.inputText, { color: colors.text }]}
+        />
+        {keywordQuery ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("tabs.events.clearFilters")}
+            testID="hangouts-keyword-search-clear"
+            onPress={() => setKeywordQuery("")}
+            hitSlop={8}
+          >
+            <Feather name="x-circle" size={17} color={colors.mutedForeground} />
+          </Pressable>
+        ) : null}
+      </View>
       <View style={[styles.filters, { borderColor: colors.border, backgroundColor: colors.card }]}>
         <Pressable
           accessibilityRole="button"
@@ -272,14 +310,14 @@ export function HangoutsNearbyPanel({
             <Text style={[styles.clearFilters, { color: colors.primary }]}>{t("common.retry")}</Text>
           </Pressable>
         </View>
-      ) : hangouts.length === 0 ? (
+      ) : filteredHangouts.length === 0 ? (
         <View style={[styles.emptyCard, { borderColor: colors.border }]}>
           <Feather name="map-pin" size={24} color={colors.primary} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("tabs.events.noHangouts")}</Text>
         </View>
       ) : (
         <View style={styles.eventList}>
-          {hangouts.map((event) => {
+          {filteredHangouts.map((event) => {
             const distance =
               userLocation && event.latitude != null && event.longitude != null
                 ? distanceBetweenMeters(userLocation, {

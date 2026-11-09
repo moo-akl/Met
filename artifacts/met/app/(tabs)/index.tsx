@@ -527,7 +527,22 @@ export default function HomeScreen() {
         )}
         {(!hubState || !hubState.isRegisteredVenue) && (
           <View style={{ marginBottom: 12 }}>
-            <Text style={[canopyHome.placesLabel, { color: muted }]}>{t("home.canopyPlaces")}</Text>
+            <View style={canopyHome.placesHeading}>
+              <Text style={[canopyHome.placesLabel, { color: muted }]}>{t("home.canopyPlaces")}</Text>
+              {featuredPlaces.isSuccess ? (
+                <Text
+                  testID="home-nearby-venue-count"
+                  style={[canopyHome.placesCount, { color: colors.primary, backgroundColor: colors.primarySoft }]}
+                >
+                  {t(
+                    nearestPlaces.length === 1
+                      ? "home.nearbyVenuesShown_one"
+                      : "home.nearbyVenuesShown_other",
+                    { count: nearestPlaces.length },
+                  )}
+                </Text>
+              ) : null}
+            </View>
             {featuredPlaces.isLoading && (
               <View style={styles.featuredSkeletonRow} accessibilityLabel="Loading nearby places">
                 {[0, 1].map((item) => (
@@ -1021,7 +1036,9 @@ const canopyHome = StyleSheet.create({
   place: { marginHorizontal: 20, marginBottom: 0, borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingVertical: 12, paddingHorizontal: 0, flexDirection: "row", alignItems: "center", gap: 12 },
   placeIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   placeName: { fontFamily: "serif", fontSize: 17, marginTop: 3 },
-  placesLabel: { marginHorizontal: 20, fontFamily: "Inter_600SemiBold", fontSize: 10, letterSpacing: 1.3, marginBottom: 8, textTransform: "uppercase" },
+  placesHeading: { marginHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  placesLabel: { fontFamily: "Inter_600SemiBold", fontSize: 10, letterSpacing: 1.3, textTransform: "uppercase" },
+  placesCount: { overflow: "hidden", borderRadius: 12, paddingHorizontal: 9, paddingVertical: 4, fontFamily: "Inter_600SemiBold", fontSize: 10 },
   nearbyList: { marginHorizontal: 20 },
   nearbyRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 9 },
   nearbyPlace: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10 },

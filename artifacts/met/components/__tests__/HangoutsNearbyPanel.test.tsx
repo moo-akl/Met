@@ -5,6 +5,7 @@ import renderer, { act } from "react-test-renderer";
 
 import { HomePlanDiscovery } from "../HomePlanDiscovery";
 import { HangoutsNearbyPanel } from "../HangoutsNearbyPanel";
+import type { NearbyHangoutItem } from "@workspace/api-client-react";
 import EventsScreen from "@/app/(tabs)/events";
 
 const mockPush = jest.fn();
@@ -231,7 +232,7 @@ describe("Hangouts entry and filters", () => {
       await Promise.resolve();
     });
     expect(root.root.findByProps({ testID: "hangouts-filter-toggle" })).toBeTruthy();
-    expect(root.root.findAllByType(TextInput)).toHaveLength(0);
+    expect(root.root.findByProps({ testID: "hangouts-keyword-search" })).toBeTruthy();
     expandHangoutFilters(root);
 
     expect(
@@ -438,7 +439,7 @@ describe("Hangouts entry and filters", () => {
         />,
       );
     });
-    expect(root.root.findAllByType(TextInput)).toHaveLength(0);
+    expect(root.root.findByProps({ testID: "hangouts-keyword-search" })).toBeTruthy();
     expandHangoutFilters(root);
 
     act(() => {
@@ -459,4 +460,61 @@ describe("Hangouts entry and filters", () => {
     expect(onLoadMore).toHaveBeenCalledTimes(1);
     act(() => root.unmount());
   });
+  it("searches loaded Hangouts by title, location, description, and host", () => {
+    const hangouts = [
+      {
+        id: 41, eventType: "member", title: "Coffee chat", description: "Coffee and conversation",
+        startsAt: "2030-05-02T18:00:00.000Z", location: "City park", latitude: null, longitude: null,
+        creatorName: "Sam", creatorPhotoUrl: null, imageUrl: null,
+      },
+      {
+        id: 42, eventType: "member", title: "Evening music", description: "Bring a blanket",
+        startsAt: "2030-05-03T18:00:00.000Z", location: "Riverside", latitude: null, longitude: null,
+        creatorName: "Lee", creatorPhotoUrl: null, imageUrl: null,
+      },
+    ] as unknown as NearbyHangoutItem[];
+    let root!: renderer.ReactTestRenderer;
+
+    act(() => {
+      root = renderer.create(
+        <HangoutsNearbyPanel
+          hangouts={hangouts}
+          userLocation={null}
+          locationLoading={false}
+          locationError={null}
+          locationNeedsSettings={false}
+          onUseLocation={jest.fn()}
+          onOpenSettings={jest.fn()}
+          locationQuery=""
+          onLocationQueryChange={jest.fn()}
+          dateQuery=""
+          onDateQueryChange={jest.fn()}
+          invalidDateFilter={false}
+          timePeriod="any"
+          onTimePeriodChange={jest.fn()}
+          sortMode="nearest"
+          onSortModeChange={jest.fn()}
+          nearestFallsBackToTime={false}
+          hasFilters={false}
+          onClearFilters={jest.fn()}
+          isLoading={false}
+          isLoadingMore={false}
+          isError={false}
+          hasMore={false}
+          onLoadMore={jest.fn()}
+          onRetry={jest.fn()}
+          onPressHangout={jest.fn()}
+        />,
+      );
+    });
+
+    act(() => {
+      root.root.findByProps({ testID: "hangouts-keyword-search" }).props.onChangeText("riverside");
+    });
+
+    expect(root.root.findByProps({ testID: "nearby-hangout-42" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "nearby-hangout-41" })).toHaveLength(0);
+    act(() => root.unmount());
+  });
+
 });
