@@ -27,7 +27,11 @@ import { api, ApiError } from "@/lib/api/client";
 import { HangoutsNearbyPanel } from "@/components/HangoutsNearbyPanel";
 import { groupEventsByDate } from "@/lib/eventDateGroups";
 import { isPlanEvent } from "@/lib/eventFeedClassification";
-import { type HangoutSortMode } from "@/lib/hangoutDiscovery";
+import {
+  parseHangoutDateFilter,
+  type HangoutSortMode,
+  type HangoutTimePeriod,
+} from "@/lib/hangoutDiscovery";
 import {
   getGetEventsFeedQueryKey,
   getGetNearbyHangoutsQueryKey,
@@ -74,6 +78,11 @@ function EventsScreen() {
   const [actionError, setActionError] = useState("");
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<"permission" | "unavailable" | null>(null);
+  const [locationNeedsSettings, setLocationNeedsSettings] = useState(false);
+  const [locationQuery, setLocationQuery] = useState("");
+  const [dateQuery, setDateQuery] = useState("");
+  const [timePeriod, setTimePeriod] = useState<HangoutTimePeriod>("any");
   const [sortMode, setSortMode] = useState<HangoutSortMode>("nearest");
   const automaticLocationLookup = useRef(false);
   const appState = useRef(AppState.currentState);
@@ -134,10 +143,14 @@ function EventsScreen() {
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
     });
+    setLocationError(null);
+    setLocationNeedsSettings(false);
   }, []);
 
   const enableNearbySorting = useCallback(async () => {
     setLocationLoading(true);
+    setLocationError(null);
+    setLocationNeedsSettings(false);
     try {
       if (Platform.OS === "web") {
         setUserLocation(await getBrowserLocation());
@@ -148,28 +161,33 @@ function EventsScreen() {
         permission = await Location.requestForegroundPermissionsAsync();
       }
       if (!permission.granted) {
+        setLocationError("permission");
         if (permission.canAskAgain === false) {
-          Alert.alert(
-            t("tabs.events.locationDenied"),
-            t("tabs.events.nearestUsesTimeUntilLocation"),
-            [
-              { text: t("common.cancel"), style: "cancel" },
-              {
-                text: t("tabs.events.openLocationSettings"),
-                onPress: () => void Linking.openSettings().catch(() => undefined),
-              },
-            ],
-          );
+          setLocationNeedsSettings(true);
+          if (activeView !== "hangouts") {
+            Alert.alert(
+              t("tabs.events.locationDenied"),
+              t("tabs.events.nearestUsesTimeUntilLocation"),
+              [
+                { text: t("common.cancel"), style: "cancel" },
+                {
+                  text: t("tabs.events.openLocationSettings"),
+                  onPress: () => void Linking.openSettings().catch(() => undefined),
+                },
+              ],
+            );
+          }
         }
         return;
       }
       await fetchNativeLocation();
     } catch {
       setUserLocation(null);
+      setLocationError("unavailable");
     } finally {
       setLocationLoading(false);
     }
-  }, [fetchNativeLocation, t]);
+  }, [activeView, fetchNativeLocation, t]);
 
   useEffect(() => {
     if (requestedView === "events" || requestedView === "hangouts") {
@@ -189,9 +207,16 @@ function EventsScreen() {
     void (async () => {
       try {
         const permission = await Location.getForegroundPermissionsAsync();
-        if (!permission.granted) return;
+        if (!permission.granted) {
+          setLocationError("permission");
+          setLocationNeedsSettings(permission.canAskAgain === false);
+          return;
+        }
         await fetchNativeLocation();
-      } catch {}
+      } catch {
+        setLocationError("unavailable");
+        setLocationNeedsSettings(false);
+      }
     })();
   }, [activeView, fetchNativeLocation]);
 
@@ -212,6 +237,8 @@ function EventsScreen() {
           const permission = await Location.getForegroundPermissionsAsync();
           if (!permission.granted) {
             setUserLocation(null);
+            setLocationError("permission");
+            setLocationNeedsSettings(permission.canAskAgain === false);
             return;
           }
           if (!userLocation) {
@@ -220,6 +247,8 @@ function EventsScreen() {
           }
         } catch {
           setUserLocation(null);
+          setLocationError("unavailable");
+          setLocationNeedsSettings(false);
         } finally {
           setLocationLoading(false);
         }
@@ -270,15 +299,27 @@ function EventsScreen() {
   );
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const dateFilter = parseHangoutDateFilter(dateQuery);
+  const invalidDateFilter = dateQuery.trim().length > 0 && dateFilter == null;
+  const hasFilters =
+    locationQuery.trim().length > 0 ||
+    dateQuery.trim().length > 0 ||
+    timePeriod !== "any";
   const hangoutFilterKey = JSON.stringify([
     sortMode,
     userLocation?.latitude ?? null,
     userLocation?.longitude ?? null,
     timeZone,
+    locationQuery.trim(),
+    dateFilter,
+    timePeriod,
   ]);
   const hangoutPageOffset =
     hangoutPageState.filterKey === hangoutFilterKey ? hangoutPageState.offset : 0;
   const nearbyHangoutParams = {
+    locationQuery: locationQuery.trim() || undefined,
+    date: dateFilter ?? undefined,
+    timePeriod,
     sortMode,
     latitude: userLocation?.latitude,
     longitude: userLocation?.longitude,
@@ -454,6 +495,18 @@ function EventsScreen() {
           <HangoutsNearbyPanel
             hangouts={hangouts}
             userLocation={userLocation}
+            locationLoading={locationLoading}
+            locationError={locationError}
+            locationNeedsSettings={locationNeedsSettings}
+            onUseLocation={() => void enableNearbySorting()}
+            onOpenSettings={() => void Linking.openSettings().catch(() => undefined)}
+            locationQuery={locationQuery}
+            onLocationQueryChange={setLocationQuery}
+            dateQuery={dateQuery}
+            onDateQueryChange={setDateQuery}
+            invalidDateFilter={invalidDateFilter}
+            timePeriod={timePeriod}
+            onTimePeriodChange={setTimePeriod}
             sortMode={sortMode}
             onSortModeChange={(mode) => {
               setSortMode(mode);
@@ -468,11 +521,21 @@ function EventsScreen() {
             hasMore={hasMoreHangouts}
             onLoadMore={loadMoreHangouts}
             onRetry={() => void nearbyHangoutQuery.refetch()}
-            onPressHangout={(event) => router.push(
-              event.myJoinRequestStatus === "accepted"
-                ? `/event-chat/${event.id}` as never
-                : `/event-details/member/${event.id}` as never,
-            )}
+            hasFilters={hasFilters}
+            onClearFilters={() => {
+              setLocationQuery("");
+              setDateQuery("");
+              setTimePeriod("any");
+            }}
+            onPressHangout={(eventId) => {
+              const event = hangouts.find((item) => item.id === eventId);
+              if (!event) return;
+              router.push(
+                event.myJoinRequestStatus === "accepted"
+                  ? `/event-chat/${event.id}` as never
+                  : `/event-details/member/${event.id}` as never,
+              );
+            }}
           />
         ) : events.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: "transparent", borderColor: colors.border }]}>
