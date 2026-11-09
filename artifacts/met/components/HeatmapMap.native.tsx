@@ -18,7 +18,6 @@ import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
-  EventMapFilterControl,
   EventMapMarker,
   EventMapPreview,
 } from "@/components/EventMapMarker";
@@ -29,10 +28,8 @@ import {
   type VenueOwnerMapPoint,
 } from "@/lib/api/client";
 import {
-  filterEventMapPins,
   getCurrentEventMapPins,
   type EventMapPin,
-  type EventMapPinSelection,
 } from "@/lib/eventMapPins";
 import { VenueOwnerMarker } from "@/components/VenueOwnerMarker";
 
@@ -189,8 +186,6 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
   const [heatmapVenues, setHeatmapVenues] = useState<HeatmapVenueResult[]>([]);
   const [venueOwnerPoints, setVenueOwnerPoints] = useState<VenueOwnerMapPoint[]>([]);
   const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
-  const [eventPinSelection, setEventPinSelection] =
-    useState<EventMapPinSelection>({ events: true, hangouts: true });
   // Tracks the current visible region so heatCircles can scale with zoom.
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [mapNow, setMapNow] = useState(Date.now());
@@ -408,26 +403,21 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
     [authedUid, eventFeed.data?.events, mapNow],
   );
 
-  const visibleEventPins = useMemo(
-    () => filterEventMapPins(eventPins, eventPinSelection),
-    [eventPins, eventPinSelection],
-  );
-
   const selectedEvent: EventMapPin | null =
-    visibleEventPins.find(
+    eventPins.find(
       (event) => `${event.eventType}:${event.id}` === selectedEventKey,
     ) ?? null;
 
   const eventMarkers = useMemo(
     () =>
-      visibleEventPins.map((event) => (
+      eventPins.map((event) => (
         <EventMapMarker
           key={`event-${event.eventType}-${event.id}`}
           event={event}
           onPress={() => setSelectedEventKey(`${event.eventType}:${event.id}`)}
         />
       )),
-    [visibleEventPins],
+    [eventPins],
   );
 
   return (
@@ -461,13 +451,6 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
         {venueOwnerMarkers}
         {eventMarkers}
       </MapView>
-      <EventMapFilterControl
-        selection={eventPinSelection}
-        onChange={(selection) => {
-          setEventPinSelection(selection);
-          setSelectedEventKey(null);
-        }}
-      />
       {selectedEvent ? (
         <EventMapPreview
           event={selectedEvent}

@@ -2,11 +2,10 @@ import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
 
 import {
-  EventMapFilterControl,
   EventMapMarker,
   EventMapPreview,
 } from "../EventMapMarker";
-import type { EventMapPin, EventMapPinSelection } from "@/lib/eventMapPins";
+import type { EventMapPin } from "@/lib/eventMapPins";
 
 jest.mock("react-native-maps", () => {
   const React = require("react");
@@ -115,38 +114,3 @@ describe("EventMapPreview", () => {
   });
 });
 
-describe("EventMapFilterControl", () => {
-  it("keeps both categories selected by default and exposes checkbox state", async () => {
-    const selection: EventMapPinSelection = { events: true, hangouts: true };
-    const onChange = jest.fn();
-    const screen = await render(
-      <EventMapFilterControl selection={selection} onChange={onChange} />,
-    );
-
-    expect(
-      screen.getByTestId("event-map-filter-events").props.accessibilityState
-        .checked,
-    ).toBe(true);
-    expect(
-      screen.getByTestId("event-map-filter-hangouts").props.accessibilityState
-        .checked,
-    ).toBe(true);
-
-    await fireEvent.press(screen.getByTestId("event-map-filter-events"));
-    expect(onChange).toHaveBeenCalledWith({ events: false, hangouts: true });
-
-    await screen.rerender(
-      <EventMapFilterControl
-        selection={{ events: false, hangouts: true }}
-        onChange={onChange}
-      />,
-    );
-    expect(
-      screen.getByTestId("event-map-filter-events").props.accessibilityState
-        .checked,
-    ).toBe(false);
-
-    await fireEvent.press(screen.getByTestId("event-map-filter-hangouts"));
-    expect(onChange).toHaveBeenCalledTimes(1);
-  });
-});

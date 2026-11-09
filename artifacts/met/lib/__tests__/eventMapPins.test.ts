@@ -1,6 +1,5 @@
 import {
   DEFAULT_EVENT_MAP_DURATION_MS,
-  filterEventMapPins,
   getCurrentEventMapPins,
   type EventMapPinCandidate,
 } from "../eventMapPins";
@@ -65,30 +64,12 @@ describe("getCurrentEventMapPins", () => {
     expect(getCurrentEventMapPins([missingCoordinates, invalidDate], now)).toEqual([]);
   });
 
-  it("filters event pins and hangout plans while keeping both enabled by default", () => {
+  it("keeps event and hangout pins together for the heat map", () => {
     const pins = getCurrentEventMapPins(
-      [
-        makeEvent(8, { eventType: "venue" }),
-        makeEvent(9, { joinApprovalRequired: true }),
-        makeEvent(10, { visibility: "invite_only" }),
-      ],
+      [makeEvent(8, { eventType: "venue" }), makeEvent(9, { joinApprovalRequired: true })],
       now,
     );
 
-    expect(
-      filterEventMapPins(pins, { events: true, hangouts: true }).map(
-        (event) => event.id,
-      ),
-    ).toEqual([8, 9, 10]);
-    expect(
-      filterEventMapPins(pins, { events: true, hangouts: false }).map(
-        (event) => event.id,
-      ),
-    ).toEqual([8]);
-    expect(
-      filterEventMapPins(pins, { events: false, hangouts: true }).map(
-        (event) => event.id,
-      ),
-    ).toEqual([9, 10]);
+    expect(pins.map((event) => event.id)).toEqual([8, 9]);
   });
 });

@@ -6,10 +6,7 @@ import { useFonts } from "expo-font";
 
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
-import type {
-  EventMapPin,
-  EventMapPinSelection,
-} from "@/lib/eventMapPins";
+import type { EventMapPin } from "@/lib/eventMapPins";
 
 interface Props {
   event: EventMapPin;
@@ -61,74 +58,6 @@ export function EventMapMarker({ event, onPress }: Props) {
         <View style={[styles.tail, { borderTopColor: pinColor }]} />
       </View>
     </Marker>
-  );
-}
-
-interface FilterProps {
-  selection: EventMapPinSelection;
-  onChange: (selection: EventMapPinSelection) => void;
-}
-
-export function EventMapFilterControl({
-  selection,
-  onChange,
-}: FilterProps) {
-  const colors = useColors();
-  const { t, rtl } = useT();
-
-  const toggle = (key: keyof EventMapPinSelection) => {
-    const next = { ...selection, [key]: !selection[key] };
-    if (!next.events && !next.hangouts) return;
-    onChange(next);
-  };
-
-  return (
-    <View
-      style={[
-        styles.filterControls,
-        rtl && styles.filterControlsRtl,
-      ]}
-    >
-      {([
-        ["events", t("tabs.events.title")],
-        ["hangouts", t("tabs.events.nearbyTab")],
-      ] as const).map(([key, label]) => {
-        const checked = selection[key];
-        return (
-          <Pressable
-            key={key}
-            accessibilityLabel={label}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked }}
-            onPress={() => toggle(key)}
-            style={({ pressed }) => [
-              styles.filterButton,
-              {
-                backgroundColor: checked ? colors.primarySoft : colors.card,
-                borderColor: checked ? colors.primary : colors.border,
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}
-            testID={`event-map-filter-${key}`}
-          >
-            <Feather
-              name={checked ? "check-square" : "square"}
-              size={15}
-              color={checked ? colors.primary : colors.mutedForeground}
-            />
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.filterLabel,
-                { color: checked ? colors.primary : colors.mutedForeground },
-              ]}
-            >
-              {label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
   );
 }
 
@@ -267,34 +196,6 @@ const styles = StyleSheet.create({
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
     marginTop: -1,
-  },
-  filterControls: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    right: 12,
-    zIndex: 4,
-    flexDirection: "row",
-    gap: 8,
-  },
-  filterControlsRtl: {
-    flexDirection: "row-reverse",
-  },
-  filterButton: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 38,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  filterLabel: {
-    fontSize: 12,
-    fontWeight: "700",
   },
   preview: {
     position: "absolute",
