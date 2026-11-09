@@ -305,6 +305,7 @@ const checkinRow = {
   placeName: "The Coffee House",
   cnt: 3,
   pushToken: "ExponentPushToken[abc]",
+  notificationPrefs: null,
 };
 
 describe("POST /api/cron/weekly-recap — dedup guard", () => {
@@ -360,6 +361,34 @@ describe("POST /api/cron/weekly-recap — dedup guard", () => {
         title: "Your week on Met 📊",
         data: { type: "weekly_recap" },
       }),
+    );
+  });
+
+  it("does not send weekly recaps to users who opted out", async () => {
+    dbMocks.chain.orderBy.mockResolvedValueOnce([
+      {
+        ...checkinRow,
+        notificationPrefs: { notifyWeeklyRecap: false },
+      },
+      {
+        ...checkinRow,
+        userUid: "uid-bob",
+        pushToken: "ExponentPushToken[bob]",
+      },
+    ]);
+    dbMocks.chain.returning.mockResolvedValueOnce([{ userUid: "uid-bob" }]);
+
+    const res = await request(app)
+      .post("/api/cron/weekly-recap")
+      .set("x-cron-secret", CRON_SECRET)
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.sent).toBe(1);
+    expect(sendPush).toHaveBeenCalledTimes(1);
+    expect(sendPush).toHaveBeenCalledWith(
+      "ExponentPushToken[bob]",
+      expect.objectContaining({ data: { type: "weekly_recap" } }),
     );
   });
 

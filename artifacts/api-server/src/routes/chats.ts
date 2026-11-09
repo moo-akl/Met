@@ -49,7 +49,10 @@ router.post("/chats/notify", requireUid, async (req, res) => {
         .where(eq(profilesTable.uid, callerUid))
         .limit(1),
       db
-        .select({ pushToken: profilesTable.pushToken })
+        .select({
+          pushToken: profilesTable.pushToken,
+          notificationPrefs: profilesTable.notificationPrefs,
+        })
         .from(profilesTable)
         .where(eq(profilesTable.uid, recipientUid))
         .limit(1),
@@ -59,6 +62,10 @@ router.post("/chats/notify", requireUid, async (req, res) => {
     if (!pushToken) {
       req.log.info({ recipientUid }, "chats/notify: no push token, skipping");
       res.json({ sent: false, reason: "no_token" });
+      return;
+    }
+    if (recipientRow[0]?.notificationPrefs?.notifyChat === false) {
+      res.json({ sent: false, reason: "preference_disabled" });
       return;
     }
 

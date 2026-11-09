@@ -262,6 +262,37 @@ describe("GET /api/profiles/me", () => {
   });
 });
 
+describe("PATCH /api/profiles/me/notification-prefs", () => {
+  it("stores independent choices for optional notification categories", async () => {
+    dbMocks.chain.limit.mockResolvedValueOnce([
+      { notificationPrefs: { notifyChat: true } },
+    ]);
+
+    const res = await request(app)
+      .patch("/api/profiles/me/notification-prefs")
+      .set("x-met-uid", "alice")
+      .send({
+        notifyNewEncounters: false,
+        notifyConnectionRequests: false,
+        notifyCrownDefense: false,
+        notifyRewardUpdates: false,
+      });
+
+    expect(res.status).toBe(200);
+    expect(dbMocks.chain.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationPrefs: expect.objectContaining({
+          notifyChat: true,
+          notifyNewEncounters: false,
+          notifyConnectionRequests: false,
+          notifyCrownDefense: false,
+          notifyRewardUpdates: false,
+        }),
+      }),
+    );
+  });
+});
+
 describe("PUT /api/profiles/me", () => {
   it("returns 401 when no auth header or x-met-uid is provided", async () => {
     const res = await request(app)

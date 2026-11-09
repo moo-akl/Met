@@ -242,23 +242,24 @@ export function SettingsSheet({ visible, onClose }: Props) {
     markPhotoVerified,
   } = useApp();
 
-  // Wrapper that updates AsyncStorage preferences AND syncs them server-side
-  // so the server can suppress unwanted push notifications.
+  // Keep notification toggles on the shared preference path. AppContext syncs
+  // the hydrated values to the server so existing opt-outs apply to pushes.
   const updateNotifPrefs = (
-    partial: Partial<Pick<typeof preferences, "notifyRecurringMeets" | "notifyChat" | "notifyEventUpdates">>,
+    partial: Partial<
+      Pick<
+        typeof preferences,
+        | "notifyNewEncounters"
+        | "notifyWeeklyRecap"
+        | "notifyRecurringMeets"
+        | "notifyConnectionRequests"
+        | "notifyChat"
+        | "notifyEventUpdates"
+        | "notifyCrownDefense"
+        | "notifyRewardUpdates"
+      >
+    >,
   ) => {
     updatePreferences(partial);
-    if (!authedUid) return;
-    const serverPrefs: Parameters<typeof api.syncNotificationPrefs>[1] = {};
-    if (partial.notifyRecurringMeets !== undefined)
-      serverPrefs.notifyReencounter = partial.notifyRecurringMeets;
-    if (partial.notifyChat !== undefined)
-      serverPrefs.notifyChat = partial.notifyChat;
-    if (partial.notifyEventUpdates !== undefined)
-      serverPrefs.notifyEventUpdates = partial.notifyEventUpdates;
-    if (Object.keys(serverPrefs).length > 0) {
-      api.syncNotificationPrefs({ uid: authedUid }, serverPrefs).catch(() => {});
-    }
   };
   const { tier, promoPlusActive } = useSubscription();
   const referrals = useReferrals();
@@ -615,9 +616,17 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
               <NavRow
                 icon="bell"
+                testID="settings-notifications"
                 label={t("settings.notifications")}
                 sub={
-                  preferences.notifyDailyRecap || preferences.notifyRecurringMeets || preferences.notifyEventUpdates
+                  preferences.notifyWeeklyRecap ||
+                  preferences.notifyNewEncounters ||
+                  preferences.notifyRecurringMeets ||
+                  preferences.notifyConnectionRequests ||
+                  preferences.notifyChat ||
+                  preferences.notifyEventUpdates ||
+                  preferences.notifyCrownDefense ||
+                  preferences.notifyRewardUpdates
                     ? t("settings.notificationsOn")
                     : t("settings.notificationsOff")
                 }
@@ -1242,12 +1251,22 @@ export function SettingsSheet({ visible, onClose }: Props) {
           ) : view === "notifications" ? (
             <View style={{ gap: 10 }}>
               <ToggleRow
-                icon="calendar"
-                label={t("settings.dailyRecap")}
-                sub={t("settings.dailyRecapSub")}
-                value={preferences.notifyDailyRecap}
+                icon="users"
+                label={t("settings.notifyNewEncounters")}
+                sub={t("settings.notifyNewEncountersSub")}
+                value={preferences.notifyNewEncounters}
                 onValueChange={(v) =>
-                  updatePreferences({ notifyDailyRecap: v })
+                  updateNotifPrefs({ notifyNewEncounters: v })
+                }
+                colors={colors}
+              />
+              <ToggleRow
+                icon="calendar"
+                label={t("settings.weeklyRecap")}
+                sub={t("settings.weeklyRecapSub")}
+                value={preferences.notifyWeeklyRecap}
+                onValueChange={(v) =>
+                  updateNotifPrefs({ notifyWeeklyRecap: v })
                 }
                 colors={colors}
               />
@@ -1258,6 +1277,16 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 value={preferences.notifyRecurringMeets}
                 onValueChange={(v) =>
                   updateNotifPrefs({ notifyRecurringMeets: v })
+                }
+                colors={colors}
+              />
+              <ToggleRow
+                icon="user-plus"
+                label={t("settings.notifyConnectionRequests")}
+                sub={t("settings.notifyConnectionRequestsSub")}
+                value={preferences.notifyConnectionRequests}
+                onValueChange={(v) =>
+                  updateNotifPrefs({ notifyConnectionRequests: v })
                 }
                 colors={colors}
               />
@@ -1278,6 +1307,26 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 value={preferences.notifyEventUpdates}
                 onValueChange={(v) =>
                   updateNotifPrefs({ notifyEventUpdates: v })
+                }
+                colors={colors}
+              />
+              <ToggleRow
+                icon="award"
+                label={t("settings.notifyCrownDefense")}
+                sub={t("settings.notifyCrownDefenseSub")}
+                value={preferences.notifyCrownDefense}
+                onValueChange={(v) =>
+                  updateNotifPrefs({ notifyCrownDefense: v })
+                }
+                colors={colors}
+              />
+              <ToggleRow
+                icon="gift"
+                label={t("settings.notifyRewardUpdates")}
+                sub={t("settings.notifyRewardUpdatesSub")}
+                value={preferences.notifyRewardUpdates}
+                onValueChange={(v) =>
+                  updateNotifPrefs({ notifyRewardUpdates: v })
                 }
                 colors={colors}
               />
@@ -1732,6 +1781,7 @@ function ToggleRow({
         </Text>
       </View>
       <Switch
+        accessibilityLabel={label}
         value={value}
         onValueChange={onValueChange}
         trackColor={{ false: "#D1D5DB", true: colors.primary }}

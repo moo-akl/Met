@@ -352,6 +352,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!ready || !authedUid || isStoreDemoEnabled()) return;
+
+    // Local settings are the source of truth for notification toggles. Sync
+    // them after hydration so existing opt-outs are in effect before the next
+    // server-side push, including after an app upgrade or a fresh sign-in.
+    api
+      .syncNotificationPrefs({ uid: authedUid }, {
+        notifyNewEncounters: preferences.notifyNewEncounters,
+        notifyReencounter: preferences.notifyRecurringMeets,
+        notifyConnectionRequests: preferences.notifyConnectionRequests,
+        notifyChat: preferences.notifyChat,
+        notifyEventUpdates: preferences.notifyEventUpdates,
+        notifyWeeklyRecap: preferences.notifyWeeklyRecap,
+        notifyCrownDefense: preferences.notifyCrownDefense,
+        notifyRewardUpdates: preferences.notifyRewardUpdates,
+      })
+      .catch(() => {});
+  }, [
+    ready,
+    authedUid,
+    preferences.notifyNewEncounters,
+    preferences.notifyRecurringMeets,
+    preferences.notifyConnectionRequests,
+    preferences.notifyChat,
+    preferences.notifyEventUpdates,
+    preferences.notifyWeeklyRecap,
+    preferences.notifyCrownDefense,
+    preferences.notifyRewardUpdates,
+  ]);
+
   const setProfile = useCallback(async (p: Profile) => {
     const previous = profileRef.current;
     if (previous?.isVisible !== p.isVisible) {
@@ -739,12 +770,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           status: "encounter",
         };
         next = [fresh, ...prev];
-        // Schedule a local notification so the observer is notified even
-        // when the app is backgrounded. Fire-and-forget — never block state.
-        void presentEncounterNotification({
-          peerUid: event.uid,
-          peerName: event.profile.displayName || undefined,
-        });
+        // Respect the user's discovery-notification choice even for local
+        // alerts generated from foreground proximity updates.
+        if (preferencesRef.current.notifyNewEncounters) {
+          void presentEncounterNotification({
+            peerUid: event.uid,
+            peerName: event.profile.displayName || undefined,
+          });
+        }
         return next;
       });
       await saveEncounters(next);
@@ -1744,6 +1777,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         for (const change of changes) {
           const dedupeKey = `${change.direction}:${change.peerUid}:${change.status}`;
           if (notifiedKeysRef.current.has(dedupeKey)) continue;
+          const isConnectionNotification =
+            (change.direction === "inbound" && change.status === "pending") ||
+            (change.direction === "outbound" && change.status === "accepted");
+          if (
+            isConnectionNotification &&
+            !preferencesRef.current.notifyConnectionRequests
+          ) {
+            // Mark opted-out events as handled so turning notifications back
+            // on later does not deliver a stale alert from this snapshot.
+            notifiedKeysRef.current.add(dedupeKey);
+            continue;
+          }
 
           if (change.direction === "inbound" && change.status === "pending") {
             const existing = allEncountersRef.current.find(

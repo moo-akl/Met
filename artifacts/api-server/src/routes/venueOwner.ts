@@ -3269,41 +3269,64 @@ router.post(
           })
           .where(eq(venueRewardsTable.id, reward.id));
 
-        // Fetch display name for push notification
-        const [winnerProfile] = await db
-          .select({ displayName: profilesTable.displayName })
-          .from(profilesTable)
-          .where(eq(profilesTable.uid, winnerUid))
-          .limit(1);
+        const [[winnerProfile], [ownerProfile]] = await Promise.all([
+          db
+            .select({
+              displayName: profilesTable.displayName,
+              pushToken: profilesTable.pushToken,
+              notificationPrefs: profilesTable.notificationPrefs,
+            })
+            .from(profilesTable)
+            .where(eq(profilesTable.uid, winnerUid))
+            .limit(1),
+          db
+            .select({
+              pushToken: profilesTable.pushToken,
+              notificationPrefs: profilesTable.notificationPrefs,
+            })
+            .from(profilesTable)
+            .where(eq(profilesTable.uid, reward.ownerUid))
+            .limit(1),
+        ]);
 
         const winnerName = winnerProfile?.displayName ?? "Someone";
 
         // Push to winner
         try {
-          await sendPush(winnerUid, {
-            title: "🏆 You won a reward!",
-            body: `You've been crowned as the winner of "${reward.title}" at a venue you've been visiting. Come claim your prize!`,
-            data: {
-              type: "venue_reward_winner",
-              rewardId: String(reward.id),
-              placeId: reward.placeId,
-            },
-          });
+          if (
+            winnerProfile?.pushToken &&
+            winnerProfile.notificationPrefs?.notifyRewardUpdates !== false
+          ) {
+            await sendPush(winnerProfile.pushToken, {
+              title: "🏆 You won a reward!",
+              body: `You've been crowned as the winner of "${reward.title}" at a venue you've been visiting. Come claim your prize!`,
+              data: {
+                type: "venue_reward_winner",
+                rewardId: String(reward.id),
+                placeId: reward.placeId,
+              },
+            });
+          }
         } catch (pushErr) {
           logger.warn({ err: pushErr, winnerUid }, "Failed to push reward win to winner");
         }
 
         // Push to venue owner
         try {
-          await sendPush(reward.ownerUid, {
-            title: "🎉 Winner selected!",
-            body: `${winnerName} was selected as the winner of your reward "${reward.title}". Time to reach out!`,
-            data: {
-              type: "venue_reward_owner_notification",
-              rewardId: String(reward.id),
-              winnerUid,
-            },
-          });
+          if (
+            ownerProfile?.pushToken &&
+            ownerProfile.notificationPrefs?.notifyRewardUpdates !== false
+          ) {
+            await sendPush(ownerProfile.pushToken, {
+              title: "🎉 Winner selected!",
+              body: `${winnerName} was selected as the winner of your reward "${reward.title}". Time to reach out!`,
+              data: {
+                type: "venue_reward_owner_notification",
+                rewardId: String(reward.id),
+                winnerUid,
+              },
+            });
+          }
         } catch (pushErr) {
           logger.warn({ err: pushErr, ownerUid: reward.ownerUid }, "Failed to push reward win to venue owner");
         }

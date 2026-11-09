@@ -49,7 +49,12 @@ function serialize(p: Profile) {
     notificationPrefs: (p.notificationPrefs ?? null) as {
       notifyNewEncounters?: boolean;
       notifyReencounter?: boolean;
+      notifyConnectionRequests?: boolean;
       notifyChat?: boolean;
+      notifyEventUpdates?: boolean;
+      notifyWeeklyRecap?: boolean;
+      notifyCrownDefense?: boolean;
+      notifyRewardUpdates?: boolean;
     } | null,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
@@ -202,11 +207,23 @@ router.put("/profiles/me", requireUid, async (req, res) => {
               ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyReencounter"] === "boolean"
                 ? { notifyReencounter: (rawNotifPrefs as Record<string, unknown>)["notifyReencounter"] as boolean }
                 : {}),
+              ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyConnectionRequests"] === "boolean"
+                ? { notifyConnectionRequests: (rawNotifPrefs as Record<string, unknown>)["notifyConnectionRequests"] as boolean }
+                : {}),
               ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyChat"] === "boolean"
                 ? { notifyChat: (rawNotifPrefs as Record<string, unknown>)["notifyChat"] as boolean }
                 : {}),
               ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyEventUpdates"] === "boolean"
                 ? { notifyEventUpdates: (rawNotifPrefs as Record<string, unknown>)["notifyEventUpdates"] as boolean }
+                : {}),
+              ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyWeeklyRecap"] === "boolean"
+                ? { notifyWeeklyRecap: (rawNotifPrefs as Record<string, unknown>)["notifyWeeklyRecap"] as boolean }
+                : {}),
+              ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyCrownDefense"] === "boolean"
+                ? { notifyCrownDefense: (rawNotifPrefs as Record<string, unknown>)["notifyCrownDefense"] as boolean }
+                : {}),
+              ...(typeof (rawNotifPrefs as Record<string, unknown>)["notifyRewardUpdates"] === "boolean"
+                ? { notifyRewardUpdates: (rawNotifPrefs as Record<string, unknown>)["notifyRewardUpdates"] as boolean }
                 : {}),
             }
           : undefined;
@@ -592,7 +609,16 @@ router.patch("/profiles/me/notification-prefs", requireUid, async (req, res) => 
   const uid = req.uid!;
   const body = req.body as Record<string, unknown>;
   const prefs: Record<string, boolean> = {};
-  const knownKeys = ["notifyNewEncounters", "notifyReencounter", "notifyChat", "notifyEventUpdates"] as const;
+  const knownKeys = [
+    "notifyNewEncounters",
+    "notifyReencounter",
+    "notifyConnectionRequests",
+    "notifyChat",
+    "notifyEventUpdates",
+    "notifyWeeklyRecap",
+    "notifyCrownDefense",
+    "notifyRewardUpdates",
+  ] as const;
   for (const key of knownKeys) {
     if (typeof body[key] === "boolean") prefs[key] = body[key] as boolean;
   }

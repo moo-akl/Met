@@ -6851,6 +6851,10 @@ components:
         notifyReencounter: { type: boolean }
         notifyChat: { type: boolean }
         notifyEventUpdates: { type: boolean }
+        notifyConnectionRequests: { type: boolean }
+        notifyWeeklyRecap: { type: boolean }
+        notifyCrownDefense: { type: boolean }
+        notifyRewardUpdates: { type: boolean }
     EventFeedResponse:
       type: object
       required: [events]

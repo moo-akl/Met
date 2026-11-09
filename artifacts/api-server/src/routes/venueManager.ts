@@ -2677,7 +2677,11 @@ router.post("/venue-manager/businesses/:businessId/guests/:uid/reveal", requireS
 
   // Confirm the target has a Met profile.
   const [recipient] = await db
-    .select({ pushToken: profilesTable.pushToken, displayName: profilesTable.displayName })
+    .select({
+      pushToken: profilesTable.pushToken,
+      displayName: profilesTable.displayName,
+      notificationPrefs: profilesTable.notificationPrefs,
+    })
     .from(profilesTable)
     .where(eq(profilesTable.uid, recipientUid))
     .limit(1);
@@ -2752,11 +2756,13 @@ router.post("/venue-manager/businesses/:businessId/guests/:uid/reveal", requireS
 
   await mirrorRevealRequest({ senderUid: managerUid, recipientUid, status: "pending", message });
 
-  await sendPush(recipient.pushToken, {
-    title: `${senderProfile.displayName ?? "Someone"} wants to reveal to you`,
-    body: "Tap to view their request.",
-    data: { type: "reveal_request", fromUid: managerUid },
-  });
+  if (recipient.notificationPrefs?.notifyConnectionRequests !== false) {
+    await sendPush(recipient.pushToken, {
+      title: `${senderProfile.displayName ?? "Someone"} wants to reveal to you`,
+      body: "Tap to view their request.",
+      data: { type: "reveal_request", fromUid: managerUid },
+    });
+  }
 
   res.status(201).json({ message: "Reveal sent." });
 });

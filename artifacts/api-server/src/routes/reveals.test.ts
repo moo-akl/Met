@@ -63,6 +63,7 @@ vi.mock("../lib/firebaseAdmin", () => ({
 
 import request from "supertest";
 import app from "../app";
+import { sendPush } from "../lib/push";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -133,7 +134,10 @@ function postRevealAs(uid: string, body: Record<string, unknown>) {
 }
 
 function setVisibleSenderAndRecipient(
-  recipient = recipientFixture,
+  recipient: typeof recipientFixture & {
+    pushToken?: string;
+    notificationPrefs?: { notifyConnectionRequests?: boolean };
+  } = recipientFixture,
 ) {
   dbMocks.chain.limit
     .mockResolvedValueOnce([{ isVisible: true }])
@@ -200,6 +204,20 @@ describe("POST /api/reveals", () => {
       });
       expect(res.body).toHaveProperty("profile");
       expect(res.body.profile).toMatchObject({ uid: "bob", displayName: "Bob Builder" });
+    });
+
+    it("saves a reveal request without pushing when the recipient muted connection requests", async () => {
+      setVisibleSenderAndRecipient({
+        ...recipientFixture,
+        pushToken: "recipient-token",
+        notificationPrefs: { notifyConnectionRequests: false },
+      });
+      dbMocks.chain.returning.mockResolvedValueOnce([revealFixture]);
+
+      const res = await postRevealAs("alice", { recipientUid: "bob" });
+
+      expect(res.status).toBe(200);
+      expect(sendPush).not.toHaveBeenCalled();
     });
 
     it("accepts an optional message in the reveal request", async () => {

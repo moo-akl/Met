@@ -198,15 +198,20 @@ router.post(
 
     if (!alreadyConnected) {
       const [inviterProfile] = await db
-        .select({ pushToken: profilesTable.pushToken })
+        .select({
+          pushToken: profilesTable.pushToken,
+          notificationPrefs: profilesTable.notificationPrefs,
+        })
         .from(profilesTable)
         .where(eq(profilesTable.uid, invite.uid))
         .limit(1);
-      await sendPush(inviterProfile?.pushToken, {
-        title: `${recipientProfile.displayName} accepted your connection invite`,
-        body: "You're now connected — tap to say hi.",
-        data: { type: "reveal_accepted", fromUid: recipientUid },
-      });
+      if (inviterProfile?.notificationPrefs?.notifyConnectionRequests !== false) {
+        await sendPush(inviterProfile?.pushToken, {
+          title: `${recipientProfile.displayName} accepted your connection invite`,
+          body: "You're now connected — tap to say hi.",
+          data: { type: "reveal_accepted", fromUid: recipientUid },
+        });
+      }
     }
 
     res.json(

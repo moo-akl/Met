@@ -47,8 +47,12 @@ export const profilesTable = pgTable(
     notificationPrefs: jsonb("notification_prefs").$type<{
       notifyNewEncounters?: boolean;
       notifyReencounter?: boolean;
+      notifyConnectionRequests?: boolean;
       notifyChat?: boolean;
       notifyEventUpdates?: boolean;
+      notifyWeeklyRecap?: boolean;
+      notifyCrownDefense?: boolean;
+      notifyRewardUpdates?: boolean;
     }>(),
     // Pioneer status — set to true for the first 500 users who register.
     // Grants 1.5× check-in multiplier and radar priority.

@@ -62,19 +62,27 @@ export type AutoCleanupDays = 0 | 30 | 60 | 90;
 
 export type Preferences = {
   discoveryRange: DiscoveryRange;
-  notifyDailyRecap: boolean;
+  notifyNewEncounters: boolean;
+  notifyWeeklyRecap: boolean;
   notifyRecurringMeets: boolean;
+  notifyConnectionRequests: boolean;
   notifyChat: boolean;
   notifyEventUpdates: boolean;
+  notifyCrownDefense: boolean;
+  notifyRewardUpdates: boolean;
   autoCleanupDays: AutoCleanupDays;
 };
 
 export const DEFAULT_PREFERENCES: Preferences = {
   discoveryRange: "nearby",
-  notifyDailyRecap: true,
+  notifyNewEncounters: true,
+  notifyWeeklyRecap: true,
   notifyRecurringMeets: true,
+  notifyConnectionRequests: true,
   notifyChat: true,
   notifyEventUpdates: true,
+  notifyCrownDefense: true,
+  notifyRewardUpdates: true,
   autoCleanupDays: 0,
 };
 
@@ -157,7 +165,10 @@ export async function loadPreferences(): Promise<Preferences> {
   try {
     const raw = await AsyncStorage.getItem(PREFERENCES_KEY);
     if (!raw) return { ...DEFAULT_PREFERENCES };
-    const parsed = JSON.parse(raw) as Partial<Preferences>;
+    const parsed = JSON.parse(raw) as Partial<Preferences> & {
+      /** Legacy key; this setting controlled the weekly recap sender. */
+      notifyDailyRecap?: unknown;
+    };
     // Re-validate every field so a corrupted blob (or an older app version
     // that wrote an unknown enum value) can't yield undefined label/meter
     // lookups downstream.
@@ -176,14 +187,24 @@ export async function loadPreferences(): Promise<Preferences> {
         : DEFAULT_PREFERENCES.autoCleanupDays;
     return {
       discoveryRange: range,
-      notifyDailyRecap:
-        typeof parsed.notifyDailyRecap === "boolean"
-          ? parsed.notifyDailyRecap
-          : DEFAULT_PREFERENCES.notifyDailyRecap,
+      notifyNewEncounters:
+        typeof parsed.notifyNewEncounters === "boolean"
+          ? parsed.notifyNewEncounters
+          : DEFAULT_PREFERENCES.notifyNewEncounters,
+      notifyWeeklyRecap:
+        typeof parsed.notifyWeeklyRecap === "boolean"
+          ? parsed.notifyWeeklyRecap
+          : typeof parsed.notifyDailyRecap === "boolean"
+            ? parsed.notifyDailyRecap
+            : DEFAULT_PREFERENCES.notifyWeeklyRecap,
       notifyRecurringMeets:
         typeof parsed.notifyRecurringMeets === "boolean"
           ? parsed.notifyRecurringMeets
           : DEFAULT_PREFERENCES.notifyRecurringMeets,
+      notifyConnectionRequests:
+        typeof parsed.notifyConnectionRequests === "boolean"
+          ? parsed.notifyConnectionRequests
+          : DEFAULT_PREFERENCES.notifyConnectionRequests,
       notifyChat:
         typeof parsed.notifyChat === "boolean"
           ? parsed.notifyChat
@@ -192,6 +213,14 @@ export async function loadPreferences(): Promise<Preferences> {
         typeof parsed.notifyEventUpdates === "boolean"
           ? parsed.notifyEventUpdates
           : DEFAULT_PREFERENCES.notifyEventUpdates,
+      notifyCrownDefense:
+        typeof parsed.notifyCrownDefense === "boolean"
+          ? parsed.notifyCrownDefense
+          : DEFAULT_PREFERENCES.notifyCrownDefense,
+      notifyRewardUpdates:
+        typeof parsed.notifyRewardUpdates === "boolean"
+          ? parsed.notifyRewardUpdates
+          : DEFAULT_PREFERENCES.notifyRewardUpdates,
       autoCleanupDays: cleanup,
     };
   } catch {

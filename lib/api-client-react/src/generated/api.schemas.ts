@@ -2254,6 +2254,10 @@ export interface NotificationPrefsInput {
   notifyReencounter?: boolean;
   notifyChat?: boolean;
   notifyEventUpdates?: boolean;
+  notifyConnectionRequests?: boolean;
+  notifyWeeklyRecap?: boolean;
+  notifyCrownDefense?: boolean;
+  notifyRewardUpdates?: boolean;
 }
 
 export interface EventFeedResponse {

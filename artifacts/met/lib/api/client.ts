@@ -455,7 +455,12 @@ export interface UpsertProfileInput {
   notificationPrefs?: {
     notifyNewEncounters?: boolean;
     notifyReencounter?: boolean;
+    notifyConnectionRequests?: boolean;
     notifyChat?: boolean;
+    notifyEventUpdates?: boolean;
+    notifyWeeklyRecap?: boolean;
+    notifyCrownDefense?: boolean;
+    notifyRewardUpdates?: boolean;
   } | null;
 }
 
@@ -1049,8 +1054,12 @@ export const api = {
     prefs: {
       notifyNewEncounters?: boolean;
       notifyReencounter?: boolean;
+      notifyConnectionRequests?: boolean;
       notifyChat?: boolean;
       notifyEventUpdates?: boolean;
+      notifyWeeklyRecap?: boolean;
+      notifyCrownDefense?: boolean;
+      notifyRewardUpdates?: boolean;
     },
   ) =>
     request<{ success: boolean }>(

@@ -666,6 +666,7 @@ router.post(
             userUid: hubCheckinsTable.userUid,
             cnt: count(hubCheckinsTable.id),
             pushToken: profilesTable.pushToken,
+            notificationPrefs: profilesTable.notificationPrefs,
           })
           .from(hubCheckinsTable)
           .leftJoin(profilesTable, eq(profilesTable.uid, hubCheckinsTable.userUid))
@@ -676,7 +677,11 @@ router.post(
               inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
             ),
           )
-          .groupBy(hubCheckinsTable.userUid, profilesTable.pushToken)
+          .groupBy(
+            hubCheckinsTable.userUid,
+            profilesTable.pushToken,
+            profilesTable.notificationPrefs,
+          )
           .orderBy(desc(sql`count(${hubCheckinsTable.id})`))
           .limit(2);
 
@@ -684,7 +689,8 @@ router.post(
           topTwo.length >= 2 &&
           topTwo[0]!.userUid === uid &&
           Number(topTwo[0]!.cnt) === Number(topTwo[1]!.cnt) + 1 &&
-          topTwo[1]!.pushToken
+          topTwo[1]!.pushToken &&
+          topTwo[1]!.notificationPrefs?.notifyCrownDefense !== false
         ) {
           const [me] = await db
             .select({ displayName: profilesTable.displayName })
@@ -716,6 +722,7 @@ router.post(
             userUid: hubCheckinsTable.userUid,
             cnt: count(hubCheckinsTable.id),
             pushToken: profilesTable.pushToken,
+            notificationPrefs: profilesTable.notificationPrefs,
           })
           .from(hubCheckinsTable)
           .leftJoin(profilesTable, eq(profilesTable.uid, hubCheckinsTable.userUid))
@@ -726,7 +733,11 @@ router.post(
               inArray(hubCheckinsTable.source, ["qr_verified", "open_location"]),
             ),
           )
-          .groupBy(hubCheckinsTable.userUid, profilesTable.pushToken)
+          .groupBy(
+            hubCheckinsTable.userUid,
+            profilesTable.pushToken,
+            profilesTable.notificationPrefs,
+          )
           .orderBy(desc(sql`count(${hubCheckinsTable.id})`))
           .limit(2);
 
@@ -736,7 +747,8 @@ router.post(
           topTwo[0]!.userUid !== uid &&
           topTwo[1]!.userUid === uid &&
           Number(topTwo[0]!.cnt) - Number(topTwo[1]!.cnt) <= 2 &&
-          topTwo[0]!.pushToken
+          topTwo[0]!.pushToken &&
+          topTwo[0]!.notificationPrefs?.notifyCrownDefense !== false
         ) {
           const [me] = await db
             .select({ displayName: profilesTable.displayName })
@@ -2292,6 +2304,7 @@ router.post("/cron/weekly-recap", async (req, res): Promise<void> => {
       placeName: hubCheckinsTable.placeName,
       cnt: count(hubCheckinsTable.id),
       pushToken: profilesTable.pushToken,
+      notificationPrefs: profilesTable.notificationPrefs,
     })
     .from(hubCheckinsTable)
     .leftJoin(profilesTable, eq(profilesTable.uid, hubCheckinsTable.userUid))
@@ -2301,6 +2314,7 @@ router.post("/cron/weekly-recap", async (req, res): Promise<void> => {
       hubCheckinsTable.placeId,
       hubCheckinsTable.placeName,
       profilesTable.pushToken,
+      profilesTable.notificationPrefs,
     )
     .orderBy(desc(sql`count(${hubCheckinsTable.id})`));
 
@@ -2314,7 +2328,12 @@ router.post("/cron/weekly-recap", async (req, res): Promise<void> => {
   const byUser = new Map<string, UserSummary>();
 
   for (const row of rows) {
-    if (!row.pushToken) continue; // no token → cannot notify
+    if (
+      !row.pushToken ||
+      row.notificationPrefs?.notifyWeeklyRecap === false
+    ) {
+      continue; // no token or opted out → cannot notify
+    }
     if (!byUser.has(row.userUid)) {
       byUser.set(row.userUid, {
         pushToken: row.pushToken,

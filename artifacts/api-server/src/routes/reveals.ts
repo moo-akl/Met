@@ -140,11 +140,13 @@ router.post("/reveals", requireUid, revealWriteLimit, async (req, res) => {
       const senderNameRow = Array.isArray(senderNameRows)
         ? senderNameRows[0]
         : undefined;
-      await sendPush(recipient.pushToken, {
-        title: `${senderNameRow?.displayName ?? "Someone"} wants to reveal to you`,
-        body: "Tap to view their request.",
-        data: { type: "reveal_request", fromUid: senderUid },
-      });
+      if (recipient.notificationPrefs?.notifyConnectionRequests !== false) {
+        await sendPush(recipient.pushToken, {
+          title: `${senderNameRow?.displayName ?? "Someone"} wants to reveal to you`,
+          body: "Tap to view their request.",
+          data: { type: "reveal_request", fromUid: senderUid },
+        });
+      }
 
       return {
         status: 200 as const,
@@ -312,16 +314,21 @@ router.post("/reveals/accept", requireUid, revealWriteLimit, async (req, res) =>
       .where(eq(profilesTable.uid, recipientUid))
       .limit(1),
     db
-      .select({ pushToken: profilesTable.pushToken })
+      .select({
+        pushToken: profilesTable.pushToken,
+        notificationPrefs: profilesTable.notificationPrefs,
+      })
       .from(profilesTable)
       .where(eq(profilesTable.uid, body.senderUid))
       .limit(1),
   ]);
-  await sendPush(originalSenderRow?.pushToken, {
-    title: `${recipientRow?.displayName ?? "Someone"} accepted your reveal!`,
-    body: "You're now connected — tap to say hi.",
-    data: { type: "reveal_accepted", fromUid: recipientUid },
-  });
+  if (originalSenderRow?.notificationPrefs?.notifyConnectionRequests !== false) {
+    await sendPush(originalSenderRow?.pushToken, {
+      title: `${recipientRow?.displayName ?? "Someone"} accepted your reveal!`,
+      body: "You're now connected — tap to say hi.",
+      data: { type: "reveal_accepted", fromUid: recipientUid },
+    });
+  }
 
   res.json(AcceptRevealRequestResponse.parse(serializeReveal(updated)));
 });

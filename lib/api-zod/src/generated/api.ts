@@ -212,7 +212,11 @@ export const SyncMyNotificationPreferencesBody = zod.object({
   "notifyNewEncounters": zod.boolean().optional(),
   "notifyReencounter": zod.boolean().optional(),
   "notifyChat": zod.boolean().optional(),
-  "notifyEventUpdates": zod.boolean().optional()
+  "notifyEventUpdates": zod.boolean().optional(),
+  "notifyConnectionRequests": zod.boolean().optional(),
+  "notifyWeeklyRecap": zod.boolean().optional(),
+  "notifyCrownDefense": zod.boolean().optional(),
+  "notifyRewardUpdates": zod.boolean().optional()
 })
 
 export const SyncMyNotificationPreferencesResponse = zod.object({
@@ -4969,7 +4973,8 @@ export const GetVenueManagerEventAttendeesResponse = zod.object({
   "displayName": zod.string(),
   "photoUrl": zod.string().url().nullable(),
   "status": zod.enum(['pending', 'accepted', 'declined', 'withdrawn']),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "isVerifiedExplorer": zod.boolean()
 })),
   "corrections": zod.array(zod.object({
   "uid": zod.string(),

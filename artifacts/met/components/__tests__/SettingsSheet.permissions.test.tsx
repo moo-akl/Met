@@ -21,6 +21,8 @@ import {
 
 // eslint-disable-next-line no-var
 var mockRouterPush = jest.fn();
+// eslint-disable-next-line no-var
+var mockUpdatePreferences = jest.fn();
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -69,12 +71,18 @@ jest.mock("@/contexts/AppContext", () => ({
     resetAll: jest.fn(),
     signOutAndClear: jest.fn(),
     preferences: {
+      notifyNewEncounters: true,
+      notifyWeeklyRecap: true,
       notifyRecurringMeets: true,
+      notifyConnectionRequests: true,
       notifyChat: true,
+      notifyEventUpdates: true,
+      notifyCrownDefense: true,
+      notifyRewardUpdates: true,
       autoCleanupDays: 0,
       discoveryRange: "nearby",
     },
-    updatePreferences: jest.fn(),
+    updatePreferences: mockUpdatePreferences,
     markPhotoVerified: jest.fn(),
     permissionsCompleted: true,
   }),
@@ -255,5 +263,38 @@ describe("SettingsSheet — Permissions NavRow", () => {
     // Exactly one navigation call, to the permissions screen.
     expect(mockRouterPush).toHaveBeenCalledTimes(1);
     expect(mockRouterPush).toHaveBeenCalledWith("/permissions");
+  });
+});
+
+describe("SettingsSheet — optional notification controls", () => {
+  it("shows separate category switches and saves only the selected choices", async () => {
+    await renderSheet();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId("settings-notifications"));
+    });
+
+    expect(screen.getByText("settings.notifyNewEncounters")).toBeTruthy();
+    expect(screen.getByText("settings.notifyConnectionRequests")).toBeTruthy();
+    expect(screen.getByText("settings.notifyCrownDefense")).toBeTruthy();
+    expect(screen.getByText("settings.notifyRewardUpdates")).toBeTruthy();
+
+    fireEvent(
+      screen.getByLabelText("settings.notifyConnectionRequests"),
+      "valueChange",
+      false,
+    );
+    fireEvent(
+      screen.getByLabelText("settings.notifyRewardUpdates"),
+      "valueChange",
+      false,
+    );
+
+    expect(mockUpdatePreferences).toHaveBeenNthCalledWith(1, {
+      notifyConnectionRequests: false,
+    });
+    expect(mockUpdatePreferences).toHaveBeenNthCalledWith(2, {
+      notifyRewardUpdates: false,
+    });
   });
 });
