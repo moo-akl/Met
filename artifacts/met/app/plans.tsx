@@ -98,15 +98,19 @@ export default function PlansScreen() {
                     : t("plans.openChatTitleA11y", { title: event.title })}
                   testID={`plan-row-${event.id}`}
                   onPress={() => openPlan(event)}
-                  style={({ pressed }) => [styles.plan, { borderBottomColor: colors.border, opacity: pressed ? 0.78 : 1 }]}
+                  style={({ pressed }) => [styles.plan, { borderTopColor: colors.border, opacity: pressed ? 0.78 : 1 }]}
                 >
-                  <View style={[styles.dateBadge, { backgroundColor: colors.primarySoft }]}>
+                  <View style={styles.dateColumn}>
+                    <View style={[styles.dateBadge, { backgroundColor: colors.primarySoft }]}>
                     <Text style={[styles.month, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
                     <Text style={[styles.day, { color: colors.text }]}>{date.getDate()}</Text>
+                    </View>
+                    <View style={[styles.datePin, { backgroundColor: colors.primary }]} />
                   </View>
                   <View style={styles.planCopy}>
+                    <Text style={[styles.meta, { color: colors.primary }]}>{date.toLocaleDateString(undefined, { weekday: "long" })} · {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
                     <Text style={[styles.planTitle, { color: colors.text }]} numberOfLines={2}>{event.title}</Text>
-                    <Text style={[styles.meta, { color: colors.mutedForeground }]}>{date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}{event.location ? ` · ${event.location}` : ""}</Text>
+                    {event.location ? <Text style={[styles.meta, { color: colors.mutedForeground }]}>{event.location}</Text> : null}
                     <Text style={[styles.host, { color: colors.primary }]}>
                       {owner
                         ? t("plans.hosting")
@@ -138,14 +142,14 @@ export default function PlansScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { paddingHorizontal: 18, paddingBottom: 14, flexDirection: "row", alignItems: "center", gap: 12 },
+  header: { paddingHorizontal: 22, paddingBottom: 10, flexDirection: "row", alignItems: "center", gap: 12 },
   back: { width: 40, height: 44, justifyContent: "center" },
   headerCopy: { flex: 1 },
-  eyebrow: { fontSize: 9, fontWeight: "700", letterSpacing: 1.5, marginBottom: 3 },
-  title: { fontSize: 30, fontWeight: "700", letterSpacing: -0.6 },
+  eyebrow: { fontSize: 9, fontWeight: "700", letterSpacing: 1.7, marginBottom: 4 },
+  title: { fontFamily: "serif", fontSize: 39, fontWeight: "400", letterSpacing: -1 },
   create: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  content: { paddingHorizontal: 16, gap: 17 },
-  intro: { fontSize: 14, lineHeight: 21, maxWidth: 330, marginBottom: 3 },
+  content: { paddingHorizontal: 22, gap: 17 },
+  intro: { fontSize: 14, lineHeight: 21, maxWidth: 330, marginBottom: 8 },
   state: { minHeight: 180, alignItems: "center", justifyContent: "center", gap: 12 },
   stateText: { fontSize: 13, lineHeight: 19, textAlign: "center" },
   empty: { minHeight: 236, borderTopRightRadius: 52, borderBottomLeftRadius: 38, alignItems: "center", justifyContent: "center", padding: 26, gap: 9 },
@@ -153,14 +157,16 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
   emptyAction: { marginTop: 8, minHeight: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 7 },
   actionText: { fontSize: 13, fontWeight: "700" },
-  list: { gap: 0, paddingLeft: 3 },
-  plan: { minHeight: 108, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 14, borderTopLeftRadius: 34 },
-  dateBadge: { width: 56, height: 64, borderTopLeftRadius: 28, borderBottomRightRadius: 28, alignItems: "center", justifyContent: "center" },
-  month: { fontSize: 10, fontWeight: "700", letterSpacing: 1 },
-  day: { fontSize: 23, fontWeight: "700", lineHeight: 28 },
-  planCopy: { flex: 1, gap: 4 },
-  planTitle: { fontSize: 15, fontWeight: "700" },
-  meta: { fontSize: 11 },
-  host: { fontSize: 11, fontWeight: "700", marginTop: 2 },
-  chatMark: { alignItems: "center", gap: 5, paddingHorizontal: 3 },
+  list: { gap: 0, paddingLeft: 2 },
+  plan: { minHeight: 116, borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 3, paddingVertical: 17, flexDirection: "row", alignItems: "flex-start", gap: 14 },
+  dateColumn: { width: 54, alignItems: "center", paddingTop: 2 },
+  dateBadge: { width: 48, height: 53, borderTopLeftRadius: 18, borderBottomRightRadius: 18, alignItems: "center", justifyContent: "center" },
+  datePin: { width: 5, height: 5, borderRadius: 3, marginTop: 9 },
+  month: { fontSize: 9, fontWeight: "700", letterSpacing: 1 },
+  day: { fontFamily: "serif", fontSize: 23, fontWeight: "400", lineHeight: 27 },
+  planCopy: { flex: 1, gap: 5, paddingTop: 2 },
+  planTitle: { fontFamily: "serif", fontSize: 20, lineHeight: 25, fontWeight: "400", marginTop: 1 },
+  meta: { fontSize: 11, lineHeight: 16 },
+  host: { fontSize: 10, fontWeight: "700", marginTop: 3 },
+  chatMark: { alignItems: "center", gap: 5, paddingHorizontal: 3, paddingTop: 7 },
 });

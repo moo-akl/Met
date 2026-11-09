@@ -76,6 +76,8 @@ interface DateTimePickerProps {
   chevronColor?: string;
   /** Drives iOS themeVariant ("dark" | "light") and textColor. Defaults to true (dark). */
   isDark?: boolean;
+  /** Use an expandable time control instead of the default time sheet. */
+  timePickerPresentation?: "sheet" | "dropdown";
 }
 
 export function DateTimePicker({
@@ -90,12 +92,16 @@ export function DateTimePicker({
   valueColor = "#fff",
   chevronColor = "rgba(255,255,255,0.35)",
   isDark = true,
+  timePickerPresentation = "sheet",
 }: DateTimePickerProps) {
   const [showIOS, setShowIOS] = useState(false);
   const [showTimeModal, setShowTimeModal] = useState(false);
+  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [timeDraft, setTimeDraft] = useState<Date>(value);
   const insets = useSafeAreaInsets();
   const { t } = useT();
+  const useTimeDropdown =
+    mode === "datetime" && timePickerPresentation === "dropdown";
 
   const formatted =
     mode === "datetime" ? formatDatetime(value) : formatDate(value);
@@ -109,6 +115,11 @@ export function DateTimePicker({
     setShowTimeModal(true);
   };
 
+  const toggleTimeDropdown = () => {
+    if (!showTimeDropdown) setTimeDraft(new Date(value));
+    setShowTimeDropdown((current) => !current);
+  };
+
   const closeTimePicker = () => setShowTimeModal(false);
 
   const saveTime = () => {
@@ -119,8 +130,111 @@ export function DateTimePicker({
     setShowIOS(false);
   };
 
+  const saveDropdownTime = () => {
+    const combined = new Date(value);
+    combined.setHours(timeDraft.getHours(), timeDraft.getMinutes(), 0, 0);
+    onChange(combined);
+    setShowTimeDropdown(false);
+  };
+
   // ── Android ───────────────────────────────────────────────────────────────
   if (Platform.OS === "android") {
+    if (useTimeDropdown) {
+      const openAndroidDate = () => {
+        DateTimePickerAndroid.open({
+          value,
+          mode: "date",
+          onChange: (_evt, picked) => {
+            if (!picked) return;
+            const combined = new Date(value);
+            combined.setFullYear(
+              picked.getFullYear(),
+              picked.getMonth(),
+              picked.getDate(),
+            );
+            onChange(combined);
+          },
+        });
+      };
+
+      const openAndroidTime = () => {
+        DateTimePickerAndroid.open({
+          value,
+          mode: "time",
+          is24Hour: true,
+          onChange: (_evt, picked) => {
+            if (!picked) return;
+            const combined = new Date(value);
+            combined.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
+            onChange(combined);
+            setShowTimeDropdown(false);
+          },
+        });
+      };
+
+      return (
+        <View>
+          {!!label && (
+            <Text style={[styles.label, { color: labelColor }]}>
+              {label}
+              {!optional && <Text style={{ color: "#FF6B6B" }}> *</Text>}
+            </Text>
+          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${label}, ${formatDate(value)}`}
+            testID={`date-time-picker-${mode}`}
+            onPress={openAndroidDate}
+            style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
+          >
+            <Feather name="calendar" size={16} color={valueColor} />
+            <Text style={[styles.valueText, { color: valueColor }]}>{formatDate(value)}</Text>
+            <Feather name="chevron-down" size={18} color={chevronColor} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t("dateTime.time")}, ${formattedTime}`}
+            accessibilityState={{ expanded: showTimeDropdown }}
+            testID="date-time-picker-time-toggle"
+            onPress={toggleTimeDropdown}
+            style={[
+              styles.timeDropdownToggle,
+              { backgroundColor: rowBg, borderColor: primaryColor + "40" },
+            ]}
+          >
+            <Feather name="clock" size={16} color={primaryColor} />
+            <Text style={[styles.valueText, { color: valueColor }]}>{formattedTime}</Text>
+            <Feather
+              name="chevron-down"
+              size={18}
+              color={chevronColor}
+              style={showTimeDropdown ? styles.chevronDropdownOpen : undefined}
+            />
+          </Pressable>
+          {showTimeDropdown ? (
+            <View
+              testID="date-time-picker-time-dropdown"
+              style={[styles.timeDropdown, { backgroundColor: rowBg, borderColor: primaryColor + "25" }]}
+            >
+              <Text style={[styles.timeDropdownHint, { color: labelColor }]}>
+                {t("dateTime.time")}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t("dateTime.time")}, ${formattedTime}`}
+                testID="date-time-picker-time-open"
+                onPress={openAndroidTime}
+                style={[styles.timeOpenButton, { borderColor: primaryColor + "40" }]}
+              >
+                <Text style={[styles.iosTimeText, { color: valueColor }]}>{formattedTime}</Text>
+                <Feather name="arrow-up-right" size={16} color={primaryColor} />
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      );
+    }
+
     const openAndroid = () => {
       DateTimePickerAndroid.open({
         value,
@@ -183,12 +297,15 @@ export function DateTimePicker({
       )}
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={`${label}, ${useTimeDropdown ? formatDate(value) : formatted}`}
         testID={`date-time-picker-${mode}`}
         onPress={() => setShowIOS((v) => !v)}
         style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
       >
         <Feather name="calendar" size={16} color={valueColor} />
-        <Text style={[styles.valueText, { color: valueColor }]}>{formatted}</Text>
+        <Text style={[styles.valueText, { color: valueColor }]}>
+          {useTimeDropdown ? formatDate(value) : formatted}
+        </Text>
         <Text style={[styles.chevron, { color: chevronColor }, showIOS && styles.chevronOpen]}>›</Text>
       </Pressable>
 
@@ -209,7 +326,7 @@ export function DateTimePicker({
             }}
             style={styles.iosCalendar}
           />
-          {mode === "datetime" ? (
+          {mode === "datetime" && !useTimeDropdown ? (
             <View style={[styles.iosTimeRow, { borderTopColor: primaryColor + "25" }]}>
               <View style={styles.iosTimeLabel}>
                 <Feather name="clock" size={15} color={primaryColor} />
@@ -229,7 +346,68 @@ export function DateTimePicker({
           ) : null}
         </View>
       )}
-      {mode === "datetime" ? (
+      {useTimeDropdown ? (
+        <View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t("dateTime.time")}, ${formattedTime}`}
+            accessibilityState={{ expanded: showTimeDropdown }}
+            testID="date-time-picker-time-toggle"
+            onPress={toggleTimeDropdown}
+            style={[
+              styles.timeDropdownToggle,
+              { backgroundColor: rowBg, borderColor: primaryColor + "40" },
+            ]}
+          >
+            <Feather name="clock" size={16} color={primaryColor} />
+            <Text style={[styles.valueText, { color: valueColor }]}>{formattedTime}</Text>
+            <Feather
+              name="chevron-down"
+              size={18}
+              color={chevronColor}
+              style={showTimeDropdown ? styles.chevronDropdownOpen : undefined}
+            />
+          </Pressable>
+          {showTimeDropdown ? (
+            <View
+              testID="date-time-picker-time-dropdown"
+              style={[styles.timeDropdown, { backgroundColor: rowBg, borderColor: primaryColor + "25" }]}
+            >
+              <RNDateTimePicker
+                testID="date-time-picker-time"
+                value={timeDraft}
+                mode="time"
+                display="spinner"
+                textColor={isDark ? "#fff" : "#0D0D0D"}
+                themeVariant={isDark ? "dark" : "light"}
+                onChange={(_evt, picked) => {
+                  if (picked) setTimeDraft(new Date(picked));
+                }}
+                style={styles.iosTimePicker}
+              />
+              <View style={styles.timeDropdownActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  testID="date-time-picker-time-cancel"
+                  onPress={() => setShowTimeDropdown(false)}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.timeSheetAction, { color: labelColor }]}>{t("common.cancel")}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  testID="date-time-picker-time-save"
+                  onPress={saveDropdownTime}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.timeSheetAction, { color: primaryColor }]}>{t("common.save")}</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+      {mode === "datetime" && !useTimeDropdown ? (
         <Modal
           animationType="slide"
           transparent
@@ -325,6 +503,9 @@ const styles = StyleSheet.create({
   chevronOpen: {
     transform: [{ rotate: "90deg" }],
   },
+  chevronDropdownOpen: {
+    transform: [{ rotate: "180deg" }],
+  },
   iosPickerWrap: {
     marginTop: 4,
     borderRadius: 20,
@@ -346,6 +527,44 @@ const styles = StyleSheet.create({
   iosTimeLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
   iosTimeText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   timeValueButton: { flexDirection: "row", alignItems: "center", gap: 9, minHeight: 44, paddingHorizontal: 8 },
+  timeDropdownToggle: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  timeDropdown: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    overflow: "hidden",
+  },
+  timeDropdownHint: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 4,
+  },
+  timeOpenButton: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  timeDropdownActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+    paddingTop: 4,
+  },
   modalRoot: { flex: 1, justifyContent: "flex-end" },
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
   timeSheet: {

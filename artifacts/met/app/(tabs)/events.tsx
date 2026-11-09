@@ -449,7 +449,7 @@ function EventsScreen() {
                 onPress={() => selectView(view)}
                 style={[
                   styles.viewTab,
-                  selected && { backgroundColor: colors.primarySoft },
+                  selected && { backgroundColor: colors.primarySoft, borderBottomColor: colors.primary },
                 ]}
               >
                 <Feather name={icon} size={16} color={selected ? colors.primary : colors.mutedForeground} />
@@ -529,7 +529,7 @@ function EventsScreen() {
         ) : (
           <View style={styles.eventList}>
             {eventGroups.map((group) => (
-              <View key={group.key} style={styles.eventDateGroup}>
+                  <View key={group.key} style={[styles.eventDateGroup, rtl ? styles.eventDateGroupRtl : styles.eventDateGroupLtr]}>
                 <Text
                   accessibilityRole="header"
                   style={[
@@ -659,18 +659,18 @@ function EventsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { paddingHorizontal: 20, gap: 14 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  title: { fontFamily: "serif", fontSize: 31, fontWeight: "400", letterSpacing: -0.5 },
+  content: { paddingHorizontal: 20, gap: 15 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
+  title: { fontFamily: "serif", fontSize: 36, fontWeight: "400", letterSpacing: -0.8 },
   subtitle: { fontSize: 14, lineHeight: 20, marginTop: 4 },
-  viewTabs: { flexDirection: "row", borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 4, gap: 4 },
-  viewTab: { flex: 1, minHeight: 42, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 5 },
+  viewTabs: { flexDirection: "row", borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, padding: 0, gap: 4 },
+  viewTab: { flex: 1, minHeight: 44, borderRadius: 0, borderBottomWidth: 2, borderBottomColor: "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 5 },
   viewTabText: { fontSize: 12, fontWeight: "700" },
   locationAction: { fontSize: 12, fontWeight: "700", marginTop: 6 },
   locationHint: { fontSize: 12, fontWeight: "600", marginTop: 6 },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   networkLink: { borderWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12 },
-  networkIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  networkIcon: { width: 38, height: 38, borderTopLeftRadius: 14, borderBottomRightRadius: 14, alignItems: "center", justifyContent: "center" },
   networkCopy: { flex: 1 },
   networkTitle: { fontSize: 15, fontWeight: "700" },
   networkDescription: { fontSize: 12, marginTop: 3 },
@@ -678,25 +678,27 @@ const styles = StyleSheet.create({
   loading: { paddingVertical: 56, alignItems: "center" },
   emptyCard: { borderWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 24, paddingHorizontal: 12, alignItems: "center", gap: 8 },
   emptyTitle: { fontFamily: "serif", fontSize: 21, fontWeight: "400", marginTop: 4 },
-  eventList: { gap: 0 },
-  eventDateGroup: { gap: 0 },
-  eventDateHeading: { fontFamily: "serif", fontSize: 20, fontWeight: "400", marginTop: 8, marginBottom: 10 },
-  eventCard: { borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 18 },
-  cover: { width: "100%", height: 170 },
-  eventBody: { paddingTop: 13, paddingBottom: 8 },
-  badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  eventList: { gap: 0, paddingTop: 3 },
+  eventDateGroup: { gap: 0, borderLeftWidth: 1, paddingLeft: 14, marginLeft: 6 },
+  eventDateGroupLtr: { borderLeftWidth: 1, borderRightWidth: 0, paddingLeft: 14, paddingRight: 0, marginLeft: 6, marginRight: 0 },
+  eventDateGroupRtl: { borderLeftWidth: 0, borderRightWidth: 1, paddingLeft: 0, paddingRight: 14, marginLeft: 0, marginRight: 6 },
+  eventDateHeading: { fontFamily: "serif", fontSize: 19, fontWeight: "400", marginTop: 10, marginBottom: 8 },
+  eventCard: { borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 15, marginBottom: 8 },
+  cover: { width: "100%", height: 154, borderTopRightRadius: 30, borderBottomLeftRadius: 22 },
+  eventBody: { paddingTop: 12, paddingBottom: 5 },
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 7 },
   badge: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", paddingHorizontal: 0, paddingVertical: 0 },
   privateBadge: { fontSize: 11, fontWeight: "600" },
-  eventTitle: { fontFamily: "serif", fontSize: 22, fontWeight: "400", lineHeight: 28 },
-  eventMeta: { fontSize: 13, marginTop: 5 },
+  eventTitle: { fontFamily: "serif", fontSize: 21, fontWeight: "400", lineHeight: 27 },
+  eventMeta: { fontSize: 12, lineHeight: 17, marginTop: 5 },
   description: { fontSize: 14, lineHeight: 20, marginTop: 9 },
   detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 2, marginTop: 10 },
   detailsLinkText: { fontSize: 12, fontWeight: "700" },
-  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, paddingBottom: 2 },
-  rsvpRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  rsvpCount: { flex: 1, fontSize: 12 },
-  rsvpButton: { flex: 1, minWidth: 0, minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
-  rsvpButtonText: { fontSize: 11, fontWeight: "700", textAlign: "center" },
+  rsvpFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, paddingBottom: 1 },
+  rsvpRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  rsvpCount: { flexGrow: 1, flexBasis: 58, fontSize: 11 },
+  rsvpButton: { flexGrow: 1, flexBasis: 65, minWidth: 0, minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, paddingVertical: 7, borderRadius: 18, borderWidth: 1 },
+  rsvpButtonText: { fontSize: 10, fontWeight: "700", textAlign: "center" },
 });
 
 export default EventsScreen;
