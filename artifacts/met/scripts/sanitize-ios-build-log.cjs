@@ -26,6 +26,19 @@ const SIGNING_DIAGNOSTICS = [
   [/code[ -]?sign(?:ing)?|codesign/i, "Signing diagnostic: code signing issue."],
 ];
 
+const NATIVE_DIAGNOSTICS = [
+  [/no such module|could not find module|cannot find module|package .+ does not exist/i, "missing module dependency"],
+  [/cannot find .* in scope|cannot find symbol|unresolved reference|unresolved identifier/i, "unresolved symbol"],
+  [/does not conform to protocol/i, "protocol conformance"],
+  [/ambiguous use of|reference is ambiguous/i, "ambiguous reference"],
+  [/build input file cannot be found|no such file or directory|file not found/i, "missing build input"],
+  [/incompatible types|type mismatch|cannot be applied to given types/i, "type mismatch"],
+  [/duplicate class|redeclaration|redeclared|already defined/i, "duplicate declaration"],
+  [/android resource linking failed|no resource found|resource .+ not found/i, "Android resource linking"],
+  [/no value passed for parameter|too many arguments|wrong number of arguments/i, "argument mismatch"],
+  [/cannot access|is not public|visibility/i, "access restriction"],
+];
+
 function isSensitiveFormat(line) {
   const trimmed = line.trim();
   return (
@@ -41,9 +54,36 @@ function isSensitiveFormat(line) {
   );
 }
 
+function getNativeSourceLocation(line) {
+  const match = line.match(
+    /(?:file:\/\/)?(?:[^\s:]*(?:\/|\\))?([^/\\:\s]+\.(?:kt|java|kts|cpp|c|cc|h|mm|m|swift)):\s*(?:\((\d+)(?:,\s*\d+)?\)|(\d+)(?::\d+)?)/i,
+  );
+  if (!match) return null;
+  const lineNumber = match[2] ?? match[3];
+  return `${match[1]}:${lineNumber}`;
+}
+
+function summarizeNativeCompileError(line) {
+  const diagnostic = line.replace(/^.*?\b(?:fatal\s+)?error:\s*/i, "");
+  const category =
+    NATIVE_DIAGNOSTICS.find(([pattern]) => pattern.test(diagnostic))?.[1] ??
+    "other compiler diagnostic";
+  const location = getNativeSourceLocation(line);
+  const suffix = location ? ` (${location})` : "";
+  return `Native compile error: ${category}${suffix}.`;
+}
+
 function sanitizeLine(line) {
   if (typeof line !== "string" || line.length > MAX_LINE_LENGTH || isSensitiveFormat(line)) {
     return null;
+  }
+
+  const gradleTask = line.match(/Execution failed for task ['"]([^'"]+)['"]/i);
+  if (gradleTask && /^[A-Za-z0-9:_-]{1,100}$/.test(gradleTask[1])) {
+    return `Gradle task failed: ${gradleTask[1]}.`;
+  }
+  if (/^\s*FAILURE:\s*Build failed with an exception\.?\s*$/i.test(line)) {
+    return "Gradle build failed.";
   }
 
   if (/^\s*[✔✓]\s*(?:build setup complete|build completed|build successful)\b/i.test(line)) {
@@ -65,27 +105,11 @@ function sanitizeLine(line) {
   }
 
   const nativeError =
-    /^\s*error:\s*/i.test(line) ||
-    /:\d+:\d+:\s*error:\s*/i.test(line) ||
+    /^\s*(?:fatal\s+)?error:\s*/i.test(line) ||
+    /:\d+(?::\d+)?:\s*(?:fatal\s+)?error:\s*/i.test(line) ||
     /^\s*(?:\[[A-Z0-9_]+\]\s*)?e:\s*(?:file:\/\/|\/)/i.test(line);
   if (nativeError) {
-    const diagnostic = line.replace(/^.*?\berror:\s*/i, "");
-    if (/no such module/i.test(diagnostic)) {
-      return "Native compile error: missing module dependency.";
-    }
-    if (/cannot find .* in scope|use of unresolved identifier|unresolved reference/i.test(diagnostic)) {
-      return "Native compile error: unresolved symbol.";
-    }
-    if (/does not conform to protocol/i.test(diagnostic)) {
-      return "Native compile error: protocol conformance.";
-    }
-    if (/ambiguous use of/i.test(diagnostic)) {
-      return "Native compile error: ambiguous reference.";
-    }
-    if (/build input file cannot be found/i.test(diagnostic)) {
-      return "Native compile error: missing build input.";
-    }
-    return "Native compile error.";
+    return summarizeNativeCompileError(line);
   }
 
   const marker = line.match(/^\s*\[([A-Z0-9_]+)\]/);

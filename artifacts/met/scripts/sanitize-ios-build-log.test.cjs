@@ -15,14 +15,14 @@ test("sanitizes known build-stage progress without retaining its input", () => {
   );
 });
 
-test("reports generic signing diagnostics and constrained compiler errors", () => {
+test("reports signing diagnostics and safe compiler summaries", () => {
   assert.equal(
     sanitizeLine("Provisioning profile 'private-profile-name' is invalid"),
     "Signing diagnostic: provisioning profile issue.",
   );
   assert.equal(
     sanitizeLine("/private/path/App.swift:42:9: error: cannot find 'secretSymbol' in scope"),
-    "Native compile error: unresolved symbol.",
+    "Native compile error: unresolved symbol (App.swift:42).",
   );
   assert.equal(
     sanitizeLine("/private/path/App.ts:4:2: error TS2322: secret details"),
@@ -49,17 +49,33 @@ test("suppresses private keys, encoded credentials, environment output, JSON, an
   }
 });
 
-test("reports Android stages and compiler failures without paths or symbol details", () => {
+test("reports Android stages, Gradle tasks, and safe native locations", () => {
   assert.equal(
     sanitizeLine("[RUN_GRADLEW] Running Gradle with private-job-details"),
     "Build stage: compiling the Android app.",
   );
   assert.equal(
     sanitizeLine("e: file:///private/MetBleModule.kt:42:9 Unresolved reference 'privateSymbol'"),
-    "Native compile error: unresolved symbol.",
+    "Native compile error: unresolved symbol (MetBleModule.kt:42).",
   );
   assert.equal(
     sanitizeLine("[RUN_GRADLEW] e: file:///private/MetBleModule.kt:42:9 Unresolved reference 'privateSymbol'"),
-    "Native compile error: unresolved symbol.",
+    "Native compile error: unresolved symbol (MetBleModule.kt:42).",
+  );
+  assert.equal(
+    sanitizeLine("app/src/main/java/App.java:17: error: cannot find symbol"),
+    "Native compile error: unresolved symbol (App.java:17).",
+  );
+  assert.equal(
+    sanitizeLine("Execution failed for task ':app:compileReleaseKotlin'. Details omitted."),
+    "Gradle task failed: :app:compileReleaseKotlin.",
+  );
+  assert.equal(
+    sanitizeLine("FAILURE: Build failed with an exception."),
+    "Gradle build failed.",
+  );
+  assert.equal(
+    sanitizeLine("e: file:///private/CameraModule.kt:9:12 Type mismatch: expected String, got Boolean"),
+    "Native compile error: type mismatch (CameraModule.kt:9).",
   );
 });
