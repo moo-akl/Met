@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   Image,
   Linking,
@@ -26,11 +27,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { HangoutsNearbyPanel } from "@/components/HangoutsNearbyPanel";
 import { groupEventsByDate } from "@/lib/eventDateGroups";
 import { isPlanEvent } from "@/lib/eventFeedClassification";
-import {
-  parseHangoutDateFilter,
-  type HangoutSortMode,
-  type HangoutTimePeriod,
-} from "@/lib/hangoutDiscovery";
+import { type HangoutSortMode } from "@/lib/hangoutDiscovery";
 import {
   getGetEventsFeedQueryKey,
   getGetNearbyHangoutsQueryKey,
@@ -77,15 +74,9 @@ function EventsScreen() {
   const [actionError, setActionError] = useState("");
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState<"permission" | "unavailable" | null>(null);
-  const [locationNeedsSettings, setLocationNeedsSettings] = useState(false);
-  const [locationQuery, setLocationQuery] = useState("");
-  const [dateQuery, setDateQuery] = useState("");
-  const [timePeriod, setTimePeriod] = useState<HangoutTimePeriod>("any");
   const [sortMode, setSortMode] = useState<HangoutSortMode>("nearest");
   const automaticLocationLookup = useRef(false);
   const appState = useRef(AppState.currentState);
-  const [debouncedLocationQuery, setDebouncedLocationQuery] = useState("");
   const [hangoutPageState, setHangoutPageState] = useState<{
     filterKey: string;
     offset: number;
@@ -93,7 +84,7 @@ function EventsScreen() {
     nextOffset: number | null;
   }>({ filterKey: "", offset: 0, events: [], nextOffset: null });
   const processedHangoutPageRef = useRef<string | null>(null);
-  const feed = useGetEventsFeed({
+  const feed = useGetEventsFeed(undefined, {
     query: {
       staleTime: 30_000,
       refetchOnMount: "always",
@@ -143,14 +134,10 @@ function EventsScreen() {
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
     });
-    setLocationError(null);
-    setLocationNeedsSettings(false);
   }, []);
 
   const enableNearbySorting = useCallback(async () => {
     setLocationLoading(true);
-    setLocationError(null);
-    setLocationNeedsSettings(false);
     try {
       if (Platform.OS === "web") {
         setUserLocation(await getBrowserLocation());
@@ -161,18 +148,28 @@ function EventsScreen() {
         permission = await Location.requestForegroundPermissionsAsync();
       }
       if (!permission.granted) {
-        setLocationError("permission");
-        setLocationNeedsSettings(permission.canAskAgain === false);
+        if (permission.canAskAgain === false) {
+          Alert.alert(
+            t("tabs.events.locationDenied"),
+            t("tabs.events.nearestUsesTimeUntilLocation"),
+            [
+              { text: t("common.cancel"), style: "cancel" },
+              {
+                text: t("tabs.events.openLocationSettings"),
+                onPress: () => void Linking.openSettings().catch(() => undefined),
+              },
+            ],
+          );
+        }
         return;
       }
       await fetchNativeLocation();
     } catch {
       setUserLocation(null);
-      setLocationError("unavailable");
     } finally {
       setLocationLoading(false);
     }
-  }, [fetchNativeLocation]);
+  }, [fetchNativeLocation, t]);
 
   useEffect(() => {
     if (requestedView === "events" || requestedView === "hangouts") {
@@ -192,17 +189,9 @@ function EventsScreen() {
     void (async () => {
       try {
         const permission = await Location.getForegroundPermissionsAsync();
-        if (!permission.granted) {
-          if (permission.canAskAgain === false) {
-            setLocationError("permission");
-            setLocationNeedsSettings(true);
-          }
-          return;
-        }
+        if (!permission.granted) return;
         await fetchNativeLocation();
-      } catch {
-        setLocationError("unavailable");
-      }
+      } catch {}
     })();
   }, [activeView, fetchNativeLocation]);
 
@@ -223,20 +212,14 @@ function EventsScreen() {
           const permission = await Location.getForegroundPermissionsAsync();
           if (!permission.granted) {
             setUserLocation(null);
-            setLocationError("permission");
-            setLocationNeedsSettings(permission.canAskAgain === false);
             return;
           }
-          setLocationError(null);
-          setLocationNeedsSettings(false);
           if (!userLocation) {
             setLocationLoading(true);
             await fetchNativeLocation();
           }
         } catch {
           setUserLocation(null);
-          setLocationError("unavailable");
-          setLocationNeedsSettings(false);
         } finally {
           setLocationLoading(false);
         }
@@ -286,20 +269,8 @@ function EventsScreen() {
     [events, lang, t],
   );
 
-  const validDateFilter = useMemo(
-    () => parseHangoutDateFilter(dateQuery),
-    [dateQuery],
-  );
-  const invalidDateFilter = dateQuery.trim().length > 0 && !validDateFilter;
-  useEffect(() => {
-    const timeout = setTimeout(() => setDebouncedLocationQuery(locationQuery), 250);
-    return () => clearTimeout(timeout);
-  }, [locationQuery]);
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const hangoutFilterKey = JSON.stringify([
-    debouncedLocationQuery.trim().toLocaleLowerCase(),
-    validDateFilter,
-    timePeriod,
     sortMode,
     userLocation?.latitude ?? null,
     userLocation?.longitude ?? null,
@@ -308,9 +279,6 @@ function EventsScreen() {
   const hangoutPageOffset =
     hangoutPageState.filterKey === hangoutFilterKey ? hangoutPageState.offset : 0;
   const nearbyHangoutParams = {
-    locationQuery: debouncedLocationQuery.trim() || undefined,
-    date: validDateFilter ?? undefined,
-    timePeriod,
     sortMode,
     latitude: userLocation?.latitude,
     longitude: userLocation?.longitude,
@@ -320,7 +288,7 @@ function EventsScreen() {
   };
   const nearbyHangoutQuery = useGetNearbyHangouts(nearbyHangoutParams, {
     query: {
-      enabled: !!authedUid && activeView === "hangouts" && !invalidDateFilter,
+      enabled: !!authedUid && activeView === "hangouts",
       queryKey: [
         ...getGetNearbyHangoutsQueryKey(nearbyHangoutParams),
         authedUid ?? "signed-out",
@@ -382,11 +350,6 @@ function EventsScreen() {
       return { ...current, offset: current.nextOffset };
     });
   }, [hangoutFilterKey]);
-  const hasHangoutFilters =
-    locationQuery.trim().length > 0 ||
-    dateQuery.trim().length > 0 ||
-    timePeriod !== "any";
-
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -491,34 +454,25 @@ function EventsScreen() {
           <HangoutsNearbyPanel
             hangouts={hangouts}
             userLocation={userLocation}
-            locationLoading={locationLoading}
-            locationError={locationError}
-            locationNeedsSettings={locationNeedsSettings}
-            onUseLocation={() => void enableNearbySorting()}
-            onOpenSettings={() => void Linking.openSettings().catch(() => undefined)}
-            locationQuery={locationQuery}
-            onLocationQueryChange={setLocationQuery}
-            dateQuery={dateQuery}
-            onDateQueryChange={setDateQuery}
-            invalidDateFilter={invalidDateFilter}
-            timePeriod={timePeriod}
-            onTimePeriodChange={setTimePeriod}
             sortMode={sortMode}
-            onSortModeChange={setSortMode}
-            nearestFallsBackToTime={sortMode === "nearest" && !userLocation}
-            hasFilters={hasHangoutFilters}
-            onClearFilters={() => {
-              setLocationQuery("");
-              setDateQuery("");
-              setTimePeriod("any");
+            onSortModeChange={(mode) => {
+              setSortMode(mode);
+              if (mode === "nearest" && !userLocation) {
+                void enableNearbySorting();
+              }
             }}
+            nearestFallsBackToTime={sortMode === "nearest" && !userLocation}
             isLoading={nearbyHangoutQuery.isLoading}
             isLoadingMore={nearbyHangoutQuery.isFetching && hangoutPageOffset > 0}
             isError={nearbyHangoutQuery.isError}
             hasMore={hasMoreHangouts}
             onLoadMore={loadMoreHangouts}
             onRetry={() => void nearbyHangoutQuery.refetch()}
-            onPressHangout={(eventId) => router.push(`/event-details/member/${eventId}` as never)}
+            onPressHangout={(event) => router.push(
+              event.myJoinRequestStatus === "accepted"
+                ? `/event-chat/${event.id}` as never
+                : `/event-details/member/${event.id}` as never,
+            )}
           />
         ) : events.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: "transparent", borderColor: colors.border }]}>
@@ -558,6 +512,11 @@ function EventsScreen() {
                     event.visibility === "invite_only"
                       ? t("tabs.events.inviteOnly")
                       : undefined,
+                    event.verifiedExplorersOnly
+                      ? t("verifiedExplorer.eventOnly")
+                      : event.isVerifiedExplorerHost
+                        ? t("verifiedExplorer.title")
+                        : undefined,
                     eventTimeLabel,
                     eventPlaceLabel,
                   ]
@@ -580,6 +539,15 @@ function EventsScreen() {
                             </Text>
                             {event.visibility === "invite_only" ? (
                               <Text style={[styles.privateBadge, { color: colors.mutedForeground }]}>{t("tabs.events.inviteOnly")}</Text>
+                            ) : null}
+                            {event.verifiedExplorersOnly ? (
+                              <Text style={[styles.privateBadge, { color: colors.primary }]}>
+                                {t("verifiedExplorer.eventOnly")}
+                              </Text>
+                            ) : event.isVerifiedExplorerHost ? (
+                              <Text style={[styles.privateBadge, { color: colors.primary }]}>
+                                {t("verifiedExplorer.title")}
+                              </Text>
                             ) : null}
                           </View>
                           <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>

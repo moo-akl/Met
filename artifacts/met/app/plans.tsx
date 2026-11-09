@@ -17,7 +17,7 @@ export default function PlansScreen() {
   const router = useRouter();
   const { t } = useT();
   const { authedUid } = useApp();
-  const feed = useGetEventsFeed({
+  const feed = useGetEventsFeed(undefined, {
     query: {
       staleTime: 30_000,
       refetchOnMount: "always",

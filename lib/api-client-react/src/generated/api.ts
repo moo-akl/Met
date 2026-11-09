@@ -65,9 +65,11 @@ import type {
   CreateAnnouncementRequest,
   CreateNetwork,
   CreateRevealRequest,
+  CreateVenueGuestbookEntryInput,
   DeleteAdminVenueResult,
   DeleteAnnouncement200,
   DeleteNetwork200,
+  DeleteVenueGuestbookEntry200,
   EditAnnouncementBody,
   Encounter,
   EncounterWithProfile,
@@ -85,6 +87,7 @@ import type {
   EventLocationCheckinInput,
   EventLocationSearchResponse,
   EventQrCheckinInput,
+  GetEventsFeedParams,
   GetNearbyHangoutsParams,
   GetVenueOwnerMapPoints200,
   GetVenueOwnerMeGuestsParams,
@@ -92,6 +95,8 @@ import type {
   GmailBounceReconciliationApplyResult,
   GmailBounceReconciliationPreviewInput,
   GmailBounceReconciliationPreviewResult,
+  HangoutHostRating,
+  HangoutHostRatingInput,
   HealthStatus,
   HubCheckinInput,
   HubCheckinResult,
@@ -181,6 +186,8 @@ import type {
   VenueEmailTemplate,
   VenueEmailTemplateInput,
   VenueGuestListResponse,
+  VenueGuestbookCreateResponse,
+  VenueGuestbookPage,
   VenueIntroProfile,
   VenueIntroProfileInput,
   VenueManagerAnnouncementInput,
@@ -245,7 +252,8 @@ import type {
   VenueRegistrationDraftResult,
   VenueRegistrationDraftTargetsResponse,
   VenueRegistrationLinkInput,
-  VenueRegistrationLinkResult
+  VenueRegistrationLinkResult,
+  VerifiedExplorerStatus
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -791,6 +799,373 @@ export function useGetHubCheckinStatus<TData = Awaited<ReturnType<typeof getHubC
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetHubCheckinStatusQueryOptions(placeId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetVenueGuestbookUrl = (placeId: string,) => {
+
+
+
+
+  return `/api/hubs/${placeId}/guestbook`
+}
+
+/**
+ * @summary List venue memories visible to the caller
+ */
+export const getVenueGuestbook = async (placeId: string, options?: Parameters<typeof customFetch>[1]): Promise<VenueGuestbookPage> => {
+
+  return customFetch<VenueGuestbookPage>(getGetVenueGuestbookUrl(placeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVenueGuestbookQueryKey = (placeId: string,) => {
+    return [
+    `/api/hubs/${placeId}/guestbook`
+    ] as const;
+    }
+
+
+export const getGetVenueGuestbookQueryOptions = <TData = Awaited<ReturnType<typeof getVenueGuestbook>>, TError = ErrorType<void>>(placeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueGuestbook>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVenueGuestbookQueryKey(placeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVenueGuestbook>>> = ({ signal }) => getVenueGuestbook(placeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: placeId !== null && placeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVenueGuestbook>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetVenueGuestbookQueryResult = NonNullable<Awaited<ReturnType<typeof getVenueGuestbook>>>
+export type GetVenueGuestbookQueryError = ErrorType<void>
+
+
+export function useGetVenueGuestbook<TData = Awaited<ReturnType<typeof getVenueGuestbook>>, TError = ErrorType<void>>(
+ placeId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueGuestbook>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueGuestbook>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueGuestbook>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueGuestbook<TData = Awaited<ReturnType<typeof getVenueGuestbook>>, TError = ErrorType<void>>(
+ placeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueGuestbook>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVenueGuestbook>>,
+          TError,
+          Awaited<ReturnType<typeof getVenueGuestbook>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVenueGuestbook<TData = Awaited<ReturnType<typeof getVenueGuestbook>>, TError = ErrorType<void>>(
+ placeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueGuestbook>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List venue memories visible to the caller
+ */
+
+export function useGetVenueGuestbook<TData = Awaited<ReturnType<typeof getVenueGuestbook>>, TError = ErrorType<void>>(
+ placeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVenueGuestbook>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetVenueGuestbookQueryOptions(placeId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateVenueGuestbookEntryUrl = (placeId: string,) => {
+
+
+
+
+  return `/api/hubs/${placeId}/guestbook`
+}
+
+/**
+ * @summary Add a visit memory or optional time capsule
+ */
+export const createVenueGuestbookEntry = async (placeId: string,
+    createVenueGuestbookEntryInput: CreateVenueGuestbookEntryInput, options?: Parameters<typeof customFetch>[1]): Promise<VenueGuestbookCreateResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VenueGuestbookCreateResponse>(getCreateVenueGuestbookEntryUrl(placeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createVenueGuestbookEntryInput)
+  }
+);}
+
+
+
+
+
+export const getCreateVenueGuestbookEntryMutationKey = () => ['createVenueGuestbookEntry'] as const;
+
+export const getCreateVenueGuestbookEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueGuestbookEntry>>, TError,CreateVenueGuestbookEntryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVenueGuestbookEntry>>, TError,CreateVenueGuestbookEntryMutationVariables, TContext> => {
+
+const mutationKey = getCreateVenueGuestbookEntryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVenueGuestbookEntry>>, CreateVenueGuestbookEntryMutationVariables> = (props) => {
+          const {placeId,data} = props ?? {};
+
+          return  createVenueGuestbookEntry(placeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVenueGuestbookEntryMutationResult = NonNullable<Awaited<ReturnType<typeof createVenueGuestbookEntry>>>
+    export type CreateVenueGuestbookEntryMutationBody = BodyType<CreateVenueGuestbookEntryInput>
+    export type CreateVenueGuestbookEntryMutationError = ErrorType<void>
+    export type CreateVenueGuestbookEntryMutationVariables = {placeId: string;data: BodyType<CreateVenueGuestbookEntryInput>}
+
+    /**
+ * @summary Add a visit memory or optional time capsule
+ */
+export const useCreateVenueGuestbookEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVenueGuestbookEntry>>, TError,CreateVenueGuestbookEntryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createVenueGuestbookEntry>>,
+        TError,
+        CreateVenueGuestbookEntryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateVenueGuestbookEntryMutationOptions(options), queryClient);
+    }
+
+export const getDeleteVenueGuestbookEntryUrl = (placeId: string,
+    entryId: number,) => {
+
+
+
+
+  return `/api/hubs/${placeId}/guestbook/${entryId}`
+}
+
+/**
+ * @summary Delete the caller's own memory
+ */
+export const deleteVenueGuestbookEntry = async (placeId: string,
+    entryId: number, options?: Parameters<typeof customFetch>[1]): Promise<DeleteVenueGuestbookEntry200> => {
+
+  return customFetch<DeleteVenueGuestbookEntry200>(getDeleteVenueGuestbookEntryUrl(placeId,entryId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteVenueGuestbookEntryMutationKey = () => ['deleteVenueGuestbookEntry'] as const;
+
+export const getDeleteVenueGuestbookEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVenueGuestbookEntry>>, TError,DeleteVenueGuestbookEntryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteVenueGuestbookEntry>>, TError,DeleteVenueGuestbookEntryMutationVariables, TContext> => {
+
+const mutationKey = getDeleteVenueGuestbookEntryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteVenueGuestbookEntry>>, DeleteVenueGuestbookEntryMutationVariables> = (props) => {
+          const {placeId,entryId} = props ?? {};
+
+          return  deleteVenueGuestbookEntry(placeId,entryId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteVenueGuestbookEntryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteVenueGuestbookEntry>>>
+
+    export type DeleteVenueGuestbookEntryMutationError = ErrorType<void>
+    export type DeleteVenueGuestbookEntryMutationVariables = {placeId: string;entryId: number}
+
+    /**
+ * @summary Delete the caller's own memory
+ */
+export const useDeleteVenueGuestbookEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVenueGuestbookEntry>>, TError,DeleteVenueGuestbookEntryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteVenueGuestbookEntry>>,
+        TError,
+        DeleteVenueGuestbookEntryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteVenueGuestbookEntryMutationOptions(options), queryClient);
+    }
+
+export const getGetMyVerifiedExplorerUrl = () => {
+
+
+
+
+  return `/api/users/me/verified-explorer`
+}
+
+/**
+ * @summary Get the caller's Verified Explorer requirements and progress
+ */
+export const getMyVerifiedExplorer = async ( options?: Parameters<typeof customFetch>[1]): Promise<VerifiedExplorerStatus> => {
+
+  return customFetch<VerifiedExplorerStatus>(getGetMyVerifiedExplorerUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyVerifiedExplorerQueryKey = () => {
+    return [
+    `/api/users/me/verified-explorer`
+    ] as const;
+    }
+
+
+export const getGetMyVerifiedExplorerQueryOptions = <TData = Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyVerifiedExplorerQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyVerifiedExplorer>>> = ({ signal }) => getMyVerifiedExplorer({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyVerifiedExplorerQueryResult = NonNullable<Awaited<ReturnType<typeof getMyVerifiedExplorer>>>
+export type GetMyVerifiedExplorerQueryError = ErrorType<void>
+
+
+export function useGetMyVerifiedExplorer<TData = Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyVerifiedExplorer>>,
+          TError,
+          Awaited<ReturnType<typeof getMyVerifiedExplorer>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyVerifiedExplorer<TData = Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyVerifiedExplorer>>,
+          TError,
+          Awaited<ReturnType<typeof getMyVerifiedExplorer>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyVerifiedExplorer<TData = Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get the caller's Verified Explorer requirements and progress
+ */
+
+export function useGetMyVerifiedExplorer<TData = Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyVerifiedExplorer>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyVerifiedExplorerQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -8759,20 +9134,27 @@ export function useGetNearbyHangouts<TData = Awaited<ReturnType<typeof getNearby
 
 
 
-export const getGetEventsFeedUrl = () => {
+export const getGetEventsFeedUrl = (params?: GetEventsFeedParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/events/feed`
+  return stringifiedParams.length > 0 ? `/api/events/feed?${stringifiedParams}` : `/api/events/feed`
 }
 
 /**
  * @summary List public events and private events the caller may attend
  */
-export const getEventsFeed = async ( options?: Parameters<typeof customFetch>[1]): Promise<EventFeedResponse> => {
+export const getEventsFeed = async (params?: GetEventsFeedParams, options?: Parameters<typeof customFetch>[1]): Promise<EventFeedResponse> => {
 
-  return customFetch<EventFeedResponse>(getGetEventsFeedUrl(),
+  return customFetch<EventFeedResponse>(getGetEventsFeedUrl(params),
   {
     ...options,
     method: 'GET'
@@ -8785,23 +9167,23 @@ export const getEventsFeed = async ( options?: Parameters<typeof customFetch>[1]
 
 
 
-export const getGetEventsFeedQueryKey = () => {
+export const getGetEventsFeedQueryKey = (params?: GetEventsFeedParams,) => {
     return [
-    `/api/events/feed`
+    `/api/events/feed`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetEventsFeedQueryOptions = <TData = Awaited<ReturnType<typeof getEventsFeed>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getGetEventsFeedQueryOptions = <TData = Awaited<ReturnType<typeof getEventsFeed>>, TError = ErrorType<unknown>>(params?: GetEventsFeedParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetEventsFeedQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetEventsFeedQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEventsFeed>>> = ({ signal }) => getEventsFeed({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEventsFeed>>> = ({ signal }) => getEventsFeed(params, { signal, ...requestOptions });
 
 
 
@@ -8815,7 +9197,7 @@ export type GetEventsFeedQueryError = ErrorType<unknown>
 
 
 export function useGetEventsFeed<TData = Awaited<ReturnType<typeof getEventsFeed>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>> & Pick<
+ params: undefined |  GetEventsFeedParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getEventsFeed>>,
           TError,
@@ -8825,7 +9207,7 @@ export function useGetEventsFeed<TData = Awaited<ReturnType<typeof getEventsFeed
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetEventsFeed<TData = Awaited<ReturnType<typeof getEventsFeed>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>> & Pick<
+ params?: GetEventsFeedParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getEventsFeed>>,
           TError,
@@ -8835,7 +9217,7 @@ export function useGetEventsFeed<TData = Awaited<ReturnType<typeof getEventsFeed
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetEventsFeed<TData = Awaited<ReturnType<typeof getEventsFeed>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: GetEventsFeedParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -8843,11 +9225,11 @@ export function useGetEventsFeed<TData = Awaited<ReturnType<typeof getEventsFeed
  */
 
 export function useGetEventsFeed<TData = Awaited<ReturnType<typeof getEventsFeed>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: GetEventsFeedParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEventsFeed>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetEventsFeedQueryOptions(options)
+  const queryOptions = getGetEventsFeedQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -9144,6 +9526,95 @@ export function useGetEventDetails<TData = Awaited<ReturnType<typeof getEventDet
 
 
 
+
+export const getRateCommunityEventHostUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/host-rating`
+}
+
+/**
+ * @summary Rate the host after an accepted Hangout has ended
+ */
+export const rateCommunityEventHost = async (eventId: number,
+    hangoutHostRatingInput: HangoutHostRatingInput, options?: Parameters<typeof customFetch>[1]): Promise<HangoutHostRating> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<HangoutHostRating>(getRateCommunityEventHostUrl(eventId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(hangoutHostRatingInput)
+  }
+);}
+
+
+
+
+
+export const getRateCommunityEventHostMutationKey = () => ['rateCommunityEventHost'] as const;
+
+export const getRateCommunityEventHostMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rateCommunityEventHost>>, TError,RateCommunityEventHostMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rateCommunityEventHost>>, TError,RateCommunityEventHostMutationVariables, TContext> => {
+
+const mutationKey = getRateCommunityEventHostMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rateCommunityEventHost>>, RateCommunityEventHostMutationVariables> = (props) => {
+          const {eventId,data} = props ?? {};
+
+          return  rateCommunityEventHost(eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RateCommunityEventHostMutationResult = NonNullable<Awaited<ReturnType<typeof rateCommunityEventHost>>>
+    export type RateCommunityEventHostMutationBody = BodyType<HangoutHostRatingInput>
+    export type RateCommunityEventHostMutationError = ErrorType<void>
+    export type RateCommunityEventHostMutationVariables = {eventId: number;data: BodyType<HangoutHostRatingInput>}
+
+    /**
+ * @summary Rate the host after an accepted Hangout has ended
+ */
+export const useRateCommunityEventHost = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rateCommunityEventHost>>, TError,RateCommunityEventHostMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rateCommunityEventHost>>,
+        TError,
+        RateCommunityEventHostMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRateCommunityEventHostMutationOptions(options), queryClient);
+    }
 
 export const getCheckInEventByLocationUrl = (eventType: 'venue' | 'member',
     eventId: number,) => {

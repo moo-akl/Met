@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -23,7 +23,7 @@ export function HomePlanDiscovery() {
   const router = useRouter();
   const { t } = useT();
   const { authedUid } = useApp();
-  const feed = useGetEventsFeed({
+  const feed = useGetEventsFeed(undefined, {
     query: {
       staleTime: 30_000,
       enabled: !!authedUid,
@@ -189,7 +189,9 @@ export function HomePlanDiscovery() {
         testID={`home-${isHangout ? "hangout" : "plan"}-${event.id}`}
         onPress={() => router.push(
           isHangout
-            ? `/event-details/member/${event.id}` as never
+            ? event.myJoinRequestStatus === "accepted"
+              ? `/event-chat/${event.id}` as never
+              : `/event-details/member/${event.id}` as never
             : `/event-chat/${event.id}` as never,
         )}
         style={({ pressed }) => [
@@ -207,6 +209,29 @@ export function HomePlanDiscovery() {
           <Text numberOfLines={1} style={[styles.planMeta, { color: colors.mutedForeground }]}>
             {date.time}{event.location ? ` · ${event.location}` : ""}
           </Text>
+          {isHangout ? (
+            <View style={styles.creatorByline}>
+              {event.creatorPhotoUrl ? (
+                <Image
+                  testID={`home-hangout-creator-photo-${event.id}`}
+                  accessibilityLabel={event.creatorName ?? t("tabs.events.createdBy")}
+                  source={{ uri: event.creatorPhotoUrl }}
+                  style={styles.creatorAvatar}
+                />
+              ) : (
+                <View style={[styles.creatorAvatar, { backgroundColor: colors.primarySoft }]}>
+                  <Feather name="user" size={14} color={colors.primary} />
+                </View>
+              )}
+              <Text
+                testID={`home-hangout-creator-${event.id}`}
+                numberOfLines={1}
+                style={[styles.creatorName, { color: colors.mutedForeground }]}
+              >
+                {t("tabs.events.createdBy")} {event.creatorName ?? t("tabs.events.quickPlan")}
+              </Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.status}>
           <Text style={[styles.statusText, { color: colors.primary }]}>{attending}</Text>
@@ -241,8 +266,11 @@ const styles = StyleSheet.create({
   planCopy: { flex: 1, gap: 4 },
   planTitle: { fontSize: 14, fontWeight: "700" },
   planMeta: { fontSize: 11 },
-  status: { alignItems: "flex-end", gap: 5, paddingRight: 5 },
+  creatorByline: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3, minWidth: 0 },
+  creatorName: { fontSize: 10, fontWeight: "600" },
+  status: { flexDirection: "row", alignItems: "center", gap: 7, paddingRight: 5 },
   statusText: { fontSize: 10, fontWeight: "700" },
+  creatorAvatar: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   empty: { paddingVertical: 18, paddingHorizontal: 19, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, marginHorizontal: 18, gap: 5 },
   emptyMark: { width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(61,204,68,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 3 },
   emptyTitle: { fontSize: 14, fontWeight: "700" },

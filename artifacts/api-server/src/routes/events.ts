@@ -21,6 +21,7 @@ import {
   communityEventJoinRequestsTable,
   communityEventPlanMessagesTable,
   communityEventPlanNotificationPreferencesTable,
+  communityEventHostRatingsTable,
   communityEventsTable,
   db,
   eventAttendanceTable,
@@ -72,6 +73,8 @@ import {
   SearchEventLocationsResponse,
   UpdateCommunityEventBody,
   UpdateCommunityEventResponse,
+  RateCommunityEventHostBody,
+  RateCommunityEventHostResponse,
 } from "@workspace/api-zod";
 import { searchPhotonLocations } from "../lib/eventLocationSearch";
 import {
@@ -101,6 +104,11 @@ import { getVerifiedExplorerStatuses } from "../lib/verifiedExplorer";
 import { z } from "zod";
 
 const router = Router();
+async function isVerifiedExplorer(uid: string): Promise<boolean> {
+  const status = (await getVerifiedExplorerStatuses([uid])).get(uid);
+  return status?.isVerifiedExplorer ?? false;
+}
+
 const eventWriteLimit = createUserRateLimiter({
   windowMs: 60_000,
   max: 12,
@@ -151,6 +159,8 @@ async function getCommunityEventPlanChatContext(eventId: number, uid: string) {
     .limit(1);
   if (!event) return null;
 
+  const tierCanAccess =
+    !event.verifiedExplorersOnly || await isVerifiedExplorer(uid);
   const rsvps = await db
     .select({
       userUid: communityEventRsvpsTable.userUid,
@@ -158,14 +168,16 @@ async function getCommunityEventPlanChatContext(eventId: number, uid: string) {
     })
     .from(communityEventRsvpsTable)
     .where(eq(communityEventRsvpsTable.eventId, eventId));
-  const canAccess =
+  const canAccess = tierCanAccess && (
     event.ownerUid === uid ||
-    event.inviteeUids.includes(uid) ||
-    rsvps.some(
-      (rsvp) =>
-        rsvp.userUid === uid &&
-        (rsvp.status === "going" || rsvp.status === "maybe"),
-    );
+    (() => {
+      const currentRsvp = rsvps.find((rsvp) => rsvp.userUid === uid);
+      if (currentRsvp) {
+        return currentRsvp.status === "going" || currentRsvp.status === "maybe";
+      }
+      return event.inviteeUids.includes(uid);
+    })()
+  );
   return canAccess ? { event, rsvps } : null;
 }
 
@@ -246,12 +258,14 @@ function normalizeInvitees(inviteeUids: string[] | undefined, uid: string) {
 }
 
 router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
+  const viewerUid = req.uid!;
   const parsed = GetNearbyHangoutsQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ message: "Invalid nearby hangout search parameters." });
     return;
   }
   const query = parsed.data;
+  const viewerIsExplorer = await isVerifiedExplorer(viewerUid);
   if ((query.latitude == null) !== (query.longitude == null)) {
     res.status(400).json({ message: "Provide both latitude and longitude." });
     return;
@@ -274,6 +288,7 @@ router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
     eq(communityEventsTable.isHidden, false),
     eq(communityEventsTable.visibility, "public"),
     eq(communityEventsTable.joinApprovalRequired, true),
+    viewerIsExplorer ? undefined : eq(communityEventsTable.verifiedExplorersOnly, false),
     gte(communityEventsTable.startsAt, new Date()),
     query.locationQuery
       ? ilike(
@@ -320,6 +335,7 @@ router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
   const rows = await db
     .select({
       id: communityEventsTable.id,
+      ownerUid: communityEventsTable.ownerUid,
       title: communityEventsTable.title,
       description: communityEventsTable.description,
       imageUrl: communityEventsTable.imageUrl,
@@ -328,6 +344,8 @@ router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
       latitude: communityEventsTable.locationLatitude,
       longitude: communityEventsTable.locationLongitude,
       creatorName: profilesTable.displayName,
+      creatorPhotoUrl: profilesTable.photoUrl,
+      verifiedExplorersOnly: communityEventsTable.verifiedExplorersOnly,
     })
     .from(communityEventsTable)
     .leftJoin(profilesTable, eq(profilesTable.uid, communityEventsTable.ownerUid))
@@ -337,10 +355,35 @@ router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
     .offset(query.offset);
 
   const hasMore = rows.length > query.limit;
+  const page = rows.slice(0, query.limit);
+  const [hostStatuses, myJoinRequestRows] = await Promise.all([
+    getVerifiedExplorerStatuses(page.map((event) => event.ownerUid)),
+    page.length
+      ? db
+          .select({
+            eventId: communityEventJoinRequestsTable.eventId,
+            status: communityEventJoinRequestsTable.status,
+          })
+          .from(communityEventJoinRequestsTable)
+          .where(and(
+            inArray(
+              communityEventJoinRequestsTable.eventId,
+              page.map((event) => event.id),
+            ),
+            eq(communityEventJoinRequestsTable.userUid, viewerUid),
+          ))
+      : Promise.resolve([]),
+  ]);
+  const myJoinRequestStatus = new Map(
+    myJoinRequestRows.map((request) => [request.eventId, request.status]),
+  );
   res.json({
-    events: rows.slice(0, query.limit).map((event) => ({
+    events: page.map(({ ownerUid, ...event }) => ({
       eventType: "member" as const,
       ...event,
+      myJoinRequestStatus: myJoinRequestStatus.get(event.id) ?? null,
+      isVerifiedExplorerHost:
+        hostStatuses.get(ownerUid)?.isVerifiedExplorer ?? false,
     })),
     nextOffset: hasMore ? query.offset + query.limit : null,
   });
@@ -348,7 +391,16 @@ router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
 
 router.get("/events/feed", requireUid, async (req, res) => {
   const uid = req.uid!;
+  const viewerIsExplorer = await isVerifiedExplorer(uid);
   const now = new Date();
+  const includeOngoing = req.query["includeOngoing"] === "true";
+  // Match the existing four-hour default event window when no end time was set.
+  const venueEventWindow = includeOngoing
+    ? sql`COALESCE(${venueEventsTable.endsAt}, ${venueEventsTable.startsAt} + INTERVAL '4 hours') > ${now}`
+    : gte(venueEventsTable.startsAt, now);
+  const communityEventWindow = includeOngoing
+    ? sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt} + INTERVAL '4 hours') > ${now}`
+    : gte(communityEventsTable.startsAt, now);
   const [venueRows, memberRows] = await Promise.all([
     db
       .select({
@@ -368,7 +420,7 @@ router.get("/events/feed", requireUid, async (req, res) => {
           eq(venueOwnerProfilesTable.applicationStatus, "approved"),
           eq(venueEventsTable.isPublished, true),
           eq(venueEventsTable.isHidden, false),
-          gte(venueEventsTable.startsAt, now),
+          venueEventWindow,
           or(
             eq(venueEventsTable.visibility, "public"),
             eq(venueEventsTable.ownerUid, uid),
@@ -393,13 +445,15 @@ router.get("/events/feed", requireUid, async (req, res) => {
       .select({
         event: communityEventsTable,
         creatorName: profilesTable.displayName,
+        creatorPhotoUrl: profilesTable.photoUrl,
       })
       .from(communityEventsTable)
       .leftJoin(profilesTable, eq(profilesTable.uid, communityEventsTable.ownerUid))
       .where(
         and(
           eq(communityEventsTable.isHidden, false),
-          gte(communityEventsTable.startsAt, now),
+          viewerIsExplorer ? undefined : eq(communityEventsTable.verifiedExplorersOnly, false),
+          communityEventWindow,
           or(
             eq(communityEventsTable.visibility, "public"),
             eq(communityEventsTable.ownerUid, uid),
@@ -424,6 +478,9 @@ router.get("/events/feed", requireUid, async (req, res) => {
 
   const venueIds = venueRows.map(({ event }) => event.id);
   const memberIds = memberRows.map(({ event }) => event.id);
+  const hostStatuses = await getVerifiedExplorerStatuses(
+    memberRows.map(({ event }) => event.ownerUid),
+  );
   const [venueRsvps, memberRsvps, myMemberJoinRequests] = await Promise.all([
     venueIds.length
       ? db
@@ -482,6 +539,7 @@ router.get("/events/feed", requireUid, async (req, res) => {
       placeId: event.placeId,
       venueName,
       creatorName: null,
+      creatorPhotoUrl: null,
       latitude: latitude != null && Number.isFinite(Number(latitude)) ? Number(latitude) : null,
       longitude: longitude != null && Number.isFinite(Number(longitude)) ? Number(longitude) : null,
       visibility: event.visibility,
@@ -490,8 +548,10 @@ router.get("/events/feed", requireUid, async (req, res) => {
       isInvited: event.inviteeUids.includes(uid),
       joinApprovalRequired: false,
       myJoinRequestStatus: null,
+      verifiedExplorersOnly: false,
+      isVerifiedExplorerHost: false,
     })),
-    ...memberRows.map(({ event, creatorName }) => ({
+    ...memberRows.map(({ event, creatorName, creatorPhotoUrl }) => ({
       eventType: "member" as const,
       id: event.id,
       ownerUid: event.ownerUid,
@@ -508,6 +568,7 @@ router.get("/events/feed", requireUid, async (req, res) => {
       placeId: null,
       venueName: null,
       creatorName,
+      creatorPhotoUrl,
       latitude: event.locationLatitude,
       longitude: event.locationLongitude,
       visibility: event.visibility,
@@ -516,6 +577,9 @@ router.get("/events/feed", requireUid, async (req, res) => {
       isInvited: event.inviteeUids.includes(uid),
       joinApprovalRequired: event.joinApprovalRequired,
       myJoinRequestStatus: myMemberJoinRequest.get(event.id) ?? null,
+      verifiedExplorersOnly: event.verifiedExplorersOnly,
+      isVerifiedExplorerHost:
+        hostStatuses.get(event.ownerUid)?.isVerifiedExplorer ?? false,
     })),
   ].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 
@@ -527,6 +591,16 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
   const parsed = CreateCommunityEventBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ message: "Invalid event details", errors: parsed.error.issues });
+    return;
+  }
+  const hostIsExplorer = await isVerifiedExplorer(uid);
+  const verifiedExplorersOnly = parsed.data.verifiedExplorersOnly === true;
+  if (verifiedExplorersOnly && parsed.data.visibility !== "public") {
+    res.status(400).json({ message: "Explorer-only plans must be public." });
+    return;
+  }
+  if (verifiedExplorersOnly && !hostIsExplorer) {
+    res.status(403).json({ message: "Verified Explorer status is required to host this plan." });
     return;
   }
   const times = validateEventTimes(parsed.data.startsAt, parsed.data.endsAt);
@@ -613,12 +687,16 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
       locationLongitude: parsed.data.longitude ?? null,
       visibility: parsed.data.visibility,
       joinApprovalRequired,
+      verifiedExplorersOnly,
       inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
       ...inviteLinkFields,
     })
     .returning();
   const [profile] = await db
-    .select({ displayName: profilesTable.displayName })
+    .select({
+      displayName: profilesTable.displayName,
+      photoUrl: profilesTable.photoUrl,
+    })
     .from(profilesTable)
     .where(eq(profilesTable.uid, uid))
     .limit(1);
@@ -640,6 +718,7 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     placeId: null,
     venueName: null,
     creatorName: profile?.displayName ?? null,
+    creatorPhotoUrl: profile?.photoUrl ?? null,
     latitude: event.locationLatitude,
     longitude: event.locationLongitude,
     visibility: event.visibility,
@@ -647,6 +726,8 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
     myRsvp: null,
     joinApprovalRequired: event.joinApprovalRequired,
     myJoinRequestStatus: null,
+    verifiedExplorersOnly: event.verifiedExplorersOnly,
+    isVerifiedExplorerHost: hostIsExplorer,
     pendingJoinRequestCount: 0,
   });
   res.status(201).json(response);
@@ -673,6 +754,95 @@ router.get(
   },
 );
 
+router.post(
+  "/community-events/:eventId/host-rating",
+  requireUid,
+  eventWriteLimit,
+  async (req, res): Promise<void> => {
+    const reviewerUid = req.uid!;
+    const eventId = getEventId(req.params.eventId);
+    const parsed = RateCommunityEventHostBody.safeParse(req.body);
+    if (!eventId || !parsed.success) {
+      res.status(400).json({ message: "Choose a rating from 1 to 5." });
+      return;
+    }
+
+    const [event] = await db
+      .select({
+        id: communityEventsTable.id,
+        ownerUid: communityEventsTable.ownerUid,
+        startsAt: communityEventsTable.startsAt,
+        endsAt: communityEventsTable.endsAt,
+        joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+      })
+      .from(communityEventsTable)
+      .where(and(
+        eq(communityEventsTable.id, eventId),
+        eq(communityEventsTable.isHidden, false),
+      ))
+      .limit(1);
+    if (!event || !event.joinApprovalRequired || event.ownerUid === reviewerUid) {
+      res.status(404).json({ message: "Hangout not found." });
+      return;
+    }
+
+    const eventEnd = event.endsAt ?? event.startsAt;
+    if (eventEnd.getTime() > Date.now()) {
+      res.status(409).json({ message: "This Hangout has not ended yet." });
+      return;
+    }
+
+    const [acceptedRequest] = await db
+      .select({ id: communityEventJoinRequestsTable.id })
+      .from(communityEventJoinRequestsTable)
+      .where(and(
+        eq(communityEventJoinRequestsTable.eventId, eventId),
+        eq(communityEventJoinRequestsTable.userUid, reviewerUid),
+        eq(communityEventJoinRequestsTable.status, "accepted"),
+      ))
+      .limit(1);
+    if (!acceptedRequest) {
+      res.status(403).json({ message: "Only accepted Hangout guests can rate the host." });
+      return;
+    }
+
+    await db
+      .insert(communityEventHostRatingsTable)
+      .values({ eventId, reviewerUid, rating: parsed.data.rating })
+      .onConflictDoUpdate({
+        target: [
+          communityEventHostRatingsTable.eventId,
+          communityEventHostRatingsTable.reviewerUid,
+        ],
+        set: { rating: parsed.data.rating, updatedAt: new Date() },
+      });
+
+    const [summary] = await db
+      .select({
+        averageRating: sql<number | null>`AVG(${communityEventHostRatingsTable.rating})::float8`,
+        reviewCount: count(),
+      })
+      .from(communityEventHostRatingsTable)
+      .innerJoin(
+        communityEventsTable,
+        eq(communityEventsTable.id, communityEventHostRatingsTable.eventId),
+      )
+      .where(and(
+        eq(communityEventsTable.ownerUid, event.ownerUid),
+        eq(communityEventsTable.joinApprovalRequired, true),
+        eq(communityEventsTable.isHidden, false),
+        sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt}) <= NOW()`,
+      ));
+    res.json(RateCommunityEventHostResponse.parse({
+      averageRating: summary?.averageRating == null
+        ? null
+        : Number(summary.averageRating),
+      reviewCount: Number(summary?.reviewCount ?? 0),
+      myRating: parsed.data.rating,
+    }));
+  },
+);
+
 router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<void> => {
   const uid = req.uid!;
   const eventType = req.params.eventType;
@@ -683,10 +853,12 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
   }
 
   if (eventType === "member") {
+    const viewerIsExplorer = await isVerifiedExplorer(uid);
     const [row] = await db
       .select({
         event: communityEventsTable,
         creatorName: profilesTable.displayName,
+        creatorPhotoUrl: profilesTable.photoUrl,
       })
       .from(communityEventsTable)
       .leftJoin(profilesTable, eq(profilesTable.uid, communityEventsTable.ownerUid))
@@ -694,6 +866,7 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         and(
           eq(communityEventsTable.id, eventId),
           eq(communityEventsTable.isHidden, false),
+          viewerIsExplorer ? undefined : eq(communityEventsTable.verifiedExplorersOnly, false),
           or(
             eq(communityEventsTable.visibility, "public"),
             eq(communityEventsTable.ownerUid, uid),
@@ -742,6 +915,49 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         ))
         .limit(1),
     ]);
+    let hangoutHostRating: {
+      averageRating: number | null;
+      reviewCount: number;
+      myRating: number | null;
+    } | null = null;
+    if (event.joinApprovalRequired) {
+      const [summary] = await db
+        .select({
+          averageRating: sql<number | null>`AVG(${communityEventHostRatingsTable.rating})::float8`,
+          reviewCount: count(),
+        })
+        .from(communityEventHostRatingsTable)
+        .innerJoin(
+          communityEventsTable,
+          eq(communityEventsTable.id, communityEventHostRatingsTable.eventId),
+        )
+        .where(and(
+          eq(communityEventsTable.ownerUid, event.ownerUid),
+          eq(communityEventsTable.joinApprovalRequired, true),
+          eq(communityEventsTable.isHidden, false),
+          sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt}) <= NOW()`,
+        ));
+      const currentEventEnded =
+        (event.endsAt ?? event.startsAt).getTime() <= Date.now();
+      const [myRating] =
+        currentEventEnded && myJoinRequest[0]?.status === "accepted"
+          ? await db
+              .select({ rating: communityEventHostRatingsTable.rating })
+              .from(communityEventHostRatingsTable)
+              .where(and(
+                eq(communityEventHostRatingsTable.eventId, event.id),
+                eq(communityEventHostRatingsTable.reviewerUid, uid),
+              ))
+              .limit(1)
+          : [];
+      hangoutHostRating = {
+        averageRating: summary?.averageRating == null
+          ? null
+          : Number(summary.averageRating),
+        reviewCount: Number(summary?.reviewCount ?? 0),
+        myRating: myRating?.rating ?? null,
+      };
+    }
     let pendingJoinRequestCount: number | undefined;
     if (event.ownerUid === uid && event.joinApprovalRequired) {
       const [pendingCount] = await db
@@ -771,6 +987,7 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         placeId: null,
         venueName: null,
         creatorName: row.creatorName,
+        creatorPhotoUrl: row.creatorPhotoUrl,
         latitude: event.locationLatitude,
         longitude: event.locationLongitude,
         visibility: event.visibility,
@@ -778,8 +995,11 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         myRsvp: myRsvp[0]?.status ?? null,
         isInvited: event.inviteeUids.includes(uid),
         joinApprovalRequired: event.joinApprovalRequired,
+        verifiedExplorersOnly: event.verifiedExplorersOnly,
+        isVerifiedExplorerHost: await isVerifiedExplorer(event.ownerUid),
         myJoinRequestStatus: myJoinRequest[0]?.status ?? null,
         pendingJoinRequestCount,
+        hangoutHostRating,
       }),
     );
     return;
@@ -854,6 +1074,7 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
       locationPlaceId: null,
       placeId: row.event.placeId,
       venueName: row.venueName,
+      creatorPhotoUrl: null,
       creatorName: null,
       latitude: row.latitude != null ? Number(row.latitude) : null,
       longitude: row.longitude != null ? Number(row.longitude) : null,
@@ -862,6 +1083,8 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
       myRsvp: myRsvp?.status ?? null,
       isInvited: row.event.inviteeUids.includes(uid),
       joinApprovalRequired: false,
+      verifiedExplorersOnly: false,
+      isVerifiedExplorerHost: false,
       myJoinRequestStatus: null,
     }),
   );
@@ -901,6 +1124,7 @@ router.post(
             eq(communityEventsTable.visibility, "invite_only"),
             eq(communityEventsTable.visibility, "public"),
           ),
+          eq(communityEventsTable.verifiedExplorersOnly, false),
           eq(communityEventsTable.isHidden, false),
         ),
       )
@@ -1050,6 +1274,14 @@ router.get(
       res.status(404).json({ message: "Event not found" });
       return;
     }
+    if (
+      event.verifiedExplorersOnly &&
+      event.ownerUid !== uid &&
+      !(await isVerifiedExplorer(uid))
+    ) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
     res.json(
       GetCommunityEventForEditResponse.parse({
         id: event.id,
@@ -1067,6 +1299,7 @@ router.get(
         longitude: event.locationLongitude,
         visibility: event.visibility,
         joinApprovalRequired: event.joinApprovalRequired,
+        verifiedExplorersOnly: event.verifiedExplorersOnly,
         inviteeUids: event.inviteeUids,
         inviteLinkEnabled: Boolean(event.inviteTokenHash),
         invitePasscodeRequired: Boolean(event.invitePasscodeHash),
@@ -1428,6 +1661,19 @@ router.put(
       res.status(404).json({ message: "Event not found" });
       return;
     }
+    const nextVerifiedExplorersOnly = parsed.data.verifiedExplorersOnly === true;
+    if (nextVerifiedExplorersOnly && parsed.data.visibility !== "public") {
+      res.status(400).json({ message: "Explorer-only plans must be public." });
+      return;
+    }
+    if (
+      nextVerifiedExplorersOnly &&
+      !existing.verifiedExplorersOnly &&
+      !(await isVerifiedExplorer(uid))
+    ) {
+      res.status(403).json({ message: "Verified Explorer status is required to host this plan." });
+      return;
+    }
     if (existing.joinApprovalRequired && parsed.data.visibility !== "public") {
       res.status(400).json({ message: "Hangout plans must remain public." });
       return;
@@ -1462,7 +1708,8 @@ router.put(
       nextLocationPlaceId !== existing.locationPlaceId ||
       nextLatitude !== existing.locationLatitude ||
       nextLongitude !== existing.locationLongitude ||
-      parsed.data.visibility !== existing.visibility;
+      parsed.data.visibility !== existing.visibility ||
+      nextVerifiedExplorersOnly !== existing.verifiedExplorersOnly;
     const acceptedGuestUids =
       existing.joinApprovalRequired && hasChanges
         ? (
@@ -1568,6 +1815,7 @@ router.put(
         locationLatitude: parsed.data.latitude ?? null,
         locationLongitude: parsed.data.longitude ?? null,
         visibility: parsed.data.visibility,
+        verifiedExplorersOnly: nextVerifiedExplorersOnly,
         inviteeUids: parsed.data.visibility === "invite_only" ? inviteeUids : [],
         ...inviteLinkFields,
         updatedAt: new Date(),
@@ -1593,7 +1841,10 @@ router.put(
     }
     const [profile, rsvps, myRsvp] = await Promise.all([
       db
-        .select({ displayName: profilesTable.displayName })
+        .select({
+          displayName: profilesTable.displayName,
+          photoUrl: profilesTable.photoUrl,
+        })
         .from(profilesTable)
         .where(eq(profilesTable.uid, uid))
         .limit(1),
@@ -1635,9 +1886,12 @@ router.put(
         placeId: null,
         venueName: null,
         creatorName: profile[0]?.displayName ?? null,
+        creatorPhotoUrl: profile[0]?.photoUrl ?? null,
         latitude: event.locationLatitude,
         longitude: event.locationLongitude,
         visibility: event.visibility,
+        verifiedExplorersOnly: event.verifiedExplorersOnly,
+        isVerifiedExplorerHost: await isVerifiedExplorer(event.ownerUid),
         rsvpCount: rsvps.length,
         myRsvp: myRsvp[0]?.status ?? null,
         joinApprovalRequired: event.joinApprovalRequired,
@@ -1745,6 +1999,7 @@ router.post(
             eq(communityEventsTable.visibility, "invite_only"),
             eq(communityEventsTable.visibility, "public"),
           ),
+          eq(communityEventsTable.verifiedExplorersOnly, false),
           eq(communityEventsTable.isHidden, false),
         ),
       )
@@ -1850,6 +2105,10 @@ router.post(
       res.status(404).json({ message: "Event not found" });
       return;
     }
+    if (event.verifiedExplorersOnly && !(await isVerifiedExplorer(uid))) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
     if (event.joinApprovalRequired && event.ownerUid !== uid && !event.inviteeUids.includes(uid)) {
       const [acceptedRequest] = await db
         .select({ id: communityEventJoinRequestsTable.id })
@@ -1901,6 +2160,7 @@ router.post(
         ownerUid: communityEventsTable.ownerUid,
         visibility: communityEventsTable.visibility,
         joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+        verifiedExplorersOnly: communityEventsTable.verifiedExplorersOnly,
         startsAt: communityEventsTable.startsAt,
       })
       .from(communityEventsTable)
@@ -1910,6 +2170,10 @@ router.post(
       ))
       .limit(1);
     if (!event) {
+      res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    if (event.verifiedExplorersOnly && !(await isVerifiedExplorer(uid))) {
       res.status(404).json({ message: "Event not found." });
       return;
     }
@@ -2199,7 +2463,9 @@ async function attendeeCanAccessEvent(
   ownerUid: string,
   inviteeUids: string[],
   joinApprovalRequired = false,
+  verifiedExplorersOnly = false,
 ): Promise<boolean> {
+  if (verifiedExplorersOnly && !(await isVerifiedExplorer(uid))) return false;
   if (ownerUid === uid || inviteeUids.includes(uid)) {
     return true;
   }
@@ -2272,6 +2538,10 @@ router.post(
       res.status(404).json({ message: "This event check-in code is invalid or has been replaced." });
       return;
     }
+    if (memberEvent.joinApprovalRequired) {
+      res.status(404).json({ message: "Hangouts do not use event check-in codes." });
+      return;
+    }
     if (!eventCheckinOpen(memberEvent.startsAt, memberEvent.endsAt)) {
       res.status(403).json({ message: "Check-in is available near the event time." });
       return;
@@ -2283,7 +2553,8 @@ router.post(
       memberEvent.visibility,
       memberEvent.ownerUid,
       memberEvent.inviteeUids,
-        memberEvent.joinApprovalRequired,
+      memberEvent.joinApprovalRequired,
+      memberEvent.verifiedExplorersOnly,
     ))) {
       res.status(403).json({ message: "This event is invitation-only." });
       return;
@@ -2337,6 +2608,7 @@ router.post(
       visibility: string;
       inviteeUids: string[];
       joinApprovalRequired: boolean;
+      verifiedExplorersOnly: boolean;
       latitude: number | null;
       longitude: number | null;
     } | undefined;
@@ -2366,6 +2638,7 @@ router.post(
         ? {
             ...row,
             joinApprovalRequired: false,
+            verifiedExplorersOnly: false,
             latitude: row.latitude == null ? null : Number(row.latitude),
             longitude: row.longitude == null ? null : Number(row.longitude),
           }
@@ -2381,6 +2654,7 @@ router.post(
           visibility: communityEventsTable.visibility,
           inviteeUids: communityEventsTable.inviteeUids,
           joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+          verifiedExplorersOnly: communityEventsTable.verifiedExplorersOnly,
           latitude: communityEventsTable.locationLatitude,
           longitude: communityEventsTable.locationLongitude,
         })
@@ -2396,6 +2670,10 @@ router.post(
       res.status(404).json({ message: "Event not found." });
       return;
     }
+    if (eventType === "member" && event.joinApprovalRequired) {
+      res.status(404).json({ message: "Hangouts do not use event check-ins." });
+      return;
+    }
     if (!eventCheckinOpen(event.startsAt, event.endsAt)) {
       res.status(403).json({ message: "Check-in is available near the event time." });
       return;
@@ -2408,6 +2686,7 @@ router.post(
       event.ownerUid,
       event.inviteeUids,
       event.joinApprovalRequired,
+      event.verifiedExplorersOnly,
     ))) {
       res.status(403).json({ message: "This event is invitation-only." });
       return;
@@ -2500,6 +2779,10 @@ router.post(
     )).limit(1);
     if (!event) {
       res.status(404).json({ message: "Event not found." });
+      return;
+    }
+    if (event.joinApprovalRequired) {
+      res.status(409).json({ message: "Hangouts do not use event check-in codes." });
       return;
     }
     try {

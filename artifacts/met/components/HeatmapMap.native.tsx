@@ -10,15 +10,30 @@ import {
 import MapView, { Circle, Marker, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
+import {
+  getGetEventsFeedQueryKey,
+  useGetEventsFeed,
+} from "@workspace/api-client-react";
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
+import {
+  EventMapFilterControl,
+  EventMapMarker,
+  EventMapPreview,
+} from "@/components/EventMapMarker";
 import {
   api,
   type ActiveVenueResult,
   type HeatmapVenueResult,
   type VenueOwnerMapPoint,
 } from "@/lib/api/client";
+import {
+  filterEventMapPins,
+  getCurrentEventMapPins,
+  type EventMapPin,
+  type EventMapPinSelection,
+} from "@/lib/eventMapPins";
 import { VenueOwnerMarker } from "@/components/VenueOwnerMarker";
 
 // Refetch heatmap if the map center moved more than ~500 m (~0.005°)
@@ -150,6 +165,20 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
   const colors = useColors();
   const { isDark } = useTheme();
   const router = useRouter();
+  const eventFeed = useGetEventsFeed(
+    { includeOngoing: true },
+    {
+      query: {
+        enabled: !!authedUid,
+        staleTime: 30_000,
+        refetchInterval: 30_000,
+        queryKey: [
+          ...getGetEventsFeedQueryKey({ includeOngoing: true }),
+          authedUid ?? "signed-out",
+        ],
+      },
+    },
+  );
 
   const mapRef = useRef<MapView>(null);
   const mapReadyRef = useRef(false);
@@ -159,8 +188,12 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
   const [activeVenues, setActiveVenues] = useState<ActiveVenueResult[]>([]);
   const [heatmapVenues, setHeatmapVenues] = useState<HeatmapVenueResult[]>([]);
   const [venueOwnerPoints, setVenueOwnerPoints] = useState<VenueOwnerMapPoint[]>([]);
+  const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
+  const [eventPinSelection, setEventPinSelection] =
+    useState<EventMapPinSelection>({ events: true, hangouts: true });
   // Tracks the current visible region so heatCircles can scale with zoom.
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [mapNow, setMapNow] = useState(Date.now());
   // Tracks the region at which we last fetched heatmap data to avoid
   // redundant fetches when the user pans only a tiny amount.
   const lastFetchedRegionRef = useRef<Region | null>(null);
@@ -171,6 +204,11 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
     return () => {
       mountedRef.current = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setMapNow(Date.now()), 15_000);
+    return () => clearInterval(timer);
   }, []);
 
   const centerOn = useCallback((latitude: number, longitude: number) => {
@@ -362,35 +400,86 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
     [venueOwnerPoints, router],
   );
 
+  const eventPins = useMemo(
+    () =>
+      authedUid
+        ? getCurrentEventMapPins(eventFeed.data?.events ?? [], mapNow)
+        : [],
+    [authedUid, eventFeed.data?.events, mapNow],
+  );
+
+  const visibleEventPins = useMemo(
+    () => filterEventMapPins(eventPins, eventPinSelection),
+    [eventPins, eventPinSelection],
+  );
+
+  const selectedEvent: EventMapPin | null =
+    visibleEventPins.find(
+      (event) => `${event.eventType}:${event.id}` === selectedEventKey,
+    ) ?? null;
+
+  const eventMarkers = useMemo(
+    () =>
+      visibleEventPins.map((event) => (
+        <EventMapMarker
+          key={`event-${event.eventType}-${event.id}`}
+          event={event}
+          onPress={() => setSelectedEventKey(`${event.eventType}:${event.id}`)}
+        />
+      )),
+    [visibleEventPins],
+  );
+
   return (
-    <MapView
-      ref={mapRef}
-      provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
-      style={[styles.map, style]}
-      initialRegion={DEFAULT_REGION}
-      userInterfaceStyle={isDark ? "dark" : "light"}
-      customMapStyle={isDark ? undefined : CANOPY_MAP_STYLE}
-      onMapReady={() => {
-        mapReadyRef.current = true;
-        const pending = pendingCenterRef.current;
-        if (pending) {
-          const r: Region = {
-            latitude: pending.latitude,
-            longitude: pending.longitude,
-            latitudeDelta: 0.015,
-            longitudeDelta: 0.015,
-          };
-          mapRef.current?.animateToRegion(r, 400);
-        }
-      }}
-      showsUserLocation
-      showsMyLocationButton={false}
-      onRegionChangeComplete={handleRegionChangeComplete}
-    >
-      {heatCircles}
-      {activeMarkers}
-      {venueOwnerMarkers}
-    </MapView>
+    <View style={[styles.mapContainer, style]}>
+      <MapView
+        ref={mapRef}
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
+        style={StyleSheet.absoluteFillObject}
+        initialRegion={DEFAULT_REGION}
+        userInterfaceStyle={isDark ? "dark" : "light"}
+        customMapStyle={isDark ? undefined : CANOPY_MAP_STYLE}
+        onMapReady={() => {
+          mapReadyRef.current = true;
+          const pending = pendingCenterRef.current;
+          if (pending) {
+            const r: Region = {
+              latitude: pending.latitude,
+              longitude: pending.longitude,
+              latitudeDelta: 0.015,
+              longitudeDelta: 0.015,
+            };
+            mapRef.current?.animateToRegion(r, 400);
+          }
+        }}
+        showsUserLocation
+        showsMyLocationButton={false}
+        onRegionChangeComplete={handleRegionChangeComplete}
+      >
+        {heatCircles}
+        {activeMarkers}
+        {venueOwnerMarkers}
+        {eventMarkers}
+      </MapView>
+      <EventMapFilterControl
+        selection={eventPinSelection}
+        onChange={(selection) => {
+          setEventPinSelection(selection);
+          setSelectedEventKey(null);
+        }}
+      />
+      {selectedEvent ? (
+        <EventMapPreview
+          event={selectedEvent}
+          onClose={() => setSelectedEventKey(null)}
+          onOpenDetails={() =>
+            router.push(
+              `/event-details/${selectedEvent.eventType}/${selectedEvent.id}` as never,
+            )
+          }
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -410,8 +499,11 @@ const CANOPY_MAP_STYLE = [
 export const HeatmapMap = React.memo(HeatmapMapInner);
 
 const styles = StyleSheet.create({
-  map: {
+  mapContainer: {
+    flex: 1,
+    minHeight: 0,
     width: "100%",
     height: "100%",
+    overflow: "hidden",
   },
 });

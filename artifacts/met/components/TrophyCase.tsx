@@ -236,7 +236,7 @@ export function TrophyCase({ trophies, loading }: Props) {
 
   return (
     <>
-      {/* Pressable summary row — same style as the Pioneer Leaderboard link */}
+      {/* Pressable summary row that opens the trophy details sheet */}
       <Pressable
         onPress={() => setModalVisible(true)}
         accessibilityRole="button"

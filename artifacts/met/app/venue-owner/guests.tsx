@@ -34,6 +34,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useVenueOwner } from "@/hooks/useVenueOwner";
 import { VenueOwnerHeader } from "@/components/VenueOwnerHeader";
 import { api, type VenueOwnerGuest } from "@/lib/api/client";
+import { PIONEER_DISPLAY_ENABLED } from "@/lib/featureFlags";
 
 const GREEN = "#00E87A";
 
@@ -278,7 +279,7 @@ export default function VenueOwnerGuestsScreen() {
               <View style={styles.guestInfo}>
                 <View style={styles.nameRow}>
                   <Text style={[styles.guestName, { color: vText }]} numberOfLines={1}>{item.displayName}</Text>
-                  {item.isPioneer && <Feather name="star" size={13} color={isDark ? "#FFD166" : "#A66B16"} />}
+                  {PIONEER_DISPLAY_ENABLED && item.isPioneer && <Feather name="star" size={13} color={isDark ? "#FFD166" : "#A66B16"} />}
                 </View>
                 <Text style={[styles.guestMeta, { color: vMuted }]}>
                   {item.checkinCount} {item.checkinCount === 1 ? "visit" : "visits"}
@@ -347,7 +348,7 @@ export default function VenueOwnerGuestsScreen() {
 
                   {/* Name + pioneer */}
                   <Text style={[styles.drawerName, { color: vText }]}>{selected.displayName}</Text>
-                  {selected.isPioneer && (
+                  {PIONEER_DISPLAY_ENABLED && selected.isPioneer && (
                     <View style={styles.pioneerLabel}>
                       <Feather name="star" size={13} color="#FBBF24" />
                       <Text style={[styles.drawerPioneer, { color: "#FBBF24" }]}>Pioneer member</Text>

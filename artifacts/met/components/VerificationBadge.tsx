@@ -4,7 +4,7 @@
  * Universal single-glyph verification mark shown inline next to user names.
  * Four tiers (highest wins — only one shows):
  *
- *   ★ Gold   — Met Pioneer            (isPioneer = true)
+ *   ★ Gold   — Met Pioneer            (display controlled by feature flag)
  *   ✓ Green  — Highly Trusted         (trustScore ≥ 250)
  *   ✓ Blue   — Active subscriber      (Plus / Pro)
  *   ✓ Gray   — Photo-verified profile (hasPhoto = true, base tier)
@@ -16,6 +16,7 @@
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { PIONEER_DISPLAY_ENABLED } from "@/lib/featureFlags";
 
 export interface VerificationBadgeProps {
   isPioneer?: boolean;
@@ -45,7 +46,7 @@ export function VerificationBadge({
   const pad = size === "sm" ? styles.smPad : styles.mdPad;
   const expanded = viewMode === "expanded";
 
-  if (isPioneer) {
+  if (PIONEER_DISPLAY_ENABLED && isPioneer) {
     return (
       <View style={[styles.badge, styles.gold, pad, expanded && styles.expandedRow]}
         accessibilityLabel="Met Pioneer" accessibilityRole="text">

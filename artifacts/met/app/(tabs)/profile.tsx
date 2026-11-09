@@ -34,6 +34,7 @@ import { GoldShimmerBorder } from "@/components/GoldShimmerBorder";
 import { PioneerModal, loadPioneerModalSeen } from "@/components/PioneerModal";
 import { TrophyCase, type Trophy } from "@/components/TrophyCase";
 import { PioneerDashboard } from "@/components/PioneerDashboard";
+import { PIONEER_DISPLAY_ENABLED } from "@/lib/featureFlags";
 import { useApp } from "@/contexts/AppContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useColors } from "@/hooks/useColors";
@@ -55,6 +56,7 @@ import {
 import { loadDragHintDismissed, MAX_EXTRA_PHOTOS_BY_TIER, saveDragHintDismissed } from "@/lib/storage";
 import { api } from "@/lib/api/client";
 import type { SocialLinks, SocialPlatform } from "@/lib/types";
+import { useGetMyVerifiedExplorer } from "@workspace/api-client-react";
 
 const SOCIAL_FIELDS: Array<{ key: SocialPlatform; labelKey: string }> = [
   { key: "instagram", labelKey: "socials.instagram" },
@@ -84,6 +86,9 @@ export default function ProfileScreen() {
   const { isVisible, toggle: toggleVisibility } = useVisibility();
   const { tier } = useSubscription();
   const storeDemo = isStoreDemoEnabled();
+  const explorerQuery = useGetMyVerifiedExplorer({
+    query: { enabled: !!authedUid, staleTime: 60_000 },
+  });
 
   // Refs for scroll-to-first-incomplete-field behaviour.
   const scrollViewRef = useRef<any>(null);
@@ -207,7 +212,7 @@ export default function ProfileScreen() {
       if (pioneer && profile) {
         void setProfile({ ...profile, isPioneer: true });
       }
-      if (pioneer) {
+      if (pioneer && PIONEER_DISPLAY_ENABLED) {
         // Check prize eligibility via leaderboard
         api.getPioneerLeaderboard({ uid: authedUid }).then((lb) => {
           if (cancelled) return;
@@ -806,7 +811,7 @@ export default function ProfileScreen() {
             onPress={editing ? handleMainPhotoPress : undefined}
             style={styles.photoTarget}
           >
-            {isPioneer && !editing && photoUri ? (
+            {PIONEER_DISPLAY_ENABLED && isPioneer && !editing && photoUri ? (
               <GoldShimmerBorder size={90}>
                 <Image
                   source={{ uri: photoUri }}
@@ -884,7 +889,7 @@ export default function ProfileScreen() {
               <UserNameHeader
                 name={profile?.name ?? ""}
                 nameStyle={[styles.name, { color: colors.foreground }]}
-                isPioneer={isPioneer}
+                isPioneer={PIONEER_DISPLAY_ENABLED && isPioneer}
                 trustScore={trustScore ?? 0}
                 isSubscriber={tier !== "free"}
                 hasPhoto={!!photoUri}
@@ -900,7 +905,7 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               ) : null}
-              {isPioneer && (
+              {PIONEER_DISPLAY_ENABLED && isPioneer && (
                 <Pressable
                   onPress={() => setPioneerModalVisible(true)}
                   style={[
@@ -926,7 +931,7 @@ export default function ProfileScreen() {
                   </Text>
                 </Pressable>
               )}
-              <Pressable
+              {PIONEER_DISPLAY_ENABLED ? <Pressable
                 onPress={() => setPioneerDashboardVisible(true)}
                 style={[
                   styles.pioneerLeaderboardLink,
@@ -947,8 +952,8 @@ export default function ProfileScreen() {
                 >
                   {t("pioneer.leaderboardBtn")}
                 </Text>
-              </Pressable>
-              {prizeEligible ? (
+              </Pressable> : null}
+              {PIONEER_DISPLAY_ENABLED && prizeEligible ? (
                 <View
                   style={[
                     styles.prizeBadge,
@@ -1533,6 +1538,80 @@ export default function ProfileScreen() {
 
         {!editing ? (
           <>
+            {explorerQuery.data ? (
+              <View
+                style={{
+                  gap: 12,
+                  padding: 16,
+                  borderRadius: 18,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  marginBottom: 16,
+                }}
+                testID="verified-explorer-progress"
+              >
+                <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+                  <View
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 19,
+                      backgroundColor: colors.primarySoft,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Feather name="compass" size={19} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.sectionLabel, { color: colors.text }]}>
+                      {t("verifiedExplorer.title")}
+                    </Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+                      {explorerQuery.data.isVerifiedExplorer
+                        ? t("verifiedExplorer.unlocked")
+                        : t("verifiedExplorer.description")}
+                    </Text>
+                  </View>
+                </View>
+                {([
+                  {
+                    label: t("verifiedExplorer.venues"),
+                    value: explorerQuery.data.distinctVenues,
+                    goal: explorerQuery.data.requirements.distinctVenues,
+                  },
+                  {
+                    label: t("verifiedExplorer.positiveMeetings"),
+                    value: explorerQuery.data.positiveMeetingReviews,
+                    goal: explorerQuery.data.requirements.positiveMeetingReviews,
+                  },
+                ]).map((item) => (
+                  <View key={item.label} style={{ gap: 6 }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                      <Text style={{ flex: 1, color: colors.text, fontSize: 12 }}>
+                        {item.label}
+                      </Text>
+                      <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                        {Math.min(item.value, item.goal)}/{item.goal}
+                      </Text>
+                    </View>
+                    <View style={{ height: 6, borderRadius: 999, backgroundColor: colors.muted }}>
+                      <View
+                        style={{
+                          width: `${Math.min(100, (item.value / item.goal) * 100)}%`,
+                          height: "100%",
+                          borderRadius: 999,
+                          backgroundColor: explorerQuery.data.isVerifiedExplorer
+                            ? colors.primary
+                            : colors.accent,
+                        }}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <TrophyCase trophies={myTrophies} loading={myTrophiesLoading} />
             <ReputationRadar summary={reviewSummary} />
             {tier === "free" ? (
@@ -1630,15 +1709,19 @@ export default function ProfileScreen() {
         onDismiss={() => setUpgradeModalVisible(false)}
       />
 
-      <PioneerModal
-        visible={pioneerModalVisible}
-        onClose={() => setPioneerModalVisible(false)}
-      />
+      {PIONEER_DISPLAY_ENABLED ? (
+        <PioneerModal
+          visible={pioneerModalVisible}
+          onClose={() => setPioneerModalVisible(false)}
+        />
+      ) : null}
 
-      <PioneerDashboard
-        visible={pioneerDashboardVisible}
-        onClose={() => setPioneerDashboardVisible(false)}
-      />
+      {PIONEER_DISPLAY_ENABLED ? (
+        <PioneerDashboard
+          visible={pioneerDashboardVisible}
+          onClose={() => setPioneerDashboardVisible(false)}
+        />
+      ) : null}
     </View>
   );
 }

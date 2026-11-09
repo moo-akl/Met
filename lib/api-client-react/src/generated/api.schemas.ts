@@ -1983,6 +1983,23 @@ export const EventFeedItemMyJoinRequestStatus = {
   withdrawn: 'withdrawn',
 } as const;
 
+export interface HangoutHostRating {
+  /**
+     * @minimum 1
+     * @maximum 5
+     * @nullable
+     */
+  averageRating: number | null;
+  /** @minimum 0 */
+  reviewCount: number;
+  /**
+     * @minimum 1
+     * @maximum 5
+     * @nullable
+     */
+  myRating: number | null;
+}
+
 export interface EventFeedItem {
   eventType: EventFeedItemEventType;
   id: number;
@@ -2020,6 +2037,8 @@ export interface EventFeedItem {
   venueName?: string | null;
   /** @nullable */
   creatorName?: string | null;
+  /** @nullable */
+  creatorPhotoUrl: string | null;
   /**
      * @minimum -90
      * @maximum 90
@@ -2042,6 +2061,18 @@ export interface EventFeedItem {
   myJoinRequestStatus: EventFeedItemMyJoinRequestStatus;
   /** @minimum 0 */
   pendingJoinRequestCount?: number;
+  verifiedExplorersOnly: boolean;
+  isVerifiedExplorerHost: boolean;
+  /** Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities. */
+  hangoutHostRating?: HangoutHostRating | null;
+}
+
+export interface HangoutHostRatingInput {
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
 }
 
 export interface EventQrCheckinInput {
@@ -2252,9 +2283,9 @@ export interface EventAttendanceCorrectionResponse {
 export interface NotificationPrefsInput {
   notifyNewEncounters?: boolean;
   notifyReencounter?: boolean;
+  notifyConnectionRequests?: boolean;
   notifyChat?: boolean;
   notifyEventUpdates?: boolean;
-  notifyConnectionRequests?: boolean;
   notifyWeeklyRecap?: boolean;
   notifyCrownDefense?: boolean;
   notifyRewardUpdates?: boolean;
@@ -2269,6 +2300,19 @@ export type NearbyHangoutItemEventType = typeof NearbyHangoutItemEventType[keyof
 
 export const NearbyHangoutItemEventType = {
   member: 'member',
+} as const;
+
+/**
+ * @nullable
+ */
+export type NearbyHangoutItemMyJoinRequestStatus = typeof NearbyHangoutItemMyJoinRequestStatus[keyof typeof NearbyHangoutItemMyJoinRequestStatus] | null;
+
+
+export const NearbyHangoutItemMyJoinRequestStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+  withdrawn: 'withdrawn',
 } as const;
 
 export interface NearbyHangoutItem {
@@ -2296,6 +2340,12 @@ export interface NearbyHangoutItem {
   longitude: number | null;
   /** @nullable */
   creatorName: string | null;
+  /** @nullable */
+  creatorPhotoUrl: string | null;
+  /** @nullable */
+  myJoinRequestStatus: NearbyHangoutItemMyJoinRequestStatus;
+  verifiedExplorersOnly: boolean;
+  isVerifiedExplorerHost: boolean;
 }
 
 export interface NearbyHangoutsResponse {
@@ -2383,6 +2433,7 @@ export interface CommunityEventInput {
      */
   invitePasscode?: string | null;
   joinApprovalRequired?: boolean;
+  verifiedExplorersOnly?: boolean;
 }
 
 export type CommunityEventJoinRequestMutationResponseStatus = typeof CommunityEventJoinRequestMutationResponseStatus[keyof typeof CommunityEventJoinRequestMutationResponseStatus];
@@ -2496,6 +2547,7 @@ export interface CommunityEventManageResponse {
   longitude?: number | null;
   visibility: CommunityEventManageResponseVisibility;
   joinApprovalRequired: boolean;
+  verifiedExplorersOnly: boolean;
   /**
      * @maxItems 200
      * @items.minLength 1
@@ -2504,6 +2556,113 @@ export interface CommunityEventManageResponse {
   inviteeUids: string[];
   inviteLinkEnabled: boolean;
   invitePasscodeRequired: boolean;
+}
+
+export type VerifiedExplorerStatusRequirements = {
+  distinctVenues: number;
+  positiveMeetingReviews: number;
+};
+
+export interface VerifiedExplorerStatus {
+  isVerifiedExplorer: boolean;
+  /** @minimum 0 */
+  distinctVenues: number;
+  /** @minimum 0 */
+  positiveMeetingReviews: number;
+  requirements: VerifiedExplorerStatusRequirements;
+}
+
+export type VenueGuestbookEntryUnlockMode = typeof VenueGuestbookEntryUnlockMode[keyof typeof VenueGuestbookEntryUnlockMode];
+
+
+export const VenueGuestbookEntryUnlockMode = {
+  none: 'none',
+  date: 'date',
+  return: 'return',
+} as const;
+
+export type VenueGuestbookEntryCapsuleAudience = typeof VenueGuestbookEntryCapsuleAudience[keyof typeof VenueGuestbookEntryCapsuleAudience];
+
+
+export const VenueGuestbookEntryCapsuleAudience = {
+  public: 'public',
+  private: 'private',
+} as const;
+
+export interface VenueGuestbookEntry {
+  id: number;
+  authorUid: string;
+  displayName: string;
+  /** @nullable */
+  avatarUrl: string | null;
+  note: string;
+  /** @nullable */
+  photoUrl: string | null;
+  createdAt: string;
+  unlockMode: VenueGuestbookEntryUnlockMode;
+  /** @nullable */
+  unlockAt: string | null;
+  capsuleAudience: VenueGuestbookEntryCapsuleAudience;
+  isLocked: boolean;
+}
+
+/**
+ * @nullable
+ */
+export type VenueGuestbookPageEligibility = typeof VenueGuestbookPageEligibility[keyof typeof VenueGuestbookPageEligibility] | null;
+
+
+export const VenueGuestbookPageEligibility = {
+  profile: 'profile',
+  checkin: 'checkin',
+} as const;
+
+export interface VenueGuestbookPage {
+  entries: VenueGuestbookEntry[];
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  nextCursor: number | null;
+  canPost: boolean;
+  /** @nullable */
+  eligibility: VenueGuestbookPageEligibility;
+}
+
+export type CreateVenueGuestbookEntryInputUnlockMode = typeof CreateVenueGuestbookEntryInputUnlockMode[keyof typeof CreateVenueGuestbookEntryInputUnlockMode];
+
+
+export const CreateVenueGuestbookEntryInputUnlockMode = {
+  none: 'none',
+  date: 'date',
+  return: 'return',
+} as const;
+
+export type CreateVenueGuestbookEntryInputCapsuleAudience = typeof CreateVenueGuestbookEntryInputCapsuleAudience[keyof typeof CreateVenueGuestbookEntryInputCapsuleAudience];
+
+
+export const CreateVenueGuestbookEntryInputCapsuleAudience = {
+  public: 'public',
+  private: 'private',
+} as const;
+
+export interface CreateVenueGuestbookEntryInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  note: string;
+  /** @maxLength 5592408 */
+  photoBase64?: string;
+  clientId?: string;
+  unlockMode?: CreateVenueGuestbookEntryInputUnlockMode;
+  /** @nullable */
+  unlockAt?: string | null;
+  capsuleAudience?: CreateVenueGuestbookEntryInputCapsuleAudience;
+}
+
+export interface VenueGuestbookCreateResponse {
+  entry: VenueGuestbookEntry;
 }
 
 export interface CommunityEventInviteLinkResponse {
@@ -4115,6 +4274,10 @@ export type VenueManagerCsrfParameter = string;
 
 export type CronSecretParameter = string;
 
+export type DeleteVenueGuestbookEntry200 = {
+  ok: true;
+};
+
 export type SyncMyNotificationPreferences200 = {
   success: boolean;
 };
@@ -4311,6 +4474,10 @@ export const GetNearbyHangoutsSortMode = {
   nearest: 'nearest',
   soonest: 'soonest',
 } as const;
+
+export type GetEventsFeedParams = {
+includeOngoing?: boolean;
+};
 
 export type SearchEventLocationsParams = {
 /**

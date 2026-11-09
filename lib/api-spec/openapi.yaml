@@ -167,6 +167,96 @@ paths:
                 $ref: "#/components/schemas/HubCheckinStatus"
         "401":
           description: Sign-in required
+  /hubs/{placeId}/guestbook:
+    get:
+      operationId: getVenueGuestbook
+      tags: [profiles]
+      summary: List venue memories visible to the caller
+      security:
+        - MetUid: []
+      parameters:
+        - name: placeId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: A page of guestbook memories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueGuestbookPage"
+        "401": { description: Sign-in required }
+    post:
+      operationId: createVenueGuestbookEntry
+      tags: [profiles]
+      summary: Add a visit memory or optional time capsule
+      security:
+        - MetUid: []
+      parameters:
+        - name: placeId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVenueGuestbookEntryInput"
+      responses:
+        "201":
+          description: Memory created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueGuestbookCreateResponse"
+        "400": { description: Invalid memory or capsule settings }
+        "403": { description: Completed profile and venue check-in required }
+        "422": { description: Photo did not pass safety checks }
+  /hubs/{placeId}/guestbook/{entryId}:
+    delete:
+      operationId: deleteVenueGuestbookEntry
+      tags: [profiles]
+      summary: Delete the caller's own memory
+      security:
+        - MetUid: []
+      parameters:
+        - name: placeId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 200 }
+        - name: entryId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Memory removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, const: true }
+        "404": { description: Memory not found }
+
+  /users/me/verified-explorer:
+    get:
+      operationId: getMyVerifiedExplorer
+      tags: [profiles]
+      summary: Get the caller's Verified Explorer requirements and progress
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Check-in and positive-meeting progress toward the tier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifiedExplorerStatus"
+        "401": { description: Sign-in required }
 
   /healthz:
     get:
@@ -2615,9 +2705,13 @@ paths:
       operationId: getEventsFeed
       tags: [events]
       summary: List public events and private events the caller may attend
+      parameters:
+        - in: query
+          name: includeOngoing
+          schema: { type: boolean, default: false }
       responses:
         "200":
-          description: Event feed
+          description: Upcoming events, optionally including events that have not ended
           content:
             application/json:
               schema:
@@ -2688,6 +2782,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EventFeedItem"
+
+  /community-events/{eventId}/host-rating:
+    post:
+      operationId: rateCommunityEventHost
+      tags: [events]
+      summary: Rate the host after an accepted Hangout has ended
+      security:
+        - MetUid: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HangoutHostRatingInput"
+      responses:
+        "200":
+          description: Updated aggregate rating; reviewer identities are not returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HangoutHostRating"
+        "400": { description: Invalid rating }
+        "403": { description: Only accepted guests may rate the host }
+        "404": { description: Hangout not found }
+        "409": { description: Hangout has not ended }
 
   /events/{eventType}/{eventId}/check-in/location:
     post:
@@ -6699,7 +6823,7 @@ components:
         invitePasscode: { type: ["string", "null"], minLength: 6, maxLength: 64 }
     EventFeedItem:
       type: object
-      required: [eventType, id, ownerUid, title, startsAt, visibility, rsvpCount, locationPlaceId, joinApprovalRequired, myJoinRequestStatus]
+      required: [eventType, id, ownerUid, title, startsAt, visibility, rsvpCount, locationPlaceId, joinApprovalRequired, myJoinRequestStatus, verifiedExplorersOnly, isVerifiedExplorerHost, creatorPhotoUrl]
       properties:
         eventType: { type: string, enum: [venue, member] }
         id: { type: integer }
@@ -6717,6 +6841,7 @@ components:
         placeId: { type: ["string", "null"] }
         venueName: { type: ["string", "null"] }
         creatorName: { type: ["string", "null"] }
+        creatorPhotoUrl: { type: ["string", "null"], format: uri }
         latitude: { type: ["number", "null"], minimum: -90, maximum: 90 }
         longitude: { type: ["number", "null"], minimum: -180, maximum: 180 }
         visibility: { type: string, enum: [public, invite_only] }
@@ -6726,6 +6851,25 @@ components:
         joinApprovalRequired: { type: boolean }
         myJoinRequestStatus: { type: ["string", "null"], enum: [pending, accepted, declined, withdrawn, null] }
         pendingJoinRequestCount: { type: integer, minimum: 0 }
+        verifiedExplorersOnly: { type: boolean }
+        isVerifiedExplorerHost: { type: boolean }
+        hangoutHostRating:
+          oneOf:
+            - $ref: "#/components/schemas/HangoutHostRating"
+            - type: "null"
+          description: Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.
+    HangoutHostRatingInput:
+      type: object
+      required: [rating]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+    HangoutHostRating:
+      type: object
+      required: [averageRating, reviewCount, myRating]
+      properties:
+        averageRating: { type: ["number", "null"], minimum: 1, maximum: 5 }
+        reviewCount: { type: integer, minimum: 0 }
+        myRating: { type: ["integer", "null"], minimum: 1, maximum: 5 }
     EventQrCheckinInput:
       type: object
       required: [token]
@@ -6849,9 +6993,9 @@ components:
       properties:
         notifyNewEncounters: { type: boolean }
         notifyReencounter: { type: boolean }
+        notifyConnectionRequests: { type: boolean }
         notifyChat: { type: boolean }
         notifyEventUpdates: { type: boolean }
-        notifyConnectionRequests: { type: boolean }
         notifyWeeklyRecap: { type: boolean }
         notifyCrownDefense: { type: boolean }
         notifyRewardUpdates: { type: boolean }
@@ -6864,7 +7008,7 @@ components:
           items: { $ref: "#/components/schemas/EventFeedItem" }
     NearbyHangoutItem:
       type: object
-      required: [eventType, id, title, description, imageUrl, startsAt, location, latitude, longitude, creatorName]
+      required: [eventType, id, title, description, imageUrl, startsAt, location, latitude, longitude, creatorName, creatorPhotoUrl, myJoinRequestStatus, verifiedExplorersOnly, isVerifiedExplorerHost]
       properties:
         eventType: { type: string, enum: [member] }
         id: { type: integer }
@@ -6876,6 +7020,10 @@ components:
         latitude: { type: ["number", "null"], minimum: -90, maximum: 90 }
         longitude: { type: ["number", "null"], minimum: -180, maximum: 180 }
         creatorName: { type: ["string", "null"] }
+        creatorPhotoUrl: { type: ["string", "null"], format: uri }
+        myJoinRequestStatus: { type: ["string", "null"], enum: [pending, accepted, declined, withdrawn, null] }
+        verifiedExplorersOnly: { type: boolean }
+        isVerifiedExplorerHost: { type: boolean }
     NearbyHangoutsResponse:
       type: object
       required: [events, nextOffset]
@@ -6908,6 +7056,7 @@ components:
         inviteLinkEnabled: { type: boolean, default: false }
         invitePasscode: { type: ["string", "null"], minLength: 6, maxLength: 64 }
         joinApprovalRequired: { type: boolean, default: false }
+        verifiedExplorersOnly: { type: boolean, default: false }
     CommunityEventJoinRequestMutationResponse:
       type: object
       required: [success, status, requestId]
@@ -6938,7 +7087,7 @@ components:
           items: { $ref: "#/components/schemas/EventLocationSearchResult" }
     CommunityEventManageResponse:
       type: object
-      required: [id, title, startsAt, visibility, inviteeUids, inviteLinkEnabled, invitePasscodeRequired, joinApprovalRequired]
+      required: [id, title, startsAt, visibility, inviteeUids, inviteLinkEnabled, invitePasscodeRequired, joinApprovalRequired, verifiedExplorersOnly]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -6955,12 +7104,66 @@ components:
         longitude: { type: ["number", "null"], minimum: -180, maximum: 180 }
         visibility: { type: string, enum: [public, invite_only] }
         joinApprovalRequired: { type: boolean }
+        verifiedExplorersOnly: { type: boolean }
         inviteeUids:
           type: array
           maxItems: 200
           items: { type: string, minLength: 1, maxLength: 128 }
         inviteLinkEnabled: { type: boolean }
         invitePasscodeRequired: { type: boolean }
+    VerifiedExplorerStatus:
+      type: object
+      required: [isVerifiedExplorer, distinctVenues, positiveMeetingReviews, requirements]
+      properties:
+        isVerifiedExplorer: { type: boolean }
+        distinctVenues: { type: integer, minimum: 0 }
+        positiveMeetingReviews: { type: integer, minimum: 0 }
+        requirements:
+          type: object
+          required: [distinctVenues, positiveMeetingReviews]
+          properties:
+            distinctVenues: { type: integer }
+            positiveMeetingReviews: { type: integer }
+    VenueGuestbookEntry:
+      type: object
+      required: [id, authorUid, displayName, avatarUrl, note, photoUrl, createdAt, unlockMode, unlockAt, capsuleAudience, isLocked]
+      properties:
+        id: { type: integer }
+        authorUid: { type: string }
+        displayName: { type: string }
+        avatarUrl: { type: ["string", "null"], format: uri }
+        note: { type: string }
+        photoUrl: { type: ["string", "null"], format: uri }
+        createdAt: { type: string, format: date-time }
+        unlockMode: { type: string, enum: [none, date, return] }
+        unlockAt: { type: ["string", "null"], format: date-time }
+        capsuleAudience: { type: string, enum: [public, private] }
+        isLocked: { type: boolean }
+    VenueGuestbookPage:
+      type: object
+      required: [entries, nextCursor, canPost, eligibility]
+      properties:
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/VenueGuestbookEntry" }
+        nextCursor: { type: ["integer", "null"], minimum: 1 }
+        canPost: { type: boolean }
+        eligibility: { type: ["string", "null"], enum: [profile, checkin, null] }
+    CreateVenueGuestbookEntryInput:
+      type: object
+      required: [note]
+      properties:
+        note: { type: string, minLength: 1, maxLength: 500 }
+        photoBase64: { type: string, maxLength: 5592408 }
+        clientId: { type: string, format: uuid }
+        unlockMode: { type: string, enum: [none, date, return], default: none }
+        unlockAt: { type: ["string", "null"], format: date-time }
+        capsuleAudience: { type: string, enum: [public, private], default: public }
+    VenueGuestbookCreateResponse:
+      type: object
+      required: [entry]
+      properties:
+        entry: { $ref: "#/components/schemas/VenueGuestbookEntry" }
     CommunityEventInviteLinkResponse:
       type: object
       required: [url, passcodeRequired]

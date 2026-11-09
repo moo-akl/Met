@@ -15,7 +15,6 @@ function useSlide() {
 
 /* ─── shared tokens ─────────────────────────────────────────────── */
 const GREEN   = "#22c55e";
-const GOLD    = "#D4AF37";
 const NAVY    = "#0a0f1e";
 const CARD_BG = "rgba(255,255,255,0.06)";
 const CARD_BORDER = "rgba(255,255,255,0.10)";
@@ -36,17 +35,6 @@ function Avatar({ size = 64, color = "#6366f1", seed = 0 }: { size?: number; col
     }}>
       {initials}
     </div>
-  );
-}
-
-function PioneerStar() {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 4,
-      background: "rgba(212,175,55,0.20)", border: "1px solid rgba(212,175,55,0.50)",
-      borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700,
-      color: GOLD, letterSpacing: 0.8, fontFamily: "system-ui",
-    }}>★ PIONEER</span>
   );
 }
 
@@ -140,7 +128,6 @@ function Slide1() {
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
                 <span style={{ fontSize: 30, fontWeight: 700, color: "#fff" }}>{e.name}</span>
-                {i === 0 && <PioneerStar />}
                 {i === 1 && <TrustedBadge />}
               </div>
               <div style={{ display: "flex", gap: 20 }}>
@@ -198,7 +185,7 @@ function Slide1() {
 ───────────────────────────────────────────────────────────────── */
 function Slide2() {
   const connections = [
-    { seed: 0, name: "Alex Johnson", handle: "@alexj", msg: "Great meeting you at the café!", time: "2m", unread: 2, pioneer: true },
+    { seed: 0, name: "Alex Johnson", handle: "@alexj", msg: "Great meeting you at the café!", time: "2m", unread: 2 },
     { seed: 2, name: "Sophia Blake", handle: "@sblake", msg: "Are you heading downtown today?", time: "18m", unread: 0, trusted: true },
     { seed: 4, name: "Noah Rivera", handle: "@noahr", msg: "That coffee spot was amazing 😄", time: "1h", unread: 0 },
     { seed: 1, name: "Maya Lim", handle: "@mayalim", msg: "Looking forward to seeing you!", time: "3h", unread: 1 },
@@ -267,7 +254,6 @@ function Slide2() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                 <span style={{ fontSize: 27, fontWeight: 700, color: "#fff" }}>{c.name}</span>
-                {c.pioneer && <PioneerStar />}
                 {c.trusted && <TrustedBadge />}
               </div>
               <div style={{
@@ -317,29 +303,27 @@ function Slide2() {
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   SLIDE 3 — Pioneer / reputation
+   SLIDE 3 — Community trust
 ───────────────────────────────────────────────────────────────── */
 function Slide3() {
-  const leaderboard = [
-    { seed: 3, name: "Tyler K.", score: 840, rank: 1 },
-    { seed: 5, name: "Emma P.", score: 720, rank: 2 },
-    { seed: 1, name: "You", score: 590, rank: 3, isYou: true },
-    { seed: 2, name: "Sophia B.", score: 440, rank: 4 },
+  const stats = [
+    { label: "Trust Score", value: "590", icon: "🛡️" },
+    { label: "Encounters", value: "48", icon: "⚡" },
+    { label: "Connections", value: "12", icon: "🔗" },
   ];
 
   return (
     <div style={{
       width: W, height: H, overflow: "hidden", position: "relative",
-      background: `radial-gradient(ellipse 100% 55% at 50% -5%, #1c150a 0%, ${NAVY} 60%)`,
+      background: `radial-gradient(ellipse 100% 55% at 50% -5%, rgba(34,197,94,0.16) 0%, ${NAVY} 60%)`,
       display: "flex", flexDirection: "column",
       fontFamily: "system-ui, -apple-system, sans-serif",
     }}>
       <div style={{
         position: "absolute", inset: 0, pointerEvents: "none",
-        background: `radial-gradient(ellipse 70% 40% at 50% 25%, rgba(212,175,55,0.12) 0%, transparent 65%)`,
+        background: `radial-gradient(ellipse 70% 40% at 50% 25%, rgba(34,197,94,0.12) 0%, transparent 65%)`,
       }} />
 
-      {/* status bar */}
       <div style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 52px" }}>
         <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 22, fontWeight: 600 }}>9:41</span>
         <div style={{ width: 7, height: 12, border: "1.5px solid white", borderRadius: 2, position: "relative" }}>
@@ -347,38 +331,25 @@ function Slide3() {
         </div>
       </div>
 
-      {/* pioneer badge hero */}
-      <div style={{ padding: "40px 52px 20px", textAlign: "center" }}>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 12,
-          background: "rgba(212,175,55,0.12)", border: "1.5px solid rgba(212,175,55,0.40)",
-          borderRadius: 999, padding: "14px 36px", marginBottom: 32,
-        }}>
-          <span style={{ fontSize: 30 }}>★</span>
-          <span style={{ fontSize: 24, fontWeight: 800, color: GOLD, letterSpacing: 2 }}>MET PIONEER</span>
-          <span style={{ fontSize: 30 }}>★</span>
+      <div style={{ padding: "38px 52px 24px", textAlign: "center" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
+          <TrustedBadge />
         </div>
-
         <div style={{
           width: 180, height: 180, borderRadius: "50%", margin: "0 auto 28px",
-          background: `radial-gradient(circle, rgba(212,175,55,0.25) 0%, rgba(212,175,55,0.06) 70%)`,
-          border: `2px solid rgba(212,175,55,0.35)`,
+          background: `radial-gradient(circle, rgba(34,197,94,0.22) 0%, rgba(34,197,94,0.05) 70%)`,
+          border: "2px solid rgba(34,197,94,0.45)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: `0 0 60px rgba(212,175,55,0.20)`,
+          boxShadow: "0 0 60px rgba(34,197,94,0.18)",
         }}>
           <Avatar size={140} seed={0} />
         </div>
         <div style={{ fontSize: 38, fontWeight: 800, color: "#fff", marginBottom: 10 }}>Alex Johnson</div>
-        <div style={{ fontSize: 22, color: "rgba(255,255,255,0.45)" }}>Pioneer #247 of 1,000</div>
+        <div style={{ fontSize: 22, color: "rgba(255,255,255,0.55)" }}>Real connections, built in person</div>
       </div>
 
-      {/* stats row */}
       <div style={{ padding: "24px 52px", display: "flex", gap: 20 }}>
-        {[
-          { label: "Trust Score", value: "590", icon: "🛡️" },
-          { label: "Encounters", value: "48", icon: "⚡" },
-          { label: "Connections", value: "12", icon: "🔗" },
-        ].map((s, i) => (
+        {stats.map((s, i) => (
           <div key={i} style={{
             flex: 1, background: CARD_BG, border: `1px solid ${CARD_BORDER}`,
             borderRadius: 20, padding: "28px 20px", textAlign: "center",
@@ -390,56 +361,31 @@ function Slide3() {
         ))}
       </div>
 
-      {/* leaderboard */}
-      <div style={{ padding: "16px 40px", display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,255,255,0.50)", padding: "0 12px 8px", letterSpacing: 0.5 }}>
-          PIONEER LEADERBOARD
-        </div>
-        {leaderboard.map((l, i) => (
-          <div key={i} style={{
-            display: "flex", alignItems: "center", gap: 24, padding: "22px 24px",
-            background: l.isYou ? "rgba(212,175,55,0.08)" : "rgba(255,255,255,0.04)",
-            border: l.isYou ? "1px solid rgba(212,175,55,0.25)" : "1px solid rgba(255,255,255,0.06)",
-            borderRadius: 18,
-          }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
-              background: l.rank <= 2 ? `rgba(212,175,55,0.20)` : "rgba(255,255,255,0.08)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 22, fontWeight: 800,
-              color: l.rank <= 2 ? GOLD : "rgba(255,255,255,0.40)",
-            }}>
-              {l.rank <= 2 ? ["🥇","🥈"][l.rank - 1] : `#${l.rank}`}
-            </div>
-            <Avatar size={60} seed={l.seed} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 26, fontWeight: l.isYou ? 800 : 600, color: l.isYou ? GOLD : "#fff" }}>
-                {l.name}
-              </div>
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: l.isYou ? GOLD : "rgba(255,255,255,0.60)" }}>
-              {l.score}
-            </div>
+      <div style={{ padding: "18px 52px" }}>
+        <div style={{
+          background: CARD_BG, border: `1px solid ${CARD_BORDER}`,
+          borderRadius: 24, padding: "30px 34px",
+        }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "rgba(255,255,255,0.50)", letterSpacing: 1 }}>
+            YOUR COMMUNITY
           </div>
-        ))}
+          <div style={{ fontSize: 30, fontWeight: 700, color: "#fff", marginTop: 16, marginBottom: 12 }}>
+            Built through real conversations
+          </div>
+          <div style={{ fontSize: 22, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
+            Every encounter is a chance to meet someone new and build a lasting connection.
+          </div>
+        </div>
       </div>
 
       <div style={{ flex: 1 }} />
 
-      {/* hero copy */}
       <div style={{ padding: "0 52px 80px", textAlign: "center" }}>
-        <div style={{
-          display: "inline-block",
-          background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.30)",
-          borderRadius: 16, padding: "16px 36px", marginBottom: 36,
-        }}>
-          <span style={{ fontSize: 20, color: GOLD, fontWeight: 600 }}>First 1,000 only</span>
-        </div>
         <div style={{ fontSize: 64, fontWeight: 800, color: "#fff", lineHeight: 1.15, letterSpacing: -2, marginBottom: 28 }}>
-          Be a Pioneer.<br />Build your reputation.
+          Build connections<br />that matter.
         </div>
         <div style={{ fontSize: 28, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
-          Earn trust. Rise on the leaderboard.<br />Join the founding community.
+          Meet people nearby, then turn real-world conversations into lasting connections.
         </div>
       </div>
 

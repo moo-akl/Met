@@ -74,6 +74,8 @@ type Page = "overview" | "venue" | "events" | "rewards" | "announcements" | "ana
 const VENUE_MANAGER_TERMS_VERSION = "venue-2026-09";
 const VENUE_MANAGER_TERMS_URL = "/venue-manager-terms";
 const VENUE_MANAGER_PRIVACY_URL = "/venue-manager-privacy";
+// Keep Pioneer records and scoring intact while this portal's display is paused.
+const PIONEER_DISPLAY_ENABLED = false;
 
 type VenueGuest = {
   rank: number;
@@ -2441,7 +2443,7 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
             ? <span className="vm-guest-avatar" style={{ backgroundImage: `url(${g.photoUrl})` }} />
             : <span className="vm-guest-avatar initials">{g.displayName.slice(0, 1).toUpperCase()}</span>}
           <div className="vm-guest-info">
-            <strong>{g.displayName}{g.isPioneer ? " ★" : ""}</strong>
+            <strong>{g.displayName}{PIONEER_DISPLAY_ENABLED && g.isPioneer ? " ★" : ""}</strong>
             <small>Last seen {formatLast(g.lastCheckinAt)}</small>
           </div>
           <span className="vm-guest-badge">{g.checkinCount}×</span>
@@ -2468,7 +2470,7 @@ function Guests({ business, csrfToken }: { business: VenueManagerBusiness; csrfT
               ? <div className="vm-drawer-avatar" style={{ backgroundImage: `url(${selected.photoUrl})` }} />
               : <div className="vm-drawer-avatar initials">{selected.displayName.slice(0, 1).toUpperCase()}</div>}
             <div>
-              <h2>{selected.displayName}{selected.isPioneer ? <span className="vm-pioneer-badge"> ★ Pioneer</span> : null}</h2>
+              <h2>{selected.displayName}{PIONEER_DISPLAY_ENABLED && selected.isPioneer ? <span className="vm-pioneer-badge"> ★ Pioneer</span> : null}</h2>
               <p className="vm-drawer-meta">{selected.checkinCount} check-in{selected.checkinCount !== 1 ? "s" : ""} · Last {formatLast(selected.lastCheckinAt)}</p>
             </div>
           </div>

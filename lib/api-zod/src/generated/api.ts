@@ -142,6 +142,122 @@ export const GetHubCheckinStatusResponse = zod.object({
 
 
 /**
+ * @summary List venue memories visible to the caller
+ */
+export const getVenueGuestbookPathPlaceIdMax = 200;
+
+
+
+export const GetVenueGuestbookParams = zod.object({
+  "placeId": zod.coerce.string().max(getVenueGuestbookPathPlaceIdMax)
+})
+
+
+
+
+export const GetVenueGuestbookResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "id": zod.number().int(),
+  "authorUid": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().url().nullable(),
+  "note": zod.string(),
+  "photoUrl": zod.string().url().nullable(),
+  "createdAt": zod.coerce.date(),
+  "unlockMode": zod.enum(['none', 'date', 'return']),
+  "unlockAt": zod.coerce.date().nullable(),
+  "capsuleAudience": zod.enum(['public', 'private']),
+  "isLocked": zod.boolean()
+})),
+  "nextCursor": zod.number().int().min(1).nullable(),
+  "canPost": zod.boolean(),
+  "eligibility": zod.union([zod.literal('profile'),zod.literal('checkin'),zod.literal(null)]).nullable()
+})
+
+
+/**
+ * @summary Add a visit memory or optional time capsule
+ */
+export const createVenueGuestbookEntryPathPlaceIdMax = 200;
+
+
+
+export const CreateVenueGuestbookEntryParams = zod.object({
+  "placeId": zod.coerce.string().max(createVenueGuestbookEntryPathPlaceIdMax)
+})
+
+export const createVenueGuestbookEntryBodyNoteMax = 500;
+
+export const createVenueGuestbookEntryBodyPhotoBase64Max = 5592408;
+
+export const createVenueGuestbookEntryBodyUnlockModeDefault = `none`;
+export const createVenueGuestbookEntryBodyCapsuleAudienceDefault = `public`;
+
+export const CreateVenueGuestbookEntryBody = zod.object({
+  "note": zod.string().min(1).max(createVenueGuestbookEntryBodyNoteMax),
+  "photoBase64": zod.string().max(createVenueGuestbookEntryBodyPhotoBase64Max).optional(),
+  "clientId": zod.string().uuid().optional(),
+  "unlockMode": zod.enum(['none', 'date', 'return']).default(createVenueGuestbookEntryBodyUnlockModeDefault),
+  "unlockAt": zod.coerce.date().nullish(),
+  "capsuleAudience": zod.enum(['public', 'private']).default(createVenueGuestbookEntryBodyCapsuleAudienceDefault)
+})
+
+export const CreateVenueGuestbookEntryResponse = zod.object({
+  "entry": zod.object({
+  "id": zod.number().int(),
+  "authorUid": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().url().nullable(),
+  "note": zod.string(),
+  "photoUrl": zod.string().url().nullable(),
+  "createdAt": zod.coerce.date(),
+  "unlockMode": zod.enum(['none', 'date', 'return']),
+  "unlockAt": zod.coerce.date().nullable(),
+  "capsuleAudience": zod.enum(['public', 'private']),
+  "isLocked": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Delete the caller's own memory
+ */
+export const deleteVenueGuestbookEntryPathPlaceIdMax = 200;
+
+
+
+
+export const DeleteVenueGuestbookEntryParams = zod.object({
+  "placeId": zod.coerce.string().max(deleteVenueGuestbookEntryPathPlaceIdMax),
+  "entryId": zod.coerce.number().int().min(1)
+})
+
+export const DeleteVenueGuestbookEntryResponse = zod.object({
+  "ok": zod.literal(true)
+})
+
+
+/**
+ * @summary Get the caller's Verified Explorer requirements and progress
+ */
+export const getMyVerifiedExplorerResponseDistinctVenuesMin = 0;
+
+export const getMyVerifiedExplorerResponsePositiveMeetingReviewsMin = 0;
+
+
+
+export const GetMyVerifiedExplorerResponse = zod.object({
+  "isVerifiedExplorer": zod.boolean(),
+  "distinctVenues": zod.number().int().min(getMyVerifiedExplorerResponseDistinctVenuesMin),
+  "positiveMeetingReviews": zod.number().int().min(getMyVerifiedExplorerResponsePositiveMeetingReviewsMin),
+  "requirements": zod.object({
+  "distinctVenues": zod.number().int(),
+  "positiveMeetingReviews": zod.number().int()
+})
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -211,9 +327,9 @@ export const UpsertMyProfileResponse = zod.object({
 export const SyncMyNotificationPreferencesBody = zod.object({
   "notifyNewEncounters": zod.boolean().optional(),
   "notifyReencounter": zod.boolean().optional(),
+  "notifyConnectionRequests": zod.boolean().optional(),
   "notifyChat": zod.boolean().optional(),
   "notifyEventUpdates": zod.boolean().optional(),
-  "notifyConnectionRequests": zod.boolean().optional(),
   "notifyWeeklyRecap": zod.boolean().optional(),
   "notifyCrownDefense": zod.boolean().optional(),
   "notifyRewardUpdates": zod.boolean().optional()
@@ -3807,7 +3923,11 @@ export const GetNearbyHangoutsResponse = zod.object({
   "location": zod.string().nullable(),
   "latitude": zod.number().min(getNearbyHangoutsResponseEventsItemLatitudeMin).max(getNearbyHangoutsResponseEventsItemLatitudeMax).nullable(),
   "longitude": zod.number().min(getNearbyHangoutsResponseEventsItemLongitudeMin).max(getNearbyHangoutsResponseEventsItemLongitudeMax).nullable(),
-  "creatorName": zod.string().nullable()
+  "creatorName": zod.string().nullable(),
+  "creatorPhotoUrl": zod.string().url().nullable(),
+  "myJoinRequestStatus": zod.union([zod.literal('pending'),zod.literal('accepted'),zod.literal('declined'),zod.literal('withdrawn'),zod.literal(null)]).nullable(),
+  "verifiedExplorersOnly": zod.boolean(),
+  "isVerifiedExplorerHost": zod.boolean()
 })),
   "nextOffset": zod.number().int().min(getNearbyHangoutsResponseNextOffsetMin).nullable()
 })
@@ -3816,6 +3936,12 @@ export const GetNearbyHangoutsResponse = zod.object({
 /**
  * @summary List public events and private events the caller may attend
  */
+export const getEventsFeedQueryIncludeOngoingDefault = false;
+
+export const GetEventsFeedQueryParams = zod.object({
+  "includeOngoing": zod.coerce.boolean().default(getEventsFeedQueryIncludeOngoingDefault)
+})
+
 export const getEventsFeedResponseEventsItemContactPhoneMax = 40;
 
 export const getEventsFeedResponseEventsItemWebsiteUrlMax = 2000;
@@ -3829,6 +3955,12 @@ export const getEventsFeedResponseEventsItemLongitudeMin = -180;
 export const getEventsFeedResponseEventsItemLongitudeMax = 180;
 
 export const getEventsFeedResponseEventsItemPendingJoinRequestCountMin = 0;
+
+export const getEventsFeedResponseEventsItemHangoutHostRatingOneAverageRatingMax = 5;
+
+export const getEventsFeedResponseEventsItemHangoutHostRatingOneReviewCountMin = 0;
+
+export const getEventsFeedResponseEventsItemHangoutHostRatingOneMyRatingMax = 5;
 
 
 
@@ -3850,6 +3982,7 @@ export const GetEventsFeedResponse = zod.object({
   "placeId": zod.string().nullish(),
   "venueName": zod.string().nullish(),
   "creatorName": zod.string().nullish(),
+  "creatorPhotoUrl": zod.string().url().nullable(),
   "latitude": zod.number().min(getEventsFeedResponseEventsItemLatitudeMin).max(getEventsFeedResponseEventsItemLatitudeMax).nullish(),
   "longitude": zod.number().min(getEventsFeedResponseEventsItemLongitudeMin).max(getEventsFeedResponseEventsItemLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
@@ -3858,7 +3991,14 @@ export const GetEventsFeedResponse = zod.object({
   "isInvited": zod.boolean().optional(),
   "joinApprovalRequired": zod.boolean(),
   "myJoinRequestStatus": zod.union([zod.literal('pending'),zod.literal('accepted'),zod.literal('declined'),zod.literal('withdrawn'),zod.literal(null)]).nullable(),
-  "pendingJoinRequestCount": zod.number().int().min(getEventsFeedResponseEventsItemPendingJoinRequestCountMin).optional()
+  "pendingJoinRequestCount": zod.number().int().min(getEventsFeedResponseEventsItemPendingJoinRequestCountMin).optional(),
+  "verifiedExplorersOnly": zod.boolean(),
+  "isVerifiedExplorerHost": zod.boolean(),
+  "hangoutHostRating": zod.union([zod.object({
+  "averageRating": zod.number().min(1).max(getEventsFeedResponseEventsItemHangoutHostRatingOneAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(getEventsFeedResponseEventsItemHangoutHostRatingOneReviewCountMin),
+  "myRating": zod.number().int().min(1).max(getEventsFeedResponseEventsItemHangoutHostRatingOneMyRatingMax).nullable()
+}),zod.null()]).optional().describe('Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.')
 }))
 })
 
@@ -3895,6 +4035,7 @@ export const createCommunityEventBodyInvitePasscodeMin = 6;
 export const createCommunityEventBodyInvitePasscodeMax = 64;
 
 export const createCommunityEventBodyJoinApprovalRequiredDefault = false;
+export const createCommunityEventBodyVerifiedExplorersOnlyDefault = false;
 
 export const CreateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(createCommunityEventBodyTitleMax),
@@ -3913,7 +4054,8 @@ export const CreateCommunityEventBody = zod.object({
   "inviteeUids": zod.array(zod.string().min(1).max(createCommunityEventBodyInviteeUidsItemMax)).max(createCommunityEventBodyInviteeUidsMax).optional(),
   "inviteLinkEnabled": zod.boolean().default(createCommunityEventBodyInviteLinkEnabledDefault),
   "invitePasscode": zod.string().min(createCommunityEventBodyInvitePasscodeMin).max(createCommunityEventBodyInvitePasscodeMax).nullish(),
-  "joinApprovalRequired": zod.boolean().default(createCommunityEventBodyJoinApprovalRequiredDefault)
+  "joinApprovalRequired": zod.boolean().default(createCommunityEventBodyJoinApprovalRequiredDefault),
+  "verifiedExplorersOnly": zod.boolean().default(createCommunityEventBodyVerifiedExplorersOnlyDefault)
 })
 
 export const createCommunityEventResponseContactPhoneMax = 40;
@@ -3929,6 +4071,12 @@ export const createCommunityEventResponseLongitudeMin = -180;
 export const createCommunityEventResponseLongitudeMax = 180;
 
 export const createCommunityEventResponsePendingJoinRequestCountMin = 0;
+
+export const createCommunityEventResponseHangoutHostRatingOneAverageRatingMax = 5;
+
+export const createCommunityEventResponseHangoutHostRatingOneReviewCountMin = 0;
+
+export const createCommunityEventResponseHangoutHostRatingOneMyRatingMax = 5;
 
 
 
@@ -3949,6 +4097,7 @@ export const CreateCommunityEventResponse = zod.object({
   "placeId": zod.string().nullish(),
   "venueName": zod.string().nullish(),
   "creatorName": zod.string().nullish(),
+  "creatorPhotoUrl": zod.string().url().nullable(),
   "latitude": zod.number().min(createCommunityEventResponseLatitudeMin).max(createCommunityEventResponseLatitudeMax).nullish(),
   "longitude": zod.number().min(createCommunityEventResponseLongitudeMin).max(createCommunityEventResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
@@ -3957,7 +4106,14 @@ export const CreateCommunityEventResponse = zod.object({
   "isInvited": zod.boolean().optional(),
   "joinApprovalRequired": zod.boolean(),
   "myJoinRequestStatus": zod.union([zod.literal('pending'),zod.literal('accepted'),zod.literal('declined'),zod.literal('withdrawn'),zod.literal(null)]).nullable(),
-  "pendingJoinRequestCount": zod.number().int().min(createCommunityEventResponsePendingJoinRequestCountMin).optional()
+  "pendingJoinRequestCount": zod.number().int().min(createCommunityEventResponsePendingJoinRequestCountMin).optional(),
+  "verifiedExplorersOnly": zod.boolean(),
+  "isVerifiedExplorerHost": zod.boolean(),
+  "hangoutHostRating": zod.union([zod.object({
+  "averageRating": zod.number().min(1).max(createCommunityEventResponseHangoutHostRatingOneAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(createCommunityEventResponseHangoutHostRatingOneReviewCountMin),
+  "myRating": zod.number().int().min(1).max(createCommunityEventResponseHangoutHostRatingOneMyRatingMax).nullable()
+}),zod.null()]).optional().describe('Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.')
 })
 
 
@@ -4005,6 +4161,12 @@ export const getEventDetailsResponseLongitudeMax = 180;
 
 export const getEventDetailsResponsePendingJoinRequestCountMin = 0;
 
+export const getEventDetailsResponseHangoutHostRatingOneAverageRatingMax = 5;
+
+export const getEventDetailsResponseHangoutHostRatingOneReviewCountMin = 0;
+
+export const getEventDetailsResponseHangoutHostRatingOneMyRatingMax = 5;
+
 
 
 export const GetEventDetailsResponse = zod.object({
@@ -4024,6 +4186,7 @@ export const GetEventDetailsResponse = zod.object({
   "placeId": zod.string().nullish(),
   "venueName": zod.string().nullish(),
   "creatorName": zod.string().nullish(),
+  "creatorPhotoUrl": zod.string().url().nullable(),
   "latitude": zod.number().min(getEventDetailsResponseLatitudeMin).max(getEventDetailsResponseLatitudeMax).nullish(),
   "longitude": zod.number().min(getEventDetailsResponseLongitudeMin).max(getEventDetailsResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
@@ -4032,7 +4195,44 @@ export const GetEventDetailsResponse = zod.object({
   "isInvited": zod.boolean().optional(),
   "joinApprovalRequired": zod.boolean(),
   "myJoinRequestStatus": zod.union([zod.literal('pending'),zod.literal('accepted'),zod.literal('declined'),zod.literal('withdrawn'),zod.literal(null)]).nullable(),
-  "pendingJoinRequestCount": zod.number().int().min(getEventDetailsResponsePendingJoinRequestCountMin).optional()
+  "pendingJoinRequestCount": zod.number().int().min(getEventDetailsResponsePendingJoinRequestCountMin).optional(),
+  "verifiedExplorersOnly": zod.boolean(),
+  "isVerifiedExplorerHost": zod.boolean(),
+  "hangoutHostRating": zod.union([zod.object({
+  "averageRating": zod.number().min(1).max(getEventDetailsResponseHangoutHostRatingOneAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(getEventDetailsResponseHangoutHostRatingOneReviewCountMin),
+  "myRating": zod.number().int().min(1).max(getEventDetailsResponseHangoutHostRatingOneMyRatingMax).nullable()
+}),zod.null()]).optional().describe('Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.')
+})
+
+
+/**
+ * @summary Rate the host after an accepted Hangout has ended
+ */
+export const RateCommunityEventHostParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const rateCommunityEventHostBodyRatingMax = 5;
+
+
+
+export const RateCommunityEventHostBody = zod.object({
+  "rating": zod.number().int().min(1).max(rateCommunityEventHostBodyRatingMax)
+})
+
+export const rateCommunityEventHostResponseAverageRatingMax = 5;
+
+export const rateCommunityEventHostResponseReviewCountMin = 0;
+
+export const rateCommunityEventHostResponseMyRatingMax = 5;
+
+
+
+export const RateCommunityEventHostResponse = zod.object({
+  "averageRating": zod.number().min(1).max(rateCommunityEventHostResponseAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(rateCommunityEventHostResponseReviewCountMin),
+  "myRating": zod.number().int().min(1).max(rateCommunityEventHostResponseMyRatingMax).nullable()
 })
 
 
@@ -4222,6 +4422,7 @@ export const GetCommunityEventForEditResponse = zod.object({
   "longitude": zod.number().min(getCommunityEventForEditResponseLongitudeMin).max(getCommunityEventForEditResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
   "joinApprovalRequired": zod.boolean(),
+  "verifiedExplorersOnly": zod.boolean(),
   "inviteeUids": zod.array(zod.string().min(1).max(getCommunityEventForEditResponseInviteeUidsItemMax)).max(getCommunityEventForEditResponseInviteeUidsMax),
   "inviteLinkEnabled": zod.boolean(),
   "invitePasscodeRequired": zod.boolean()
@@ -4441,6 +4642,7 @@ export const updateCommunityEventBodyInvitePasscodeMin = 6;
 export const updateCommunityEventBodyInvitePasscodeMax = 64;
 
 export const updateCommunityEventBodyJoinApprovalRequiredDefault = false;
+export const updateCommunityEventBodyVerifiedExplorersOnlyDefault = false;
 
 export const UpdateCommunityEventBody = zod.object({
   "title": zod.string().min(1).max(updateCommunityEventBodyTitleMax),
@@ -4459,7 +4661,8 @@ export const UpdateCommunityEventBody = zod.object({
   "inviteeUids": zod.array(zod.string().min(1).max(updateCommunityEventBodyInviteeUidsItemMax)).max(updateCommunityEventBodyInviteeUidsMax).optional(),
   "inviteLinkEnabled": zod.boolean().default(updateCommunityEventBodyInviteLinkEnabledDefault),
   "invitePasscode": zod.string().min(updateCommunityEventBodyInvitePasscodeMin).max(updateCommunityEventBodyInvitePasscodeMax).nullish(),
-  "joinApprovalRequired": zod.boolean().default(updateCommunityEventBodyJoinApprovalRequiredDefault)
+  "joinApprovalRequired": zod.boolean().default(updateCommunityEventBodyJoinApprovalRequiredDefault),
+  "verifiedExplorersOnly": zod.boolean().default(updateCommunityEventBodyVerifiedExplorersOnlyDefault)
 })
 
 export const updateCommunityEventResponseContactPhoneMax = 40;
@@ -4475,6 +4678,12 @@ export const updateCommunityEventResponseLongitudeMin = -180;
 export const updateCommunityEventResponseLongitudeMax = 180;
 
 export const updateCommunityEventResponsePendingJoinRequestCountMin = 0;
+
+export const updateCommunityEventResponseHangoutHostRatingOneAverageRatingMax = 5;
+
+export const updateCommunityEventResponseHangoutHostRatingOneReviewCountMin = 0;
+
+export const updateCommunityEventResponseHangoutHostRatingOneMyRatingMax = 5;
 
 
 
@@ -4495,6 +4704,7 @@ export const UpdateCommunityEventResponse = zod.object({
   "placeId": zod.string().nullish(),
   "venueName": zod.string().nullish(),
   "creatorName": zod.string().nullish(),
+  "creatorPhotoUrl": zod.string().url().nullable(),
   "latitude": zod.number().min(updateCommunityEventResponseLatitudeMin).max(updateCommunityEventResponseLatitudeMax).nullish(),
   "longitude": zod.number().min(updateCommunityEventResponseLongitudeMin).max(updateCommunityEventResponseLongitudeMax).nullish(),
   "visibility": zod.enum(['public', 'invite_only']),
@@ -4503,7 +4713,14 @@ export const UpdateCommunityEventResponse = zod.object({
   "isInvited": zod.boolean().optional(),
   "joinApprovalRequired": zod.boolean(),
   "myJoinRequestStatus": zod.union([zod.literal('pending'),zod.literal('accepted'),zod.literal('declined'),zod.literal('withdrawn'),zod.literal(null)]).nullable(),
-  "pendingJoinRequestCount": zod.number().int().min(updateCommunityEventResponsePendingJoinRequestCountMin).optional()
+  "pendingJoinRequestCount": zod.number().int().min(updateCommunityEventResponsePendingJoinRequestCountMin).optional(),
+  "verifiedExplorersOnly": zod.boolean(),
+  "isVerifiedExplorerHost": zod.boolean(),
+  "hangoutHostRating": zod.union([zod.object({
+  "averageRating": zod.number().min(1).max(updateCommunityEventResponseHangoutHostRatingOneAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(updateCommunityEventResponseHangoutHostRatingOneReviewCountMin),
+  "myRating": zod.number().int().min(1).max(updateCommunityEventResponseHangoutHostRatingOneMyRatingMax).nullable()
+}),zod.null()]).optional().describe('Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.')
 })
 
 
