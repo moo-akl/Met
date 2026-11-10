@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import {
   and,
   asc,
@@ -7,10 +8,13 @@ import {
   desc,
   eq,
   exists,
+  gt,
   gte,
   ilike,
   inArray,
+  isNotNull,
   isNull,
+  lte,
   lt,
   ne,
   or,
@@ -20,6 +24,7 @@ import {
   communityEventRsvpsTable,
   communityEventJoinRequestsTable,
   communityEventPlanMessagesTable,
+  communityEventPlanMediaUploadsTable,
   communityEventPlanNotificationPreferencesTable,
   communityEventHostRatingsTable,
   communityEventsTable,
@@ -75,6 +80,9 @@ import {
   UpdateCommunityEventResponse,
   RateCommunityEventHostBody,
   RateCommunityEventHostResponse,
+  GetMyPastHangoutsResponse,
+  CreateCommunityEventPlanChatMediaUploadBody,
+  CreateCommunityEventPlanChatMediaUploadResponse,
 } from "@workspace/api-zod";
 import { searchPhotonLocations } from "../lib/eventLocationSearch";
 import {
@@ -99,7 +107,7 @@ import {
   notifyCommunityEventJoinRequest,
   notifyCommunityEventPlanMessage,
 } from "../lib/eventNotifications";
-import { verifyAppCheckToken } from "../lib/firebaseAdmin";
+import { adminStorage, verifyAppCheckToken } from "../lib/firebaseAdmin";
 import { getVerifiedExplorerStatuses } from "../lib/verifiedExplorer";
 import { z } from "zod";
 
@@ -134,6 +142,23 @@ const eventPlanMessageLimit = createUserRateLimiter({
   max: 30,
   name: "community-event-plan-message",
 });
+
+const planChatMediaTtlMs = 12 * 60 * 60 * 1000;
+const planChatUploadUrlTtlMs = 10 * 60 * 1000;
+const planChatReadUrlTtlMs = 60 * 60 * 1000;
+const planChatMediaMaxBytes = {
+  image: 8 * 1024 * 1024,
+  voice: 15 * 1024 * 1024,
+} as const;
+
+function isPlanChatContentTypeAllowed(
+  mediaType: "image" | "voice",
+  contentType: string,
+): boolean {
+  return mediaType === "image"
+    ? ["image/jpeg", "image/png", "image/webp"].includes(contentType)
+    : ["audio/mp4", "audio/m4a"].includes(contentType);
+}
 
 const rsvpStatusSchema = z.enum(["going", "maybe", "not_going"]);
 
@@ -1407,6 +1432,69 @@ router.post(
 );
 
 router.get(
+  "/community-events/my-past-hangouts",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const viewerIsExplorer = await isVerifiedExplorer(uid);
+    const rows = await db
+      .select({
+        id: communityEventsTable.id,
+        title: communityEventsTable.title,
+        startsAt: communityEventsTable.startsAt,
+        endsAt: communityEventsTable.endsAt,
+        location: communityEventsTable.location,
+        creatorName: profilesTable.displayName,
+        myRating: communityEventHostRatingsTable.rating,
+      })
+      .from(communityEventsTable)
+      .innerJoin(
+        communityEventJoinRequestsTable,
+        and(
+          eq(communityEventJoinRequestsTable.eventId, communityEventsTable.id),
+          eq(communityEventJoinRequestsTable.userUid, uid),
+          eq(communityEventJoinRequestsTable.status, "accepted"),
+        ),
+      )
+      .leftJoin(
+        profilesTable,
+        eq(profilesTable.uid, communityEventsTable.ownerUid),
+      )
+      .leftJoin(
+        communityEventHostRatingsTable,
+        and(
+          eq(communityEventHostRatingsTable.eventId, communityEventsTable.id),
+          eq(communityEventHostRatingsTable.reviewerUid, uid),
+        ),
+      )
+      .where(and(
+        eq(communityEventsTable.joinApprovalRequired, true),
+        eq(communityEventsTable.isHidden, false),
+        ne(communityEventsTable.ownerUid, uid),
+        viewerIsExplorer
+          ? undefined
+          : eq(communityEventsTable.verifiedExplorersOnly, false),
+        sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt}) <= NOW()`,
+      ))
+      .orderBy(
+        desc(sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt})`),
+        desc(communityEventsTable.id),
+      );
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json(GetMyPastHangoutsResponse.parse({
+      events: rows.map((event) => ({
+        ...event,
+        endsAt: event.endsAt ?? null,
+        location: event.location ?? null,
+        creatorName: event.creatorName ?? null,
+        myRating: event.myRating ?? null,
+      })),
+    }));
+  },
+);
+
+router.get(
   "/community-events/:eventId/plan-chat",
   requireUid,
   async (req, res): Promise<void> => {
@@ -1443,6 +1531,10 @@ router.get(
           senderName: profilesTable.displayName,
           senderPhotoUrl: profilesTable.photoUrl,
           text: communityEventPlanMessagesTable.message,
+          mediaType: communityEventPlanMessagesTable.mediaType,
+          mediaObjectPath: communityEventPlanMessagesTable.mediaObjectPath,
+          audioDurationMs: communityEventPlanMessagesTable.audioDurationMs,
+          mediaExpiresAt: communityEventPlanMessagesTable.mediaExpiresAt,
           createdAt: communityEventPlanMessagesTable.createdAt,
         })
         .from(communityEventPlanMessagesTable)
@@ -1450,7 +1542,13 @@ router.get(
           profilesTable,
           eq(profilesTable.uid, communityEventPlanMessagesTable.senderUid),
         )
-        .where(eq(communityEventPlanMessagesTable.eventId, eventId))
+        .where(and(
+          eq(communityEventPlanMessagesTable.eventId, eventId),
+          or(
+            isNull(communityEventPlanMessagesTable.mediaExpiresAt),
+            gt(communityEventPlanMessagesTable.mediaExpiresAt, new Date()),
+          ),
+        ))
         .orderBy(
           desc(communityEventPlanMessagesTable.createdAt),
           desc(communityEventPlanMessagesTable.id),
@@ -1492,14 +1590,111 @@ router.get(
         },
         participants,
         notificationsMuted: notificationPreference[0]?.muted ?? false,
-        messages: messages.slice().reverse().map((message) => ({
-          ...message,
-          senderName: message.senderName || "Met member",
-          senderPhotoUrl: message.senderPhotoUrl ?? null,
-          createdAt: message.createdAt.toISOString(),
+        messages: await Promise.all(messages.slice().reverse().map(async (message) => {
+          let mediaUrl: string | null = null;
+          if (message.mediaObjectPath && message.mediaType) {
+            try {
+              const [url] = await adminStorage()
+                .bucket()
+                .file(message.mediaObjectPath)
+                .getSignedUrl({
+                  action: "read",
+                  expires: Date.now() + planChatReadUrlTtlMs,
+                });
+              mediaUrl = url;
+            } catch (error) {
+              req.log?.warn(
+                { error, eventId, messageId: message.id },
+                "Could not create event-plan media read URL",
+              );
+            }
+          }
+          return {
+            id: message.id,
+            senderUid: message.senderUid,
+            senderName: message.senderName || "Met member",
+            senderPhotoUrl: message.senderPhotoUrl ?? null,
+            text: message.text,
+            createdAt: message.createdAt.toISOString(),
+            mediaType: message.mediaType === "image" || message.mediaType === "voice"
+              ? message.mediaType
+              : null,
+            mediaUrl,
+            audioDurationMs: message.audioDurationMs ?? null,
+            mediaExpiresAt: message.mediaExpiresAt?.toISOString() ?? null,
+          };
         })),
       }),
     );
+  },
+);
+
+router.post(
+  "/community-events/:eventId/plan-chat/media-upload",
+  requireUid,
+  eventPlanMessageLimit,
+  async (req, res): Promise<void> => {
+    const eventId = getEventId(req.params.eventId);
+    if (!eventId) {
+      res.status(400).json({ message: "Invalid event id." });
+      return;
+    }
+    const parsed = CreateCommunityEventPlanChatMediaUploadBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid event-chat media type." });
+      return;
+    }
+    if (!isPlanChatContentTypeAllowed(parsed.data.mediaType, parsed.data.contentType)) {
+      res.status(400).json({ message: "That file type is not supported." });
+      return;
+    }
+    const context = await getCommunityEventPlanChatContext(eventId, req.uid!);
+    if (!context) {
+      res.status(404).json({ message: "Plan conversation not found." });
+      return;
+    }
+
+    const mediaObjectPath =
+      `community-event-plan-media/${eventId}/${req.uid!}/${randomUUID()}`;
+    const expiresAt = new Date(Date.now() + planChatUploadUrlTtlMs);
+    const maxBytes = planChatMediaMaxBytes[parsed.data.mediaType];
+    try {
+      const [policy] = await adminStorage()
+        .bucket()
+        .file(mediaObjectPath)
+        .generateSignedPostPolicyV4({
+          expires: expiresAt,
+          fields: {
+            key: mediaObjectPath,
+            "Content-Type": parsed.data.contentType,
+          },
+          conditions: [
+            ["content-length-range", "1", String(maxBytes)],
+            ["eq", "$Content-Type", parsed.data.contentType],
+          ],
+        });
+      await db.insert(communityEventPlanMediaUploadsTable).values({
+        objectPath: mediaObjectPath,
+        eventId,
+        ownerUid: req.uid!,
+        mediaType: parsed.data.mediaType,
+        contentType: parsed.data.contentType,
+        maxBytes,
+        expiresAt,
+      });
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json(CreateCommunityEventPlanChatMediaUploadResponse.parse({
+        uploadUrl: policy.url,
+        uploadFields: policy.fields,
+        mediaObjectPath,
+        expiresAt: expiresAt.toISOString(),
+        maxBytes,
+      }));
+    } catch (error) {
+      req.log?.error({ error, eventId }, "Could not create event-chat media upload URL");
+      res.status(503).json({ message: "Media upload is temporarily unavailable." });
+    }
   },
 );
 
@@ -1561,12 +1756,28 @@ router.post(
       res.status(400).json({ message: "Invalid event id." });
       return;
     }
-    const rawText = req.body?.text;
+    const rawText = typeof req.body?.text === "string"
+      ? req.body.text.trim()
+      : req.body?.text;
     const parsed = SendCommunityEventPlanChatMessageBody.safeParse({
-      text: typeof rawText === "string" ? rawText.trim() : rawText,
+      ...req.body,
+      text: rawText,
     });
     if (!parsed.success) {
       res.status(400).json({ message: "Enter a message up to 500 characters." });
+      return;
+    }
+    const text = parsed.data.text ?? "";
+    const mediaType = parsed.data.mediaType ?? null;
+    const mediaObjectPath = parsed.data.mediaObjectPath ?? null;
+    const audioDurationMs = parsed.data.audioDurationMs ?? null;
+    if (
+      (!text && !mediaType) ||
+      Boolean(mediaType) !== Boolean(mediaObjectPath) ||
+      (mediaType === "voice" && audioDurationMs == null) ||
+      (mediaType !== "voice" && audioDurationMs != null)
+    ) {
+      res.status(400).json({ message: "Add text or one supported attachment." });
       return;
     }
     const context = await getCommunityEventPlanChatContext(eventId, req.uid!);
@@ -1575,14 +1786,65 @@ router.post(
       return;
     }
 
+    let mediaExpiresAt: Date | null = null;
+    if (mediaType && mediaObjectPath) {
+      const [reservation] = await db
+        .select()
+        .from(communityEventPlanMediaUploadsTable)
+        .where(and(
+          eq(communityEventPlanMediaUploadsTable.objectPath, mediaObjectPath),
+          eq(communityEventPlanMediaUploadsTable.eventId, eventId),
+          eq(communityEventPlanMediaUploadsTable.ownerUid, req.uid!),
+          eq(communityEventPlanMediaUploadsTable.mediaType, mediaType),
+          gt(communityEventPlanMediaUploadsTable.expiresAt, new Date()),
+        ))
+        .limit(1);
+      if (!reservation) {
+        res.status(400).json({ message: "The attachment is not available." });
+        return;
+      }
+      try {
+        const [metadata] = await adminStorage()
+          .bucket()
+          .file(mediaObjectPath)
+          .getMetadata();
+        const fileSize = Number(metadata.size);
+        const maxBytes = reservation.maxBytes;
+        const actualContentType = metadata.contentType ?? "";
+        if (
+          !Number.isFinite(fileSize) ||
+          fileSize < 1 ||
+          fileSize > maxBytes ||
+          actualContentType !== reservation.contentType ||
+          !isPlanChatContentTypeAllowed(mediaType, actualContentType)
+        ) {
+          res.status(400).json({ message: "The uploaded attachment is invalid." });
+          return;
+        }
+      } catch {
+        res.status(400).json({ message: "Upload the attachment before sending." });
+        return;
+      }
+      mediaExpiresAt = new Date(Date.now() + planChatMediaTtlMs);
+    }
+
     const [message] = await db
       .insert(communityEventPlanMessagesTable)
       .values({
         eventId,
         senderUid: req.uid!,
-        message: parsed.data.text,
+        message: text,
+        mediaType,
+        mediaObjectPath,
+        audioDurationMs,
+        mediaExpiresAt,
       })
       .returning();
+    if (mediaObjectPath) {
+      await db
+        .delete(communityEventPlanMediaUploadsTable)
+        .where(eq(communityEventPlanMediaUploadsTable.objectPath, mediaObjectPath));
+    }
     const [sender] = await db
       .select({
         displayName: profilesTable.displayName,
@@ -1603,6 +1865,25 @@ router.post(
       senderUid: req.uid!,
     });
 
+    let mediaUrl: string | null = null;
+    if (mediaObjectPath) {
+      try {
+        const [url] = await adminStorage()
+          .bucket()
+          .file(mediaObjectPath)
+          .getSignedUrl({
+            action: "read",
+            expires: Date.now() + planChatReadUrlTtlMs,
+          });
+        mediaUrl = url;
+      } catch (error) {
+        req.log?.warn(
+          { error, eventId, messageId: message.id },
+          "Could not create event-plan media read URL",
+        );
+      }
+    }
+
     res.status(201).json(
       SendCommunityEventPlanChatMessageResponse.parse({
         message: {
@@ -1612,6 +1893,10 @@ router.post(
           senderPhotoUrl: sender?.photoUrl ?? null,
           text: message.message,
           createdAt: message.createdAt.toISOString(),
+          mediaType,
+          mediaUrl,
+          audioDurationMs,
+          mediaExpiresAt: mediaExpiresAt?.toISOString() ?? null,
         },
       }),
     );

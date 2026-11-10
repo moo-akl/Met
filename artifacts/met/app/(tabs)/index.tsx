@@ -22,6 +22,10 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  getGetNotificationInboxQueryKey,
+  useGetNotificationInbox,
+} from "@workspace/api-client-react";
 
 import { Image } from "expo-image";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
@@ -238,6 +242,18 @@ export default function HomeScreen() {
   };
 
   const { encounters, preferences, authedUid } = useApp();
+  const notificationsInbox = useGetNotificationInbox({ limit: 1 }, {
+    query: {
+      enabled: !!authedUid,
+      staleTime: 15_000,
+      refetchInterval: 30_000,
+      queryKey: [
+        ...getGetNotificationInboxQueryKey({ limit: 1 }),
+        authedUid ?? "signed-out",
+      ],
+    },
+  });
+  const unreadNotificationCount = notificationsInbox.data?.unreadCount ?? 0;
   const featuredPlaces = useQuery({
     queryKey: ["canopy-venue-points", authedUid],
     queryFn: () => api.getVenueOwnerMapPoints({ uid: authedUid! }),
@@ -391,7 +407,9 @@ export default function HomeScreen() {
       <CanopyHeader
         onLanguage={() => setLangPickerOpen(true)}
         onRequests={() => setRequestsOpen(true)}
+        onNotifications={() => router.push("/notifications" as never)}
         requestCount={incoming.length}
+        notificationCount={unreadNotificationCount}
       />
 
       <ScrollView
@@ -531,6 +549,12 @@ export default function HomeScreen() {
               <Text style={[canopyHome.placesLabel, { color: muted }]}>{t("home.canopyPlaces")}</Text>
               {featuredPlaces.isSuccess ? (
                 <Text
+                  accessibilityLabel={t(
+                    nearestPlaces.length === 1
+                      ? "home.nearbyVenuesShown_one"
+                      : "home.nearbyVenuesShown_other",
+                    { count: nearestPlaces.length },
+                  )}
                   testID="home-nearby-venue-count"
                   style={[canopyHome.placesCount, { color: colors.primary, backgroundColor: colors.primarySoft }]}
                 >
@@ -1036,7 +1060,7 @@ const canopyHome = StyleSheet.create({
   place: { marginHorizontal: 20, marginBottom: 0, borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingVertical: 12, paddingHorizontal: 0, flexDirection: "row", alignItems: "center", gap: 12 },
   placeIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   placeName: { fontFamily: "serif", fontSize: 17, marginTop: 3 },
-  placesHeading: { marginHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  placesHeading: { marginHorizontal: 20, alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   placesLabel: { fontFamily: "Inter_600SemiBold", fontSize: 10, letterSpacing: 1.3, textTransform: "uppercase" },
   placesCount: { overflow: "hidden", borderRadius: 12, paddingHorizontal: 9, paddingVertical: 4, fontFamily: "Inter_600SemiBold", fontSize: 10 },
   nearbyList: { marginHorizontal: 20 },

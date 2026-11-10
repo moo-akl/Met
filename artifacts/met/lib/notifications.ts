@@ -167,6 +167,7 @@ export type NotifData = {
     | "hangout_join_decision"
     | "hangout_updated"
     | "hangout_cancelled"
+    | "hangout_host_rating_prompt"
     | "event_reminder";
   fromUid?: string;
   encounterId?: string;
@@ -236,7 +237,8 @@ export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
     data.type === "hangout_join_request" ||
     data.type === "hangout_join_decision" ||
     data.type === "hangout_updated" ||
-    data.type === "hangout_cancelled"
+    data.type === "hangout_cancelled" ||
+    data.type === "hangout_host_rating_prompt"
   ) {
     if (
       !data.eventId ||
@@ -256,12 +258,20 @@ export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
       router.push("/plans");
       return true;
     }
+    if (data.type === "hangout_host_rating_prompt") {
+      router.push(`/event-details/member/${data.eventId}`);
+      return true;
+    }
     if (data.type === "hangout_updated") {
       router.push(`/event-chat/${data.eventId}`);
       return true;
     }
     if (data.requestStatus !== "accepted" && data.requestStatus !== "declined") return false;
-    router.push(`/event-details/member/${data.eventId}`);
+    router.push(
+      data.requestStatus === "accepted"
+        ? `/event-chat/${data.eventId}`
+        : `/event-details/member/${data.eventId}`,
+    );
     return true;
   }
   if (data.type === "event_reminder") {

@@ -75,4 +75,5 @@ export interface CommunityEventInput {
      */
   invitePasscode?: string | null;
   joinApprovalRequired?: boolean;
+  verifiedExplorersOnly?: boolean;
 }

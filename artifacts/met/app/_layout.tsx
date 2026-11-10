@@ -359,10 +359,9 @@ function SubscriptionSyncer() {
 }
 
 /**
- * Runs once per profile load to re-register the Expo push token with the
- * server. Handles users who already granted notification permission before
- * the token upload endpoint existed, and catches token rotations that happen
- * silently (e.g. after app updates or OS reinstalls).
+ * Registers the current FCM token and retries when the app returns to the
+ * foreground. This repairs tokens that were unavailable during initial
+ * startup or changed while the app was suspended.
  *
  * Must live inside AppProvider so it can read profile from context.
  */
@@ -391,7 +390,9 @@ function PushTokenRegistrar() {
     return () => subscription.remove();
   }, [registerToken]);
 
-  // FCM can rotate a token without an app restart; keep the server copy current.
+  // Token refresh: FCM silently rotates tokens (e.g. after app updates or
+  // OS reinstall). Re-upload whenever the token changes so the server always
+  // has a valid FCM token.
   useEffect(() => {
     if (!authedUid) return;
     const unsubscribe = messaging().onTokenRefresh((newToken) => {
@@ -404,6 +405,7 @@ function PushTokenRegistrar() {
 
   return null;
 }
+
 function ProfileGate() {
   const { ready, profile, permissionsCompleted, authedUid } = useApp();
   const router = useRouter();
@@ -514,6 +516,7 @@ function RootLayoutNav() {
     >
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="saved-places" />
+      <Stack.Screen name="notifications" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="permissions" />
       <Stack.Screen name="v/[placeId]" options={{ animation: "fade" }} />

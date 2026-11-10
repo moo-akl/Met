@@ -4,14 +4,24 @@ import { Image } from "expo-image";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useT } from "@/lib/i18n";
 
-export function CanopyHeader({ onLanguage, onRequests, requestCount = 0 }: {
+export function CanopyHeader({
+  onLanguage,
+  onRequests,
+  onNotifications = () => {},
+  requestCount = 0,
+  notificationCount = 0,
+}: {
   onLanguage: () => void;
   onRequests: () => void;
+  onNotifications?: () => void;
   requestCount?: number;
+  notificationCount?: number;
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const { t } = useT();
   return <View style={[s.header, { paddingTop: insets.top + 8, backgroundColor: c.background }]}>
     <View style={s.brand}>
       <Image source={require("../assets/images/icon.png")} style={s.logo} accessibilityLabel="Met" />
@@ -20,6 +30,23 @@ export function CanopyHeader({ onLanguage, onRequests, requestCount = 0 }: {
     <View style={s.headerActions}>
       <Pressable accessibilityRole="button" accessibilityLabel="Change language" onPress={onLanguage} style={s.iconButton}>
         <Feather name="globe" size={21} color={c.text} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t("appHeader.notifications")}
+        accessibilityHint={notificationCount > 0 ? `${notificationCount} unread` : undefined}
+        testID="home-notifications-button"
+        onPress={onNotifications}
+        style={s.iconButton}
+      >
+        <Feather name="bell" size={21} color={c.text} />
+        {notificationCount > 0 && (
+          <View style={[s.notificationBadge, { backgroundColor: c.primary, borderColor: c.background }]}>
+            <Text style={s.notificationCount}>
+              {notificationCount > 99 ? "99+" : notificationCount}
+            </Text>
+          </View>
+        )}
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`Connection requests${requestCount ? `, ${requestCount} pending` : ""}`} onPress={onRequests} style={s.iconButton}>
         <Feather name="users" size={21} color={c.text} />
@@ -84,6 +111,8 @@ const s = StyleSheet.create({
   headerActions: { flexDirection: "row", gap: 3 },
   iconButton: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
   requestDot: { position: "absolute", right: 7, top: 7, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
+  notificationBadge: { position: "absolute", right: 2, top: 2, minWidth: 17, height: 17, paddingHorizontal: 3, borderRadius: 9, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  notificationCount: { color: "#FFFFFF", fontSize: 8, lineHeight: 11, fontWeight: "700" },
   visibility: { marginHorizontal: 20, marginBottom: 9, minHeight: 68, padding: 12, borderRadius: 4, flexDirection: "row", alignItems: "center", gap: 10 },
   radio: { width: 32, alignItems: "center" },
   visibilityCopy: { flex: 1 },

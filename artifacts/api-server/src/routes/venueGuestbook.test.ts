@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from "vites
 import { randomUUID } from "node:crypto";
 import express from "express";
 import request from "supertest";
-import { db, profilesTable, venueQrVerificationsTable, venueGuestbookTable as entries,
+import { db, profilesTable, hubCheckinsTable, venueGuestbookTable as entries,
   venueGuestbookBlocksTable as blocks, venueContentReportsTable as reports } from "@workspace/db";
 import { and, eq, inArray, or } from "drizzle-orm";
 
@@ -39,6 +39,10 @@ const post = (uid = author, data: Record<string, unknown> = { note: "A lovely af
 async function clear() {
   await db.delete(reports).where(and(eq(reports.entityType, "guestbook"), eq(reports.placeId, place)));
   await db.delete(entries).where(eq(entries.placeId, place));
+  await db.delete(hubCheckinsTable).where(and(
+    eq(hubCheckinsTable.placeId, place),
+    inArray(hubCheckinsTable.userUid, uids),
+  ));
   await db.delete(blocks).where(or(inArray(blocks.blockerUid, uids), inArray(blocks.blockedUid, uids)));
 }
 beforeAll(async () => {
@@ -46,16 +50,20 @@ beforeAll(async () => {
     uid, displayName: uid === author ? "Visitor" : "Guest",
     photoUrl: uid === incomplete ? null : "https://example.com/avatar.jpg",
   })));
-  await db.insert(venueQrVerificationsTable).values([author, incomplete].map(userUid => ({ userUid, placeId: place })));
 });
 beforeEach(async () => {
   await clear();
+  await db.insert(hubCheckinsTable).values([author, incomplete].map(userUid => ({
+    userUid,
+    placeId: place,
+    source: "proximity" as const,
+  })));
   photo.save.mockReset().mockResolvedValue({ path: `venue-guestbook/${author}/photo.jpg`, url: "https://example.com/visit.jpg" });
   photo.remove.mockReset().mockResolvedValue(undefined);
 });
 afterAll(async () => {
   await clear();
-  await db.delete(venueQrVerificationsTable).where(eq(venueQrVerificationsTable.placeId, place));
+  await db.delete(hubCheckinsTable).where(eq(hubCheckinsTable.placeId, place));
   await db.delete(profilesTable).where(inArray(profilesTable.uid, uids));
 });
 
@@ -86,8 +94,8 @@ describe("venue guestbook persistence and safety", () => {
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ canPost: false, eligibility: "checkin" });
   });
-  it("allows a completed visitor with an open-location check-in to sign", async () => {
-    await db.insert(venueQrVerificationsTable).values({
+  it("allows a completed visitor with a non-QR open-location check-in to sign", async () => {
+    await db.insert(hubCheckinsTable).values({
       userUid: viewer,
       placeId: place,
       source: "open_location",
@@ -98,10 +106,10 @@ describe("venue guestbook persistence and safety", () => {
       const page = await request(app).get(path).set("x-test-uid", viewer);
       expect(page.body).toMatchObject({ canPost: true, eligibility: null });
     } finally {
-      await db.delete(venueQrVerificationsTable).where(
+      await db.delete(hubCheckinsTable).where(
         and(
-          eq(venueQrVerificationsTable.userUid, viewer),
-          eq(venueQrVerificationsTable.placeId, place),
+          eq(hubCheckinsTable.userUid, viewer),
+          eq(hubCheckinsTable.placeId, place),
         ),
       );
     }
@@ -128,6 +136,71 @@ describe("venue guestbook persistence and safety", () => {
     expect(retry.status).toBe(200);
     expect(retry.body.entry.id).toBe(first.body.entry.id);
     expect(photo.save).toHaveBeenCalledTimes(1);
+  });
+  it("keeps a public return capsule sealed until the author checks in again", async () => {
+    const created = await post(author, {
+      note: "A memory for next time.",
+      photoBase64: "aGVsbG8=",
+      clientId: randomUUID(),
+      unlockMode: "return",
+      capsuleAudience: "public",
+    });
+    expect(created.status).toBe(201);
+    const entryId = created.body.entry.id as number;
+    const locked = await request(app).get(path).set("x-test-uid", viewer);
+    expect(locked.body.entries[0]).toMatchObject({
+      note: "",
+      photoUrl: null,
+      unlockMode: "return",
+      isLocked: true,
+    });
+    await db.insert(hubCheckinsTable).values({
+      userUid: author,
+      placeId: place,
+      source: "proximity",
+      createdAt: new Date(new Date(created.body.entry.createdAt).getTime() + 1),
+    });
+    const opened = await request(app).get(path).set("x-test-uid", viewer);
+    expect(opened.body.entries[0]).toMatchObject({
+      id: entryId,
+      note: "A memory for next time.",
+      photoUrl: "https://example.com/visit.jpg",
+      isLocked: false,
+    });
+  });
+  it("keeps private capsules out of other visitors' guestbooks", async () => {
+    const created = await post(author, {
+      note: "For my eyes only.",
+      clientId: randomUUID(),
+      unlockMode: "return",
+      capsuleAudience: "private",
+    });
+    expect(created.status).toBe(201);
+    expect((await request(app).get(path).set("x-test-uid", viewer)).body.entries).toHaveLength(0);
+    expect((await request(app).get(path).set("x-test-uid", author)).body.entries[0]).toMatchObject({
+      note: "For my eyes only.",
+      capsuleAudience: "private",
+    });
+  });
+  it("redacts a public date capsule until its release date", async () => {
+    const created = await post(author, {
+      note: "Not yet.",
+      clientId: randomUUID(),
+      unlockMode: "date",
+      unlockAt: new Date(Date.now() + 86_400_000).toISOString(),
+      capsuleAudience: "public",
+    });
+    expect(created.status).toBe(201);
+    expect((await request(app).get(path).set("x-test-uid", viewer)).body.entries[0]).toMatchObject({
+      note: "",
+      isLocked: true,
+    });
+    await db.update(entries).set({ unlockAt: new Date(Date.now() - 1_000) })
+      .where(eq(entries.id, created.body.entry.id));
+    expect((await request(app).get(path).set("x-test-uid", viewer)).body.entries[0]).toMatchObject({
+      note: "Not yet.",
+      isLocked: false,
+    });
   });
   it("keeps a photo-check outage unpublished", async () => {
     photo.save.mockRejectedValue(new GuestbookPhotoError(503, "Photo checks unavailable."));

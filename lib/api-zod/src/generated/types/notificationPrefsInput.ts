@@ -9,9 +9,9 @@
 export interface NotificationPrefsInput {
   notifyNewEncounters?: boolean;
   notifyReencounter?: boolean;
+  notifyConnectionRequests?: boolean;
   notifyChat?: boolean;
   notifyEventUpdates?: boolean;
-  notifyConnectionRequests?: boolean;
   notifyWeeklyRecap?: boolean;
   notifyCrownDefense?: boolean;
   notifyRewardUpdates?: boolean;

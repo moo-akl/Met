@@ -2,8 +2,9 @@ import { Router, type IRouter } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
-import { db, profilesTable, venueQrVerificationsTable, venueGuestbookTable as entries,
-  venueGuestbookBlocksTable as blocks, venueContentReportsTable as reports } from "@workspace/db";
+import { db, profilesTable, venueGuestbookTable as entries,
+  venueGuestbookBlocksTable as blocks, venueContentReportsTable as reports,
+  hubCheckinsTable } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
 import { createUserRateLimiter } from "../middlewares/rateLimit";
 import { hasSocialProfile } from "../lib/socialEligibility";
@@ -17,7 +18,33 @@ export const guestbookBody = z.object({
   note: z.string().trim().min(1).max(500),
   photoBase64: z.string().min(1).max(5_592_408).optional(),
   clientId: z.string().uuid().optional(),
-}).strict();
+  unlockMode: z.enum(["none", "date", "return"]).default("none"),
+  unlockAt: z.string().datetime().nullish().default(null),
+  capsuleAudience: z.enum(["public", "private"]).default("public"),
+}).strict().superRefine((body, context) => {
+  if (body.unlockMode === "date") {
+    if (!body.unlockAt || new Date(body.unlockAt).getTime() <= Date.now()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["unlockAt"],
+        message: "Choose a future unlock date.",
+      });
+    }
+  } else if (body.unlockAt) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["unlockAt"],
+      message: "An unlock date is only valid for date-locked memories.",
+    });
+  }
+  if (body.unlockMode === "none" && body.capsuleAudience === "private") {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["capsuleAudience"],
+      message: "Private visibility is only available for time capsules.",
+    });
+  }
+});
 const reasonSchema = z.object({
   reason: z.enum(["inappropriate", "offensive_image", "spam", "harassment", "other"]),
 });
@@ -25,13 +52,37 @@ const reasonSchema = z.object({
 async function eligibility(uid: string, placeId: string) {
   const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.uid, uid)).limit(1);
   if (!hasSocialProfile(profile)) return { profile, eligibility: "profile" as const, canPost: false };
-  const [visit] = await db.select({ id: venueQrVerificationsTable.id }).from(venueQrVerificationsTable)
-    .where(and(eq(venueQrVerificationsTable.userUid, uid), eq(venueQrVerificationsTable.placeId, placeId))).limit(1);
+  const [visit] = await db.select({ id: hubCheckinsTable.id }).from(hubCheckinsTable)
+    .where(and(eq(hubCheckinsTable.userUid, uid), eq(hubCheckinsTable.placeId, placeId))).limit(1);
   return { profile, eligibility: visit ? null : "checkin" as const, canPost: !!visit };
 }
-function presented(row: typeof entries.$inferSelect, profile: { displayName: string; photoUrl: string | null }) {
+function presented(
+  row: typeof entries.$inferSelect,
+  profile: { displayName: string; photoUrl: string | null },
+  viewerUid: string,
+  hasReturned: boolean,
+  now = new Date(),
+) {
+  const isOwner = row.authorUid === viewerUid;
+  const dateUnlocked = row.unlockMode === "date" &&
+    row.unlockAt != null &&
+    row.unlockAt.getTime() <= now.getTime();
+  const returnUnlocked = row.unlockMode === "return" && hasReturned;
+  const isLocked =
+    row.unlockMode === "date" ? !dateUnlocked :
+    row.unlockMode === "return" ? !returnUnlocked :
+    false;
+  const canReadContent =
+    isOwner || (row.capsuleAudience === "public" && !isLocked);
   return { id: row.id, authorUid: row.authorUid, displayName: profile.displayName,
-    avatarUrl: profile.photoUrl, note: row.note, photoUrl: row.photoUrl, createdAt: row.createdAt.toISOString() };
+    avatarUrl: profile.photoUrl,
+    note: canReadContent ? row.note : "",
+    photoUrl: canReadContent ? row.photoUrl : null,
+    createdAt: row.createdAt.toISOString(),
+    unlockMode: row.unlockMode as "none" | "date" | "return",
+    unlockAt: row.unlockAt?.toISOString() ?? null,
+    capsuleAudience: row.capsuleAudience as "public" | "private",
+    isLocked };
 }
 const base = "/hubs/:placeId/guestbook";
 router.param("placeId", (_req, res, next, value: string) => {
@@ -51,6 +102,7 @@ router.get(base, requireUid, async (req, res) => {
   const uid = req.uid!;
   const conditions = [
     eq(entries.placeId, place.data), eq(entries.isHidden, false),
+    sql`(${entries.capsuleAudience} = 'public' OR ${entries.authorUid} = ${uid})`,
     sql`NOT EXISTS (SELECT 1 FROM ${blocks} WHERE
       (${blocks.blockerUid} = ${uid} AND ${blocks.blockedUid} = ${entries.authorUid})
       OR (${blocks.blockedUid} = ${uid} AND ${blocks.blockerUid} = ${entries.authorUid}))`,
@@ -59,14 +111,29 @@ router.get(base, requireUid, async (req, res) => {
   ];
   if (before?.success) conditions.push(lt(entries.id, before.data));
   const [rows, access] = await Promise.all([
-    db.select({ entry: entries, displayName: profilesTable.displayName, avatarUrl: profilesTable.photoUrl })
+    db.select({
+      entry: entries,
+      displayName: profilesTable.displayName,
+      avatarUrl: profilesTable.photoUrl,
+      hasReturned: sql<boolean>`EXISTS (
+        SELECT 1 FROM ${hubCheckinsTable}
+        WHERE ${hubCheckinsTable.userUid} = ${entries.authorUid}
+          AND ${hubCheckinsTable.placeId} = ${entries.placeId}
+          AND ${hubCheckinsTable.createdAt} > ${entries.createdAt}
+      )`,
+    })
       .from(entries).innerJoin(profilesTable, eq(profilesTable.uid, entries.authorUid))
       .where(and(...conditions)).orderBy(desc(entries.id)).limit(21),
     eligibility(uid, place.data),
   ]);
   const page = rows.slice(0, 20);
   res.set("Cache-Control", "no-store").json({
-    entries: page.map(r => presented(r.entry, { displayName: r.displayName, photoUrl: r.avatarUrl })),
+    entries: page.map(r => presented(
+      r.entry,
+      { displayName: r.displayName, photoUrl: r.avatarUrl },
+      uid,
+      r.hasReturned,
+    )),
     nextCursor: rows.length > 20 ? page[page.length - 1]!.entry.id : null,
     canPost: access.canPost, eligibility: access.eligibility,
   });
@@ -86,7 +153,7 @@ router.post(base, requireUid, writeLimit, async (req, res) => {
     .where(and(eq(entries.authorUid, uid), eq(entries.clientId, clientId))).limit(1);
   if (existing) {
     if (existing.placeId !== place.data) { res.status(409).json({ message: "This submission belongs to another venue." }); return; }
-    res.json({ entry: presented(existing, access.profile!) }); return;
+    res.json({ entry: presented(existing, access.profile!, uid, false) }); return;
   }
   let photo: Awaited<ReturnType<typeof saveGuestbookPhoto>> | undefined;
   try {
@@ -94,13 +161,16 @@ router.post(base, requireUid, writeLimit, async (req, res) => {
     const [created] = await db.insert(entries).values({
       placeId: place.data, authorUid: uid, clientId, note: body.data.note,
       photoPath: photo?.path ?? null, photoUrl: photo?.url ?? null,
+      unlockMode: body.data.unlockMode,
+      unlockAt: body.data.unlockAt ? new Date(body.data.unlockAt) : null,
+      capsuleAudience: body.data.capsuleAudience,
     }).onConflictDoNothing().returning();
-    if (created) { res.status(201).json({ entry: presented(created, access.profile!) }); return; }
+    if (created) { res.status(201).json({ entry: presented(created, access.profile!, uid, false) }); return; }
     if (photo) { await deleteGuestbookPhoto(photo.path); photo = undefined; }
     const [duplicate] = await db.select().from(entries)
       .where(and(eq(entries.authorUid, uid), eq(entries.clientId, clientId))).limit(1);
     if (!duplicate || duplicate.placeId !== place.data) { res.status(409).json({ message: "Please try your submission again." }); return; }
-    res.json({ entry: presented(duplicate, access.profile!) });
+    res.json({ entry: presented(duplicate, access.profile!, uid, false) });
   } catch (error) {
     if (photo) {
       try { await deleteGuestbookPhoto(photo.path); }

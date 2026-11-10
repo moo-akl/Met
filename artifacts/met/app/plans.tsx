@@ -9,7 +9,13 @@ import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { isPlanEvent } from "@/lib/eventFeedClassification";
 import { useEventReminderCleanup } from "@/hooks/useEventReminderCleanup";
-import { getGetEventsFeedQueryKey, useGetEventsFeed, type EventFeedItem } from "@workspace/api-client-react";
+import {
+  getGetEventsFeedQueryKey,
+  getGetMyPastHangoutsQueryKey,
+  useGetEventsFeed,
+  useGetMyPastHangouts,
+  type EventFeedItem,
+} from "@workspace/api-client-react";
 
 export default function PlansScreen() {
   const colors = useColors();
@@ -23,6 +29,14 @@ export default function PlansScreen() {
       refetchOnMount: "always",
       enabled: !!authedUid,
       queryKey: [...getGetEventsFeedQueryKey(), authedUid ?? "signed-out"],
+    },
+  });
+  const pastHangouts = useGetMyPastHangouts({
+    query: {
+      enabled: !!authedUid,
+      staleTime: 30_000,
+      refetchOnMount: "always",
+      queryKey: [...getGetMyPastHangoutsQueryKey(), authedUid ?? "signed-out"],
     },
   });
   useEventReminderCleanup(
@@ -129,6 +143,69 @@ export default function PlansScreen() {
             })}
           </View>
         )}
+        {authedUid ? (
+          <View style={styles.pastSection}>
+            <Text style={[styles.pastHeading, { color: colors.text }]}>
+              {t("plans.pastHangoutsTitle")}
+            </Text>
+            {pastHangouts.isLoading ? (
+              <View style={styles.pastState}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : pastHangouts.isError ? (
+              <Pressable
+                accessibilityRole="button"
+                testID="past-hangouts-retry"
+                onPress={() => void pastHangouts.refetch()}
+                style={[styles.pastEmpty, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.stateText, { color: colors.mutedForeground }]}>
+                  {t("plans.screenLoadError")}
+                </Text>
+                <Text style={[styles.pastAction, { color: colors.primary }]}>
+                  {t("plans.retry")}
+                </Text>
+              </Pressable>
+            ) : (pastHangouts.data?.events.length ?? 0) === 0 ? (
+              <Text style={[styles.pastEmptyText, { color: colors.mutedForeground }]}>
+                {t("plans.pastHangoutsEmpty")}
+              </Text>
+            ) : (
+              <View style={styles.pastList}>
+                {pastHangouts.data?.events.map((event) => (
+                  <Pressable
+                    key={event.id}
+                    accessibilityRole="button"
+                    testID={`past-hangout-${event.id}`}
+                    onPress={() => router.push(`/event-details/member/${event.id}` as never)}
+                    style={({ pressed }) => [
+                      styles.pastRow,
+                      { borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
+                    ]}
+                  >
+                    <View style={[styles.pastIcon, { backgroundColor: colors.primarySoft }]}>
+                      <Feather name="calendar" size={17} color={colors.primary} />
+                    </View>
+                    <View style={styles.pastCopy}>
+                      <Text style={[styles.pastRowTitle, { color: colors.text }]} numberOfLines={2}>
+                        {event.title}
+                      </Text>
+                      <Text style={[styles.pastRowMeta, { color: colors.mutedForeground }]}>
+                        {new Date(event.startsAt).toLocaleDateString()} · {event.creatorName ?? t("tabs.events.planHost")}
+                      </Text>
+                      <Text style={[styles.pastAction, { color: colors.primary }]}>
+                        {event.myRating == null
+                          ? t("plans.rateHost")
+                          : `${t("plans.updateHostRating")} · ${event.myRating}/5`}
+                      </Text>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -163,4 +240,16 @@ const styles = StyleSheet.create({
   meta: { fontSize: 11, lineHeight: 16 },
   host: { fontSize: 10, fontWeight: "700", marginTop: 3 },
   chatMark: { alignItems: "center", gap: 5, paddingHorizontal: 3, paddingTop: 7 },
+  pastSection: { marginTop: 14, gap: 12 },
+  pastHeading: { fontFamily: "serif", fontSize: 23, fontWeight: "400" },
+  pastState: { minHeight: 70, alignItems: "center", justifyContent: "center" },
+  pastEmpty: { padding: 16, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, alignItems: "center", gap: 6 },
+  pastEmptyText: { fontSize: 13, lineHeight: 19 },
+  pastList: { gap: 8 },
+  pastRow: { minHeight: 82, padding: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 11 },
+  pastIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  pastCopy: { flex: 1, gap: 4 },
+  pastRowTitle: { fontSize: 14, lineHeight: 19, fontWeight: "700" },
+  pastRowMeta: { fontSize: 11 },
+  pastAction: { fontSize: 12, fontWeight: "700", marginTop: 2 },
 });

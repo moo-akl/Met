@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { NearbyHangoutItemEventType } from './nearbyHangoutItemEventType';
+import type { NearbyHangoutItemMyJoinRequestStatus } from './nearbyHangoutItemMyJoinRequestStatus';
 
 export interface NearbyHangoutItem {
   eventType: NearbyHangoutItemEventType;
@@ -33,4 +34,10 @@ export interface NearbyHangoutItem {
   longitude: number | null;
   /** @nullable */
   creatorName: string | null;
+  /** @nullable */
+  creatorPhotoUrl: string | null;
+  /** @nullable */
+  myJoinRequestStatus: NearbyHangoutItemMyJoinRequestStatus;
+  verifiedExplorersOnly: boolean;
+  isVerifiedExplorerHost: boolean;
 }

@@ -7,6 +7,7 @@ import {
   communityEventJoinRequestsTable,
   communityEventHostRatingsTable,
   communityEventPlanMessagesTable,
+  communityEventPlanMediaUploadsTable,
   communityEventPlanNotificationPreferencesTable,
   communityEventRsvpsTable,
   communityEventsTable,
@@ -19,6 +20,12 @@ import { hashEventCheckinToken } from "../lib/eventCheckinLinks";
 import { hashEventInviteToken } from "../lib/eventInviteLinks";
 
 const explorerState = vi.hoisted(() => ({ uids: new Set<string>() }));
+const mediaStorageState = vi.hoisted(() => ({
+  generateSignedPostPolicyV4: vi.fn(),
+  getMetadata: vi.fn(),
+  getSignedUrl: vi.fn(),
+  delete: vi.fn(),
+}));
 
 vi.mock("../lib/verifiedExplorer", () => ({
   getVerifiedExplorerStatuses: vi.fn(async (uids: readonly string[]) =>
@@ -40,6 +47,16 @@ vi.mock("../lib/eventNotifications", () => ({
 
 vi.mock("../lib/firebaseAdmin", () => ({
   verifyAppCheckToken: vi.fn(async () => true),
+  adminStorage: () => ({
+    bucket: () => ({
+      file: (path: string) => ({
+        generateSignedPostPolicyV4: mediaStorageState.generateSignedPostPolicyV4,
+        getMetadata: mediaStorageState.getMetadata,
+        getSignedUrl: mediaStorageState.getSignedUrl,
+        delete: () => mediaStorageState.delete(path),
+      }),
+    }),
+  }),
 }));
 
 vi.mock("../middlewares/rateLimit", () => ({
@@ -66,6 +83,7 @@ vi.mock("../middlewares/requireUid", () => ({
 }));
 
 import router from "./events";
+import { cleanupExpiredPlanChatMedia } from "../lib/planChatMediaCleanup";
 
 process.env["NODE_ENV"] = "test";
 
@@ -101,6 +119,9 @@ async function removeFixture() {
   await db.delete(communityEventPlanMessagesTable).where(
     eq(communityEventPlanMessagesTable.eventId, eventId),
   );
+  await db.delete(communityEventPlanMediaUploadsTable).where(
+    eq(communityEventPlanMediaUploadsTable.eventId, eventId),
+  );
   await db.delete(communityEventPlanNotificationPreferencesTable).where(
     eq(communityEventPlanNotificationPreferencesTable.eventId, eventId),
   );
@@ -119,6 +140,19 @@ beforeEach(async () => {
   explorerState.uids.clear();
   explorerState.uids.add(explorerUid);
   explorerState.uids.add(explorerRequesterUid);
+  mediaStorageState.generateSignedPostPolicyV4
+    .mockReset()
+    .mockResolvedValue([{
+      url: "https://storage.test/upload",
+      fields: { key: "signed-object", "Content-Type": "image/jpeg" },
+    }]);
+  mediaStorageState.getMetadata
+    .mockReset()
+    .mockResolvedValue([{ size: "1024", contentType: "image/jpeg" }]);
+  mediaStorageState.getSignedUrl
+    .mockReset()
+    .mockResolvedValue(["https://storage.test/read"]);
+  mediaStorageState.delete.mockReset().mockResolvedValue(undefined);
 
   const startsAt = new Date(Date.now() + 30 * 60_000);
   const [event] = await db
@@ -321,6 +355,177 @@ describe("completed Hangout host ratings", () => {
       .not.toContain(explorerUid);
     expect(JSON.stringify(details.body.hangoutHostRating))
       .not.toContain(explorerRequesterUid);
+  });
+
+  it("lists completed Hangouts with the viewer's saved host rating", async () => {
+    await db
+      .update(communityEventsTable)
+      .set({
+        startsAt: new Date(Date.now() - 2 * 60 * 60_000),
+        endsAt: new Date(Date.now() - 60 * 60_000),
+      })
+      .where(eq(communityEventsTable.id, eventId!));
+
+    const rating = await request(app)
+      .post(`/api/community-events/${eventId}/host-rating`)
+      .set("x-test-uid", explorerUid)
+      .send({ rating: 4 });
+    expect(rating.status).toBe(200);
+
+    const past = await request(app)
+      .get("/api/community-events/my-past-hangouts")
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(past.body.events).toContainEqual(expect.objectContaining({
+      id: eventId,
+      title: "Explorer-only test hangout",
+      myRating: 4,
+    }));
+
+    const unrelated = await request(app)
+      .get("/api/community-events/my-past-hangouts")
+      .set("x-test-uid", nonExplorerUid)
+      .expect(200);
+    expect(unrelated.body.events).not.toContainEqual(
+      expect.objectContaining({ id: eventId }),
+    );
+  });
+});
+
+describe("Hangout plan media", () => {
+  it("allows an accepted guest to upload and read media but blocks non-members", async () => {
+    const upload = await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat/media-upload`)
+      .set("x-test-uid", explorerUid)
+      .send({ mediaType: "image", contentType: "image/jpeg" })
+      .expect(200);
+
+    const objectPath = upload.body.mediaObjectPath as string;
+    expect(objectPath).toMatch(
+      new RegExp(`^community-event-plan-media/${eventId}/${explorerUid}/`),
+    );
+    expect(upload.body.uploadUrl).toBe("https://storage.test/upload");
+    expect(mediaStorageState.generateSignedPostPolicyV4).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conditions: expect.arrayContaining([
+          ["content-length-range", "1", expect.any(String)],
+          ["eq", "$Content-Type", "image/jpeg"],
+        ]),
+      }),
+    );
+
+    const sent = await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat`)
+      .set("x-test-uid", explorerUid)
+      .send({ mediaType: "image", mediaObjectPath: objectPath })
+      .expect(201);
+    expect(sent.body.message).toMatchObject({
+      mediaType: "image",
+      mediaUrl: "https://storage.test/read",
+    });
+    const expiryDelta =
+      new Date(sent.body.message.mediaExpiresAt).getTime() -
+      new Date(sent.body.message.createdAt).getTime();
+    expect(expiryDelta).toBeGreaterThanOrEqual(12 * 60 * 60 * 1000 - 5_000);
+    expect(expiryDelta).toBeLessThanOrEqual(12 * 60 * 60 * 1000 + 5_000);
+
+    const chat = await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(chat.body.messages).toContainEqual(
+      expect.objectContaining({
+        mediaType: "image",
+        mediaUrl: "https://storage.test/read",
+      }),
+    );
+
+    await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set("x-test-uid", nonExplorerUid)
+      .expect(404);
+    await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat/media-upload`)
+      .set("x-test-uid", nonExplorerUid)
+      .send({ mediaType: "image", contentType: "image/jpeg" })
+      .expect(404);
+  });
+
+  it("deletes expired photo and voice message rows after their storage files", async () => {
+    const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000);
+    const objectPaths = [
+      `community-event-plan-media/${eventId}/${explorerUid}/${randomUUID()}`,
+      `community-event-plan-media/${eventId}/${explorerUid}/${randomUUID()}`,
+    ];
+    await db.insert(communityEventPlanMessagesTable).values([
+      {
+        eventId: eventId!,
+        senderUid: explorerUid,
+        message: "",
+        mediaType: "image",
+        mediaObjectPath: objectPaths[0]!,
+        mediaExpiresAt: expiresAt,
+      },
+      {
+        eventId: eventId!,
+        senderUid: explorerUid,
+        message: "",
+        mediaType: "voice",
+        mediaObjectPath: objectPaths[1]!,
+        audioDurationMs: 1_500,
+        mediaExpiresAt: expiresAt,
+      },
+    ]);
+
+    expect(
+      await cleanupExpiredPlanChatMedia(new Date(expiresAt.getTime() - 1)),
+    ).toBe(0);
+    expect(mediaStorageState.delete).not.toHaveBeenCalled();
+
+    expect(await cleanupExpiredPlanChatMedia(expiresAt)).toBe(2);
+    expect(mediaStorageState.delete.mock.calls.map(([path]) => path).sort())
+      .toEqual(objectPaths.slice().sort());
+    const remaining = await db
+      .select()
+      .from(communityEventPlanMessagesTable)
+      .where(eq(communityEventPlanMessagesTable.eventId, eventId!));
+    expect(remaining).toHaveLength(0);
+  });
+
+  it("keeps an expired message queued when storage deletion fails and retries it", async () => {
+    const objectPath =
+      `community-event-plan-media/${eventId}/${explorerUid}/${randomUUID()}`;
+    const expiresAt = new Date(Date.now() - 1_000);
+    const [message] = await db
+      .insert(communityEventPlanMessagesTable)
+      .values({
+        eventId: eventId!,
+        senderUid: explorerUid,
+        message: "",
+        mediaType: "voice",
+        mediaObjectPath: objectPath,
+        audioDurationMs: 1_500,
+        mediaExpiresAt: expiresAt,
+      })
+      .returning({ id: communityEventPlanMessagesTable.id });
+
+    mediaStorageState.delete.mockRejectedValueOnce(
+      Object.assign(new Error("Temporary storage failure"), { code: "503" }),
+    );
+    expect(await cleanupExpiredPlanChatMedia()).toBe(0);
+    const retained = await db
+      .select()
+      .from(communityEventPlanMessagesTable)
+      .where(eq(communityEventPlanMessagesTable.id, message!.id));
+    expect(retained).toHaveLength(1);
+
+    expect(await cleanupExpiredPlanChatMedia()).toBe(1);
+    const deleted = await db
+      .select()
+      .from(communityEventPlanMessagesTable)
+      .where(eq(communityEventPlanMessagesTable.id, message!.id));
+    expect(deleted).toHaveLength(0);
+    expect(mediaStorageState.delete).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -7,8 +7,8 @@ const mocks = vi.hoisted(() => {
     where: vi.fn().mockReturnThis(),
     limit: vi.fn(),
   };
-  const fcmSend = vi.fn();
-  return { chain, fcmSend };
+  const sendPushWithStatus = vi.fn();
+  return { chain, sendPushWithStatus };
 });
 
 vi.mock("@workspace/db", () => ({
@@ -39,8 +39,8 @@ vi.mock("../middlewares/requireUid", () => ({
   },
 }));
 
-vi.mock("../lib/firebaseAdmin", () => ({
-  adminMessaging: vi.fn(() => ({ send: mocks.fcmSend })),
+vi.mock("../lib/push", () => ({
+  sendPushWithStatus: mocks.sendPushWithStatus,
 }));
 
 import request from "supertest";
@@ -64,7 +64,7 @@ beforeEach(() => {
   mocks.chain.limit
     .mockResolvedValueOnce([senderRow])
     .mockResolvedValueOnce([enabledRecipientRow]);
-  mocks.fcmSend.mockResolvedValue("message-id");
+  mocks.sendPushWithStatus.mockResolvedValue({ sent: true });
 });
 
 describe("POST /api/chats/notify", () => {
@@ -79,9 +79,9 @@ describe("POST /api/chats/notify", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ sent: true });
-    expect(mocks.fcmSend).toHaveBeenCalledWith(
+    expect(mocks.sendPushWithStatus).toHaveBeenCalledWith(
+      "recipient-token",
       expect.objectContaining({
-        token: "recipient-token",
         data: { type: "chat_message", chatPeerUid: "sender-uid" },
       }),
     );
@@ -106,6 +106,6 @@ describe("POST /api/chats/notify", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ sent: false, reason: "preference_disabled" });
-    expect(mocks.fcmSend).not.toHaveBeenCalled();
+    expect(mocks.sendPushWithStatus).not.toHaveBeenCalled();
   });
 });

@@ -33,6 +33,7 @@ import { adminDb, verifyAppCheckToken } from "../lib/firebaseAdmin";
 import { z } from "zod/v4";
 import { VerifyVenueQrBody } from "@workspace/api-zod";
 import { recalcUserRating } from "../lib/reviewRecalc";
+import { getVerifiedExplorerStatuses } from "../lib/verifiedExplorer";
 
 const router: IRouter = Router();
 
@@ -2032,11 +2033,18 @@ router.get(
 // individual dimension scores are withheld until after a mutual reveal.
 // ---------------------------------------------------------------------------
 
+router.get("/users/me/verified-explorer", requireUid, async (req, res): Promise<void> => {
+  const uid = req.uid!;
+  const status = (await getVerifiedExplorerStatuses([uid])).get(uid)!;
+  res.set("Cache-Control", "no-store").json(status);
+});
+
 router.get(
   "/users/:uid/community-standing",
   requireUid,
   async (req, res): Promise<void> => {
     const { uid } = req.params as { uid: string };
+    const explorerStatus = (await getVerifiedExplorerStatuses([uid])).get(uid)!;
 
     const reviews = await db
       .select({
@@ -2082,7 +2090,16 @@ router.get(
     const isSubscriber = (subRow?.tier === "plus" || subRow?.tier === "pro") && subRow?.status === "active";
 
     if (reviewCount < 3) {
-      res.json({ count: reviewCount, hasEnough: false, isPioneer, pioneerScore, trophyCount, trustScore, isSubscriber });
+      res.json({
+        count: reviewCount,
+        hasEnough: false,
+        isPioneer,
+        pioneerScore,
+        trophyCount,
+        trustScore,
+        isSubscriber,
+        isVerifiedExplorer: explorerStatus.isVerifiedExplorer,
+      });
       return;
     }
 
@@ -2113,6 +2130,7 @@ router.get(
       trophyCount,
       trustScore,
       isSubscriber,
+      isVerifiedExplorer: explorerStatus.isVerifiedExplorer,
     });
   },
 );

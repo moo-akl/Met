@@ -323,6 +323,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     expect(created.body).toMatchObject({
       joinApprovalRequired: true,
       myJoinRequestStatus: null,
+      creatorPhotoUrl: "https://example.com/owner.jpg",
     });
     await request(app)
       .get(`/api/community-events/${eventId}/manage`)
@@ -526,7 +527,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       expect(mockSendPushWithStatus).toHaveBeenCalledTimes(4);
       expect(mockSendPushWithStatus).toHaveBeenNthCalledWith(3, "other-token", {
         title: "Your hangout request was accepted",
-        body: "You can now join the hangout. Open Met for details.",
+        body: "You can now join the plan chat. Tap to open it.",
         data: {
           type: "hangout_join_decision",
           eventId: String(eventId),
@@ -918,6 +919,19 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       ));
     expect(savedRequest?.status).toBe("accepted");
     expect(savedRsvp?.status).toBe("going");
+    await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OTHER_UID))
+      .expect(200);
+    await request(app)
+      .post(`/api/community-events/${eventId}/rsvp`)
+      .set(uidHeader(OTHER_UID))
+      .send({ status: "not_going" })
+      .expect(200);
+    await request(app)
+      .get(`/api/community-events/${eventId}/plan-chat`)
+      .set(uidHeader(OTHER_UID))
+      .expect(404);
   });
 
   it("keeps invitees private and restricts management to the event owner", async () => {

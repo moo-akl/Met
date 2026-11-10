@@ -9,6 +9,11 @@ export const venueGuestbookTable = pgTable("venue_guestbook", {
   note: text("note").notNull(),
   photoPath: text("photo_path"),
   photoUrl: text("photo_url"),
+  /** Optional time capsule release rule; ordinary entries remain immediately public. */
+  unlockMode: text("unlock_mode").notNull().default("none"),
+  unlockAt: timestamp("unlock_at", { withTimezone: true }),
+  /** Public capsules are revealed after unlock; private capsules remain author-only. */
+  capsuleAudience: text("capsule_audience").notNull().default("public"),
   isHidden: boolean("is_hidden").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

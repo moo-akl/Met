@@ -24,6 +24,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { getAppCheckToken } from "@/lib/firestore/client";
 import { buildEventDetailsUrl } from "@/lib/eventLinks";
 import EventFollowThroughActions from "@/components/EventFollowThroughActions";
+import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import { cancelEventReminder } from "@/lib/eventReminders";
 import {
   getGetEventDetailsQueryKey,
@@ -36,6 +37,7 @@ import {
   useCreateVenueOwnerEventInviteLink,
   useReportCommunityEvent,
   useRsvpCommunityEvent,
+  useRateCommunityEventHost,
   useRequestToJoinCommunityEvent,
   useWithdrawCommunityEventJoinRequest,
   type EventFeedItem,
@@ -69,11 +71,17 @@ export default function EventDetailsScreen() {
   const [rsvpPending, setRsvpPending] = useState(false);
   const [joinRequestPending, setJoinRequestPending] = useState(false);
   const [checkinPending, setCheckinPending] = useState(false);
+  const [hostRatingSelection, setHostRatingSelection] = useState(0);
+  const [hostRatingPending, setHostRatingPending] = useState(false);
   const [locationPermission, requestLocationPermission] =
     Location.useForegroundPermissions();
   const eventQuery = useQuery({
     ...getGetEventDetailsQueryOptions(eventType, isValidRoute ? eventId : 0),
-    enabled: isValidRoute,
+    enabled: isValidRoute && !!authedUid,
+    queryKey: [
+      ...getGetEventDetailsQueryKey(eventType, isValidRoute ? eventId : 0),
+      authedUid ?? "signed-out",
+    ],
   });
   useEffect(() => {
     if (
@@ -108,6 +116,23 @@ export default function EventDetailsScreen() {
   const event = eventQuery.data;
   const isOwner = Boolean(event && event.ownerUid === authedUid);
   const isHangout = Boolean(eventType === "member" && event?.joinApprovalRequired);
+  const hostRating = event?.hangoutHostRating ?? null;
+  const hangoutEnded = Boolean(
+    event && new Date(event.endsAt ?? event.startsAt).getTime() <= Date.now(),
+  );
+  const canRateHangoutHost = Boolean(
+    isHangout &&
+      hangoutEnded &&
+      !isOwner &&
+      event?.myJoinRequestStatus === "accepted",
+  );
+  const creatorUid = event?.eventType === "member" ? event.ownerUid : null;
+  const creatorStandingQuery = useQuery({
+    queryKey: ["community-standing", creatorUid],
+    queryFn: () => api.getCommunityStanding({ uid: authedUid ?? "" }, creatorUid!),
+    enabled: !!authedUid && !!creatorUid && isHangout,
+    staleTime: 60_000,
+  });
   const canAccessHangout = Boolean(
     event &&
       (!event.joinApprovalRequired ||
@@ -125,6 +150,7 @@ export default function EventDetailsScreen() {
   const shareInviteMutation = useCreateCommunityEventInviteLink();
   const shareVenueInviteMutation = useCreateVenueOwnerEventInviteLink();
   const reportCommunityEvent = useReportCommunityEvent();
+  const rateHangoutHost = useRateCommunityEventHost();
 
   const saveRsvp = async (status: RsvpStatus) => {
     if (!event) return;
@@ -146,6 +172,25 @@ export default function EventDetailsScreen() {
       setActionError(error instanceof ApiError ? error.message : "Could not update your RSVP.");
     } finally {
       setRsvpPending(false);
+    }
+  };
+
+  const submitHangoutHostRating = async () => {
+    if (!event || !canRateHangoutHost || hostRatingSelection < 1) return;
+    setHostRatingPending(true);
+    setActionError("");
+    try {
+      await rateHangoutHost.mutateAsync({
+        eventId: event.id,
+        data: { rating: hostRatingSelection },
+      });
+      await queryClient.invalidateQueries({
+        queryKey: getGetEventDetailsQueryKey(eventType, event.id),
+      });
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t("tabs.events.hangoutRatingSaveError"));
+    } finally {
+      setHostRatingPending(false);
     }
   };
 
@@ -457,27 +502,104 @@ export default function EventDetailsScreen() {
                 <Feather name="navigation" size={18} color={colors.primary} />
               </Pressable>
             ) : null}
-            {event.eventType === "member" && event.joinApprovalRequired ? (
-              <View testID="hangout-creator" style={styles.hangoutCreatorRow}>
+            {isHangout ? (
+              <View style={[styles.creatorCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 {event.creatorPhotoUrl ? (
                   <Image
                     testID="hangout-creator-photo"
                     accessibilityLabel={event.creatorName ?? t("tabs.events.createdBy")}
                     source={{ uri: event.creatorPhotoUrl }}
-                    style={styles.hangoutCreatorAvatar}
+                    style={styles.creatorAvatar}
                   />
                 ) : (
-                  <View style={[styles.hangoutCreatorAvatar, styles.hangoutCreatorAvatarFallback, { backgroundColor: colors.primarySoft }]}>
+                  <View style={[styles.creatorAvatar, styles.creatorAvatarFallback, { backgroundColor: colors.primarySoft }]}>
                     <Feather name="user" size={20} color={colors.primary} />
                   </View>
                 )}
-                <View style={styles.hangoutCreatorCopy}>
-                  <Text style={[styles.hangoutCreatorLabel, { color: colors.mutedForeground }]}>
+                <View style={styles.creatorDetails}>
+                  <Text style={[styles.creatorScoreLabel, { color: colors.mutedForeground }]}>
                     {t("tabs.events.createdBy")}
                   </Text>
-                  <Text testID="hangout-creator-name" style={[styles.hangoutCreatorName, { color: colors.text }]}>
+                  <Text testID="hangout-creator-name" style={[styles.creatorName, { color: colors.text }]}>
                     {event.creatorName ?? t("tabs.events.quickPlan")}
                   </Text>
+                  {creatorStandingQuery.data?.trustScore != null ? (
+                    <View style={styles.creatorScoreRow}>
+                      <Text style={[styles.creatorScoreLabel, { color: colors.mutedForeground }]}>
+                        {t("profile.trustScore")}
+                      </Text>
+                      <TrustScoreBadge score={creatorStandingQuery.data.trustScore} showScore />
+                    </View>
+                  ) : null}
+                  {hostRating && hostRating.reviewCount > 0 &&
+                  hostRating.averageRating != null ? (
+                    <Text
+                      testID="hangout-creator-rating"
+                      style={[styles.creatorRating, { color: colors.mutedForeground }]}
+                    >
+                      {t("tabs.events.hangoutHostRating", {
+                        rating: hostRating.averageRating.toFixed(1),
+                        count: hostRating.reviewCount,
+                      })}
+                    </Text>
+                  ) : hostRating ? (
+                    <Text testID="hangout-creator-rating-empty" style={[styles.creatorRating, { color: colors.mutedForeground }]}>
+                      {t("tabs.events.hangoutHostNoReviews")}
+                    </Text>
+                  ) : null}
+                  {canRateHangoutHost ? (
+                    <View style={styles.hostRatingForm}>
+                      <Text style={[styles.creatorRating, { color: colors.mutedForeground }]}>
+                        {t("tabs.events.hangoutHostRatingPrompt")}
+                      </Text>
+                      <View style={styles.hostRatingStars}>
+                        {[1, 2, 3, 4, 5].map((rating) => {
+                          const selectedRating =
+                            hostRatingSelection || hostRating?.myRating || 0;
+                          return (
+                            <Pressable
+                              key={rating}
+                              accessibilityRole="button"
+                              accessibilityLabel={t("tabs.events.hangoutRatingStar", { rating })}
+                              accessibilityState={{ selected: rating <= selectedRating }}
+                              testID={`hangout-host-rating-${rating}`}
+                              onPress={() => setHostRatingSelection(rating)}
+                              hitSlop={8}
+                            >
+                              <Text
+                                style={{
+                                  color: rating <= selectedRating ? colors.primary : colors.border,
+                                  fontSize: 25,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {rating <= selectedRating ? "★" : "☆"}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        testID="button-submit-hangout-host-rating"
+                        disabled={hostRatingPending || hostRatingSelection < 1}
+                        onPress={() => void submitHangoutHostRating()}
+                        style={[
+                          styles.hostRatingSubmit,
+                          { backgroundColor: colors.primary, opacity: hostRatingPending || hostRatingSelection < 1 ? 0.55 : 1 },
+                        ]}
+                      >
+                        {hostRatingPending ? (
+                          <ActivityIndicator size="small" color={colors.primaryForeground} />
+                        ) : null}
+                        <Text style={[styles.hostRatingSubmitText, { color: colors.primaryForeground }]}>
+                          {hostRating?.myRating != null
+                            ? t("tabs.events.hangoutHostRatingUpdate")
+                            : t("tabs.events.hangoutHostRatingSubmit")}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             ) : event.creatorName ? (
@@ -537,8 +659,7 @@ export default function EventDetailsScreen() {
                 </Pressable>
               ) : (
                 <View style={styles.attendanceActions}>
-                  {!isHangout ? (
-                    <Pressable
+                  {!isHangout ? <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t("tabs.events.scanEventQr")}
                     testID="button-scan-event-qr"
@@ -549,8 +670,7 @@ export default function EventDetailsScreen() {
                     <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
                       {t("tabs.events.scanEventQr")}
                     </Text>
-                    </Pressable>
-                  ) : null}
+                  </Pressable> : null}
                   {!isHangout && event.latitude != null && event.longitude != null ? (
                     <Pressable
                       accessibilityRole="button"
@@ -928,12 +1048,27 @@ const styles = StyleSheet.create({
   locationLabel: { fontSize: 11, fontWeight: "600" },
   locationText: { fontSize: 14, fontWeight: "600", marginTop: 3 },
   creator: { fontSize: 13, marginTop: 14 },
-  hangoutCreatorRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 16 },
-  hangoutCreatorAvatar: { width: 52, height: 52, borderRadius: 26 },
-  hangoutCreatorAvatarFallback: { alignItems: "center", justifyContent: "center" },
-  hangoutCreatorCopy: { flex: 1, gap: 3 },
-  hangoutCreatorLabel: { fontSize: 11, fontWeight: "600" },
-  hangoutCreatorName: { fontSize: 15, fontWeight: "700" },
+  creatorCard: { borderWidth: 1, borderTopLeftRadius: 26, borderBottomRightRadius: 20, padding: 13, marginTop: 14, flexDirection: "row", alignItems: "center", gap: 12 },
+  creatorAvatar: { width: 54, height: 54, borderRadius: 27 },
+  creatorAvatarFallback: { alignItems: "center", justifyContent: "center" },
+  creatorDetails: { flex: 1, gap: 6 },
+  creatorName: { fontSize: 15, fontWeight: "700" },
+  creatorScoreRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 7 },
+  creatorScoreLabel: { fontSize: 11, fontWeight: "600" },
+  creatorRating: { fontSize: 12, fontWeight: "600" },
+  hostRatingForm: { gap: 8, marginTop: 3 },
+  hostRatingStars: { flexDirection: "row", gap: 10, alignItems: "center" },
+  hostRatingSubmit: {
+    alignSelf: "flex-start",
+    minHeight: 38,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+  hostRatingSubmitText: { fontSize: 12, fontWeight: "700" },
   description: { fontSize: 15, lineHeight: 23, marginTop: 18 },
   contactHeading: { fontSize: 16, fontWeight: "700", marginBottom: 2 },
   attendanceCard: { borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 22, padding: 16, gap: 14, marginTop: 20 },

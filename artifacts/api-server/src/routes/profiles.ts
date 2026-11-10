@@ -33,6 +33,7 @@ import {
 import { deleteUserData } from "../lib/deleteUserData";
 import { deleteVenueOwnerProfile } from "../lib/deleteVenueOwnerProfile";
 import { deleteVenueStorageFiles } from "../lib/deleteVenueStorageFiles";
+import { SUPPORTED_LOCALE_CODES } from "../lib/supportedLocales";
 
 const router: IRouter = Router();
 
@@ -175,9 +176,7 @@ router.put("/profiles/me", requireUid, async (req, res) => {
         "Movies", "Cycling", "Wine", "Volunteering",
         "Podcasts", "Wellness", "Running", "Board Games",
       ]);
-      const ALLOWED_LOCALES = new Set([
-        "en", "es", "ar", "zh", "ru", "fr", "vi", "pt", "nl",
-      ]);
+      const ALLOWED_LOCALES: Set<string> = new Set(SUPPORTED_LOCALE_CODES);
       const MAX_INTERESTS = 10;
       const cleanInterests =
         body.interests != null

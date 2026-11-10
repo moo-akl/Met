@@ -8,6 +8,7 @@
 
 import { logger } from "./logger";
 import { adminMessaging } from "./firebaseAdmin";
+import { recordNotificationForPushToken } from "./notificationInbox";
 
 export interface PushData {
   type?: "reveal_request" | "reveal_accepted" | "encounter" | "reencounter"
@@ -38,6 +39,15 @@ export async function sendPushWithStatus(
 ): Promise<{ sent: boolean; reason?: string }> {
   if (!token) return { sent: false, reason: "no_token" };
   try {
+    try {
+      await recordNotificationForPushToken(token, payload);
+    } catch (err) {
+      logger.warn(
+        { err },
+        "Could not save push notification to the inbox",
+      );
+    }
+
     if (token.startsWith("ExponentPushToken[") || token.startsWith("ExpoPushToken[")) {
       const res = await fetch(EXPO_PUSH_URL, {
         method: "POST",

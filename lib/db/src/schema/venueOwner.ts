@@ -479,6 +479,8 @@ export const communityEventsTable = pgTable(
     /** 'public' or 'invite_only' */
     visibility: text("visibility").notNull().default("public"),
     joinApprovalRequired: boolean("join_approval_required").notNull().default(false),
+    /** Explorer-only plans are private and visible only to qualifying members. */
+    verifiedExplorersOnly: boolean("verified_explorers_only").notNull().default(false),
     /** Explicitly invited Met matches for invite-only events. */
     inviteeUids: text("invitee_uids").array().notNull().default(sql`ARRAY[]::text[]`),
     /** SHA-256 lookup digest; the bearer token itself is encrypted at rest. */
@@ -488,6 +490,7 @@ export const communityEventsTable = pgTable(
     invitePasscodeHash: text("invite_passcode_hash"),
     checkinTokenHash: text("checkin_token_hash"),
     checkinTokenEncrypted: text("checkin_token_encrypted"),
+    ratingPromptSentAt: timestamp("rating_prompt_sent_at", { withTimezone: true }),
     isHidden: boolean("is_hidden").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -518,6 +521,10 @@ export const communityEventPlanMessagesTable = pgTable(
       .references(() => communityEventsTable.id, { onDelete: "cascade" }),
     senderUid: text("sender_uid").notNull(),
     message: text("message").notNull(),
+    mediaType: text("media_type"),
+    mediaObjectPath: text("media_object_path"),
+    audioDurationMs: integer("audio_duration_ms"),
+    mediaExpiresAt: timestamp("media_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -526,6 +533,35 @@ export const communityEventPlanMessagesTable = pgTable(
     eventCreatedIdx: index("community_event_plan_messages_event_created_idx").on(
       t.eventId,
       t.createdAt,
+    ),
+    mediaExpiryIdx: index("community_event_plan_messages_media_expiry_idx").on(
+      t.mediaExpiresAt,
+    ),
+    mediaObjectPathUnique: uniqueIndex("community_event_plan_messages_media_path_uniq").on(
+      t.mediaObjectPath,
+    ),
+  }),
+);
+
+export const communityEventPlanMediaUploadsTable = pgTable(
+  "community_event_plan_media_uploads",
+  {
+    objectPath: text("object_path").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => communityEventsTable.id, { onDelete: "cascade" }),
+    ownerUid: text("owner_uid").notNull(),
+    mediaType: text("media_type").notNull(),
+    contentType: text("content_type").notNull(),
+    maxBytes: integer("max_bytes").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    expiryIdx: index("community_event_plan_media_uploads_expiry_idx").on(
+      t.expiresAt,
     ),
   }),
 );
@@ -610,6 +646,30 @@ export const communityEventJoinRequestsTable = pgTable(
       t.userUid,
       t.status,
     ),
+  }),
+);
+
+export const communityEventHostRatingsTable = pgTable(
+  "community_event_host_ratings",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => communityEventsTable.id, { onDelete: "cascade" }),
+    reviewerUid: text("reviewer_uid").notNull(),
+    rating: integer("rating").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    eventReviewerUniq: uniqueIndex(
+      "community_event_host_ratings_event_reviewer_uniq",
+    ).on(t.eventId, t.reviewerUid),
+    eventIdx: index("community_event_host_ratings_event_idx").on(t.eventId),
   }),
 );
 

@@ -1,4 +1,5 @@
 export * from "./profiles";
+export * from "./notificationInbox";
 export * from "./encounters";
 export * from "./presence";
 export * from "./reveals";

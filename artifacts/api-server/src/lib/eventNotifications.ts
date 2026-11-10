@@ -1,7 +1,10 @@
-import { and, eq, gt, inArray, lte } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
 import {
   db,
+  communityEventHostRatingsTable,
+  communityEventJoinRequestsTable,
   communityEventPlanNotificationPreferencesTable,
+  communityEventsTable,
   profilesTable,
   venueEventNotificationRunsTable,
   venueEventRsvpsTable,
@@ -9,6 +12,7 @@ import {
 } from "@workspace/db";
 import { logger } from "./logger";
 import { sendPushWithStatus } from "./push";
+import { getHangoutNotificationCopy } from "./hangoutNotificationCopy";
 
 export type VenueEventNotificationKind =
   | "event_update"
@@ -117,6 +121,7 @@ async function notifyCommunityEventJoinRecipient(input: {
       .select({
         pushToken: profilesTable.pushToken,
         notificationPrefs: profilesTable.notificationPrefs,
+        preferredLocale: profilesTable.preferredLocale,
       })
       .from(profilesTable)
       .where(eq(profilesTable.uid, input.recipientUid))
@@ -128,10 +133,8 @@ async function notifyCommunityEventJoinRecipient(input: {
       return;
     }
 
-    const isHostRequest = input.type === "hangout_join_request";
-    let title: string;
-    let body: string;
-    if (isHostRequest) {
+    let requesterName: string | undefined;
+    if (input.type === "hangout_join_request") {
       const [requester] = input.requesterUid
         ? await db
             .select({ displayName: profilesTable.displayName })
@@ -139,30 +142,22 @@ async function notifyCommunityEventJoinRecipient(input: {
             .where(eq(profilesTable.uid, input.requesterUid))
             .limit(1)
         : [];
-      const requesterName = requester?.displayName
+      requesterName = requester?.displayName
         ?.replace(/\s+/g, " ")
         .trim()
-        .slice(0, 60) || "Someone";
-      title = "New hangout join request";
-      body = `${requesterName} asked to join your plan. Open Met to review.`;
-    } else if (input.type === "hangout_join_decision") {
-      title = input.requestStatus === "accepted"
-        ? "Your hangout request was accepted"
-        : "Your hangout request was declined";
-      body = input.requestStatus === "accepted"
-        ? "You can now join the hangout. Open Met for details."
-        : "Open Met to explore other hangouts.";
-    } else if (input.type === "hangout_updated") {
-      title = "Hangout plan updated";
-      body = "A hangout you joined has changed. Open Met for details.";
-    } else {
-      title = "Hangout plan cancelled";
-      body = "A hangout you joined was cancelled. Open Met to see your plans.";
+        .slice(0, 60);
     }
+    const copy = getHangoutNotificationCopy(
+      recipient.preferredLocale,
+      input.type,
+      {
+        requestStatus: input.requestStatus,
+        requesterName,
+      },
+    );
 
     await sendPushWithStatus(recipient.pushToken, {
-      title,
-      body,
+      ...copy,
       data: {
         type: input.type,
         eventId: String(input.eventId),
@@ -222,6 +217,108 @@ export async function notifyCommunityEventChange(input: {
       }),
     ),
   );
+}
+
+/**
+ * Send one post-event rating prompt to accepted guests who have not already
+ * rated the host. The event timestamp is claimed atomically before dispatch so
+ * overlapping minute sweeps cannot send duplicate prompts.
+ */
+export async function runDueCommunityEventHostRatingPrompts(
+  now = new Date(),
+): Promise<void> {
+  const endedHangouts = await db
+    .select({
+      id: communityEventsTable.id,
+      ownerUid: communityEventsTable.ownerUid,
+    })
+    .from(communityEventsTable)
+    .where(and(
+      eq(communityEventsTable.joinApprovalRequired, true),
+      eq(communityEventsTable.isHidden, false),
+      isNull(communityEventsTable.ratingPromptSentAt),
+      sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt}) <= ${now}`,
+    ));
+
+  for (const event of endedHangouts) {
+    const [claim] = await db
+      .update(communityEventsTable)
+      .set({ ratingPromptSentAt: now })
+      .where(and(
+        eq(communityEventsTable.id, event.id),
+        eq(communityEventsTable.joinApprovalRequired, true),
+        eq(communityEventsTable.isHidden, false),
+        isNull(communityEventsTable.ratingPromptSentAt),
+        sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt}) <= ${now}`,
+      ))
+      .returning({ id: communityEventsTable.id });
+    if (!claim) continue;
+
+    try {
+      const acceptedGuests = await db
+        .select({
+          uid: communityEventJoinRequestsTable.userUid,
+          pushToken: profilesTable.pushToken,
+          notificationPrefs: profilesTable.notificationPrefs,
+          preferredLocale: profilesTable.preferredLocale,
+        })
+        .from(communityEventJoinRequestsTable)
+        .innerJoin(
+          profilesTable,
+          eq(profilesTable.uid, communityEventJoinRequestsTable.userUid),
+        )
+        .where(and(
+          eq(communityEventJoinRequestsTable.eventId, event.id),
+          eq(communityEventJoinRequestsTable.status, "accepted"),
+        ));
+      if (acceptedGuests.length === 0) continue;
+
+      const existingRatings = await db
+        .select({ reviewerUid: communityEventHostRatingsTable.reviewerUid })
+        .from(communityEventHostRatingsTable)
+        .where(eq(communityEventHostRatingsTable.eventId, event.id));
+      const ratedUids = new Set(existingRatings.map(({ reviewerUid }) => reviewerUid));
+      const recipients = acceptedGuests.filter(
+        (guest) =>
+          guest.uid !== event.ownerUid &&
+          !ratedUids.has(guest.uid) &&
+          guest.notificationPrefs?.notifyEventUpdates !== false &&
+          Boolean(guest.pushToken),
+      );
+      const deliveries = await Promise.all(
+        recipients.map((recipient) =>
+          {
+            const copy = getHangoutNotificationCopy(
+              recipient.preferredLocale,
+              "hangout_host_rating_prompt",
+            );
+            return sendPushWithStatus(recipient.pushToken!, {
+              ...copy,
+              data: {
+                type: "hangout_host_rating_prompt",
+                eventType: "member",
+                eventId: String(event.id),
+              },
+            });
+          },
+        ),
+      );
+      logger.info(
+        {
+          eventId: event.id,
+          acceptedGuestCount: acceptedGuests.length,
+          eligibleRecipientCount: recipients.length,
+          sentCount: deliveries.filter((delivery) => delivery.sent).length,
+        },
+        "Completed Hangout rating prompts processed",
+      );
+    } catch (error) {
+      logger.warn(
+        { error, eventId: event.id },
+        "Could not deliver completed Hangout rating prompts",
+      );
+    }
+  }
 }
 
 const REMINDER_OFFSETS: ReadonlyArray<{

@@ -1,11 +1,17 @@
 import { Feather } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import type { RecordingOptions } from "expo-av/build/Audio/Recording.types";
+import { Image } from "expo-image";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,14 +29,114 @@ import { useT } from "@/lib/i18n";
 import {
   getGetCommunityEventPlanChatQueryKey,
   getGetCommunityEventPlanChatQueryOptions,
+  getGetEventsFeedQueryKey,
+  useRsvpCommunityEvent,
   useSetCommunityEventPlanChatNotifications,
   useSendCommunityEventPlanChatMessage,
+  useCreateCommunityEventPlanChatMediaUpload,
 } from "@workspace/api-client-react";
+
+type PendingAttachment = {
+  uri: string;
+  mediaType: "image" | "voice";
+  contentType: "image/jpeg" | "audio/mp4";
+  durationMs?: number;
+  byteSize?: number;
+};
+
+const VOICE_RECORDING_OPTIONS: RecordingOptions = {
+  ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+  isMeteringEnabled: false,
+};
 
 function formatMessageTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function VoiceMessagePlayer({
+  uri,
+  durationMs,
+  isMine,
+  colors,
+}: {
+  uri: string;
+  durationMs?: number | null;
+  isMine: boolean;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const { t } = useT();
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [positionMs, setPositionMs] = useState(0);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const totalMs = durationMs ?? 0;
+
+  useEffect(() => () => {
+    soundRef.current?.unloadAsync().catch(() => {});
+  }, []);
+
+  const toggle = async () => {
+    try {
+      if (!soundRef.current) {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri },
+          { shouldPlay: true },
+          (status) => {
+            if (!status.isLoaded) return;
+            setPositionMs(status.positionMillis ?? 0);
+            if (status.didJustFinish) {
+              setIsPlaying(false);
+              setPositionMs(0);
+              soundRef.current?.unloadAsync().catch(() => {});
+              soundRef.current = null;
+            }
+          },
+        );
+        soundRef.current = sound;
+        setIsPlaying(true);
+      } else if (isPlaying) {
+        await soundRef.current.pauseAsync();
+        setIsPlaying(false);
+      } else {
+        await soundRef.current.playAsync();
+        setIsPlaying(true);
+      }
+    } catch {
+      setIsPlaying(false);
+    }
+  };
+
+  const seconds = Math.max(0, Math.round((positionMs > 0 ? positionMs : totalMs) / 1000));
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t("tabs.events.planChatVoiceMessage")}
+      onPress={() => void toggle()}
+      style={styles.voicePlayer}
+    >
+      <Feather
+        name={isPlaying ? "pause" : "play"}
+        size={18}
+        color={isMine ? colors.primaryForeground : colors.primary}
+      />
+      <View style={[styles.voiceTrack, { backgroundColor: isMine ? "rgba(255,255,255,0.3)" : colors.border }]}>
+        <View
+          style={[
+            styles.voiceProgress,
+            {
+              backgroundColor: isMine ? colors.primaryForeground : colors.primary,
+              width: totalMs > 0 ? `${Math.min(positionMs / totalMs, 1) * 100}%` : "0%",
+            },
+          ]}
+        />
+      </View>
+      <Text style={[styles.voiceDuration, { color: isMine ? colors.primaryForeground : colors.text }]}>
+        {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
+      </Text>
+    </Pressable>
+  );
 }
 
 export default function EventChatScreen() {
@@ -47,10 +153,21 @@ export default function EventChatScreen() {
   const { authedUid } = useApp();
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
+  const recordSecsRef = useRef(0);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [leavePending, setLeavePending] = useState(false);
   const setPlanNotifications = useSetCommunityEventPlanChatNotifications();
+  const updateRsvp = useRsvpCommunityEvent();
+  const uploadMedia = useCreateCommunityEventPlanChatMediaUpload();
   const planChat = useQuery({
     ...getGetCommunityEventPlanChatQueryOptions(isValidRoute ? eventId : 0),
-    enabled: isValidRoute,
+    enabled: isValidRoute && !!authedUid,
     refetchInterval: 8_000,
   });
   const sendMessage = useSendCommunityEventPlanChatMessage();
@@ -60,18 +177,194 @@ export default function EventChatScreen() {
   const newestFirstMessages = useMemo(() => [...messages].reverse(), [messages]);
   const participants = planChat.data?.participants ?? [];
 
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      const stale = recordingRef.current;
+      recordingRef.current = null;
+      if (stale) stale.stopAndUnloadAsync().catch(() => {});
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      }).catch(() => {});
+    };
+  }, []);
+
+  const stopVoiceRecording = async () => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    setIsRecording(false);
+    const recording = recordingRef.current;
+    recordingRef.current = null;
+    const recordedSeconds = recordSecsRef.current;
+    if (!recording) return;
+    try {
+      const status = await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      if (uri) {
+        setPendingAttachment({
+          uri,
+          mediaType: "voice",
+          contentType: "audio/mp4",
+          durationMs: Math.max(1, status.durationMillis ?? recordedSeconds * 1000),
+        });
+      }
+    } catch {
+      setSendError(t("tabs.events.planChatMediaUploadError"));
+    } finally {
+      recordSecsRef.current = 0;
+      setRecordSecs(0);
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      }).catch(() => {});
+    }
+  };
+
+  const pickChatPhoto = async () => {
+    if (sendMessage.isPending || uploadingAttachment || isRecording) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.85,
+      });
+      const asset = result.canceled ? null : result.assets[0];
+      if (!asset) return;
+      const resized = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1600 } }],
+        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG },
+      );
+      const FileSystem = await import("expo-file-system/legacy");
+      const info = await FileSystem.getInfoAsync(resized.uri);
+      const byteSize = info.exists && "size" in info ? Number(info.size) : asset.fileSize ?? 0;
+      if (byteSize > 8 * 1024 * 1024) {
+        setSendError(t("tabs.events.planChatMediaUploadError"));
+        return;
+      }
+      setSendError("");
+      setPendingAttachment({
+        uri: resized.uri,
+        mediaType: "image",
+        contentType: "image/jpeg",
+        byteSize,
+      });
+    } catch {
+      setSendError(t("tabs.events.planChatMediaUploadError"));
+    }
+  };
+
+  const toggleVoiceRecording = async () => {
+    if (sendMessage.isPending || uploadingAttachment || pendingAttachment) return;
+    if (isRecording) {
+      await stopVoiceRecording();
+      return;
+    }
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) {
+        Alert.alert(
+          t("tabs.events.planChatRecordVoice"),
+          t("tabs.events.planChatMediaUploadError"),
+        );
+        return;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+      });
+      const { recording } = await Audio.Recording.createAsync(VOICE_RECORDING_OPTIONS);
+      recordingRef.current = recording;
+      setIsRecording(true);
+      recordSecsRef.current = 0;
+      setRecordSecs(0);
+      recordTimerRef.current = setInterval(() => {
+        const nextSeconds = recordSecsRef.current + 1;
+        recordSecsRef.current = nextSeconds;
+        setRecordSecs(nextSeconds);
+        if (nextSeconds >= 120) void stopVoiceRecording();
+      }, 1000);
+      setSendError("");
+    } catch {
+      setSendError(t("tabs.events.planChatMediaUploadError"));
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      }).catch(() => {});
+    }
+  };
+
+  const uploadAttachment = async (attachment: PendingAttachment): Promise<string> => {
+    const reservation = await uploadMedia.mutateAsync({
+      eventId,
+      data: {
+        mediaType: attachment.mediaType,
+        contentType: attachment.contentType,
+      },
+    });
+    if (attachment.byteSize != null && attachment.byteSize > reservation.maxBytes) {
+      throw new Error("ATTACHMENT_TOO_LARGE");
+    }
+    const form = new FormData();
+    for (const [key, value] of Object.entries(reservation.uploadFields)) {
+      form.append(key, value);
+    }
+    const extension = attachment.mediaType === "image" ? "jpg" : "m4a";
+    form.append("file", {
+      uri: attachment.uri,
+      name: `message.${extension}`,
+      type: attachment.contentType,
+    } as unknown as Blob);
+    const response = await fetch(reservation.uploadUrl, {
+      method: "POST",
+      body: form,
+    });
+    if (!response.ok) throw new Error("ATTACHMENT_UPLOAD_FAILED");
+    return reservation.mediaObjectPath;
+  };
+
   const submitMessage = async () => {
     const text = draft.trim();
-    if (!text || !isValidRoute || sendMessage.isPending) return;
+    if (
+      (!text && !pendingAttachment) ||
+      !isValidRoute ||
+      sendMessage.isPending ||
+      uploadingAttachment ||
+      isRecording
+    ) return;
     setSendError("");
+    setUploadingAttachment(Boolean(pendingAttachment));
     try {
-      await sendMessage.mutateAsync({ eventId, data: { text } });
+      let mediaObjectPath: string | undefined;
+      if (pendingAttachment) {
+        mediaObjectPath = await uploadAttachment(pendingAttachment);
+      }
+      await sendMessage.mutateAsync({
+        eventId,
+        data: {
+          text: text || undefined,
+          mediaType: pendingAttachment?.mediaType,
+          mediaObjectPath,
+          audioDurationMs: pendingAttachment?.mediaType === "voice"
+            ? pendingAttachment.durationMs
+            : undefined,
+        },
+      });
       setDraft("");
+      setPendingAttachment(null);
       await queryClient.invalidateQueries({
         queryKey: getGetCommunityEventPlanChatQueryKey(eventId),
       });
     } catch {
-      setSendError(t("tabs.events.planChatSendError"));
+      setSendError(pendingAttachment
+        ? t("tabs.events.planChatMediaUploadError")
+        : t("tabs.events.planChatSendError"));
+    } finally {
+      setUploadingAttachment(false);
     }
   };
 
@@ -93,6 +386,48 @@ export default function EventChatScreen() {
         t("tabs.events.planChatNotificationUpdateError"),
       );
     }
+  };
+
+  const leaveHangoutChat = () => {
+    if (!isValidRoute || leavePending) return;
+    Alert.alert(
+      t("tabs.events.leavePlanChat"),
+      t("tabs.events.leavePlanChatConfirm"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("tabs.events.leavePlanChat"),
+          style: "destructive",
+          onPress: () => {
+            setLeavePending(true);
+            void (async () => {
+              try {
+                await updateRsvp.mutateAsync({
+                  eventId,
+                  data: { status: "not_going" },
+                });
+                await Promise.all([
+                  queryClient.invalidateQueries({
+                    queryKey: getGetCommunityEventPlanChatQueryKey(eventId),
+                  }),
+                  queryClient.invalidateQueries({
+                    queryKey: getGetEventsFeedQueryKey(),
+                  }),
+                ]);
+                router.replace("/plans" as never);
+              } catch {
+                Alert.alert(
+                  t("tabs.events.leavePlanChat"),
+                  t("tabs.events.leavePlanChatError"),
+                );
+              } finally {
+                setLeavePending(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -162,6 +497,25 @@ export default function EventChatScreen() {
               color={notificationsMuted ? colors.mutedForeground : colors.text}
             />
           </Pressable>
+          {participants.some(
+            (participant) =>
+              participant.uid === authedUid && participant.status !== "host",
+          ) ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("tabs.events.leavePlanChat")}
+              testID="button-leave-plan-chat"
+              disabled={leavePending}
+              onPress={leaveHangoutChat}
+              style={[styles.headerButton, styles.headerAction]}
+            >
+              {leavePending ? (
+                <ActivityIndicator size="small" color={colors.destructive} />
+              ) : (
+                <Feather name="log-out" size={18} color={colors.destructive} />
+              )}
+            </Pressable>
+          ) : null}
         </View>
 
         {planChat.isLoading ? (
@@ -283,20 +637,54 @@ export default function EventChatScreen() {
                       <View
                         style={[
                           styles.messageBubble,
+                          item.mediaType === "image" ? styles.messageBubbleImage : null,
                           {
                             backgroundColor: isMine ? colors.primary : colors.card,
                             borderColor: isMine ? colors.primary : colors.border,
                           },
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.messageText,
-                            { color: isMine ? colors.primaryForeground : colors.text },
-                          ]}
-                        >
-                          {item.text}
-                        </Text>
+                        {item.mediaType === "image" && item.mediaUrl ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={t("tabs.events.planChatChoosePhoto")}
+                            onPress={() => setViewerUri(item.mediaUrl)}
+                          >
+                            <Image
+                              source={{ uri: item.mediaUrl }}
+                              contentFit="cover"
+                              style={styles.messageImage}
+                            />
+                          </Pressable>
+                        ) : null}
+                        {item.mediaType === "voice" && item.mediaUrl ? (
+                          <VoiceMessagePlayer
+                            uri={item.mediaUrl}
+                            durationMs={item.audioDurationMs}
+                            isMine={isMine}
+                            colors={colors}
+                          />
+                        ) : null}
+                        {item.mediaType && !item.mediaUrl ? (
+                          <Text
+                            style={[
+                              styles.messageText,
+                              { color: isMine ? colors.primaryForeground : colors.text },
+                            ]}
+                          >
+                            {t("tabs.events.planChatMediaUnavailable")}
+                          </Text>
+                        ) : null}
+                        {item.text ? (
+                          <Text
+                            style={[
+                              styles.messageText,
+                              { color: isMine ? colors.primaryForeground : colors.text },
+                            ]}
+                          >
+                            {item.text}
+                          </Text>
+                        ) : null}
                       </View>
                       <Text style={[styles.messageTime, { color: colors.mutedForeground }]}>
                         {formatMessageTime(item.createdAt)}
@@ -322,7 +710,72 @@ export default function EventChatScreen() {
                   {sendError}
                 </Text>
               ) : null}
+              {pendingAttachment ? (
+                <View style={[styles.pendingAttachment, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  {pendingAttachment.mediaType === "image" ? (
+                    <Image source={{ uri: pendingAttachment.uri }} style={styles.pendingImage} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.pendingVoiceIcon, { backgroundColor: colors.primarySoft }]}>
+                      <Feather name="mic" size={16} color={colors.primary} />
+                    </View>
+                  )}
+                  <Text style={[styles.pendingAttachmentText, { color: colors.text }]} numberOfLines={1}>
+                    {pendingAttachment.mediaType === "voice"
+                      ? t("tabs.events.planChatVoiceMessage")
+                      : t("tabs.events.planChatChoosePhoto")}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t("tabs.events.planChatRemoveAttachment")}
+                    testID="button-remove-plan-chat-attachment"
+                    onPress={() => setPendingAttachment(null)}
+                    style={styles.removeAttachment}
+                  >
+                    <Feather name="x" size={18} color={colors.mutedForeground} />
+                  </Pressable>
+                </View>
+              ) : null}
+              {isRecording ? (
+                <Text style={[styles.recordingLabel, { color: colors.destructive }]}>
+                  {t("tabs.events.planChatRecording")} {Math.floor(recordSecs / 60)}:{String(recordSecs % 60).padStart(2, "0")}
+                </Text>
+              ) : null}
               <View style={styles.composerRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("tabs.events.planChatChoosePhoto")}
+                  testID="button-pick-plan-chat-photo"
+                  disabled={sendMessage.isPending || uploadingAttachment || isRecording}
+                  onPress={() => void pickChatPhoto()}
+                  style={[
+                    styles.mediaButton,
+                    { backgroundColor: colors.card, opacity: sendMessage.isPending || uploadingAttachment || isRecording ? 0.5 : 1 },
+                  ]}
+                >
+                  <Feather name="image" size={18} color={colors.primary} />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={isRecording
+                    ? t("tabs.events.planChatStopRecording")
+                    : t("tabs.events.planChatRecordVoice")}
+                  testID="button-toggle-plan-chat-recording"
+                  disabled={sendMessage.isPending || uploadingAttachment || Boolean(pendingAttachment)}
+                  onPress={() => void toggleVoiceRecording()}
+                  style={[
+                    styles.mediaButton,
+                    {
+                      backgroundColor: isRecording ? colors.destructive : colors.card,
+                      opacity: sendMessage.isPending || uploadingAttachment || Boolean(pendingAttachment) ? 0.5 : 1,
+                    },
+                  ]}
+                >
+                  <Feather
+                    name={isRecording ? "square" : "mic"}
+                    size={17}
+                    color={isRecording ? colors.primaryForeground : colors.primary}
+                  />
+                </Pressable>
                 <TextInput
                   accessibilityLabel={t("tabs.events.planChatPlaceholder")}
                   testID="input-plan-chat-message"
@@ -332,6 +785,7 @@ export default function EventChatScreen() {
                   placeholderTextColor={colors.mutedForeground}
                   maxLength={500}
                   multiline
+                  editable={!sendMessage.isPending && !uploadingAttachment}
                   style={[
                     styles.input,
                     {
@@ -345,27 +799,63 @@ export default function EventChatScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={t("common.send")}
                   testID="button-send-plan-chat-message"
-                  disabled={!draft.trim() || sendMessage.isPending}
+                  disabled={
+                    (!draft.trim() && !pendingAttachment) ||
+                    sendMessage.isPending ||
+                    uploadingAttachment ||
+                    uploadMedia.isPending ||
+                    isRecording
+                  }
                   onPress={() => void submitMessage()}
                   style={[
                     styles.sendButton,
                     {
                       backgroundColor: colors.primary,
-                      opacity: !draft.trim() || sendMessage.isPending ? 0.55 : 1,
+                      opacity:
+                        (!draft.trim() && !pendingAttachment) ||
+                        sendMessage.isPending ||
+                        uploadingAttachment ||
+                        uploadMedia.isPending ||
+                        isRecording
+                          ? 0.55
+                          : 1,
                     },
                   ]}
                 >
-                  {sendMessage.isPending ? (
+                  {sendMessage.isPending || uploadingAttachment || uploadMedia.isPending ? (
                     <ActivityIndicator size="small" color={colors.primaryForeground} />
                   ) : (
                     <Feather name="arrow-up" size={19} color={colors.primaryForeground} />
                   )}
                 </Pressable>
               </View>
+              <Text style={[styles.expiryNote, { color: colors.mutedForeground }]}>
+                {t("tabs.events.planChatMediaExpiry")}
+              </Text>
             </View>
           </>
         )}
       </View>
+      <Modal
+        visible={Boolean(viewerUri)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewerUri(null)}
+      >
+        <Pressable style={styles.imageViewer} onPress={() => setViewerUri(null)}>
+          {viewerUri ? (
+            <Image source={{ uri: viewerUri }} contentFit="contain" style={styles.viewerImage} />
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("common.close")}
+            onPress={() => setViewerUri(null)}
+            style={styles.viewerClose}
+          >
+            <Feather name="x" size={22} color="#FFFFFF" />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -416,7 +906,13 @@ const styles = StyleSheet.create({
   messageContentMine: { alignItems: "flex-end" },
   senderName: { fontSize: 11, marginLeft: 4 },
   messageBubble: { borderWidth: 1, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 },
+  messageBubbleImage: { padding: 4, overflow: "hidden" },
+  messageImage: { width: 220, height: 190, borderRadius: 13 },
   messageText: { fontSize: 14, lineHeight: 19 },
+  voicePlayer: { minWidth: 190, flexDirection: "row", alignItems: "center", gap: 9, paddingVertical: 2 },
+  voiceTrack: { height: 4, flex: 1, borderRadius: 2, overflow: "hidden" },
+  voiceProgress: { height: 4, borderRadius: 2 },
+  voiceDuration: { minWidth: 34, fontSize: 11, fontVariant: ["tabular-nums"] },
   messageTime: { fontSize: 10, marginHorizontal: 5 },
   composer: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -424,6 +920,7 @@ const styles = StyleSheet.create({
     paddingTop: 9,
   },
   composerRow: { flexDirection: "row", alignItems: "flex-end", gap: 9 },
+  mediaButton: { width: 38, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
   input: {
     flex: 1,
     minHeight: 42,
@@ -435,6 +932,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   sendButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  pendingAttachment: { minHeight: 48, paddingHorizontal: 9, paddingVertical: 6, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 8 },
+  pendingImage: { width: 36, height: 36, borderRadius: 7 },
+  pendingVoiceIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  pendingAttachmentText: { flex: 1, fontSize: 12, fontWeight: "600" },
+  removeAttachment: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  recordingLabel: { fontSize: 12, fontWeight: "600", marginBottom: 6 },
+  expiryNote: { fontSize: 10, lineHeight: 14, marginTop: 6, textAlign: "center" },
+  imageViewer: { flex: 1, backgroundColor: "rgba(0,0,0,0.94)", alignItems: "center", justifyContent: "center" },
+  viewerImage: { width: "100%", height: "100%" },
+  viewerClose: { position: "absolute", top: 52, right: 18, width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
   sendError: { fontSize: 12, marginBottom: 6 },
   state: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 12 },
   stateText: { fontSize: 14, lineHeight: 20, textAlign: "center" },

@@ -511,6 +511,9 @@ export interface RemoteRevealRequestWithProfile extends RemoteRevealRequest {
 }
 
 // ----- Venue guestbook -----
+export type GuestbookUnlockMode = "none" | "date" | "return";
+export type GuestbookCapsuleAudience = "public" | "private";
+
 export interface VenueGuestbookEntry {
   id: number;
   authorUid: string;
@@ -519,6 +522,10 @@ export interface VenueGuestbookEntry {
   note: string;
   photoUrl: string | null;
   createdAt: string;
+  unlockMode: GuestbookUnlockMode;
+  unlockAt: string | null;
+  capsuleAudience: GuestbookCapsuleAudience;
+  isLocked: boolean;
 }
 
 export interface VenueGuestbookPage {
@@ -944,6 +951,8 @@ export const api = {
       trustScore?: number;
       /** True when the peer has an active Plus or Pro subscription. */
       isSubscriber?: boolean;
+      /** True when the peer meets the venue check-in and positive meeting-review requirements. */
+      isVerifiedExplorer?: boolean;
     }>("GET", `/api/users/${encodeURIComponent(uid)}/community-standing`, opts),
   /**
    * Fetch hub streaks, trust score, and average rating for any user.
@@ -1688,7 +1697,14 @@ export const api = {
   createVenueGuestbookEntry: (
     opts: ApiOptions,
     placeId: string,
-    body: { note: string; photoBase64?: string; clientId: string },
+    body: {
+      note: string;
+      photoBase64?: string;
+      clientId: string;
+      unlockMode?: GuestbookUnlockMode;
+      unlockAt?: string | null;
+      capsuleAudience?: GuestbookCapsuleAudience;
+    },
   ) =>
     request<{ entry: VenueGuestbookEntry }>(
       "POST", `/api/hubs/${encodeURIComponent(placeId)}/guestbook`, opts, body,

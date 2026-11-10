@@ -75,17 +75,15 @@ function EventsScreen() {
   const [actionError, setActionError] = useState("");
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState<"permission" | "unavailable" | null>(null);
-  const [locationNeedsSettings, setLocationNeedsSettings] = useState(false);
   const [sortMode, setSortMode] = useState<HangoutSortMode>("nearest");
   const automaticLocationLookup = useRef(false);
   const appState = useRef(AppState.currentState);
   const [hangoutPageState, setHangoutPageState] = useState<{
-    queryKey: string;
+    filterKey: string;
     offset: number;
     events: NearbyHangoutItem[];
     nextOffset: number | null;
-  }>({ queryKey: "", offset: 0, events: [], nextOffset: null });
+  }>({ filterKey: "", offset: 0, events: [], nextOffset: null });
   const processedHangoutPageRef = useRef<string | null>(null);
   const feed = useGetEventsFeed(undefined, {
     query: {
@@ -137,14 +135,10 @@ function EventsScreen() {
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
     });
-    setLocationError(null);
-    setLocationNeedsSettings(false);
   }, []);
 
   const enableNearbySorting = useCallback(async () => {
     setLocationLoading(true);
-    setLocationError(null);
-    setLocationNeedsSettings(false);
     try {
       if (Platform.OS === "web") {
         setUserLocation(await getBrowserLocation());
@@ -155,33 +149,28 @@ function EventsScreen() {
         permission = await Location.requestForegroundPermissionsAsync();
       }
       if (!permission.granted) {
-        setLocationError("permission");
         if (permission.canAskAgain === false) {
-          setLocationNeedsSettings(true);
-          if (activeView !== "hangouts") {
-            Alert.alert(
-              t("tabs.events.locationDenied"),
-              t("tabs.events.nearestUsesTimeUntilLocation"),
-              [
-                { text: t("common.cancel"), style: "cancel" },
-                {
-                  text: t("tabs.events.openLocationSettings"),
-                  onPress: () => void Linking.openSettings().catch(() => undefined),
-                },
-              ],
-            );
-          }
+          Alert.alert(
+            t("tabs.events.locationDenied"),
+            t("tabs.events.nearestUsesTimeUntilLocation"),
+            [
+              { text: t("common.cancel"), style: "cancel" },
+              {
+                text: t("tabs.events.openLocationSettings"),
+                onPress: () => void Linking.openSettings().catch(() => undefined),
+              },
+            ],
+          );
         }
         return;
       }
       await fetchNativeLocation();
     } catch {
       setUserLocation(null);
-      setLocationError("unavailable");
     } finally {
       setLocationLoading(false);
     }
-  }, [activeView, fetchNativeLocation, t]);
+  }, [fetchNativeLocation, t]);
 
   useEffect(() => {
     if (requestedView === "events" || requestedView === "hangouts") {
@@ -201,16 +190,9 @@ function EventsScreen() {
     void (async () => {
       try {
         const permission = await Location.getForegroundPermissionsAsync();
-        if (!permission.granted) {
-          setLocationError("permission");
-          setLocationNeedsSettings(permission.canAskAgain === false);
-          return;
-        }
+        if (!permission.granted) return;
         await fetchNativeLocation();
-      } catch {
-        setLocationError("unavailable");
-        setLocationNeedsSettings(false);
-      }
+      } catch {}
     })();
   }, [activeView, fetchNativeLocation]);
 
@@ -231,8 +213,6 @@ function EventsScreen() {
           const permission = await Location.getForegroundPermissionsAsync();
           if (!permission.granted) {
             setUserLocation(null);
-            setLocationError("permission");
-            setLocationNeedsSettings(permission.canAskAgain === false);
             return;
           }
           if (!userLocation) {
@@ -241,8 +221,6 @@ function EventsScreen() {
           }
         } catch {
           setUserLocation(null);
-          setLocationError("unavailable");
-          setLocationNeedsSettings(false);
         } finally {
           setLocationLoading(false);
         }
@@ -293,14 +271,14 @@ function EventsScreen() {
   );
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const hangoutQueryKey = JSON.stringify([
+  const hangoutFilterKey = JSON.stringify([
     sortMode,
     userLocation?.latitude ?? null,
     userLocation?.longitude ?? null,
     timeZone,
   ]);
   const hangoutPageOffset =
-    hangoutPageState.queryKey === hangoutQueryKey ? hangoutPageState.offset : 0;
+    hangoutPageState.filterKey === hangoutFilterKey ? hangoutPageState.offset : 0;
   const nearbyHangoutParams = {
     sortMode,
     latitude: userLocation?.latitude,
@@ -318,14 +296,14 @@ function EventsScreen() {
       ],
     },
   });
-  const hangoutPageResponseKey = `${hangoutQueryKey}:${hangoutPageOffset}:${nearbyHangoutQuery.dataUpdatedAt}`;
+  const hangoutPageResponseKey = `${hangoutFilterKey}:${hangoutPageOffset}:${nearbyHangoutQuery.dataUpdatedAt}`;
   useEffect(() => {
     const response = nearbyHangoutQuery.data;
     if (!response || processedHangoutPageRef.current === hangoutPageResponseKey) return;
     processedHangoutPageRef.current = hangoutPageResponseKey;
     setHangoutPageState((current) => {
       const appendPage =
-        current.queryKey === hangoutQueryKey &&
+        current.filterKey === hangoutFilterKey &&
         current.offset === hangoutPageOffset &&
         hangoutPageOffset > 0;
       const nextEvents = appendPage
@@ -340,7 +318,7 @@ function EventsScreen() {
         current.events.length === nextEvents.length &&
         current.events.every((event, index) => event.id === nextEvents[index]?.id);
       if (
-        current.queryKey === hangoutQueryKey &&
+        current.filterKey === hangoutFilterKey &&
         current.offset === hangoutPageOffset &&
         current.nextOffset === response.nextOffset &&
         eventsUnchanged
@@ -348,7 +326,7 @@ function EventsScreen() {
         return current;
       }
       return {
-        queryKey: hangoutQueryKey,
+        filterKey: hangoutFilterKey,
         offset: hangoutPageOffset,
         events: nextEvents,
         nextOffset: response.nextOffset,
@@ -357,22 +335,22 @@ function EventsScreen() {
   }, [
     nearbyHangoutQuery.data,
     nearbyHangoutQuery.dataUpdatedAt,
-    hangoutQueryKey,
+    hangoutFilterKey,
     hangoutPageOffset,
     hangoutPageResponseKey,
   ]);
-  const hangoutPageMatchesFilters = hangoutPageState.queryKey === hangoutQueryKey;
+  const hangoutPageMatchesFilters = hangoutPageState.filterKey === hangoutFilterKey;
   const hangouts = hangoutPageMatchesFilters ? hangoutPageState.events : [];
   const hasMoreHangouts =
     hangoutPageMatchesFilters && hangoutPageState.nextOffset != null;
   const loadMoreHangouts = useCallback(() => {
     setHangoutPageState((current) => {
-      if (current.queryKey !== hangoutQueryKey || current.nextOffset == null) {
+      if (current.filterKey !== hangoutFilterKey || current.nextOffset == null) {
         return current;
       }
       return { ...current, offset: current.nextOffset };
     });
-  }, [hangoutQueryKey]);
+  }, [hangoutFilterKey]);
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -477,11 +455,6 @@ function EventsScreen() {
           <HangoutsNearbyPanel
             hangouts={hangouts}
             userLocation={userLocation}
-            locationLoading={locationLoading}
-            locationError={locationError}
-            locationNeedsSettings={locationNeedsSettings}
-            onUseLocation={() => void enableNearbySorting()}
-            onOpenSettings={() => void Linking.openSettings().catch(() => undefined)}
             sortMode={sortMode}
             onSortModeChange={(mode) => {
               setSortMode(mode);
@@ -496,16 +469,12 @@ function EventsScreen() {
             hasMore={hasMoreHangouts}
             onLoadMore={loadMoreHangouts}
             onRetry={() => void nearbyHangoutQuery.refetch()}
-            onPressHangout={(eventId) => {
-              const event = hangouts.find((item) => item.id === eventId);
-              if (!event) return;
-              router.push(getHangoutOpenPath(
-                event.id,
-                event.ownerUid,
-                authedUid,
-                event.myJoinRequestStatus,
-              ) as never);
-            }}
+            onPressHangout={(event) => router.push(getHangoutOpenPath(
+              event.id,
+              event.ownerUid,
+              authedUid,
+              event.myJoinRequestStatus,
+            ) as never)}
           />
         ) : events.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: "transparent", borderColor: colors.border }]}>

@@ -53,6 +53,8 @@ import type {
   CommunityEventJoinRequestDecisionInput,
   CommunityEventJoinRequestMutationResponse,
   CommunityEventManageResponse,
+  CommunityEventPlanChatMediaUploadInput,
+  CommunityEventPlanChatMediaUploadResponse,
   CommunityEventPlanChatMessageInput,
   CommunityEventPlanChatMessageResponse,
   CommunityEventPlanChatNotificationsInput,
@@ -68,6 +70,7 @@ import type {
   CreateVenueGuestbookEntryInput,
   DeleteAdminVenueResult,
   DeleteAnnouncement200,
+  DeleteLocalEventReminderPayload,
   DeleteNetwork200,
   DeleteVenueGuestbookEntry200,
   EditAnnouncementBody,
@@ -89,6 +92,7 @@ import type {
   EventQrCheckinInput,
   GetEventsFeedParams,
   GetNearbyHangoutsParams,
+  GetNotificationInboxParams,
   GetVenueOwnerMapPoints200,
   GetVenueOwnerMeGuestsParams,
   GmailBounceReconciliationApplyInput,
@@ -111,8 +115,11 @@ import type {
   ListAdminOpenStreetMapAttractionsParams,
   ListNetworksParams,
   ListVenueApplicationsParams,
+  LocalEventReminderInput,
   LogEncounter,
   ManualEventCheckInInput,
+  MarkAllNotificationsReadResult,
+  MarkNotificationReadResult,
   NativeBranchApplicationInput,
   NativeBranchApplicationSubmitted,
   NearbyEntry,
@@ -121,7 +128,9 @@ import type {
   NeighborhoodInfo,
   NetworkListEntry,
   NetworkMemberWithProfile,
+  NotificationInboxResponse,
   NotificationPrefsInput,
+  PastHangoutsResponse,
   PresenceRecord,
   PreviewNewVenueOutreach200,
   Profile,
@@ -140,6 +149,7 @@ import type {
   RevealRequestWithProfile,
   RsvpCommunityEvent200,
   RsvpToEventInvite200,
+  SaveLocalEventReminderPayload,
   SavedPlace,
   SearchAdminVenuePlaces200,
   SearchAdminVenuePlacesParams,
@@ -10467,6 +10477,616 @@ export const useSendCommunityEventPlanChatMessage = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSendCommunityEventPlanChatMessageMutationOptions(options), queryClient);
+    }
+
+export const getGetMyPastHangoutsUrl = () => {
+
+
+
+
+  return `/api/community-events/my-past-hangouts`
+}
+
+/**
+ * @summary List completed Hangouts the signed-in guest can rate
+ */
+export const getMyPastHangouts = async ( options?: Parameters<typeof customFetch>[1]): Promise<PastHangoutsResponse> => {
+
+  return customFetch<PastHangoutsResponse>(getGetMyPastHangoutsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyPastHangoutsQueryKey = () => {
+    return [
+    `/api/community-events/my-past-hangouts`
+    ] as const;
+    }
+
+
+export const getGetMyPastHangoutsQueryOptions = <TData = Awaited<ReturnType<typeof getMyPastHangouts>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastHangouts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyPastHangoutsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyPastHangouts>>> = ({ signal }) => getMyPastHangouts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyPastHangouts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyPastHangoutsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyPastHangouts>>>
+export type GetMyPastHangoutsQueryError = ErrorType<void>
+
+
+export function useGetMyPastHangouts<TData = Awaited<ReturnType<typeof getMyPastHangouts>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastHangouts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPastHangouts>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPastHangouts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPastHangouts<TData = Awaited<ReturnType<typeof getMyPastHangouts>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastHangouts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPastHangouts>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPastHangouts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPastHangouts<TData = Awaited<ReturnType<typeof getMyPastHangouts>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastHangouts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List completed Hangouts the signed-in guest can rate
+ */
+
+export function useGetMyPastHangouts<TData = Awaited<ReturnType<typeof getMyPastHangouts>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastHangouts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyPastHangoutsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCommunityEventPlanChatMediaUploadUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/plan-chat/media-upload`
+}
+
+/**
+ * @summary Create an authorized upload URL for an event conversation attachment
+ */
+export const createCommunityEventPlanChatMediaUpload = async (eventId: number,
+    communityEventPlanChatMediaUploadInput: CommunityEventPlanChatMediaUploadInput, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventPlanChatMediaUploadResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CommunityEventPlanChatMediaUploadResponse>(getCreateCommunityEventPlanChatMediaUploadUrl(eventId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(communityEventPlanChatMediaUploadInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCommunityEventPlanChatMediaUploadMutationKey = () => ['createCommunityEventPlanChatMediaUpload'] as const;
+
+export const getCreateCommunityEventPlanChatMediaUploadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityEventPlanChatMediaUpload>>, TError,CreateCommunityEventPlanChatMediaUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCommunityEventPlanChatMediaUpload>>, TError,CreateCommunityEventPlanChatMediaUploadMutationVariables, TContext> => {
+
+const mutationKey = getCreateCommunityEventPlanChatMediaUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCommunityEventPlanChatMediaUpload>>, CreateCommunityEventPlanChatMediaUploadMutationVariables> = (props) => {
+          const {eventId,data} = props ?? {};
+
+          return  createCommunityEventPlanChatMediaUpload(eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCommunityEventPlanChatMediaUploadMutationResult = NonNullable<Awaited<ReturnType<typeof createCommunityEventPlanChatMediaUpload>>>
+    export type CreateCommunityEventPlanChatMediaUploadMutationBody = BodyType<CommunityEventPlanChatMediaUploadInput>
+    export type CreateCommunityEventPlanChatMediaUploadMutationError = ErrorType<void>
+    export type CreateCommunityEventPlanChatMediaUploadMutationVariables = {eventId: number;data: BodyType<CommunityEventPlanChatMediaUploadInput>}
+
+    /**
+ * @summary Create an authorized upload URL for an event conversation attachment
+ */
+export const useCreateCommunityEventPlanChatMediaUpload = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityEventPlanChatMediaUpload>>, TError,CreateCommunityEventPlanChatMediaUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCommunityEventPlanChatMediaUpload>>,
+        TError,
+        CreateCommunityEventPlanChatMediaUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCommunityEventPlanChatMediaUploadMutationOptions(options), queryClient);
+    }
+
+export const getGetNotificationInboxUrl = (params?: GetNotificationInboxParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/notifications?${stringifiedParams}` : `/api/notifications`
+}
+
+/**
+ * @summary Get persisted notifications for the signed-in user
+ */
+export const getNotificationInbox = async (params?: GetNotificationInboxParams, options?: Parameters<typeof customFetch>[1]): Promise<NotificationInboxResponse> => {
+
+  return customFetch<NotificationInboxResponse>(getGetNotificationInboxUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNotificationInboxQueryKey = (params?: GetNotificationInboxParams,) => {
+    return [
+    `/api/notifications`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNotificationInboxQueryOptions = <TData = Awaited<ReturnType<typeof getNotificationInbox>>, TError = ErrorType<void>>(params?: GetNotificationInboxParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNotificationInbox>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNotificationInboxQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNotificationInbox>>> = ({ signal }) => getNotificationInbox(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNotificationInbox>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetNotificationInboxQueryResult = NonNullable<Awaited<ReturnType<typeof getNotificationInbox>>>
+export type GetNotificationInboxQueryError = ErrorType<void>
+
+
+export function useGetNotificationInbox<TData = Awaited<ReturnType<typeof getNotificationInbox>>, TError = ErrorType<void>>(
+ params: undefined |  GetNotificationInboxParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNotificationInbox>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getNotificationInbox>>,
+          TError,
+          Awaited<ReturnType<typeof getNotificationInbox>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetNotificationInbox<TData = Awaited<ReturnType<typeof getNotificationInbox>>, TError = ErrorType<void>>(
+ params?: GetNotificationInboxParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNotificationInbox>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getNotificationInbox>>,
+          TError,
+          Awaited<ReturnType<typeof getNotificationInbox>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetNotificationInbox<TData = Awaited<ReturnType<typeof getNotificationInbox>>, TError = ErrorType<void>>(
+ params?: GetNotificationInboxParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNotificationInbox>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get persisted notifications for the signed-in user
+ */
+
+export function useGetNotificationInbox<TData = Awaited<ReturnType<typeof getNotificationInbox>>, TError = ErrorType<void>>(
+ params?: GetNotificationInboxParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNotificationInbox>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetNotificationInboxQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkNotificationReadUrl = (notificationId: number,) => {
+
+
+
+
+  return `/api/notifications/${notificationId}/read`
+}
+
+/**
+ * @summary Mark one notification as read
+ */
+export const markNotificationRead = async (notificationId: number, options?: Parameters<typeof customFetch>[1]): Promise<MarkNotificationReadResult> => {
+
+  return customFetch<MarkNotificationReadResult>(getMarkNotificationReadUrl(notificationId),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkNotificationReadMutationKey = () => ['markNotificationRead'] as const;
+
+export const getMarkNotificationReadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markNotificationRead>>, TError,MarkNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markNotificationRead>>, TError,MarkNotificationReadMutationVariables, TContext> => {
+
+const mutationKey = getMarkNotificationReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markNotificationRead>>, MarkNotificationReadMutationVariables> = (props) => {
+          const {notificationId} = props ?? {};
+
+          return  markNotificationRead(notificationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkNotificationReadMutationResult = NonNullable<Awaited<ReturnType<typeof markNotificationRead>>>
+
+    export type MarkNotificationReadMutationError = ErrorType<void>
+    export type MarkNotificationReadMutationVariables = {notificationId: number}
+
+    /**
+ * @summary Mark one notification as read
+ */
+export const useMarkNotificationRead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markNotificationRead>>, TError,MarkNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markNotificationRead>>,
+        TError,
+        MarkNotificationReadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkNotificationReadMutationOptions(options), queryClient);
+    }
+
+export const getMarkAllNotificationsReadUrl = () => {
+
+
+
+
+  return `/api/notifications/read-all`
+}
+
+/**
+ * @summary Mark every notification as read
+ */
+export const markAllNotificationsRead = async ( options?: Parameters<typeof customFetch>[1]): Promise<MarkAllNotificationsReadResult> => {
+
+  return customFetch<MarkAllNotificationsReadResult>(getMarkAllNotificationsReadUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkAllNotificationsReadMutationKey = () => ['markAllNotificationsRead'] as const;
+
+export const getMarkAllNotificationsReadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext> => {
+
+const mutationKey = getMarkAllNotificationsReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markAllNotificationsRead>>, void> = () => {
+
+
+          return  markAllNotificationsRead(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkAllNotificationsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markAllNotificationsRead>>>
+
+    export type MarkAllNotificationsReadMutationError = ErrorType<void>
+
+
+    /**
+ * @summary Mark every notification as read
+ */
+export const useMarkAllNotificationsRead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markAllNotificationsRead>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkAllNotificationsReadMutationOptions(options), queryClient);
+    }
+
+export const getSaveLocalEventReminderUrl = () => {
+
+
+
+
+  return `/api/notifications/local-event-reminder`
+}
+
+/**
+ * @summary Keep a scheduled local event reminder in the notification inbox
+ */
+export const saveLocalEventReminder = async (localEventReminderInput: LocalEventReminderInput, options?: Parameters<typeof customFetch>[1]): Promise<SaveLocalEventReminderPayload> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SaveLocalEventReminderPayload>(getSaveLocalEventReminderUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(localEventReminderInput)
+  }
+);}
+
+
+
+
+
+export const getSaveLocalEventReminderMutationKey = () => ['saveLocalEventReminder'] as const;
+
+export const getSaveLocalEventReminderMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveLocalEventReminder>>, TError,SaveLocalEventReminderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveLocalEventReminder>>, TError,SaveLocalEventReminderMutationVariables, TContext> => {
+
+const mutationKey = getSaveLocalEventReminderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveLocalEventReminder>>, SaveLocalEventReminderMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveLocalEventReminder(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveLocalEventReminderMutationResult = NonNullable<Awaited<ReturnType<typeof saveLocalEventReminder>>>
+    export type SaveLocalEventReminderMutationBody = BodyType<LocalEventReminderInput>
+    export type SaveLocalEventReminderMutationError = ErrorType<void>
+    export type SaveLocalEventReminderMutationVariables = {data: BodyType<LocalEventReminderInput>}
+
+    /**
+ * @summary Keep a scheduled local event reminder in the notification inbox
+ */
+export const useSaveLocalEventReminder = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveLocalEventReminder>>, TError,SaveLocalEventReminderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveLocalEventReminder>>,
+        TError,
+        SaveLocalEventReminderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveLocalEventReminderMutationOptions(options), queryClient);
+    }
+
+export const getDeleteLocalEventReminderUrl = (eventType: 'member' | 'venue',
+    eventId: number,) => {
+
+
+
+
+  return `/api/notifications/local-event-reminder/${eventType}/${eventId}`
+}
+
+/**
+ * @summary Remove a cancelled local event reminder from the inbox
+ */
+export const deleteLocalEventReminder = async (eventType: 'member' | 'venue',
+    eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<DeleteLocalEventReminderPayload> => {
+
+  return customFetch<DeleteLocalEventReminderPayload>(getDeleteLocalEventReminderUrl(eventType,eventId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteLocalEventReminderMutationKey = () => ['deleteLocalEventReminder'] as const;
+
+export const getDeleteLocalEventReminderMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLocalEventReminder>>, TError,DeleteLocalEventReminderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteLocalEventReminder>>, TError,DeleteLocalEventReminderMutationVariables, TContext> => {
+
+const mutationKey = getDeleteLocalEventReminderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteLocalEventReminder>>, DeleteLocalEventReminderMutationVariables> = (props) => {
+          const {eventType,eventId} = props ?? {};
+
+          return  deleteLocalEventReminder(eventType,eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteLocalEventReminderMutationResult = NonNullable<Awaited<ReturnType<typeof deleteLocalEventReminder>>>
+
+    export type DeleteLocalEventReminderMutationError = ErrorType<void>
+    export type DeleteLocalEventReminderMutationVariables = {eventType: 'member' | 'venue';eventId: number}
+
+    /**
+ * @summary Remove a cancelled local event reminder from the inbox
+ */
+export const useDeleteLocalEventReminder = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLocalEventReminder>>, TError,DeleteLocalEventReminderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteLocalEventReminder>>,
+        TError,
+        DeleteLocalEventReminderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteLocalEventReminderMutationOptions(options), queryClient);
     }
 
 export const getReportCommunityEventUrl = () => {

@@ -15,7 +15,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -27,6 +26,7 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
 import { useT } from "@/lib/i18n";
 import {
@@ -95,11 +95,37 @@ interface Draft {
   note: string;
   photoUri: string | null;
   photoBase64: string | null;
+  unlockMode: "none" | "date" | "return";
+  unlockDate: string;
+  capsuleAudience: "public" | "private";
   /** Idempotency key; kept across retries of this draft, reset on success/discard. */
   clientId: string | null;
 }
 
-const EMPTY_DRAFT: Draft = { note: "", photoUri: null, photoBase64: null, clientId: null };
+const EMPTY_DRAFT: Draft = {
+  note: "",
+  photoUri: null,
+  photoBase64: null,
+  unlockMode: "none",
+  unlockDate: "",
+  capsuleAudience: "public",
+  clientId: null,
+};
+
+function parseFutureCapsuleDate(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getTime() <= Date.now()
+  ) {
+    return null;
+  }
+  return date;
+}
 
 function safeUUID(): string {
   const g = globalThis as { crypto?: { randomUUID?: () => string } };
@@ -280,7 +306,15 @@ export function VenueGuestbook({
   };
 
   const trimmed = draft.note.trim();
-  const canSubmit = trimmed.length >= 1 && trimmed.length <= MAX_NOTE && consent && !submitting;
+  const capsuleUnlockDate = draft.unlockMode === "date"
+    ? parseFutureCapsuleDate(draft.unlockDate)
+    : null;
+  const canSubmit =
+    trimmed.length >= 1 &&
+    trimmed.length <= MAX_NOTE &&
+    consent &&
+    !submitting &&
+    (draft.unlockMode !== "date" || capsuleUnlockDate != null);
 
   const submit = async () => {
     if (!canSubmit || !authedUid || !writesAllowed) return;
@@ -294,6 +328,11 @@ export function VenueGuestbook({
       await api.createVenueGuestbookEntry({ uid: authedUid, signal: controller.signal }, placeId, {
         note: trimmed,
         clientId,
+        unlockMode: draft.unlockMode,
+        ...(draft.unlockMode === "date" && capsuleUnlockDate
+          ? { unlockAt: capsuleUnlockDate.toISOString() }
+          : {}),
+        capsuleAudience: draft.capsuleAudience,
         ...(draft.photoBase64 ? { photoBase64: draft.photoBase64 } : {}),
       });
       setDraft(EMPTY_DRAFT);
@@ -464,6 +503,16 @@ export function VenueGuestbook({
           placeName={placeName}
           draft={draft}
           setNote={(note) => setDraft((d) => ({ ...d, note, clientId: null }))}
+          setCapsuleMode={(unlockMode) => setDraft((d) => ({
+            ...d,
+            unlockMode,
+            ...(unlockMode === "none" ? { unlockDate: "", capsuleAudience: "public" as const } : {}),
+            clientId: null,
+          }))}
+          setUnlockDate={(unlockDate) => setDraft((d) => ({ ...d, unlockDate, clientId: null }))}
+          setCapsuleAudience={(capsuleAudience) =>
+            setDraft((d) => ({ ...d, capsuleAudience, clientId: null }))
+          }
           removePhoto={() => setDraft((d) => ({ ...d, photoUri: null, photoBase64: null, clientId: null }))}
           pickPhoto={() => void pickPhoto()}
           picking={picking}
@@ -509,20 +558,44 @@ const SAMPLE_ENTRIES: VenueGuestbookEntry[] = [
   {
     id: -1, authorUid: "sample-guestbook-1", displayName: "Sample visitor",
     avatarUrl: null, photoUrl: null, createdAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+    unlockMode: "none", unlockAt: null, capsuleAudience: "public", isLocked: false,
     note: "Came in for one coffee, stayed for three and a long talk at the community table. Thank you for the window seat.",
   },
   {
     id: -2, authorUid: "sample-guestbook-2", displayName: "Sample visitor",
     avatarUrl: null, photoUrl: null, createdAt: new Date(Date.now() - 9 * 86_400_000).toISOString(),
+    unlockMode: "none", unlockAt: null, capsuleAudience: "public", isLocked: false,
     note: "Rainy Tuesday, warm room. I'll be back on Saturday for the records.",
   },
 ];
 
 function NoteCard({ entry, onMenu, onPhoto, sample, photoSource }: { entry: VenueGuestbookEntry; onMenu?: () => void; onPhoto?: () => void; sample?: boolean; photoSource?: number }) {
+  const { t } = useT();
+  const hasReadableContent = Boolean(entry.note || entry.photoUrl);
+  const lockedForOthers = entry.isLocked && !hasReadableContent;
+  const capsuleLabel = entry.capsuleAudience === "private"
+    ? t("guestbookCapsule.privateLabel")
+    : t("guestbookCapsule.title");
+  const lockedDetails = entry.unlockMode === "date"
+    ? `${t("guestbookCapsule.lockedDate")} ${entry.unlockAt ? visitDate(entry.unlockAt) : ""}`.trim()
+    : t("guestbookCapsule.lockedReturn");
   return (
     <View style={[s.note, { transform: [{ rotate: tiltFor(entry.id) }] }]}>
       <View style={s.margin} />
       {sample ? <Text style={s.sampleTag}>SAMPLE MEMORY</Text> : null}
+      {entry.unlockMode !== "none" ? (
+        <View style={s.capsuleTag}>
+          <Feather name={lockedForOthers ? "lock" : "clock"} size={12} color={CORAL} />
+          <Text style={s.capsuleTagText}>{capsuleLabel}</Text>
+        </View>
+      ) : null}
+      {lockedForOthers ? (
+        <View style={s.capsuleLocked}>
+          <Feather name="lock" size={20} color={INK_SOFT} />
+          <Text style={s.capsuleLockedText}>{lockedDetails}</Text>
+        </View>
+      ) : (
+        <>
       {photoSource != null ? (
         <View style={[s.print, { transform: [{ rotate: "-2.5deg" }] }]} accessibilityLabel="Sample photo">
           <View style={s.tape} />
@@ -540,6 +613,8 @@ function NoteCard({ entry, onMenu, onPhoto, sample, photoSource }: { entry: Venu
         </Pressable>
       ) : null}
       <Text style={s.noteText}>{entry.note}</Text>
+        </>
+      )}
       <View style={s.signRow}>
         {entry.avatarUrl ? (
           <Image source={{ uri: entry.avatarUrl }} style={s.avatar} />
@@ -589,6 +664,9 @@ function Composer(p: {
   placeName: string;
   draft: Draft;
   setNote: (n: string) => void;
+  setCapsuleMode: (mode: Draft["unlockMode"]) => void;
+  setUnlockDate: (date: string) => void;
+  setCapsuleAudience: (audience: Draft["capsuleAudience"]) => void;
   removePhoto: () => void;
   pickPhoto: () => void;
   picking: boolean;
@@ -603,8 +681,11 @@ function Composer(p: {
   photoError: string | null;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useT();
   const len = p.draft.note.length;
-  const hasDraft = !!p.draft.note || !!p.draft.photoUri;
+  const hasDraft = !!p.draft.note || !!p.draft.photoUri || p.draft.unlockMode !== "none";
+  const validUnlockDate =
+    p.draft.unlockMode !== "date" || parseFutureCapsuleDate(p.draft.unlockDate) != null;
   return (
     <View style={s.modalRoot}>
       <Pressable style={s.backdrop} onPress={p.close} accessibilityLabel="Close composer" />
@@ -620,7 +701,7 @@ function Composer(p: {
             </Pressable>
           ) : <View style={{ width: 52 }} />}
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollViewCompat keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={[s.note, s.composeNote]}>
             <View style={s.margin} />
             <Text style={s.composeLead}>Dear {p.placeName},</Text>
@@ -637,6 +718,79 @@ function Composer(p: {
               testID="guestbook-note-input"
             />
             <Text style={[s.counter, len > MAX_NOTE - 40 && { color: CORAL }]}>{len}/{MAX_NOTE}</Text>
+          </View>
+
+          <View style={s.capsuleSection}>
+            <Text style={s.capsuleHeading}>{t("guestbookCapsule.title")}</Text>
+            {([
+              ["none", t("guestbookCapsule.immediate")],
+              ["date", t("guestbookCapsule.date")],
+              ["return", t("guestbookCapsule.returnVisit")],
+            ] as const).map(([mode, label]) => {
+              const selected = p.draft.unlockMode === mode;
+              return (
+                <Pressable
+                  key={mode}
+                  onPress={() => !p.submitting && p.setCapsuleMode(mode)}
+                  style={[s.capsuleOption, selected && s.capsuleOptionSelected]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected, disabled: p.submitting }}
+                  testID={`guestbook-capsule-mode-${mode}`}
+                >
+                  <Feather
+                    name={selected ? "check-circle" : "circle"}
+                    size={17}
+                    color={selected ? CORAL : MUTED}
+                  />
+                  <Text style={s.capsuleOptionText}>{label}</Text>
+                </Pressable>
+              );
+            })}
+            {p.draft.unlockMode === "date" ? (
+              <>
+                <TextInput
+                  value={p.draft.unlockDate}
+                  onChangeText={p.setUnlockDate}
+                  editable={!p.submitting}
+                  placeholder={t("guestbookCapsule.datePlaceholder")}
+                  placeholderTextColor="#B8AE9C"
+                  maxLength={10}
+                  autoCapitalize="none"
+                  keyboardType="numbers-and-punctuation"
+                  style={s.capsuleDateInput}
+                  accessibilityLabel={t("guestbookCapsule.date")}
+                  testID="guestbook-capsule-date"
+                />
+                {!validUnlockDate ? (
+                  <Text style={s.inlineError}>{t("guestbookCapsule.dateInvalid")}</Text>
+                ) : null}
+              </>
+            ) : null}
+            {p.draft.unlockMode !== "none" ? (
+              <>
+                <Text style={s.capsuleAudienceLabel}>{t("guestbookCapsule.audience")}</Text>
+                <View style={s.capsuleAudienceRow}>
+                  {([
+                    ["public", t("guestbookCapsule.public")],
+                    ["private", t("guestbookCapsule.private")],
+                  ] as const).map(([audience, label]) => {
+                    const selected = p.draft.capsuleAudience === audience;
+                    return (
+                      <Pressable
+                        key={audience}
+                        onPress={() => !p.submitting && p.setCapsuleAudience(audience)}
+                        style={[s.capsuleAudienceOption, selected && s.capsuleOptionSelected]}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected, disabled: p.submitting }}
+                        testID={`guestbook-capsule-audience-${audience}`}
+                      >
+                        <Text style={s.capsuleOptionText}>{label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
           </View>
 
           {p.draft.photoUri ? (
@@ -663,7 +817,11 @@ function Composer(p: {
               {p.consent ? <Feather name="check" size={14} color="#FFF" /> : null}
             </View>
             <Text style={s.consentText}>
-              I understand this note{p.draft.photoUri ? " and photo" : ""} will be public on this venue's page with my name and profile photo, and stays until I delete it. I'll keep it kind and only share photos I took.
+              {p.draft.unlockMode === "none"
+                ? `I understand this note${p.draft.photoUri ? " and photo" : ""} will be public on this venue's page with my name and profile photo, and stays until I delete it. I'll keep it kind and only share photos I took.`
+                : p.draft.capsuleAudience === "private"
+                  ? t("guestbookCapsule.privateConsent")
+                  : t("guestbookCapsule.publicConsent")}
             </Text>
           </Pressable>
 
@@ -679,7 +837,7 @@ function Composer(p: {
           >
             {p.submitting ? <ActivityIndicator color="#FFF" /> : <Text style={s.submitText}>Leave my note</Text>}
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollViewCompat>
       </View>
     </View>
   );
@@ -799,6 +957,29 @@ const s = StyleSheet.create({
   },
   margin: { position: "absolute", left: 18, top: 0, bottom: 0, width: 1, backgroundColor: `${CORAL}55` },
   noteText: { fontSize: 18, lineHeight: 27, fontFamily: HAND, color: INK },
+  capsuleTag: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    marginBottom: 10,
+    borderRadius: 999,
+    backgroundColor: PAPER_ALT,
+  },
+  capsuleTagText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: INK_SOFT },
+  capsuleLocked: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    borderRadius: 14,
+    backgroundColor: PAPER_ALT,
+  },
+  capsuleLockedText: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: "Inter_600SemiBold", color: INK_SOFT },
   signRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14, borderTopWidth: 1, borderTopColor: RULE, paddingTop: 10 },
   avatar: { width: 30, height: 30, borderRadius: 15 },
   avatarFallback: { backgroundColor: PAPER_ALT, borderWidth: 1, borderColor: RULE, alignItems: "center", justifyContent: "center" },
@@ -843,6 +1024,47 @@ const s = StyleSheet.create({
   addPhoto: {
     flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderStyle: "dashed", borderColor: "#D9CDB8",
     borderRadius: 12, padding: 14, marginBottom: 8,
+  },
+  capsuleSection: { marginVertical: 12, padding: 14, borderRadius: 16, backgroundColor: PAPER_ALT },
+  capsuleHeading: { fontSize: 14, fontFamily: "Inter_700Bold", color: INK, marginBottom: 9 },
+  capsuleOption: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: RULE,
+    borderRadius: 12,
+    marginBottom: 7,
+    backgroundColor: PAPER,
+  },
+  capsuleAudienceOption: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: RULE,
+    borderRadius: 12,
+    backgroundColor: PAPER,
+  },
+  capsuleOptionSelected: { borderColor: CORAL, backgroundColor: PAPER },
+  capsuleOptionText: { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold", color: INK },
+  capsuleAudienceRow: { flexDirection: "row", gap: 8, marginTop: 8 },
+  capsuleAudienceLabel: { fontSize: 12, lineHeight: 17, fontFamily: "Inter_600SemiBold", color: INK_SOFT, marginTop: 6 },
+  capsuleDateInput: {
+    borderWidth: 1,
+    borderColor: RULE,
+    borderRadius: 12,
+    backgroundColor: PAPER,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 4,
+    fontSize: 14,
+    color: INK,
   },
   addPhotoText: { fontSize: 14, fontFamily: "Inter_500Medium", color: INK_SOFT },
   previewWrap: { alignItems: "center", marginBottom: 8, marginTop: 8 },

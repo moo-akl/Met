@@ -68,10 +68,14 @@ describe("getCurrentEventMapPins", () => {
 
   it("keeps event and hangout pins together for the heat map", () => {
     const pins = getCurrentEventMapPins(
-      [makeEvent(8, { eventType: "venue" }), makeEvent(9, { joinApprovalRequired: true })],
+      [
+        makeEvent(8, { eventType: "venue" }),
+        makeEvent(9, { joinApprovalRequired: true }),
+        makeEvent(10, { visibility: "invite_only" }),
+      ],
       now,
     );
 
-    expect(pins.map((event) => event.id)).toEqual([8, 9]);
+    expect(pins.map((event) => event.id)).toEqual([8, 9, 10]);
   });
 });

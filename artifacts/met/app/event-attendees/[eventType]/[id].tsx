@@ -286,7 +286,10 @@ export default function EventAttendeesScreen() {
                   <Text style={[styles.caption, { color: colors.mutedForeground }]}>
                     {t("tabs.events.joinApprovalHint")}
                   </Text>
-                  <Text testID="text-explorer-request-order-hint" style={[styles.caption, { color: colors.mutedForeground }]}>
+                  <Text
+                    testID="text-explorer-request-order-hint"
+                    style={[styles.caption, { color: colors.mutedForeground }]}
+                  >
                     {t("tabs.events.explorerRequestOrderHint")}
                   </Text>
                 </View>

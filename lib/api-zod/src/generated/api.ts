@@ -4455,6 +4455,8 @@ export const GetCommunityEventPlanChatParams = zod.object({
 
 export const getCommunityEventPlanChatResponseMessagesItemTextMax = 500;
 
+export const getCommunityEventPlanChatResponseMessagesItemAudioDurationMsMax = 120000;
+
 
 
 export const GetCommunityEventPlanChatResponse = zod.object({
@@ -4476,7 +4478,11 @@ export const GetCommunityEventPlanChatResponse = zod.object({
   "senderName": zod.string(),
   "senderPhotoUrl": zod.string().nullable(),
   "text": zod.string().max(getCommunityEventPlanChatResponseMessagesItemTextMax),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "mediaType": zod.union([zod.literal('image'),zod.literal('voice'),zod.literal(null)]).nullable(),
+  "mediaUrl": zod.string().url().nullable(),
+  "audioDurationMs": zod.number().int().min(1).max(getCommunityEventPlanChatResponseMessagesItemAudioDurationMsMax).nullable(),
+  "mediaExpiresAt": zod.coerce.date().nullable()
 })),
   "notificationsMuted": zod.boolean()
 })
@@ -4513,13 +4519,22 @@ export const SendCommunityEventPlanChatMessageParams = zod.object({
 
 export const sendCommunityEventPlanChatMessageBodyTextMax = 500;
 
+export const sendCommunityEventPlanChatMessageBodyMediaObjectPathMax = 500;
+
+export const sendCommunityEventPlanChatMessageBodyAudioDurationMsMax = 120000;
+
 
 
 export const SendCommunityEventPlanChatMessageBody = zod.object({
-  "text": zod.string().min(1).max(sendCommunityEventPlanChatMessageBodyTextMax)
+  "text": zod.string().max(sendCommunityEventPlanChatMessageBodyTextMax).optional(),
+  "mediaType": zod.enum(['image', 'voice']).optional(),
+  "mediaObjectPath": zod.string().min(1).max(sendCommunityEventPlanChatMessageBodyMediaObjectPathMax).optional(),
+  "audioDurationMs": zod.number().int().min(1).max(sendCommunityEventPlanChatMessageBodyAudioDurationMsMax).optional()
 })
 
 export const sendCommunityEventPlanChatMessageResponseMessageTextMax = 500;
+
+export const sendCommunityEventPlanChatMessageResponseMessageAudioDurationMsMax = 120000;
 
 
 
@@ -4530,8 +4545,148 @@ export const SendCommunityEventPlanChatMessageResponse = zod.object({
   "senderName": zod.string(),
   "senderPhotoUrl": zod.string().nullable(),
   "text": zod.string().max(sendCommunityEventPlanChatMessageResponseMessageTextMax),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "mediaType": zod.union([zod.literal('image'),zod.literal('voice'),zod.literal(null)]).nullable(),
+  "mediaUrl": zod.string().url().nullable(),
+  "audioDurationMs": zod.number().int().min(1).max(sendCommunityEventPlanChatMessageResponseMessageAudioDurationMsMax).nullable(),
+  "mediaExpiresAt": zod.coerce.date().nullable()
 })
+})
+
+
+/**
+ * @summary List completed Hangouts the signed-in guest can rate
+ */
+export const getMyPastHangoutsResponseEventsItemMyRatingMax = 5;
+
+
+
+export const GetMyPastHangoutsResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullable(),
+  "location": zod.string().nullable(),
+  "creatorName": zod.string().nullable(),
+  "myRating": zod.number().int().min(1).max(getMyPastHangoutsResponseEventsItemMyRatingMax).nullable()
+}))
+})
+
+
+/**
+ * @summary Create an authorized upload URL for an event conversation attachment
+ */
+
+
+
+export const CreateCommunityEventPlanChatMediaUploadParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const CreateCommunityEventPlanChatMediaUploadBody = zod.object({
+  "mediaType": zod.enum(['image', 'voice']),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'audio/mp4', 'audio/m4a'])
+})
+
+export const CreateCommunityEventPlanChatMediaUploadResponse = zod.object({
+  "uploadUrl": zod.string().url(),
+  "uploadFields": zod.record(zod.string(), zod.string()),
+  "mediaObjectPath": zod.string(),
+  "expiresAt": zod.coerce.date(),
+  "maxBytes": zod.number().int()
+})
+
+
+/**
+ * @summary Get persisted notifications for the signed-in user
+ */
+
+export const getNotificationInboxQueryLimitDefault = 50;
+export const getNotificationInboxQueryLimitMax = 100;
+
+
+
+export const GetNotificationInboxQueryParams = zod.object({
+  "beforeId": zod.coerce.number().int().min(1).optional(),
+  "limit": zod.coerce.number().int().min(1).max(getNotificationInboxQueryLimitMax).default(getNotificationInboxQueryLimitDefault)
+})
+
+export const GetNotificationInboxResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "data": zod.record(zod.string(), zod.string()),
+  "createdAt": zod.coerce.date(),
+  "readAt": zod.coerce.date().nullable()
+})),
+  "unreadCount": zod.number().int(),
+  "nextCursor": zod.number().int().nullable()
+})
+
+
+/**
+ * @summary Mark one notification as read
+ */
+
+
+
+export const MarkNotificationReadParams = zod.object({
+  "notificationId": zod.coerce.number().int().min(1)
+})
+
+export const MarkNotificationReadResponse = zod.object({
+  "read": zod.boolean(),
+  "unreadCount": zod.number().int()
+})
+
+
+/**
+ * @summary Mark every notification as read
+ */
+export const MarkAllNotificationsReadResponse = zod.object({
+  "readCount": zod.number().int(),
+  "unreadCount": zod.number().int()
+})
+
+
+/**
+ * @summary Keep a scheduled local event reminder in the notification inbox
+ */
+
+export const saveLocalEventReminderBodyTitleMax = 160;
+
+export const saveLocalEventReminderBodyBodyMax = 500;
+
+
+
+export const SaveLocalEventReminderBody = zod.object({
+  "eventType": zod.enum(['member', 'venue']),
+  "eventId": zod.number().int().min(1),
+  "title": zod.string().min(1).max(saveLocalEventReminderBodyTitleMax),
+  "body": zod.string().max(saveLocalEventReminderBodyBodyMax),
+  "scheduledFor": zod.coerce.date()
+})
+
+export const SaveLocalEventReminderResponse = zod.object({
+  "saved": zod.boolean()
+})
+
+
+/**
+ * @summary Remove a cancelled local event reminder from the inbox
+ */
+
+
+
+export const DeleteLocalEventReminderParams = zod.object({
+  "eventType": zod.enum(['member', 'venue']),
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const DeleteLocalEventReminderResponse = zod.object({
+  "deleted": zod.boolean()
 })
 
 

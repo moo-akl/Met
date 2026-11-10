@@ -3043,6 +3043,173 @@ paths:
         "401":
           description: Authentication required
 
+  /community-events/my-past-hangouts:
+    get:
+      operationId: getMyPastHangouts
+      tags: [events]
+      summary: List completed Hangouts the signed-in guest can rate
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Completed Hangouts hosted by other members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PastHangoutsResponse"
+        "401":
+          description: Authentication required
+
+  /community-events/{eventId}/plan-chat/media-upload:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: createCommunityEventPlanChatMediaUpload
+      tags: [events]
+      summary: Create an authorized upload URL for an event conversation attachment
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityEventPlanChatMediaUploadInput"
+      responses:
+        "200":
+          description: Authorized media upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventPlanChatMediaUploadResponse"
+        "400":
+          description: Invalid media type or file
+        "404":
+          description: Event conversation not found or unavailable to the caller
+        "401":
+          description: Authentication required
+
+  /notifications:
+    get:
+      operationId: getNotificationInbox
+      tags: [notifications]
+      summary: Get persisted notifications for the signed-in user
+      security:
+        - MetUid: []
+      parameters:
+        - name: beforeId
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Notifications and unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationInboxResponse"
+        "401":
+          description: Authentication required
+
+  /notifications/{notificationId}/read:
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark one notification as read
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Notification read state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarkNotificationReadResult"
+        "404":
+          description: Notification not found
+        "401":
+          description: Authentication required
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark every notification as read
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarkAllNotificationsReadResult"
+        "401":
+          description: Authentication required
+
+  /notifications/local-event-reminder:
+    put:
+      operationId: saveLocalEventReminder
+      tags: [notifications]
+      summary: Keep a scheduled local event reminder in the notification inbox
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalEventReminderInput"
+      responses:
+        "200":
+          description: Scheduled reminder saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaveLocalEventReminderPayload"
+        "400":
+          description: Invalid event reminder
+        "401":
+          description: Authentication required
+
+  /notifications/local-event-reminder/{eventType}/{eventId}:
+    parameters:
+      - name: eventType
+        in: path
+        required: true
+        schema: { type: string, enum: [member, venue] }
+      - name: eventId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    delete:
+      operationId: deleteLocalEventReminder
+      tags: [notifications]
+      summary: Remove a cancelled local event reminder from the inbox
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Reminder removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteLocalEventReminderPayload"
+        "401":
+          description: Authentication required
+
   /community-event-reports:
     post:
       operationId: reportCommunityEvent
@@ -7181,7 +7348,8 @@ components:
         status: { type: string, enum: [host, going, maybe] }
     CommunityEventPlanChatMessage:
       type: object
-      required: [id, senderUid, senderName, senderPhotoUrl, text, createdAt]
+      required:
+        [id, senderUid, senderName, senderPhotoUrl, text, createdAt, mediaType, mediaUrl, audioDurationMs, mediaExpiresAt]
       properties:
         id: { type: integer }
         senderUid: { type: string }
@@ -7189,6 +7357,10 @@ components:
         senderPhotoUrl: { type: ["string", "null"] }
         text: { type: string, maxLength: 500 }
         createdAt: { type: string, format: date-time }
+        mediaType: { type: ["string", "null"], enum: [image, voice, null] }
+        mediaUrl: { type: ["string", "null"], format: uri }
+        audioDurationMs: { type: ["integer", "null"], minimum: 1, maximum: 120000 }
+        mediaExpiresAt: { type: ["string", "null"], format: date-time }
     CommunityEventPlanChatResponse:
       type: object
       required: [event, participants, messages, notificationsMuted]
@@ -7222,15 +7394,106 @@ components:
         muted: { type: boolean }
     CommunityEventPlanChatMessageInput:
       type: object
-      required: [text]
       properties:
-        text: { type: string, minLength: 1, maxLength: 500 }
+        text: { type: string, maxLength: 500 }
+        mediaType: { type: string, enum: [image, voice] }
+        mediaObjectPath: { type: string, minLength: 1, maxLength: 500 }
+        audioDurationMs: { type: integer, minimum: 1, maximum: 120000 }
     CommunityEventPlanChatMessageResponse:
       type: object
       required: [message]
       properties:
         message:
           $ref: "#/components/schemas/CommunityEventPlanChatMessage"
+    CommunityEventPlanChatMediaUploadInput:
+      type: object
+      required: [mediaType, contentType]
+      properties:
+        mediaType: { type: string, enum: [image, voice] }
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, audio/mp4, audio/m4a]
+    CommunityEventPlanChatMediaUploadResponse:
+      type: object
+      required: [uploadUrl, uploadFields, mediaObjectPath, expiresAt, maxBytes]
+      properties:
+        uploadUrl: { type: string, format: uri }
+        uploadFields:
+          type: object
+          additionalProperties: { type: string }
+        mediaObjectPath: { type: string }
+        expiresAt: { type: string, format: date-time }
+        maxBytes: { type: integer }
+    PastHangoutsResponse:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items:
+            type: object
+            required: [id, title, startsAt, endsAt, location, creatorName, myRating]
+            properties:
+              id: { type: integer }
+              title: { type: string }
+              startsAt: { type: string, format: date-time }
+              endsAt: { type: ["string", "null"], format: date-time }
+              location: { type: ["string", "null"] }
+              creatorName: { type: ["string", "null"] }
+              myRating: { type: ["integer", "null"], minimum: 1, maximum: 5 }
+    NotificationInboxItem:
+      type: object
+      required: [id, title, body, data, createdAt, readAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        data:
+          type: object
+          additionalProperties: { type: string }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: ["string", "null"], format: date-time }
+    NotificationInboxResponse:
+      type: object
+      required: [items, unreadCount, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationInboxItem"
+        unreadCount: { type: integer }
+        nextCursor: { type: ["integer", "null"] }
+    MarkNotificationReadResult:
+      type: object
+      required: [read, unreadCount]
+      properties:
+        read: { type: boolean }
+        unreadCount: { type: integer }
+    MarkAllNotificationsReadResult:
+      type: object
+      required: [readCount, unreadCount]
+      properties:
+        readCount: { type: integer }
+        unreadCount: { type: integer }
+    LocalEventReminderInput:
+      type: object
+      required: [eventType, eventId, title, body, scheduledFor]
+      properties:
+        eventType: { type: string, enum: [member, venue] }
+        eventId: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        body: { type: string, maxLength: 500 }
+        scheduledFor: { type: string, format: date-time }
+    SaveLocalEventReminderPayload:
+      type: object
+      required: [saved]
+      properties:
+        saved: { type: boolean }
+    DeleteLocalEventReminderPayload:
+      type: object
+      required: [deleted]
+      properties:
+        deleted: { type: boolean }
     CommunityEventReportInput:
       type: object
       required: [eventId, reason]

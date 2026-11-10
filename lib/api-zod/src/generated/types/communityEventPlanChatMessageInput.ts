@@ -5,11 +5,20 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CommunityEventPlanChatMessageInputMediaType } from './communityEventPlanChatMessageInputMediaType';
 
 export interface CommunityEventPlanChatMessageInput {
+  /** @maxLength 500 */
+  text?: string;
+  mediaType?: CommunityEventPlanChatMessageInputMediaType;
   /**
      * @minLength 1
      * @maxLength 500
      */
-  text: string;
+  mediaObjectPath?: string;
+  /**
+     * @minimum 1
+     * @maximum 120000
+     */
+  audioDurationMs?: number;
 }

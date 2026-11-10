@@ -1,6 +1,10 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { runDueVenueEventReminders } from "./lib/eventNotifications";
+import {
+  runDueCommunityEventHostRatingPrompts,
+  runDueVenueEventReminders,
+} from "./lib/eventNotifications";
+import { cleanupExpiredPlanChatMedia } from "./lib/planChatMediaCleanup";
 
 const rawPort = process.env["PORT"];
 
@@ -24,8 +28,12 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   const reminderSweep = () => {
-    void runDueVenueEventReminders().catch((error: unknown) => {
-      logger.error({ error }, "Venue event reminder sweep failed");
+    void Promise.all([
+      runDueVenueEventReminders(),
+      runDueCommunityEventHostRatingPrompts(),
+      cleanupExpiredPlanChatMedia(),
+    ]).catch((error: unknown) => {
+      logger.error({ error }, "Notification/media cleanup sweep failed");
     });
   };
   reminderSweep();

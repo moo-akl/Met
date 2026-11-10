@@ -2688,6 +2688,17 @@ export interface CommunityEventPlanChatParticipant {
   status: CommunityEventPlanChatParticipantStatus;
 }
 
+/**
+ * @nullable
+ */
+export type CommunityEventPlanChatMessageMediaType = typeof CommunityEventPlanChatMessageMediaType[keyof typeof CommunityEventPlanChatMessageMediaType] | null;
+
+
+export const CommunityEventPlanChatMessageMediaType = {
+  image: 'image',
+  voice: 'voice',
+} as const;
+
 export interface CommunityEventPlanChatMessage {
   id: number;
   senderUid: string;
@@ -2697,6 +2708,18 @@ export interface CommunityEventPlanChatMessage {
   /** @maxLength 500 */
   text: string;
   createdAt: string;
+  /** @nullable */
+  mediaType: CommunityEventPlanChatMessageMediaType;
+  /** @nullable */
+  mediaUrl: string | null;
+  /**
+     * @minimum 1
+     * @maximum 120000
+     * @nullable
+     */
+  audioDurationMs: number | null;
+  /** @nullable */
+  mediaExpiresAt: string | null;
 }
 
 export type CommunityEventPlanChatResponseEvent = {
@@ -2722,16 +2745,147 @@ export interface CommunityEventPlanChatNotificationsResponse {
   muted: boolean;
 }
 
+export type CommunityEventPlanChatMessageInputMediaType = typeof CommunityEventPlanChatMessageInputMediaType[keyof typeof CommunityEventPlanChatMessageInputMediaType];
+
+
+export const CommunityEventPlanChatMessageInputMediaType = {
+  image: 'image',
+  voice: 'voice',
+} as const;
+
 export interface CommunityEventPlanChatMessageInput {
+  /** @maxLength 500 */
+  text?: string;
+  mediaType?: CommunityEventPlanChatMessageInputMediaType;
   /**
      * @minLength 1
      * @maxLength 500
      */
-  text: string;
+  mediaObjectPath?: string;
+  /**
+     * @minimum 1
+     * @maximum 120000
+     */
+  audioDurationMs?: number;
 }
 
 export interface CommunityEventPlanChatMessageResponse {
   message: CommunityEventPlanChatMessage;
+}
+
+export type CommunityEventPlanChatMediaUploadInputMediaType = typeof CommunityEventPlanChatMediaUploadInputMediaType[keyof typeof CommunityEventPlanChatMediaUploadInputMediaType];
+
+
+export const CommunityEventPlanChatMediaUploadInputMediaType = {
+  image: 'image',
+  voice: 'voice',
+} as const;
+
+export type CommunityEventPlanChatMediaUploadInputContentType = typeof CommunityEventPlanChatMediaUploadInputContentType[keyof typeof CommunityEventPlanChatMediaUploadInputContentType];
+
+
+export const CommunityEventPlanChatMediaUploadInputContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+  'audio/mp4': 'audio/mp4',
+  'audio/m4a': 'audio/m4a',
+} as const;
+
+export interface CommunityEventPlanChatMediaUploadInput {
+  mediaType: CommunityEventPlanChatMediaUploadInputMediaType;
+  contentType: CommunityEventPlanChatMediaUploadInputContentType;
+}
+
+export type CommunityEventPlanChatMediaUploadResponseUploadFields = {[key: string]: string};
+
+export interface CommunityEventPlanChatMediaUploadResponse {
+  uploadUrl: string;
+  uploadFields: CommunityEventPlanChatMediaUploadResponseUploadFields;
+  mediaObjectPath: string;
+  expiresAt: string;
+  maxBytes: number;
+}
+
+export type PastHangoutsResponseEventsItem = {
+  id: number;
+  title: string;
+  startsAt: string;
+  /** @nullable */
+  endsAt: string | null;
+  /** @nullable */
+  location: string | null;
+  /** @nullable */
+  creatorName: string | null;
+  /**
+     * @minimum 1
+     * @maximum 5
+     * @nullable
+     */
+  myRating: number | null;
+};
+
+export interface PastHangoutsResponse {
+  events: PastHangoutsResponseEventsItem[];
+}
+
+export type NotificationInboxItemData = {[key: string]: string};
+
+export interface NotificationInboxItem {
+  id: number;
+  title: string;
+  body: string;
+  data: NotificationInboxItemData;
+  createdAt: string;
+  /** @nullable */
+  readAt: string | null;
+}
+
+export interface NotificationInboxResponse {
+  items: NotificationInboxItem[];
+  unreadCount: number;
+  /** @nullable */
+  nextCursor: number | null;
+}
+
+export interface MarkNotificationReadResult {
+  read: boolean;
+  unreadCount: number;
+}
+
+export interface MarkAllNotificationsReadResult {
+  readCount: number;
+  unreadCount: number;
+}
+
+export type LocalEventReminderInputEventType = typeof LocalEventReminderInputEventType[keyof typeof LocalEventReminderInputEventType];
+
+
+export const LocalEventReminderInputEventType = {
+  member: 'member',
+  venue: 'venue',
+} as const;
+
+export interface LocalEventReminderInput {
+  eventType: LocalEventReminderInputEventType;
+  /** @minimum 1 */
+  eventId: number;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title: string;
+  /** @maxLength 500 */
+  body: string;
+  scheduledFor: string;
+}
+
+export interface SaveLocalEventReminderPayload {
+  saved: boolean;
+}
+
+export interface DeleteLocalEventReminderPayload {
+  deleted: boolean;
 }
 
 export type CommunityEventReportInputReason = typeof CommunityEventReportInputReason[keyof typeof CommunityEventReportInputReason];
@@ -4486,6 +4640,18 @@ export type SearchEventLocationsParams = {
  * @maxLength 120
  */
 q: string;
+};
+
+export type GetNotificationInboxParams = {
+/**
+ * @minimum 1
+ */
+beforeId?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
 };
 
 export type RsvpToEventInvite200Status = typeof RsvpToEventInvite200Status[keyof typeof RsvpToEventInvite200Status];

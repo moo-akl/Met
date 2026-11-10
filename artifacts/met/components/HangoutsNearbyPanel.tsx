@@ -21,11 +21,6 @@ import type { NearbyHangoutItem } from "@workspace/api-client-react";
 type Props = {
   hangouts: NearbyHangoutItem[];
   userLocation: Coordinates | null;
-  locationLoading: boolean;
-  locationError: "permission" | "unavailable" | null;
-  locationNeedsSettings: boolean;
-  onUseLocation: () => void;
-  onOpenSettings: () => void;
   sortMode: HangoutSortMode;
   onSortModeChange: (value: HangoutSortMode) => void;
   nearestFallsBackToTime: boolean;
@@ -35,17 +30,12 @@ type Props = {
   hasMore: boolean;
   onLoadMore: () => void;
   onRetry: () => void;
-  onPressHangout: (eventId: number) => void;
+  onPressHangout: (event: NearbyHangoutItem) => void;
 };
 
 export function HangoutsNearbyPanel({
   hangouts,
   userLocation,
-  locationLoading,
-  locationError,
-  locationNeedsSettings,
-  onUseLocation,
-  onOpenSettings,
   sortMode,
   onSortModeChange,
   nearestFallsBackToTime,
@@ -94,40 +84,6 @@ export function HangoutsNearbyPanel({
           );
         })}
       </View>
-      <View style={styles.locationRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={locationNeedsSettings
-            ? t("tabs.events.openLocationSettings")
-            : userLocation
-              ? t("tabs.events.updateLocation")
-              : t("tabs.events.useLocation")}
-          testID="hangouts-use-location"
-          disabled={locationLoading}
-          onPress={locationNeedsSettings ? onOpenSettings : onUseLocation}
-          style={[styles.locationButton, { borderColor: colors.border, opacity: locationLoading ? 0.6 : 1 }]}
-        >
-          {locationLoading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Feather name={userLocation ? "refresh-cw" : "crosshair"} size={15} color={colors.primary} />
-          )}
-          <Text numberOfLines={1} style={[styles.locationButtonText, { color: colors.primary }]}>
-            {locationLoading
-              ? t("tabs.events.findingLocation")
-              : locationNeedsSettings
-                ? t("tabs.events.openLocationSettings")
-                : userLocation
-                  ? t("tabs.events.updateLocation")
-                  : t("tabs.events.useLocation")}
-          </Text>
-        </Pressable>
-      </View>
-      {locationError ? (
-        <Text accessibilityRole="alert" style={[styles.locationError, { color: colors.destructive }]}>
-          {t(locationError === "permission" ? "tabs.events.locationDenied" : "tabs.events.locationUnavailable")}
-        </Text>
-      ) : null}
       {nearestFallsBackToTime ? (
         <Text testID="hangouts-nearest-fallback" style={[styles.locationHint, { color: colors.mutedForeground }]}>
           {t("tabs.events.nearestUsesTimeUntilLocation")}
@@ -175,7 +131,7 @@ export function HangoutsNearbyPanel({
                 accessibilityLabel={[event.title, creatorLabel, startLabel, locationLabel, distanceText].filter(Boolean).join(". ")}
                 accessibilityHint={t("tabs.events.hangoutDetailsView")}
                 testID={`nearby-hangout-${event.id}`}
-                onPress={() => onPressHangout(event.id)}
+                onPress={() => onPressHangout(event)}
                 style={[styles.hangoutCard, { borderBottomColor: colors.border }]}
               >
                 <View
@@ -278,10 +234,6 @@ const styles = StyleSheet.create({
   sortChip: { minHeight: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   sortChipText: { fontSize: 12, fontWeight: "600" },
   locationHint: { fontSize: 12, fontWeight: "600" },
-  locationRow: { flexDirection: "row", justifyContent: "flex-end" },
-  locationButton: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: 1, borderRadius: 18, paddingHorizontal: 12 },
-  locationButtonText: { fontSize: 11, fontWeight: "700" },
-  locationError: { fontSize: 12, lineHeight: 17 },
   actionText: { fontSize: 12, fontWeight: "700" },
   emptyCard: { minHeight: 130, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 24, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", gap: 10 },
   loading: { minHeight: 110, alignItems: "center", justifyContent: "center" },

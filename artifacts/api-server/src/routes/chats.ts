@@ -2,6 +2,7 @@ import { Router } from "express";
 import { and, eq, or, sql } from "drizzle-orm";
 import { db, profilesTable, revealRequestsTable } from "@workspace/db";
 import { requireUid } from "../middlewares/requireUid";
+import { sendPushWithStatus } from "../lib/push";
 
 const router = Router();
 
@@ -72,39 +73,19 @@ router.post("/chats/notify", requireUid, async (req, res) => {
     const senderName = callerRow[0]?.displayName ?? "Someone";
     const body = text.length > 0 ? text.slice(0, 200) : "📷 Photo";
 
-    const { adminMessaging } = await import("../lib/firebaseAdmin");
-    await adminMessaging().send({
-      token: pushToken,
-      notification: {
-        title: senderName,
-        body,
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "default",
-          sound: "default",
-          priority: "high",
-        },
-      },
-      apns: {
-        headers: { "apns-priority": "10" },
-        payload: {
-          aps: {
-            sound: "default",
-            badge: 1,
-            "content-available": 1,
-          },
-        },
-      },
+    const result = await sendPushWithStatus(pushToken, {
+      title: senderName,
+      body,
       data: {
         type: "chat_message",
         chatPeerUid,
       },
     });
 
-    req.log.info({ recipientUid }, "chats/notify: FCM sent");
-    res.json({ sent: true });
+    if (result.sent) {
+      req.log.info({ recipientUid }, "chats/notify: push sent");
+    }
+    res.json(result);
   } catch (err) {
     req.log.warn({ err, recipientUid }, "chats/notify: FCM send failed");
     res.json({ sent: false, reason: "fcm_error" });

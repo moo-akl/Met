@@ -26,6 +26,38 @@ export type StoredEventReminder = {
   settings: EventReminderSettings;
 };
 
+async function saveReminderToInbox(input: {
+  event: ReminderEvent;
+  title: string;
+  body: string;
+  scheduledFor: Date;
+}): Promise<void> {
+  try {
+    const { saveLocalEventReminder } = await import("@workspace/api-client-react");
+    await saveLocalEventReminder({
+      eventType: input.event.eventType,
+      eventId: input.event.id,
+      title: input.title,
+      body: input.body,
+      scheduledFor: input.scheduledFor.toISOString(),
+    });
+  } catch {
+    // Keep the OS reminder working even when the inbox API is unavailable.
+  }
+}
+
+async function removeReminderFromInbox(
+  eventType: ReminderEvent["eventType"],
+  eventId: number,
+): Promise<void> {
+  try {
+    const { deleteLocalEventReminder } = await import("@workspace/api-client-react");
+    await deleteLocalEventReminder(eventType, eventId);
+  } catch {
+    // Cancellation must still remove the local reminder while offline.
+  }
+}
+
 export const DEFAULT_EVENT_REMINDER_SETTINGS: EventReminderSettings = {
   leadMinutes: 60,
   quietHours: "22-08",
@@ -206,6 +238,12 @@ export async function scheduleEventReminder(input: {
   if (previous?.notificationId && previous.notificationId !== notificationId) {
     await Notifications.cancelScheduledNotificationAsync(previous.notificationId).catch(() => {});
   }
+  await saveReminderToInbox({
+    event: input.event,
+    title: input.notificationTitle,
+    body,
+    scheduledFor: fireDate,
+  });
   return record;
 }
 
@@ -220,6 +258,7 @@ export async function cancelEventReminder(
     await Notifications.cancelScheduledNotificationAsync(reminder.notificationId);
   }
   await AsyncStorage.removeItem(key);
+  await removeReminderFromInbox(eventType, eventId);
 }
 
 /**

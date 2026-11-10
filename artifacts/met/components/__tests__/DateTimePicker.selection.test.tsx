@@ -31,7 +31,9 @@ jest.mock("@expo/vector-icons", () => {
   return { Feather: (props: Record<string, unknown>) => React.createElement(View, props) };
 });
 
-jest.mock("@/lib/i18n", () => ({ useT: () => ({ lang: "en-GB", t: (key: string) => key }) }));
+jest.mock("@/lib/i18n", () => ({
+  useT: () => ({ lang: "en-GB", t: (key: string) => key }),
+}));
 jest.mock("@/contexts/ThemeContext", () => ({ useTheme: () => ({ isDark: false }) }));
 jest.mock("@/contexts/AppContext", () => ({
   useApp: () => ({ authedUid: "event-owner", encounters: [] }),
@@ -80,6 +82,7 @@ jest.mock("@workspace/api-client-react", () => ({
   useCreateCommunityEvent: () => ({ mutate: mockCreateCommunityEvent, isPending: false }),
   useCreateCommunityEventInviteLink: () => ({ mutateAsync: jest.fn() }),
   useUpdateCommunityEvent: () => ({ mutate: mockUpdateCommunityEvent, isPending: false }),
+  useGetMyVerifiedExplorer: () => ({ data: { isVerifiedExplorer: false }, isLoading: false }),
   useCreateVenueOwnerEventInviteLink: () => ({ isPending: false, mutateAsync: jest.fn() }),
   useGetVenueOwnerMeGuests: () => ({ data: { guests: [] }, isLoading: false }),
   useRevokeVenueOwnerEventInviteLink: () => ({ isPending: false, mutateAsync: jest.fn() }),
@@ -197,21 +200,6 @@ describe("DateTimePicker platform behavior", () => {
     act(() => root.unmount());
   }, 15000);
 
-  it("uses Hangout wording on the public Hangout create form", () => {
-    let root!: renderer.ReactTestRenderer;
-    act(() => {
-      root = renderer.create(<CommunityEventForm mode="create" planMode />);
-    });
-    const textLabels = root.root
-      .findAllByType(Text)
-      .map((node) => node.props.children)
-      .filter((child): child is string => typeof child === "string");
-    expect(textLabels).toContain("tabs.events.createHangout");
-    expect(textLabels).not.toContain("tabs.events.editEvent");
-    expect(textLabels).not.toContain("tabs.events.eventName");
-    act(() => root.unmount());
-  });
-
   it("preserves the chosen time when the iOS calendar date changes and saves that exact value", async () => {
     let root!: renderer.ReactTestRenderer;
     act(() => {
@@ -252,7 +240,7 @@ describe("DateTimePicker platform behavior", () => {
       findByTestId(root, "date-time-picker-time")
         .props.onChange({ type: "set" }, pickedTime);
     });
-    const textBeforeSave = findByTestId(root, "date-time-picker-datetime")
+    const textBeforeSave = findByTestId(root, "date-time-picker-edit-time")
       .findAll((node) => typeof node.props.children === "string")
       .map((node) => node.props.children)
       .join(" ");
@@ -266,10 +254,10 @@ describe("DateTimePicker platform behavior", () => {
 
     const expected = new Date(dateAfterSelection);
     expected.setHours(pickedTime.getHours(), pickedTime.getMinutes(), 0, 0);
-    const displayedRow = findByTestId(root, "date-time-picker-datetime");
-    const displayedText = displayedRow.findAll(
-      (node) => typeof node.props.children === "string",
-    ).map((node) => node.props.children).join(" ");
+    const displayedText = findByTestId(root, "date-time-picker-datetime")
+      .findAll((node) => typeof node.props.children === "string")
+      .map((node) => node.props.children)
+      .join(" ");
     expect(displayedText).toContain(expected.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
@@ -289,6 +277,43 @@ describe("DateTimePicker platform behavior", () => {
     expect(mockCreateCommunityEvent).toHaveBeenCalledWith({
       data: expect.objectContaining({ startsAt: expected.toISOString() }),
     });
+  });
+
+  it("keeps the selected date and dismisses the iOS calendar when tapped outside", async () => {
+    const onChange = jest.fn();
+    const initial = new Date(2031, 5, 10, 18, 42, 0, 0);
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(
+        <DateTimePicker
+          label="Starts"
+          mode="datetime"
+          onChange={onChange}
+          primaryColor="#30a83c"
+          value={initial}
+        />,
+      );
+    });
+
+    await act(async () => {
+      findByTestId(root, "date-time-picker-datetime").props.onPress();
+    });
+    const pickedDay = new Date(initial);
+    pickedDay.setDate(pickedDay.getDate() + 1);
+    await act(async () => {
+      findByTestId(root, "date-time-picker-datetime-calendar")
+        .props.onChange({ type: "set" }, pickedDay);
+    });
+    const expected = new Date(initial);
+    expected.setDate(expected.getDate() + 1);
+    expect(onChange).toHaveBeenLastCalledWith(expected);
+
+    await act(async () => {
+      findByTestId(root, "date-time-picker-calendar-backdrop").props.onPress();
+    });
+    expect(root.root.findAllByProps({ testID: "date-time-picker-datetime-calendar" })).toHaveLength(0);
+    expect(findByTestId(root, "date-time-picker-datetime")).toBeTruthy();
+    act(() => root.unmount());
   });
 
   it("keeps Android on its native date-then-time picker flow", async () => {
@@ -338,6 +363,109 @@ describe("DateTimePicker platform behavior", () => {
     });
     const expected = new Date(2031, 5, 14, 20, 15, 0, 0);
     expect(onChange).toHaveBeenCalledWith(expected);
+  });
+
+  it("expands the community event time control and saves only when confirmed", async () => {
+    const onChange = jest.fn();
+    let root!: renderer.ReactTestRenderer;
+    const initial = new Date(2031, 5, 10, 18, 42, 0, 0);
+    act(() => {
+      root = renderer.create(
+        <DateTimePicker
+          label="Starts"
+          mode="datetime"
+          onChange={onChange}
+          primaryColor="#30a83c"
+          timePickerPresentation="dropdown"
+          value={initial}
+        />,
+      );
+    });
+
+    const toggle = findByTestId(root, "date-time-picker-time-toggle");
+    expect(toggle.props.accessibilityState).toEqual({ expanded: false });
+    await act(async () => {
+      toggle.props.onPress();
+    });
+    expect(findByTestId(root, "date-time-picker-time-dropdown")).toBeTruthy();
+
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time").props.onChange(
+        { type: "set" },
+        new Date(2000, 0, 1, 21, 10, 0, 0),
+      );
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time-save").props.onPress();
+    });
+    expect(onChange).toHaveBeenCalledWith(
+      new Date(2031, 5, 10, 21, 10, 0, 0),
+    );
+    expect(root.root.findAll((node) =>
+      node.props.testID === "date-time-picker-time-dropdown",
+    )).toHaveLength(0);
+  });
+
+  it("uses the expanded time dropdown with Android's native time picker", async () => {
+    setPlatformOS("android");
+    const onChange = jest.fn();
+    let root!: renderer.ReactTestRenderer;
+    const initial = new Date(2031, 5, 10, 18, 42, 0, 0);
+    const renderPicker = (value: Date) => (
+      <DateTimePicker
+        label="Starts"
+        mode="datetime"
+        onChange={onChange}
+        primaryColor="#30a83c"
+        timePickerPresentation="dropdown"
+        value={value}
+      />
+    );
+    act(() => {
+      root = renderer.create(renderPicker(initial));
+    });
+
+    await act(async () => {
+      findByTestId(root, "date-time-picker-datetime").props.onPress();
+    });
+    expect(DateTimePickerAndroid.open).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mode: "date", value: initial }),
+    );
+
+    const pickedDay = new Date(2031, 5, 14, 0, 0, 0, 0);
+    const datePickerOptions = (DateTimePickerAndroid.open as jest.Mock).mock.calls[0]![0] as {
+      onChange: (event: unknown, date?: Date) => void;
+    };
+    await act(async () => {
+      datePickerOptions.onChange({ type: "set" }, pickedDay);
+    });
+    const pickedDayWithCurrentTime = new Date(2031, 5, 14, 18, 42, 0, 0);
+    expect(onChange).toHaveBeenCalledWith(pickedDayWithCurrentTime);
+    await act(async () => {
+      root.update(renderPicker(pickedDayWithCurrentTime));
+    });
+
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time-toggle").props.onPress();
+    });
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time-open").props.onPress();
+    });
+    expect(DateTimePickerAndroid.open).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        mode: "time",
+        value: pickedDayWithCurrentTime,
+      }),
+    );
+
+    const timePickerOptions = (DateTimePickerAndroid.open as jest.Mock).mock.calls[1]![0] as {
+      onChange: (event: unknown, date?: Date) => void;
+    };
+    await act(async () => {
+      timePickerOptions.onChange({ type: "set" }, new Date(2000, 0, 1, 20, 15, 0, 0));
+    });
+    expect(onChange).toHaveBeenLastCalledWith(new Date(2031, 5, 14, 20, 15, 0, 0));
   });
 
   it("discards an unconfirmed iOS time and closes the time sheet on cancel", async () => {

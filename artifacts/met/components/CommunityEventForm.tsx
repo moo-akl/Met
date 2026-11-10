@@ -33,6 +33,7 @@ import {
   getSearchEventLocationsQueryOptions,
   useCreateCommunityEvent,
   useCreateCommunityEventInviteLink,
+  useGetMyVerifiedExplorer,
   useUpdateCommunityEvent,
   type CommunityEventManageResponse,
   type EventFeedItem,
@@ -65,6 +66,9 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
   const { t } = useT();
   const { authedUid, encounters } = useApp();
   const { isDark } = useTheme();
+  const explorerStatus = useGetMyVerifiedExplorer({
+    query: { enabled: !!authedUid, staleTime: 60_000 },
+  });
   const connections = useMemo(
     () => encounters.filter((encounter) => encounter.status === "connected"),
     [encounters],
@@ -83,6 +87,9 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
   );
   const [visibility, setVisibility] = useState<"public" | "invite_only">(
     planMode ? "public" : initial?.visibility ?? "public",
+  );
+  const [verifiedExplorersOnly, setVerifiedExplorersOnly] = useState(
+    initial?.verifiedExplorersOnly ?? false,
   );
   const [inviteLinkEnabled, setInviteLinkEnabled] = useState(
     initial?.inviteLinkEnabled ?? false,
@@ -259,12 +266,11 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
     mutation: {
       onSuccess: updateFeedItem,
       onError: (error) => {
-        const message = error instanceof Error ? error.message : "";
-        setFormError(
-          planMode && (!message || /\bevent\b/i.test(message))
+        setFormError(error instanceof Error
+          ? error.message
+          : planMode
             ? t("tabs.events.hangoutCreateError")
-            : message || "Could not create the event.",
-        );
+            : "Could not create the event.");
       },
     },
   });
@@ -272,12 +278,11 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
     mutation: {
       onSuccess: updateFeedItem,
       onError: (error) => {
-        const message = error instanceof Error ? error.message : "";
-        setFormError(
-          planMode && (!message || /\bevent\b/i.test(message))
+        setFormError(error instanceof Error
+          ? error.message
+          : planMode
             ? t("tabs.events.hangoutSaveError")
-            : message || "Could not save the event.",
-        );
+            : "Could not save the event.");
       },
     },
   });
@@ -364,6 +369,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       latitude: selectedPlace?.latitude ?? null,
       longitude: selectedPlace?.longitude ?? null,
       visibility,
+      verifiedExplorersOnly,
       inviteeUids: visibility === "invite_only" ? inviteeUids : [],
       inviteLinkEnabled: visibility === "invite_only" && inviteLinkEnabled,
       ...(!isEditing ? { joinApprovalRequired: planMode } : {}),
@@ -511,6 +517,37 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
             </View>
           </View>
         ) : null}
+        {explorerStatus.data?.isVerifiedExplorer ? (
+          <View
+            style={[
+              styles.inviteLinkCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            testID="explorer-only-plan-toggle"
+          >
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: verifiedExplorersOnly }}
+              onPress={() => setVerifiedExplorersOnly((current) => !current)}
+              style={styles.inviteLinkRow}
+            >
+              <View style={styles.inviteLinkCopy}>
+                <Text style={[styles.inviteLinkTitle, { color: colors.text }]}>
+                  {t(planMode ? "verifiedExplorer.hangoutOnly" : "verifiedExplorer.eventOnly")}
+                </Text>
+                <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                  {t(planMode ? "verifiedExplorer.hangoutOnlyHint" : "verifiedExplorer.eventOnlyHint")}
+                </Text>
+              </View>
+              <Feather
+                name={verifiedExplorersOnly ? "check-square" : "square"}
+                size={21}
+                color={verifiedExplorersOnly ? colors.primary : colors.mutedForeground}
+              />
+            </Pressable>
+          </View>
+        ) : null}
+
         {!planMode ? (
           <>
         <Text style={[styles.label, { color: colors.text }]}>
@@ -741,7 +778,10 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
                 key={value}
                 accessibilityRole="radio"
                 accessibilityState={{ selected }}
-                onPress={() => setVisibility(value)}
+                onPress={() => {
+                  setVisibility(value);
+                  if (value === "invite_only") setVerifiedExplorersOnly(false);
+                }}
                 style={[
                   styles.visibilityOption,
                   {

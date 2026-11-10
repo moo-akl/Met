@@ -146,7 +146,7 @@ describe("routeNotifTap", () => {
   });
 
   it.each(["accepted", "declined"] as const)(
-    "routes a hangout join %s update to event details",
+    "routes a hangout join %s update to its next screen",
     (requestStatus) => {
       const result = routeNotifTap({
         type: "hangout_join_decision",
@@ -155,7 +155,11 @@ describe("routeNotifTap", () => {
         requestStatus,
       }, { push });
       expect(result).toBe(true);
-      expect(push).toHaveBeenCalledWith("/event-details/member/42");
+      expect(push).toHaveBeenCalledWith(
+        requestStatus === "accepted"
+          ? "/event-chat/42"
+          : "/event-details/member/42",
+      );
     },
   );
 
@@ -166,6 +170,15 @@ describe("routeNotifTap", () => {
       eventId: "42",
     }, { push })).toBe(true);
     expect(push).toHaveBeenCalledWith("/event-chat/42");
+  });
+
+  it("routes completed Hangout rating prompts to that Hangout's details", () => {
+    expect(routeNotifTap({
+      type: "hangout_host_rating_prompt",
+      eventType: "member",
+      eventId: "42",
+    }, { push })).toBe(true);
+    expect(push).toHaveBeenCalledWith("/event-details/member/42");
   });
 
   it("routes hangout cancellations to the plans list", () => {
@@ -193,6 +206,11 @@ describe("routeNotifTap", () => {
       type: "hangout_join_request",
       eventType: "member",
       eventId: "42/other",
+    }, { push })).toBe(false);
+    expect(routeNotifTap({
+      type: "hangout_host_rating_prompt",
+      eventType: "venue",
+      eventId: "42",
     }, { push })).toBe(false);
     expect(push).not.toHaveBeenCalled();
   });

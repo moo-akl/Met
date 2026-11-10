@@ -25,6 +25,7 @@ import venueReviewsRouter from "./venueReviews";
 import venueActivationRouter from "./venueActivation";
 import venueGuestbookRouter from "./venueGuestbook";
 import savedPlacesRouter from "./savedPlaces";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -52,6 +53,7 @@ router.use(createVenueManagerClaimRouter(requireUid));
 router.use(venueReviewsRouter);
 router.use(venueGuestbookRouter);
 router.use(savedPlacesRouter);
+router.use(notificationsRouter);
 router.use(venueActivationRouter);
 router.use(deepLinkCheckRouter);
 

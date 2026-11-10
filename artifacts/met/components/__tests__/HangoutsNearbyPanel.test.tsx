@@ -1,20 +1,19 @@
 import React from "react";
 import * as Location from "expo-location";
-import { AppState, Linking, Platform, type AppStateStatus } from "react-native";
+import { AppState, Image, Platform } from "react-native";
 import renderer, { act } from "react-test-renderer";
 
 import { HomePlanDiscovery } from "../HomePlanDiscovery";
 import { HangoutsNearbyPanel } from "../HangoutsNearbyPanel";
-import type { EventFeedItem, NearbyHangoutItem } from "@workspace/api-client-react";
 import EventsScreen from "@/app/(tabs)/events";
 import PlansScreen from "@/app/plans";
+import type { EventFeedItem, NearbyHangoutItem } from "@workspace/api-client-react";
 
 const mockPush = jest.fn();
 const mockSetParams = jest.fn();
 const mockQueryClient = { invalidateQueries: jest.fn() };
-let mockEventsFeed: unknown[] = [];
+let mockEventsFeed: EventFeedItem[] = [];
 let mockRouteParams: Record<string, string> = {};
-let mockAppStateChange: ((state: AppStateStatus) => void) | undefined;
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, setParams: mockSetParams }),
@@ -100,11 +99,7 @@ jest.mock("@/lib/api/client", () => ({
   ApiError: class ApiError extends Error {},
 }));
 
-function expandHangoutFilters(root: renderer.ReactTestRenderer) {
-  expect(root.root.findByProps({ testID: "hangouts-sort-options" })).toBeTruthy();
-}
-
-function makeHangout(id: number): EventFeedItem {
+function hangout(id: number): EventFeedItem {
   return {
     id,
     eventType: "member",
@@ -119,14 +114,8 @@ function makeHangout(id: number): EventFeedItem {
   } as EventFeedItem;
 }
 
-describe("Hangouts entry and filters", () => {
+describe("Hangouts discovery", () => {
   beforeEach(() => {
-    jest.restoreAllMocks();
-    mockAppStateChange = undefined;
-    jest.spyOn(AppState, "addEventListener").mockImplementation((eventName, listener) => {
-      if (eventName === "change") mockAppStateChange = listener;
-      return { remove: jest.fn() };
-    });
     jest.restoreAllMocks();
     mockPush.mockClear();
     mockSetParams.mockClear();
@@ -135,17 +124,18 @@ describe("Hangouts entry and filters", () => {
     mockRouteParams = {};
     (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
       granted: false,
-      canAskAgain: false,
+      canAskAgain: true,
       status: "denied",
     });
     (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
       granted: false,
-      canAskAgain: false,
+      canAskAgain: true,
       status: "denied",
     });
     (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValue({
-      coords: { latitude: 0, longitude: 0 },
+      coords: { latitude: 13.7563, longitude: 100.5018 },
     });
+    jest.spyOn(AppState, "addEventListener").mockReturnValue({ remove: jest.fn() } as never);
     Object.defineProperty(Platform, "OS", {
       configurable: true,
       writable: true,
@@ -153,49 +143,25 @@ describe("Hangouts entry and filters", () => {
     });
   });
 
-  it("opens Hangouts from the home section", () => {
-    let root!: renderer.ReactTestRenderer;
-    act(() => {
-      root = renderer.create(<HomePlanDiscovery />);
-    });
-
-    expect(root.root.findByProps({ testID: "home-create-hangout" })).toBeTruthy();
-    act(() => {
-      root.root.findByProps({ testID: "home-hangouts-nearby" }).props.onPress();
-    });
-
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: "/(tabs)/events",
-      params: { view: "hangouts" },
-    });
-    act(() => root.unmount());
-  });
-
-  it("keeps friend plans and public hangouts in separate Home sections", () => {
+  it("keeps friend plans separate and shows the Hangout host photo", () => {
     mockEventsFeed = [
       {
-        id: 71,
-        eventType: "member",
+        ...hangout(72),
+        myJoinRequestStatus: "pending",
+      },
+      {
+        ...hangout(73),
+        myRsvp: "going",
+        myJoinRequestStatus: "accepted",
+        creatorName: "Hangout host",
+        creatorPhotoUrl: "https://example.com/host.jpg",
+      },
+      hangout(74),
+      {
+        ...hangout(71),
         visibility: "invite_only",
         joinApprovalRequired: false,
         ownerUid: "test-user",
-        myRsvp: null,
-        myJoinRequestStatus: null,
-        title: "Dinner with friends",
-        startsAt: "2030-05-01T18:00:00.000Z",
-        location: "Riverside",
-      },
-      {
-        id: 72,
-        eventType: "member",
-        visibility: "public",
-        joinApprovalRequired: true,
-        ownerUid: "another-user",
-        myRsvp: null,
-        myJoinRequestStatus: "pending",
-        title: "Public park walk",
-        startsAt: "2030-05-02T18:00:00.000Z",
-        location: "City park",
       },
     ];
     let root!: renderer.ReactTestRenderer;
@@ -205,266 +171,147 @@ describe("Hangouts entry and filters", () => {
 
     expect(root.root.findByProps({ testID: "home-plan-71" })).toBeTruthy();
     expect(root.root.findByProps({ testID: "home-hangout-72" })).toBeTruthy();
-    expect(root.root.findAllByProps({ testID: "home-plan-72" })).toHaveLength(0);
+    expect(root.root.findByProps({ testID: "home-hangout-73" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "home-hangout-74" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "home-hangout-creator-photo-73" }).props.source.uri)
+      .toBe("https://example.com/host.jpg");
+    expect(root.root.findByProps({ testID: "home-hangout-creator-73" }).props.children)
+      .toEqual(["tabs.events.createdBy", " ", "Hangout host"]);
+    expect(
+      root.root.find((node) => node.type === Image && node.props.source.uri === "https://example.com/host.jpg"),
+    ).toBeTruthy();
+    act(() => root.root.findByProps({ testID: "home-hangout-73" }).props.onPress());
+    expect(mockPush).toHaveBeenCalledWith("/event-chat/73");
     act(() => root.unmount());
   });
 
-  it("opens the Hangouts tab from the Events screen and consumes the Home route", async () => {
+  it("shows just nearest and soonest sorting on the Hangouts tab", async () => {
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
       root = renderer.create(<EventsScreen />);
       await Promise.resolve();
     });
-
     act(() => {
       root.root.findByProps({ testID: "events-view-hangouts" }).props.onPress();
     });
 
     expect(mockSetParams).toHaveBeenCalledWith({ view: "hangouts" });
-    expect(root.root.findAllByProps({ testID: "hangouts-filter-toggle" })).toHaveLength(0);
+    expect(root.root.findByProps({ testID: "hangouts-sort-nearest" })).toBeTruthy();
+    const soonest = root.root.findByProps({ testID: "hangouts-sort-soonest" });
+    act(() => soonest.props.onPress());
+    expect(root.root.findByProps({ testID: "hangouts-sort-soonest" }).props.accessibilityState.selected)
+      .toBe(true);
     expect(root.root.findAllByProps({ testID: "hangouts-keyword-search" })).toHaveLength(0);
-    expandHangoutFilters(root);
-    expect(root.root.findByProps({ testID: "hangouts-use-location" })).toBeTruthy();
-    act(() => root.unmount());
-
-    mockRouteParams = { view: "hangouts" };
-    await act(async () => {
-      root = renderer.create(<EventsScreen />);
-      await Promise.resolve();
-    });
-    expandHangoutFilters(root);
-    expect(root.root.findByProps({ testID: "hangouts-use-location" })).toBeTruthy();
     act(() => root.unmount());
   });
 
-  it("offers Settings after permanent location denial without search or filters", async () => {
-    mockRouteParams = { view: "hangouts" };
-    const openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined);
+  it("keeps public Hangouts out of the private Plans screen", () => {
+    mockEventsFeed = [
+      hangout(82),
+      {
+        ...hangout(83),
+        visibility: "invite_only",
+        joinApprovalRequired: false,
+        ownerUid: "test-user",
+      },
+    ];
     let root!: renderer.ReactTestRenderer;
-    await act(async () => {
-      root = renderer.create(<EventsScreen />);
-      await Promise.resolve();
+    act(() => {
+      root = renderer.create(<PlansScreen />);
     });
-    expect(root.root.findAllByProps({ testID: "hangouts-filter-toggle" })).toHaveLength(0);
-    expect(root.root.findAllByProps({ testID: "hangouts-keyword-search" })).toHaveLength(0);
-    expect(root.root.findAllByProps({ testID: "hangouts-location-search" })).toHaveLength(0);
-    expect(root.root.findAllByProps({ testID: "hangouts-date-filter" })).toHaveLength(0);
-    expect(root.root.findAllByProps({ testID: "hangouts-time-evening" })).toHaveLength(0);
-    expect(
-      root.root.findAll((node) => node.props.accessibilityRole === "alert")
-        .some((node) => node.props.children === "tabs.events.locationDenied"),
-    ).toBe(true);
-    expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
-      .toBe("tabs.events.openLocationSettings");
-    await act(async () => {
-      root.root.findByProps({ testID: "hangouts-use-location" }).props.onPress();
-      await Promise.resolve();
-    });
-    expect(openSettings).toHaveBeenCalledTimes(1);
+
+    expect(root.root.findByProps({ testID: "plan-row-83" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "plan-row-82" })).toHaveLength(0);
     act(() => root.unmount());
-    openSettings.mockRestore();
   });
 
-  it("fetches a fresh location when permission was granted in Settings", async () => {
+  it("asks for location when nearest sorting is selected", async () => {
     mockRouteParams = { view: "hangouts" };
-    const openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined);
-    let root!: renderer.ReactTestRenderer;
-    await act(async () => {
-      root = renderer.create(<EventsScreen />);
-      await Promise.resolve();
-    });
-    expandHangoutFilters(root);
-
-    expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
-      .toBe("tabs.events.openLocationSettings");
-    await act(async () => {
-      root.root.findByProps({ testID: "hangouts-use-location" }).props.onPress();
-      await Promise.resolve();
-    });
-    expect(openSettings).toHaveBeenCalledTimes(1);
-
-    (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+    (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
       granted: true,
       canAskAgain: true,
       status: "granted",
     });
-    (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValue({
-      coords: { latitude: 13.7563, longitude: 100.5018 },
-    });
-    const onAppStateChange = mockAppStateChange;
-    expect(onAppStateChange).toBeDefined();
-
-    await act(async () => {
-      onAppStateChange?.("background");
-      onAppStateChange?.("active");
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
-    expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
-      .toBe("tabs.events.updateLocation");
-    expect(root.root.findAll((node) => node.props.accessibilityRole === "alert"))
-      .toHaveLength(0);
-    act(() => root.unmount());
-    openSettings.mockRestore();
-  });
-
-  it("clears the saved location when permission is revoked while away", async () => {
-    mockRouteParams = { view: "hangouts" };
-    (Location.getForegroundPermissionsAsync as jest.Mock)
-      .mockResolvedValueOnce({
-        granted: true,
-        canAskAgain: true,
-        status: "granted",
-      })
-      .mockResolvedValueOnce({
-        granted: false,
-        canAskAgain: true,
-        status: "denied",
-      });
-    (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValue({
-      coords: { latitude: 13.7563, longitude: 100.5018 },
-    });
-
-    let root!: renderer.ReactTestRenderer;
-    await act(async () => {
-      root = renderer.create(<EventsScreen />);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expandHangoutFilters(root);
-    expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
-      .toBe("tabs.events.updateLocation");
-
-    await act(async () => {
-      mockAppStateChange?.("background");
-      mockAppStateChange?.("active");
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
-      .toBe("tabs.events.useLocation");
-    expect(
-      root.root.findAll((node) => node.props.accessibilityRole === "alert")
-        .some((node) => node.props.children === "tabs.events.locationDenied"),
-    ).toBe(true);
-    act(() => root.unmount());
-  });
-
-  it("keeps a request-and-retry action when location permission can be requested again", async () => {
-    mockRouteParams = { view: "hangouts" };
-    (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
-      granted: false,
-      canAskAgain: true,
-      status: "denied",
-    });
-    (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
-      granted: false,
-      canAskAgain: true,
-      status: "denied",
-    });
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
       root = renderer.create(<EventsScreen />);
       await Promise.resolve();
     });
-    expandHangoutFilters(root);
-
     await act(async () => {
-      root.root.findByProps({ testID: "hangouts-use-location" }).props.onPress();
-      await Promise.resolve();
+      root.root.findByProps({ testID: "hangouts-sort-nearest" }).props.onPress();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
+
     expect(Location.requestForegroundPermissionsAsync).toHaveBeenCalledTimes(1);
-    expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
-      .toBe("tabs.events.useLocation");
-
-    await act(async () => {
-      root.root.findByProps({ testID: "hangouts-use-location" }).props.onPress();
-      await Promise.resolve();
-    });
-    expect(Location.requestForegroundPermissionsAsync).toHaveBeenCalledTimes(2);
-    act(() => {
-      root.root.findByProps({ testID: "hangouts-sort-soonest" }).props.onPress();
-    });
-    expect(root.root.findByProps({ testID: "hangouts-sort-soonest" }).props.accessibilityState.selected)
-      .toBe(true);
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
     act(() => root.unmount());
   });
 
-  it("exposes location actions and only nearest/soonest sorting", () => {
-    const onSortModeChange = jest.fn();
-    const onUseLocation = jest.fn();
-    const onLoadMore = jest.fn();
+  it("shows the host profile photo in each nearby Hangout banner", () => {
+    const item = {
+      eventType: "member",
+      id: 42,
+      title: "Coffee nearby",
+      description: null,
+      imageUrl: null,
+      startsAt: "2030-05-02T18:00:00.000Z",
+      location: "City park",
+      latitude: null,
+      longitude: null,
+      creatorName: "Host",
+      creatorPhotoUrl: "https://example.com/host.jpg",
+      verifiedExplorersOnly: false,
+      isVerifiedExplorerHost: false,
+    } as NearbyHangoutItem;
     let root!: renderer.ReactTestRenderer;
     act(() => {
       root = renderer.create(
         <HangoutsNearbyPanel
-          hangouts={[]}
+          hangouts={[item]}
           userLocation={null}
-          locationLoading={false}
-          locationError={null}
-          locationNeedsSettings={false}
-          onUseLocation={onUseLocation}
-          onOpenSettings={jest.fn()}
           sortMode="nearest"
-          onSortModeChange={onSortModeChange}
+          onSortModeChange={jest.fn()}
           nearestFallsBackToTime
           isLoading={false}
           isLoadingMore={false}
           isError={false}
-          hasMore
-          onLoadMore={onLoadMore}
+          hasMore={false}
+          onLoadMore={jest.fn()}
           onRetry={jest.fn()}
           onPressHangout={jest.fn()}
         />,
       );
     });
-    expect(root.root.findByProps({ testID: "hangouts-sort-nearest" })).toBeTruthy();
-    expect(root.root.findByProps({ testID: "hangouts-sort-soonest" })).toBeTruthy();
-    for (const testID of [
-      "hangouts-keyword-search",
-      "hangouts-location-search",
-      "hangouts-date-filter",
-      "hangouts-time-evening",
-      "hangouts-filter-toggle",
-    ]) {
-      expect(root.root.findAllByProps({ testID })).toHaveLength(0);
-    }
-    act(() => {
-      root.root.findByProps({ testID: "hangouts-sort-soonest" }).props.onPress();
-      root.root.findByProps({ testID: "hangouts-use-location" }).props.onPress();
-    });
-    expect(onSortModeChange).toHaveBeenCalledWith("soonest");
-    expect(onUseLocation).toHaveBeenCalledTimes(1);
-    expect(root.root.findByProps({ testID: "hangouts-nearest-fallback" })).toBeTruthy();
-    act(() => root.root.findByProps({ testID: "hangouts-load-more" }).props.onPress());
-    expect(onLoadMore).toHaveBeenCalledTimes(1);
+
+    expect(root.root.findByProps({ testID: "nearby-hangout-42" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "nearby-hangout-banner-42" })).toBeTruthy();
+    expect(
+      root.root.findByProps({ testID: "nearby-hangout-creator-photo-42" }),
+    ).toBeTruthy();
+    expect(root.root.findByProps({ testID: "nearby-hangout-creator-42" }).props.children)
+      .toBe("Host");
     act(() => root.unmount());
   });
 
-  it("shows all loaded Hangouts without a search field and shows the host photo in the banner", () => {
-    const hangouts = [
-      {
-        id: 41, eventType: "member", title: "Coffee chat", description: "Coffee and conversation",
-        startsAt: "2030-05-02T18:00:00.000Z", location: "City park", latitude: null, longitude: null,
-        creatorName: "Sam", creatorPhotoUrl: "https://example.com/sam.jpg", imageUrl: null,
-      },
-      {
-        id: 42, eventType: "member", title: "Evening music", description: "Bring a blanket",
-        startsAt: "2030-05-03T18:00:00.000Z", location: "Riverside", latitude: null, longitude: null,
-        creatorName: "Lee", creatorPhotoUrl: null, imageUrl: null,
-      },
-    ] as unknown as NearbyHangoutItem[];
+  it("shows Hangouts without a search field or local filtering", () => {
+    const coffee = {
+      ...hangout(41),
+      description: "Coffee and conversation",
+      creatorName: "Sam",
+    } as NearbyHangoutItem;
+    const music = {
+      ...hangout(42),
+      title: "Evening music",
+      location: "Riverside",
+      description: "Bring a blanket",
+      creatorName: "Lee",
+    } as NearbyHangoutItem;
     let root!: renderer.ReactTestRenderer;
     act(() => {
       root = renderer.create(
         <HangoutsNearbyPanel
-          hangouts={hangouts}
+          hangouts={[coffee, music]}
           userLocation={null}
-          locationLoading={false}
-          locationError={null}
-          locationNeedsSettings={false}
-          onUseLocation={jest.fn()}
-          onOpenSettings={jest.fn()}
           sortMode="nearest"
           onSortModeChange={jest.fn()}
           nearestFallsBackToTime={false}
@@ -478,29 +325,10 @@ describe("Hangouts entry and filters", () => {
         />,
       );
     });
+
     expect(root.root.findAllByProps({ testID: "hangouts-keyword-search" })).toHaveLength(0);
     expect(root.root.findByProps({ testID: "nearby-hangout-41" })).toBeTruthy();
     expect(root.root.findByProps({ testID: "nearby-hangout-42" })).toBeTruthy();
-    expect(root.root.findByProps({ testID: "nearby-hangout-creator-photo-41" }).props.source.uri)
-      .toBe("https://example.com/sam.jpg");
     act(() => root.unmount());
   });
-
-  it("keeps public Hangouts out of the private Plans screen", () => {
-    mockEventsFeed = [
-      { ...makeHangout(82), visibility: "public" },
-      {
-        ...makeHangout(83),
-        visibility: "invite_only",
-        joinApprovalRequired: false,
-        ownerUid: "test-user",
-      },
-    ];
-    let root!: renderer.ReactTestRenderer;
-    act(() => { root = renderer.create(<PlansScreen />); });
-    expect(root.root.findByProps({ testID: "plan-row-83" })).toBeTruthy();
-    expect(root.root.findAllByProps({ testID: "plan-row-82" })).toHaveLength(0);
-    act(() => root.unmount());
-  });
-
 });

@@ -9,6 +9,7 @@ import type { EventFeedItemEventType } from './eventFeedItemEventType';
 import type { EventFeedItemMyJoinRequestStatus } from './eventFeedItemMyJoinRequestStatus';
 import type { EventFeedItemMyRsvp } from './eventFeedItemMyRsvp';
 import type { EventFeedItemVisibility } from './eventFeedItemVisibility';
+import type { HangoutHostRating } from './hangoutHostRating';
 
 export interface EventFeedItem {
   eventType: EventFeedItemEventType;
@@ -47,6 +48,8 @@ export interface EventFeedItem {
   venueName?: string | null;
   /** @nullable */
   creatorName?: string | null;
+  /** @nullable */
+  creatorPhotoUrl: string | null;
   /**
      * @minimum -90
      * @maximum 90
@@ -69,4 +72,8 @@ export interface EventFeedItem {
   myJoinRequestStatus: EventFeedItemMyJoinRequestStatus;
   /** @minimum 0 */
   pendingJoinRequestCount?: number;
+  verifiedExplorersOnly: boolean;
+  isVerifiedExplorerHost: boolean;
+  /** Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities. */
+  hangoutHostRating?: HangoutHostRating | null;
 }

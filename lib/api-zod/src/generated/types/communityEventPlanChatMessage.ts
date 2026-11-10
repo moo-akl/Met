@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CommunityEventPlanChatMessageMediaType } from './communityEventPlanChatMessageMediaType';
 
 export interface CommunityEventPlanChatMessage {
   id: number;
@@ -15,4 +16,16 @@ export interface CommunityEventPlanChatMessage {
   /** @maxLength 500 */
   text: string;
   createdAt: Date;
+  /** @nullable */
+  mediaType: CommunityEventPlanChatMessageMediaType;
+  /** @nullable */
+  mediaUrl: string | null;
+  /**
+     * @minimum 1
+     * @maximum 120000
+     * @nullable
+     */
+  audioDurationMs: number | null;
+  /** @nullable */
+  mediaExpiresAt: Date | null;
 }

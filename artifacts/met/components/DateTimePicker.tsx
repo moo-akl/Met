@@ -1,7 +1,7 @@
 /**
  * Shared DateTimePicker component.
  *
- * iOS  — native inline calendar with an in-app time sheet that requires Save.
+ * iOS  — native calendar popover with an in-app time sheet that requires Save.
  * Android — modal picker opened via DateTimePickerAndroid.open().
  *
  * Props:
@@ -19,7 +19,7 @@
  *   chevronColor — colour of the "›" arrow
  *   isDark       — drives iOS themeVariant + textColor (true = dark, false = light)
  */
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import {
   Modal,
@@ -28,6 +28,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import RNDateTimePicker, {
   DateTimePickerAndroid,
@@ -98,6 +99,9 @@ export function DateTimePicker({
   const [showTimeModal, setShowTimeModal] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [timeDraft, setTimeDraft] = useState<Date>(value);
+  const [calendarTop, setCalendarTop] = useState(100);
+  const calendarAnchorRef = useRef<View | null>(null);
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { t, lang } = useT();
   const useTimeDropdown =
@@ -135,6 +139,19 @@ export function DateTimePicker({
     combined.setHours(timeDraft.getHours(), timeDraft.getMinutes(), 0, 0);
     onChange(combined);
     setShowTimeDropdown(false);
+  };
+
+  const openCalendar = () => {
+    calendarAnchorRef.current?.measureInWindow?.((_x, y, _width, height) => {
+      const belowAnchor = y + height + 8;
+      const estimatedCalendarHeight = 420;
+      setCalendarTop(
+        belowAnchor + estimatedCalendarHeight <= windowHeight
+          ? belowAnchor
+          : Math.max(12, y - estimatedCalendarHeight - 8),
+      );
+    });
+    setShowIOS(true);
   };
 
   // ── Android ───────────────────────────────────────────────────────────────
@@ -288,7 +305,7 @@ export function DateTimePicker({
 
   // ── iOS ───────────────────────────────────────────────────────────────────
   return (
-    <View>
+    <View ref={calendarAnchorRef} collapsable={false}>
       {!!label && (
         <Text style={[styles.label, { color: labelColor }]}>
           {label}
@@ -297,9 +314,9 @@ export function DateTimePicker({
       )}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label}, ${useTimeDropdown ? formatDate(value, lang) : formatted}`}
+          accessibilityLabel={`${label}, ${useTimeDropdown ? formatDate(value, lang) : formatted}`}
         testID={`date-time-picker-${mode}`}
-        onPress={() => setShowIOS((v) => !v)}
+        onPress={() => (showIOS ? setShowIOS(false) : openCalendar())}
         style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
       >
         <Feather name="calendar" size={16} color={valueColor} />
@@ -309,43 +326,72 @@ export function DateTimePicker({
         <Text style={[styles.chevron, { color: chevronColor }, showIOS && styles.chevronOpen]}>›</Text>
       </Pressable>
 
-      {showIOS && (
-        <View style={[styles.iosPickerWrap, { backgroundColor: rowBg, borderColor: primaryColor + "25" }]}>
-          <RNDateTimePicker
-            testID={`date-time-picker-${mode}-calendar`}
-            value={value}
-            mode="date"
-            display="inline"
-            textColor={isDark ? "#fff" : "#0D0D0D"}
-            themeVariant={isDark ? "dark" : "light"}
-            onChange={(_evt, picked) => {
-              if (!picked) return;
-              const combined = new Date(value);
-              combined.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
-              onChange(combined);
-            }}
-            style={styles.iosCalendar}
-          />
-          {mode === "datetime" && !useTimeDropdown ? (
-            <View style={[styles.iosTimeRow, { borderTopColor: primaryColor + "25" }]}>
-              <View style={styles.iosTimeLabel}>
-                <Feather name="clock" size={15} color={primaryColor} />
-                <Text style={[styles.iosTimeText, { color: valueColor }]}>{t("dateTime.time")}</Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${t("dateTime.time")}, ${formattedTime}`}
-                testID="date-time-picker-edit-time"
-                onPress={openTimePicker}
-                style={styles.timeValueButton}
-              >
-                <Text style={[styles.iosTimeText, { color: valueColor }]}>{formattedTime}</Text>
-                <Feather name="edit-2" size={14} color={primaryColor} />
-              </Pressable>
+      {showIOS ? (
+        <Modal
+          animationType="fade"
+          transparent
+          visible
+          onRequestClose={() => setShowIOS(false)}
+          presentationStyle="overFullScreen"
+          testID="date-time-picker-calendar-modal"
+        >
+          <View style={styles.calendarModalRoot}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("common.cancel")}
+              testID="date-time-picker-calendar-backdrop"
+              onPress={() => setShowIOS(false)}
+              style={StyleSheet.absoluteFill}
+            />
+            <View
+              style={[
+                styles.iosPickerWrap,
+                {
+                  top: calendarTop,
+                  left: Math.max(12, (windowWidth - Math.min(windowWidth - 24, 400)) / 2),
+                  width: Math.min(windowWidth - 24, 400),
+                  backgroundColor: rowBg,
+                  borderColor: primaryColor + "25",
+                },
+              ]}
+            >
+              <RNDateTimePicker
+                testID={`date-time-picker-${mode}-calendar`}
+                value={value}
+                mode="date"
+                display="inline"
+                textColor={isDark ? "#fff" : "#0D0D0D"}
+                themeVariant={isDark ? "dark" : "light"}
+                onChange={(_evt, picked) => {
+                  if (!picked) return;
+                  const combined = new Date(value);
+                  combined.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
+                  onChange(combined);
+                }}
+                style={styles.iosCalendar}
+              />
+              {mode === "datetime" && !useTimeDropdown ? (
+                <View style={[styles.iosTimeRow, { borderTopColor: primaryColor + "25" }]}>
+                  <View style={styles.iosTimeLabel}>
+                    <Feather name="clock" size={15} color={primaryColor} />
+                    <Text style={[styles.iosTimeText, { color: valueColor }]}>{t("dateTime.time")}</Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t("dateTime.time")}, ${formattedTime}`}
+                    testID="date-time-picker-edit-time"
+                    onPress={openTimePicker}
+                    style={styles.timeValueButton}
+                  >
+                    <Text style={[styles.iosTimeText, { color: valueColor }]}>{formattedTime}</Text>
+                    <Feather name="edit-2" size={14} color={primaryColor} />
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
-          ) : null}
-        </View>
-      )}
+          </View>
+        </Modal>
+      ) : null}
       {useTimeDropdown ? (
         <View>
           <Pressable
@@ -507,11 +553,17 @@ const styles = StyleSheet.create({
     transform: [{ rotate: "180deg" }],
   },
   iosPickerWrap: {
-    marginTop: 4,
+    position: "absolute",
     borderRadius: 20,
     borderWidth: 1,
     overflow: "hidden",
+    elevation: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
   },
+  calendarModalRoot: { flex: 1 },
   iosCalendar: {
     alignSelf: "center",
     width: "100%",
