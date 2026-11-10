@@ -1,13 +1,11 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React from "react";
 import {
   ActivityIndicator,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
@@ -17,7 +15,6 @@ import {
   distanceBetweenMeters,
   type Coordinates,
   type HangoutSortMode,
-  type HangoutTimePeriod,
 } from "@/lib/hangoutDiscovery";
 import type { NearbyHangoutItem } from "@workspace/api-client-react";
 
@@ -29,18 +26,9 @@ type Props = {
   locationNeedsSettings: boolean;
   onUseLocation: () => void;
   onOpenSettings: () => void;
-  locationQuery: string;
-  onLocationQueryChange: (value: string) => void;
-  dateQuery: string;
-  onDateQueryChange: (value: string) => void;
-  invalidDateFilter: boolean;
-  timePeriod: HangoutTimePeriod;
-  onTimePeriodChange: (value: HangoutTimePeriod) => void;
   sortMode: HangoutSortMode;
   onSortModeChange: (value: HangoutSortMode) => void;
   nearestFallsBackToTime: boolean;
-  hasFilters: boolean;
-  onClearFilters: () => void;
   isLoading: boolean;
   isLoadingMore: boolean;
   isError: boolean;
@@ -58,18 +46,9 @@ export function HangoutsNearbyPanel({
   locationNeedsSettings,
   onUseLocation,
   onOpenSettings,
-  locationQuery,
-  onLocationQueryChange,
-  dateQuery,
-  onDateQueryChange,
-  invalidDateFilter,
-  timePeriod,
-  onTimePeriodChange,
   sortMode,
   onSortModeChange,
   nearestFallsBackToTime,
-  hasFilters,
-  onClearFilters,
   isLoading,
   isLoadingMore,
   isError,
@@ -80,224 +59,80 @@ export function HangoutsNearbyPanel({
 }: Props) {
   const colors = useColors();
   const { t, lang } = useT();
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [keywordQuery, setKeywordQuery] = useState("");
-  const normalizedKeywordQuery = keywordQuery.trim().toLowerCase();
-  const filteredHangouts = useMemo(() => {
-    if (!normalizedKeywordQuery) return hangouts;
-    return hangouts.filter((event) =>
-      [event.title, event.location, event.description, event.creatorName]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedKeywordQuery),
-    );
-  }, [hangouts, normalizedKeywordQuery]);
 
   return (
     <View style={styles.content}>
-      <View style={[styles.filterInput, { borderColor: colors.border, backgroundColor: colors.card }]}>
-        <Feather name="search" size={16} color={colors.mutedForeground} />
-        <TextInput
-          accessibilityLabel={t("tabs.events.hangoutKeywordSearch")}
-          testID="hangouts-keyword-search"
-          value={keywordQuery}
-          onChangeText={setKeywordQuery}
-          placeholder={t("tabs.events.hangoutKeywordSearch")}
-          placeholderTextColor={colors.mutedForeground}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-          style={[styles.inputText, { color: colors.text }]}
-        />
-        {keywordQuery ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("tabs.events.clearFilters")}
-            testID="hangouts-keyword-search-clear"
-            onPress={() => setKeywordQuery("")}
-            hitSlop={8}
-          >
-            <Feather name="x-circle" size={17} color={colors.mutedForeground} />
-          </Pressable>
-        ) : null}
+      <View style={styles.sortRow} testID="hangouts-sort-options">
+        <Text style={[styles.sortLabel, { color: colors.mutedForeground }]}>
+          {t("tabs.events.sortBy")}
+        </Text>
+        {([
+          ["nearest", t("tabs.events.sortNearest")],
+          ["soonest", t("tabs.events.sortSoonest")],
+        ] as const).map(([mode, label]) => {
+          const selected = sortMode === mode;
+          return (
+            <Pressable
+              key={mode}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+              accessibilityState={{ selected }}
+              testID={`hangouts-sort-${mode}`}
+              onPress={() => onSortModeChange(mode)}
+              style={[
+                styles.sortChip,
+                {
+                  borderColor: selected ? colors.primary : colors.border,
+                  backgroundColor: selected ? colors.primarySoft : colors.card,
+                },
+              ]}
+            >
+              <Text style={[styles.sortChipText, { color: selected ? colors.primary : colors.text }]}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
-      <View style={[styles.filters, { borderColor: colors.border, backgroundColor: colors.card }]}>
+      <View style={styles.locationRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t("tabs.events.filterToggle")}
-          accessibilityState={{ expanded: filtersExpanded }}
-          testID="hangouts-filter-toggle"
-          onPress={() => setFiltersExpanded((expanded) => !expanded)}
-          style={styles.filterToggle}
+          accessibilityLabel={locationNeedsSettings
+            ? t("tabs.events.openLocationSettings")
+            : userLocation
+              ? t("tabs.events.updateLocation")
+              : t("tabs.events.useLocation")}
+          testID="hangouts-use-location"
+          disabled={locationLoading}
+          onPress={locationNeedsSettings ? onOpenSettings : onUseLocation}
+          style={[styles.locationButton, { borderColor: colors.border, opacity: locationLoading ? 0.6 : 1 }]}
         >
-          <Feather name="sliders" size={16} color={colors.primary} />
-          <Text style={[styles.filterToggleTitle, { color: colors.text }]}>
-            {t("tabs.events.filterToggle")}
+          {locationLoading ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Feather name={userLocation ? "refresh-cw" : "crosshair"} size={15} color={colors.primary} />
+          )}
+          <Text numberOfLines={1} style={[styles.locationButtonText, { color: colors.primary }]}>
+            {locationLoading
+              ? t("tabs.events.findingLocation")
+              : locationNeedsSettings
+                ? t("tabs.events.openLocationSettings")
+                : userLocation
+                  ? t("tabs.events.updateLocation")
+                  : t("tabs.events.useLocation")}
           </Text>
-          <Text numberOfLines={1} style={[styles.filterToggleSummary, { color: colors.mutedForeground }]}>
-            {sortMode === "nearest" ? t("tabs.events.sortNearest") : t("tabs.events.sortSoonest")}
-            {hasFilters ? ` · ${t("tabs.events.filtersActive")}` : ""}
-          </Text>
-          <Feather name={filtersExpanded ? "chevron-up" : "chevron-down"} size={17} color={colors.mutedForeground} />
         </Pressable>
-        {filtersExpanded ? (
-          <View style={styles.filterOptions}>
-        <View style={[styles.filterInput, { borderColor: colors.border, backgroundColor: colors.background }]}>
-          <Feather name="search" size={16} color={colors.mutedForeground} />
-          <TextInput
-            accessibilityLabel={t("tabs.events.locationSearch")}
-            testID="hangouts-location-search"
-            value={locationQuery}
-            onChangeText={onLocationQueryChange}
-            placeholder={t("tabs.events.locationSearch")}
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.inputText, { color: colors.text }]}
-            returnKeyType="search"
-          />
-          {locationQuery ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("tabs.events.clearFilters")}
-              onPress={() => onLocationQueryChange("")}
-              hitSlop={8}
-            >
-              <Feather name="x-circle" size={17} color={colors.mutedForeground} />
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={styles.locationDateRow}>
-          <View style={[styles.filterInput, styles.dateInput, { borderColor: colors.border, backgroundColor: colors.background }]}>
-            <Feather name="calendar" size={15} color={colors.mutedForeground} />
-            <TextInput
-              accessibilityLabel={t("tabs.events.dateFilter")}
-              testID="hangouts-date-filter"
-              value={dateQuery}
-              onChangeText={onDateQueryChange}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.mutedForeground}
-              style={[styles.inputText, { color: colors.text }]}
-              keyboardType="numbers-and-punctuation"
-              maxLength={10}
-              returnKeyType="done"
-            />
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={locationNeedsSettings
-              ? t("tabs.events.openLocationSettings")
-              : userLocation
-                ? t("tabs.events.updateLocation")
-                    : t("tabs.events.useLocation")}
-            testID="hangouts-use-location"
-            disabled={locationLoading}
-            onPress={locationNeedsSettings ? onOpenSettings : onUseLocation}
-            style={[styles.locationButton, { borderColor: colors.border, opacity: locationLoading ? 0.6 : 1 }]}
-          >
-            {locationLoading ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Feather name={userLocation ? "refresh-cw" : "crosshair"} size={15} color={colors.primary} />
-            )}
-            <Text numberOfLines={1} style={[styles.locationButtonText, { color: colors.primary }]}>
-              {locationLoading
-                ? t("tabs.events.findingLocation")
-                : locationNeedsSettings
-                  ? t("tabs.events.openLocationSettings")
-                  : userLocation
-                    ? t("tabs.events.updateLocation")
-                    : t("tabs.events.useLocation")}
-            </Text>
-          </Pressable>
-        </View>
-        {userLocation ? (
-          <Text style={[styles.locationHint, { color: colors.primary }]}>{t("tabs.events.nearbyFirst")}</Text>
-        ) : null}
-        {locationError ? (
-          <Text accessibilityRole="alert" style={[styles.filterError, { color: colors.destructive }]}>
-            {t(locationError === "permission" ? "tabs.events.locationDenied" : "tabs.events.locationUnavailable")}
-          </Text>
-        ) : null}
-        {invalidDateFilter ? (
-          <Text accessibilityRole="alert" style={[styles.filterError, { color: colors.destructive }]}>
-            {t("tabs.events.invalidDate")}
-          </Text>
-        ) : null}
-
-        <View style={styles.filterHeadingRow}>
-          <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>{t("tabs.events.timeFilter")}</Text>
-          {hasFilters ? (
-            <Pressable
-              accessibilityRole="button"
-              testID="hangouts-clear-filters"
-              onPress={onClearFilters}
-            >
-              <Text style={[styles.clearFilters, { color: colors.primary }]}>{t("tabs.events.clearFilters")}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {([
-            ["any", t("tabs.events.anyTime")],
-            ["morning", t("tabs.events.morning")],
-            ["afternoon", t("tabs.events.afternoon")],
-            ["evening", t("tabs.events.evening")],
-            ["night", t("tabs.events.night")],
-          ] as const).map(([period, label]) => {
-            const selected = timePeriod === period;
-            return (
-              <Pressable
-                key={period}
-                accessibilityRole="button"
-                accessibilityLabel={label}
-                accessibilityState={{ selected }}
-                testID={`hangouts-time-${period}`}
-                onPress={() => onTimePeriodChange(period)}
-                style={[
-                  styles.filterChip,
-                  { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primarySoft : "transparent" },
-                ]}
-              >
-                <Text style={[styles.filterChipText, { color: selected ? colors.primary : colors.text }]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>{t("tabs.events.sortBy")}</Text>
-        <View style={styles.chipRow}>
-          {([
-            ["nearest", t("tabs.events.sortNearest")],
-            ["soonest", t("tabs.events.sortSoonest")],
-          ] as const).map(([mode, label]) => {
-            const selected = sortMode === mode;
-            return (
-              <Pressable
-                key={mode}
-                accessibilityRole="button"
-                accessibilityLabel={label}
-                accessibilityState={{ selected }}
-                testID={`hangouts-sort-${mode}`}
-                onPress={() => onSortModeChange(mode)}
-                style={[
-                  styles.filterChip,
-                  { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primarySoft : "transparent" },
-                ]}
-              >
-                <Text style={[styles.filterChipText, { color: selected ? colors.primary : colors.text }]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {nearestFallsBackToTime ? (
-          <Text testID="hangouts-nearest-fallback" style={[styles.locationHint, { color: colors.mutedForeground }]}>
-            {t("tabs.events.nearestUsesTimeUntilLocation")}
-          </Text>
-        ) : null}
-          </View>
-        ) : null}
       </View>
+      {locationError ? (
+        <Text accessibilityRole="alert" style={[styles.locationError, { color: colors.destructive }]}>
+          {t(locationError === "permission" ? "tabs.events.locationDenied" : "tabs.events.locationUnavailable")}
+        </Text>
+      ) : null}
+      {nearestFallsBackToTime ? (
+        <Text testID="hangouts-nearest-fallback" style={[styles.locationHint, { color: colors.mutedForeground }]}>
+          {t("tabs.events.nearestUsesTimeUntilLocation")}
+        </Text>
+      ) : null}
 
       {isLoading && hangouts.length === 0 ? (
         <View style={styles.loading}>
@@ -307,17 +142,17 @@ export function HangoutsNearbyPanel({
         <View style={[styles.emptyCard, { borderColor: colors.border }]}>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("tabs.events.loadError")}</Text>
           <Pressable accessibilityRole="button" testID="hangouts-retry" onPress={onRetry}>
-            <Text style={[styles.clearFilters, { color: colors.primary }]}>{t("common.retry")}</Text>
+            <Text style={[styles.actionText, { color: colors.primary }]}>{t("common.retry")}</Text>
           </Pressable>
         </View>
-      ) : filteredHangouts.length === 0 ? (
+      ) : hangouts.length === 0 ? (
         <View style={[styles.emptyCard, { borderColor: colors.border }]}>
           <Feather name="map-pin" size={24} color={colors.primary} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("tabs.events.noHangouts")}</Text>
         </View>
       ) : (
         <View style={styles.eventList}>
-          {filteredHangouts.map((event) => {
+          {hangouts.map((event) => {
             const distance =
               userLocation && event.latitude != null && event.longitude != null
                 ? distanceBetweenMeters(userLocation, {
@@ -332,26 +167,66 @@ export function HangoutsNearbyPanel({
                 : `${new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(distance / 1000)} km`;
             const locationLabel = event.location ?? "";
             const startLabel = new Date(event.startsAt).toLocaleString(lang);
+            const creatorLabel = event.creatorName ?? t("tabs.events.planHost");
             return (
               <Pressable
                 key={`${event.eventType}:${event.id}`}
                 accessibilityRole="button"
-                accessibilityLabel={[event.title, startLabel, locationLabel, distanceText].filter(Boolean).join(". ")}
-                accessibilityHint={t("tabs.events.detailsView")}
+                accessibilityLabel={[event.title, creatorLabel, startLabel, locationLabel, distanceText].filter(Boolean).join(". ")}
+                accessibilityHint={t("tabs.events.hangoutDetailsView")}
                 testID={`nearby-hangout-${event.id}`}
                 onPress={() => onPressHangout(event.id)}
                 style={[styles.hangoutCard, { borderBottomColor: colors.border }]}
               >
-                {event.imageUrl ? <Image source={{ uri: event.imageUrl }} style={styles.cover} resizeMode="cover" /> : null}
-                <View style={styles.hangoutBody}>
-                  <View style={styles.cardTopline}>
-                    <Text style={[styles.badge, { color: colors.primary }]}>{t("tabs.events.nearbyTab")}</Text>
+                <View
+                  testID={`nearby-hangout-banner-${event.id}`}
+                  style={[styles.hangoutBanner, { backgroundColor: colors.primarySoft }]}
+                >
+                  {event.imageUrl ? (
+                    <Image source={{ uri: event.imageUrl }} style={styles.bannerImage} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.bannerFallback}>
+                      <Feather name="map-pin" size={34} color={colors.primary} />
+                    </View>
+                  )}
+                  <View style={styles.bannerTopline}>
+                    <Text style={[styles.bannerBadge, { color: colors.primary, backgroundColor: colors.card }]}>
+                      {t("tabs.events.nearbyTab")}
+                    </Text>
                     {distanceText ? (
-                      <Text style={[styles.distanceLabel, { color: colors.primary }]}>
+                      <Text style={[styles.distanceLabel, { color: colors.primary, backgroundColor: colors.card }]}>
                         {t("tabs.events.distanceAway", { distance: distanceText })}
                       </Text>
                     ) : null}
                   </View>
+                  <View style={[styles.bannerCreator, { backgroundColor: colors.card }]}>
+                    {event.creatorPhotoUrl ? (
+                      <Image
+                        testID={`nearby-hangout-creator-photo-${event.id}`}
+                        accessibilityLabel={creatorLabel}
+                        source={{ uri: event.creatorPhotoUrl }}
+                        style={[styles.creatorAvatar, { borderColor: colors.primary }]}
+                      />
+                    ) : (
+                      <View style={[styles.creatorAvatar, styles.creatorAvatarFallback, { backgroundColor: colors.primarySoft }]}>
+                        <Feather name="user" size={16} color={colors.primary} />
+                      </View>
+                    )}
+                    <View style={styles.creatorCopy}>
+                      <Text style={[styles.creatorKicker, { color: colors.mutedForeground }]}>
+                        {t("tabs.events.createdBy")}
+                      </Text>
+                      <Text
+                        testID={`nearby-hangout-creator-${event.id}`}
+                        numberOfLines={1}
+                        style={[styles.creatorName, { color: colors.text }]}
+                      >
+                        {creatorLabel}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.hangoutBody}>
                   <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
                   <Text style={[styles.eventMeta, { color: colors.mutedForeground }]}>{startLabel}</Text>
                   {locationLabel ? (
@@ -361,7 +236,7 @@ export function HangoutsNearbyPanel({
                     <Text style={[styles.description, { color: colors.text }]} numberOfLines={2}>{event.description}</Text>
                   ) : null}
                   <View style={styles.detailsLink}>
-                    <Text style={[styles.detailsLinkText, { color: colors.primary }]}>{t("tabs.events.detailsView")}</Text>
+                    <Text style={[styles.detailsLinkText, { color: colors.primary }]}>{t("tabs.events.hangoutDetailsView")}</Text>
                     <Feather name="chevron-right" size={16} color={colors.primary} />
                   </View>
                 </View>
@@ -372,7 +247,7 @@ export function HangoutsNearbyPanel({
       )}
       {hangouts.length > 0 && isError ? (
         <Pressable accessibilityRole="button" testID="hangouts-retry" onPress={onRetry}>
-          <Text style={[styles.clearFilters, { color: colors.destructive }]}>{t("common.retry")}</Text>
+          <Text style={[styles.actionText, { color: colors.destructive }]}>{t("common.retry")}</Text>
         </Pressable>
       ) : null}
       {hasMore ? (
@@ -386,7 +261,7 @@ export function HangoutsNearbyPanel({
           {isLoadingMore ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Text style={[styles.clearFilters, { color: colors.primary }]}>
+            <Text style={[styles.actionText, { color: colors.primary }]}>
               {t("tabs.events.loadMoreHangouts")}
             </Text>
           )}
@@ -402,43 +277,33 @@ const styles = StyleSheet.create({
   sortLabel: { fontSize: 12, fontWeight: "600", marginRight: "auto" },
   sortChip: { minHeight: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   sortChipText: { fontSize: 12, fontWeight: "600" },
-
-  filters: { borderWidth: 1, borderRadius: 18, padding: 14 },
-  filterToggle: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 9 },
-  filterToggleTitle: { fontSize: 13, fontWeight: "700" },
-  filterToggleSummary: { flex: 1, fontSize: 11, textAlign: "right" },
-  filterOptions: { gap: 13, paddingTop: 14 },
-  filterInput: { minHeight: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 9 },
-  inputText: { flex: 1, minWidth: 0, paddingVertical: 9, fontSize: 14 },
-  locationDateRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dateInput: { flex: 1, minWidth: 0 },
-  locationButton: { minHeight: 44, maxWidth: "54%", borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 7 },
-  locationButtonText: { fontSize: 11, fontWeight: "700", flexShrink: 1 },
   locationHint: { fontSize: 12, fontWeight: "600" },
-  filterError: { fontSize: 12, lineHeight: 17 },
-  filterHeadingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  filterLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase" },
-  clearFilters: { fontSize: 12, fontWeight: "700" },
-  chipRow: { flexDirection: "row", alignItems: "center", gap: 7 },
-  filterChip: { minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  filterChipText: { fontSize: 12, fontWeight: "600" },
+  locationRow: { flexDirection: "row", justifyContent: "flex-end" },
+  locationButton: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: 1, borderRadius: 18, paddingHorizontal: 12 },
+  locationButtonText: { fontSize: 11, fontWeight: "700" },
+  locationError: { fontSize: 12, lineHeight: 17 },
+  actionText: { fontSize: 12, fontWeight: "700" },
   emptyCard: { minHeight: 130, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 24, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", gap: 10 },
   loading: { minHeight: 110, alignItems: "center", justifyContent: "center" },
   loadMoreButton: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontFamily: "serif", fontSize: 20, fontWeight: "400", textAlign: "center" },
   eventList: { gap: 0, paddingTop: 3 },
-  hangoutCard: { borderBottomWidth: StyleSheet.hairlineWidth, paddingTop: 17, paddingBottom: 17, flexDirection: "row", alignItems: "flex-start", gap: 12 },
-  cover: { width: 88, height: 112, borderTopLeftRadius: 26, borderBottomRightRadius: 22, marginTop: 3 },
-  hangoutBody: { flex: 1, minWidth: 0, paddingTop: 1, paddingBottom: 2 },
-  cardTopline: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 5, marginBottom: 8 },
-  badge: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase" },
-  distanceLabel: { fontSize: 11, fontWeight: "700" },
+  hangoutCard: { borderBottomWidth: StyleSheet.hairlineWidth, paddingTop: 18, paddingBottom: 19, gap: 11 },
+  hangoutBanner: { height: 158, borderTopLeftRadius: 28, borderBottomRightRadius: 24, overflow: "hidden", justifyContent: "space-between", padding: 11 },
+  bannerImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  bannerFallback: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  bannerTopline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  bannerBadge: { fontSize: 10, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 12, overflow: "hidden" },
+  distanceLabel: { fontSize: 11, fontWeight: "700", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 12, overflow: "hidden" },
+  bannerCreator: { alignSelf: "flex-start", maxWidth: "92%", minHeight: 52, flexDirection: "row", alignItems: "center", gap: 8, padding: 6, paddingRight: 12, borderTopLeftRadius: 20, borderBottomRightRadius: 18 },
+  creatorCopy: { minWidth: 0, flexShrink: 1 },
+  creatorKicker: { fontSize: 9, lineHeight: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  hangoutBody: { minWidth: 0, paddingHorizontal: 2 },
   eventTitle: { fontFamily: "serif", fontSize: 20, fontWeight: "400", lineHeight: 26 },
-  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 9 },
-  titleCopy: { flex: 1 },
-  creatorAvatar: { width: 34, height: 34, borderRadius: 17 },
+  creatorAvatar: { width: 38, height: 38, borderRadius: 19, borderWidth: 2 },
   creatorAvatarFallback: { alignItems: "center", justifyContent: "center" },
-  eventMeta: { fontSize: 11, lineHeight: 16, marginTop: 5 },
+  eventMeta: { fontSize: 12, lineHeight: 17, marginTop: 4 },
+  creatorName: { fontSize: 12, lineHeight: 16, fontWeight: "700" },
   description: { fontSize: 12, lineHeight: 18, marginTop: 8 },
   detailsLink: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 2, marginTop: 8 },
   detailsLinkText: { fontSize: 12, fontWeight: "700" },

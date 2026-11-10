@@ -114,8 +114,15 @@ export const ar: LocaleTree = {
       subtitle: "خطط قادمة من الأماكن وأعضاء Met",
       create: "إنشاء فعالية",
       quickPlan: "لقاء",
-      quickPlanHint: "اكتب فكرتك واختر الوقت والمكان، ثم راجع طلبات الانضمام.",
-      joinApprovalHint: "يمكن للجميع رؤية الخطة والموقع الدقيق، وأنت تقرر من ينضم.",
+      createHangout: "إنشاء لقاء",
+      editHangout: "تعديل اللقاء",
+      hangoutCreateError: "تعذر إنشاء هذا اللقاء. حاول مرة أخرى.",
+      hangoutSaveError: "تعذر حفظ هذا اللقاء. حاول مرة أخرى.",
+      hangoutDetailsView: "عرض اللقاء",
+      addHangoutPhoto: "إضافة صورة للغلاف",
+      removeHangoutPhoto: "إزالة صورة الغلاف",
+      quickPlanHint: "انشر لقاءً عامًا، واختر الوقت والمكان، ثم راجع طلبات الانضمام.",
+      joinApprovalHint: "هذا اللقاء عام. يمكن للأشخاص طلب الانضمام، وأنت تقرر من يتم قبوله.",
       explorerRequestOrderHint: "يظهر المستكشفون المعتمدون أولاً، لكنك ما زلت تقرر قبول كل طلب.",
       planLocationRequired: "أضف موقعًا لخطة اللقاء.",
       planLocationSearchHint: "ابحث عن مكان واختره لخطة اللقاء.",
@@ -1593,6 +1600,10 @@ export const ar: LocaleTree = {
 
   verifiedExplorer: {
     title: "المستكشف الموثّق",
+    venuesVisited: "الأماكن التي تمت زيارتها",
+    positiveMeetingReviews: "تقييمات إيجابية بعد اللقاء",
+    hangoutOnly: "للمستكشفين الموثّقين فقط",
+    hangoutOnlyHint: "يمكن للمستكشفين الموثّقين فقط العثور على هذا اللقاء أو الانضمام إليه.",
   },
   interestLabels: interestLocales.ar,
 };

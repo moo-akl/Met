@@ -114,8 +114,15 @@ export const pt: LocaleTree = {
       subtitle: "Próximos encontros de locais e membros do Met",
       create: "Criar evento",
       quickPlan: "Encontro",
-      quickPlanHint: "Escreva sua própria ideia, escolha horário e local e analise os pedidos para participar.",
-      joinApprovalHint: "Todos podem ver o plano e o local exato. Você decide quem participa.",
+      createHangout: "Criar encontro",
+      editHangout: "Editar encontro",
+      hangoutCreateError: "Não foi possível criar este encontro. Tente novamente.",
+      hangoutSaveError: "Não foi possível salvar este encontro. Tente novamente.",
+      hangoutDetailsView: "Ver encontro",
+      addHangoutPhoto: "Adicionar foto de capa",
+      removeHangoutPhoto: "Remover foto de capa",
+      quickPlanHint: "Publique um encontro, escolha horário e local e analise os pedidos para participar.",
+      joinApprovalHint: "Este encontro é público. As pessoas podem pedir para participar e você decide quem aceita.",
       explorerRequestOrderHint: "Exploradores verificados aparecem primeiro, mas você ainda decide se aceita cada solicitação.",
       planLocationRequired: "Adicione um local ao seu plano.",
       planLocationSearchHint: "Pesquise e selecione um local para o seu plano.",
@@ -1590,6 +1597,10 @@ export const pt: LocaleTree = {
 
   verifiedExplorer: {
     title: "Explorador verificado",
+    venuesVisited: "Locais visitados",
+    positiveMeetingReviews: "Avaliações positivas de encontros",
+    hangoutOnly: "Somente Exploradores verificados",
+    hangoutOnlyHint: "Somente Exploradores verificados podem encontrar ou participar deste encontro.",
   },
   interestLabels: interestLocales.pt,
 };

@@ -259,7 +259,12 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
     mutation: {
       onSuccess: updateFeedItem,
       onError: (error) => {
-        setFormError(error instanceof Error ? error.message : "Could not create the event.");
+        const message = error instanceof Error ? error.message : "";
+        setFormError(
+          planMode && (!message || /\bevent\b/i.test(message))
+            ? t("tabs.events.hangoutCreateError")
+            : message || "Could not create the event.",
+        );
       },
     },
   });
@@ -267,7 +272,12 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
     mutation: {
       onSuccess: updateFeedItem,
       onError: (error) => {
-        setFormError(error instanceof Error ? error.message : "Could not save the event.");
+        const message = error instanceof Error ? error.message : "";
+        setFormError(
+          planMode && (!message || /\bevent\b/i.test(message))
+            ? t("tabs.events.hangoutSaveError")
+            : message || "Could not save the event.",
+        );
       },
     },
   });
@@ -395,9 +405,11 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           {isEditing
-            ? t("tabs.events.editEvent")
+            ? planMode
+              ? t("tabs.events.editHangout")
+              : t("tabs.events.editEvent")
             : planMode
-              ? t("tabs.events.quickPlan")
+              ? t("tabs.events.createHangout")
               : t("tabs.events.create")}
         </Text>
         <View style={styles.back} />
@@ -830,7 +842,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
               {isEditing
                 ? t("tabs.events.saveChanges")
                 : planMode
-                  ? t("tabs.events.quickPlan")
+                  ? t("tabs.events.createHangout")
                   : t("tabs.events.submit")}
             </Text>
           )}

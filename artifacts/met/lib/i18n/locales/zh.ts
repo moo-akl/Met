@@ -114,8 +114,15 @@ export const zh: LocaleTree = {
       subtitle: "场所和 Met 成员的近期活动",
       create: "创建活动",
       quickPlan: "聚会",
-      quickPlanHint: "写下你的想法，选择时间和地点，然后审核加入申请。",
-      joinApprovalHint: "所有人都能看到计划和确切地点，由你决定接受谁加入。",
+      createHangout: "创建聚会",
+      editHangout: "编辑聚会",
+      hangoutCreateError: "无法创建此聚会，请重试。",
+      hangoutSaveError: "无法保存此聚会，请重试。",
+      hangoutDetailsView: "查看聚会",
+      addHangoutPhoto: "添加封面照片",
+      removeHangoutPhoto: "删除封面照片",
+      quickPlanHint: "发布公开聚会，选择时间和地点，然后审核加入申请。",
+      joinApprovalHint: "此聚会公开可见。其他人可以申请加入，由你决定是否接受。",
       explorerRequestOrderHint: "已验证探索者会优先显示，但每个申请仍由你决定是否接受。",
       planLocationRequired: "请为聚会计划添加地点。",
       planLocationSearchHint: "搜索并选择聚会计划的地点。",
@@ -1544,6 +1551,10 @@ export const zh: LocaleTree = {
 
   verifiedExplorer: {
     title: "认证探索者",
+    venuesVisited: "到访地点",
+    positiveMeetingReviews: "正面的见面评价",
+    hangoutOnly: "仅限认证探索者",
+    hangoutOnlyHint: "只有认证探索者可以找到或加入此聚会。",
   },
   interestLabels: interestLocales.zh,
 };

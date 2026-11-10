@@ -31,7 +31,7 @@ jest.mock("@expo/vector-icons", () => {
   return { Feather: (props: Record<string, unknown>) => React.createElement(View, props) };
 });
 
-jest.mock("@/lib/i18n", () => ({ useT: () => ({ t: (key: string) => key }) }));
+jest.mock("@/lib/i18n", () => ({ useT: () => ({ lang: "en-GB", t: (key: string) => key }) }));
 jest.mock("@/contexts/ThemeContext", () => ({ useTheme: () => ({ isDark: false }) }));
 jest.mock("@/contexts/AppContext", () => ({
   useApp: () => ({ authedUid: "event-owner", encounters: [] }),
@@ -182,6 +182,21 @@ describe("DateTimePicker platform behavior", () => {
     expect(root.root.findAll((node) => node.props.accessibilityRole === "radio")).toHaveLength(0);
     act(() => root.unmount());
   }, 15000);
+
+  it("uses Hangout wording on the public Hangout create form", () => {
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(<CommunityEventForm mode="create" planMode />);
+    });
+    const textLabels = root.root
+      .findAllByType(Text)
+      .map((node) => node.props.children)
+      .filter((child): child is string => typeof child === "string");
+    expect(textLabels).toContain("tabs.events.createHangout");
+    expect(textLabels).not.toContain("tabs.events.editEvent");
+    expect(textLabels).not.toContain("tabs.events.eventName");
+    act(() => root.unmount());
+  });
 
   it("preserves the chosen time when the iOS calendar date changes and saves that exact value", async () => {
     let root!: renderer.ReactTestRenderer;

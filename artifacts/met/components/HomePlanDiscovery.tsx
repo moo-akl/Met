@@ -36,7 +36,8 @@ export function HomePlanDiscovery() {
       .filter((event: EventFeedItem) =>
         event.eventType === "member" &&
         event.visibility === "invite_only" &&
-        (event.ownerUid === authedUid || event.myRsvp === "going" || event.myRsvp === "maybe"),
+        !event.joinApprovalRequired &&
+        (event.ownerUid === authedUid || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe"),
       )
       .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
       .slice(0, 3);
@@ -127,7 +128,7 @@ export function HomePlanDiscovery() {
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t("tabs.events.quickPlan")}
+          accessibilityLabel={t("tabs.events.createHangout")}
           testID="home-create-hangout"
           onPress={() => router.push({ pathname: "/event-create", params: { mode: "plan" } } as never)}
           style={({ pressed }) => [styles.create, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
@@ -136,8 +137,8 @@ export function HomePlanDiscovery() {
             <Feather name="plus" size={18} color={colors.primary} />
           </View>
           <View style={styles.createCopy}>
-            <Text style={[styles.createTitle, { color: colors.primary }]}>{t("plans.create")}</Text>
-            <Text style={[styles.createSub, { color: colors.mutedForeground }]}>{t("plans.createSubtitle")}</Text>
+            <Text style={[styles.createTitle, { color: colors.primary }]}>{t("tabs.events.createHangout")}</Text>
+            <Text style={[styles.createSub, { color: colors.mutedForeground }]}>{t("tabs.events.quickPlanHint")}</Text>
           </View>
           <Feather name="arrow-up-right" size={18} color={colors.primary} />
         </Pressable>
@@ -184,7 +185,7 @@ export function HomePlanDiscovery() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={isHangout
-          ? `${event.title}. ${t("tabs.events.detailsView")}`
+          ? `${event.title}. ${t("tabs.events.hangoutDetailsView")}`
           : t("plans.openChatA11y", { title: event.title })}
         testID={`home-${isHangout ? "hangout" : "plan"}-${event.id}`}
         onPress={() => router.push(
@@ -228,7 +229,7 @@ export function HomePlanDiscovery() {
                 numberOfLines={1}
                 style={[styles.creatorName, { color: colors.mutedForeground }]}
               >
-                {t("tabs.events.createdBy")} {event.creatorName ?? t("tabs.events.quickPlan")}
+                {t("tabs.events.createdBy")} {event.creatorName ?? t("tabs.events.planHost")}
               </Text>
             </View>
           ) : null}

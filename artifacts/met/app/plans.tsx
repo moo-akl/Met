@@ -34,15 +34,13 @@ export default function PlansScreen() {
   const plans = useMemo(() => (feed.data?.events ?? [])
     .filter((event: EventFeedItem) =>
       isPlanEvent(event) &&
-      (event.joinApprovalRequired || event.ownerUid === authedUid || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe" || event.myJoinRequestStatus === "pending"),
+      event.visibility === "invite_only" &&
+      !event.joinApprovalRequired &&
+      (event.ownerUid === authedUid || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe"),
     )
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()), [feed.data?.events, authedUid]);
 
-  const openPlan = (event: EventFeedItem) => router.push(
-    event.joinApprovalRequired
-      ? `/event-details/member/${event.id}` as never
-      : `/event-chat/${event.id}` as never,
-  );
+  const openPlan = (event: EventFeedItem) => router.push(`/event-chat/${event.id}` as never);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -93,9 +91,7 @@ export default function PlansScreen() {
                 <Pressable
                   key={`${event.eventType}:${event.id}`}
                   accessibilityRole="button"
-                  accessibilityLabel={event.joinApprovalRequired
-                    ? `${event.title}. ${t("tabs.events.detailsView")}`
-                    : t("plans.openChatTitleA11y", { title: event.title })}
+                  accessibilityLabel={t("plans.openChatTitleA11y", { title: event.title })}
                   testID={`plan-row-${event.id}`}
                   onPress={() => openPlan(event)}
                   style={({ pressed }) => [styles.plan, { borderTopColor: colors.border, opacity: pressed ? 0.78 : 1 }]}
@@ -124,12 +120,10 @@ export default function PlansScreen() {
                               ? t("tabs.events.interested")
                               : event.myRsvp === "not_going"
                                 ? t("tabs.events.notGoing")
-                                : event.joinApprovalRequired
-                                  ? t("tabs.events.requestToJoin")
-                                  : t("tabs.events.invited")}
+                                : t("tabs.events.invited")}
                     </Text>
                   </View>
-                  <View style={styles.chatMark}><Feather name={event.joinApprovalRequired ? "map-pin" : "message-circle"} size={17} color={colors.primary} /><Feather name="arrow-up-right" size={14} color={colors.mutedForeground} /></View>
+                  <View style={styles.chatMark}><Feather name="message-circle" size={17} color={colors.primary} /><Feather name="arrow-up-right" size={14} color={colors.mutedForeground} /></View>
                 </Pressable>
               );
             })}

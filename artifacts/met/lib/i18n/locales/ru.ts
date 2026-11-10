@@ -114,8 +114,15 @@ export const ru: LocaleTree = {
       subtitle: "Предстоящие встречи от заведений и участников Met",
       create: "Создать событие",
       quickPlan: "Встреча",
-      quickPlanHint: "Опишите свою идею, выберите время и место, затем рассмотрите заявки на участие.",
-      joinApprovalHint: "Все видят план и точное место. Вы решаете, кого принять.",
+      createHangout: "Создать встречу",
+      editHangout: "Изменить встречу",
+      hangoutCreateError: "Не удалось создать встречу. Попробуйте ещё раз.",
+      hangoutSaveError: "Не удалось сохранить встречу. Попробуйте ещё раз.",
+      hangoutDetailsView: "Открыть встречу",
+      addHangoutPhoto: "Добавить фото обложки",
+      removeHangoutPhoto: "Удалить фото обложки",
+      quickPlanHint: "Опубликуйте встречу, выберите время и место, затем рассмотрите заявки на участие.",
+      joinApprovalHint: "Эта встреча общедоступна. Люди могут подать заявку, а вы решаете, кого принять.",
       explorerRequestOrderHint: "Проверенные исследователи отображаются первыми, но вы по-прежнему решаете, принять ли каждую заявку.",
       planLocationRequired: "Укажите место встречи.",
       planLocationSearchHint: "Найдите и выберите место для встречи.",
@@ -1597,6 +1604,10 @@ export const ru: LocaleTree = {
 
   verifiedExplorer: {
     title: "Проверенный исследователь",
+    venuesVisited: "Посещённые места",
+    positiveMeetingReviews: "Положительные отзывы о встречах",
+    hangoutOnly: "Только для проверенных исследователей",
+    hangoutOnlyHint: "Только проверенные исследователи могут найти эту встречу или присоединиться к ней.",
   },
   interestLabels: interestLocales.ru,
 };

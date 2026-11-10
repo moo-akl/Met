@@ -1577,12 +1577,16 @@ export default function ProfileScreen() {
                 </View>
                 {([
                   {
-                    label: t("verifiedExplorer.venues"),
+                    label: t("verifiedExplorer.venuesVisited", {
+                      defaultValue: "Venues visited",
+                    }),
                     value: explorerQuery.data.distinctVenues,
                     goal: explorerQuery.data.requirements.distinctVenues,
                   },
                   {
-                    label: t("verifiedExplorer.positiveMeetings"),
+                    label: t("verifiedExplorer.positiveMeetingReviews", {
+                      defaultValue: "Positive meeting reviews",
+                    }),
                     value: explorerQuery.data.positiveMeetingReviews,
                     goal: explorerQuery.data.requirements.positiveMeetingReviews,
                   },

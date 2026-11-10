@@ -114,8 +114,15 @@ export const vi: LocaleTree = {
       subtitle: "Lịch sắp tới từ địa điểm và thành viên Met",
       create: "Tạo sự kiện",
       quickPlan: "Buổi gặp",
-      quickPlanHint: "Viết ý tưởng của bạn, chọn thời gian và địa điểm, rồi xem các yêu cầu tham gia.",
-      joinApprovalHint: "Mọi người đều thấy kế hoạch và địa điểm chính xác. Bạn quyết định ai được tham gia.",
+      createHangout: "Tạo buổi gặp",
+      editHangout: "Chỉnh sửa buổi gặp",
+      hangoutCreateError: "Không thể tạo buổi gặp này. Hãy thử lại.",
+      hangoutSaveError: "Không thể lưu buổi gặp này. Hãy thử lại.",
+      hangoutDetailsView: "Xem buổi gặp",
+      addHangoutPhoto: "Thêm ảnh bìa",
+      removeHangoutPhoto: "Xóa ảnh bìa",
+      quickPlanHint: "Đăng buổi gặp công khai, chọn thời gian và địa điểm, rồi xem các yêu cầu tham gia.",
+      joinApprovalHint: "Buổi gặp này công khai. Mọi người có thể yêu cầu tham gia và bạn quyết định ai được chấp nhận.",
       explorerRequestOrderHint: "Nhà thám hiểm đã xác minh được hiển thị trước, nhưng bạn vẫn quyết định có chấp nhận từng yêu cầu hay không.",
       planLocationRequired: "Thêm địa điểm cho kế hoạch gặp mặt.",
       planLocationSearchHint: "Tìm và chọn địa điểm cho kế hoạch gặp mặt.",
@@ -1592,6 +1599,10 @@ export const vi: LocaleTree = {
 
   verifiedExplorer: {
     title: "Người khám phá đã xác minh",
+    venuesVisited: "Địa điểm đã ghé thăm",
+    positiveMeetingReviews: "Đánh giá tích cực sau cuộc gặp",
+    hangoutOnly: "Chỉ dành cho Người khám phá đã xác minh",
+    hangoutOnlyHint: "Chỉ Người khám phá đã xác minh mới có thể tìm thấy hoặc tham gia buổi gặp này.",
   },
   interestLabels: interestLocales.vi,
 };

@@ -114,8 +114,15 @@ export const nl: LocaleTree = {
       subtitle: "Aankomende plannen van locaties en Met-leden",
       create: "Evenement maken",
       quickPlan: "Hangout",
-      quickPlanHint: "Schrijf je eigen idee, kies een tijd en plek en bekijk verzoeken om mee te doen.",
-      joinApprovalHint: "Iedereen ziet het plan en de exacte plek. Jij beslist wie mag meedoen.",
+      createHangout: "Hangout maken",
+      editHangout: "Hangout bewerken",
+      hangoutCreateError: "De hangout kon niet worden aangemaakt. Probeer het opnieuw.",
+      hangoutSaveError: "De hangout kon niet worden opgeslagen. Probeer het opnieuw.",
+      hangoutDetailsView: "Hangout bekijken",
+      addHangoutPhoto: "Omslagfoto toevoegen",
+      removeHangoutPhoto: "Omslagfoto verwijderen",
+      quickPlanHint: "Plaats een openbare hangout, kies tijd en plek en bekijk verzoeken om mee te doen.",
+      joinApprovalHint: "Deze hangout is openbaar. Mensen kunnen een verzoek sturen; jij beslist wie mag meedoen.",
       explorerRequestOrderHint: "Geverifieerde Explorers staan bovenaan, maar jij beslist nog steeds of je elk verzoek accepteert.",
       planLocationRequired: "Voeg een locatie toe aan je hangoutplan.",
       planLocationSearchHint: "Zoek en selecteer een plek voor je hangout.",
@@ -1592,6 +1599,10 @@ export const nl: LocaleTree = {
 
   verifiedExplorer: {
     title: "Geverifieerde ontdekker",
+    venuesVisited: "Bezochte locaties",
+    positiveMeetingReviews: "Positieve ontmoetingsbeoordelingen",
+    hangoutOnly: "Alleen voor geverifieerde ontdekkers",
+    hangoutOnlyHint: "Alleen geverifieerde ontdekkers kunnen deze hangout vinden of eraan deelnemen.",
   },
   interestLabels: interestLocales.nl,
 };

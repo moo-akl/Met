@@ -114,8 +114,15 @@ export const es: LocaleTree = {
       subtitle: "Próximos planes de locales y miembros de Met",
       create: "Crear evento",
       quickPlan: "Quedada",
-      quickPlanHint: "Escribe tu propia idea, elige una hora y un lugar, y revisa las solicitudes para unirse.",
-      joinApprovalHint: "Cualquiera puede ver el plan y el lugar exacto. Tú decides quién se une.",
+      createHangout: "Crear quedada",
+      editHangout: "Editar quedada",
+      hangoutCreateError: "No se pudo crear esta quedada. Inténtalo de nuevo.",
+      hangoutSaveError: "No se pudo guardar esta quedada. Inténtalo de nuevo.",
+      hangoutDetailsView: "Ver quedada",
+      addHangoutPhoto: "Añadir foto de portada",
+      removeHangoutPhoto: "Quitar foto de portada",
+      quickPlanHint: "Publica una quedada, elige hora y lugar, y revisa las solicitudes para unirse.",
+      joinApprovalHint: "Esta quedada es pública. Las personas pueden pedir unirse y tú decides quién participa.",
       explorerRequestOrderHint: "Las personas Exploradoras verificadas aparecen primero, pero tú decides si aceptas cada solicitud.",
       planLocationRequired: "Añade una ubicación para tu plan.",
       planLocationSearchHint: "Busca y selecciona un lugar para tu plan.",
@@ -1584,6 +1591,10 @@ export const es: LocaleTree = {
 
   verifiedExplorer: {
     title: "Explorador verificado",
+    venuesVisited: "Lugares visitados",
+    positiveMeetingReviews: "Opiniones positivas de encuentros",
+    hangoutOnly: "Solo Exploradores verificados",
+    hangoutOnlyHint: "Solo los Exploradores verificados pueden encontrar o unirse a esta quedada.",
   },
   interestLabels: interestLocales.es,
 };

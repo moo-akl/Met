@@ -27,11 +27,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { HangoutsNearbyPanel } from "@/components/HangoutsNearbyPanel";
 import { groupEventsByDate } from "@/lib/eventDateGroups";
 import { isPlanEvent } from "@/lib/eventFeedClassification";
-import {
-  parseHangoutDateFilter,
-  type HangoutSortMode,
-  type HangoutTimePeriod,
-} from "@/lib/hangoutDiscovery";
+import { type HangoutSortMode } from "@/lib/hangoutDiscovery";
 import {
   getGetEventsFeedQueryKey,
   getGetNearbyHangoutsQueryKey,
@@ -80,18 +76,15 @@ function EventsScreen() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState<"permission" | "unavailable" | null>(null);
   const [locationNeedsSettings, setLocationNeedsSettings] = useState(false);
-  const [locationQuery, setLocationQuery] = useState("");
-  const [dateQuery, setDateQuery] = useState("");
-  const [timePeriod, setTimePeriod] = useState<HangoutTimePeriod>("any");
   const [sortMode, setSortMode] = useState<HangoutSortMode>("nearest");
   const automaticLocationLookup = useRef(false);
   const appState = useRef(AppState.currentState);
   const [hangoutPageState, setHangoutPageState] = useState<{
-    filterKey: string;
+    queryKey: string;
     offset: number;
     events: NearbyHangoutItem[];
     nextOffset: number | null;
-  }>({ filterKey: "", offset: 0, events: [], nextOffset: null });
+  }>({ queryKey: "", offset: 0, events: [], nextOffset: null });
   const processedHangoutPageRef = useRef<string | null>(null);
   const feed = useGetEventsFeed(undefined, {
     query: {
@@ -299,27 +292,15 @@ function EventsScreen() {
   );
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const dateFilter = parseHangoutDateFilter(dateQuery);
-  const invalidDateFilter = dateQuery.trim().length > 0 && dateFilter == null;
-  const hasFilters =
-    locationQuery.trim().length > 0 ||
-    dateQuery.trim().length > 0 ||
-    timePeriod !== "any";
-  const hangoutFilterKey = JSON.stringify([
+  const hangoutQueryKey = JSON.stringify([
     sortMode,
     userLocation?.latitude ?? null,
     userLocation?.longitude ?? null,
     timeZone,
-    locationQuery.trim(),
-    dateFilter,
-    timePeriod,
   ]);
   const hangoutPageOffset =
-    hangoutPageState.filterKey === hangoutFilterKey ? hangoutPageState.offset : 0;
+    hangoutPageState.queryKey === hangoutQueryKey ? hangoutPageState.offset : 0;
   const nearbyHangoutParams = {
-    locationQuery: locationQuery.trim() || undefined,
-    date: dateFilter ?? undefined,
-    timePeriod,
     sortMode,
     latitude: userLocation?.latitude,
     longitude: userLocation?.longitude,
@@ -336,14 +317,14 @@ function EventsScreen() {
       ],
     },
   });
-  const hangoutPageResponseKey = `${hangoutFilterKey}:${hangoutPageOffset}:${nearbyHangoutQuery.dataUpdatedAt}`;
+  const hangoutPageResponseKey = `${hangoutQueryKey}:${hangoutPageOffset}:${nearbyHangoutQuery.dataUpdatedAt}`;
   useEffect(() => {
     const response = nearbyHangoutQuery.data;
     if (!response || processedHangoutPageRef.current === hangoutPageResponseKey) return;
     processedHangoutPageRef.current = hangoutPageResponseKey;
     setHangoutPageState((current) => {
       const appendPage =
-        current.filterKey === hangoutFilterKey &&
+        current.queryKey === hangoutQueryKey &&
         current.offset === hangoutPageOffset &&
         hangoutPageOffset > 0;
       const nextEvents = appendPage
@@ -358,7 +339,7 @@ function EventsScreen() {
         current.events.length === nextEvents.length &&
         current.events.every((event, index) => event.id === nextEvents[index]?.id);
       if (
-        current.filterKey === hangoutFilterKey &&
+        current.queryKey === hangoutQueryKey &&
         current.offset === hangoutPageOffset &&
         current.nextOffset === response.nextOffset &&
         eventsUnchanged
@@ -366,7 +347,7 @@ function EventsScreen() {
         return current;
       }
       return {
-        filterKey: hangoutFilterKey,
+        queryKey: hangoutQueryKey,
         offset: hangoutPageOffset,
         events: nextEvents,
         nextOffset: response.nextOffset,
@@ -375,22 +356,22 @@ function EventsScreen() {
   }, [
     nearbyHangoutQuery.data,
     nearbyHangoutQuery.dataUpdatedAt,
-    hangoutFilterKey,
+    hangoutQueryKey,
     hangoutPageOffset,
     hangoutPageResponseKey,
   ]);
-  const hangoutPageMatchesFilters = hangoutPageState.filterKey === hangoutFilterKey;
+  const hangoutPageMatchesFilters = hangoutPageState.queryKey === hangoutQueryKey;
   const hangouts = hangoutPageMatchesFilters ? hangoutPageState.events : [];
   const hasMoreHangouts =
     hangoutPageMatchesFilters && hangoutPageState.nextOffset != null;
   const loadMoreHangouts = useCallback(() => {
     setHangoutPageState((current) => {
-      if (current.filterKey !== hangoutFilterKey || current.nextOffset == null) {
+      if (current.queryKey !== hangoutQueryKey || current.nextOffset == null) {
         return current;
       }
       return { ...current, offset: current.nextOffset };
     });
-  }, [hangoutFilterKey]);
+  }, [hangoutQueryKey]);
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -425,7 +406,7 @@ function EventsScreen() {
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={activeView === "hangouts" ? t("tabs.events.quickPlan") : t("tabs.events.create")}
+            accessibilityLabel={activeView === "hangouts" ? t("tabs.events.createHangout") : t("tabs.events.create")}
             onPress={() => router.push(
               activeView === "hangouts"
                 ? { pathname: "/event-create", params: { mode: "plan" } } as never
@@ -500,13 +481,6 @@ function EventsScreen() {
             locationNeedsSettings={locationNeedsSettings}
             onUseLocation={() => void enableNearbySorting()}
             onOpenSettings={() => void Linking.openSettings().catch(() => undefined)}
-            locationQuery={locationQuery}
-            onLocationQueryChange={setLocationQuery}
-            dateQuery={dateQuery}
-            onDateQueryChange={setDateQuery}
-            invalidDateFilter={invalidDateFilter}
-            timePeriod={timePeriod}
-            onTimePeriodChange={setTimePeriod}
             sortMode={sortMode}
             onSortModeChange={(mode) => {
               setSortMode(mode);
@@ -521,12 +495,6 @@ function EventsScreen() {
             hasMore={hasMoreHangouts}
             onLoadMore={loadMoreHangouts}
             onRetry={() => void nearbyHangoutQuery.refetch()}
-            hasFilters={hasFilters}
-            onClearFilters={() => {
-              setLocationQuery("");
-              setDateQuery("");
-              setTimePeriod("any");
-            }}
             onPressHangout={(eventId) => {
               const event = hangouts.find((item) => item.id === eventId);
               if (!event) return;

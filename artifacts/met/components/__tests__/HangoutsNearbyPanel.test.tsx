@@ -1,12 +1,13 @@
 import React from "react";
 import * as Location from "expo-location";
-import { AppState, Linking, Platform, TextInput, type AppStateStatus } from "react-native";
+import { AppState, Linking, Platform, type AppStateStatus } from "react-native";
 import renderer, { act } from "react-test-renderer";
 
 import { HomePlanDiscovery } from "../HomePlanDiscovery";
 import { HangoutsNearbyPanel } from "../HangoutsNearbyPanel";
-import type { NearbyHangoutItem } from "@workspace/api-client-react";
+import type { EventFeedItem, NearbyHangoutItem } from "@workspace/api-client-react";
 import EventsScreen from "@/app/(tabs)/events";
+import PlansScreen from "@/app/plans";
 
 const mockPush = jest.fn();
 const mockSetParams = jest.fn();
@@ -100,9 +101,22 @@ jest.mock("@/lib/api/client", () => ({
 }));
 
 function expandHangoutFilters(root: renderer.ReactTestRenderer) {
-  act(() => {
-    root.root.findByProps({ testID: "hangouts-filter-toggle" }).props.onPress();
-  });
+  expect(root.root.findByProps({ testID: "hangouts-sort-options" })).toBeTruthy();
+}
+
+function makeHangout(id: number): EventFeedItem {
+  return {
+    id,
+    eventType: "member",
+    visibility: "public",
+    joinApprovalRequired: true,
+    ownerUid: "another-user",
+    myRsvp: null,
+    myJoinRequestStatus: null,
+    title: `Hangout ${id}`,
+    startsAt: "2030-05-02T18:00:00.000Z",
+    location: "City park",
+  } as EventFeedItem;
 }
 
 describe("Hangouts entry and filters", () => {
@@ -207,8 +221,8 @@ describe("Hangouts entry and filters", () => {
     });
 
     expect(mockSetParams).toHaveBeenCalledWith({ view: "hangouts" });
-    expect(root.root.findByProps({ testID: "hangouts-filter-toggle" }).props.accessibilityState.expanded)
-      .toBe(false);
+    expect(root.root.findAllByProps({ testID: "hangouts-filter-toggle" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "hangouts-keyword-search" })).toHaveLength(0);
     expandHangoutFilters(root);
     expect(root.root.findByProps({ testID: "hangouts-use-location" })).toBeTruthy();
     act(() => root.unmount());
@@ -223,7 +237,7 @@ describe("Hangouts entry and filters", () => {
     act(() => root.unmount());
   });
 
-  it("offers Settings after permanent denial and keeps filters usable without location", async () => {
+  it("offers Settings after permanent location denial without search or filters", async () => {
     mockRouteParams = { view: "hangouts" };
     const openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined);
     let root!: renderer.ReactTestRenderer;
@@ -231,44 +245,22 @@ describe("Hangouts entry and filters", () => {
       root = renderer.create(<EventsScreen />);
       await Promise.resolve();
     });
-    expect(root.root.findByProps({ testID: "hangouts-filter-toggle" })).toBeTruthy();
-    expect(root.root.findByProps({ testID: "hangouts-keyword-search" })).toBeTruthy();
-    expandHangoutFilters(root);
-
-    expect(
-      root.root.findAllByType(TextInput).some((input) => input.props.value === ""),
-    ).toBe(true);
+    expect(root.root.findAllByProps({ testID: "hangouts-filter-toggle" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "hangouts-keyword-search" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "hangouts-location-search" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "hangouts-date-filter" })).toHaveLength(0);
+    expect(root.root.findAllByProps({ testID: "hangouts-time-evening" })).toHaveLength(0);
     expect(
       root.root.findAll((node) => node.props.accessibilityRole === "alert")
         .some((node) => node.props.children === "tabs.events.locationDenied"),
     ).toBe(true);
     expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
       .toBe("tabs.events.openLocationSettings");
-
     await act(async () => {
       root.root.findByProps({ testID: "hangouts-use-location" }).props.onPress();
       await Promise.resolve();
     });
     expect(openSettings).toHaveBeenCalledTimes(1);
-    const onAppStateChange = mockAppStateChange;
-    expect(onAppStateChange).toBeDefined();
-    await act(async () => {
-      onAppStateChange?.("background");
-      onAppStateChange?.("active");
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(root.root.findByProps({ testID: "hangouts-use-location" }).props.accessibilityLabel)
-      .toBe("tabs.events.openLocationSettings");
-
-    act(() => {
-      root.root.findByProps({ testID: "hangouts-date-filter" }).props.onChangeText("2030-04-12");
-      root.root.findByProps({ testID: "hangouts-time-evening" }).props.onPress();
-      root.root.findByProps({ testID: "hangouts-sort-soonest" }).props.onPress();
-    });
-    expect(root.root.findByProps({ testID: "hangouts-date-filter" }).props.value)
-      .toBe("2030-04-12");
-    expect(root.root.findByProps({ testID: "hangouts-sort-soonest" }).props.accessibilityState.selected)
-      .toBe(true);
     act(() => root.unmount());
     openSettings.mockRestore();
   });
@@ -398,15 +390,11 @@ describe("Hangouts entry and filters", () => {
     act(() => root.unmount());
   });
 
-  it("exposes location, date, time, sort, and nearby-location actions", () => {
-    const onLocationQueryChange = jest.fn();
-    const onDateQueryChange = jest.fn();
-    const onTimePeriodChange = jest.fn();
+  it("exposes location actions and only nearest/soonest sorting", () => {
     const onSortModeChange = jest.fn();
     const onUseLocation = jest.fn();
     const onLoadMore = jest.fn();
     let root!: renderer.ReactTestRenderer;
-
     act(() => {
       root = renderer.create(
         <HangoutsNearbyPanel
@@ -417,18 +405,9 @@ describe("Hangouts entry and filters", () => {
           locationNeedsSettings={false}
           onUseLocation={onUseLocation}
           onOpenSettings={jest.fn()}
-          locationQuery=""
-          onLocationQueryChange={onLocationQueryChange}
-          dateQuery=""
-          onDateQueryChange={onDateQueryChange}
-          invalidDateFilter={false}
-          timePeriod="any"
-          onTimePeriodChange={onTimePeriodChange}
           sortMode="nearest"
           onSortModeChange={onSortModeChange}
           nearestFallsBackToTime
-          hasFilters={false}
-          onClearFilters={jest.fn()}
           isLoading={false}
           isLoadingMore={false}
           isError={false}
@@ -439,20 +418,21 @@ describe("Hangouts entry and filters", () => {
         />,
       );
     });
-    expect(root.root.findByProps({ testID: "hangouts-keyword-search" })).toBeTruthy();
-    expandHangoutFilters(root);
-
+    expect(root.root.findByProps({ testID: "hangouts-sort-nearest" })).toBeTruthy();
+    expect(root.root.findByProps({ testID: "hangouts-sort-soonest" })).toBeTruthy();
+    for (const testID of [
+      "hangouts-keyword-search",
+      "hangouts-location-search",
+      "hangouts-date-filter",
+      "hangouts-time-evening",
+      "hangouts-filter-toggle",
+    ]) {
+      expect(root.root.findAllByProps({ testID })).toHaveLength(0);
+    }
     act(() => {
-      root.root.findByProps({ testID: "hangouts-location-search" }).props.onChangeText("Riverside");
-      root.root.findByProps({ testID: "hangouts-date-filter" }).props.onChangeText("2030-04-12");
-      root.root.findByProps({ testID: "hangouts-time-evening" }).props.onPress();
       root.root.findByProps({ testID: "hangouts-sort-soonest" }).props.onPress();
       root.root.findByProps({ testID: "hangouts-use-location" }).props.onPress();
     });
-
-    expect(onLocationQueryChange).toHaveBeenCalledWith("Riverside");
-    expect(onDateQueryChange).toHaveBeenCalledWith("2030-04-12");
-    expect(onTimePeriodChange).toHaveBeenCalledWith("evening");
     expect(onSortModeChange).toHaveBeenCalledWith("soonest");
     expect(onUseLocation).toHaveBeenCalledTimes(1);
     expect(root.root.findByProps({ testID: "hangouts-nearest-fallback" })).toBeTruthy();
@@ -460,12 +440,13 @@ describe("Hangouts entry and filters", () => {
     expect(onLoadMore).toHaveBeenCalledTimes(1);
     act(() => root.unmount());
   });
-  it("searches loaded Hangouts by title, location, description, and host", () => {
+
+  it("shows all loaded Hangouts without a search field and shows the host photo in the banner", () => {
     const hangouts = [
       {
         id: 41, eventType: "member", title: "Coffee chat", description: "Coffee and conversation",
         startsAt: "2030-05-02T18:00:00.000Z", location: "City park", latitude: null, longitude: null,
-        creatorName: "Sam", creatorPhotoUrl: null, imageUrl: null,
+        creatorName: "Sam", creatorPhotoUrl: "https://example.com/sam.jpg", imageUrl: null,
       },
       {
         id: 42, eventType: "member", title: "Evening music", description: "Bring a blanket",
@@ -474,7 +455,6 @@ describe("Hangouts entry and filters", () => {
       },
     ] as unknown as NearbyHangoutItem[];
     let root!: renderer.ReactTestRenderer;
-
     act(() => {
       root = renderer.create(
         <HangoutsNearbyPanel
@@ -485,18 +465,9 @@ describe("Hangouts entry and filters", () => {
           locationNeedsSettings={false}
           onUseLocation={jest.fn()}
           onOpenSettings={jest.fn()}
-          locationQuery=""
-          onLocationQueryChange={jest.fn()}
-          dateQuery=""
-          onDateQueryChange={jest.fn()}
-          invalidDateFilter={false}
-          timePeriod="any"
-          onTimePeriodChange={jest.fn()}
           sortMode="nearest"
           onSortModeChange={jest.fn()}
           nearestFallsBackToTime={false}
-          hasFilters={false}
-          onClearFilters={jest.fn()}
           isLoading={false}
           isLoadingMore={false}
           isError={false}
@@ -507,13 +478,28 @@ describe("Hangouts entry and filters", () => {
         />,
       );
     });
-
-    act(() => {
-      root.root.findByProps({ testID: "hangouts-keyword-search" }).props.onChangeText("riverside");
-    });
-
+    expect(root.root.findAllByProps({ testID: "hangouts-keyword-search" })).toHaveLength(0);
+    expect(root.root.findByProps({ testID: "nearby-hangout-41" })).toBeTruthy();
     expect(root.root.findByProps({ testID: "nearby-hangout-42" })).toBeTruthy();
-    expect(root.root.findAllByProps({ testID: "nearby-hangout-41" })).toHaveLength(0);
+    expect(root.root.findByProps({ testID: "nearby-hangout-creator-photo-41" }).props.source.uri)
+      .toBe("https://example.com/sam.jpg");
+    act(() => root.unmount());
+  });
+
+  it("keeps public Hangouts out of the private Plans screen", () => {
+    mockEventsFeed = [
+      { ...makeHangout(82), visibility: "public" },
+      {
+        ...makeHangout(83),
+        visibility: "invite_only",
+        joinApprovalRequired: false,
+        ownerUid: "test-user",
+      },
+    ];
+    let root!: renderer.ReactTestRenderer;
+    act(() => { root = renderer.create(<PlansScreen />); });
+    expect(root.root.findByProps({ testID: "plan-row-83" })).toBeTruthy();
+    expect(root.root.findAllByProps({ testID: "plan-row-82" })).toHaveLength(0);
     act(() => root.unmount());
   });
 

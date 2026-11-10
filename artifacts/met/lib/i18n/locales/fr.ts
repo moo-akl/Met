@@ -114,8 +114,15 @@ export const fr: LocaleTree = {
       subtitle: "Les prochains rendez-vous des lieux et membres Met",
       create: "Créer un événement",
       quickPlan: "Sortie",
-      quickPlanHint: "Décrivez votre idée, choisissez une heure et un lieu, puis examinez les demandes de participation.",
-      joinApprovalHint: "Tout le monde voit le plan et le lieu exact. Vous décidez qui participe.",
+      createHangout: "Créer une sortie",
+      editHangout: "Modifier la sortie",
+      hangoutCreateError: "Impossible de créer cette sortie. Réessayez.",
+      hangoutSaveError: "Impossible d’enregistrer cette sortie. Réessayez.",
+      hangoutDetailsView: "Voir la sortie",
+      addHangoutPhoto: "Ajouter une photo de couverture",
+      removeHangoutPhoto: "Supprimer la photo de couverture",
+      quickPlanHint: "Publiez une sortie, choisissez l’heure et le lieu, puis examinez les demandes de participation.",
+      joinApprovalHint: "Cette sortie est publique. Les personnes peuvent demander à participer et vous choisissez qui accepter.",
       explorerRequestOrderHint: "Les Explorateurs vérifiés apparaissent en premier, mais vous décidez toujours d'accepter ou non chaque demande.",
       planLocationRequired: "Ajoutez un lieu pour votre sortie.",
       planLocationSearchHint: "Recherchez et sélectionnez un lieu pour votre sortie.",
@@ -1600,6 +1607,10 @@ export const fr: LocaleTree = {
 
   verifiedExplorer: {
     title: "Explorateur vérifié",
+    venuesVisited: "Lieux visités",
+    positiveMeetingReviews: "Avis positifs après une rencontre",
+    hangoutOnly: "Réservé aux explorateurs vérifiés",
+    hangoutOnlyHint: "Seuls les Explorateurs vérifiés peuvent trouver cette sortie ou la rejoindre.",
   },
   interestLabels: interestLocales.fr,
 };

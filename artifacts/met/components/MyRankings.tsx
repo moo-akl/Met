@@ -192,9 +192,6 @@ function RankRow({
         >
           {item.placeName ?? "Unknown venue"}
         </Text>
-        <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-          {t("home.checkinCount", { count: item.checkinCount })}
-        </Text>
       </View>
 
       {/* Chevron */}

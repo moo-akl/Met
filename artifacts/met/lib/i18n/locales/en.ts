@@ -116,8 +116,15 @@ export const en = {
       subtitle: "Upcoming plans from venues and Met members",
       create: "Create event",
       quickPlan: "Hangout",
-      quickPlanHint: "Write your own idea, choose a time and place, and review requests to join.",
-      joinApprovalHint: "Anyone can see the plan and exact place. You approve who joins.",
+      createHangout: "Create hangout",
+      editHangout: "Edit hangout",
+      hangoutCreateError: "Could not create this hangout. Please try again.",
+      hangoutSaveError: "Could not save this hangout. Please try again.",
+      hangoutDetailsView: "View hangout",
+      addHangoutPhoto: "Add hangout photo",
+      removeHangoutPhoto: "Remove hangout photo",
+      quickPlanHint: "Post a public hangout, choose a time and place, and review requests to join.",
+      joinApprovalHint: "This hangout is public. People can request to join, and you decide who is accepted.",
       explorerRequestOrderHint: "Verified Explorers appear first, but you still decide whether to accept each request.",
       planLocationRequired: "Add a location for your hangout plan.",
       planLocationSearchHint: "Search and select a place for your hangout.",
@@ -1214,6 +1221,10 @@ export const en = {
 
   verifiedExplorer: {
     title: "Verified Explorer",
+    venuesVisited: "Venues visited",
+    positiveMeetingReviews: "Positive meeting reviews",
+    hangoutOnly: "Verified Explorers only",
+    hangoutOnlyHint: "Only Verified Explorers can find or join this hangout.",
   },
   interestLabels: interestLocales.en,
 
