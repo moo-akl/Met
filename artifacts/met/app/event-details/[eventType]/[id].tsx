@@ -453,7 +453,30 @@ export default function EventDetailsScreen() {
                 <Feather name="navigation" size={18} color={colors.primary} />
               </Pressable>
             ) : null}
-            {event.creatorName ? (
+            {event.eventType === "member" && event.joinApprovalRequired ? (
+              <View testID="hangout-creator" style={styles.hangoutCreatorRow}>
+                {event.creatorPhotoUrl ? (
+                  <Image
+                    testID="hangout-creator-photo"
+                    accessibilityLabel={event.creatorName ?? t("tabs.events.createdBy")}
+                    source={{ uri: event.creatorPhotoUrl }}
+                    style={styles.hangoutCreatorAvatar}
+                  />
+                ) : (
+                  <View style={[styles.hangoutCreatorAvatar, styles.hangoutCreatorAvatarFallback, { backgroundColor: colors.primarySoft }]}>
+                    <Feather name="user" size={20} color={colors.primary} />
+                  </View>
+                )}
+                <View style={styles.hangoutCreatorCopy}>
+                  <Text style={[styles.hangoutCreatorLabel, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.createdBy")}
+                  </Text>
+                  <Text testID="hangout-creator-name" style={[styles.hangoutCreatorName, { color: colors.text }]}>
+                    {event.creatorName ?? t("tabs.events.quickPlan")}
+                  </Text>
+                </View>
+              </View>
+            ) : event.creatorName ? (
               <Text style={[styles.creator, { color: colors.mutedForeground }]}>
                 {t("tabs.events.createdBy")} {event.creatorName}
               </Text>
@@ -850,6 +873,12 @@ const styles = StyleSheet.create({
   locationLabel: { fontSize: 11, fontWeight: "600" },
   locationText: { fontSize: 14, fontWeight: "600", marginTop: 3 },
   creator: { fontSize: 13, marginTop: 14 },
+  hangoutCreatorRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 16 },
+  hangoutCreatorAvatar: { width: 52, height: 52, borderRadius: 26 },
+  hangoutCreatorAvatarFallback: { alignItems: "center", justifyContent: "center" },
+  hangoutCreatorCopy: { flex: 1, gap: 3 },
+  hangoutCreatorLabel: { fontSize: 11, fontWeight: "600" },
+  hangoutCreatorName: { fontSize: 15, fontWeight: "700" },
   description: { fontSize: 15, lineHeight: 23, marginTop: 18 },
   contactHeading: { fontSize: 16, fontWeight: "700", marginBottom: 2 },
   attendanceCard: { borderWidth: 1, borderTopLeftRadius: 30, borderBottomRightRadius: 22, padding: 16, gap: 14, marginTop: 20 },

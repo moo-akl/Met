@@ -11,10 +11,13 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.met.founders",
-      "buildNumber": "322",
+      "buildNumber": "323",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
-      "associatedDomains": ["applinks:metapp.replit.app", "applinks:met-app.org"],
+      "associatedDomains": [
+        "applinks:metapp.replit.app",
+        "applinks:met-app.org"
+      ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Met uses your microphone to record and send voice messages.",
@@ -28,7 +31,7 @@
     },
     "android": {
       "package": "app.met.founders",
-      "versionCode": 322,
+      "versionCode": 323,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#92C977"
@@ -186,9 +189,12 @@
           "androidMode": "default"
         }
       ],
-      ["react-native-maps", {
-        "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
-      }],
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "AIzaSyAAg2B9uhb4ZoTQJ_-ezEAYQIZfIcuAx8k"
+        }
+      ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-firebase/messaging",

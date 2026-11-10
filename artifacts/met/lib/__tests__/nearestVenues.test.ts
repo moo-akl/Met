@@ -13,9 +13,12 @@ describe("nearestVenues", () => {
     expect(venues.map(v => v.id)).toEqual(["far", "near", "middle"]);
   });
 
-  it("sorts the complete list before the Home limit is applied", () => {
+  it("shows only the two nearest venues after sorting the full collection", () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ lat: 14 - i * 0.01, lng: 100.5 }));
-    expect(nearestVenues(many, origin).slice(0, 6)[0]).toBe(many[7]);
+    expect(nearestVenues(many, origin).slice(0, 2)).toEqual([
+      many[7],
+      many[6],
+    ]);
   });
 
   it("keeps existing order when permission or location is unavailable", () => {

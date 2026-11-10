@@ -37,23 +37,23 @@ import { useT } from "@/lib/i18n";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
+function formatDate(date: Date, locale: string): string {
+  return date.toLocaleDateString(locale, {
+    day: "numeric",
     month: "short",
     year: "numeric",
   });
 }
 
-function formatDatetime(date: Date): string {
+function formatDatetime(date: Date, locale: string): string {
   return (
-    date.toLocaleDateString("en-GB", {
-      day: "2-digit",
+    date.toLocaleDateString(locale, {
+      day: "numeric",
       month: "short",
       year: "numeric",
     }) +
     "  " +
-    date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+    date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" })
   );
 }
 
@@ -99,14 +99,14 @@ export function DateTimePicker({
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [timeDraft, setTimeDraft] = useState<Date>(value);
   const insets = useSafeAreaInsets();
-  const { t } = useT();
+  const { t, lang } = useT();
   const useTimeDropdown =
     mode === "datetime" && timePickerPresentation === "dropdown";
 
   const formatted =
-    mode === "datetime" ? formatDatetime(value) : formatDate(value);
-  const formattedTime = value.toLocaleTimeString(undefined, {
-    hour: "2-digit",
+    mode === "datetime" ? formatDatetime(value, lang) : formatDate(value, lang);
+  const formattedTime = value.toLocaleTimeString(lang, {
+    hour: "numeric",
     minute: "2-digit",
   });
 
@@ -182,13 +182,13 @@ export function DateTimePicker({
           )}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${label}, ${formatDate(value)}`}
+            accessibilityLabel={`${label}, ${formatDate(value, lang)}`}
             testID={`date-time-picker-${mode}`}
             onPress={openAndroidDate}
             style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
           >
             <Feather name="calendar" size={16} color={valueColor} />
-            <Text style={[styles.valueText, { color: valueColor }]}>{formatDate(value)}</Text>
+            <Text style={[styles.valueText, { color: valueColor }]}>{formatDate(value, lang)}</Text>
             <Feather name="chevron-down" size={18} color={chevronColor} />
           </Pressable>
           <Pressable
@@ -297,14 +297,14 @@ export function DateTimePicker({
       )}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label}, ${useTimeDropdown ? formatDate(value) : formatted}`}
+        accessibilityLabel={`${label}, ${useTimeDropdown ? formatDate(value, lang) : formatted}`}
         testID={`date-time-picker-${mode}`}
         onPress={() => setShowIOS((v) => !v)}
         style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
       >
         <Feather name="calendar" size={16} color={valueColor} />
         <Text style={[styles.valueText, { color: valueColor }]}>
-          {useTimeDropdown ? formatDate(value) : formatted}
+          {useTimeDropdown ? formatDate(value, lang) : formatted}
         </Text>
         <Text style={[styles.chevron, { color: chevronColor }, showIOS && styles.chevronOpen]}>›</Text>
       </Pressable>

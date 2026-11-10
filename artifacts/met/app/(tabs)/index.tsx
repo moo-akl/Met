@@ -329,7 +329,7 @@ export default function HomeScreen() {
     };
   }, [locationOk, authedUid]));
   const nearestPlaces = useMemo(
-    () => nearestVenues(featuredPlaces.data?.venues ?? [], venueLocation).slice(0, 6),
+    () => nearestVenues(featuredPlaces.data?.venues ?? [], venueLocation).slice(0, 2),
     [featuredPlaces.data, venueLocation],
   );
   const openVenueDirections = async (placeId: string, placeName: string) => {
@@ -573,7 +573,7 @@ export default function HomeScreen() {
               </Pressable>
             )}
             <View style={canopyHome.nearbyList}>
-              {nearestPlaces.map((venue) => (
+              {nearestPlaces.slice(0, 2).map((venue) => (
                 <View key={venue.placeId} style={[canopyHome.nearbyRow, { borderColor: border }]}>
                   <Pressable
                     accessibilityRole="button"

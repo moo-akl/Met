@@ -248,7 +248,11 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       }
     }
     if (isEditing) router.back();
-    else router.replace(planMode ? "/(tabs)/index" as never : "/(tabs)/events" as never);
+    else if (planMode) {
+      router.replace(`/event-details/member/${event.id}` as never);
+    } else {
+      router.replace("/(tabs)/events" as never);
+    }
   };
 
   const createEvent = useCreateCommunityEvent({
@@ -646,6 +650,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
           mode="datetime"
           value={startsAt}
           onChange={setStartsAt}
+          timePickerPresentation={planMode ? "dropdown" : "sheet"}
           primaryColor={colors.primary}
           labelColor={colors.mutedForeground}
           rowBg={colors.card}

@@ -17,6 +17,7 @@ import {
 } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -367,23 +368,30 @@ function SubscriptionSyncer() {
  */
 function PushTokenRegistrar() {
   const { authedUid } = useApp();
-  const registeredUid = React.useRef<string | null>(null);
+  const lastAttemptAt = useRef(0);
 
-  // Initial registration: runs once per Firebase UID on app start.
-  useEffect(() => {
-    if (!authedUid || registeredUid.current === authedUid) return;
-    registeredUid.current = authedUid;
-
-    getNotificationPermissionGranted()
-      .then((granted) => {
-        if (granted) return registerAndUploadPushToken(authedUid);
-      })
-      .catch(() => {});
+  const registerToken = useCallback(async () => {
+    if (!authedUid) return;
+    try {
+      const granted = await getNotificationPermissionGranted();
+      if (!granted || Date.now() - lastAttemptAt.current < 5 * 60_000) return;
+      const token = await registerAndUploadPushToken(authedUid);
+      if (token) lastAttemptAt.current = Date.now();
+    } catch {}
   }, [authedUid]);
 
-  // Token refresh: FCM silently rotates tokens (e.g. after app updates or
-  // OS reinstall). Re-upload whenever the token changes so the server always
-  // has a valid FCM token.
+  useEffect(() => {
+    void registerToken();
+  }, [registerToken]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void registerToken();
+    });
+    return () => subscription.remove();
+  }, [registerToken]);
+
+  // FCM can rotate a token without an app restart; keep the server copy current.
   useEffect(() => {
     if (!authedUid) return;
     const unsubscribe = messaging().onTokenRefresh((newToken) => {
@@ -396,7 +404,6 @@ function PushTokenRegistrar() {
 
   return null;
 }
-
 function ProfileGate() {
   const { ready, profile, permissionsCompleted, authedUid } = useApp();
   const router = useRouter();
