@@ -381,6 +381,7 @@ router.get("/events/hangouts/nearby", requireUid, async (req, res) => {
     events: page.map(({ ownerUid, ...event }) => ({
       eventType: "member" as const,
       ...event,
+      ownerUid,
       myJoinRequestStatus: myJoinRequestStatus.get(event.id) ?? null,
       isVerifiedExplorerHost:
         hostStatuses.get(ownerUid)?.isVerifiedExplorer ?? false,

@@ -194,6 +194,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     expect(pagedEvents).toHaveLength(105);
     expect(new Set(pagedEvents.map((event: { id: number }) => event.id)).size).toBe(105);
     expect(pagedEvents[0].title).toBe("Nearby paging fixture 0");
+    expect(pagedEvents[0].ownerUid).toBe(OWNER_UID);
     expect(pagedEvents.at(-1).title).toBe("Nearby paging fixture 104");
 
     const locationSearch = await request(app)
@@ -388,7 +389,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .post(`/api/events/member/${eventId}/check-in/location`)
       .set(uidHeader(OTHER_UID))
       .send({ latitude: 13.7563, longitude: 100.5018, accuracy: 10 })
-      .expect(403);
+      .expect(404);
     const pendingAttendance = await db
       .select()
       .from(eventAttendanceTable)

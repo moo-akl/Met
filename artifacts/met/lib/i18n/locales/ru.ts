@@ -119,6 +119,7 @@ export const ru: LocaleTree = {
       hangoutCreateError: "Не удалось создать встречу. Попробуйте ещё раз.",
       hangoutSaveError: "Не удалось сохранить встречу. Попробуйте ещё раз.",
       hangoutDetailsView: "Открыть встречу",
+      hangoutDetailsTitle: "Информация о встрече",
       addHangoutPhoto: "Добавить фото обложки",
       removeHangoutPhoto: "Удалить фото обложки",
       quickPlanHint: "Опубликуйте встречу, выберите время и место, затем рассмотрите заявки на участие.",

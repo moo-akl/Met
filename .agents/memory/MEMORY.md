@@ -63,3 +63,4 @@
 - [Hotspot QR strategy](hotspot-qr-strategy.md) — Tourist attractions and city hotspots are QR acquisition locations; prioritize fast check-in across login and installation.
 - [Hotspot install privacy](hotspot-install-privacy.md) — Deferred-install recovery needs approval; preserve printed links/fallback, avoid clipboard/fingerprinting and never guarantee iOS recovery.
 - [Event invitation privacy](event-invitation-privacy.md) — Keep invite-only venue links shareable without exposing event details in public previews.
+- [Hangout plan visibility](hangout-plan-visibility.md) — Home separates invite-only friend plans from public hangouts that guests can request to join.

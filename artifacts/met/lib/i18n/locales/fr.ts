@@ -119,6 +119,7 @@ export const fr: LocaleTree = {
       hangoutCreateError: "Impossible de créer cette sortie. Réessayez.",
       hangoutSaveError: "Impossible d’enregistrer cette sortie. Réessayez.",
       hangoutDetailsView: "Voir la sortie",
+      hangoutDetailsTitle: "Détails de la sortie",
       addHangoutPhoto: "Ajouter une photo de couverture",
       removeHangoutPhoto: "Supprimer la photo de couverture",
       quickPlanHint: "Publiez une sortie, choisissez l’heure et le lieu, puis examinez les demandes de participation.",

@@ -119,6 +119,7 @@ export const ar: LocaleTree = {
       hangoutCreateError: "تعذر إنشاء هذا اللقاء. حاول مرة أخرى.",
       hangoutSaveError: "تعذر حفظ هذا اللقاء. حاول مرة أخرى.",
       hangoutDetailsView: "عرض اللقاء",
+      hangoutDetailsTitle: "تفاصيل اللقاء",
       addHangoutPhoto: "إضافة صورة للغلاف",
       removeHangoutPhoto: "إزالة صورة الغلاف",
       quickPlanHint: "انشر لقاءً عامًا، واختر الوقت والمكان، ثم راجع طلبات الانضمام.",

@@ -119,6 +119,7 @@ export const pt: LocaleTree = {
       hangoutCreateError: "Não foi possível criar este encontro. Tente novamente.",
       hangoutSaveError: "Não foi possível salvar este encontro. Tente novamente.",
       hangoutDetailsView: "Ver encontro",
+      hangoutDetailsTitle: "Detalhes do encontro",
       addHangoutPhoto: "Adicionar foto de capa",
       removeHangoutPhoto: "Remover foto de capa",
       quickPlanHint: "Publique um encontro, escolha horário e local e analise os pedidos para participar.",

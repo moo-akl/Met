@@ -119,6 +119,7 @@ export const es: LocaleTree = {
       hangoutCreateError: "No se pudo crear esta quedada. Inténtalo de nuevo.",
       hangoutSaveError: "No se pudo guardar esta quedada. Inténtalo de nuevo.",
       hangoutDetailsView: "Ver quedada",
+      hangoutDetailsTitle: "Detalles de la quedada",
       addHangoutPhoto: "Añadir foto de portada",
       removeHangoutPhoto: "Quitar foto de portada",
       quickPlanHint: "Publica una quedada, elige hora y lugar, y revisa las solicitudes para unirse.",

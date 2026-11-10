@@ -10,6 +10,7 @@ import type { NearbyHangoutItemEventType } from './nearbyHangoutItemEventType';
 export interface NearbyHangoutItem {
   eventType: NearbyHangoutItemEventType;
   id: number;
+  ownerUid: string;
   title: string;
   /** @nullable */
   description: string | null;

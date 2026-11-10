@@ -159,13 +159,13 @@ describe("routeNotifTap", () => {
     },
   );
 
-  it("routes hangout updates to the plan details", () => {
+  it("routes hangout updates to the group chat", () => {
     expect(routeNotifTap({
       type: "hangout_updated",
       eventType: "member",
       eventId: "42",
     }, { push })).toBe(true);
-    expect(push).toHaveBeenCalledWith("/event-details/member/42");
+    expect(push).toHaveBeenCalledWith("/event-chat/42");
   });
 
   it("routes hangout cancellations to the plans list", () => {

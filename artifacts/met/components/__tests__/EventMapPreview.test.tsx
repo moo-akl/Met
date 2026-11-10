@@ -63,6 +63,8 @@ const event: EventMapPin = {
   longitude: 100.5018,
   visibility: "public",
   joinApprovalRequired: true,
+  ownerUid: "host-uid",
+  myJoinRequestStatus: null,
 };
 
 describe("EventMapPreview", () => {
@@ -113,4 +115,3 @@ describe("EventMapPreview", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
-

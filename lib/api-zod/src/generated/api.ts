@@ -3916,6 +3916,7 @@ export const GetNearbyHangoutsResponse = zod.object({
   "events": zod.array(zod.object({
   "eventType": zod.enum(['member']),
   "id": zod.number().int(),
+  "ownerUid": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullable(),
   "imageUrl": zod.string().url().nullable(),

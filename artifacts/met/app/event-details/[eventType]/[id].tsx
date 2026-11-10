@@ -107,6 +107,7 @@ export default function EventDetailsScreen() {
 
   const event = eventQuery.data;
   const isOwner = Boolean(event && event.ownerUid === authedUid);
+  const isHangout = Boolean(eventType === "member" && event?.joinApprovalRequired);
   const canAccessHangout = Boolean(
     event &&
       (!event.joinApprovalRequired ||
@@ -239,14 +240,17 @@ export default function EventDetailsScreen() {
   );
   const canOpenPlanChat = Boolean(
     event?.eventType === "member" &&
-      (isOwner || event.isInvited || event.myRsvp === "going" || event.myRsvp === "maybe"),
+      (isOwner ||
+        event.isInvited ||
+        event.myRsvp === "going" ||
+        event.myRsvp === "maybe" ||
+        event.myJoinRequestStatus === "accepted"),
   );
   const canRsvpDirectly = Boolean(
     event &&
       (!event.joinApprovalRequired ||
-        isOwner ||
-        event.isInvited ||
-        event.myJoinRequestStatus === "accepted"),
+        (!isOwner &&
+          (event.isInvited || event.myJoinRequestStatus === "accepted"))),
   );
   const manageEventLabel = event?.joinApprovalRequired
     ? `${t("tabs.events.joinRequests")}${event.pendingJoinRequestCount ? ` (${event.pendingJoinRequestCount})` : ""}`
@@ -364,7 +368,7 @@ export default function EventDetailsScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.text }]}>
-          {t("tabs.events.detailsView")}
+          {t(isHangout ? "tabs.events.hangoutDetailsTitle" : "tabs.events.detailsView")}
         </Text>
         {isOwner && event ? (
           <Pressable
@@ -487,7 +491,7 @@ export default function EventDetailsScreen() {
               </Text>
             ) : null}
             <EventFollowThroughActions event={event} uid={authedUid ?? null} />
-            {(isOwner || canAccessHangout) ? (
+            {(isOwner || (canAccessHangout && !isHangout)) ? (
             <View style={[styles.attendanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.attendanceHeading}>
                 <View style={[styles.attendanceIcon, { backgroundColor: colors.primarySoft }]}>
@@ -502,7 +506,9 @@ export default function EventDetailsScreen() {
                       : t("tabs.events.attendanceGuestHeading")}
                   </Text>
                   <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
-                    {isOwner
+                    {isHangout
+                      ? t("tabs.events.joinApprovalHint")
+                      : isOwner
                       ? t("tabs.events.attendanceOwnerHint")
                       : t("tabs.events.attendanceGuestHint")}
                   </Text>
@@ -531,7 +537,8 @@ export default function EventDetailsScreen() {
                 </Pressable>
               ) : (
                 <View style={styles.attendanceActions}>
-                  <Pressable
+                  {!isHangout ? (
+                    <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t("tabs.events.scanEventQr")}
                     testID="button-scan-event-qr"
@@ -542,8 +549,9 @@ export default function EventDetailsScreen() {
                     <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
                       {t("tabs.events.scanEventQr")}
                     </Text>
-                  </Pressable>
-                  {event.latitude != null && event.longitude != null ? (
+                    </Pressable>
+                  ) : null}
+                  {!isHangout && event.latitude != null && event.longitude != null ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={t("tabs.events.checkInByLocation")}
@@ -606,7 +614,7 @@ export default function EventDetailsScreen() {
               </View>
             ) : null}
 
-            {canRsvpDirectly ? (
+            {!isHangout && canRsvpDirectly ? (
             <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
               <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
                 {t("tabs.events.rsvpHeading")}
@@ -654,7 +662,7 @@ export default function EventDetailsScreen() {
                 })}
               </View>
             </View>
-            ) : (
+            ) : !isHangout ? (
               <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
                 <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
                   {t("tabs.events.joinRequests")}
@@ -701,7 +709,54 @@ export default function EventDetailsScreen() {
                   </Text>
                 </Pressable>
               </View>
-            )}
+            ) : !isOwner && event.myJoinRequestStatus !== "accepted" ? (
+              <View style={[styles.rsvpSection, { borderTopColor: colors.border }]}>
+                <Text accessibilityRole="header" style={[styles.rsvpHeading, { color: colors.text }]}>
+                  {t("tabs.events.joinRequests")}
+                </Text>
+                {event.myJoinRequestStatus === "pending" ? (
+                  <Text style={[styles.attendanceHint, { color: colors.mutedForeground }]}>
+                    {t("tabs.events.joinRequestPending")}
+                  </Text>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={event.myJoinRequestStatus === "pending"
+                    ? t("tabs.events.cancelJoinRequest")
+                    : event.myJoinRequestStatus === "declined"
+                      ? t("tabs.events.requestAgain")
+                      : t("tabs.events.requestToJoin")}
+                  testID="button-request-to-join"
+                  disabled={joinRequestPending}
+                  onPress={() => void updateJoinRequest()}
+                  style={[
+                    styles.attendanceButton,
+                    {
+                      backgroundColor: colors.primary,
+                      opacity: joinRequestPending ? 0.65 : 1,
+                      alignSelf: "flex-start",
+                    },
+                  ]}
+                >
+                  {joinRequestPending ? (
+                    <ActivityIndicator size="small" color={colors.primaryForeground} />
+                  ) : (
+                    <Feather
+                      name={event.myJoinRequestStatus === "pending" ? "x" : "user-plus"}
+                      size={16}
+                      color={colors.primaryForeground}
+                    />
+                  )}
+                  <Text style={[styles.attendanceButtonText, { color: colors.primaryForeground }]}>
+                    {event.myJoinRequestStatus === "pending"
+                      ? t("tabs.events.cancelJoinRequest")
+                      : event.myJoinRequestStatus === "declined"
+                        ? t("tabs.events.requestAgain")
+                        : t("tabs.events.requestToJoin")}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
 
             {canOpenPlanChat ? (
               <Pressable

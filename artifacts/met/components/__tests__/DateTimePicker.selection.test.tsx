@@ -145,6 +145,20 @@ describe("DateTimePicker platform behavior", () => {
       );
     });
 
+    expect(findByTestId(root, "date-time-picker-datetime")).toBeTruthy();
+    expect(
+      root.root.findByType(DateTimePicker).props.timePickerPresentation,
+    ).toBe("dropdown");
+    const textLabels = root.root
+      .findAllByType(Text)
+      .map((node) => node.props.children)
+      .filter((child): child is string => typeof child === "string");
+    expect(textLabels).toContain("tabs.events.createHangout");
+    expect(textLabels).toContain("tabs.events.addHangoutPhoto");
+    expect(root.root.findByProps({ testID: "button-add-hangout-cover" })).toBeTruthy();
+    expect(textLabels).not.toContain("tabs.events.editEvent");
+    expect(textLabels).not.toContain("tabs.events.eventName");
+    expect(textLabels).not.toContain("tabs.events.addEventPhoto");
     const titleInput = root.root.find(
       (node) => node.props.placeholder === "tabs.events.hangoutName",
     );

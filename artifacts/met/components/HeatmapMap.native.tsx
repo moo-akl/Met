@@ -17,6 +17,7 @@ import {
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
+import { getHangoutOpenPath } from "@/lib/hangoutNavigation";
 import {
   EventMapMarker,
   EventMapPreview,
@@ -457,7 +458,14 @@ function HeatmapMapInner({ style, onVenuePress }: HeatmapMapProps) {
           onClose={() => setSelectedEventKey(null)}
           onOpenDetails={() =>
             router.push(
-              `/event-details/${selectedEvent.eventType}/${selectedEvent.id}` as never,
+              selectedEvent.eventType === "member" && selectedEvent.joinApprovalRequired
+                ? getHangoutOpenPath(
+                    selectedEvent.id,
+                    selectedEvent.ownerUid,
+                    authedUid,
+                    selectedEvent.myJoinRequestStatus,
+                  ) as never
+                : `/event-details/${selectedEvent.eventType}/${selectedEvent.id}` as never,
             )
           }
         />

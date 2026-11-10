@@ -13,6 +13,8 @@ export type EventMapPinCandidate = Pick<
   | "longitude"
   | "visibility"
   | "joinApprovalRequired"
+  | "ownerUid"
+  | "myJoinRequestStatus"
 >;
 
 export type EventMapPin = Omit<
@@ -52,4 +54,3 @@ export function getCurrentEventMapPins(
 ): EventMapPin[] {
   return events.filter((event) => isActiveMapPin(event, now));
 }
-

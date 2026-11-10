@@ -22,6 +22,8 @@ function makeEvent(
     longitude: 100.5018,
     visibility: "public",
     joinApprovalRequired: false,
+    ownerUid: "host-uid",
+    myJoinRequestStatus: null,
     ...overrides,
   };
 }

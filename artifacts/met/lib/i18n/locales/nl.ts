@@ -119,6 +119,7 @@ export const nl: LocaleTree = {
       hangoutCreateError: "De hangout kon niet worden aangemaakt. Probeer het opnieuw.",
       hangoutSaveError: "De hangout kon niet worden opgeslagen. Probeer het opnieuw.",
       hangoutDetailsView: "Hangout bekijken",
+      hangoutDetailsTitle: "Hangoutdetails",
       addHangoutPhoto: "Omslagfoto toevoegen",
       removeHangoutPhoto: "Omslagfoto verwijderen",
       quickPlanHint: "Plaats een openbare hangout, kies tijd en plek en bekijk verzoeken om mee te doen.",

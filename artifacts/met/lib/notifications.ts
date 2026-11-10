@@ -257,7 +257,7 @@ export function routeNotifTap(data: NotifData, router: NotifRouter): boolean {
       return true;
     }
     if (data.type === "hangout_updated") {
-      router.push(`/event-details/member/${data.eventId}`);
+      router.push(`/event-chat/${data.eventId}`);
       return true;
     }
     if (data.requestStatus !== "accepted" && data.requestStatus !== "declined") return false;

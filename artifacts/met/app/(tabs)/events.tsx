@@ -25,6 +25,7 @@ import { useEventReminderCleanup } from "@/hooks/useEventReminderCleanup";
 import { useT } from "@/lib/i18n";
 import { api, ApiError } from "@/lib/api/client";
 import { HangoutsNearbyPanel } from "@/components/HangoutsNearbyPanel";
+import { getHangoutOpenPath } from "@/lib/hangoutNavigation";
 import { groupEventsByDate } from "@/lib/eventDateGroups";
 import { isPlanEvent } from "@/lib/eventFeedClassification";
 import { type HangoutSortMode } from "@/lib/hangoutDiscovery";
@@ -498,11 +499,12 @@ function EventsScreen() {
             onPressHangout={(eventId) => {
               const event = hangouts.find((item) => item.id === eventId);
               if (!event) return;
-              router.push(
-                event.myJoinRequestStatus === "accepted"
-                  ? `/event-chat/${event.id}` as never
-                  : `/event-details/member/${event.id}` as never,
-              );
+              router.push(getHangoutOpenPath(
+                event.id,
+                event.ownerUid,
+                authedUid,
+                event.myJoinRequestStatus,
+              ) as never);
             }}
           />
         ) : events.length === 0 ? (
@@ -560,7 +562,16 @@ function EventsScreen() {
                         accessibilityLabel={eventAccessibilityLabel}
                         accessibilityHint={t("tabs.events.detailsView")}
                         testID={`event-card-${event.eventType}-${event.id}`}
-                        onPress={() => router.push(`/event-details/${event.eventType}/${event.id}` as never)}
+                        onPress={() => router.push(
+                          event.eventType === "member" && event.joinApprovalRequired
+                            ? getHangoutOpenPath(
+                                event.id,
+                                event.ownerUid,
+                                authedUid,
+                                event.myJoinRequestStatus,
+                              ) as never
+                            : `/event-details/${event.eventType}/${event.id}` as never,
+                        )}
                       >
                         {event.imageUrl ? <Image source={{ uri: event.imageUrl }} style={styles.cover} resizeMode="cover" /> : null}
                         <View style={styles.eventBody}>

@@ -2318,6 +2318,7 @@ export const NearbyHangoutItemMyJoinRequestStatus = {
 export interface NearbyHangoutItem {
   eventType: NearbyHangoutItemEventType;
   id: number;
+  ownerUid: string;
   title: string;
   /** @nullable */
   description: string | null;

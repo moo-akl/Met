@@ -7,6 +7,7 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "rea
 import { useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
+import { getHangoutOpenPath } from "@/lib/hangoutNavigation";
 import { getGetEventsFeedQueryKey, useGetEventsFeed, type EventFeedItem } from "@workspace/api-client-react";
 
 function dateLabel(value: string) {
@@ -190,9 +191,7 @@ export function HomePlanDiscovery() {
         testID={`home-${isHangout ? "hangout" : "plan"}-${event.id}`}
         onPress={() => router.push(
           isHangout
-            ? event.myJoinRequestStatus === "accepted"
-              ? `/event-chat/${event.id}` as never
-              : `/event-details/member/${event.id}` as never
+            ? getHangoutOpenPath(event.id, event.ownerUid, authedUid, event.myJoinRequestStatus) as never
             : `/event-chat/${event.id}` as never,
         )}
         style={({ pressed }) => [

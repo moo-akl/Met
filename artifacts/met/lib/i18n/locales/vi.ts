@@ -119,6 +119,7 @@ export const vi: LocaleTree = {
       hangoutCreateError: "Không thể tạo buổi gặp này. Hãy thử lại.",
       hangoutSaveError: "Không thể lưu buổi gặp này. Hãy thử lại.",
       hangoutDetailsView: "Xem buổi gặp",
+      hangoutDetailsTitle: "Chi tiết buổi gặp",
       addHangoutPhoto: "Thêm ảnh bìa",
       removeHangoutPhoto: "Xóa ảnh bìa",
       quickPlanHint: "Đăng buổi gặp công khai, chọn thời gian và địa điểm, rồi xem các yêu cầu tham gia.",

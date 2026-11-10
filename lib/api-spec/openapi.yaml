@@ -7008,10 +7008,11 @@ components:
           items: { $ref: "#/components/schemas/EventFeedItem" }
     NearbyHangoutItem:
       type: object
-      required: [eventType, id, title, description, imageUrl, startsAt, location, latitude, longitude, creatorName, creatorPhotoUrl, myJoinRequestStatus, verifiedExplorersOnly, isVerifiedExplorerHost]
+      required: [eventType, id, ownerUid, title, description, imageUrl, startsAt, location, latitude, longitude, creatorName, creatorPhotoUrl, myJoinRequestStatus, verifiedExplorersOnly, isVerifiedExplorerHost]
       properties:
         eventType: { type: string, enum: [member] }
         id: { type: integer }
+        ownerUid: { type: string }
         title: { type: string }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"], format: uri }

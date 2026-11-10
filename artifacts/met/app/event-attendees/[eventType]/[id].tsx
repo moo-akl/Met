@@ -24,6 +24,7 @@ import { useColors } from "@/hooks/useColors";
 import { useT } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
 import {
+  getGetEventDetailsQueryOptions,
   getGetEventDetailsQueryKey,
   getGetEventsFeedQueryKey,
   getGetEventAttendeesQueryOptions,
@@ -49,7 +50,7 @@ export default function EventAttendeesScreen() {
     eventType?: string;
     id?: string;
     title?: string;
-    joinApprovalRequired?: string;
+    joinApprovalRequired?: string | string[];
   }>();
   const eventType = params.eventType === "venue" ? "venue" : "member";
   const eventId = Number(params.id);
@@ -64,6 +65,10 @@ export default function EventAttendeesScreen() {
   const queryClient = useQueryClient();
   const { t, lang } = useT();
   const { authedUid } = useApp();
+  const eventDetailsQuery = useQuery({
+    ...getGetEventDetailsQueryOptions(eventType, validRoute ? eventId : 0),
+    enabled: validRoute,
+  });
   const attendeeOptions = getGetEventAttendeesQueryOptions(eventType, validRoute ? eventId : 0);
   const attendeesQuery = useQuery({
     ...attendeeOptions,
@@ -136,7 +141,17 @@ export default function EventAttendeesScreen() {
 
   const attendees = attendeesQuery.data?.attendees ?? [];
   const joinRequests = attendeesQuery.data?.joinRequests ?? [];
-  const showJoinRequests = eventType === "member" && params.joinApprovalRequired === "true";
+  const joinApprovalRequiredParam = Array.isArray(params.joinApprovalRequired)
+    ? params.joinApprovalRequired[0]
+    : params.joinApprovalRequired;
+  const isHangout =
+    eventType === "member" &&
+    (joinApprovalRequiredParam === "true" ||
+      eventDetailsQuery.data?.joinApprovalRequired === true);
+  const showJoinRequests = isHangout;
+  const showCheckInTools =
+    eventType === "venue" ||
+    (eventDetailsQuery.isSuccess && !isHangout);
   const eventTitle = typeof params.title === "string" && params.title.trim()
     ? params.title.trim()
     : "this event";
@@ -225,7 +240,7 @@ export default function EventAttendeesScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.text }]}>
-          {t("tabs.events.attendanceOwnerHeading")}
+          {t(isHangout ? "tabs.events.hangoutDetailsTitle" : "tabs.events.attendanceOwnerHeading")}
         </Text>
         <View style={styles.headerButton} />
       </View>
@@ -367,6 +382,7 @@ export default function EventAttendeesScreen() {
               )}
             </View>
           ) : null}
+          {showCheckInTools ? (
           <View style={[styles.qrCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeading}>
               <View style={[styles.iconBox, { backgroundColor: colors.primarySoft }]}>
@@ -563,7 +579,9 @@ export default function EventAttendeesScreen() {
               ) : null}
             </View>
           </View>
+          ) : null}
 
+          {showCheckInTools ? (
           <View style={styles.attendeeSection}>
             <View style={styles.listHeading}>
               <View>
@@ -663,6 +681,7 @@ export default function EventAttendeesScreen() {
               })
             )}
           </View>
+          ) : null}
         </KeyboardAwareScrollViewCompat>
       )}
     </View>

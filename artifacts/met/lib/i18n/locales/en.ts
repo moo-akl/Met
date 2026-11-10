@@ -121,6 +121,7 @@ export const en = {
       hangoutCreateError: "Could not create this hangout. Please try again.",
       hangoutSaveError: "Could not save this hangout. Please try again.",
       hangoutDetailsView: "View hangout",
+      hangoutDetailsTitle: "Hangout Details",
       addHangoutPhoto: "Add hangout photo",
       removeHangoutPhoto: "Remove hangout photo",
       quickPlanHint: "Post a public hangout, choose a time and place, and review requests to join.",

@@ -119,6 +119,7 @@ export const zh: LocaleTree = {
       hangoutCreateError: "无法创建此聚会，请重试。",
       hangoutSaveError: "无法保存此聚会，请重试。",
       hangoutDetailsView: "查看聚会",
+      hangoutDetailsTitle: "聚会详情",
       addHangoutPhoto: "添加封面照片",
       removeHangoutPhoto: "删除封面照片",
       quickPlanHint: "发布公开聚会，选择时间和地点，然后审核加入申请。",

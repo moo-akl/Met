@@ -249,7 +249,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
     }
     if (isEditing) router.back();
     else if (planMode) {
-      router.replace(`/event-details/member/${event.id}` as never);
+      router.replace(`/event-chat/${event.id}` as never);
     } else {
       router.replace("/(tabs)/events" as never);
     }
@@ -434,6 +434,65 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
             { color: colors.text, backgroundColor: colors.card, borderColor: colors.border },
           ]}
         />
+        {planMode ? (
+          <>
+            <Text style={[styles.label, { color: colors.text }]}>
+              {t("tabs.events.hangoutCoverPhotoOptional")}
+            </Text>
+            {imageUrl ? (
+              <View style={{ gap: 8 }}>
+                <Image
+                  source={{ uri: imageUrl }}
+                  style={{ width: "100%", height: 180, borderRadius: 14 }}
+                  resizeMode="cover"
+                  accessibilityLabel={t("tabs.events.hangoutCoverPhotoOptional")}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("tabs.events.removeHangoutPhoto")}
+                  onPress={() => setImageUrl("")}
+                  style={{ alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 2 }}
+                >
+                  <Text style={{ color: colors.destructive, fontFamily: "Inter_600SemiBold" }}>
+                    {t("tabs.events.removeHangoutPhoto")}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("tabs.events.addHangoutPhoto")}
+                testID="button-add-hangout-cover"
+                disabled={imageUploading}
+                onPress={() => void pickImage()}
+                style={({ pressed }) => [{
+                  minHeight: 76,
+                  borderWidth: 1,
+                  borderStyle: "dashed",
+                  borderRadius: 14,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  gap: 9,
+                  opacity: pressed || imageUploading ? 0.7 : 1,
+                }]}
+              >
+                {imageUploading ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <>
+                    <Feather name="image" size={18} color={colors.primary} />
+                    <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>
+                      {t("tabs.events.addHangoutPhoto")}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            )}
+          </>
+        ) : null}
         {planMode ? (
           <View
             style={[
