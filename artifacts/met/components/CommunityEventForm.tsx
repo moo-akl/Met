@@ -655,7 +655,6 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
           labelColor={colors.mutedForeground}
           rowBg={colors.card}
           isDark={isDark}
-          timePickerPresentation="dropdown"
         />
 
         {!planMode ? (
