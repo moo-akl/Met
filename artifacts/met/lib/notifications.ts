@@ -176,6 +176,7 @@ export type NotifData = {
   eventId?: string;
   eventType?: "venue" | "member";
   requestStatus?: "accepted" | "declined";
+  foregroundFcmNotification?: "true";
 };
 
 /**
@@ -342,6 +343,40 @@ export function setupNotificationListeners(
     },
   );
 
+  // Firebase does not display notification messages while the app is active.
+  // Re-present them as local notifications so messages and requests remain
+  // visible in the foreground as well as when the app is backgrounded.
+  let unsubscribeFcm: (() => void) | undefined;
+  if (Device.isDevice && Platform.OS !== "web") {
+    try {
+      unsubscribeFcm = messaging().onMessage(async (message) => {
+        const title = message.notification?.title;
+        const body = message.notification?.body;
+        if (!title && !body) return;
+        const data = Object.fromEntries(
+          Object.entries(message.data ?? {}).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        );
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: title ?? "Met",
+              body: body ?? "",
+              data: { ...data, foregroundFcmNotification: "true" },
+              sound: "default",
+            },
+            trigger: null,
+          });
+        } catch (error) {
+          console.warn("[notifications] foreground notification presentation failed", error);
+        }
+      });
+    } catch (error) {
+      console.warn("[notifications] foreground FCM listener failed", error);
+    }
+  }
+
   // Cold-start tap: when the user opened the app *by tapping* a
   // notification, getLastNotificationResponseAsync() returns it once.
   //
@@ -390,6 +425,7 @@ export function setupNotificationListeners(
 
   return () => {
     tapSub.remove();
+    unsubscribeFcm?.();
   };
 }
 

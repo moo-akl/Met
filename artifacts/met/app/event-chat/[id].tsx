@@ -172,6 +172,9 @@ export default function EventChatScreen() {
   });
   const sendMessage = useSendCommunityEventPlanChatMessage();
   const notificationsMuted = planChat.data?.notificationsMuted ?? false;
+  const chatTitle = planChat.data?.event?.joinApprovalRequired
+    ? t("tabs.events.hangoutChat")
+    : t("tabs.events.planChat");
 
   const messages = planChat.data?.messages ?? [];
   const newestFirstMessages = useMemo(() => [...messages].reverse(), [messages]);
@@ -382,7 +385,7 @@ export default function EventChatScreen() {
       });
     } catch {
       Alert.alert(
-        t("tabs.events.planChat"),
+        chatTitle,
         t("tabs.events.planChatNotificationUpdateError"),
       );
     }
@@ -464,7 +467,7 @@ export default function EventChatScreen() {
             style={styles.headerCopy}
           >
             <Text style={[styles.headerTitle, { color: colors.text }]}>
-              {t("tabs.events.planChat")}
+              {chatTitle}
             </Text>
             {planChat.data?.event ? (
               <View style={styles.headerTitleLine}>

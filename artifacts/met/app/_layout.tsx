@@ -296,6 +296,7 @@ function ChatBannerController({
         if (tappedIdsRef.current.has(notifId)) return;
 
         const data = (notification.request.content.data ?? {}) as NotifData;
+        if (data.foregroundFcmNotification === "true") return;
         if (data.type !== "chat_message" || !data.chatPeerUid) return;
 
         const currentPath = pathnameRef.current;

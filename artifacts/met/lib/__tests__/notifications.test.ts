@@ -16,6 +16,7 @@ jest.mock("expo-notifications", () => ({
   addNotificationResponseReceivedListener: jest.fn(),
   getLastNotificationResponseAsync: jest.fn(),
   getPermissionsAsync: jest.fn(),
+  scheduleNotificationAsync: jest.fn().mockResolvedValue("foreground-local-id"),
 }));
 
 // Variables prefixed with "mock" are allowed to be referenced inside jest.mock
@@ -33,9 +34,10 @@ jest.mock("expo-device", () => ({
 
 // eslint-disable-next-line no-var
 var mockGetToken = jest.fn();
+var mockOnMessage = jest.fn().mockReturnValue(jest.fn());
 
 jest.mock("@react-native-firebase/messaging", () => {
-  return () => ({ getToken: mockGetToken });
+  return () => ({ getToken: mockGetToken, onMessage: mockOnMessage });
 });
 
 jest.mock("../storage", () => ({
@@ -363,6 +365,41 @@ describe("setupNotificationListeners", () => {
   // -------------------------------------------------------------------------
   // Foreground tap
   // -------------------------------------------------------------------------
+
+  it.each([
+    [
+      "chat messages",
+      { type: "chat_message", chatPeerUid: "peer-1" },
+    ],
+    [
+      "Hangout join requests",
+      { type: "hangout_join_request", eventId: "42", eventType: "member" },
+    ],
+  ])("presents foreground FCM %s as a local notification", async (_label, data) => {
+    setupNotificationListeners(jest.fn());
+    const handler = mockOnMessage.mock.calls[0]?.[0] as
+      | ((message: {
+          notification?: { title?: string; body?: string };
+          data?: Record<string, string>;
+        }) => Promise<void>)
+      | undefined;
+
+    expect(handler).toBeDefined();
+    await handler!({
+      notification: { title: "New activity", body: "Open Met to review." },
+      data,
+    });
+
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
+      content: {
+        title: "New activity",
+        body: "Open Met to review.",
+        data: { ...data, foregroundFcmNotification: "true" },
+        sound: "default",
+      },
+      trigger: null,
+    });
+  });
 
   it("foreground tap — calls onTap with chat_message data", () => {
     const onTap = jest.fn();

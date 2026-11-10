@@ -4464,7 +4464,8 @@ export const GetCommunityEventPlanChatResponse = zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
   "startsAt": zod.coerce.date(),
-  "location": zod.string().nullable()
+  "location": zod.string().nullable(),
+  "joinApprovalRequired": zod.boolean()
 }),
   "participants": zod.array(zod.object({
   "uid": zod.string(),
@@ -4485,25 +4486,6 @@ export const GetCommunityEventPlanChatResponse = zod.object({
   "mediaExpiresAt": zod.coerce.date().nullable()
 })),
   "notificationsMuted": zod.boolean()
-})
-
-
-/**
- * @summary Mute or unmute notifications for one event plan
- */
-
-
-
-export const SetCommunityEventPlanChatNotificationsParams = zod.object({
-  "eventId": zod.coerce.number().int().min(1)
-})
-
-export const SetCommunityEventPlanChatNotificationsBody = zod.object({
-  "muted": zod.boolean()
-})
-
-export const SetCommunityEventPlanChatNotificationsResponse = zod.object({
-  "muted": zod.boolean()
 })
 
 
@@ -4571,6 +4553,25 @@ export const GetMyPastHangoutsResponse = zod.object({
   "creatorName": zod.string().nullable(),
   "myRating": zod.number().int().min(1).max(getMyPastHangoutsResponseEventsItemMyRatingMax).nullable()
 }))
+})
+
+
+/**
+ * @summary Mute or unmute notifications for one event plan
+ */
+
+
+
+export const SetCommunityEventPlanChatNotificationsParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1)
+})
+
+export const SetCommunityEventPlanChatNotificationsBody = zod.object({
+  "muted": zod.boolean()
+})
+
+export const SetCommunityEventPlanChatNotificationsResponse = zod.object({
+  "muted": zod.boolean()
 })
 
 

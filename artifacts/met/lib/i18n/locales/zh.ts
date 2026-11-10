@@ -141,6 +141,7 @@ export const zh: LocaleTree = {
       declineJoinRequest: "拒绝",
       noJoinRequests: "还没有人申请加入。",
       planChat: "计划聊天",
+      hangoutChat: "聚会聊天",
       planChatLoadError: "无法加载此计划的聊天。",
       planParticipants: "谁会参加",
       planHost: "发起人",
@@ -1421,6 +1422,7 @@ export const zh: LocaleTree = {
   },
 
   trustScore: {
+    label: "信任分数",
     trusted: "可信",
     neutral: "中立",
     flagged: "已标记",

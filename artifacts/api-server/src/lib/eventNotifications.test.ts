@@ -21,6 +21,7 @@ import {
   notifyCommunityEventChange,
   notifyCommunityEventJoinDecision,
   notifyCommunityEventJoinRequest,
+  notifyCommunityEventPlanMessage,
   runDueCommunityEventHostRatingPrompts,
 } from "./eventNotifications";
 
@@ -257,7 +258,7 @@ describe.runIf(hasDatabase)("completed Hangout rating prompts", () => {
       `ExponentPushToken[${prefix}-accepted]`,
       {
         title: "Se aceptó tu solicitud para unirte a la quedada",
-        body: "Ya puedes unirte al chat del plan. Toca para abrirlo.",
+        body: "Ya puedes unirte al chat de la quedada. Toca para abrirlo.",
         data: {
           type: "hangout_join_decision",
           eventId: String(eventId),
@@ -298,6 +299,30 @@ describe.runIf(hasDatabase)("completed Hangout rating prompts", () => {
         body: "A hangout you joined was cancelled. Open Met to see your plans.",
         data: {
           type: "hangout_cancelled",
+          eventId: String(eventId),
+          eventType: "member",
+        },
+      },
+    );
+  });
+
+  it("labels Hangout message notifications as Hangout Chat", async () => {
+    const eventId = eventIds[0]!;
+    await notifyCommunityEventPlanMessage({
+      eventId,
+      participantUids: [hostUid, acceptedUid],
+      senderUid: hostUid,
+      isHangout: true,
+    });
+
+    expect(pushMock.send).toHaveBeenCalledTimes(1);
+    expect(pushMock.send).toHaveBeenCalledWith(
+      `ExponentPushToken[${prefix}-accepted]`,
+      {
+        title: "New message in your Hangout Chat",
+        body: "Open Met to view the conversation.",
+        data: {
+          type: "event_plan_message",
           eventId: String(eventId),
           eventType: "member",
         },

@@ -26,7 +26,7 @@ const HANGOUT_NOTIFICATION_COPY: Record<SupportedLocaleCode, HangoutLocaleCopy> 
     },
     accepted: {
       title: "Your hangout request was accepted",
-      body: "You can now join the plan chat. Tap to open it.",
+      body: "You can now join the Hangout Chat. Tap to open it.",
     },
     declined: {
       title: "Your hangout request was declined",
@@ -53,7 +53,7 @@ const HANGOUT_NOTIFICATION_COPY: Record<SupportedLocaleCode, HangoutLocaleCopy> 
     },
     accepted: {
       title: "Se aceptó tu solicitud para unirte a la quedada",
-      body: "Ya puedes unirte al chat del plan. Toca para abrirlo.",
+      body: "Ya puedes unirte al chat de la quedada. Toca para abrirlo.",
     },
     declined: {
       title: "Se rechazó tu solicitud para unirte a la quedada",
@@ -80,7 +80,7 @@ const HANGOUT_NOTIFICATION_COPY: Record<SupportedLocaleCode, HangoutLocaleCopy> 
     },
     accepted: {
       title: "تم قبول طلبك للانضمام إلى اللقاء",
-      body: "يمكنك الآن الانضمام إلى دردشة الخطة. اضغط لفتحها.",
+      body: "يمكنك الآن الانضمام إلى دردشة اللقاء. اضغط لفتحها.",
     },
     declined: {
       title: "تم رفض طلبك للانضمام إلى اللقاء",
@@ -107,7 +107,7 @@ const HANGOUT_NOTIFICATION_COPY: Record<SupportedLocaleCode, HangoutLocaleCopy> 
     },
     accepted: {
       title: "你的聚会申请已获通过",
-      body: "你现在可以加入计划聊天。点击打开。",
+      body: "你现在可以加入聚会聊天。点击打开。",
     },
     declined: {
       title: "你的聚会申请未获通过",
@@ -134,7 +134,7 @@ const HANGOUT_NOTIFICATION_COPY: Record<SupportedLocaleCode, HangoutLocaleCopy> 
     },
     accepted: {
       title: "Ваша заявка на встречу одобрена",
-      body: "Теперь вы можете присоединиться к чату плана. Нажмите, чтобы открыть.",
+      body: "Теперь вы можете присоединиться к чату встречи. Нажмите, чтобы открыть.",
     },
     declined: {
       title: "Ваша заявка на встречу отклонена",
@@ -161,7 +161,7 @@ const HANGOUT_NOTIFICATION_COPY: Record<SupportedLocaleCode, HangoutLocaleCopy> 
     },
     accepted: {
       title: "Votre demande pour la rencontre a été acceptée",
-      body: "Vous pouvez maintenant rejoindre la discussion du plan. Touchez pour l'ouvrir.",
+      body: "Vous pouvez maintenant rejoindre la discussion de la sortie. Touchez pour l'ouvrir.",
     },
     declined: {
       title: "Votre demande pour la rencontre a été refusée",
@@ -188,7 +188,7 @@ const HANGOUT_NOTIFICATION_COPY: Record<SupportedLocaleCode, HangoutLocaleCopy> 
     },
     accepted: {
       title: "Yêu cầu tham gia buổi gặp đã được chấp nhận",
-      body: "Bạn có thể tham gia trò chuyện về kế hoạch. Nhấn để mở.",
+      body: "Bạn có thể tham gia trò chuyện buổi gặp. Nhấn để mở.",
     },
     declined: {
       title: "Yêu cầu tham gia buổi gặp đã bị từ chối",
@@ -215,7 +215,7 @@ const HANGOUT_NOTIFICATION_COPY: Record<SupportedLocaleCode, HangoutLocaleCopy> 
     },
     accepted: {
       title: "Seu pedido para participar do encontro foi aceito",
-      body: "Agora você pode entrar no chat do plano. Toque para abrir.",
+      body: "Agora você pode entrar no chat do encontro. Toque para abrir.",
     },
     declined: {
       title: "Seu pedido para participar do encontro foi recusado",
@@ -242,7 +242,7 @@ const HANGOUT_NOTIFICATION_COPY: Record<SupportedLocaleCode, HangoutLocaleCopy> 
     },
     accepted: {
       title: "Je verzoek voor de bijeenkomst is geaccepteerd",
-      body: "Je kunt nu deelnemen aan de planchat. Tik om deze te openen.",
+      body: "Je kunt nu deelnemen aan de Hangoutchat. Tik om deze te openen.",
     },
     declined: {
       title: "Je verzoek voor de bijeenkomst is afgewezen",

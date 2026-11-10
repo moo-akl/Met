@@ -28,6 +28,7 @@ export async function notifyCommunityEventPlanMessage(input: {
   eventId: number;
   participantUids: string[];
   senderUid: string;
+  isHangout?: boolean;
 }): Promise<void> {
   const recipientUids = [
     ...new Set(
@@ -76,7 +77,9 @@ export async function notifyCommunityEventPlanMessage(input: {
     const deliveries = await Promise.all(
       eligible.map((recipient) =>
         sendPushWithStatus(recipient.pushToken, {
-          title: "New message in your plan",
+          title: input.isHangout
+            ? "New message in your Hangout Chat"
+            : "New message in your plan",
           body: "Open Met to view the conversation.",
           data: {
             type: "event_plan_message",
@@ -91,6 +94,7 @@ export async function notifyCommunityEventPlanMessage(input: {
         eventId: input.eventId,
         eligibleCount: eligible.length,
         sentCount: deliveries.filter((delivery) => delivery.sent).length,
+        isHangout: input.isHangout ?? false,
       },
       "Community event plan message notifications processed",
     );

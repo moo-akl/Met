@@ -12,4 +12,5 @@ export type CommunityEventPlanChatResponseEvent = {
   startsAt: Date;
   /** @nullable */
   location: string | null;
+  joinApprovalRequired: boolean;
 };

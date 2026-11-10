@@ -291,6 +291,9 @@ export default function EventDetailsScreen() {
         event.myRsvp === "maybe" ||
         event.myJoinRequestStatus === "accepted"),
   );
+  const planChatLabel = isHangout
+    ? t("tabs.events.hangoutChat")
+    : t("tabs.events.planChat");
   const canRsvpDirectly = Boolean(
     event &&
       (!event.joinApprovalRequired ||
@@ -526,7 +529,7 @@ export default function EventDetailsScreen() {
                   {creatorStandingQuery.data?.trustScore != null ? (
                     <View style={styles.creatorScoreRow}>
                       <Text style={[styles.creatorScoreLabel, { color: colors.mutedForeground }]}>
-                        {t("profile.trustScore")}
+                        {t("trustScore.label")}
                       </Text>
                       <TrustScoreBadge score={creatorStandingQuery.data.trustScore} showScore />
                     </View>
@@ -881,7 +884,7 @@ export default function EventDetailsScreen() {
             {canOpenPlanChat ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={t("tabs.events.planChat")}
+                accessibilityLabel={planChatLabel}
                 testID="button-open-plan-chat"
                 onPress={() => router.push(`/event-chat/${event.id}` as never)}
                 style={[
@@ -891,7 +894,7 @@ export default function EventDetailsScreen() {
               >
                 <Feather name="message-circle" size={17} color={colors.primary} />
                 <Text style={[styles.shareText, { color: colors.primary }]}>
-                  {t("tabs.events.planChat")}
+                  {planChatLabel}
                 </Text>
                 <Feather name="chevron-right" size={17} color={colors.primary} />
               </Pressable>

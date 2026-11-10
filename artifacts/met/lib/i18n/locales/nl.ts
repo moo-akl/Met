@@ -142,6 +142,7 @@ export const nl: LocaleTree = {
       declineJoinRequest: "Weigeren",
       noJoinRequests: "Nog niemand heeft gevraagd om mee te doen.",
       planChat: "Planchat",
+      hangoutChat: "Hangoutchat",
       planChatLoadError: "De chat voor dit plan kon niet worden geladen.",
       planParticipants: "Wie komt er",
       planHost: "Organisator",
@@ -1470,6 +1471,7 @@ export const nl: LocaleTree = {
   },
 
   trustScore: {
+    label: "Vertrouwensscore",
     trusted: "Vertrouwd",
     neutral: "Neutraal",
     flagged: "Gemarkeerd",

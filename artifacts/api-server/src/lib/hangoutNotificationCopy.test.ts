@@ -55,11 +55,16 @@ describe("getHangoutNotificationCopy", () => {
   });
 
   it("uses the correct localized accepted and declined messages", () => {
+    const accepted = getHangoutNotificationCopy("es", "hangout_join_decision", {
+      requestStatus: "accepted",
+    });
+    expect(accepted.title).toBe("Se aceptó tu solicitud para unirte a la quedada");
+    expect(accepted.body).toBe("Ya puedes unirte al chat de la quedada. Toca para abrirlo.");
     expect(
-      getHangoutNotificationCopy("es", "hangout_join_decision", {
+      getHangoutNotificationCopy("en", "hangout_join_decision", {
         requestStatus: "accepted",
-      }).title,
-    ).toBe("Se aceptó tu solicitud para unirte a la quedada");
+      }).body,
+    ).toBe("You can now join the Hangout Chat. Tap to open it.");
     expect(
       getHangoutNotificationCopy("es", "hangout_join_decision", {
         requestStatus: "declined",

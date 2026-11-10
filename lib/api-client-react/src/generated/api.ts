@@ -10301,95 +10301,6 @@ export function useGetCommunityEventPlanChat<TData = Awaited<ReturnType<typeof g
 
 
 
-export const getSetCommunityEventPlanChatNotificationsUrl = (eventId: number,) => {
-
-
-
-
-  return `/api/community-events/${eventId}/plan-chat`
-}
-
-/**
- * @summary Mute or unmute notifications for one event plan
- */
-export const setCommunityEventPlanChatNotifications = async (eventId: number,
-    communityEventPlanChatNotificationsInput: CommunityEventPlanChatNotificationsInput, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventPlanChatNotificationsResponse> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return customFetch<CommunityEventPlanChatNotificationsResponse>(getSetCommunityEventPlanChatNotificationsUrl(eventId),
-  {
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(communityEventPlanChatNotificationsInput)
-  }
-);}
-
-
-
-
-
-export const getSetCommunityEventPlanChatNotificationsMutationKey = () => ['setCommunityEventPlanChatNotifications'] as const;
-
-export const getSetCommunityEventPlanChatNotificationsMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, TError,SetCommunityEventPlanChatNotificationsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, TError,SetCommunityEventPlanChatNotificationsMutationVariables, TContext> => {
-
-const mutationKey = getSetCommunityEventPlanChatNotificationsMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, SetCommunityEventPlanChatNotificationsMutationVariables> = (props) => {
-          const {eventId,data} = props ?? {};
-
-          return  setCommunityEventPlanChatNotifications(eventId,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SetCommunityEventPlanChatNotificationsMutationResult = NonNullable<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>>
-    export type SetCommunityEventPlanChatNotificationsMutationBody = BodyType<CommunityEventPlanChatNotificationsInput>
-    export type SetCommunityEventPlanChatNotificationsMutationError = ErrorType<void>
-    export type SetCommunityEventPlanChatNotificationsMutationVariables = {eventId: number;data: BodyType<CommunityEventPlanChatNotificationsInput>}
-
-    /**
- * @summary Mute or unmute notifications for one event plan
- */
-export const useSetCommunityEventPlanChatNotifications = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, TError,SetCommunityEventPlanChatNotificationsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>,
-        TError,
-        SetCommunityEventPlanChatNotificationsMutationVariables,
-        TContext
-      > => {
-      return useMutation(getSetCommunityEventPlanChatNotificationsMutationOptions(options), queryClient);
-    }
-
 export const getSendCommunityEventPlanChatMessageUrl = (eventId: number,) => {
 
 
@@ -10579,6 +10490,95 @@ export function useGetMyPastHangouts<TData = Awaited<ReturnType<typeof getMyPast
 
 
 
+
+export const getSetCommunityEventPlanChatNotificationsUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/community-events/${eventId}/plan-chat/notifications`
+}
+
+/**
+ * @summary Mute or unmute notifications for one event plan
+ */
+export const setCommunityEventPlanChatNotifications = async (eventId: number,
+    communityEventPlanChatNotificationsInput: CommunityEventPlanChatNotificationsInput, options?: Parameters<typeof customFetch>[1]): Promise<CommunityEventPlanChatNotificationsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CommunityEventPlanChatNotificationsResponse>(getSetCommunityEventPlanChatNotificationsUrl(eventId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(communityEventPlanChatNotificationsInput)
+  }
+);}
+
+
+
+
+
+export const getSetCommunityEventPlanChatNotificationsMutationKey = () => ['setCommunityEventPlanChatNotifications'] as const;
+
+export const getSetCommunityEventPlanChatNotificationsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, TError,SetCommunityEventPlanChatNotificationsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, TError,SetCommunityEventPlanChatNotificationsMutationVariables, TContext> => {
+
+const mutationKey = getSetCommunityEventPlanChatNotificationsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, SetCommunityEventPlanChatNotificationsMutationVariables> = (props) => {
+          const {eventId,data} = props ?? {};
+
+          return  setCommunityEventPlanChatNotifications(eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCommunityEventPlanChatNotificationsMutationResult = NonNullable<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>>
+    export type SetCommunityEventPlanChatNotificationsMutationBody = BodyType<CommunityEventPlanChatNotificationsInput>
+    export type SetCommunityEventPlanChatNotificationsMutationError = ErrorType<void>
+    export type SetCommunityEventPlanChatNotificationsMutationVariables = {eventId: number;data: BodyType<CommunityEventPlanChatNotificationsInput>}
+
+    /**
+ * @summary Mute or unmute notifications for one event plan
+ */
+export const useSetCommunityEventPlanChatNotifications = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>, TError,SetCommunityEventPlanChatNotificationsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setCommunityEventPlanChatNotifications>>,
+        TError,
+        SetCommunityEventPlanChatNotificationsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetCommunityEventPlanChatNotificationsMutationOptions(options), queryClient);
+    }
 
 export const getCreateCommunityEventPlanChatMediaUploadUrl = (eventId: number,) => {
 

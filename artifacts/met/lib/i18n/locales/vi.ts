@@ -142,6 +142,7 @@ export const vi: LocaleTree = {
       declineJoinRequest: "Từ chối",
       noJoinRequests: "Chưa có ai xin tham gia.",
       planChat: "Trò chuyện về kế hoạch",
+      hangoutChat: "Trò chuyện buổi gặp mặt",
       planChatLoadError: "Không thể tải cuộc trò chuyện về kế hoạch này.",
       planParticipants: "Ai sẽ tham gia",
       planHost: "Người tổ chức",
@@ -1470,6 +1471,7 @@ export const vi: LocaleTree = {
   },
 
   trustScore: {
+    label: "Điểm tin cậy",
     trusted: "Đáng tin cậy",
     neutral: "Trung lập",
     flagged: "Đã bị báo cáo",

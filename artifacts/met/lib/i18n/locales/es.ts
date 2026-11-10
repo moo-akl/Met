@@ -142,6 +142,7 @@ export const es: LocaleTree = {
       declineJoinRequest: "Rechazar",
       noJoinRequests: "Todavía nadie ha solicitado unirse.",
       planChat: "Chat del plan",
+      hangoutChat: "Chat de la quedada",
       planChatLoadError: "No se pudo cargar la conversación de este plan.",
       planParticipants: "Quién va",
       planHost: "Anfitrión",
@@ -1462,6 +1463,7 @@ export const es: LocaleTree = {
   },
 
   trustScore: {
+    label: "Puntuación de confianza",
     trusted: "Confiable",
     neutral: "Neutral",
     flagged: "Marcado",

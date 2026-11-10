@@ -142,6 +142,7 @@ export const ru: LocaleTree = {
       declineJoinRequest: "Отклонить",
       noJoinRequests: "Пока никто не просил присоединиться.",
       planChat: "Чат встречи",
+      hangoutChat: "Чат встречи",
       planChatLoadError: "Не удалось загрузить чат этой встречи.",
       planParticipants: "Кто придёт",
       planHost: "Организатор",
@@ -1475,6 +1476,7 @@ export const ru: LocaleTree = {
   },
 
   trustScore: {
+    label: "Оценка доверия",
     trusted: "Надёжный",
     neutral: "Нейтральный",
     flagged: "Отмечен",

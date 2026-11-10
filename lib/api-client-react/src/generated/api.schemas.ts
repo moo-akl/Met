@@ -2728,6 +2728,7 @@ export type CommunityEventPlanChatResponseEvent = {
   startsAt: string;
   /** @nullable */
   location: string | null;
+  joinApprovalRequired: boolean;
 };
 
 export interface CommunityEventPlanChatResponse {

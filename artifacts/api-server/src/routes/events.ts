@@ -1587,6 +1587,7 @@ router.get(
           title: context.event.title,
           startsAt: context.event.startsAt,
           location: context.event.location,
+          joinApprovalRequired: context.event.joinApprovalRequired,
         },
         participants,
         notificationsMuted: notificationPreference[0]?.muted ?? false,
@@ -1863,6 +1864,7 @@ router.post(
           .map((rsvp) => rsvp.userUid),
       ],
       senderUid: req.uid!,
+      isHangout: context.event.joinApprovalRequired,
     });
 
     let mediaUrl: string | null = null;

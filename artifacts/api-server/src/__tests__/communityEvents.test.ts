@@ -480,6 +480,11 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
         })
         .expect(201);
       const eventId = created.body.id as number;
+      const hangoutChat = await request(app)
+        .get(`/api/community-events/${eventId}/plan-chat`)
+        .set(uidHeader(OWNER_UID))
+        .expect(200);
+      expect(hangoutChat.body.event.joinApprovalRequired).toBe(true);
 
       const otherRequest = await request(app)
         .post(`/api/community-events/${eventId}/join-requests`)
@@ -527,7 +532,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       expect(mockSendPushWithStatus).toHaveBeenCalledTimes(4);
       expect(mockSendPushWithStatus).toHaveBeenNthCalledWith(3, "other-token", {
         title: "Your hangout request was accepted",
-        body: "You can now join the plan chat. Tap to open it.",
+        body: "You can now join the Hangout Chat. Tap to open it.",
         data: {
           type: "hangout_join_decision",
           eventId: String(eventId),
@@ -1263,6 +1268,7 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
     expect(initialChat.body.event).toMatchObject({
       id: eventId,
       title: "Dinner with friends",
+      joinApprovalRequired: false,
     });
     expect(initialChat.body.notificationsMuted).toBe(false);
     expect(initialChat.body.participants).toEqual([

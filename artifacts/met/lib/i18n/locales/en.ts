@@ -144,6 +144,7 @@ export const en = {
       declineJoinRequest: "Decline",
       noJoinRequests: "No one has requested to join yet.",
       planChat: "Plan chat",
+      hangoutChat: "Hangout Chat",
       planChatLoadError: "This plan conversation couldn't be loaded.",
       planParticipants: "Who's going",
       planHost: "Host",
@@ -1505,6 +1506,7 @@ export const en = {
   },
 
   trustScore: {
+    label: "Trust score",
     trusted: "Trusted",
     neutral: "Neutral",
     flagged: "Flagged",

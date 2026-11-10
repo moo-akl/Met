@@ -142,6 +142,7 @@ export const ar: LocaleTree = {
       declineJoinRequest: "رفض",
       noJoinRequests: "لم يطلب أحد الانضمام بعد.",
       planChat: "محادثة الخطة",
+      hangoutChat: "دردشة اللقاء",
       planChatLoadError: "تعذر تحميل محادثة هذه الخطة.",
       planParticipants: "من سيحضر؟",
       planHost: "المضيف",
@@ -1471,6 +1472,7 @@ export const ar: LocaleTree = {
   },
 
   trustScore: {
+    label: "درجة الثقة",
     trusted: "موثوق",
     neutral: "محايد",
     flagged: "مُبلَّغ عنه",

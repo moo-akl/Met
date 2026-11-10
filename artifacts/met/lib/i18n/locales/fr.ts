@@ -142,6 +142,7 @@ export const fr: LocaleTree = {
       declineJoinRequest: "Refuser",
       noJoinRequests: "Personne n’a encore demandé à participer.",
       planChat: "Discussion du plan",
+      hangoutChat: "Discussion de la sortie",
       planChatLoadError: "Impossible de charger la discussion de ce plan.",
       planParticipants: "Qui vient ?",
       planHost: "Organisateur",
@@ -1478,6 +1479,7 @@ export const fr: LocaleTree = {
   },
 
   trustScore: {
+    label: "Score de confiance",
     trusted: "Fiable",
     neutral: "Neutre",
     flagged: "Signalé",

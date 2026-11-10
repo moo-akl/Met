@@ -2992,31 +2992,6 @@ paths:
           description: Event not found or unavailable to the caller
         "401":
           description: Authentication required
-    put:
-      operationId: setCommunityEventPlanChatNotifications
-      tags: [events]
-      summary: Mute or unmute notifications for one event plan
-      security:
-        - MetUid: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CommunityEventPlanChatNotificationsInput"
-      responses:
-        "200":
-          description: Event-plan notification preference saved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CommunityEventPlanChatNotificationsResponse"
-        "400":
-          description: Invalid event id or preference
-        "404":
-          description: Event not found or unavailable to the caller
-        "401":
-          description: Authentication required
     post:
       operationId: sendCommunityEventPlanChatMessage
       tags: [events]
@@ -3057,6 +3032,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PastHangoutsResponse"
+        "401":
+          description: Authentication required
+
+  /community-events/{eventId}/plan-chat/notifications:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    put:
+      operationId: setCommunityEventPlanChatNotifications
+      tags: [events]
+      summary: Mute or unmute notifications for one event plan
+      security:
+        - MetUid: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityEventPlanChatNotificationsInput"
+      responses:
+        "200":
+          description: Event-plan notification preference saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEventPlanChatNotificationsResponse"
+        "400":
+          description: Invalid event id or preference
+        "404":
+          description: Event not found or unavailable to the caller
         "401":
           description: Authentication required
 
@@ -7367,12 +7374,13 @@ components:
       properties:
         event:
           type: object
-          required: [id, title, startsAt, location]
+          required: [id, title, startsAt, location, joinApprovalRequired]
           properties:
             id: { type: integer }
             title: { type: string }
             startsAt: { type: string, format: date-time }
             location: { type: ["string", "null"] }
+            joinApprovalRequired: { type: boolean }
         participants:
           type: array
           items:
