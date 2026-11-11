@@ -115,6 +115,8 @@ export const nl: LocaleTree = {
     networks: "Evenementen",
     events: {
       title: "Evenementen",
+      pastMeetings: "Eerdere ontmoetingen",
+      pastMeetingsEmpty: "De ontmoetingen die je organiseerde of bijwoonde verschijnen hier.",
       subtitle: "Aankomende plannen van locaties en Met-leden",
       create: "Evenement maken",
       quickPlan: "Hangout",
@@ -297,7 +299,7 @@ export const nl: LocaleTree = {
       addEventPhoto: "Foto toevoegen",
       removeEventPhoto: "Foto verwijderen",
       hangoutCoverPhotoOptional: "Omslagfoto voor de hangout (optioneel)",
-      hangoutHostRating: "{{rating}} / 5 · {{count}} hangoutbeoordelingen",
+      hangoutHostRating: "{{rating}} / 5 · {{count}} hostbeoordelingen",
       hangoutHostNoReviews: "Nog geen hangoutbeoordelingen",
       hangoutHostRatingPrompt: "Beoordeel je ervaring met deze host",
       hangoutRatingStar: "{{rating}} van 5 sterren",

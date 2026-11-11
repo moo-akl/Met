@@ -953,6 +953,11 @@ export const api = {
       isSubscriber?: boolean;
       /** True when the peer meets the venue check-in and positive meeting-review requirements. */
       isVerifiedExplorer?: boolean;
+      /** Separate aggregate for completed community meeting-host ratings. */
+      meetingHostRating?: {
+        averageRating: number | null;
+        reviewCount: number;
+      };
     }>("GET", `/api/users/${encodeURIComponent(uid)}/community-standing`, opts),
   /**
    * Fetch hub streaks, trust score, and average rating for any user.

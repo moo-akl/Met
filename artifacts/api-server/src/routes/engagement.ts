@@ -21,6 +21,8 @@ import {
   trophiesTable,
   subscriptionsTable,
   revealRequestsTable,
+  communityEventHostRatingsTable,
+  communityEventsTable,
   venueOwnerProfilesTable,
   venueQrVerificationsTable,
 } from "@workspace/db";
@@ -1972,7 +1974,6 @@ router.get(
       );
 
     const reviewCount = reviews.length;
-
     if (reviewCount < 3) {
       res.json({ count: reviewCount, hasEnough: false });
       return;
@@ -2060,6 +2061,27 @@ router.get(
       );
 
     const reviewCount = reviews.length;
+    const [hostRatingRow] = await db
+      .select({
+        averageRating: avg(communityEventHostRatingsTable.rating),
+        reviewCount: count(),
+      })
+      .from(communityEventHostRatingsTable)
+      .innerJoin(
+        communityEventsTable,
+        eq(communityEventsTable.id, communityEventHostRatingsTable.eventId),
+      )
+      .where(and(
+        eq(communityEventsTable.ownerUid, uid),
+        eq(communityEventsTable.isHidden, false),
+        sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt}) <= NOW()`,
+      ));
+    const meetingHostRating = {
+      averageRating: hostRatingRow?.averageRating == null
+        ? null
+        : Number(hostRatingRow.averageRating),
+      reviewCount: Number(hostRatingRow?.reviewCount ?? 0),
+    };
 
     const [pioneerRow] = await db
       .select({ isPioneer: profilesTable.isPioneer, pioneerScore: profilesTable.pioneerScore })
@@ -2099,6 +2121,7 @@ router.get(
         trustScore,
         isSubscriber,
         isVerifiedExplorer: explorerStatus.isVerifiedExplorer,
+        meetingHostRating,
       });
       return;
     }
@@ -2131,6 +2154,7 @@ router.get(
       trustScore,
       isSubscriber,
       isVerifiedExplorer: explorerStatus.isVerifiedExplorer,
+      meetingHostRating,
     });
   },
 );

@@ -115,6 +115,8 @@ export const vi: LocaleTree = {
     networks: "Sự kiện",
     events: {
       title: "Sự kiện",
+      pastMeetings: "Các buổi gặp trước đây",
+      pastMeetingsEmpty: "Các buổi gặp bạn tổ chức hoặc tham gia sẽ hiển thị tại đây.",
       subtitle: "Lịch sắp tới từ địa điểm và thành viên Met",
       create: "Tạo sự kiện",
       quickPlan: "Buổi gặp",
@@ -297,7 +299,7 @@ export const vi: LocaleTree = {
       addEventPhoto: "Thêm ảnh",
       removeEventPhoto: "Xóa ảnh",
       hangoutCoverPhotoOptional: "Ảnh bìa buổi gặp (không bắt buộc)",
-      hangoutHostRating: "{{rating}} / 5 · {{count}} đánh giá buổi gặp",
+      hangoutHostRating: "{{rating}} / 5 · {{count}} đánh giá người tổ chức",
       hangoutHostNoReviews: "Chưa có đánh giá buổi gặp",
       hangoutHostRatingPrompt: "Đánh giá trải nghiệm của bạn với người tổ chức",
       hangoutRatingStar: "{{rating}} trên 5 sao",

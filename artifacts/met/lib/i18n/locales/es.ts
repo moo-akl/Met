@@ -115,6 +115,8 @@ export const es: LocaleTree = {
     networks: "Eventos",
     events: {
       title: "Eventos",
+      pastMeetings: "Encuentros pasados",
+      pastMeetingsEmpty: "Aquí aparecerán los encuentros que organizaste o a los que asististe.",
       subtitle: "Próximos planes de locales y miembros de Met",
       create: "Crear evento",
       quickPlan: "Quedada",
@@ -297,7 +299,7 @@ export const es: LocaleTree = {
       addEventPhoto: "Añadir foto",
       removeEventPhoto: "Quitar foto",
       hangoutCoverPhotoOptional: "Foto de portada de la quedada (opcional)",
-      hangoutHostRating: "{{rating}} / 5 · {{count}} reseñas de quedadas",
+      hangoutHostRating: "{{rating}} / 5 · {{count}} valoraciones de anfitrión",
       hangoutHostNoReviews: "Aún no hay reseñas de quedadas",
       hangoutHostRatingPrompt: "Valora tu experiencia con este anfitrión",
       hangoutRatingStar: "{{rating}} de 5 estrellas",

@@ -138,6 +138,10 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [trustScore, setTrustScore] = useState<number | null>(null);
   const [averageRating, setAverageRating] = useState<number | null>(null);
+  const [meetingHostRating, setMeetingHostRating] = useState<{
+    averageRating: number | null;
+    reviewCount: number;
+  } | null>(null);
   const [reviewSummary, setReviewSummary] = useState<{
     count: number;
     hasEnough: boolean;
@@ -329,6 +333,16 @@ export default function ProfileScreen() {
         setTrustScore(s.trustScore);
         setAverageRating(typeof s.averageRating === "number" ? s.averageRating : null);
       })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [authedUid]);
+
+  useEffect(() => {
+    if (!authedUid || isStoreDemoEnabled()) return;
+    const ctrl = new AbortController();
+    api
+      .getCommunityStanding({ uid: authedUid, signal: ctrl.signal }, authedUid)
+      .then((standing) => setMeetingHostRating(standing.meetingHostRating ?? null))
       .catch(() => {});
     return () => ctrl.abort();
   }, [authedUid]);
@@ -902,6 +916,20 @@ export default function ProfileScreen() {
                   <StarDisplay rating={averageRating} size={14} />
                   <Text style={{ fontFamily: "Inter_500Medium", fontSize: 12, color: colors.mutedForeground }}>
                     {averageRating.toFixed(1)}
+                  </Text>
+                </View>
+              ) : null}
+              {meetingHostRating?.reviewCount && meetingHostRating.averageRating != null ? (
+                <View
+                  testID="profile-meeting-host-rating"
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <StarDisplay rating={meetingHostRating.averageRating} size={14} />
+                  <Text style={{ fontFamily: "Inter_500Medium", fontSize: 12, color: colors.mutedForeground }}>
+                    {t("tabs.events.hangoutHostRating", {
+                      rating: meetingHostRating.averageRating.toFixed(1),
+                      count: meetingHostRating.reviewCount,
+                    })}
                   </Text>
                 </View>
               ) : null}

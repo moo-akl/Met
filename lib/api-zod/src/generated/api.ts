@@ -3957,11 +3957,11 @@ export const getEventsFeedResponseEventsItemLongitudeMax = 180;
 
 export const getEventsFeedResponseEventsItemPendingJoinRequestCountMin = 0;
 
-export const getEventsFeedResponseEventsItemHangoutHostRatingOneAverageRatingMax = 5;
+export const getEventsFeedResponseEventsItemMeetingHostRatingOneAverageRatingMax = 5;
 
-export const getEventsFeedResponseEventsItemHangoutHostRatingOneReviewCountMin = 0;
+export const getEventsFeedResponseEventsItemMeetingHostRatingOneReviewCountMin = 0;
 
-export const getEventsFeedResponseEventsItemHangoutHostRatingOneMyRatingMax = 5;
+export const getEventsFeedResponseEventsItemMeetingHostRatingOneMyRatingMax = 5;
 
 
 
@@ -3995,11 +3995,11 @@ export const GetEventsFeedResponse = zod.object({
   "pendingJoinRequestCount": zod.number().int().min(getEventsFeedResponseEventsItemPendingJoinRequestCountMin).optional(),
   "verifiedExplorersOnly": zod.boolean(),
   "isVerifiedExplorerHost": zod.boolean(),
-  "hangoutHostRating": zod.union([zod.object({
-  "averageRating": zod.number().min(1).max(getEventsFeedResponseEventsItemHangoutHostRatingOneAverageRatingMax).nullable(),
-  "reviewCount": zod.number().int().min(getEventsFeedResponseEventsItemHangoutHostRatingOneReviewCountMin),
-  "myRating": zod.number().int().min(1).max(getEventsFeedResponseEventsItemHangoutHostRatingOneMyRatingMax).nullable()
-}),zod.null()]).optional().describe('Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.')
+  "meetingHostRating": zod.union([zod.object({
+  "averageRating": zod.number().min(1).max(getEventsFeedResponseEventsItemMeetingHostRatingOneAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(getEventsFeedResponseEventsItemMeetingHostRatingOneReviewCountMin),
+  "myRating": zod.number().int().min(1).max(getEventsFeedResponseEventsItemMeetingHostRatingOneMyRatingMax).nullable()
+}),zod.null()]).optional().describe('Aggregate ratings from eligible guests on completed community plans and Hangouts; never includes reviewer identities.')
 }))
 })
 
@@ -4073,11 +4073,11 @@ export const createCommunityEventResponseLongitudeMax = 180;
 
 export const createCommunityEventResponsePendingJoinRequestCountMin = 0;
 
-export const createCommunityEventResponseHangoutHostRatingOneAverageRatingMax = 5;
+export const createCommunityEventResponseMeetingHostRatingOneAverageRatingMax = 5;
 
-export const createCommunityEventResponseHangoutHostRatingOneReviewCountMin = 0;
+export const createCommunityEventResponseMeetingHostRatingOneReviewCountMin = 0;
 
-export const createCommunityEventResponseHangoutHostRatingOneMyRatingMax = 5;
+export const createCommunityEventResponseMeetingHostRatingOneMyRatingMax = 5;
 
 
 
@@ -4110,11 +4110,11 @@ export const CreateCommunityEventResponse = zod.object({
   "pendingJoinRequestCount": zod.number().int().min(createCommunityEventResponsePendingJoinRequestCountMin).optional(),
   "verifiedExplorersOnly": zod.boolean(),
   "isVerifiedExplorerHost": zod.boolean(),
-  "hangoutHostRating": zod.union([zod.object({
-  "averageRating": zod.number().min(1).max(createCommunityEventResponseHangoutHostRatingOneAverageRatingMax).nullable(),
-  "reviewCount": zod.number().int().min(createCommunityEventResponseHangoutHostRatingOneReviewCountMin),
-  "myRating": zod.number().int().min(1).max(createCommunityEventResponseHangoutHostRatingOneMyRatingMax).nullable()
-}),zod.null()]).optional().describe('Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.')
+  "meetingHostRating": zod.union([zod.object({
+  "averageRating": zod.number().min(1).max(createCommunityEventResponseMeetingHostRatingOneAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(createCommunityEventResponseMeetingHostRatingOneReviewCountMin),
+  "myRating": zod.number().int().min(1).max(createCommunityEventResponseMeetingHostRatingOneMyRatingMax).nullable()
+}),zod.null()]).optional().describe('Aggregate ratings from eligible guests on completed community plans and Hangouts; never includes reviewer identities.')
 })
 
 
@@ -4162,11 +4162,11 @@ export const getEventDetailsResponseLongitudeMax = 180;
 
 export const getEventDetailsResponsePendingJoinRequestCountMin = 0;
 
-export const getEventDetailsResponseHangoutHostRatingOneAverageRatingMax = 5;
+export const getEventDetailsResponseMeetingHostRatingOneAverageRatingMax = 5;
 
-export const getEventDetailsResponseHangoutHostRatingOneReviewCountMin = 0;
+export const getEventDetailsResponseMeetingHostRatingOneReviewCountMin = 0;
 
-export const getEventDetailsResponseHangoutHostRatingOneMyRatingMax = 5;
+export const getEventDetailsResponseMeetingHostRatingOneMyRatingMax = 5;
 
 
 
@@ -4199,11 +4199,11 @@ export const GetEventDetailsResponse = zod.object({
   "pendingJoinRequestCount": zod.number().int().min(getEventDetailsResponsePendingJoinRequestCountMin).optional(),
   "verifiedExplorersOnly": zod.boolean(),
   "isVerifiedExplorerHost": zod.boolean(),
-  "hangoutHostRating": zod.union([zod.object({
-  "averageRating": zod.number().min(1).max(getEventDetailsResponseHangoutHostRatingOneAverageRatingMax).nullable(),
-  "reviewCount": zod.number().int().min(getEventDetailsResponseHangoutHostRatingOneReviewCountMin),
-  "myRating": zod.number().int().min(1).max(getEventDetailsResponseHangoutHostRatingOneMyRatingMax).nullable()
-}),zod.null()]).optional().describe('Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.')
+  "meetingHostRating": zod.union([zod.object({
+  "averageRating": zod.number().min(1).max(getEventDetailsResponseMeetingHostRatingOneAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(getEventDetailsResponseMeetingHostRatingOneReviewCountMin),
+  "myRating": zod.number().int().min(1).max(getEventDetailsResponseMeetingHostRatingOneMyRatingMax).nullable()
+}),zod.null()]).optional().describe('Aggregate ratings from eligible guests on completed community plans and Hangouts; never includes reviewer identities.')
 })
 
 
@@ -4557,6 +4557,29 @@ export const GetMyPastHangoutsResponse = zod.object({
 
 
 /**
+ * @summary List past plans, Hangouts, and venue events the user joined
+ */
+export const getMyPastMeetingsResponseMeetingsItemMyRatingMax = 5;
+
+
+
+export const GetMyPastMeetingsResponse = zod.object({
+  "meetings": zod.array(zod.object({
+  "type": zod.enum(['hangout', 'plan', 'event']),
+  "eventType": zod.enum(['member', 'venue']),
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date().nullable(),
+  "location": zod.string().nullable(),
+  "hostName": zod.string().nullable(),
+  "isHost": zod.boolean(),
+  "myRating": zod.number().int().min(1).max(getMyPastMeetingsResponseMeetingsItemMyRatingMax).nullable()
+}))
+})
+
+
+/**
  * @summary Mute or unmute notifications for one event plan
  */
 
@@ -4836,11 +4859,11 @@ export const updateCommunityEventResponseLongitudeMax = 180;
 
 export const updateCommunityEventResponsePendingJoinRequestCountMin = 0;
 
-export const updateCommunityEventResponseHangoutHostRatingOneAverageRatingMax = 5;
+export const updateCommunityEventResponseMeetingHostRatingOneAverageRatingMax = 5;
 
-export const updateCommunityEventResponseHangoutHostRatingOneReviewCountMin = 0;
+export const updateCommunityEventResponseMeetingHostRatingOneReviewCountMin = 0;
 
-export const updateCommunityEventResponseHangoutHostRatingOneMyRatingMax = 5;
+export const updateCommunityEventResponseMeetingHostRatingOneMyRatingMax = 5;
 
 
 
@@ -4873,11 +4896,11 @@ export const UpdateCommunityEventResponse = zod.object({
   "pendingJoinRequestCount": zod.number().int().min(updateCommunityEventResponsePendingJoinRequestCountMin).optional(),
   "verifiedExplorersOnly": zod.boolean(),
   "isVerifiedExplorerHost": zod.boolean(),
-  "hangoutHostRating": zod.union([zod.object({
-  "averageRating": zod.number().min(1).max(updateCommunityEventResponseHangoutHostRatingOneAverageRatingMax).nullable(),
-  "reviewCount": zod.number().int().min(updateCommunityEventResponseHangoutHostRatingOneReviewCountMin),
-  "myRating": zod.number().int().min(1).max(updateCommunityEventResponseHangoutHostRatingOneMyRatingMax).nullable()
-}),zod.null()]).optional().describe('Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.')
+  "meetingHostRating": zod.union([zod.object({
+  "averageRating": zod.number().min(1).max(updateCommunityEventResponseMeetingHostRatingOneAverageRatingMax).nullable(),
+  "reviewCount": zod.number().int().min(updateCommunityEventResponseMeetingHostRatingOneReviewCountMin),
+  "myRating": zod.number().int().min(1).max(updateCommunityEventResponseMeetingHostRatingOneMyRatingMax).nullable()
+}),zod.null()]).optional().describe('Aggregate ratings from eligible guests on completed community plans and Hangouts; never includes reviewer identities.')
 })
 
 

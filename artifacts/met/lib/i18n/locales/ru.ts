@@ -115,6 +115,8 @@ export const ru: LocaleTree = {
     networks: "События",
     events: {
       title: "События",
+      pastMeetings: "Прошедшие встречи",
+      pastMeetingsEmpty: "Здесь появятся встречи, которые вы организовали или посетили.",
       subtitle: "Предстоящие встречи от заведений и участников Met",
       create: "Создать событие",
       quickPlan: "Встреча",
@@ -297,7 +299,7 @@ export const ru: LocaleTree = {
       addEventPhoto: "Добавить фото",
       removeEventPhoto: "Удалить фото",
       hangoutCoverPhotoOptional: "Обложка встречи (необязательно)",
-      hangoutHostRating: "{{rating}} / 5 · оценок встреч: {{count}}",
+      hangoutHostRating: "{{rating}} / 5 · оценок организатора: {{count}}",
       hangoutHostNoReviews: "Пока нет оценок встреч",
       hangoutHostRatingPrompt: "Оцените встречу с этим организатором",
       hangoutRatingStar: "{{rating}} из 5 звёзд",

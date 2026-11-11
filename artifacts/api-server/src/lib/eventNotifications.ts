@@ -13,6 +13,7 @@ import {
 import { logger } from "./logger";
 import { sendPushWithStatus } from "./push";
 import { getHangoutNotificationCopy } from "./hangoutNotificationCopy";
+import { recordNotificationForUser } from "./notificationInbox";
 
 export type VenueEventNotificationKind =
   | "event_update"
@@ -130,12 +131,7 @@ async function notifyCommunityEventJoinRecipient(input: {
       .from(profilesTable)
       .where(eq(profilesTable.uid, input.recipientUid))
       .limit(1);
-    if (
-      !recipient?.pushToken ||
-      recipient.notificationPrefs?.notifyEventUpdates === false
-    ) {
-      return;
-    }
+    if (!recipient || recipient.notificationPrefs?.notifyEventUpdates === false) return;
 
     let requesterName: string | undefined;
     if (input.type === "hangout_join_request") {
@@ -160,7 +156,7 @@ async function notifyCommunityEventJoinRecipient(input: {
       },
     );
 
-    await sendPushWithStatus(recipient.pushToken, {
+    const payload = {
       ...copy,
       data: {
         type: input.type,
@@ -168,9 +164,25 @@ async function notifyCommunityEventJoinRecipient(input: {
         eventType: "member",
         ...(input.requestStatus ? { requestStatus: input.requestStatus } : {}),
       },
-    });
+    };
+    if (!recipient.pushToken) {
+      // Keep join requests and decisions visible in Met even when a device
+      // has not registered its push token yet.
+      await recordNotificationForUser(input.recipientUid, payload);
+      return;
+    }
+
+    const delivery = await sendPushWithStatus(recipient.pushToken, payload);
+    if (!delivery.sent) {
+      await recordNotificationForUser(input.recipientUid, payload);
+    }
     logger.info(
-      { eventId: input.eventId, notificationType: input.type },
+      {
+        eventId: input.eventId,
+        notificationType: input.type,
+        sent: delivery.sent,
+        reason: delivery.reason,
+      },
       "Community event join notification processed",
     );
   } catch (error) {

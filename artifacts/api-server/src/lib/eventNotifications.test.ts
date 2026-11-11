@@ -6,6 +6,7 @@ import {
   communityEventRsvpsTable,
   communityEventsTable,
   db,
+  notificationInboxTable,
   profilesTable,
 } from "@workspace/db";
 
@@ -85,6 +86,10 @@ function expectNoPrivateEventDetails(payloads: unknown[]) {
 }
 
 async function cleanup() {
+  await db.delete(notificationInboxTable).where(inArray(
+    notificationInboxTable.uid,
+    profileFixtures.map(({ uid }) => uid),
+  ));
   if (eventIds.length > 0) {
     await db.delete(communityEventHostRatingsTable).where(
       inArray(communityEventHostRatingsTable.eventId, eventIds),
@@ -210,6 +215,43 @@ describe.runIf(hasDatabase)("completed Hangout rating prompts", () => {
     expect(eventRows).toHaveLength(2);
     expect(completed?.ratingPromptSentAt).toBeInstanceOf(Date);
     expect(upcoming?.ratingPromptSentAt).toBeNull();
+  });
+
+  it("keeps join requests and decisions in the inbox when push cannot deliver", async () => {
+    pushMock.send.mockResolvedValue({ sent: false, reason: "device_not_registered" });
+
+    await notifyCommunityEventJoinRequest({
+      eventId: 901,
+      hostUid: noTokenUid,
+      requesterUid: acceptedUid,
+    });
+    await notifyCommunityEventJoinDecision({
+      eventId: 901,
+      requesterUid: noTokenUid,
+      status: "accepted",
+    });
+    await notifyCommunityEventJoinDecision({
+      eventId: 901,
+      requesterUid: acceptedUid,
+      status: "declined",
+    });
+
+    const inboxRows = await db
+      .select({
+        title: notificationInboxTable.title,
+        body: notificationInboxTable.body,
+        data: notificationInboxTable.data,
+      })
+      .from(notificationInboxTable)
+      .where(inArray(notificationInboxTable.uid, [noTokenUid, acceptedUid]));
+    expect(inboxRows).toHaveLength(3);
+    expect(inboxRows.map((row) => row.data.type)).toEqual(expect.arrayContaining([
+      "hangout_join_request",
+      "hangout_join_decision",
+    ]));
+    expect(inboxRows.filter((row) => row.data.type === "hangout_join_decision")
+      .map((row) => row.data.requestStatus))
+      .toEqual(expect.arrayContaining(["accepted", "declined"]));
   });
 
   it("localizes join, decision, update, and cancellation notifications per recipient", async () => {

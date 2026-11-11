@@ -81,6 +81,7 @@ import {
   RateCommunityEventHostBody,
   RateCommunityEventHostResponse,
   GetMyPastHangoutsResponse,
+  GetMyPastMeetingsResponse,
   CreateCommunityEventPlanChatMediaUploadBody,
   CreateCommunityEventPlanChatMediaUploadResponse,
 } from "@workspace/api-zod";
@@ -807,28 +808,38 @@ router.post(
         eq(communityEventsTable.isHidden, false),
       ))
       .limit(1);
-    if (!event || !event.joinApprovalRequired || event.ownerUid === reviewerUid) {
-      res.status(404).json({ message: "Hangout not found." });
+    if (!event || event.ownerUid === reviewerUid) {
+      res.status(404).json({ message: "Plan not found." });
       return;
     }
 
     const eventEnd = event.endsAt ?? event.startsAt;
     if (eventEnd.getTime() > Date.now()) {
-      res.status(409).json({ message: "This Hangout has not ended yet." });
+      res.status(409).json({ message: "This plan has not ended yet." });
       return;
     }
 
-    const [acceptedRequest] = await db
-      .select({ id: communityEventJoinRequestsTable.id })
-      .from(communityEventJoinRequestsTable)
-      .where(and(
-        eq(communityEventJoinRequestsTable.eventId, eventId),
-        eq(communityEventJoinRequestsTable.userUid, reviewerUid),
-        eq(communityEventJoinRequestsTable.status, "accepted"),
-      ))
-      .limit(1);
-    if (!acceptedRequest) {
-      res.status(403).json({ message: "Only accepted Hangout guests can rate the host." });
+    const eligibleGuest = event.joinApprovalRequired
+      ? await db
+          .select({ id: communityEventJoinRequestsTable.id })
+          .from(communityEventJoinRequestsTable)
+          .where(and(
+            eq(communityEventJoinRequestsTable.eventId, eventId),
+            eq(communityEventJoinRequestsTable.userUid, reviewerUid),
+            eq(communityEventJoinRequestsTable.status, "accepted"),
+          ))
+          .limit(1)
+      : await db
+          .select({ id: communityEventRsvpsTable.id })
+          .from(communityEventRsvpsTable)
+          .where(and(
+            eq(communityEventRsvpsTable.eventId, eventId),
+            eq(communityEventRsvpsTable.userUid, reviewerUid),
+            inArray(communityEventRsvpsTable.status, ["going", "maybe"]),
+          ))
+          .limit(1);
+    if (eligibleGuest.length === 0) {
+      res.status(403).json({ message: "Only guests who joined this plan can rate the host." });
       return;
     }
 
@@ -855,7 +866,6 @@ router.post(
       )
       .where(and(
         eq(communityEventsTable.ownerUid, event.ownerUid),
-        eq(communityEventsTable.joinApprovalRequired, true),
         eq(communityEventsTable.isHidden, false),
         sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt}) <= NOW()`,
       ));
@@ -941,12 +951,12 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         ))
         .limit(1),
     ]);
-    let hangoutHostRating: {
+    let meetingHostRating: {
       averageRating: number | null;
       reviewCount: number;
       myRating: number | null;
     } | null = null;
-    if (event.joinApprovalRequired) {
+    {
       const [summary] = await db
         .select({
           averageRating: sql<number | null>`AVG(${communityEventHostRatingsTable.rating})::float8`,
@@ -959,14 +969,18 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         )
         .where(and(
           eq(communityEventsTable.ownerUid, event.ownerUid),
-          eq(communityEventsTable.joinApprovalRequired, true),
           eq(communityEventsTable.isHidden, false),
           sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt}) <= NOW()`,
         ));
       const currentEventEnded =
         (event.endsAt ?? event.startsAt).getTime() <= Date.now();
+      const canRate = currentEventEnded &&
+        event.ownerUid !== uid &&
+        (event.joinApprovalRequired
+          ? myJoinRequest[0]?.status === "accepted"
+          : myRsvp[0]?.status === "going" || myRsvp[0]?.status === "maybe");
       const [myRating] =
-        currentEventEnded && myJoinRequest[0]?.status === "accepted"
+        canRate
           ? await db
               .select({ rating: communityEventHostRatingsTable.rating })
               .from(communityEventHostRatingsTable)
@@ -976,7 +990,7 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
               ))
               .limit(1)
           : [];
-      hangoutHostRating = {
+      meetingHostRating = {
         averageRating: summary?.averageRating == null
           ? null
           : Number(summary.averageRating),
@@ -1025,7 +1039,7 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
         isVerifiedExplorerHost: await isVerifiedExplorer(event.ownerUid),
         myJoinRequestStatus: myJoinRequest[0]?.status ?? null,
         pendingJoinRequestCount,
-        hangoutHostRating,
+        meetingHostRating,
       }),
     );
     return;
@@ -1428,6 +1442,158 @@ router.post(
         message: "Invite link could not be loaded. Turn it off and on again to create a new link.",
       });
     }
+  },
+);
+
+router.get(
+  "/community-events/my-past-meetings",
+  requireUid,
+  async (req, res): Promise<void> => {
+    const uid = req.uid!;
+    const now = new Date();
+    const [memberRows, venueRows] = await Promise.all([
+      db
+        .select({
+          id: communityEventsTable.id,
+          ownerUid: communityEventsTable.ownerUid,
+          title: communityEventsTable.title,
+          startsAt: communityEventsTable.startsAt,
+          endsAt: communityEventsTable.endsAt,
+          location: communityEventsTable.location,
+          joinApprovalRequired: communityEventsTable.joinApprovalRequired,
+          hostName: profilesTable.displayName,
+          myRating: communityEventHostRatingsTable.rating,
+        })
+        .from(communityEventsTable)
+        .leftJoin(profilesTable, eq(profilesTable.uid, communityEventsTable.ownerUid))
+        .leftJoin(
+          communityEventHostRatingsTable,
+          and(
+            eq(communityEventHostRatingsTable.eventId, communityEventsTable.id),
+            eq(communityEventHostRatingsTable.reviewerUid, uid),
+          ),
+        )
+        .where(and(
+          eq(communityEventsTable.isHidden, false),
+          sql`COALESCE(${communityEventsTable.endsAt}, ${communityEventsTable.startsAt} + INTERVAL '4 hours') <= ${now}`,
+          or(
+            eq(communityEventsTable.ownerUid, uid),
+            exists(
+              db
+                .select({ id: communityEventRsvpsTable.id })
+                .from(communityEventRsvpsTable)
+                .where(and(
+                  eq(communityEventRsvpsTable.eventId, communityEventsTable.id),
+                  eq(communityEventRsvpsTable.userUid, uid),
+                  inArray(communityEventRsvpsTable.status, ["going", "maybe"]),
+                )),
+            ),
+            exists(
+              db
+                .select({ id: communityEventJoinRequestsTable.id })
+                .from(communityEventJoinRequestsTable)
+                .where(and(
+                  eq(communityEventJoinRequestsTable.eventId, communityEventsTable.id),
+                  eq(communityEventJoinRequestsTable.userUid, uid),
+                  eq(communityEventJoinRequestsTable.status, "accepted"),
+                )),
+            ),
+            exists(
+              db
+                .select({ id: eventAttendanceTable.id })
+                .from(eventAttendanceTable)
+                .where(and(
+                  eq(eventAttendanceTable.eventType, "member"),
+                  eq(eventAttendanceTable.eventId, communityEventsTable.id),
+                  eq(eventAttendanceTable.userUid, uid),
+                )),
+            ),
+          ),
+        )),
+      db
+        .select({
+          id: venueEventsTable.id,
+          ownerUid: venueEventsTable.ownerUid,
+          title: venueEventsTable.title,
+          startsAt: venueEventsTable.startsAt,
+          endsAt: venueEventsTable.endsAt,
+          location: venueOwnerProfilesTable.businessName,
+          hostName: venueOwnerProfilesTable.businessName,
+        })
+        .from(venueEventsTable)
+        .innerJoin(
+          venueOwnerProfilesTable,
+          eq(venueOwnerProfilesTable.placeId, venueEventsTable.placeId),
+        )
+        .where(and(
+          eq(venueOwnerProfilesTable.isApproved, true),
+          eq(venueOwnerProfilesTable.applicationStatus, "approved"),
+          eq(venueEventsTable.isPublished, true),
+          eq(venueEventsTable.isHidden, false),
+          sql`COALESCE(${venueEventsTable.endsAt}, ${venueEventsTable.startsAt} + INTERVAL '4 hours') <= ${now}`,
+          or(
+            eq(venueEventsTable.ownerUid, uid),
+            exists(
+              db
+                .select({ id: venueEventRsvpsTable.id })
+                .from(venueEventRsvpsTable)
+                .where(and(
+                  eq(venueEventRsvpsTable.eventId, venueEventsTable.id),
+                  eq(venueEventRsvpsTable.userUid, uid),
+                  inArray(venueEventRsvpsTable.status, ["going", "maybe"]),
+                )),
+            ),
+            exists(
+              db
+                .select({ id: eventAttendanceTable.id })
+                .from(eventAttendanceTable)
+                .where(and(
+                  eq(eventAttendanceTable.eventType, "venue"),
+                  eq(eventAttendanceTable.eventId, venueEventsTable.id),
+                  eq(eventAttendanceTable.userUid, uid),
+                )),
+            ),
+          ),
+        )),
+    ]);
+
+    const meetings = [
+      ...memberRows.map((event) => ({
+        type: event.joinApprovalRequired ? "hangout" as const : "plan" as const,
+        eventType: "member" as const,
+        id: event.id,
+        title: event.title,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt ?? null,
+        location: event.location ?? null,
+        hostName: event.hostName ?? null,
+        isHost: event.ownerUid === uid,
+        myRating: event.myRating ?? null,
+      })),
+      ...venueRows.map((event) => ({
+        type: "event" as const,
+        eventType: "venue" as const,
+        id: event.id,
+        title: event.title,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt ?? null,
+        location: event.location ?? null,
+        hostName: event.hostName ?? null,
+        isHost: event.ownerUid === uid,
+        myRating: null,
+      })),
+    ].sort((a, b) =>
+      b.startsAt.getTime() - a.startsAt.getTime() || b.id - a.id,
+    );
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json(GetMyPastMeetingsResponse.parse({
+      meetings: meetings.map((meeting) => ({
+        ...meeting,
+        startsAt: meeting.startsAt.toISOString(),
+        endsAt: meeting.endsAt?.toISOString() ?? null,
+      })),
+    }));
   },
 );
 

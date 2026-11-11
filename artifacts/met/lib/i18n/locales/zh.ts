@@ -115,6 +115,8 @@ export const zh: LocaleTree = {
     networks: "活动",
     events: {
       title: "活动",
+      pastMeetings: "往期会面",
+      pastMeetingsEmpty: "你组织或参加过的会面会显示在这里。",
       subtitle: "场所和 Met 成员的近期活动",
       create: "创建活动",
       quickPlan: "聚会",
@@ -295,7 +297,7 @@ export const zh: LocaleTree = {
       addEventPhoto: "添加照片",
       removeEventPhoto: "删除照片",
       hangoutCoverPhotoOptional: "聚会封面照片（可选）",
-      hangoutHostRating: "{{rating}} / 5 · {{count}} 条聚会评价",
+      hangoutHostRating: "{{rating}} / 5 · {{count}} 条主办人评价",
       hangoutHostNoReviews: "还没有聚会评价",
       hangoutHostRatingPrompt: "评价你与这位主办人的聚会体验",
       hangoutRatingStar: "五星中的{{rating}}星",

@@ -2787,7 +2787,7 @@ paths:
     post:
       operationId: rateCommunityEventHost
       tags: [events]
-      summary: Rate the host after an accepted Hangout has ended
+      summary: Rate a community plan host after the guest's plan has ended
       security:
         - MetUid: []
       parameters:
@@ -2807,11 +2807,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HangoutHostRating"
+                $ref: "#/components/schemas/MeetingHostRating"
         "400": { description: Invalid rating }
-        "403": { description: Only accepted guests may rate the host }
-        "404": { description: Hangout not found }
-        "409": { description: Hangout has not ended }
+        "403": { description: Only guests who joined the plan may rate the host }
+        "404": { description: Plan not found }
+        "409": { description: Plan has not ended }
 
   /events/{eventType}/{eventId}/check-in/location:
     post:
@@ -3032,6 +3032,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PastHangoutsResponse"
+        "401":
+          description: Authentication required
+
+  /community-events/my-past-meetings:
+    get:
+      operationId: getMyPastMeetings
+      tags: [events]
+      summary: List past plans, Hangouts, and venue events the user joined
+      security:
+        - MetUid: []
+      responses:
+        "200":
+          description: Past meetings hosted or attended by the signed-in user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PastMeetingsResponse"
         "401":
           description: Authentication required
 
@@ -7027,17 +7044,17 @@ components:
         pendingJoinRequestCount: { type: integer, minimum: 0 }
         verifiedExplorersOnly: { type: boolean }
         isVerifiedExplorerHost: { type: boolean }
-        hangoutHostRating:
+        meetingHostRating:
           oneOf:
-            - $ref: "#/components/schemas/HangoutHostRating"
+            - $ref: "#/components/schemas/MeetingHostRating"
             - type: "null"
-          description: Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities.
+          description: Aggregate ratings from eligible guests on completed community plans and Hangouts; never includes reviewer identities.
     HangoutHostRatingInput:
       type: object
       required: [rating]
       properties:
         rating: { type: integer, minimum: 1, maximum: 5 }
-    HangoutHostRating:
+    MeetingHostRating:
       type: object
       required: [averageRating, reviewCount, myRating]
       properties:
@@ -7448,6 +7465,26 @@ components:
               endsAt: { type: ["string", "null"], format: date-time }
               location: { type: ["string", "null"] }
               creatorName: { type: ["string", "null"] }
+              myRating: { type: ["integer", "null"], minimum: 1, maximum: 5 }
+    PastMeetingsResponse:
+      type: object
+      required: [meetings]
+      properties:
+        meetings:
+          type: array
+          items:
+            type: object
+            required: [type, eventType, id, title, startsAt, endsAt, location, hostName, isHost, myRating]
+            properties:
+              type: { type: string, enum: [hangout, plan, event] }
+              eventType: { type: string, enum: [member, venue] }
+              id: { type: integer }
+              title: { type: string }
+              startsAt: { type: string, format: date-time }
+              endsAt: { type: ["string", "null"], format: date-time }
+              location: { type: ["string", "null"] }
+              hostName: { type: ["string", "null"] }
+              isHost: { type: boolean }
               myRating: { type: ["integer", "null"], minimum: 1, maximum: 5 }
     NotificationInboxItem:
       type: object

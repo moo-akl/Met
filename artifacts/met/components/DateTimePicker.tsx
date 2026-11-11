@@ -78,7 +78,7 @@ interface DateTimePickerProps {
   /** Drives iOS themeVariant ("dark" | "light") and textColor. Defaults to true (dark). */
   isDark?: boolean;
   /** Use an expandable time control instead of the default time sheet. */
-  timePickerPresentation?: "sheet" | "dropdown";
+  timePickerPresentation?: "sheet" | "dropdown" | "wheels";
 }
 
 export function DateTimePicker({
@@ -98,7 +98,9 @@ export function DateTimePicker({
   const [showIOS, setShowIOS] = useState(false);
   const [showTimeModal, setShowTimeModal] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
+  const [showWheelModal, setShowWheelModal] = useState(false);
   const [timeDraft, setTimeDraft] = useState<Date>(value);
+  const [wheelDraft, setWheelDraft] = useState<Date>(value);
   const [calendarTop, setCalendarTop] = useState(100);
   const calendarAnchorRef = useRef<View | null>(null);
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
@@ -106,6 +108,8 @@ export function DateTimePicker({
   const { t, lang } = useT();
   const useTimeDropdown =
     mode === "datetime" && timePickerPresentation === "dropdown";
+  const useTimeWheels =
+    mode === "datetime" && timePickerPresentation === "wheels";
 
   const formatted =
     mode === "datetime" ? formatDatetime(value, lang) : formatDate(value, lang);
@@ -141,6 +145,16 @@ export function DateTimePicker({
     setShowTimeDropdown(false);
   };
 
+  const openWheelPicker = () => {
+    setWheelDraft(new Date(value));
+    setShowWheelModal(true);
+  };
+
+  const saveWheelSelection = () => {
+    onChange(new Date(wheelDraft));
+    setShowWheelModal(false);
+  };
+
   const openCalendar = () => {
     calendarAnchorRef.current?.measureInWindow?.((_x, y, _width, height) => {
       const belowAnchor = y + height + 8;
@@ -153,6 +167,118 @@ export function DateTimePicker({
     });
     setShowIOS(true);
   };
+
+  // Hangout creation uses one explicit-save date/time editor on native
+  // platforms so wheel changes never partially update the form.
+  if (useTimeWheels && Platform.OS !== "web") {
+    return (
+      <View>
+        {!!label && (
+          <Text style={[styles.label, { color: labelColor }]}>
+            {label}
+            {!optional && <Text style={{ color: "#FF6B6B" }}> *</Text>}
+          </Text>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${label}, ${formatted}`}
+          testID={`date-time-picker-${mode}`}
+          onPress={openWheelPicker}
+          style={[styles.row, { backgroundColor: rowBg, borderColor: primaryColor + "40" }]}
+        >
+          <Feather name="calendar" size={16} color={valueColor} />
+          <Text style={[styles.valueText, { color: valueColor }]}>{formatted}</Text>
+          <Text style={[styles.chevron, { color: chevronColor }]}>›</Text>
+        </Pressable>
+        <Modal
+          animationType="slide"
+          transparent
+          visible={showWheelModal}
+          onRequestClose={() => setShowWheelModal(false)}
+          presentationStyle="overFullScreen"
+          testID="date-time-picker-wheels-modal"
+        >
+          <View
+            style={[
+              styles.wheelModalRoot,
+              { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 },
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              testID="date-time-picker-wheels-backdrop"
+              onPress={() => setShowWheelModal(false)}
+              style={StyleSheet.absoluteFill}
+            />
+            <View
+              style={[
+                styles.wheelModalCard,
+                { backgroundColor: rowBg, borderColor: primaryColor + "40" },
+              ]}
+            >
+              <View style={styles.wheelModalHeader}>
+                <Text style={[styles.wheelModalTitle, { color: valueColor }]}>{label}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("common.close")}
+                  testID="date-time-picker-wheels-close"
+                  onPress={() => setShowWheelModal(false)}
+                  hitSlop={10}
+                >
+                  <Feather name="x" size={21} color={valueColor} />
+                </Pressable>
+              </View>
+              <RNDateTimePicker
+                testID="date-time-picker-date-wheel"
+                value={wheelDraft}
+                mode="date"
+                display="spinner"
+                themeVariant={isDark ? "dark" : "light"}
+                textColor={valueColor}
+                onChange={(_event, picked) => {
+                  if (!picked) return;
+                  setWheelDraft((current) => {
+                    const next = new Date(current);
+                    next.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
+                    return next;
+                  });
+                }}
+                style={styles.wheelPicker}
+              />
+              <View style={[styles.wheelTimeDivider, { borderTopColor: primaryColor + "30" }]}>
+                <Text style={[styles.wheelTimeLabel, { color: labelColor }]}>{t("dateTime.time")}</Text>
+              </View>
+              <RNDateTimePicker
+                testID="date-time-picker-time-wheel"
+                value={wheelDraft}
+                mode="time"
+                display="spinner"
+                themeVariant={isDark ? "dark" : "light"}
+                textColor={valueColor}
+                onChange={(_event, picked) => {
+                  if (!picked) return;
+                  setWheelDraft((current) => {
+                    const next = new Date(current);
+                    next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
+                    return next;
+                  });
+                }}
+                style={styles.wheelPicker}
+              />
+              <Pressable
+                accessibilityRole="button"
+                testID="date-time-picker-wheels-save"
+                onPress={saveWheelSelection}
+                style={[styles.wheelSaveButton, { backgroundColor: primaryColor }]}
+              >
+                <Text style={styles.wheelSaveText}>{t("common.save")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
 
   // ── Android ───────────────────────────────────────────────────────────────
   if (Platform.OS === "android") {
@@ -635,4 +761,36 @@ const styles = StyleSheet.create({
   timeSheetTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   timeSheetAction: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   iosTimePicker: { alignSelf: "center", width: "100%", height: 190 },
+  wheelModalRoot: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(0,0,0,0.48)",
+  },
+  wheelModalCard: {
+    borderWidth: 1,
+    borderTopLeftRadius: 28,
+    borderBottomRightRadius: 24,
+    padding: 16,
+    overflow: "hidden",
+  },
+  wheelModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 4,
+  },
+  wheelModalTitle: { fontSize: 17, fontWeight: "700" },
+  wheelPicker: { height: 160 },
+  wheelTimeDivider: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9 },
+  wheelTimeLabel: { fontSize: 12, fontWeight: "600" },
+  wheelSaveButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderTopLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    marginTop: 10,
+  },
+  wheelSaveText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
 });

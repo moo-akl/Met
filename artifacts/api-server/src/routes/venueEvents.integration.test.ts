@@ -192,8 +192,8 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     };
   }
 
-  it("verifies a venue event QR code and records one guest check-in", async () => {
-    const { agent, csrf, business } = await claimOwner("qr-check-in");
+  it("shows venue history to guests and owners but excludes canceled RSVPs", async () => {
+    const { agent, csrf, business, profile } = await claimOwner("qr-check-in");
     const created = await agent
       .post(`/api/venue-manager/businesses/${business.id}/events`)
       .set("x-csrf-token", csrf)
@@ -205,7 +205,10 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
     expect(created.status).toBe(201);
     const eventId = Number(created.body.event.id);
     await db.update(venueEventsTable)
-      .set({ startsAt: new Date(Date.now() - 5 * 60 * 1000) })
+      .set({
+        startsAt: new Date(Date.now() - 5 * 60 * 1000),
+        endsAt: new Date(Date.now() - 60 * 1000),
+      })
       .where(eq(venueEventsTable.id, eventId));
 
     const qr = await agent
@@ -243,6 +246,95 @@ describe.skipIf(!hasDatabase)("venue event field serialization (real database)",
       uid: GUEST_UID,
       checkInMethod: "qr",
     });
+
+    const checkInOnlyUid = `${GUEST_UID}-check-in-only`;
+    const checkInOnlyAttendance = await api()
+      .post("/api/events/check-in/qr")
+      .set("x-test-uid", checkInOnlyUid)
+      .send({ token })
+      .expect(200);
+    expect(checkInOnlyAttendance.body).toMatchObject({
+      eventType: "venue",
+      eventId,
+      checkInMethod: "qr",
+      alreadyCheckedIn: false,
+    });
+    const checkInOnlyPast = await api()
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", checkInOnlyUid)
+      .expect(200);
+    const checkInOnlyMeetings = checkInOnlyPast.body.meetings.filter(
+      (meeting: { eventType?: string; id?: number }) =>
+        meeting.eventType === "venue" && meeting.id === eventId,
+    );
+    expect(checkInOnlyMeetings).toHaveLength(1);
+    expect(checkInOnlyMeetings[0]).toMatchObject({
+      type: "event",
+      eventType: "venue",
+      id: eventId,
+    });
+
+    await db.insert(venueEventRsvpsTable).values({
+      eventId,
+      userUid: GUEST_UID,
+      status: "going",
+    });
+    const pastMeetings = await api()
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", GUEST_UID)
+      .expect(200);
+    const matchingVenueMeetings = pastMeetings.body.meetings.filter(
+      (meeting: { eventType?: string; id?: number }) =>
+        meeting.eventType === "venue" && meeting.id === eventId,
+    );
+    expect(matchingVenueMeetings).toHaveLength(1);
+    expect(matchingVenueMeetings[0]).toMatchObject(
+      expect.objectContaining({
+        type: "event",
+        eventType: "venue",
+        id: eventId,
+        title: "Guest QR check-in",
+        location: "Business qr-check-in",
+      }),
+    );
+
+    const hostPastMeetings = await api()
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", profile.ownerUid)
+      .expect(200);
+    const ownedVenueMeetings = hostPastMeetings.body.meetings.filter(
+      (meeting: { eventType?: string; id?: number }) =>
+        meeting.eventType === "venue" && meeting.id === eventId,
+    );
+    expect(ownedVenueMeetings).toHaveLength(1);
+    expect(ownedVenueMeetings[0]).toMatchObject({
+      type: "event",
+      eventType: "venue",
+      id: eventId,
+      isHost: true,
+    });
+
+    const canceledRsvpUid = `${GUEST_UID}-canceled-rsvp`;
+    await db.insert(venueEventRsvpsTable).values({
+      eventId,
+      userUid: canceledRsvpUid,
+      status: "not_going",
+    });
+    const nonAttendeeMeetings = await api()
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", canceledRsvpUid)
+      .expect(200);
+    expect(nonAttendeeMeetings.body.meetings).not.toContainEqual(
+      expect.objectContaining({ eventType: "venue", id: eventId }),
+    );
+
+    const unrelatedGuestMeetings = await api()
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", `${GUEST_UID}-no-rsvp-no-attendance`)
+      .expect(200);
+    expect(unrelatedGuestMeetings.body.meetings).not.toContainEqual(
+      expect.objectContaining({ eventType: "venue", id: eventId }),
+    );
   });
 
   it("rejects venue-owner event creation when the end is not after the start", async () => {

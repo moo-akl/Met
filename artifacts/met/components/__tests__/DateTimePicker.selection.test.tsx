@@ -151,7 +151,7 @@ describe("DateTimePicker platform behavior", () => {
     expect(findByTestId(root, "date-time-picker-datetime")).toBeTruthy();
     expect(
       root.root.findByType(DateTimePicker).props.timePickerPresentation,
-    ).toBe("dropdown");
+    ).toBe("wheels");
     const textLabels = root.root
       .findAllByType(Text)
       .map((node) => node.props.children)
@@ -277,6 +277,46 @@ describe("DateTimePicker platform behavior", () => {
     expect(mockCreateCommunityEvent).toHaveBeenCalledWith({
       data: expect.objectContaining({ startsAt: expected.toISOString() }),
     });
+  });
+
+  it("commits the selected date and time only after saving the wheel picker", async () => {
+    const onChange = jest.fn();
+    const initial = new Date(2031, 5, 10, 18, 42, 0, 0);
+    let root!: renderer.ReactTestRenderer;
+    act(() => {
+      root = renderer.create(
+        <DateTimePicker
+          label="Starts"
+          mode="datetime"
+          onChange={onChange}
+          primaryColor="#30a83c"
+          timePickerPresentation="wheels"
+          value={initial}
+        />,
+      );
+    });
+
+    await act(async () => {
+      findByTestId(root, "date-time-picker-datetime").props.onPress();
+    });
+    const pickedDay = new Date(2031, 5, 14, 0, 0, 0, 0);
+    await act(async () => {
+      findByTestId(root, "date-time-picker-date-wheel")
+        .props.onChange({ type: "set" }, pickedDay);
+    });
+    const pickedTime = new Date(2031, 0, 1, 9, 25, 0, 0);
+    await act(async () => {
+      findByTestId(root, "date-time-picker-time-wheel")
+        .props.onChange({ type: "set" }, pickedTime);
+    });
+    expect(onChange).not.toHaveBeenCalled();
+
+    const expected = new Date(2031, 5, 14, 9, 25, 0, 0);
+    await act(async () => {
+      findByTestId(root, "date-time-picker-wheels-save").props.onPress();
+    });
+    expect(onChange).toHaveBeenLastCalledWith(expected);
+    act(() => root.unmount());
   });
 
   it("keeps the selected date and dismisses the iOS calendar when tapped outside", async () => {

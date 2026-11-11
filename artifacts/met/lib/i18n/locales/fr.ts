@@ -115,6 +115,8 @@ export const fr: LocaleTree = {
     networks: "Événements",
     events: {
       title: "Événements",
+      pastMeetings: "Rencontres passées",
+      pastMeetingsEmpty: "Les rencontres que vous avez organisées ou rejointes apparaîtront ici.",
       subtitle: "Les prochains rendez-vous des lieux et membres Met",
       create: "Créer un événement",
       quickPlan: "Sortie",
@@ -297,7 +299,7 @@ export const fr: LocaleTree = {
       addEventPhoto: "Ajouter une photo",
       removeEventPhoto: "Supprimer la photo",
       hangoutCoverPhotoOptional: "Photo de couverture de la rencontre (facultative)",
-      hangoutHostRating: "{{rating}} / 5 · {{count}} avis de rencontres",
+      hangoutHostRating: "{{rating}} / 5 · {{count}} avis d’hôte",
       hangoutHostNoReviews: "Aucun avis de rencontre pour le moment",
       hangoutHostRatingPrompt: "Évaluez votre expérience avec cet hôte",
       hangoutRatingStar: "{{rating}} étoiles sur 5",

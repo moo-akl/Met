@@ -99,7 +99,6 @@ import type {
   GmailBounceReconciliationApplyResult,
   GmailBounceReconciliationPreviewInput,
   GmailBounceReconciliationPreviewResult,
-  HangoutHostRating,
   HangoutHostRatingInput,
   HealthStatus,
   HubCheckinInput,
@@ -120,6 +119,7 @@ import type {
   ManualEventCheckInInput,
   MarkAllNotificationsReadResult,
   MarkNotificationReadResult,
+  MeetingHostRating,
   NativeBranchApplicationInput,
   NativeBranchApplicationSubmitted,
   NearbyEntry,
@@ -131,6 +131,7 @@ import type {
   NotificationInboxResponse,
   NotificationPrefsInput,
   PastHangoutsResponse,
+  PastMeetingsResponse,
   PresenceRecord,
   PreviewNewVenueOutreach200,
   Profile,
@@ -9549,7 +9550,7 @@ export const getRateCommunityEventHostUrl = (eventId: number,) => {
  * @summary Rate the host after an accepted Hangout has ended
  */
 export const rateCommunityEventHost = async (eventId: number,
-    hangoutHostRatingInput: HangoutHostRatingInput, options?: Parameters<typeof customFetch>[1]): Promise<HangoutHostRating> => {
+    hangoutHostRatingInput: HangoutHostRatingInput, options?: Parameters<typeof customFetch>[1]): Promise<MeetingHostRating> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -9565,7 +9566,7 @@ export const rateCommunityEventHost = async (eventId: number,
     }
     return headers;
   };
-return customFetch<HangoutHostRating>(getRateCommunityEventHostUrl(eventId),
+return customFetch<MeetingHostRating>(getRateCommunityEventHostUrl(eventId),
   {
     ...options,
     method: 'POST',
@@ -10479,6 +10480,107 @@ export function useGetMyPastHangouts<TData = Awaited<ReturnType<typeof getMyPast
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMyPastHangoutsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyPastMeetingsUrl = () => {
+
+
+
+
+  return `/api/community-events/my-past-meetings`
+}
+
+/**
+ * @summary List past plans, Hangouts, and venue events the user joined
+ */
+export const getMyPastMeetings = async ( options?: Parameters<typeof customFetch>[1]): Promise<PastMeetingsResponse> => {
+
+  return customFetch<PastMeetingsResponse>(getGetMyPastMeetingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyPastMeetingsQueryKey = () => {
+    return [
+    `/api/community-events/my-past-meetings`
+    ] as const;
+    }
+
+
+export const getGetMyPastMeetingsQueryOptions = <TData = Awaited<ReturnType<typeof getMyPastMeetings>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastMeetings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyPastMeetingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyPastMeetings>>> = ({ signal }) => getMyPastMeetings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyPastMeetings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyPastMeetingsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyPastMeetings>>>
+export type GetMyPastMeetingsQueryError = ErrorType<void>
+
+
+export function useGetMyPastMeetings<TData = Awaited<ReturnType<typeof getMyPastMeetings>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastMeetings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPastMeetings>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPastMeetings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPastMeetings<TData = Awaited<ReturnType<typeof getMyPastMeetings>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastMeetings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPastMeetings>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPastMeetings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPastMeetings<TData = Awaited<ReturnType<typeof getMyPastMeetings>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastMeetings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List past plans, Hangouts, and venue events the user joined
+ */
+
+export function useGetMyPastMeetings<TData = Awaited<ReturnType<typeof getMyPastMeetings>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPastMeetings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyPastMeetingsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ActionSheet } from "@/components/ActionSheet";
-import { ReputationRadar } from "@/components/ReputationRadar";
+import { ReputationRadar, StarDisplay } from "@/components/ReputationRadar";
 import { Avatar } from "@/components/Avatar";
 import { UserNameHeader } from "@/components/UserNameHeader";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
@@ -55,6 +55,10 @@ function ConnectionScreen() {
     isPioneer: boolean;
     trustScore: number;
     isSubscriber: boolean;
+    meetingHostRating?: {
+      averageRating: number | null;
+      reviewCount: number;
+    };
   } | null>(null);
   const [mutualCount, setMutualCount] = useState(0);
   const [mutualNames, setMutualNames] = useState<string[]>([]);
@@ -108,6 +112,7 @@ function ConnectionScreen() {
           isPioneer: s.isPioneer ?? false,
           trustScore: s.trustScore ?? 0,
           isSubscriber: s.isSubscriber ?? false,
+          meetingHostRating: s.meetingHostRating,
         });
       })
       .catch(() => {});
@@ -307,6 +312,21 @@ function ConnectionScreen() {
                 isSubscriber={peerStanding?.isSubscriber ?? false}
                 hasPhoto={!!(encounter?.photoUri && encounter.photoUri !== "")}
               />
+              {peerStanding?.meetingHostRating?.reviewCount &&
+              peerStanding.meetingHostRating.averageRating != null ? (
+                <View
+                  testID="connection-meeting-host-rating"
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <StarDisplay rating={peerStanding.meetingHostRating.averageRating} size={14} />
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                    {t("tabs.events.hangoutHostRating", {
+                      rating: peerStanding.meetingHostRating.averageRating.toFixed(1),
+                      count: peerStanding.meetingHostRating.reviewCount,
+                    })}
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.detailsMetaRow}>
                 <Feather name="repeat" size={14} color={colors.primary} />
                 <Text style={[styles.detailsMeta, { color: colors.primary }]}>

@@ -1983,7 +1983,7 @@ export const EventFeedItemMyJoinRequestStatus = {
   withdrawn: 'withdrawn',
 } as const;
 
-export interface HangoutHostRating {
+export interface MeetingHostRating {
   /**
      * @minimum 1
      * @maximum 5
@@ -2063,8 +2063,8 @@ export interface EventFeedItem {
   pendingJoinRequestCount?: number;
   verifiedExplorersOnly: boolean;
   isVerifiedExplorerHost: boolean;
-  /** Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities. */
-  hangoutHostRating?: HangoutHostRating | null;
+  /** Aggregate ratings from eligible guests on completed community plans and Hangouts; never includes reviewer identities. */
+  meetingHostRating?: MeetingHostRating | null;
 }
 
 export interface HangoutHostRatingInput {
@@ -2828,6 +2828,48 @@ export type PastHangoutsResponseEventsItem = {
 
 export interface PastHangoutsResponse {
   events: PastHangoutsResponseEventsItem[];
+}
+
+export type PastMeetingsResponseMeetingsItemType = typeof PastMeetingsResponseMeetingsItemType[keyof typeof PastMeetingsResponseMeetingsItemType];
+
+
+export const PastMeetingsResponseMeetingsItemType = {
+  hangout: 'hangout',
+  plan: 'plan',
+  event: 'event',
+} as const;
+
+export type PastMeetingsResponseMeetingsItemEventType = typeof PastMeetingsResponseMeetingsItemEventType[keyof typeof PastMeetingsResponseMeetingsItemEventType];
+
+
+export const PastMeetingsResponseMeetingsItemEventType = {
+  member: 'member',
+  venue: 'venue',
+} as const;
+
+export type PastMeetingsResponseMeetingsItem = {
+  type: PastMeetingsResponseMeetingsItemType;
+  eventType: PastMeetingsResponseMeetingsItemEventType;
+  id: number;
+  title: string;
+  startsAt: string;
+  /** @nullable */
+  endsAt: string | null;
+  /** @nullable */
+  location: string | null;
+  /** @nullable */
+  hostName: string | null;
+  isHost: boolean;
+  /**
+     * @minimum 1
+     * @maximum 5
+     * @nullable
+     */
+  myRating: number | null;
+};
+
+export interface PastMeetingsResponse {
+  meetings: PastMeetingsResponseMeetingsItem[];
 }
 
 export type NotificationInboxItemData = {[key: string]: string};

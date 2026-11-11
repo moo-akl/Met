@@ -428,6 +428,24 @@ function EventsScreen() {
         {activeView === "events" ? (
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={t("tabs.events.pastMeetings")}
+            testID="events-past-meetings"
+            onPress={() => router.push("/past-meetings" as never)}
+            style={[styles.networkLink, { backgroundColor: "transparent", borderColor: colors.border }]}
+          >
+            <View style={[styles.networkIcon, { backgroundColor: colors.primarySoft }]}>
+              <Feather name="clock" size={18} color={colors.primary} />
+            </View>
+            <Text style={[styles.networkTitle, { color: colors.text, flex: 1 }]}>
+              {t("tabs.events.pastMeetings")}
+            </Text>
+            <Feather name="chevron-right" size={19} color={colors.mutedForeground} />
+          </Pressable>
+        ) : null}
+
+        {activeView === "events" ? (
+          <Pressable
+            accessibilityRole="button"
             onPress={() => router.push("/(tabs)/networks")}
             style={[styles.networkLink, { backgroundColor: "transparent", borderColor: colors.border }]}
           >

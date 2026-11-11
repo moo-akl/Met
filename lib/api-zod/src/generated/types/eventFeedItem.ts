@@ -9,7 +9,7 @@ import type { EventFeedItemEventType } from './eventFeedItemEventType';
 import type { EventFeedItemMyJoinRequestStatus } from './eventFeedItemMyJoinRequestStatus';
 import type { EventFeedItemMyRsvp } from './eventFeedItemMyRsvp';
 import type { EventFeedItemVisibility } from './eventFeedItemVisibility';
-import type { HangoutHostRating } from './hangoutHostRating';
+import type { MeetingHostRating } from './meetingHostRating';
 
 export interface EventFeedItem {
   eventType: EventFeedItemEventType;
@@ -74,6 +74,6 @@ export interface EventFeedItem {
   pendingJoinRequestCount?: number;
   verifiedExplorersOnly: boolean;
   isVerifiedExplorerHost: boolean;
-  /** Aggregate ratings from accepted guests on completed Hangouts; never includes reviewer identities. */
-  hangoutHostRating?: HangoutHostRating | null;
+  /** Aggregate ratings from eligible guests on completed community plans and Hangouts; never includes reviewer identities. */
+  meetingHostRating?: MeetingHostRating | null;
 }

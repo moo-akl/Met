@@ -312,21 +312,22 @@ export default function EventChatScreen() {
     if (attachment.byteSize != null && attachment.byteSize > reservation.maxBytes) {
       throw new Error("ATTACHMENT_TOO_LARGE");
     }
-    const form = new FormData();
-    for (const [key, value] of Object.entries(reservation.uploadFields)) {
-      form.append(key, value);
-    }
+    const FileSystem = await import("expo-file-system/legacy");
     const extension = attachment.mediaType === "image" ? "jpg" : "m4a";
-    form.append("file", {
-      uri: attachment.uri,
-      name: `message.${extension}`,
-      type: attachment.contentType,
-    } as unknown as Blob);
-    const response = await fetch(reservation.uploadUrl, {
-      method: "POST",
-      body: form,
-    });
-    if (!response.ok) throw new Error("ATTACHMENT_UPLOAD_FAILED");
+    const response = await FileSystem.uploadAsync(
+      reservation.uploadUrl,
+      attachment.uri,
+      {
+        httpMethod: "POST",
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: "file",
+        mimeType: attachment.contentType,
+        parameters: reservation.uploadFields,
+      },
+    );
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error("ATTACHMENT_UPLOAD_FAILED");
+    }
     return reservation.mediaObjectPath;
   };
 

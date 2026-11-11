@@ -117,6 +117,8 @@ export const en = {
     networks: "Events",
     events: {
       title: "Events",
+      pastMeetings: "Past Meetings",
+      pastMeetingsEmpty: "Meetings you’ve hosted or joined will appear here.",
       subtitle: "Upcoming plans from venues and Met members",
       create: "Create event",
       createHangout: "Create hangout",
@@ -299,7 +301,7 @@ export const en = {
       addEventPhoto: "Add photo",
       removeEventPhoto: "Remove photo",
       hangoutCoverPhotoOptional: "Hangout cover photo (optional)",
-      hangoutHostRating: "{{rating}} / 5 · {{count}} Hangout reviews",
+      hangoutHostRating: "{{rating}} / 5 · {{count}} host ratings",
       hangoutHostNoReviews: "No Hangout reviews yet",
       hangoutHostRatingPrompt: "Rate your experience with this host",
       hangoutRatingStar: "{{rating}} out of 5 stars",

@@ -532,6 +532,18 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
               <SectionLabel label={t("settings.sectionDiscovery")} colors={colors} />
 
+              <NavRow
+                icon="clock"
+                testID="settings-past-meetings"
+                label={t("tabs.events.pastMeetings")}
+                sub={t("tabs.events.pastMeetingsEmpty")}
+                onPress={() => {
+                  close();
+                  setTimeout(() => router.push("/past-meetings" as never), 50);
+                }}
+                colors={colors}
+              />
+
               <View
                 style={[
                   styles.row,

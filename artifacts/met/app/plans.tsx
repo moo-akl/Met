@@ -70,7 +70,7 @@ export default function PlansScreen() {
           accessibilityRole="button"
           accessibilityLabel={t("plans.createA11y")}
           testID="plans-create"
-          onPress={() => router.push({ pathname: "/event-create", params: { mode: "plan" } } as never)}
+          onPress={() => router.push("/event-create" as never)}
           style={[styles.create, { backgroundColor: colors.primary }]}
         >
           <Feather name="plus" size={21} color={colors.primaryForeground} />
@@ -91,7 +91,7 @@ export default function PlansScreen() {
             <View style={[styles.sun, { backgroundColor: colors.card }]}><Feather name="sun" size={20} color={colors.primary} /></View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("plans.screenEmptyTitle")}</Text>
             <Text style={[styles.stateText, { color: colors.mutedForeground }]}>{t("plans.screenEmptyBody")}</Text>
-            <Pressable accessibilityRole="button" testID="plans-empty-create" onPress={() => router.push({ pathname: "/event-create", params: { mode: "plan" } } as never)} style={[styles.emptyAction, { backgroundColor: colors.primary }]}>
+            <Pressable accessibilityRole="button" testID="plans-empty-create" onPress={() => router.push("/event-create" as never)} style={[styles.emptyAction, { backgroundColor: colors.primary }]}>
               <Text style={[styles.actionText, { color: colors.primaryForeground }]}>{t("plans.make")}</Text>
               <Feather name="arrow-up-right" size={16} color={colors.primaryForeground} />
             </Pressable>

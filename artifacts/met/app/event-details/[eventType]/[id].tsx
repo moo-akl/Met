@@ -116,21 +116,23 @@ export default function EventDetailsScreen() {
   const event = eventQuery.data;
   const isOwner = Boolean(event && event.ownerUid === authedUid);
   const isHangout = Boolean(eventType === "member" && event?.joinApprovalRequired);
-  const hostRating = event?.hangoutHostRating ?? null;
+  const hostRating = event?.meetingHostRating ?? null;
   const hangoutEnded = Boolean(
     event && new Date(event.endsAt ?? event.startsAt).getTime() <= Date.now(),
   );
-  const canRateHangoutHost = Boolean(
-    isHangout &&
+  const canRateMeetingHost = Boolean(
+    eventType === "member" &&
       hangoutEnded &&
       !isOwner &&
-      event?.myJoinRequestStatus === "accepted",
+      (isHangout
+        ? event?.myJoinRequestStatus === "accepted"
+        : event?.myRsvp === "going" || event?.myRsvp === "maybe"),
   );
   const creatorUid = event?.eventType === "member" ? event.ownerUid : null;
   const creatorStandingQuery = useQuery({
     queryKey: ["community-standing", creatorUid],
     queryFn: () => api.getCommunityStanding({ uid: authedUid ?? "" }, creatorUid!),
-    enabled: !!authedUid && !!creatorUid && isHangout,
+    enabled: !!authedUid && !!creatorUid && eventType === "member",
     staleTime: 60_000,
   });
   const canAccessHangout = Boolean(
@@ -176,7 +178,7 @@ export default function EventDetailsScreen() {
   };
 
   const submitHangoutHostRating = async () => {
-    if (!event || !canRateHangoutHost || hostRatingSelection < 1) return;
+    if (!event || !canRateMeetingHost || hostRatingSelection < 1) return;
     setHostRatingPending(true);
     setActionError("");
     try {
@@ -505,7 +507,7 @@ export default function EventDetailsScreen() {
                 <Feather name="navigation" size={18} color={colors.primary} />
               </Pressable>
             ) : null}
-            {isHangout ? (
+            {eventType === "member" ? (
               <View style={[styles.creatorCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 {event.creatorPhotoUrl ? (
                   <Image
@@ -550,7 +552,7 @@ export default function EventDetailsScreen() {
                       {t("tabs.events.hangoutHostNoReviews")}
                     </Text>
                   ) : null}
-                  {canRateHangoutHost ? (
+                  {canRateMeetingHost ? (
                     <View style={styles.hostRatingForm}>
                       <Text style={[styles.creatorRating, { color: colors.mutedForeground }]}>
                         {t("tabs.events.hangoutHostRatingPrompt")}

@@ -115,6 +115,8 @@ export const ar: LocaleTree = {
     networks: "الفعاليات",
     events: {
       title: "الفعاليات",
+      pastMeetings: "اللقاءات السابقة",
+      pastMeetingsEmpty: "ستظهر هنا اللقاءات التي نظمتها أو شاركت فيها.",
       subtitle: "خطط قادمة من الأماكن وأعضاء Met",
       create: "إنشاء فعالية",
       quickPlan: "لقاء",
@@ -297,7 +299,7 @@ export const ar: LocaleTree = {
       addEventPhoto: "إضافة صورة",
       removeEventPhoto: "إزالة الصورة",
       hangoutCoverPhotoOptional: "صورة غلاف اللقاء (اختيارية)",
-      hangoutHostRating: "{{rating}} / 5 · {{count}} تقييمات للقاءات",
+      hangoutHostRating: "{{rating}} / 5 · {{count}} تقييمات للمضيف",
       hangoutHostNoReviews: "لا توجد تقييمات للقاءات بعد",
       hangoutHostRatingPrompt: "قيّم تجربتك مع هذا المضيف",
       hangoutRatingStar: "{{rating}} من 5 نجوم",

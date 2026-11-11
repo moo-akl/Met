@@ -83,6 +83,7 @@ vi.mock("../middlewares/requireUid", () => ({
 }));
 
 import router from "./events";
+import engagementRouter from "./engagement";
 import { cleanupExpiredPlanChatMedia } from "../lib/planChatMediaCleanup";
 
 process.env["NODE_ENV"] = "test";
@@ -91,12 +92,18 @@ const seed = randomUUID();
 const hostUid = `explorer-events-host-${seed}`;
 const explorerUid = `explorer-events-member-${seed}`;
 const explorerRequesterUid = `explorer-events-requester-${seed}`;
+const acceptedRequestOnlyUid = `explorer-events-accepted-only-${seed}`;
+const declinedRequesterUid = `explorer-events-declined-${seed}`;
+const verifiedAttendanceOnlyUid = `explorer-events-attendance-only-${seed}`;
 const nonExplorerUid = `explorer-events-regular-${seed}`;
 const checkinToken = randomUUID().replaceAll("-", "");
 const inviteToken = randomUUID().replaceAll("-", "");
 const latitude = 13.7563;
 const longitude = 100.5018;
-const app = express().use(express.json()).use("/api", router);
+const app = express()
+  .use(express.json())
+  .use("/api", router)
+  .use("/api", engagementRouter);
 let eventId: number | null = null;
 
 async function removeFixture() {
@@ -140,6 +147,7 @@ beforeEach(async () => {
   explorerState.uids.clear();
   explorerState.uids.add(explorerUid);
   explorerState.uids.add(explorerRequesterUid);
+  explorerState.uids.add(acceptedRequestOnlyUid);
   mediaStorageState.generateSignedPostPolicyV4
     .mockReset()
     .mockResolvedValue([{
@@ -180,11 +188,11 @@ beforeEach(async () => {
     { eventId: eventId!, userUid: explorerRequesterUid, status: "going" },
     { eventId: eventId!, userUid: nonExplorerUid, status: "going" },
   ]);
-  await db.insert(communityEventJoinRequestsTable).values({
-    eventId: eventId!,
-    userUid: explorerUid,
-    status: "accepted",
-  });
+  await db.insert(communityEventJoinRequestsTable).values([
+    { eventId: eventId!, userUid: explorerUid, status: "accepted" },
+    { eventId: eventId!, userUid: acceptedRequestOnlyUid, status: "accepted" },
+    { eventId: eventId!, userUid: declinedRequesterUid, status: "declined" },
+  ]);
 });
 
 afterAll(removeFixture);
@@ -341,19 +349,19 @@ describe("completed Hangout host ratings", () => {
       .get(`/api/events/member/${eventId}`)
       .set("x-test-uid", explorerUid)
       .expect(200);
-    expect(details.body.hangoutHostRating).toEqual({
+    expect(details.body.meetingHostRating).toEqual({
       averageRating: 3.5,
       reviewCount: 2,
       myRating: 5,
     });
-    expect(Object.keys(details.body.hangoutHostRating).sort()).toEqual([
+    expect(Object.keys(details.body.meetingHostRating).sort()).toEqual([
       "averageRating",
       "myRating",
       "reviewCount",
     ]);
-    expect(JSON.stringify(details.body.hangoutHostRating))
+    expect(JSON.stringify(details.body.meetingHostRating))
       .not.toContain(explorerUid);
-    expect(JSON.stringify(details.body.hangoutHostRating))
+    expect(JSON.stringify(details.body.meetingHostRating))
       .not.toContain(explorerRequesterUid);
   });
 
@@ -389,6 +397,235 @@ describe("completed Hangout host ratings", () => {
     expect(unrelated.body.events).not.toContainEqual(
       expect.objectContaining({ id: eventId }),
     );
+
+    const meetings = await request(app)
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    const matchingHangoutMeetings = meetings.body.meetings.filter(
+      (meeting: { eventType?: string; id?: number }) =>
+        meeting.eventType === "member" && meeting.id === eventId,
+    );
+    expect(matchingHangoutMeetings).toHaveLength(1);
+    expect(matchingHangoutMeetings[0]).toMatchObject({
+      type: "hangout",
+      eventType: "member",
+      id: eventId,
+      myRating: 4,
+    });
+
+    await db
+      .update(communityEventsTable)
+      .set({ joinApprovalRequired: false })
+      .where(eq(communityEventsTable.id, eventId!));
+    const plans = await request(app)
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(plans.body.meetings).toContainEqual(expect.objectContaining({
+      type: "plan",
+      eventType: "member",
+      id: eventId,
+      myRating: 4,
+    }));
+  });
+
+  it("lists completed Hangouts and plans once for their host", async () => {
+    await db
+      .update(communityEventsTable)
+      .set({
+        startsAt: new Date(Date.now() - 2 * 60 * 60_000),
+        endsAt: new Date(Date.now() - 60 * 60_000),
+      })
+      .where(eq(communityEventsTable.id, eventId!));
+
+    const hangouts = await request(app)
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", hostUid)
+      .expect(200);
+    const hostedHangouts = hangouts.body.meetings.filter(
+      (meeting: { eventType?: string; id?: number }) =>
+        meeting.eventType === "member" && meeting.id === eventId,
+    );
+    expect(hostedHangouts).toHaveLength(1);
+    expect(hostedHangouts[0]).toMatchObject({
+      type: "hangout",
+      eventType: "member",
+      id: eventId,
+      isHost: true,
+    });
+
+    await db
+      .update(communityEventsTable)
+      .set({ joinApprovalRequired: false })
+      .where(eq(communityEventsTable.id, eventId!));
+    const plans = await request(app)
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", hostUid)
+      .expect(200);
+    const hostedPlans = plans.body.meetings.filter(
+      (meeting: { eventType?: string; id?: number }) =>
+        meeting.eventType === "member" && meeting.id === eventId,
+    );
+    expect(hostedPlans).toHaveLength(1);
+    expect(hostedPlans[0]).toMatchObject({
+      type: "plan",
+      eventType: "member",
+      id: eventId,
+      isHost: true,
+    });
+  });
+
+  it("shows a completed Hangout to accepted requesters but not declined requesters", async () => {
+    await db
+      .update(communityEventsTable)
+      .set({
+        startsAt: new Date(Date.now() - 2 * 60 * 60_000),
+        endsAt: new Date(Date.now() - 60 * 60_000),
+      })
+      .where(eq(communityEventsTable.id, eventId!));
+
+    const accepted = await request(app)
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", acceptedRequestOnlyUid)
+      .expect(200);
+    expect(accepted.body.meetings).toContainEqual(expect.objectContaining({
+      type: "hangout",
+      eventType: "member",
+      id: eventId,
+    }));
+
+    const declined = await request(app)
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", declinedRequesterUid)
+      .expect(200);
+    expect(declined.body.meetings).not.toContainEqual(
+      expect.objectContaining({ eventType: "member", id: eventId }),
+    );
+  });
+
+  it("excludes a member event for a user whose only RSVP is not going", async () => {
+    await db
+      .update(communityEventsTable)
+      .set({
+        startsAt: new Date(Date.now() - 2 * 60 * 60_000),
+        endsAt: new Date(Date.now() - 60 * 60_000),
+      })
+      .where(eq(communityEventsTable.id, eventId!));
+    await db
+      .update(communityEventRsvpsTable)
+      .set({ status: "not_going" })
+      .where(and(
+        eq(communityEventRsvpsTable.eventId, eventId!),
+        eq(communityEventRsvpsTable.userUid, nonExplorerUid),
+      ));
+    await db.insert(communityEventRsvpsTable).values({
+      eventId: eventId!,
+      userUid: verifiedAttendanceOnlyUid,
+      status: "not_going",
+    });
+    await db.insert(eventAttendanceTable).values({
+      eventType: "member",
+      eventId: eventId!,
+      userUid: verifiedAttendanceOnlyUid,
+      checkInMethod: "qr",
+    });
+
+    const canceledRsvp = await request(app)
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", nonExplorerUid)
+      .expect(200);
+    expect(canceledRsvp.body.meetings).not.toContainEqual(
+      expect.objectContaining({ eventType: "member", id: eventId }),
+    );
+
+    const acceptedRequest = await request(app)
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", acceptedRequestOnlyUid)
+      .expect(200);
+    expect(acceptedRequest.body.meetings).toContainEqual(expect.objectContaining({
+      type: "hangout",
+      eventType: "member",
+      id: eventId,
+    }));
+
+    const verifiedAttendance = await request(app)
+      .get("/api/community-events/my-past-meetings")
+      .set("x-test-uid", verifiedAttendanceOnlyUid)
+      .expect(200);
+    expect(verifiedAttendance.body.meetings).toContainEqual(expect.objectContaining({
+      type: "hangout",
+      eventType: "member",
+      id: eventId,
+    }));
+  });
+
+  it("allows an RSVP guest to rate a completed private plan host", async () => {
+    await db
+      .update(communityEventsTable)
+      .set({
+        joinApprovalRequired: false,
+        startsAt: new Date(Date.now() - 2 * 60 * 60_000),
+        endsAt: new Date(Date.now() - 60 * 60_000),
+      })
+      .where(eq(communityEventsTable.id, eventId!));
+
+    const rating = await request(app)
+      .post(`/api/community-events/${eventId}/host-rating`)
+      .set("x-test-uid", explorerUid)
+      .send({ rating: 4 })
+      .expect(200);
+    expect(rating.body).toEqual({
+      averageRating: 4,
+      reviewCount: 1,
+      myRating: 4,
+    });
+  });
+
+  it("keeps plan-host ratings separate from community reviews in profile standing", async () => {
+    await db
+      .update(communityEventsTable)
+      .set({
+        joinApprovalRequired: false,
+        startsAt: new Date(Date.now() - 2 * 60 * 60_000),
+        endsAt: new Date(Date.now() - 60 * 60_000),
+      })
+      .where(eq(communityEventsTable.id, eventId!));
+    await db.insert(communityEventHostRatingsTable).values([
+      { eventId: eventId!, reviewerUid: explorerUid, rating: 5 },
+      { eventId: eventId!, reviewerUid: explorerRequesterUid, rating: 3 },
+    ]);
+    await db.insert(reviewsTable).values({
+      reviewerUid: `hangout-rating-reviewer-${seed}`,
+      receiverUid: hostUid,
+      context: "chat",
+      starRating: 1,
+    });
+
+    const savedRating = await request(app)
+      .get(`/api/events/member/${eventId}`)
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(savedRating.body.meetingHostRating).toEqual({
+      averageRating: 4,
+      reviewCount: 2,
+      myRating: 5,
+    });
+
+    const hostStanding = await request(app)
+      .get(`/api/users/${hostUid}/community-standing`)
+      .set("x-test-uid", explorerUid)
+      .expect(200);
+    expect(hostStanding.body).toMatchObject({
+      count: 1,
+      hasEnough: false,
+      meetingHostRating: {
+        averageRating: 4,
+        reviewCount: 2,
+      },
+    });
+    expect(hostStanding.body.averageRating).toBeUndefined();
+    expect(hostStanding.body.meetingHostRating).not.toHaveProperty("myRating");
   });
 });
 
