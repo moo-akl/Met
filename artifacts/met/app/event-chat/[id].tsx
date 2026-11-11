@@ -2,8 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import type { RecordingOptions } from "expo-av/build/Audio/Recording.types";
 import { Image } from "expo-image";
-import { File } from "expo-file-system";
-import { fetch as expoFetch } from "expo/fetch";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -243,7 +242,6 @@ export default function EventChatScreen() {
         [{ resize: { width: 1600 } }],
         { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG },
       );
-      const FileSystem = await import("expo-file-system/legacy");
       const info = await FileSystem.getInfoAsync(resized.uri);
       const byteSize = info.exists && "size" in info ? Number(info.size) : asset.fileSize ?? 0;
       if (byteSize > 8 * 1024 * 1024) {
@@ -315,21 +313,19 @@ export default function EventChatScreen() {
       throw new Error("ATTACHMENT_TOO_LARGE");
     }
     const extension = attachment.mediaType === "image" ? "jpg" : "m4a";
-    const formData = new FormData();
-    for (const [name, value] of Object.entries(reservation.uploadFields)) {
-      formData.append(name, value);
-    }
-    formData.append(
-      "file",
-      new File(attachment.uri),
-      `attachment.${extension}`,
+    const response = await FileSystem.uploadAsync(
+      reservation.uploadUrl,
+      attachment.uri,
+      {
+        httpMethod: "POST",
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: "file",
+        mimeType: attachment.contentType,
+        parameters: reservation.uploadFields,
+      },
     );
-    const response = await expoFetch(reservation.uploadUrl, {
-      method: "POST",
-      body: formData,
-    });
-    if (!response.ok) {
-      throw new Error("ATTACHMENT_UPLOAD_FAILED");
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`ATTACHMENT_UPLOAD_FAILED_${response.status}`);
     }
     return reservation.mediaObjectPath;
   };

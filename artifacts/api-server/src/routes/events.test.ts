@@ -645,7 +645,7 @@ describe("Hangout plan media", () => {
     expect(mediaStorageState.generateSignedPostPolicyV4).toHaveBeenCalledWith(
       expect.objectContaining({
         conditions: expect.arrayContaining([
-          ["content-length-range", "1", expect.any(String)],
+          ["content-length-range", 1, expect.any(Number)],
           ["eq", "$Content-Type", "image/jpeg"],
         ]),
       }),
@@ -686,6 +686,48 @@ describe("Hangout plan media", () => {
       .set("x-test-uid", nonExplorerUid)
       .send({ mediaType: "image", contentType: "image/jpeg" })
       .expect(404);
+  });
+
+  it("creates a valid signed upload policy and accepts voice messages", async () => {
+    mediaStorageState.generateSignedPostPolicyV4.mockResolvedValueOnce([{
+      url: "https://storage.test/audio-upload",
+      fields: { key: "signed-audio", "Content-Type": "audio/mp4" },
+    }]);
+    mediaStorageState.getMetadata.mockResolvedValueOnce([
+      { size: "2048", contentType: "audio/mp4" },
+    ]);
+
+    const upload = await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat/media-upload`)
+      .set("x-test-uid", explorerUid)
+      .send({ mediaType: "voice", contentType: "audio/mp4" })
+      .expect(200);
+
+    expect(mediaStorageState.generateSignedPostPolicyV4).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conditions: expect.arrayContaining([
+          ["content-length-range", 1, expect.any(Number)],
+          ["eq", "$Content-Type", "audio/mp4"],
+        ]),
+      }),
+    );
+
+    await request(app)
+      .post(`/api/community-events/${eventId}/plan-chat`)
+      .set("x-test-uid", explorerUid)
+      .send({
+        mediaType: "voice",
+        mediaObjectPath: upload.body.mediaObjectPath,
+        audioDurationMs: 1_500,
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.message).toMatchObject({
+          mediaType: "voice",
+          mediaUrl: "https://storage.test/read",
+          audioDurationMs: 1_500,
+        });
+      });
   });
 
   it("deletes expired photo and voice message rows after their storage files", async () => {

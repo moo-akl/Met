@@ -1848,7 +1848,8 @@ router.post(
             "Content-Type": parsed.data.contentType,
           },
           conditions: [
-            ["content-length-range", "1", String(maxBytes)],
+            // GCS requires numeric bounds in its signed POST policy.
+            ["content-length-range", 1, maxBytes],
             ["eq", "$Content-Type", parsed.data.contentType],
           ],
         });
