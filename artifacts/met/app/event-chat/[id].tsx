@@ -256,7 +256,7 @@ export default function EventChatScreen() {
     markPlanChatRead.mutateAsync,
     planChat.dataUpdatedAt,
     queryClient,
-  ]);>>>>>>> current GitHub main
+  ]);
 
   useEffect(() => {
     return () => {
