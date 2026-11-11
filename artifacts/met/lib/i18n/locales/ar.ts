@@ -52,6 +52,7 @@ export const ar: LocaleTree = {
     sending: "جارٍ الإرسال…",
   },
   plans: {
+    friendOnlyIntro: "الخطط مخصصة للاتصالات المدعوة. شارك رابطًا خاصًا من أي تطبيق لدعوة أصدقاء ليسوا على Met؛ اللقاءات العامة موجودة في قسم اللقاءات.",
     pastHangoutsTitle: "اللقاءات السابقة",
     pastHangoutsEmpty: "ستظهر هنا اللقاءات المنتهية التي لا يزال بإمكانك تقييمها.",
     rateHost: "قيّم المضيف",
@@ -114,6 +115,12 @@ export const ar: LocaleTree = {
     connections: "الاتصالات",
     networks: "الفعاليات",
     events: {
+      friendPlanTitle: "خطة للأصدقاء فقط",
+      friendPlanHint: "ادعُ اتصالاتك أو أنشئ رابطًا خاصًا لمشاركته عبر أي تطبيق. لا يمكن فتح الخطة إلا للمدعوين.",
+      friendPlanInviteRequired: "ادعُ اتصالًا أو فعّل رابطًا خاصًا للمشاركة.",
+      friendPlanBadge: "خطة للأصدقاء فقط",
+      viewOrganizerProfile: "عرض ملف المنظّم {{name}}",
+      venueOnlySubtitle: "الفعاليات ينظمها المكان فقط. استخدم الخطط للأصدقاء واللقاءات للاجتماعات العامة.",
       title: "الفعاليات",
       pastMeetings: "اللقاءات السابقة",
       pastMeetingsEmpty: "ستظهر هنا اللقاءات التي نظمتها أو شاركت فيها.",

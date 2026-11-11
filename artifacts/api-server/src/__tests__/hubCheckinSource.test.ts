@@ -477,6 +477,7 @@ describe.skipIf(!hasDatabase)(
           latitude: 13.7563,
           longitude: 100.5018,
           visibility: "public",
+          joinApprovalRequired: true,
           inviteeUids: [],
         });
 

@@ -42,7 +42,7 @@ export default function EditCommunityEventScreen() {
       key={eventId}
       mode="edit"
       initial={eventQuery.data}
-      planMode={eventQuery.data.joinApprovalRequired}
+      planKind={eventQuery.data.joinApprovalRequired ? "hangout" : "friends"}
     />
   );
 }

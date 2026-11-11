@@ -52,6 +52,7 @@ export const vi: LocaleTree = {
     sending: "Đang gửi…",
   },
   plans: {
+    friendOnlyIntro: "Kế hoạch chỉ dành cho các kết nối được mời. Chia sẻ liên kết riêng tư qua bất kỳ ứng dụng nào để mời bạn bè chưa dùng Met; các buổi gặp công khai nằm trong mục Buổi gặp.",
     pastHangoutsTitle: "Các buổi gặp đã qua",
     pastHangoutsEmpty: "Các buổi gặp đã kết thúc mà bạn vẫn có thể đánh giá sẽ xuất hiện ở đây.",
     rateHost: "Đánh giá người tổ chức",
@@ -114,6 +115,12 @@ export const vi: LocaleTree = {
     connections: "Kết nối",
     networks: "Sự kiện",
     events: {
+      friendPlanTitle: "Kế hoạch riêng cho bạn bè",
+      friendPlanHint: "Mời các kết nối hoặc tạo liên kết riêng tư để chia sẻ qua bất kỳ ứng dụng nào. Chỉ người được mời mới mở được kế hoạch.",
+      friendPlanInviteRequired: "Mời một kết nối hoặc bật liên kết riêng tư để chia sẻ.",
+      friendPlanBadge: "Kế hoạch riêng cho bạn bè",
+      viewOrganizerProfile: "Xem hồ sơ người tổ chức {{name}}",
+      venueOnlySubtitle: "Sự kiện do địa điểm tổ chức. Dùng Kế hoạch cho bạn bè và Buổi gặp cho các buổi gặp công khai.",
       title: "Sự kiện",
       pastMeetings: "Các buổi gặp trước đây",
       pastMeetingsEmpty: "Các buổi gặp bạn tổ chức hoặc tham gia sẽ hiển thị tại đây.",

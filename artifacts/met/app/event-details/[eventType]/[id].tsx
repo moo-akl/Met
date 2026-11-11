@@ -465,7 +465,9 @@ export default function EventDetailsScreen() {
               <Text style={[styles.badge, { color: colors.primary, backgroundColor: colors.primarySoft }]}>
                 {event.eventType === "venue"
                   ? t("tabs.events.venueEvent")
-                  : t("tabs.events.memberEvent")}
+                  : isHangout
+                    ? t("tabs.events.quickPlan")
+                    : t("tabs.events.friendPlanBadge")}
               </Text>
               {event.visibility === "invite_only" ? (
                 <Text style={[styles.privateBadge, { color: colors.mutedForeground }]}>
@@ -509,19 +511,31 @@ export default function EventDetailsScreen() {
             ) : null}
             {eventType === "member" ? (
               <View style={[styles.creatorCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                {event.creatorPhotoUrl ? (
-                  <Image
-                    testID="hangout-creator-photo"
-                    accessibilityLabel={event.creatorName ?? t("tabs.events.createdBy")}
-                    source={{ uri: event.creatorPhotoUrl }}
-                    style={styles.creatorAvatar}
-                  />
-                ) : (
-                  <View style={[styles.creatorAvatar, styles.creatorAvatarFallback, { backgroundColor: colors.primarySoft }]}>
-                    <Feather name="user" size={20} color={colors.primary} />
-                  </View>
-                )}
-                <View style={styles.creatorDetails}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("tabs.events.viewOrganizerProfile", {
+                    name: event.creatorName ?? t("tabs.events.createdBy"),
+                  })}
+                  testID="hangout-creator-profile"
+                  onPress={() => router.push({
+                    pathname: "/event-organizer/[eventId]",
+                    params: { eventId: String(event.id) },
+                  } as never)}
+                  style={styles.creatorProfileLink}
+                >
+                  {event.creatorPhotoUrl ? (
+                    <Image
+                      testID="hangout-creator-photo"
+                      accessibilityLabel={event.creatorName ?? t("tabs.events.createdBy")}
+                      source={{ uri: event.creatorPhotoUrl }}
+                      style={styles.creatorAvatar}
+                    />
+                  ) : (
+                    <View style={[styles.creatorAvatar, styles.creatorAvatarFallback, { backgroundColor: colors.primarySoft }]}>
+                      <Feather name="user" size={20} color={colors.primary} />
+                    </View>
+                  )}
+                  <View style={styles.creatorDetails}>
                   <Text style={[styles.creatorScoreLabel, { color: colors.mutedForeground }]}>
                     {t("tabs.events.createdBy")}
                   </Text>
@@ -536,6 +550,8 @@ export default function EventDetailsScreen() {
                       <TrustScoreBadge score={creatorStandingQuery.data.trustScore} showScore />
                     </View>
                   ) : null}
+                  </View>
+                </Pressable>
                   {hostRating && hostRating.reviewCount > 0 &&
                   hostRating.averageRating != null ? (
                     <Text
@@ -605,7 +621,6 @@ export default function EventDetailsScreen() {
                       </Pressable>
                     </View>
                   ) : null}
-                </View>
               </View>
             ) : event.creatorName ? (
               <Text style={[styles.creator, { color: colors.mutedForeground }]}>
@@ -1053,7 +1068,8 @@ const styles = StyleSheet.create({
   locationLabel: { fontSize: 11, fontWeight: "600" },
   locationText: { fontSize: 14, fontWeight: "600", marginTop: 3 },
   creator: { fontSize: 13, marginTop: 14 },
-  creatorCard: { borderWidth: 1, borderTopLeftRadius: 26, borderBottomRightRadius: 20, padding: 13, marginTop: 14, flexDirection: "row", alignItems: "center", gap: 12 },
+  creatorCard: { borderWidth: 1, borderTopLeftRadius: 26, borderBottomRightRadius: 20, padding: 13, marginTop: 14, gap: 12 },
+  creatorProfileLink: { flexDirection: "row", alignItems: "center", gap: 12 },
   creatorAvatar: { width: 54, height: 54, borderRadius: 27 },
   creatorAvatarFallback: { alignItems: "center", justifyContent: "center" },
   creatorDetails: { flex: 1, gap: 6 },

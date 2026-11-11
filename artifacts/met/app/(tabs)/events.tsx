@@ -235,7 +235,10 @@ function EventsScreen() {
   }, [router]);
 
   const events = useMemo(() => {
-    const items = (feed.data?.events ?? []).filter((event: EventFeedItem) => !isPlanEvent(event));
+    const items = (feed.data?.events ?? []).filter(
+      (event: EventFeedItem) =>
+        event.eventType === "venue" && !isPlanEvent(event),
+    );
     const byStartTime = (a: EventFeedItem, b: EventFeedItem) =>
       new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
     if (!userLocation) return [...items].sort(byStartTime);
@@ -365,7 +368,7 @@ function EventsScreen() {
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
               {activeView === "hangouts"
                 ? t("tabs.events.nearbySubtitle")
-                : t("tabs.events.subtitle")}
+                : t("tabs.events.venueOnlySubtitle")}
             </Text>
             {activeView === "events" && userLocation ? (
               <Text style={[styles.locationHint, { color: colors.primary }]}>{t("tabs.events.nearbyFirst")}</Text>
@@ -383,18 +386,22 @@ function EventsScreen() {
               </Pressable>
             ) : null}
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={activeView === "hangouts" ? t("tabs.events.createHangout") : t("tabs.events.create")}
-            onPress={() => router.push(
-              activeView === "hangouts"
-                ? { pathname: "/event-create", params: { mode: "plan" } } as never
-                : "/event-create" as never,
-            )}
-            style={[styles.iconButton, { backgroundColor: colors.primary }]}
-          >
-            <Feather name="plus" size={21} color={colors.primaryForeground} />
-          </Pressable>
+          {activeView === "hangouts" ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("tabs.events.createHangout")}
+              testID="events-create-hangout"
+              onPress={() => router.push({
+                pathname: "/event-create",
+                params: { mode: "hangout" },
+              } as never)}
+              style={[styles.iconButton, { backgroundColor: colors.primary }]}
+            >
+              <Feather name="plus" size={21} color={colors.primaryForeground} />
+            </Pressable>
+          ) : (
+            <View style={styles.iconButton} />
+          )}
         </View>
 
         <View style={[styles.viewTabs, { borderColor: colors.border }]}>

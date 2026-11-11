@@ -2,6 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import type { RecordingOptions } from "expo-av/build/Audio/Recording.types";
 import { Image } from "expo-image";
+import { File } from "expo-file-system";
+import { fetch as expoFetch } from "expo/fetch";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -312,20 +314,21 @@ export default function EventChatScreen() {
     if (attachment.byteSize != null && attachment.byteSize > reservation.maxBytes) {
       throw new Error("ATTACHMENT_TOO_LARGE");
     }
-    const FileSystem = await import("expo-file-system/legacy");
     const extension = attachment.mediaType === "image" ? "jpg" : "m4a";
-    const response = await FileSystem.uploadAsync(
-      reservation.uploadUrl,
-      attachment.uri,
-      {
-        httpMethod: "POST",
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-        fieldName: "file",
-        mimeType: attachment.contentType,
-        parameters: reservation.uploadFields,
-      },
+    const formData = new FormData();
+    for (const [name, value] of Object.entries(reservation.uploadFields)) {
+      formData.append(name, value);
+    }
+    formData.append(
+      "file",
+      new File(attachment.uri),
+      `attachment.${extension}`,
     );
-    if (response.status < 200 || response.status >= 300) {
+    const response = await expoFetch(reservation.uploadUrl, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
       throw new Error("ATTACHMENT_UPLOAD_FAILED");
     }
     return reservation.mediaObjectPath;
@@ -363,7 +366,11 @@ export default function EventChatScreen() {
       await queryClient.invalidateQueries({
         queryKey: getGetCommunityEventPlanChatQueryKey(eventId),
       });
-    } catch {
+    } catch (error) {
+      console.warn(
+        "[event-chat] attachment send failed",
+        error instanceof Error ? error.message : "Unknown upload error",
+      );
       setSendError(pendingAttachment
         ? t("tabs.events.planChatMediaUploadError")
         : t("tabs.events.planChatSendError"));

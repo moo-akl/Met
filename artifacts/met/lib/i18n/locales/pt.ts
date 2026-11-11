@@ -52,6 +52,7 @@ export const pt: LocaleTree = {
     sending: "Enviando…",
   },
   plans: {
+    friendOnlyIntro: "Os planos são para conexões convidadas. Compartilhe um link privado em qualquer app para convidar amigos que ainda não usam o Met; encontros públicos ficam em Encontros.",
     pastHangoutsTitle: "Encontros anteriores",
     pastHangoutsEmpty: "Os encontros terminados que ainda podes avaliar vão aparecer aqui.",
     rateHost: "Avaliar anfitrião",
@@ -114,6 +115,12 @@ export const pt: LocaleTree = {
     connections: "Conexões",
     networks: "Eventos",
     events: {
+      friendPlanTitle: "Plano só para amigos",
+      friendPlanHint: "Convide suas conexões ou crie um link privado para compartilhar em qualquer app. Só as pessoas convidadas podem abrir o plano.",
+      friendPlanInviteRequired: "Convide uma conexão ou ative um link privado para compartilhar.",
+      friendPlanBadge: "Plano só para amigos",
+      viewOrganizerProfile: "Ver o perfil do organizador {{name}}",
+      venueOnlySubtitle: "Eventos organizados por locais. Use Planos para amigos e Encontros para reuniões públicas.",
       title: "Eventos",
       pastMeetings: "Encontros anteriores",
       pastMeetingsEmpty: "Aqui aparecem os encontros que organizaste ou a que participaste.",

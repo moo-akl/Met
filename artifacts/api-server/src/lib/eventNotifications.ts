@@ -165,16 +165,29 @@ async function notifyCommunityEventJoinRecipient(input: {
         ...(input.requestStatus ? { requestStatus: input.requestStatus } : {}),
       },
     };
+    const alwaysPersistInbox =
+      input.type === "hangout_join_request" ||
+      input.type === "hangout_join_decision";
+    const persistInbox = async () => {
+      try {
+        await recordNotificationForUser(input.recipientUid, payload);
+      } catch (error) {
+        logger.warn(
+          { error, eventId: input.eventId, notificationType: input.type },
+          "Could not save community event notification to the inbox",
+        );
+      }
+    };
+    if (alwaysPersistInbox || !recipient.pushToken) {
+      await persistInbox();
+    }
     if (!recipient.pushToken) {
-      // Keep join requests and decisions visible in Met even when a device
-      // has not registered its push token yet.
-      await recordNotificationForUser(input.recipientUid, payload);
       return;
     }
 
     const delivery = await sendPushWithStatus(recipient.pushToken, payload);
-    if (!delivery.sent) {
-      await recordNotificationForUser(input.recipientUid, payload);
+    if (!delivery.sent && !alwaysPersistInbox) {
+      await persistInbox();
     }
     logger.info(
       {

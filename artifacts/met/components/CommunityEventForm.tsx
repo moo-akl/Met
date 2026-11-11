@@ -47,7 +47,7 @@ import {
 type Props = {
   mode: "create" | "edit";
   initial?: CommunityEventManageResponse;
-  planMode?: boolean;
+  planKind?: "friends" | "hangout";
 };
 
 function defaultStart(): Date {
@@ -57,8 +57,14 @@ function defaultStart(): Date {
   return date;
 }
 
-export default function CommunityEventForm({ mode, initial, planMode = false }: Props) {
+export default function CommunityEventForm({
+  mode,
+  initial,
+  planKind = "friends",
+}: Props) {
   const isEditing = mode === "edit" && Boolean(initial);
+  const planMode = true;
+  const isHangout = planKind === "hangout";
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -85,17 +91,15 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
   const [startsAt, setStartsAt] = useState<Date>(
     initial ? new Date(initial.startsAt) : defaultStart(),
   );
-  const [visibility, setVisibility] = useState<"public" | "invite_only">(
-    planMode ? "public" : initial?.visibility ?? "public",
-  );
+  const visibility: "public" | "invite_only" = isHangout ? "public" : "invite_only";
   const [verifiedExplorersOnly, setVerifiedExplorersOnly] = useState(
-    initial?.verifiedExplorersOnly ?? false,
+    isHangout && (initial?.verifiedExplorersOnly ?? false),
   );
   const [inviteLinkEnabled, setInviteLinkEnabled] = useState(
-    initial?.inviteLinkEnabled ?? false,
+    !isHangout && (initial?.inviteLinkEnabled ?? false),
   );
   const [requireInvitePasscode, setRequireInvitePasscode] = useState(
-    initial?.invitePasscodeRequired ?? false,
+    !isHangout && (initial?.invitePasscodeRequired ?? false),
   );
   const [invitePasscode, setInvitePasscode] = useState("");
   const [inviteeUids, setInviteeUids] = useState<string[]>(
@@ -268,9 +272,9 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       onError: (error) => {
         setFormError(error instanceof Error
           ? error.message
-          : planMode
+          : isHangout
             ? t("tabs.events.hangoutCreateError")
-            : "Could not create the event.");
+            : t("common.error"));
       },
     },
   });
@@ -280,9 +284,9 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       onError: (error) => {
         setFormError(error instanceof Error
           ? error.message
-          : planMode
+          : isHangout
             ? t("tabs.events.hangoutSaveError")
-            : "Could not save the event.");
+            : t("common.error"));
       },
     },
   });
@@ -299,10 +303,10 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
     setFormError("");
     if (imageUploading) return;
     if (!title.trim()) {
-      setFormError(t(planMode ? "tabs.events.hangoutNameRequired" : "tabs.events.eventNameRequired"));
+        setFormError(t(isHangout ? "tabs.events.hangoutNameRequired" : "tabs.events.eventNameRequired"));
       return;
     }
-    if (planMode && !location.trim()) {
+    if (isHangout && !location.trim()) {
       setFormError(t("tabs.events.planLocationRequired"));
       return;
     }
@@ -314,7 +318,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       initial.longitude == null &&
       initial.location === (location.trim() || null),
     );
-    if (planMode && !selectedPlace && !unchangedLegacyPlanLocation) {
+    if (isHangout && !selectedPlace && !unchangedLegacyPlanLocation) {
       setFormError(t("tabs.events.planPlaceSelectionRequired"));
       return;
     }
@@ -327,7 +331,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       inviteeUids.length === 0 &&
       !inviteLinkEnabled
     ) {
-      setFormError(t("tabs.events.noMatches"));
+      setFormError(t("tabs.events.friendPlanInviteRequired"));
       return;
     }
     if (
@@ -372,7 +376,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
       verifiedExplorersOnly,
       inviteeUids: visibility === "invite_only" ? inviteeUids : [],
       inviteLinkEnabled: visibility === "invite_only" && inviteLinkEnabled,
-      ...(!isEditing ? { joinApprovalRequired: planMode } : {}),
+      ...(!isEditing ? { joinApprovalRequired: isHangout } : {}),
       invitePasscode:
         visibility !== "invite_only" || !inviteLinkEnabled || !requireInvitePasscode
           ? null
@@ -412,10 +416,10 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           {isEditing
             ? planMode
-              ? t("tabs.events.editHangout")
+              ? t(isHangout ? "tabs.events.editHangout" : "tabs.events.editEvent")
               : t("tabs.events.editEvent")
             : planMode
-              ? t("tabs.events.createHangout")
+              ? t(isHangout ? "tabs.events.createHangout" : "plans.make")
               : t("tabs.events.create")}
         </Text>
         <View style={styles.back} />
@@ -427,12 +431,12 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
         keyboardShouldPersistTaps="handled"
       >
         <Text style={[styles.label, { color: colors.text }]}>
-          {t(planMode ? "tabs.events.hangoutName" : "tabs.events.eventName")}
+          {t(isHangout ? "tabs.events.hangoutName" : "tabs.events.eventName")}
         </Text>
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder={t(planMode ? "tabs.events.hangoutName" : "tabs.events.eventName")}
+          placeholder={t(isHangout ? "tabs.events.hangoutName" : "tabs.events.eventName")}
           placeholderTextColor={colors.mutedForeground}
           maxLength={120}
           style={[
@@ -440,7 +444,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
             { color: colors.text, backgroundColor: colors.card, borderColor: colors.border },
           ]}
         />
-        {planMode ? (
+        {isHangout ? (
           <>
             <Text style={[styles.label, { color: colors.text }]}>
               {t("tabs.events.hangoutCoverPhotoOptional")}
@@ -509,15 +513,15 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
             <Feather name="users" size={18} color={colors.primary} />
             <View style={styles.planIntroCopy}>
               <Text style={[styles.planIntroTitle, { color: colors.text }]}>
-                {t("tabs.events.quickPlanHint")}
+                {t(isHangout ? "tabs.events.quickPlanHint" : "tabs.events.friendPlanTitle")}
               </Text>
               <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-                {t("tabs.events.joinApprovalHint")}
+                {t(isHangout ? "tabs.events.joinApprovalHint" : "tabs.events.friendPlanHint")}
               </Text>
             </View>
           </View>
         ) : null}
-        {explorerStatus.data?.isVerifiedExplorer ? (
+        {isHangout && explorerStatus.data?.isVerifiedExplorer ? (
           <View
             style={[
               styles.inviteLinkCard,
@@ -647,12 +651,12 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
           </>
         ) : null}
         <Text style={[styles.label, { color: colors.text }]}>
-          {t(planMode ? "tabs.events.hangoutDescription" : "tabs.events.details")}
+          {t(isHangout ? "tabs.events.hangoutDescription" : "tabs.events.details")}
         </Text>
         <TextInput
           value={description}
           onChangeText={setDescription}
-          placeholder={t(planMode ? "tabs.events.hangoutDescription" : "tabs.events.details")}
+          placeholder={t(isHangout ? "tabs.events.hangoutDescription" : "tabs.events.details")}
           placeholderTextColor={colors.mutedForeground}
           multiline
           maxLength={2000}
@@ -673,7 +677,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
           }}
           onFocus={() => void captureLocationForNearbySuggestions()}
           placeholder={t(
-            planMode
+            isHangout
               ? "tabs.events.planLocationSearchHint"
               : "tabs.events.locationSearchHint",
           )}
@@ -746,7 +750,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
         ) : (
           <Text style={[styles.helper, { color: colors.mutedForeground }]}>
             {t(
-              planMode
+              isHangout
                 ? "tabs.events.planPlaceSelectionRequired"
                 : "tabs.events.locationSearchHelper",
             )}
@@ -758,55 +762,16 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
           mode="datetime"
           value={startsAt}
           onChange={setStartsAt}
-          timePickerPresentation={planMode ? "wheels" : "sheet"}
+          timePickerPresentation={isHangout ? "wheels" : "sheet"}
           primaryColor={colors.primary}
           labelColor={colors.mutedForeground}
           rowBg={colors.card}
           isDark={isDark}
         />
 
-        {!planMode ? (
+        {!isHangout ? (
           <>
-        <Text style={[styles.label, { color: colors.text }]}>
-          {t("tabs.events.visibility")}
-        </Text>
-        <View style={styles.visibilityRow}>
-          {(["public", "invite_only"] as const).map((value) => {
-            const selected = visibility === value;
-            return (
-              <Pressable
-                key={value}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-                onPress={() => {
-                  setVisibility(value);
-                  if (value === "invite_only") setVerifiedExplorersOnly(false);
-                }}
-                style={[
-                  styles.visibilityOption,
-                  {
-                    borderColor: selected ? colors.primary : colors.border,
-                    backgroundColor: selected ? colors.primarySoft : colors.card,
-                  },
-                ]}
-              >
-                <Text style={[styles.visibilityTitle, { color: colors.text }]}>
-                  {value === "public"
-                    ? t("tabs.events.public")
-                    : t("tabs.events.inviteOnly")}
-                </Text>
-                <Text style={[styles.visibilityText, { color: colors.mutedForeground }]}>
-                  {value === "public"
-                    ? t("tabs.events.publicDescription")
-                    : t("tabs.events.invitedOnlyNotice")}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {visibility === "invite_only" ? (
-          <View style={styles.matchesSection}>
+            <View style={styles.matchesSection}>
             <Text style={[styles.label, { color: colors.text }]}>
               {t("tabs.events.inviteMatches")}
             </Text>
@@ -837,10 +802,8 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
                 );
               })
             )}
-          </View>
-        ) : null}
+            </View>
 
-        {visibility === "invite_only" ? (
           <View
             style={[
               styles.inviteLinkCard,
@@ -916,7 +879,6 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
               </View>
             ) : null}
           </View>
-        ) : null}
           </>
         ) : null}
 
@@ -941,7 +903,7 @@ export default function CommunityEventForm({ mode, initial, planMode = false }: 
               {isEditing
                 ? t("tabs.events.saveChanges")
                 : planMode
-                  ? t("tabs.events.createHangout")
+                  ? t(isHangout ? "tabs.events.createHangout" : "plans.make")
                   : t("tabs.events.submit")}
             </Text>
           )}

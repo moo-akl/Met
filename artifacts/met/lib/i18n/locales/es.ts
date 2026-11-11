@@ -52,6 +52,7 @@ export const es: LocaleTree = {
     sending: "Enviando…",
   },
   plans: {
+    friendOnlyIntro: "Los planes son para conexiones invitadas. Comparte un enlace privado desde cualquier app para invitar a amigos que aún no usan Met; las quedadas públicas están en Quedadas.",
     pastHangoutsTitle: "Hangouts anteriores",
     pastHangoutsEmpty: "Aquí aparecerán las quedadas terminadas que aún puedes valorar.",
     rateHost: "Valorar anfitrión",
@@ -114,6 +115,12 @@ export const es: LocaleTree = {
     connections: "Conexiones",
     networks: "Eventos",
     events: {
+      friendPlanTitle: "Plan solo para amigos",
+      friendPlanHint: "Invita a tus conexiones o crea un enlace privado para compartirlo en cualquier app. Solo las personas invitadas podrán abrir el plan.",
+      friendPlanInviteRequired: "Invita a una conexión o activa un enlace privado para compartir.",
+      friendPlanBadge: "Plan solo para amigos",
+      viewOrganizerProfile: "Ver el perfil del organizador {{name}}",
+      venueOnlySubtitle: "Eventos organizados por locales. Usa Planes para tus amigos y Quedadas para encuentros públicos.",
       title: "Eventos",
       pastMeetings: "Encuentros pasados",
       pastMeetingsEmpty: "Aquí aparecerán los encuentros que organizaste o a los que asististe.",

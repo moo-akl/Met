@@ -52,6 +52,7 @@ export const zh: LocaleTree = {
     sending: "发送中…",
   },
   plans: {
+    friendOnlyIntro: "计划仅对受邀好友开放。可通过任意应用分享私人邀请链接，邀请尚未使用 Met 的朋友；公开聚会请查看“聚会”。",
     pastHangoutsTitle: "往期聚会",
     pastHangoutsEmpty: "仍可评价的已结束聚会会显示在这里。",
     rateHost: "评价主办人",
@@ -114,6 +115,12 @@ export const zh: LocaleTree = {
     connections: "联系人",
     networks: "活动",
     events: {
+      friendPlanTitle: "仅好友可见的计划",
+      friendPlanHint: "邀请你的连接，或创建私人链接并通过任意应用分享。只有受邀者才能打开计划。",
+      friendPlanInviteRequired: "请邀请一位连接，或启用私人分享链接。",
+      friendPlanBadge: "仅好友可见",
+      viewOrganizerProfile: "查看组织者 {{name}} 的个人资料",
+      venueOnlySubtitle: "此处仅显示场所举办的活动。好友计划在“计划”中，公开聚会在“聚会”中。",
       title: "活动",
       pastMeetings: "往期会面",
       pastMeetingsEmpty: "你组织或参加过的会面会显示在这里。",

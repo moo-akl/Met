@@ -131,7 +131,7 @@ export function HomePlanDiscovery() {
           accessibilityRole="button"
           accessibilityLabel={t("tabs.events.createHangout")}
           testID="home-create-hangout"
-          onPress={() => router.push({ pathname: "/event-create", params: { mode: "plan" } } as never)}
+          onPress={() => router.push({ pathname: "/event-create", params: { mode: "hangout" } } as never)}
           style={({ pressed }) => [styles.create, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
         >
           <View style={[styles.createIcon, { backgroundColor: colors.primarySoft }]}>

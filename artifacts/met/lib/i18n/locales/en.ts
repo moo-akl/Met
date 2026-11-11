@@ -52,6 +52,7 @@ export const en = {
   },
 
   plans: {
+    friendOnlyIntro: "Plans are for invited connections. Share a private link in any app to invite friends outside Met; public meetups are in Hangouts.",
     pastHangoutsTitle: "Past Hangouts",
     pastHangoutsEmpty: "Completed Hangouts you can still rate will appear here.",
     rateHost: "Rate host",
@@ -116,6 +117,12 @@ export const en = {
     connections: "Connections",
     networks: "Events",
     events: {
+      friendPlanTitle: "Friends-only plan",
+      friendPlanHint: "Invite connections or create a private link to share in any app. Only invited people can open the plan.",
+      friendPlanInviteRequired: "Invite a connection or enable a private share link.",
+      friendPlanBadge: "Friends-only plan",
+      viewOrganizerProfile: "View organizer profile for {{name}}",
+      venueOnlySubtitle: "Venue-hosted events only. Use Plans for friends and Hangouts for public meetups.",
       title: "Events",
       pastMeetings: "Past Meetings",
       pastMeetingsEmpty: "Meetings you’ve hosted or joined will appear here.",

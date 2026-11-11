@@ -231,7 +231,12 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .send({
         title: "Attendee response contract",
         startsAt: "2030-06-01T12:00:00.000Z",
+        location: "Lumphini Park",
+        locationPlaceId: "attendee-response-place",
+        latitude: 13.7563,
+        longitude: 100.5018,
         visibility: "public",
+        joinApprovalRequired: true,
         inviteeUids: [],
       })
       .expect(201);
@@ -581,6 +586,27 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
         .where(inArray(profilesTable.uid, [OWNER_UID, OTHER_UID, INVITEE_UID]));
       mockSendPushWithStatus.mockClear();
     }
+  });
+
+  it("rejects public member events that are not public join-request hangouts", async () => {
+    await request(app)
+      .post("/api/events")
+      .set(uidHeader(OWNER_UID))
+      .send({
+        title: "Public member event should be rejected",
+        startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+        location: "Lumphini Park",
+        locationPlaceId: "public-member-event-rejected",
+        latitude: 13.7563,
+        longitude: 100.5018,
+        visibility: "public",
+        joinApprovalRequired: false,
+        inviteeUids: [],
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toContain("Plans are for invited friends");
+      });
   });
 
   it("sends only one host alert for simultaneous requests from the same member", async () => {
@@ -1200,7 +1226,12 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       title: "Open community gathering",
       description: "A public event for sharing",
       startsAt: "2030-06-02T12:00:00.000Z",
+      location: "Lumphini Park",
+      locationPlaceId: "public-community-gathering-place",
+      latitude: 13.7563,
+      longitude: 100.5018,
       visibility: "public",
+      joinApprovalRequired: true,
       inviteeUids: [],
     };
     const created = await request(app)
@@ -1413,8 +1444,8 @@ describe.runIf(hasDatabase)("community event permissions and privacy", () => {
       .send({
         title: "Coffee with friends",
         startsAt: new Date(Date.now() + 2 * 86_400_000).toISOString(),
-        visibility: "public",
-        inviteeUids: [],
+        visibility: "invite_only",
+        inviteeUids: [INVITEE_UID],
       })
       .expect(201);
     const secondEventId = secondPlanCreated.body.id as number;

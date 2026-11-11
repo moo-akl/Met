@@ -52,6 +52,7 @@ export const nl: LocaleTree = {
     sending: "Verzenden…",
   },
   plans: {
+    friendOnlyIntro: "Plannen zijn voor uitgenodigde connecties. Deel een privékoppeling via elke app om vrienden buiten Met uit te nodigen; openbare ontmoetingen staan bij Hangouts.",
     pastHangoutsTitle: "Afgelopen hangouts",
     pastHangoutsEmpty: "Afgeronde hangouts die je nog kunt beoordelen verschijnen hier.",
     rateHost: "Host beoordelen",
@@ -114,6 +115,12 @@ export const nl: LocaleTree = {
     connections: "Connecties",
     networks: "Evenementen",
     events: {
+      friendPlanTitle: "Plan alleen voor vrienden",
+      friendPlanHint: "Nodig connecties uit of maak een privékoppeling om via elke app te delen. Alleen uitgenodigde mensen kunnen het plan openen.",
+      friendPlanInviteRequired: "Nodig een connectie uit of schakel een privékoppeling in.",
+      friendPlanBadge: "Plan alleen voor vrienden",
+      viewOrganizerProfile: "Profiel van organisator {{name}} bekijken",
+      venueOnlySubtitle: "Evenementen worden door locaties georganiseerd. Gebruik Plannen voor vrienden en Hangouts voor openbare ontmoetingen.",
       title: "Evenementen",
       pastMeetings: "Eerdere ontmoetingen",
       pastMeetingsEmpty: "De ontmoetingen die je organiseerde of bijwoonde verschijnen hier.",

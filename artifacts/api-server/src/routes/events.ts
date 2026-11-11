@@ -482,7 +482,10 @@ router.get("/events/feed", requireUid, async (req, res) => {
           viewerIsExplorer ? undefined : eq(communityEventsTable.verifiedExplorersOnly, false),
           communityEventWindow,
           or(
-            eq(communityEventsTable.visibility, "public"),
+            and(
+              eq(communityEventsTable.visibility, "public"),
+              eq(communityEventsTable.joinApprovalRequired, true),
+            ),
             eq(communityEventsTable.ownerUid, uid),
             arrayContains(communityEventsTable.inviteeUids, [uid]),
             exists(
@@ -646,6 +649,12 @@ router.post("/events", requireUid, eventWriteLimit, async (req, res) => {
   const joinApprovalRequired = parsed.data.joinApprovalRequired === true;
   if (joinApprovalRequired && parsed.data.visibility !== "public") {
     res.status(400).json({ message: "Join requests require a public hangout plan." });
+    return;
+  }
+  if (!joinApprovalRequired && parsed.data.visibility !== "invite_only") {
+    res.status(400).json({
+      message: "Plans are for invited friends. Public events are hosted by venues; use a Hangout for public meetups.",
+    });
     return;
   }
   if (joinApprovalRequired && !parsed.data.location?.trim()) {
@@ -904,7 +913,10 @@ router.get("/events/:eventType/:eventId", requireUid, async (req, res): Promise<
           eq(communityEventsTable.isHidden, false),
           viewerIsExplorer ? undefined : eq(communityEventsTable.verifiedExplorersOnly, false),
           or(
-            eq(communityEventsTable.visibility, "public"),
+            and(
+              eq(communityEventsTable.visibility, "public"),
+              eq(communityEventsTable.joinApprovalRequired, true),
+            ),
             eq(communityEventsTable.ownerUid, uid),
             arrayContains(communityEventsTable.inviteeUids, [uid]),
             exists(
@@ -2132,6 +2144,12 @@ router.put(
       res.status(400).json({ message: "Hangout plans must remain public." });
       return;
     }
+    if (!existing.joinApprovalRequired && parsed.data.visibility !== "invite_only") {
+      res.status(400).json({
+        message: "Plans are for invited friends. Public events are hosted by venues; use a Hangout for public meetups.",
+      });
+      return;
+    }
     const nextLocation = parsed.data.location?.trim() || null;
     const nextLocationPlaceId = parsed.data.locationPlaceId ?? null;
     const nextLatitude = parsed.data.latitude ?? null;
@@ -2923,7 +2941,9 @@ async function attendeeCanAccessEvent(
   if (ownerUid === uid || inviteeUids.includes(uid)) {
     return true;
   }
-  if (visibility === "public" && !joinApprovalRequired) return true;
+  if (visibility === "public" && (eventType === "venue" || joinApprovalRequired)) {
+    return true;
+  }
   const rsvps = eventType === "venue" ? venueEventRsvpsTable : communityEventRsvpsTable;
   const [rsvp] = await db
     .select({ id: rsvps.id })

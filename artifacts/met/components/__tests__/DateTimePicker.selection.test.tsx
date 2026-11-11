@@ -144,7 +144,7 @@ describe("DateTimePicker platform behavior", () => {
     let root!: renderer.ReactTestRenderer;
     act(() => {
       root = renderer.create(
-        <CommunityEventForm mode="create" planMode />,
+        <CommunityEventForm mode="create" planKind="hangout" />,
       );
     });
 
@@ -267,6 +267,15 @@ describe("DateTimePicker platform behavior", () => {
       hour: "2-digit",
       minute: "2-digit",
     }));
+
+    const shareInviteLinkToggle = root.root.find(
+      (node) =>
+        node.props.accessibilityRole === "checkbox" &&
+        typeof node.props.onPress === "function",
+    );
+    await act(async () => {
+      shareInviteLinkToggle.props.onPress();
+    });
 
     await act(async () => {
       const submit = root.root.findAll(

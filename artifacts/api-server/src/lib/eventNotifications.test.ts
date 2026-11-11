@@ -254,6 +254,36 @@ describe.runIf(hasDatabase)("completed Hangout rating prompts", () => {
       .toEqual(expect.arrayContaining(["accepted", "declined"]));
   });
 
+  it("keeps join requests in the inbox when push delivery succeeds", async () => {
+    const eventId = 909_091;
+    pushMock.send.mockClear();
+    pushMock.send.mockResolvedValue({ sent: true });
+
+    await notifyCommunityEventJoinRequest({
+      eventId,
+      hostUid,
+      requesterUid: acceptedUid,
+    });
+
+    const inboxRows = await db
+      .select({ data: notificationInboxTable.data })
+      .from(notificationInboxTable)
+      .where(inArray(notificationInboxTable.uid, [hostUid]));
+    expect(inboxRows.some((row) =>
+      row.data.type === "hangout_join_request" &&
+      row.data.eventId === String(eventId),
+    )).toBe(true);
+    expect(pushMock.send).toHaveBeenCalledWith(
+      `ExponentPushToken[${prefix}-host]`,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "hangout_join_request",
+          eventId: String(eventId),
+        }),
+      }),
+    );
+  });
+
   it("localizes join, decision, update, and cancellation notifications per recipient", async () => {
     const eventId = eventIds[0]!;
 
